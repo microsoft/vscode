@@ -4,26 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
-import { MainContext, MainThreadClipboardShape } from '../common/extHost.protocol.js';
+import {
+  MainContext,
+  MainThreadClipboardShape,
+} from '../common/extHost.protocol.js';
 import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
 
 @extHostNamedCustomer(MainContext.MainThreadClipboard)
 export class MainThreadClipboard implements MainThreadClipboardShape {
+  constructor(
+    _context: any,
+    @IClipboardService private readonly _clipboardService: IClipboardService
+  ) {}
 
-	constructor(
-		_context: any,
-		@IClipboardService private readonly _clipboardService: IClipboardService,
-	) { }
+  dispose(): void {
+    // nothing
+  }
 
-	dispose(): void {
-		// nothing
-	}
+  $readText(): Promise<string> {
+    return this._clipboardService.readText();
+  }
 
-	$readText(): Promise<string> {
-		return this._clipboardService.readText();
-	}
-
-	$writeText(value: string): Promise<void> {
-		return this._clipboardService.writeText(value);
-	}
+  $writeText(value: string): Promise<void> {
+    return this._clipboardService.writeText(value);
+  }
 }

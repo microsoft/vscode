@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-toolbar {
-	height: 100%;
+  height: 100%;
 }
 
 .monaco-toolbar .toolbar-toggle-more {
-	display: inline-block;
-	padding: 0;
+  display: inline-block;
+  padding: 0;
 }

@@ -14,62 +14,80 @@ const azure = require('gulp-azure-storage');
 
 const root = path.dirname(path.dirname(__dirname));
 const commit = process.env['BUILD_SOURCEVERSION'];
-const credential = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));
+const credential = new ClientAssertionCredential(
+  process.env['AZURE_TENANT_ID']!,
+  process.env['AZURE_CLIENT_ID']!,
+  () => Promise.resolve(process.env['AZURE_ID_TOKEN']!)
+);
 
 // optionally allow to pass in explicit base/maps to upload
 const [, , base, maps] = process.argv;
 
 function src(base: string, maps = `${base}/**/*.map`) {
-	return vfs.src(maps, { base })
-		.pipe(es.mapSync((f: Vinyl) => {
-			f.path = `${f.base}/core/${f.relative}`;
-			return f;
-		}));
+  return vfs.src(maps, { base }).pipe(
+    es.mapSync((f: Vinyl) => {
+      f.path = `${f.base}/core/${f.relative}`;
+      return f;
+    })
+  );
 }
 
 function main(): Promise<void> {
-	const sources: any[] = [];
+  const sources: any[] = [];
 
-	// vscode client maps (default)
-	if (!base) {
-		const vs = src('out-vscode-min'); // client source-maps only
-		sources.push(vs);
+  // vscode client maps (default)
+  if (!base) {
+    const vs = src('out-vscode-min'); // client source-maps only
+    sources.push(vs);
 
-		const productionDependencies = getProductionDependencies(root);
-		const productionDependenciesSrc = productionDependencies.map((d: string) => path.relative(root, d)).map((d: string) => `./${d}/**/*.map`);
-		const nodeModules = vfs.src(productionDependenciesSrc, { base: '.' })
-			.pipe(util.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
-			.pipe(util.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`)));
-		sources.push(nodeModules);
+    const productionDependencies = getProductionDependencies(root);
+    const productionDependenciesSrc = productionDependencies
+      .map((d: string) => path.relative(root, d))
+      .map((d: string) => `./${d}/**/*.map`);
+    const nodeModules = vfs
+      .src(productionDependenciesSrc, { base: '.' })
+      .pipe(util.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
+      .pipe(
+        util.cleanNodeModules(
+          path.join(root, 'build', `.moduleignore.${process.platform}`)
+        )
+      );
+    sources.push(nodeModules);
 
-		const extensionsOut = vfs.src(['.build/extensions/**/*.js.map', '!**/node_modules/**'], { base: '.build' });
-		sources.push(extensionsOut);
-	}
+    const extensionsOut = vfs.src(
+      ['.build/extensions/**/*.js.map', '!**/node_modules/**'],
+      { base: '.build' }
+    );
+    sources.push(extensionsOut);
+  }
 
-	// specific client base/maps
-	else {
-		sources.push(src(base, maps));
-	}
+  // specific client base/maps
+  else {
+    sources.push(src(base, maps));
+  }
 
-	return new Promise((c, e) => {
-		es.merge(...sources)
-			.pipe(es.through(function (data: Vinyl) {
-				console.log('Uploading Sourcemap', data.relative); // debug
-				this.emit('data', data);
-			}))
-			.pipe(azure.upload({
-				account: process.env.AZURE_STORAGE_ACCOUNT,
-				credential,
-				container: '$web',
-				prefix: `sourcemaps/${commit}/`
-			}))
-			.on('end', () => c())
-			.on('error', (err: any) => e(err));
-	});
+  return new Promise((c, e) => {
+    es.merge(...sources)
+      .pipe(
+        es.through(function (data: Vinyl) {
+          console.log('Uploading Sourcemap', data.relative); // debug
+          this.emit('data', data);
+        })
+      )
+      .pipe(
+        azure.upload({
+          account: process.env.AZURE_STORAGE_ACCOUNT,
+          credential,
+          container: '$web',
+          prefix: `sourcemaps/${commit}/`,
+        })
+      )
+      .on('end', () => c())
+      .on('error', (err: any) => e(err));
+  });
 }
 
-main().catch(err => {
-	console.error(err);
-	process.exit(1);
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
 });
-

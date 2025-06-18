@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .inputarea {
-	min-width: 0;
-	min-height: 0;
-	margin: 0;
-	padding: 0;
-	position: absolute;
-	outline: none !important;
-	resize: none;
-	border: none;
-	overflow: hidden;
-	color: transparent;
-	background-color: transparent;
-	z-index: -10;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  position: absolute;
+  outline: none !important;
+  resize: none;
+  border: none;
+  overflow: hidden;
+  color: transparent;
+  background-color: transparent;
+  z-index: -10;
 }
 /*.monaco-editor .inputarea {
 	position: fixed !important;
@@ -32,7 +32,7 @@
 	z-index: 10 !important;
 }*/
 .monaco-editor .inputarea.ime-input {
-	z-index: 10;
-	caret-color: var(--vscode-editorCursor-foreground);
-	color: var(--vscode-editor-foreground);
+  z-index: 10;
+  caret-color: var(--vscode-editorCursor-foreground);
+  color: var(--vscode-editor-foreground);
 }

@@ -15,35 +15,38 @@ import { isElectron, isMacintosh, isWindows } from '../common/platform.js';
  *
  * Note: this currently does not adjust for different locales.
  */
-export const DEFAULT_FONT_FAMILY = isWindows ? '"Segoe WPC", "Segoe UI", sans-serif' : isMacintosh ? '-apple-system, BlinkMacSystemFont, sans-serif' : 'system-ui, "Ubuntu", "Droid Sans", sans-serif';
+export const DEFAULT_FONT_FAMILY = isWindows
+  ? '"Segoe WPC", "Segoe UI", sans-serif'
+  : isMacintosh
+    ? '-apple-system, BlinkMacSystemFont, sans-serif'
+    : 'system-ui, "Ubuntu", "Droid Sans", sans-serif';
 
 interface FontData {
-	readonly family: string;
+  readonly family: string;
 }
 
 export const getFonts = async (): Promise<string[]> => {
-	try {
-		// @ts-ignore
-		const fonts = await mainWindow.queryLocalFonts() as FontData[];
-		const fontsArray = [...fonts];
-		const families = fontsArray.map(font => font.family);
-		return families;
-	} catch (error) {
-		console.error(`Failed to query fonts: ${error}`);
-		return [];
-	}
+  try {
+    // @ts-ignore
+    const fonts = (await mainWindow.queryLocalFonts()) as FontData[];
+    const fontsArray = [...fonts];
+    const families = fontsArray.map((font) => font.family);
+    return families;
+  } catch (error) {
+    console.error(`Failed to query fonts: ${error}`);
+    return [];
+  }
 };
 
-
 export const getFontSnippets = async (): Promise<IJSONSchemaSnippet[]> => {
-	if (!isElectron) {
-		return [];
-	}
-	const fonts = await getFonts();
-	const snippets: IJSONSchemaSnippet[] = fonts.map(font => {
-		return {
-			body: `${font}`
-		};
-	});
-	return snippets;
+  if (!isElectron) {
+    return [];
+  }
+  const fonts = await getFonts();
+  const snippets: IJSONSchemaSnippet[] = fonts.map((font) => {
+    return {
+      body: `${font}`,
+    };
+  });
+  return snippets;
 };

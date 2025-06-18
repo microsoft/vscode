@@ -11,25 +11,25 @@ import { CharCode } from '../../../base/common/charCode.js';
  *  - otherwise => the indent level is returned value
  */
 export function computeIndentLevel(line: string, tabSize: number): number {
-	let indent = 0;
-	let i = 0;
-	const len = line.length;
+  let indent = 0;
+  let i = 0;
+  const len = line.length;
 
-	while (i < len) {
-		const chCode = line.charCodeAt(i);
-		if (chCode === CharCode.Space) {
-			indent++;
-		} else if (chCode === CharCode.Tab) {
-			indent = indent - indent % tabSize + tabSize;
-		} else {
-			break;
-		}
-		i++;
-	}
+  while (i < len) {
+    const chCode = line.charCodeAt(i);
+    if (chCode === CharCode.Space) {
+      indent++;
+    } else if (chCode === CharCode.Tab) {
+      indent = indent - (indent % tabSize) + tabSize;
+    } else {
+      break;
+    }
+    i++;
+  }
 
-	if (i === len) {
-		return -1; // line only consists of whitespace
-	}
+  if (i === len) {
+    return -1; // line only consists of whitespace
+  }
 
-	return indent;
+  return indent;
 }

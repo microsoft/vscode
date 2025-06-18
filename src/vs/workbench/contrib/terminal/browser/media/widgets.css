@@ -4,42 +4,42 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .terminal-widget-container {
-	position: absolute;
-	left: 0;
-	bottom: 0;
-	right: 0;
-	top: 0;
-	overflow: visible;
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  top: 0;
+  overflow: visible;
 }
 
 .monaco-workbench .terminal-overlay-widget {
-	position: absolute;
-	left: 0;
-	bottom: 0;
-	color: #3794ff;
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  color: #3794ff;
 }
 
 .monaco-workbench .terminal-hover-target {
-	position: absolute;
-	z-index: 33;
+  position: absolute;
+  z-index: 33;
 }
 
 .monaco-workbench .terminal-env-var-info {
-	position: absolute;
-	right: 10px; /* room for scroll bar */
-	top: 0;
-	width: 28px;
-	height: 28px;
-	text-align: center;
-	z-index: 32;
-	opacity: 0.5;
+  position: absolute;
+  right: 10px; /* room for scroll bar */
+  top: 0;
+  width: 28px;
+  height: 28px;
+  text-align: center;
+  z-index: 32;
+  opacity: 0.5;
 }
 
 .monaco-workbench .terminal-env-var-info:hover,
 .monaco-workbench .terminal-env-var-info.requires-action {
-	opacity: 1;
+  opacity: 1;
 }
 
 .monaco-workbench .terminal-env-var-info.codicon {
-	line-height: 28px;
+  line-height: 28px;
 }

@@ -15,44 +15,49 @@ import { randomBoolean } from '../../../../../../../../../base/test/common/testU
  *         is equal to `NaN` or is `infinite`.
  */
 export function randomRange(maxNumber: number = 1_000): Range {
-	assert(
-		maxNumber > 1,
-		`Max number must be greater than 1, got '${maxNumber}'.`,
-	);
+  assert(
+    maxNumber > 1,
+    `Max number must be greater than 1, got '${maxNumber}'.`
+  );
 
-	const startLineNumber = randomInt(maxNumber, 1);
-	const endLineNumber = (randomBoolean() === true)
-		? startLineNumber
-		: randomInt(2 * maxNumber, startLineNumber);
+  const startLineNumber = randomInt(maxNumber, 1);
+  const endLineNumber =
+    randomBoolean() === true
+      ? startLineNumber
+      : randomInt(2 * maxNumber, startLineNumber);
 
-	const startColumnNumber = randomInt(maxNumber, 1);
-	const endColumnNumber = (randomBoolean() === true)
-		? startColumnNumber + 1
-		: randomInt(2 * maxNumber, startColumnNumber + 1);
+  const startColumnNumber = randomInt(maxNumber, 1);
+  const endColumnNumber =
+    randomBoolean() === true
+      ? startColumnNumber + 1
+      : randomInt(2 * maxNumber, startColumnNumber + 1);
 
-	return new Range(
-		startLineNumber,
-		startColumnNumber,
-		endLineNumber,
-		endColumnNumber,
-	);
+  return new Range(
+    startLineNumber,
+    startColumnNumber,
+    endLineNumber,
+    endColumnNumber
+  );
 }
 
 /**
  * Generates a random {@link Range} object that is different
  * from the provided one.
  */
-export function randomRangeNotEqualTo(differentFrom: Range, maxTries: number = 10): Range {
-	let retriesLeft = maxTries;
+export function randomRangeNotEqualTo(
+  differentFrom: Range,
+  maxTries: number = 10
+): Range {
+  let retriesLeft = maxTries;
 
-	while (retriesLeft-- > 0) {
-		const range = randomRange();
-		if (range.equalsRange(differentFrom) === false) {
-			return range;
-		}
-	}
+  while (retriesLeft-- > 0) {
+    const range = randomRange();
+    if (range.equalsRange(differentFrom) === false) {
+      return range;
+    }
+  }
 
-	throw new Error(
-		`Failed to generate a random range different from '${differentFrom}' in ${maxTries} tries.`,
-	);
+  throw new Error(
+    `Failed to generate a random range different from '${differentFrom}' in ${maxTries} tries.`
+  );
 }

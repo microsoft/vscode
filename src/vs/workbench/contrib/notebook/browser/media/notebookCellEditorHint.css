@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .notebookOverlay .monaco-editor .contentWidgets .empty-editor-hint {
-	cursor: auto;
+.monaco-workbench
+  .notebookOverlay
+  .monaco-editor
+  .contentWidgets
+  .empty-editor-hint {
+  cursor: auto;
 }

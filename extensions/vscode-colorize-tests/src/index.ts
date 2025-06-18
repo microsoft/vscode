@@ -9,20 +9,23 @@ import * as testRunner from '../../../test/integration/electron/testrunner';
 const suite = 'Integration Colorize Tests';
 
 const options: import('mocha').MochaOptions = {
-	ui: 'tdd',
-	color: true,
-	timeout: 60000
+  ui: 'tdd',
+  color: true,
+  timeout: 60000,
 };
 
 if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
-	options.reporter = 'mocha-multi-reporters';
-	options.reporterOptions = {
-		reporterEnabled: 'spec, mocha-junit-reporter',
-		mochaJunitReporterReporterOptions: {
-			testsuitesTitle: `${suite} ${process.platform}`,
-			mochaFile: path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${suite.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`)
-		}
-	};
+  options.reporter = 'mocha-multi-reporters';
+  options.reporterOptions = {
+    reporterEnabled: 'spec, mocha-junit-reporter',
+    mochaJunitReporterReporterOptions: {
+      testsuitesTitle: `${suite} ${process.platform}`,
+      mochaFile: path.join(
+        process.env.BUILD_ARTIFACTSTAGINGDIRECTORY,
+        `test-results/${process.platform}-${process.arch}-${suite.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`
+      ),
+    },
+  };
 }
 
 testRunner.configure(options);

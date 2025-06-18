@@ -8,27 +8,35 @@ import { promisify } from 'util';
 import * as treekill from 'tree-kill';
 import { Logger } from './logger';
 
-export async function teardown(p: ChildProcess, logger: Logger, retryCount = 3): Promise<void> {
-	const pid = p.pid;
-	if (typeof pid !== 'number') {
-		return;
-	}
+export async function teardown(
+  p: ChildProcess,
+  logger: Logger,
+  retryCount = 3
+): Promise<void> {
+  const pid = p.pid;
+  if (typeof pid !== 'number') {
+    return;
+  }
 
-	let retries = 0;
-	while (retries < retryCount) {
-		retries++;
+  let retries = 0;
+  while (retries < retryCount) {
+    retries++;
 
-		try {
-			return await promisify(treekill)(pid);
-		} catch (error) {
-			try {
-				process.kill(pid, 0); // throws an exception if the process doesn't exist anymore
-				logger.log(`Error tearing down process (pid: ${pid}, attempt: ${retries}): ${error}`);
-			} catch (error) {
-				return; // Expected when process is gone
-			}
-		}
-	}
+    try {
+      return await promisify(treekill)(pid);
+    } catch (error) {
+      try {
+        process.kill(pid, 0); // throws an exception if the process doesn't exist anymore
+        logger.log(
+          `Error tearing down process (pid: ${pid}, attempt: ${retries}): ${error}`
+        );
+      } catch (error) {
+        return; // Expected when process is gone
+      }
+    }
+  }
 
-	logger.log(`Gave up tearing down process client after ${retries} attempts...`);
+  logger.log(
+    `Gave up tearing down process client after ${retries} attempts...`
+  );
 }

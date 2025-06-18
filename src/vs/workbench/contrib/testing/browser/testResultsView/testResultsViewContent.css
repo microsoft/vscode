@@ -4,19 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .test-output-peek .test-output-peek-tree {
-	background-color: var(--vscode-peekViewResult-background);
-	color: var(--vscode-peekViewResult-lineForeground);
+  background-color: var(--vscode-peekViewResult-background);
+  color: var(--vscode-peekViewResult-lineForeground);
 }
 
-.monaco-editor .test-output-peek .test-output-peek-tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) {
-	background-color: var(--vscode-peekViewResult-selectionBackground);
-	color: var(--vscode-peekViewResult-selectionForeground) !important;
+.monaco-editor
+  .test-output-peek
+  .test-output-peek-tree
+  .monaco-list:focus
+  .monaco-list-rows
+  > .monaco-list-row.selected:not(.highlighted) {
+  background-color: var(--vscode-peekViewResult-selectionBackground);
+  color: var(--vscode-peekViewResult-selectionForeground) !important;
 }
 
 .test-output-peek-message-container a {
-	color: var(--vscode-textLink-foreground);
+  color: var(--vscode-textLink-foreground);
 }
 
 .test-output-peek-message-container a :hover {
-	color: var(--vscode-textLink-activeForeground);
+  color: var(--vscode-textLink-activeForeground);
 }

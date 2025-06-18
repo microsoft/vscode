@@ -7,16 +7,19 @@ import { InstallExtensionSummary } from '../../extensionManagement/common/extens
 import { IExtensionDescription } from '../../extensions/common/extensions.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
-export const IRemoteExtensionsScannerService = createDecorator<IRemoteExtensionsScannerService>('IRemoteExtensionsScannerService');
+export const IRemoteExtensionsScannerService =
+  createDecorator<IRemoteExtensionsScannerService>(
+    'IRemoteExtensionsScannerService'
+  );
 
 export const RemoteExtensionsScannerChannelName = 'remoteExtensionsScanner';
 
 export interface IRemoteExtensionsScannerService {
-	readonly _serviceBrand: undefined;
+  readonly _serviceBrand: undefined;
 
-	/**
-	 * Returns a promise that resolves to an array of extension identifiers that failed to install
-	 */
-	whenExtensionsReady(): Promise<InstallExtensionSummary>;
-	scanExtensions(): Promise<IExtensionDescription[]>;
+  /**
+   * Returns a promise that resolves to an array of extension identifiers that failed to install
+   */
+  whenExtensionsReady(): Promise<InstallExtensionSummary>;
+  scanExtensions(): Promise<IExtensionDescription[]>;
 }

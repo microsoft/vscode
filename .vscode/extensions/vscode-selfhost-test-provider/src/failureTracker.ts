@@ -33,7 +33,10 @@ export class FailureTracker {
 	private readonly logFile: string;
 	private logs?: ITrackedRemediation[];
 
-	constructor(storageLocation: string, private readonly rootDir: string) {
+	constructor(
+		storageLocation: string,
+		private readonly rootDir: string,
+	) {
 		this.logFile = join(storageLocation, '.build/vscode-test-failures.json');
 		mkdirSync(dirname(this.logFile), { recursive: true });
 
@@ -50,7 +53,7 @@ export class FailureTracker {
 			vscode.commands.registerCommand('selfhost-test-provider.openFailureLog', async () => {
 				const doc = await vscode.workspace.openTextDocument(this.logFile);
 				await vscode.window.showTextDocument(doc);
-			})
+			}),
 		);
 
 		this.disposables.push(
@@ -80,7 +83,7 @@ export class FailureTracker {
 								this.lastFailed.set(key, {
 									snapshot: { ...snapshot, parent: undefined },
 									failing: s,
-								})
+								}),
 							);
 						} else if (prev) {
 							this.lastFailed.delete(key);
@@ -88,7 +91,7 @@ export class FailureTracker {
 						}
 					}
 				}
-			})
+			}),
 		);
 	}
 
@@ -122,7 +125,7 @@ export class FailureTracker {
 						.split('\n')
 						.map(async f => {
 							mapping[f] = await readFile(join(this.rootDir, f), 'utf-8');
-						})
+						}),
 				);
 				return mapping;
 			}),
@@ -144,7 +147,7 @@ export class FailureTracker {
 			child.on('exit', code =>
 				code === 0
 					? resolve(output)
-					: reject(new Error(`Failed with error code ${code}\n${output}`))
+					: reject(new Error(`Failed with error code ${code}\n${output}`)),
 			);
 		});
 	}

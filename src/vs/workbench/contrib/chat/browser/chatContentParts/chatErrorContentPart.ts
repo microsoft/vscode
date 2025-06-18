@@ -15,54 +15,59 @@ import { IChatContentPart } from './chatContentParts.js';
 
 const $ = dom.$;
 
-export class ChatErrorContentPart extends Disposable implements IChatContentPart {
-	public readonly domNode: HTMLElement;
+export class ChatErrorContentPart
+  extends Disposable
+  implements IChatContentPart
+{
+  public readonly domNode: HTMLElement;
 
-	constructor(
-		kind: ChatErrorLevel,
-		content: IMarkdownString,
-		private readonly errorDetails: IChatRendererContent,
-		renderer: MarkdownRenderer,
-	) {
-		super();
+  constructor(
+    kind: ChatErrorLevel,
+    content: IMarkdownString,
+    private readonly errorDetails: IChatRendererContent,
+    renderer: MarkdownRenderer
+  ) {
+    super();
 
-		this.domNode = this._register(new ChatErrorWidget(kind, content, renderer)).domNode;
-	}
+    this.domNode = this._register(
+      new ChatErrorWidget(kind, content, renderer)
+    ).domNode;
+  }
 
-	hasSameContent(other: IChatRendererContent): boolean {
-		return other.kind === this.errorDetails.kind;
-	}
+  hasSameContent(other: IChatRendererContent): boolean {
+    return other.kind === this.errorDetails.kind;
+  }
 }
 
 export class ChatErrorWidget extends Disposable {
-	public readonly domNode: HTMLElement;
+  public readonly domNode: HTMLElement;
 
-	constructor(
-		kind: ChatErrorLevel,
-		content: IMarkdownString,
-		renderer: MarkdownRenderer,
-	) {
-		super();
+  constructor(
+    kind: ChatErrorLevel,
+    content: IMarkdownString,
+    renderer: MarkdownRenderer
+  ) {
+    super();
 
-		this.domNode = $('.chat-notification-widget');
-		let icon;
-		let iconClass;
-		switch (kind) {
-			case ChatErrorLevel.Warning:
-				icon = Codicon.warning;
-				iconClass = '.chat-warning-codicon';
-				break;
-			case ChatErrorLevel.Error:
-				icon = Codicon.error;
-				iconClass = '.chat-error-codicon';
-				break;
-			case ChatErrorLevel.Info:
-				icon = Codicon.info;
-				iconClass = '.chat-info-codicon';
-				break;
-		}
-		this.domNode.appendChild($(iconClass, undefined, renderIcon(icon)));
-		const markdownContent = this._register(renderer.render(content));
-		this.domNode.appendChild(markdownContent.element);
-	}
+    this.domNode = $('.chat-notification-widget');
+    let icon;
+    let iconClass;
+    switch (kind) {
+      case ChatErrorLevel.Warning:
+        icon = Codicon.warning;
+        iconClass = '.chat-warning-codicon';
+        break;
+      case ChatErrorLevel.Error:
+        icon = Codicon.error;
+        iconClass = '.chat-error-codicon';
+        break;
+      case ChatErrorLevel.Info:
+        icon = Codicon.info;
+        iconClass = '.chat-info-codicon';
+        break;
+    }
+    this.domNode.appendChild($(iconClass, undefined, renderIcon(icon)));
+    const markdownContent = this._register(renderer.render(content));
+    this.domNode.appendChild(markdownContent.element);
+  }
 }

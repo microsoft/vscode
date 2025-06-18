@@ -7,5 +7,5 @@
 import * as monaco from './out/vs/editor/editor.main.js';
 
 monaco.editor.create(document.getElementById('container'), {
-	value: 'Hello world'
+  value: 'Hello world',
 });

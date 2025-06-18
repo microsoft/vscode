@@ -11,24 +11,27 @@ import { PolicyDefinition, PolicyValue } from '../../policy/common/policy.js';
 import { UriComponents, UriDto } from '../../../base/common/uri.js';
 
 export interface ISharedProcessConfiguration {
-	readonly machineId: string;
+  readonly machineId: string;
 
-	readonly sqmId: string;
+  readonly sqmId: string;
 
-	readonly devDeviceId: string;
+  readonly devDeviceId: string;
 
-	readonly codeCachePath: string | undefined;
+  readonly codeCachePath: string | undefined;
 
-	readonly args: NativeParsedArgs;
+  readonly args: NativeParsedArgs;
 
-	readonly logLevel: LogLevel;
+  readonly logLevel: LogLevel;
 
-	readonly loggers: UriDto<ILoggerResource>[];
+  readonly loggers: UriDto<ILoggerResource>[];
 
-	readonly profiles: {
-		readonly home: UriComponents;
-		readonly all: readonly UriDto<IUserDataProfile>[];
-	};
+  readonly profiles: {
+    readonly home: UriComponents;
+    readonly all: readonly UriDto<IUserDataProfile>[];
+  };
 
-	readonly policiesData?: IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>;
+  readonly policiesData?: IStringDictionary<{
+    definition: PolicyDefinition;
+    value: PolicyValue;
+  }>;
 }

@@ -11,28 +11,27 @@ const withBrowserDefaults = require('../shared.webpack.config').browser;
 const path = require('path');
 
 const mainConfig = withBrowserDefaults({
-	context: __dirname,
-	entry: {
-		extension: './src/ipynbMain.browser.ts'
-	},
-	output: {
-		filename: 'ipynbMain.browser.js',
-		path: path.join(__dirname, 'dist', 'browser')
-	}
+  context: __dirname,
+  entry: {
+    extension: './src/ipynbMain.browser.ts',
+  },
+  output: {
+    filename: 'ipynbMain.browser.js',
+    path: path.join(__dirname, 'dist', 'browser'),
+  },
 });
 
-
 const workerConfig = withBrowserDefaults({
-	context: __dirname,
-	entry: {
-		notebookSerializerWorker: './src/notebookSerializerWorker.web.ts',
-	},
-	output: {
-		filename: 'notebookSerializerWorker.js',
-		path: path.join(__dirname, 'dist', 'browser'),
-		libraryTarget: 'var',
-		library: 'serverExportVar'
-	},
+  context: __dirname,
+  entry: {
+    notebookSerializerWorker: './src/notebookSerializerWorker.web.ts',
+  },
+  output: {
+    filename: 'notebookSerializerWorker.js',
+    path: path.join(__dirname, 'dist', 'browser'),
+    libraryTarget: 'var',
+    library: 'serverExportVar',
+  },
 });
 
 module.exports = [mainConfig, workerConfig];

@@ -11,7 +11,9 @@
   "scripts": {
     "update-grammar": "node ./build/update-grammar.js"
   },
-  "categories": ["Programming Languages"],
+  "categories": [
+    "Programming Languages"
+  ],
   "contributes": {
     "languages": [
       {
@@ -96,7 +98,7 @@
         "editor.autoIndent": "advanced",
         "diffEditor.ignoreTrimWhitespace": false,
         "editor.defaultColorDecorators": "never",
-        "editor.quickSuggestions": { 
+        "editor.quickSuggestions": {
           "strings": "on"
         }
       },

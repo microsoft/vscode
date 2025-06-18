@@ -5,60 +5,104 @@
 
 import { localize } from '../../../../nls.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import {
+  Extensions,
+  IConfigurationRegistry,
+} from '../../../../platform/configuration/common/configurationRegistry.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
-import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import {
-	AcceptAllInput1, AcceptAllInput2, AcceptMerge, CompareInput1WithBaseCommand,
-	CompareInput2WithBaseCommand, GoToNextUnhandledConflict, GoToPreviousUnhandledConflict, OpenBaseFile, OpenMergeEditor,
-	OpenResultResource, ResetToBaseAndAutoMergeCommand, SetColumnLayout, SetMixedLayout, ShowHideTopBase, ShowHideCenterBase, ShowHideBase,
-	ShowNonConflictingChanges, ToggleActiveConflictInput1, ToggleActiveConflictInput2, ResetCloseWithConflictsChoice,
-	AcceptAllCombination, ToggleBetweenInputs
+  EditorPaneDescriptor,
+  IEditorPaneRegistry,
+} from '../../../browser/editor.js';
+import {
+  Extensions as WorkbenchExtensions,
+  IWorkbenchContributionsRegistry,
+  WorkbenchPhase,
+  registerWorkbenchContribution2,
+} from '../../../common/contributions.js';
+import {
+  EditorExtensions,
+  IEditorFactoryRegistry,
+} from '../../../common/editor.js';
+import {
+  AcceptAllInput1,
+  AcceptAllInput2,
+  AcceptMerge,
+  CompareInput1WithBaseCommand,
+  CompareInput2WithBaseCommand,
+  GoToNextUnhandledConflict,
+  GoToPreviousUnhandledConflict,
+  OpenBaseFile,
+  OpenMergeEditor,
+  OpenResultResource,
+  ResetToBaseAndAutoMergeCommand,
+  SetColumnLayout,
+  SetMixedLayout,
+  ShowHideTopBase,
+  ShowHideCenterBase,
+  ShowHideBase,
+  ShowNonConflictingChanges,
+  ToggleActiveConflictInput1,
+  ToggleActiveConflictInput2,
+  ResetCloseWithConflictsChoice,
+  AcceptAllCombination,
+  ToggleBetweenInputs,
 } from './commands/commands.js';
-import { MergeEditorCopyContentsToJSON, MergeEditorLoadContentsFromFolder, MergeEditorSaveContentsToFolder } from './commands/devCommands.js';
+import {
+  MergeEditorCopyContentsToJSON,
+  MergeEditorLoadContentsFromFolder,
+  MergeEditorSaveContentsToFolder,
+} from './commands/devCommands.js';
 import { MergeEditorInput } from './mergeEditorInput.js';
-import { MergeEditor, MergeEditorOpenHandlerContribution, MergeEditorResolverContribution } from './view/mergeEditor.js';
+import {
+  MergeEditor,
+  MergeEditorOpenHandlerContribution,
+  MergeEditorResolverContribution,
+} from './view/mergeEditor.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { MergeEditorSerializer } from './mergeEditorSerializer.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { MergeEditorAccessibilityHelpProvider } from './mergeEditorAccessibilityHelp.js';
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(
-		MergeEditor,
-		MergeEditor.ID,
-		localize('name', "Merge Editor")
-	),
-	[
-		new SyncDescriptor(MergeEditorInput)
-	]
+Registry.as<IEditorPaneRegistry>(
+  EditorExtensions.EditorPane
+).registerEditorPane(
+  EditorPaneDescriptor.create(
+    MergeEditor,
+    MergeEditor.ID,
+    localize('name', 'Merge Editor')
+  ),
+  [new SyncDescriptor(MergeEditorInput)]
 );
 
-Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
-	MergeEditorInput.ID,
-	MergeEditorSerializer
-);
+Registry.as<IEditorFactoryRegistry>(
+  EditorExtensions.EditorFactory
+).registerEditorSerializer(MergeEditorInput.ID, MergeEditorSerializer);
 
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	properties: {
-		'mergeEditor.diffAlgorithm': {
-			type: 'string',
-			enum: ['legacy', 'advanced'],
-			default: 'advanced',
-			markdownEnumDescriptions: [
-				localize('diffAlgorithm.legacy', "Uses the legacy diffing algorithm."),
-				localize('diffAlgorithm.advanced', "Uses the advanced diffing algorithm."),
-			]
-		},
-		'mergeEditor.showDeletionMarkers': {
-			type: 'boolean',
-			default: true,
-			description: 'Controls if deletions in base or one of the inputs should be indicated by a vertical bar.',
-		},
-	}
+Registry.as<IConfigurationRegistry>(
+  Extensions.Configuration
+).registerConfiguration({
+  properties: {
+    'mergeEditor.diffAlgorithm': {
+      type: 'string',
+      enum: ['legacy', 'advanced'],
+      default: 'advanced',
+      markdownEnumDescriptions: [
+        localize('diffAlgorithm.legacy', 'Uses the legacy diffing algorithm.'),
+        localize(
+          'diffAlgorithm.advanced',
+          'Uses the advanced diffing algorithm.'
+        ),
+      ],
+    },
+    'mergeEditor.showDeletionMarkers': {
+      type: 'boolean',
+      default: true,
+      description:
+        'Controls if deletions in base or one of the inputs should be indicated by a vertical bar.',
+    },
+  },
 });
 
 registerAction2(OpenResultResource);
@@ -96,10 +140,17 @@ registerAction2(MergeEditorCopyContentsToJSON);
 registerAction2(MergeEditorSaveContentsToFolder);
 registerAction2(MergeEditorLoadContentsFromFolder);
 
-Registry
-	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(MergeEditorOpenHandlerContribution, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(
+  WorkbenchExtensions.Workbench
+).registerWorkbenchContribution(
+  MergeEditorOpenHandlerContribution,
+  LifecyclePhase.Restored
+);
 
-registerWorkbenchContribution2(MergeEditorResolverContribution.ID, MergeEditorResolverContribution, WorkbenchPhase.BlockStartup /* only registers an editor resolver */);
+registerWorkbenchContribution2(
+  MergeEditorResolverContribution.ID,
+  MergeEditorResolverContribution,
+  WorkbenchPhase.BlockStartup /* only registers an editor resolver */
+);
 
 AccessibleViewRegistry.register(new MergeEditorAccessibilityHelpProvider());

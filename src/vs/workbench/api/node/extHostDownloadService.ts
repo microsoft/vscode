@@ -13,19 +13,22 @@ import { URI } from '../../../base/common/uri.js';
 import { IExtHostRpcService } from '../common/extHostRpcService.js';
 
 export class ExtHostDownloadService extends Disposable {
+  constructor(
+    @IExtHostRpcService extHostRpc: IExtHostRpcService,
+    @IExtHostCommands commands: IExtHostCommands
+  ) {
+    super();
 
-	constructor(
-		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@IExtHostCommands commands: IExtHostCommands
-	) {
-		super();
+    const proxy = extHostRpc.getProxy(MainContext.MainThreadDownloadService);
 
-		const proxy = extHostRpc.getProxy(MainContext.MainThreadDownloadService);
-
-		commands.registerCommand(false, '_workbench.downloadResource', async (resource: URI): Promise<any> => {
-			const location = URI.file(join(tmpdir(), generateUuid()));
-			await proxy.$download(resource, location);
-			return location;
-		});
-	}
+    commands.registerCommand(
+      false,
+      '_workbench.downloadResource',
+      async (resource: URI): Promise<any> => {
+        const location = URI.file(join(tmpdir(), generateUuid()));
+        await proxy.$download(resource, location);
+        return location;
+      }
+    );
+  }
 }

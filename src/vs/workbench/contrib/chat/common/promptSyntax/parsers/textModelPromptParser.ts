@@ -15,28 +15,34 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
  * including all the nested child file references it may have.
  */
 export class TextModelPromptParser extends BasePromptParser<TextModelContentsProvider> {
-	constructor(
-		model: ITextModel,
-		options: Partial<IPromptParserOptions>,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
-		@ILogService logService: ILogService,
-	) {
-		const contentsProvider = instantiationService.createInstance(
-			TextModelContentsProvider,
-			model,
-			options,
-		);
+  constructor(
+    model: ITextModel,
+    options: Partial<IPromptParserOptions>,
+    @IInstantiationService instantiationService: IInstantiationService,
+    @IWorkspaceContextService workspaceService: IWorkspaceContextService,
+    @ILogService logService: ILogService
+  ) {
+    const contentsProvider = instantiationService.createInstance(
+      TextModelContentsProvider,
+      model,
+      options
+    );
 
-		super(contentsProvider, options, instantiationService, workspaceService, logService);
+    super(
+      contentsProvider,
+      options,
+      instantiationService,
+      workspaceService,
+      logService
+    );
 
-		this._register(contentsProvider);
-	}
+    this._register(contentsProvider);
+  }
 
-	/**
-	 * Returns a string representation of this object.
-	 */
-	public override toString(): string {
-		return `text-model-prompt:${this.uri.path}`;
-	}
+  /**
+   * Returns a string representation of this object.
+   */
+  public override toString(): string {
+    return `text-model-prompt:${this.uri.path}`;
+  }
 }

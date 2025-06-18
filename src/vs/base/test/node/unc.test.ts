@@ -8,42 +8,40 @@ import { getUNCHost } from '../../node/unc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 suite('UNC', () => {
+  test('getUNCHost', () => {
+    strictEqual(getUNCHost(undefined), undefined);
+    strictEqual(getUNCHost(null), undefined);
 
-	test('getUNCHost', () => {
+    strictEqual(getUNCHost('/'), undefined);
+    strictEqual(getUNCHost('/foo'), undefined);
 
-		strictEqual(getUNCHost(undefined), undefined);
-		strictEqual(getUNCHost(null), undefined);
+    strictEqual(getUNCHost('c:'), undefined);
+    strictEqual(getUNCHost('c:\\'), undefined);
+    strictEqual(getUNCHost('c:\\foo'), undefined);
+    strictEqual(getUNCHost('c:\\foo\\\\server\\path'), undefined);
 
-		strictEqual(getUNCHost('/'), undefined);
-		strictEqual(getUNCHost('/foo'), undefined);
+    strictEqual(getUNCHost('\\'), undefined);
+    strictEqual(getUNCHost('\\\\'), undefined);
+    strictEqual(getUNCHost('\\\\localhost'), undefined);
 
-		strictEqual(getUNCHost('c:'), undefined);
-		strictEqual(getUNCHost('c:\\'), undefined);
-		strictEqual(getUNCHost('c:\\foo'), undefined);
-		strictEqual(getUNCHost('c:\\foo\\\\server\\path'), undefined);
+    strictEqual(getUNCHost('\\\\localhost\\'), 'localhost');
+    strictEqual(getUNCHost('\\\\localhost\\a'), 'localhost');
 
-		strictEqual(getUNCHost('\\'), undefined);
-		strictEqual(getUNCHost('\\\\'), undefined);
-		strictEqual(getUNCHost('\\\\localhost'), undefined);
+    strictEqual(getUNCHost('\\\\.'), undefined);
+    strictEqual(getUNCHost('\\\\?'), undefined);
 
-		strictEqual(getUNCHost('\\\\localhost\\'), 'localhost');
-		strictEqual(getUNCHost('\\\\localhost\\a'), 'localhost');
+    strictEqual(getUNCHost('\\\\.\\localhost'), '.');
+    strictEqual(getUNCHost('\\\\?\\localhost'), '?');
 
-		strictEqual(getUNCHost('\\\\.'), undefined);
-		strictEqual(getUNCHost('\\\\?'), undefined);
+    strictEqual(getUNCHost('\\\\.\\UNC\\localhost'), '.');
+    strictEqual(getUNCHost('\\\\?\\UNC\\localhost'), '?');
 
-		strictEqual(getUNCHost('\\\\.\\localhost'), '.');
-		strictEqual(getUNCHost('\\\\?\\localhost'), '?');
+    strictEqual(getUNCHost('\\\\.\\UNC\\localhost\\'), 'localhost');
+    strictEqual(getUNCHost('\\\\?\\UNC\\localhost\\'), 'localhost');
 
-		strictEqual(getUNCHost('\\\\.\\UNC\\localhost'), '.');
-		strictEqual(getUNCHost('\\\\?\\UNC\\localhost'), '?');
+    strictEqual(getUNCHost('\\\\.\\UNC\\localhost\\a'), 'localhost');
+    strictEqual(getUNCHost('\\\\?\\UNC\\localhost\\a'), 'localhost');
+  });
 
-		strictEqual(getUNCHost('\\\\.\\UNC\\localhost\\'), 'localhost');
-		strictEqual(getUNCHost('\\\\?\\UNC\\localhost\\'), 'localhost');
-
-		strictEqual(getUNCHost('\\\\.\\UNC\\localhost\\a'), 'localhost');
-		strictEqual(getUNCHost('\\\\?\\UNC\\localhost\\a'), 'localhost');
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+  ensureNoDisposablesAreLeakedInTestSuite();
 });

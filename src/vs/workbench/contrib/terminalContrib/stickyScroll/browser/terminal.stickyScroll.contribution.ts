@@ -15,32 +15,47 @@ import { TerminalStickyScrollSettingId } from '../common/terminalStickyScrollCon
 
 // #region Terminal Contributions
 
-registerTerminalContribution(TerminalStickyScrollContribution.ID, TerminalStickyScrollContribution);
+registerTerminalContribution(
+  TerminalStickyScrollContribution.ID,
+  TerminalStickyScrollContribution
+);
 
 // #endregion
 
 // #region Actions
 
 const enum TerminalStickyScrollCommandId {
-	ToggleStickyScroll = 'workbench.action.terminal.toggleStickyScroll',
+  ToggleStickyScroll = 'workbench.action.terminal.toggleStickyScroll',
 }
 
 registerTerminalAction({
-	id: TerminalStickyScrollCommandId.ToggleStickyScroll,
-	title: localize2('workbench.action.terminal.toggleStickyScroll', 'Toggle Sticky Scroll'),
-	toggled: {
-		condition: ContextKeyExpr.equals(`config.${TerminalStickyScrollSettingId.Enabled}`, true),
-		title: localize('stickyScroll', "Sticky Scroll"),
-		mnemonicTitle: localize({ key: 'miStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Sticky Scroll"),
-	},
-	run: (c, accessor) => {
-		const configurationService = accessor.get(IConfigurationService);
-		const newValue = !configurationService.getValue(TerminalStickyScrollSettingId.Enabled);
-		return configurationService.updateValue(TerminalStickyScrollSettingId.Enabled, newValue);
-	},
-	menu: [
-		{ id: MenuId.TerminalStickyScrollContext }
-	]
+  id: TerminalStickyScrollCommandId.ToggleStickyScroll,
+  title: localize2(
+    'workbench.action.terminal.toggleStickyScroll',
+    'Toggle Sticky Scroll'
+  ),
+  toggled: {
+    condition: ContextKeyExpr.equals(
+      `config.${TerminalStickyScrollSettingId.Enabled}`,
+      true
+    ),
+    title: localize('stickyScroll', 'Sticky Scroll'),
+    mnemonicTitle: localize(
+      { key: 'miStickyScroll', comment: ['&& denotes a mnemonic'] },
+      '&&Sticky Scroll'
+    ),
+  },
+  run: (c, accessor) => {
+    const configurationService = accessor.get(IConfigurationService);
+    const newValue = !configurationService.getValue(
+      TerminalStickyScrollSettingId.Enabled
+    );
+    return configurationService.updateValue(
+      TerminalStickyScrollSettingId.Enabled,
+      newValue
+    );
+  },
+  menu: [{ id: MenuId.TerminalStickyScrollContext }],
 });
 
 // #endregion

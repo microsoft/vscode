@@ -11,67 +11,86 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 
 export interface ICodeMapperResponse {
-	textEdit: (resource: URI, textEdit: TextEdit[]) => void;
-	notebookEdit: (resource: URI, edit: ICellEditOperation[]) => void;
+  textEdit: (resource: URI, textEdit: TextEdit[]) => void;
+  notebookEdit: (resource: URI, edit: ICellEditOperation[]) => void;
 }
 
 export interface ICodeMapperCodeBlock {
-	readonly code: string;
-	readonly resource: URI;
-	readonly markdownBeforeBlock?: string;
+  readonly code: string;
+  readonly resource: URI;
+  readonly markdownBeforeBlock?: string;
 }
 
 export interface ICodeMapperRequest {
-	readonly codeBlocks: ICodeMapperCodeBlock[];
-	readonly chatRequestId?: string;
-	readonly chatRequestModel?: string;
-	readonly chatSessionId?: string;
-	readonly location?: string;
+  readonly codeBlocks: ICodeMapperCodeBlock[];
+  readonly chatRequestId?: string;
+  readonly chatRequestModel?: string;
+  readonly chatSessionId?: string;
+  readonly location?: string;
 }
 
 export interface ICodeMapperResult {
-	readonly errorMessage?: string;
+  readonly errorMessage?: string;
 }
 
 export interface ICodeMapperProvider {
-	readonly displayName: string;
-	mapCode(request: ICodeMapperRequest, response: ICodeMapperResponse, token: CancellationToken): Promise<ICodeMapperResult | undefined>;
+  readonly displayName: string;
+  mapCode(
+    request: ICodeMapperRequest,
+    response: ICodeMapperResponse,
+    token: CancellationToken
+  ): Promise<ICodeMapperResult | undefined>;
 }
 
-export const ICodeMapperService = createDecorator<ICodeMapperService>('codeMapperService');
+export const ICodeMapperService =
+  createDecorator<ICodeMapperService>('codeMapperService');
 
 export interface ICodeMapperService {
-	readonly _serviceBrand: undefined;
-	readonly providers: ICodeMapperProvider[];
-	registerCodeMapperProvider(handle: number, provider: ICodeMapperProvider): IDisposable;
-	mapCode(request: ICodeMapperRequest, response: ICodeMapperResponse, token: CancellationToken): Promise<ICodeMapperResult | undefined>;
+  readonly _serviceBrand: undefined;
+  readonly providers: ICodeMapperProvider[];
+  registerCodeMapperProvider(
+    handle: number,
+    provider: ICodeMapperProvider
+  ): IDisposable;
+  mapCode(
+    request: ICodeMapperRequest,
+    response: ICodeMapperResponse,
+    token: CancellationToken
+  ): Promise<ICodeMapperResult | undefined>;
 }
 
 export class CodeMapperService implements ICodeMapperService {
-	_serviceBrand: undefined;
+  _serviceBrand: undefined;
 
-	public readonly providers: ICodeMapperProvider[] = [];
+  public readonly providers: ICodeMapperProvider[] = [];
 
-	registerCodeMapperProvider(handle: number, provider: ICodeMapperProvider): IDisposable {
-		this.providers.push(provider);
-		return {
-			dispose: () => {
-				const index = this.providers.indexOf(provider);
-				if (index >= 0) {
-					this.providers.splice(index, 1);
-				}
-			}
-		};
-	}
+  registerCodeMapperProvider(
+    handle: number,
+    provider: ICodeMapperProvider
+  ): IDisposable {
+    this.providers.push(provider);
+    return {
+      dispose: () => {
+        const index = this.providers.indexOf(provider);
+        if (index >= 0) {
+          this.providers.splice(index, 1);
+        }
+      },
+    };
+  }
 
-	async mapCode(request: ICodeMapperRequest, response: ICodeMapperResponse, token: CancellationToken) {
-		for (const provider of this.providers) {
-			const result = await provider.mapCode(request, response, token);
-			if (token.isCancellationRequested) {
-				return undefined;
-			}
-			return result;
-		}
-		return undefined;
-	}
+  async mapCode(
+    request: ICodeMapperRequest,
+    response: ICodeMapperResponse,
+    token: CancellationToken
+  ) {
+    for (const provider of this.providers) {
+      const result = await provider.mapCode(request, response, token);
+      if (token.isCancellationRequested) {
+        return undefined;
+      }
+      return result;
+    }
+    return undefined;
+  }
 }

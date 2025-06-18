@@ -4,6 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 export interface IDimension {
-	width: number;
-	height: number;
+  width: number;
+  height: number;
 }

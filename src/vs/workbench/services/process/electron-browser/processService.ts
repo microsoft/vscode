@@ -7,4 +7,3 @@ import { registerMainProcessRemoteService } from '../../../../platform/ipc/elect
 import { IProcessService } from '../../../../platform/process/common/process.js';
 
 registerMainProcessRemoteService(IProcessService, 'process');
-

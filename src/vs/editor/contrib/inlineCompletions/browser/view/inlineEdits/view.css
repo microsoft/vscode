@@ -8,199 +8,205 @@
 */
 
 .monaco-editor {
-	.inline-edits-view-indicator {
-		display: flex;
+  .inline-edits-view-indicator {
+    display: flex;
 
-		z-index: 34; /* Below the find widget */
-		height: 20px;
+    z-index: 34; /* Below the find widget */
+    height: 20px;
 
-		color: var(--vscode-inlineEdit-indicator-foreground);
-		background-color: var(--vscode-inlineEdit-indicator-background);
-		border: 1px solid var(--vscode-inlineEdit-indicator-border);
-		border-radius: 3px;
+    color: var(--vscode-inlineEdit-indicator-foreground);
+    background-color: var(--vscode-inlineEdit-indicator-background);
+    border: 1px solid var(--vscode-inlineEdit-indicator-border);
+    border-radius: 3px;
 
-		align-items: center;
-		padding: 2px;
-		padding-right: 10px;
-		margin: 0 4px;
+    align-items: center;
+    padding: 2px;
+    padding-right: 10px;
+    margin: 0 4px;
 
-		/*
+    /*
 		animation: blink 1s;
 		animation-iteration-count: 3;
 		*/
 
-		opacity: 0;
+    opacity: 0;
 
-		&.contained {
-			transition: opacity 0.2s ease-in-out;
-			transition-delay: 0.4s;
-		}
+    &.contained {
+      transition: opacity 0.2s ease-in-out;
+      transition-delay: 0.4s;
+    }
 
-		&.visible {
-			opacity: 1;
-		}
+    &.visible {
+      opacity: 1;
+    }
 
-		&.top {
-			opacity: 1;
+    &.top {
+      opacity: 1;
 
-			.icon {
-				transform: rotate(90deg);
-			}
-		}
+      .icon {
+        transform: rotate(90deg);
+      }
+    }
 
-		&.bottom {
-			opacity: 1;
+    &.bottom {
+      opacity: 1;
 
-			.icon {
-				transform: rotate(-90deg);
-			}
-		}
+      .icon {
+        transform: rotate(-90deg);
+      }
+    }
 
-		.icon {
-			display: flex;
-			align-items: center;
-			margin: 0 2px;
-			transform: none;
-			transition: transform 0.2s ease-in-out;
-			.codicon {
-				color: var(--vscode-inlineEdit-indicator-foreground);
-			}
-		}
+    .icon {
+      display: flex;
+      align-items: center;
+      margin: 0 2px;
+      transform: none;
+      transition: transform 0.2s ease-in-out;
+      .codicon {
+        color: var(--vscode-inlineEdit-indicator-foreground);
+      }
+    }
 
-		.label {
-			margin: 0 2px;
+    .label {
+      margin: 0 2px;
 
-			display: flex;
-			justify-content: center;
-			width: 100%;
-		}
-	}
+      display: flex;
+      justify-content: center;
+      width: 100%;
+    }
+  }
 
-	.inline-edits-view .editorContainer {
-		.preview .monaco-editor {
-			.view-overlays .current-line-exact {
-				border: none;
-			}
+  .inline-edits-view .editorContainer {
+    .preview .monaco-editor {
+      .view-overlays .current-line-exact {
+        border: none;
+      }
 
-			.current-line-margin {
-				border: none;
-			}
-		}
+      .current-line-margin {
+        border: none;
+      }
+    }
 
-		.inline-edits-view-zone.diagonal-fill {
-			opacity: 0.5;
-		}
-	}
+    .inline-edits-view-zone.diagonal-fill {
+      opacity: 0.5;
+    }
+  }
 
-	.strike-through {
-		text-decoration: line-through;
-	}
+  .strike-through {
+    text-decoration: line-through;
+  }
 
-	.inlineCompletions-line-insert {
-		background: var(--vscode-inlineEdit-modifiedChangedLineBackground);
-	}
+  .inlineCompletions-line-insert {
+    background: var(--vscode-inlineEdit-modifiedChangedLineBackground);
+  }
 
-	.inlineCompletions-line-delete {
-		background: var(--vscode-inlineEdit-originalChangedLineBackground);
-	}
+  .inlineCompletions-line-delete {
+    background: var(--vscode-inlineEdit-originalChangedLineBackground);
+  }
 
-	.inlineCompletions-char-insert {
-		background: var(--vscode-inlineEdit-modifiedChangedTextBackground);
-		cursor: pointer;
-	}
+  .inlineCompletions-char-insert {
+    background: var(--vscode-inlineEdit-modifiedChangedTextBackground);
+    cursor: pointer;
+  }
 
-	.inlineCompletions-char-delete {
-		background: var(--vscode-inlineEdit-originalChangedTextBackground);
-	}
+  .inlineCompletions-char-delete {
+    background: var(--vscode-inlineEdit-originalChangedTextBackground);
+  }
 
-	.inlineCompletions-char-delete.diff-range-empty {
-		margin-left: -1px;
-		border-left: solid var(--vscode-inlineEdit-originalChangedTextBackground) 3px;
-	}
+  .inlineCompletions-char-delete.diff-range-empty {
+    margin-left: -1px;
+    border-left: solid var(--vscode-inlineEdit-originalChangedTextBackground)
+      3px;
+  }
 
-	.inlineCompletions-char-insert.diff-range-empty {
-		border-left: solid var(--vscode-inlineEdit-modifiedChangedTextBackground) 3px;
-	}
+  .inlineCompletions-char-insert.diff-range-empty {
+    border-left: solid var(--vscode-inlineEdit-modifiedChangedTextBackground)
+      3px;
+  }
 
-	.inlineCompletions-char-delete.single-line-inline { /* Editor Decoration */
-		border: 1px solid var(--vscode-editorHoverWidget-border);
-		margin: -2px 0 0 -2px;
-	}
+  .inlineCompletions-char-delete.single-line-inline {
+    /* Editor Decoration */
+    border: 1px solid var(--vscode-editorHoverWidget-border);
+    margin: -2px 0 0 -2px;
+  }
 
-	.inlineCompletions-char-insert.single-line-inline { /* Inline Decoration */
-		border-top: 1px solid var(--vscode-inlineEdit-modifiedBorder); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
-		border-bottom: 1px solid var(--vscode-inlineEdit-modifiedBorder); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
-	}
-	.inlineCompletions-char-insert.single-line-inline.start {
-		border-top-left-radius: 4px;
-		border-bottom-left-radius: 4px;
-		border-left: 1px solid var(--vscode-inlineEdit-modifiedBorder); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
-	}
-	.inlineCompletions-char-insert.single-line-inline.end {
-		border-top-right-radius: 4px;
-		border-bottom-right-radius: 4px;
-		border-right: 1px solid var(--vscode-inlineEdit-modifiedBorder); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
-	}
+  .inlineCompletions-char-insert.single-line-inline {
+    /* Inline Decoration */
+    border-top: 1px solid var(--vscode-inlineEdit-modifiedBorder); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
+    border-bottom: 1px solid var(--vscode-inlineEdit-modifiedBorder); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
+  }
+  .inlineCompletions-char-insert.single-line-inline.start {
+    border-top-left-radius: 4px;
+    border-bottom-left-radius: 4px;
+    border-left: 1px solid var(--vscode-inlineEdit-modifiedBorder); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
+  }
+  .inlineCompletions-char-insert.single-line-inline.end {
+    border-top-right-radius: 4px;
+    border-bottom-right-radius: 4px;
+    border-right: 1px solid var(--vscode-inlineEdit-modifiedBorder); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
+  }
 
-	.inlineCompletions-char-delete.single-line-inline.empty,
-	.inlineCompletions-char-insert.single-line-inline.empty {
-		display: none;
-	}
+  .inlineCompletions-char-delete.single-line-inline.empty,
+  .inlineCompletions-char-insert.single-line-inline.empty {
+    display: none;
+  }
 
-	.inlineCompletions.strike-through {
-		text-decoration-thickness: 1px;
-	}
+  .inlineCompletions.strike-through {
+    text-decoration-thickness: 1px;
+  }
 
-	/* line replacement bubbles */
+  /* line replacement bubbles */
 
-	.inlineCompletions-modified-bubble{
-		background: var(--vscode-inlineEdit-modifiedChangedTextBackground);
-	}
+  .inlineCompletions-modified-bubble {
+    background: var(--vscode-inlineEdit-modifiedChangedTextBackground);
+  }
 
-	.inlineCompletions-original-bubble{
-		background: var(--vscode-inlineEdit-originalChangedTextBackground);
-	}
+  .inlineCompletions-original-bubble {
+    background: var(--vscode-inlineEdit-originalChangedTextBackground);
+  }
 
-	.inlineCompletions-modified-bubble,
-	.inlineCompletions-original-bubble {
-		pointer-events: none;
-		display: inline-block;
-	}
+  .inlineCompletions-modified-bubble,
+  .inlineCompletions-original-bubble {
+    pointer-events: none;
+    display: inline-block;
+  }
 
-	.inline-edit.ghost-text,
-	.inline-edit.ghost-text-decoration,
-	.inline-edit.ghost-text-decoration-preview,
-	.inline-edit.suggest-preview-text .ghost-text {
-		&.syntax-highlighted {
-			opacity: 1 !important;
-		}
-		font-style: normal !important;
-	}
+  .inline-edit.ghost-text,
+  .inline-edit.ghost-text-decoration,
+  .inline-edit.ghost-text-decoration-preview,
+  .inline-edit.suggest-preview-text .ghost-text {
+    &.syntax-highlighted {
+      opacity: 1 !important;
+    }
+    font-style: normal !important;
+  }
 
-	.inline-edit.modified-background.ghost-text,
-	.inline-edit.modified-background.ghost-text-decoration,
-	.inline-edit.modified-background.ghost-text-decoration-preview,
-	.inline-edit.modified-background.suggest-preview-text .ghost-text{
-		background: var(--vscode-inlineEdit-modifiedChangedTextBackground) !important;
-		display: inline-block !important;
-	}
+  .inline-edit.modified-background.ghost-text,
+  .inline-edit.modified-background.ghost-text-decoration,
+  .inline-edit.modified-background.ghost-text-decoration-preview,
+  .inline-edit.modified-background.suggest-preview-text .ghost-text {
+    background: var(
+      --vscode-inlineEdit-modifiedChangedTextBackground
+    ) !important;
+    display: inline-block !important;
+  }
 }
 
 .monaco-menu-option {
-	color: var(--vscode-editorActionList-foreground);
-	font-size: 13px;
-	padding: 0 10px;
-	line-height: 26px;
-	display: flex;
-	gap: 8px;
-	align-items: center;
-	border-radius: 4px;
-	cursor: pointer;
+  color: var(--vscode-editorActionList-foreground);
+  font-size: 13px;
+  padding: 0 10px;
+  line-height: 26px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border-radius: 4px;
+  cursor: pointer;
 
-	&.active {
-		background: var(--vscode-editorActionList-focusBackground);
-		color: var(--vscode-editorActionList-focusForeground);
-		outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
-		outline-offset: -1px;
-	}
+  &.active {
+    background: var(--vscode-editorActionList-focusBackground);
+    color: var(--vscode-editorActionList-focusForeground);
+    outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
+    outline-offset: -1px;
+  }
 }

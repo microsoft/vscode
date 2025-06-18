@@ -7,9 +7,9 @@ import * as path from 'path';
 import * as testRunner from '../../../../test/integration/electron/testrunner';
 
 const options: import('mocha').MochaOptions = {
-	ui: 'tdd',
-	color: true,
-	timeout: 60000
+  ui: 'tdd',
+  color: true,
+  timeout: 60000,
 };
 
 // These integration tests is being run in multiple environments (electron, web, remote)
@@ -17,22 +17,25 @@ const options: import('mocha').MochaOptions = {
 // for the test results file name
 let suite = '';
 if (process.env.VSCODE_BROWSER) {
-	suite = `${process.env.VSCODE_BROWSER} Browser Integration notebook output renderer Tests`;
+  suite = `${process.env.VSCODE_BROWSER} Browser Integration notebook output renderer Tests`;
 } else if (process.env.REMOTE_VSCODE) {
-	suite = 'Remote Integration notebook output renderer Tests';
+  suite = 'Remote Integration notebook output renderer Tests';
 } else {
-	suite = 'Integration notebook output renderer Tests';
+  suite = 'Integration notebook output renderer Tests';
 }
 
 if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
-	options.reporter = 'mocha-multi-reporters';
-	options.reporterOptions = {
-		reporterEnabled: 'spec, mocha-junit-reporter',
-		mochaJunitReporterReporterOptions: {
-			testsuitesTitle: `${suite} ${process.platform}`,
-			mochaFile: path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${suite.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`)
-		}
-	};
+  options.reporter = 'mocha-multi-reporters';
+  options.reporterOptions = {
+    reporterEnabled: 'spec, mocha-junit-reporter',
+    mochaJunitReporterReporterOptions: {
+      testsuitesTitle: `${suite} ${process.platform}`,
+      mochaFile: path.join(
+        process.env.BUILD_ARTIFACTSTAGINGDIRECTORY,
+        `test-results/${process.platform}-${process.arch}-${suite.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`
+      ),
+    },
+  };
 }
 
 testRunner.configure(options);

@@ -12,13 +12,19 @@ import { INativeEnvironmentService } from '../../environment/common/environment.
 import { URI } from '../../../base/common/uri.js';
 
 export class ExtensionsProfileScannerService extends AbstractExtensionsProfileScannerService {
-	constructor(
-		@INativeEnvironmentService environmentService: INativeEnvironmentService,
-		@IFileService fileService: IFileService,
-		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@ILogService logService: ILogService,
-	) {
-		super(URI.file(environmentService.extensionsPath), fileService, userDataProfilesService, uriIdentityService, logService);
-	}
+  constructor(
+    @INativeEnvironmentService environmentService: INativeEnvironmentService,
+    @IFileService fileService: IFileService,
+    @IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
+    @IUriIdentityService uriIdentityService: IUriIdentityService,
+    @ILogService logService: ILogService
+  ) {
+    super(
+      URI.file(environmentService.extensionsPath),
+      fileService,
+      userDataProfilesService,
+      uriIdentityService,
+      logService
+    );
+  }
 }

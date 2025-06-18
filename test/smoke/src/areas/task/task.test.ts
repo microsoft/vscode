@@ -8,17 +8,16 @@ import { installAllHandlers } from '../../utils';
 import { setup as setupTaskQuickPickTests } from './task-quick-pick.test';
 
 export function setup(logger: Logger) {
-	describe('Task', function () {
+  describe('Task', function () {
+    // Retry tests 3 times to minimize build failures due to any flakiness
+    this.retries(3);
 
-		// Retry tests 3 times to minimize build failures due to any flakiness
-		this.retries(3);
+    // Shared before/after handling
+    installAllHandlers(logger);
 
-		// Shared before/after handling
-		installAllHandlers(logger);
-
-		// Refs https://github.com/microsoft/vscode/issues/225250
-		// Pty spawning fails with invalid fd error in product CI while development CI
-		// works fine, we need additional logging to investigate.
-		setupTaskQuickPickTests({ skipSuite: process.platform === 'linux' });
-	});
+    // Refs https://github.com/microsoft/vscode/issues/225250
+    // Pty spawning fails with invalid fd error in product CI while development CI
+    // works fine, we need additional logging to investigate.
+    setupTaskQuickPickTests({ skipSuite: process.platform === 'linux' });
+  });
 }

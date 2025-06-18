@@ -9,28 +9,30 @@ import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 
 export class MockChatWidgetService implements IChatWidgetService {
-	readonly onDidAddWidget: Event<IChatWidget> = Event.None;
+  readonly onDidAddWidget: Event<IChatWidget> = Event.None;
 
-	readonly _serviceBrand: undefined;
+  readonly _serviceBrand: undefined;
 
-	/**
-	 * Returns the most recently focused widget if any.
-	 */
-	readonly lastFocusedWidget: IChatWidget | undefined;
+  /**
+   * Returns the most recently focused widget if any.
+   */
+  readonly lastFocusedWidget: IChatWidget | undefined;
 
-	getWidgetByInputUri(uri: URI): IChatWidget | undefined {
-		return undefined;
-	}
+  getWidgetByInputUri(uri: URI): IChatWidget | undefined {
+    return undefined;
+  }
 
-	getWidgetBySessionId(sessionId: string): IChatWidget | undefined {
-		return undefined;
-	}
+  getWidgetBySessionId(sessionId: string): IChatWidget | undefined {
+    return undefined;
+  }
 
-	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget> {
-		return [];
-	}
+  getWidgetsByLocations(
+    location: ChatAgentLocation
+  ): ReadonlyArray<IChatWidget> {
+    return [];
+  }
 
-	getAllWidgets(): ReadonlyArray<IChatWidget> {
-		throw new Error('Method not implemented.');
-	}
+  getAllWidgets(): ReadonlyArray<IChatWidget> {
+    throw new Error('Method not implemented.');
+  }
 }

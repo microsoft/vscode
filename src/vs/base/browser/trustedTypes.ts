@@ -5,31 +5,49 @@
 
 import { onUnexpectedError } from '../common/errors.js';
 
-export function createTrustedTypesPolicy<Options extends TrustedTypePolicyOptions>(
-	policyName: string,
-	policyOptions?: Options,
-): undefined | Pick<TrustedTypePolicy<Options>, 'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>> {
+export function createTrustedTypesPolicy<
+  Options extends TrustedTypePolicyOptions,
+>(
+  policyName: string,
+  policyOptions?: Options
+):
+  | undefined
+  | Pick<
+      TrustedTypePolicy<Options>,
+      'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>
+    > {
+  interface IMonacoEnvironment {
+    createTrustedTypesPolicy<Options extends TrustedTypePolicyOptions>(
+      policyName: string,
+      policyOptions?: Options
+    ):
+      | undefined
+      | Pick<
+          TrustedTypePolicy<Options>,
+          'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>
+        >;
+  }
+  const monacoEnvironment: IMonacoEnvironment | undefined = (globalThis as any)
+    .MonacoEnvironment;
 
-	interface IMonacoEnvironment {
-		createTrustedTypesPolicy<Options extends TrustedTypePolicyOptions>(
-			policyName: string,
-			policyOptions?: Options,
-		): undefined | Pick<TrustedTypePolicy<Options>, 'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>>;
-	}
-	const monacoEnvironment: IMonacoEnvironment | undefined = (globalThis as any).MonacoEnvironment;
-
-	if (monacoEnvironment?.createTrustedTypesPolicy) {
-		try {
-			return monacoEnvironment.createTrustedTypesPolicy(policyName, policyOptions);
-		} catch (err) {
-			onUnexpectedError(err);
-			return undefined;
-		}
-	}
-	try {
-		return (globalThis as any).trustedTypes?.createPolicy(policyName, policyOptions);
-	} catch (err) {
-		onUnexpectedError(err);
-		return undefined;
-	}
+  if (monacoEnvironment?.createTrustedTypesPolicy) {
+    try {
+      return monacoEnvironment.createTrustedTypesPolicy(
+        policyName,
+        policyOptions
+      );
+    } catch (err) {
+      onUnexpectedError(err);
+      return undefined;
+    }
+  }
+  try {
+    return (globalThis as any).trustedTypes?.createPolicy(
+      policyName,
+      policyOptions
+    );
+  } catch (err) {
+    onUnexpectedError(err);
+    return undefined;
+  }
 }

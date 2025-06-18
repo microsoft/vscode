@@ -8,6 +8,6 @@ import { IUserDataProfile } from '../../../../platform/userDataProfile/common/us
 import { IEditorPane } from '../../../common/editor.js';
 
 export interface IUserDataProfilesEditor extends IEditorPane {
-	createNewProfile(copyFrom?: URI | IUserDataProfile): Promise<void>;
-	selectProfile(profile: IUserDataProfile): void;
+  createNewProfile(copyFrom?: URI | IUserDataProfile): Promise<void>;
+  selectProfile(profile: IUserDataProfile): void;
 }

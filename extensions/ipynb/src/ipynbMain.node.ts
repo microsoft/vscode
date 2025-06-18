@@ -8,9 +8,9 @@ import * as main from './ipynbMain';
 import { NotebookSerializer } from './notebookSerializer.node';
 
 export function activate(context: vscode.ExtensionContext) {
-	return main.activate(context, new NotebookSerializer(context));
+  return main.activate(context, new NotebookSerializer(context));
 }
 
 export function deactivate() {
-	return main.deactivate();
+  return main.deactivate();
 }

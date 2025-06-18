@@ -10,22 +10,22 @@ import { SimpleToken } from './simpleToken.js';
  * value reflects the position of the token in the original data.
  */
 export class At extends SimpleToken<'@'> {
-	/**
-	 * The underlying symbol of the token.
-	 */
-	public static override readonly symbol: '@' = '@';
+  /**
+   * The underlying symbol of the token.
+   */
+  public static override readonly symbol: '@' = '@';
 
-	/**
-	 * Return text representation of the token.
-	 */
-	public override get text(): '@' {
-		return At.symbol;
-	}
+  /**
+   * Return text representation of the token.
+   */
+  public override get text(): '@' {
+    return At.symbol;
+  }
 
-	/**
-	 * Returns a string representation of the token.
-	 */
-	public override toString(): string {
-		return `at${this.range}`;
-	}
+  /**
+   * Returns a string representation of the token.
+   */
+  public override toString(): string {
+    return `at${this.range}`;
+  }
 }

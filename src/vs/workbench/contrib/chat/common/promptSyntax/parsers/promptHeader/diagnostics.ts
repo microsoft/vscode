@@ -15,15 +15,15 @@ export type TDiagnostic = PromptMetadataWarning | PromptMetadataError;
  * related to the prompt header metadata.
  */
 export abstract class PromptMetadataDiagnostic {
-	constructor(
-		public readonly range: Range,
-		public readonly message: string,
-	) { }
+  constructor(
+    public readonly range: Range,
+    public readonly message: string
+  ) {}
 
-	/**
-	 * String representation of the diagnostic object.
-	 */
-	public abstract toString(): string;
+  /**
+   * String representation of the diagnostic object.
+   */
+  public abstract toString(): string;
 }
 
 /**
@@ -31,9 +31,9 @@ export abstract class PromptMetadataDiagnostic {
  * non-fatal issue related to the prompt header metadata.
  */
 export class PromptMetadataWarning extends PromptMetadataDiagnostic {
-	public override toString(): string {
-		return `warning(${this.message})${this.range}`;
-	}
+  public override toString(): string {
+    return `warning(${this.message})${this.range}`;
+  }
 }
 
 /**
@@ -41,7 +41,7 @@ export class PromptMetadataWarning extends PromptMetadataDiagnostic {
  * fatal issue related to the prompt header metadata.
  */
 export class PromptMetadataError extends PromptMetadataDiagnostic {
-	public override toString(): string {
-		return `error(${this.message})${this.range}`;
-	}
+  public override toString(): string {
+    return `error(${this.message})${this.range}`;
+  }
 }

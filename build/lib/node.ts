@@ -15,6 +15,13 @@ const platform = process.platform;
 const arch = process.arch;
 
 const node = platform === 'win32' ? 'node.exe' : 'node';
-const nodePath = path.join(root, '.build', 'node', `v${version}`, `${platform}-${arch}`, node);
+const nodePath = path.join(
+  root,
+  '.build',
+  'node',
+  `v${version}`,
+  `${platform}-${arch}`,
+  node
+);
 
 console.log(nodePath);

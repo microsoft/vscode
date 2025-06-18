@@ -4,15 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { publishRepository } from './publish.js';
-import { API as GitAPI, RemoteSourcePublisher, Repository } from './typings/git.js';
+import {
+  API as GitAPI,
+  RemoteSourcePublisher,
+  Repository,
+} from './typings/git.js';
 
 export class GithubRemoteSourcePublisher implements RemoteSourcePublisher {
-	readonly name = 'GitHub';
-	readonly icon = 'github';
+  readonly name = 'GitHub';
+  readonly icon = 'github';
 
-	constructor(private gitAPI: GitAPI) { }
+  constructor(private gitAPI: GitAPI) {}
 
-	publishRepository(repository: Repository): Promise<void> {
-		return publishRepository(this.gitAPI, repository);
-	}
+  publishRepository(repository: Repository): Promise<void> {
+    return publishRepository(this.gitAPI, repository);
+  }
 }

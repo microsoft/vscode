@@ -6,50 +6,52 @@
 import { memoize } from './decorators.js';
 
 export interface ILink {
-	readonly label: string;
-	readonly href: string;
-	readonly title?: string;
+  readonly label: string;
+  readonly href: string;
+  readonly title?: string;
 }
 
 export type LinkedTextNode = string | ILink;
 
 export class LinkedText {
+  constructor(readonly nodes: LinkedTextNode[]) {}
 
-	constructor(readonly nodes: LinkedTextNode[]) { }
-
-	@memoize
-	toString(): string {
-		return this.nodes.map(node => typeof node === 'string' ? node : node.label).join('');
-	}
+  @memoize
+  toString(): string {
+    return this.nodes
+      .map((node) => (typeof node === 'string' ? node : node.label))
+      .join('');
+  }
 }
 
-const LINK_REGEX = /\[([^\]]+)\]\(((?:https?:\/\/|command:|file:)[^\)\s]+)(?: (["'])(.+?)(\3))?\)/gi;
+const LINK_REGEX =
+  /\[([^\]]+)\]\(((?:https?:\/\/|command:|file:)[^\)\s]+)(?: (["'])(.+?)(\3))?\)/gi;
 
 export function parseLinkedText(text: string): LinkedText {
-	const result: LinkedTextNode[] = [];
+  const result: LinkedTextNode[] = [];
 
-	let index = 0;
-	let match: RegExpExecArray | null;
+  let index = 0;
+  let match: RegExpExecArray | null;
 
-	while (match = LINK_REGEX.exec(text)) {
-		if (match.index - index > 0) {
-			result.push(text.substring(index, match.index));
-		}
+  while ((match = LINK_REGEX.exec(text))) {
+    if (match.index - index > 0) {
+      result.push(text.substring(index, match.index));
+    }
 
-		const [, label, href, , title] = match;
+    const [, label, href, , title] = match;
 
-		if (title) {
-			result.push({ label, href, title });
-		} else {
-			result.push({ label, href });
-		}
+    if (title) {
+      result.push({ label, href, title });
+    } else {
+      result.push({ label, href });
+    }
 
-		index = match.index + match[0].length;
-	}
+    index = match.index + match[0].length;
+  }
 
-	if (index < text.length) {
-		result.push(text.substring(index));
-	}
+  if (index < text.length) {
+    result.push(text.substring(index));
+  }
 
-	return new LinkedText(result);
+  return new LinkedText(result);
 }

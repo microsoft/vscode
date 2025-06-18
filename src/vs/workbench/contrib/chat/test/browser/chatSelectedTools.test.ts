@@ -9,7 +9,11 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../browser/languageModelToolsService.js';
 import { IChatService } from '../../common/chatService.js';
-import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../common/languageModelToolsService.js';
+import {
+  ILanguageModelToolsService,
+  IToolData,
+  ToolDataSource,
+} from '../../common/languageModelToolsService.js';
 import { MockChatService } from '../common/mockChatService.js';
 import { ChatSelectedTools } from '../../browser/chatSelectedTools.js';
 import { constObservable } from '../../../../../base/common/observable.js';
@@ -21,95 +25,104 @@ import { timeout } from '../../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('ChatSelectedTools', () => {
+  let store: DisposableStore;
 
-	let store: DisposableStore;
+  let toolsService: ILanguageModelToolsService;
+  let selectedTools: ChatSelectedTools;
 
-	let toolsService: ILanguageModelToolsService;
-	let selectedTools: ChatSelectedTools;
+  setup(() => {
+    store = new DisposableStore();
 
-	setup(() => {
+    const instaService = workbenchInstantiationService(
+      {
+        contextKeyService: () =>
+          store.add(new ContextKeyService(new TestConfigurationService())),
+      },
+      store
+    );
+    instaService.stub(IChatService, new MockChatService());
+    instaService.stub(
+      ILanguageModelToolsService,
+      instaService.createInstance(LanguageModelToolsService)
+    );
 
-		store = new DisposableStore();
+    store.add(instaService);
+    toolsService = instaService.get(ILanguageModelToolsService);
+    selectedTools = store.add(
+      instaService.createInstance(
+        ChatSelectedTools,
+        constObservable(ChatMode.Agent)
+      )
+    );
+  });
 
-		const instaService = workbenchInstantiationService({
-			contextKeyService: () => store.add(new ContextKeyService(new TestConfigurationService)),
-		}, store);
-		instaService.stub(IChatService, new MockChatService());
-		instaService.stub(ILanguageModelToolsService, instaService.createInstance(LanguageModelToolsService));
+  teardown(function () {
+    store.dispose();
+  });
 
-		store.add(instaService);
-		toolsService = instaService.get(ILanguageModelToolsService);
-		selectedTools = store.add(instaService.createInstance(ChatSelectedTools, constObservable(ChatMode.Agent)));
-	});
+  ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(function () {
-		store.dispose();
-	});
+  test("Can't enable/disable MCP tools directly #18161", () => {
+    return runWithFakedTimers({}, async () => {
+      const toolData1: IToolData = {
+        id: 'testTool1',
+        modelDescription: 'Test Tool 1',
+        displayName: 'Test Tool 1',
+        canBeReferencedInPrompt: true,
+        toolReferenceName: 't1',
+        source: ToolDataSource.Internal,
+      };
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+      const toolData2: IToolData = {
+        id: 'testTool2',
+        modelDescription: 'Test Tool 2',
+        displayName: 'Test Tool 2',
+        source: ToolDataSource.Internal,
+        canBeReferencedInPrompt: true,
+        toolReferenceName: 't2',
+      };
 
-	test('Can\'t enable/disable MCP tools directly #18161', () => {
+      const toolData3: IToolData = {
+        id: 'testTool3',
+        modelDescription: 'Test Tool 3',
+        displayName: 'Test Tool 3',
+        source: ToolDataSource.Internal,
+        canBeReferencedInPrompt: true,
+        toolReferenceName: 't3',
+      };
 
-		return runWithFakedTimers({}, async () => {
+      const toolset = toolsService.createToolSet(
+        ToolDataSource.Internal,
+        'mcp',
+        'mcp'
+      );
 
-			const toolData1: IToolData = {
-				id: 'testTool1',
-				modelDescription: 'Test Tool 1',
-				displayName: 'Test Tool 1',
-				canBeReferencedInPrompt: true,
-				toolReferenceName: 't1',
-				source: ToolDataSource.Internal,
-			};
+      store.add(toolsService.registerToolData(toolData1));
+      store.add(toolsService.registerToolData(toolData2));
+      store.add(toolsService.registerToolData(toolData3));
 
-			const toolData2: IToolData = {
-				id: 'testTool2',
-				modelDescription: 'Test Tool 2',
-				displayName: 'Test Tool 2',
-				source: ToolDataSource.Internal,
-				canBeReferencedInPrompt: true,
-				toolReferenceName: 't2',
-			};
+      store.add(toolset);
+      store.add(toolset.addTool(toolData1));
+      store.add(toolset.addTool(toolData2));
+      store.add(toolset.addTool(toolData3));
 
-			const toolData3: IToolData = {
-				id: 'testTool3',
-				modelDescription: 'Test Tool 3',
-				displayName: 'Test Tool 3',
-				source: ToolDataSource.Internal,
-				canBeReferencedInPrompt: true,
-				toolReferenceName: 't3',
-			};
+      assert.strictEqual(Iterable.length(toolsService.getTools()), 3);
 
-			const toolset = toolsService.createToolSet(
-				ToolDataSource.Internal,
-				'mcp', 'mcp'
-			);
+      const size = Iterable.length(toolset.getTools());
+      assert.strictEqual(size, 3);
 
-			store.add(toolsService.registerToolData(toolData1));
-			store.add(toolsService.registerToolData(toolData2));
-			store.add(toolsService.registerToolData(toolData3));
+      await timeout(1000); // UGLY the tools service updates its state sync but emits the event async (750ms) delay. This affects the observable that depends on the event
 
-			store.add(toolset);
-			store.add(toolset.addTool(toolData1));
-			store.add(toolset.addTool(toolData2));
-			store.add(toolset.addTool(toolData3));
+      assert.strictEqual(selectedTools.entriesMap.size, 4); // 1 toolset, 3 tools
 
-			assert.strictEqual(Iterable.length(toolsService.getTools()), 3);
+      selectedTools.disable([], [toolData2, toolData3], false);
 
-			const size = Iterable.length(toolset.getTools());
-			assert.strictEqual(size, 3);
+      const map = selectedTools.asEnablementMap();
+      assert.strictEqual(map.size, 3); // 3 tools
 
-			await timeout(1000); // UGLY the tools service updates its state sync but emits the event async (750ms) delay. This affects the observable that depends on the event
-
-			assert.strictEqual(selectedTools.entriesMap.size, 4); // 1 toolset, 3 tools
-
-			selectedTools.disable([], [toolData2, toolData3], false);
-
-			const map = selectedTools.asEnablementMap();
-			assert.strictEqual(map.size, 3); // 3 tools
-
-			assert.strictEqual(map.get(toolData1), true);
-			assert.strictEqual(map.get(toolData2), false);
-			assert.strictEqual(map.get(toolData3), false);
-		});
-	});
+      assert.strictEqual(map.get(toolData1), true);
+      assert.strictEqual(map.get(toolData2), false);
+      assert.strictEqual(map.get(toolData3), false);
+    });
+  });
 });

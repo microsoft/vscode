@@ -11,30 +11,30 @@ import { SimpleToken } from './simpleToken.js';
  * value reflects the position of the token in the original data.
  */
 export class DoubleQuote extends SimpleToken<'"'> {
-	/**
-	 * The underlying symbol of the token.
-	 */
-	public static override readonly symbol: '"' = '"';
+  /**
+   * The underlying symbol of the token.
+   */
+  public static override readonly symbol: '"' = '"';
 
-	/**
-	 * Return text representation of the token.
-	 */
-	public override get text(): '"' {
-		return DoubleQuote.symbol;
-	}
+  /**
+   * Return text representation of the token.
+   */
+  public override get text(): '"' {
+    return DoubleQuote.symbol;
+  }
 
-	/**
-	 * Checks if the provided token is of the same type
-	 * as the current one.
-	 */
-	public sameType(other: BaseToken): other is typeof this {
-		return (other instanceof this.constructor);
-	}
+  /**
+   * Checks if the provided token is of the same type
+   * as the current one.
+   */
+  public sameType(other: BaseToken): other is typeof this {
+    return other instanceof this.constructor;
+  }
 
-	/**
-	 * Returns a string representation of the token.
-	 */
-	public override toString(): string {
-		return `double-quote${this.range}`;
-	}
+  /**
+   * Returns a string representation of the token.
+   */
+  public override toString(): string {
+    return `double-quote${this.range}`;
+  }
 }

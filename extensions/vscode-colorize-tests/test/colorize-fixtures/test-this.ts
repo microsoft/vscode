@@ -1,3 +1,3 @@
 {
-	this.foo = 9;
+  this.foo = 9;
 }

@@ -9,7 +9,10 @@ import { getMimeTypes } from '../../../../editor/common/services/languagesAssoci
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { ITextModelService, ITextModelContentProvider } from '../../../../editor/common/services/resolverService.js';
+import {
+  ITextModelService,
+  ITextModelContentProvider,
+} from '../../../../editor/common/services/resolverService.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { DEBUG_SCHEME, IDebugService, IDebugSession } from './debug.js';
 import { Source } from './debugSource.js';
@@ -34,114 +37,163 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
  * the arbitrary_path and the session id are encoded with 'encodeURIComponent'
  *
  */
-export class DebugContentProvider extends Disposable implements IWorkbenchContribution, ITextModelContentProvider {
+export class DebugContentProvider
+  extends Disposable
+  implements IWorkbenchContribution, ITextModelContentProvider
+{
+  private static INSTANCE: DebugContentProvider;
 
-	private static INSTANCE: DebugContentProvider;
+  private readonly pendingUpdates = new Map<string, CancellationTokenSource>();
 
-	private readonly pendingUpdates = new Map<string, CancellationTokenSource>();
+  constructor(
+    @ITextModelService textModelResolverService: ITextModelService,
+    @IDebugService private readonly debugService: IDebugService,
+    @IModelService private readonly modelService: IModelService,
+    @ILanguageService private readonly languageService: ILanguageService,
+    @IEditorWorkerService
+    private readonly editorWorkerService: IEditorWorkerService
+  ) {
+    super();
+    this._store.add(
+      textModelResolverService.registerTextModelContentProvider(
+        DEBUG_SCHEME,
+        this
+      )
+    );
+    DebugContentProvider.INSTANCE = this;
+  }
 
-	constructor(
-		@ITextModelService textModelResolverService: ITextModelService,
-		@IDebugService private readonly debugService: IDebugService,
-		@IModelService private readonly modelService: IModelService,
-		@ILanguageService private readonly languageService: ILanguageService,
-		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService
-	) {
-		super();
-		this._store.add(textModelResolverService.registerTextModelContentProvider(DEBUG_SCHEME, this));
-		DebugContentProvider.INSTANCE = this;
-	}
+  override dispose(): void {
+    this.pendingUpdates.forEach((cancellationSource) =>
+      cancellationSource.dispose()
+    );
+    super.dispose();
+  }
 
-	override dispose(): void {
-		this.pendingUpdates.forEach(cancellationSource => cancellationSource.dispose());
-		super.dispose();
-	}
+  provideTextContent(resource: uri): Promise<ITextModel> | null {
+    return this.createOrUpdateContentModel(resource, true);
+  }
 
-	provideTextContent(resource: uri): Promise<ITextModel> | null {
-		return this.createOrUpdateContentModel(resource, true);
-	}
+  /**
+   * Reload the model content of the given resource.
+   * If there is no model for the given resource, this method does nothing.
+   */
+  static refreshDebugContent(resource: uri): void {
+    DebugContentProvider.INSTANCE?.createOrUpdateContentModel(resource, false);
+  }
 
-	/**
-	 * Reload the model content of the given resource.
-	 * If there is no model for the given resource, this method does nothing.
-	 */
-	static refreshDebugContent(resource: uri): void {
-		DebugContentProvider.INSTANCE?.createOrUpdateContentModel(resource, false);
-	}
+  /**
+   * Create or reload the model content of the given resource.
+   */
+  private createOrUpdateContentModel(
+    resource: uri,
+    createIfNotExists: boolean
+  ): Promise<ITextModel> | null {
+    const model = this.modelService.getModel(resource);
+    if (!model && !createIfNotExists) {
+      // nothing to do
+      return null;
+    }
 
-	/**
-	 * Create or reload the model content of the given resource.
-	 */
-	private createOrUpdateContentModel(resource: uri, createIfNotExists: boolean): Promise<ITextModel> | null {
+    let session: IDebugSession | undefined;
 
-		const model = this.modelService.getModel(resource);
-		if (!model && !createIfNotExists) {
-			// nothing to do
-			return null;
-		}
+    if (resource.query) {
+      const data = Source.getEncodedDebugData(resource);
+      session = this.debugService.getModel().getSession(data.sessionId);
+    }
 
-		let session: IDebugSession | undefined;
+    if (!session) {
+      // fallback: use focused session
+      session = this.debugService.getViewModel().focusedSession;
+    }
 
-		if (resource.query) {
-			const data = Source.getEncodedDebugData(resource);
-			session = this.debugService.getModel().getSession(data.sessionId);
-		}
+    if (!session) {
+      return Promise.reject(
+        new ErrorNoTelemetry(
+          localize(
+            'unable',
+            'Unable to resolve the resource without a debug session'
+          )
+        )
+      );
+    }
+    const createErrModel = (errMsg?: string) => {
+      this.debugService.sourceIsNotAvailable(resource);
+      const languageSelection = this.languageService.createById(
+        PLAINTEXT_LANGUAGE_ID
+      );
+      const message = errMsg
+        ? localize(
+            'canNotResolveSourceWithError',
+            "Could not load source '{0}': {1}.",
+            resource.path,
+            errMsg
+          )
+        : localize(
+            'canNotResolveSource',
+            "Could not load source '{0}'.",
+            resource.path
+          );
+      return this.modelService.createModel(
+        message,
+        languageSelection,
+        resource
+      );
+    };
 
-		if (!session) {
-			// fallback: use focused session
-			session = this.debugService.getViewModel().focusedSession;
-		}
+    return session.loadSource(resource).then(
+      (response) => {
+        if (response && response.body) {
+          if (model) {
+            const newContent = response.body.content;
 
-		if (!session) {
-			return Promise.reject(new ErrorNoTelemetry(localize('unable', "Unable to resolve the resource without a debug session")));
-		}
-		const createErrModel = (errMsg?: string) => {
-			this.debugService.sourceIsNotAvailable(resource);
-			const languageSelection = this.languageService.createById(PLAINTEXT_LANGUAGE_ID);
-			const message = errMsg
-				? localize('canNotResolveSourceWithError', "Could not load source '{0}': {1}.", resource.path, errMsg)
-				: localize('canNotResolveSource', "Could not load source '{0}'.", resource.path);
-			return this.modelService.createModel(message, languageSelection, resource);
-		};
+            // cancel and dispose an existing update
+            const cancellationSource = this.pendingUpdates.get(model.id);
+            cancellationSource?.cancel();
 
-		return session.loadSource(resource).then(response => {
+            // create and keep update token
+            const myToken = new CancellationTokenSource();
+            this.pendingUpdates.set(model.id, myToken);
 
-			if (response && response.body) {
+            // update text model
+            return this.editorWorkerService
+              .computeMoreMinimalEdits(model.uri, [
+                { text: newContent, range: model.getFullModelRange() },
+              ])
+              .then((edits) => {
+                // remove token
+                this.pendingUpdates.delete(model.id);
 
-				if (model) {
+                if (
+                  !myToken.token.isCancellationRequested &&
+                  edits &&
+                  edits.length > 0
+                ) {
+                  // use the evil-edit as these models show in readonly-editor only
+                  model.applyEdits(
+                    edits.map((edit) =>
+                      EditOperation.replace(Range.lift(edit.range), edit.text)
+                    )
+                  );
+                }
+                return model;
+              });
+          } else {
+            // create text model
+            const mime = response.body.mimeType || getMimeTypes(resource)[0];
+            const languageSelection =
+              this.languageService.createByMimeType(mime);
+            return this.modelService.createModel(
+              response.body.content,
+              languageSelection,
+              resource
+            );
+          }
+        }
 
-					const newContent = response.body.content;
-
-					// cancel and dispose an existing update
-					const cancellationSource = this.pendingUpdates.get(model.id);
-					cancellationSource?.cancel();
-
-					// create and keep update token
-					const myToken = new CancellationTokenSource();
-					this.pendingUpdates.set(model.id, myToken);
-
-					// update text model
-					return this.editorWorkerService.computeMoreMinimalEdits(model.uri, [{ text: newContent, range: model.getFullModelRange() }]).then(edits => {
-
-						// remove token
-						this.pendingUpdates.delete(model.id);
-
-						if (!myToken.token.isCancellationRequested && edits && edits.length > 0) {
-							// use the evil-edit as these models show in readonly-editor only
-							model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
-						}
-						return model;
-					});
-				} else {
-					// create text model
-					const mime = response.body.mimeType || getMimeTypes(resource)[0];
-					const languageSelection = this.languageService.createByMimeType(mime);
-					return this.modelService.createModel(response.body.content, languageSelection, resource);
-				}
-			}
-
-			return createErrModel();
-
-		}, (err: DebugProtocol.ErrorResponse) => createErrModel(err.message));
-	}
+        return createErrModel();
+      },
+      (err: DebugProtocol.ErrorResponse) => createErrModel(err.message)
+    );
+  }
 }

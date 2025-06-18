@@ -6,61 +6,61 @@
 import assert from 'assert';
 import { Range } from '../../../../../../../../../editor/common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../../base/test/common/utils.js';
-import { SpacingToken, SimpleToken, Space, Tab, VerticalTab } from '../../../../../../common/promptSyntax/codecs/base/simpleCodec/tokens/tokens.js';
+import {
+  SpacingToken,
+  SimpleToken,
+  Space,
+  Tab,
+  VerticalTab,
+} from '../../../../../../common/promptSyntax/codecs/base/simpleCodec/tokens/tokens.js';
 
 suite('SimpleToken', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+  ensureNoDisposablesAreLeakedInTestSuite();
 
-	suite('SpacingToken', () => {
-		test('extends \'SimpleToken\'', () => {
-			class TestClass extends SpacingToken {
-				public override get text(): string {
-					throw new Error('Method not implemented.');
-				}
-				public override toString(): string {
-					throw new Error('Method not implemented.');
-				}
-			}
+  suite('SpacingToken', () => {
+    test("extends 'SimpleToken'", () => {
+      class TestClass extends SpacingToken {
+        public override get text(): string {
+          throw new Error('Method not implemented.');
+        }
+        public override toString(): string {
+          throw new Error('Method not implemented.');
+        }
+      }
 
-			const token = new TestClass(new Range(1, 1, 1, 1));
+      const token = new TestClass(new Range(1, 1, 1, 1));
 
-			assert(
-				token instanceof SimpleToken,
-				'SpacingToken must extend SimpleToken.',
-			);
-		});
-	});
+      assert(
+        token instanceof SimpleToken,
+        'SpacingToken must extend SimpleToken.'
+      );
+    });
+  });
 
-	suite('Space', () => {
-		test('extends \'SpacingToken\'', () => {
-			const token = new Space(new Range(1, 1, 1, 2));
+  suite('Space', () => {
+    test("extends 'SpacingToken'", () => {
+      const token = new Space(new Range(1, 1, 1, 2));
 
-			assert(
-				token instanceof SimpleToken,
-				'Space must extend SpacingToken.',
-			);
-		});
-	});
+      assert(token instanceof SimpleToken, 'Space must extend SpacingToken.');
+    });
+  });
 
-	suite('Tab', () => {
-		test('extends \'SpacingToken\'', () => {
-			const token = new Tab(new Range(1, 1, 1, 2));
+  suite('Tab', () => {
+    test("extends 'SpacingToken'", () => {
+      const token = new Tab(new Range(1, 1, 1, 2));
 
-			assert(
-				token instanceof SimpleToken,
-				'Tab must extend SpacingToken.',
-			);
-		});
-	});
+      assert(token instanceof SimpleToken, 'Tab must extend SpacingToken.');
+    });
+  });
 
-	suite('VerticalTab', () => {
-		test('extends \'SpacingToken\'', () => {
-			const token = new VerticalTab(new Range(1, 1, 1, 2));
+  suite('VerticalTab', () => {
+    test("extends 'SpacingToken'", () => {
+      const token = new VerticalTab(new Range(1, 1, 1, 2));
 
-			assert(
-				token instanceof SimpleToken,
-				'VerticalTab must extend SpacingToken.',
-			);
-		});
-	});
+      assert(
+        token instanceof SimpleToken,
+        'VerticalTab must extend SpacingToken.'
+      );
+    });
+  });
 });

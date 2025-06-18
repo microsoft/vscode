@@ -8,30 +8,48 @@ import { testPaths, type ISuiteSpec } from '../../helpers';
 import touchSpec from '../../../completions/upstream/touch';
 
 const allOptions = [
-	'-A <time>',
-	'-a',
-	'-c',
-	'-f',
-	'-h',
-	'-m',
-	'-r <file>',
-	'-t <timestamp>',
+  '-A <time>',
+  '-a',
+  '-c',
+  '-f',
+  '-h',
+  '-m',
+  '-r <file>',
+  '-t <timestamp>',
 ];
-const expectedCompletions = [{ label: 'touch', description: (touchSpec as any).description }];
+const expectedCompletions = [
+  { label: 'touch', description: (touchSpec as any).description },
+];
 
 export const touchTestSuiteSpec: ISuiteSpec = {
-	name: 'touch',
-	completionSpecs: touchSpec,
-	availableCommands: 'touch',
-	testSpecs: [
-		// Empty input
-		{ input: '|', expectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+  name: 'touch',
+  completionSpecs: touchSpec,
+  availableCommands: 'touch',
+  testSpecs: [
+    // Empty input
+    {
+      input: '|',
+      expectedCompletions,
+      expectedResourceRequests: { type: 'both', cwd: testPaths.cwd },
+    },
 
-		// Typing the command
-		{ input: 't|', expectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-		{ input: 'touch|', expectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+    // Typing the command
+    {
+      input: 't|',
+      expectedCompletions,
+      expectedResourceRequests: { type: 'both', cwd: testPaths.cwd },
+    },
+    {
+      input: 'touch|',
+      expectedCompletions,
+      expectedResourceRequests: { type: 'both', cwd: testPaths.cwd },
+    },
 
-		// Basic options
-		{ input: 'touch |', expectedCompletions: allOptions, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
-	]
+    // Basic options
+    {
+      input: 'touch |',
+      expectedCompletions: allOptions,
+      expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd },
+    },
+  ],
 };

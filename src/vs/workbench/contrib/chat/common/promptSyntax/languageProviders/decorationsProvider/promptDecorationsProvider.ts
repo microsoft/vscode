@@ -10,11 +10,20 @@ import { FrontMatterDecoration } from './decorations/frontMatterDecoration.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { BaseToken } from '../../codecs/base/baseToken.js';
-import { ProviderInstanceManagerBase, TProviderClass } from '../providerInstanceManagerBase.js';
+import {
+  ProviderInstanceManagerBase,
+  TProviderClass,
+} from '../providerInstanceManagerBase.js';
 import { registerThemingParticipant } from '../../../../../../../platform/theme/common/themeService.js';
 import { FrontMatterHeader } from '../../codecs/base/markdownExtensionsCodec/tokens/frontMatterHeader.js';
-import { ReactiveDecorationBase, TChangedDecorator } from './decorations/utils/reactiveDecorationBase.js';
-import { DecorationBase, TDecorationClass } from './decorations/utils/decorationBase.js';
+import {
+  ReactiveDecorationBase,
+  TChangedDecorator,
+} from './decorations/utils/reactiveDecorationBase.js';
+import {
+  DecorationBase,
+  TDecorationClass,
+} from './decorations/utils/decorationBase.js';
 
 /**
  * Prompt tokens that are decorated by this provider.
@@ -24,182 +33,179 @@ type TDecoratedToken = FrontMatterHeader;
 /**
  * List of all supported decorations.
  */
-const SUPPORTED_DECORATIONS: readonly TDecorationClass<TDecoratedToken>[] = Object.freeze([
-	FrontMatterDecoration,
-]);
+const SUPPORTED_DECORATIONS: readonly TDecorationClass<TDecoratedToken>[] =
+  Object.freeze([FrontMatterDecoration]);
 
 /**
  * Prompt syntax decorations provider for text models.
  */
 export class PromptDecorator extends ProviderInstanceBase {
-	/**
-	 * Currently active decorations.
-	 */
-	private readonly decorations: DecorationBase<BaseToken>[] = [];
+  /**
+   * Currently active decorations.
+   */
+  private readonly decorations: DecorationBase<BaseToken>[] = [];
 
-	constructor(
-		model: ITextModel,
-		@IPromptsService promptsService: IPromptsService,
-	) {
-		super(model, promptsService);
+  constructor(
+    model: ITextModel,
+    @IPromptsService promptsService: IPromptsService
+  ) {
+    super(model, promptsService);
 
-		this.watchCursorPosition();
-	}
+    this.watchCursorPosition();
+  }
 
-	protected override onPromptSettled(
-		_error?: Error,
-	): this {
-		// by the time the promise above completes, either this object
-		// or the text model might be already has been disposed
-		if (this.isDisposed || this.model.isDisposed()) {
-			return this;
-		}
+  protected override onPromptSettled(_error?: Error): this {
+    // by the time the promise above completes, either this object
+    // or the text model might be already has been disposed
+    if (this.isDisposed || this.model.isDisposed()) {
+      return this;
+    }
 
-		this.addDecorations();
+    this.addDecorations();
 
-		return this;
-	}
+    return this;
+  }
 
-	/**
-	 * Get the current cursor position inside an active editor.
-	 * Note! Currently not implemented because the provider is disabled, and
-	 *       we need to do some refactoring to get accurate cursor position.
-	 */
-	private get cursorPosition(): Position | null {
-		if (this.model.isDisposed()) {
-			return null;
-		}
+  /**
+   * Get the current cursor position inside an active editor.
+   * Note! Currently not implemented because the provider is disabled, and
+   *       we need to do some refactoring to get accurate cursor position.
+   */
+  private get cursorPosition(): Position | null {
+    if (this.model.isDisposed()) {
+      return null;
+    }
 
-		return null;
-	}
+    return null;
+  }
 
-	/**
-	 * Watch editor cursor position and update reactive decorations accordingly.
-	 */
-	private watchCursorPosition(): this {
-		const interval = setInterval(() => {
-			const { cursorPosition } = this;
+  /**
+   * Watch editor cursor position and update reactive decorations accordingly.
+   */
+  private watchCursorPosition(): this {
+    const interval = setInterval(() => {
+      const { cursorPosition } = this;
 
-			const changedDecorations: TChangedDecorator[] = [];
-			for (const decoration of this.decorations) {
-				if ((decoration instanceof ReactiveDecorationBase) === false) {
-					continue;
-				}
+      const changedDecorations: TChangedDecorator[] = [];
+      for (const decoration of this.decorations) {
+        if (decoration instanceof ReactiveDecorationBase === false) {
+          continue;
+        }
 
-				if (decoration.setCursorPosition(cursorPosition) === true) {
-					changedDecorations.push(decoration);
-				}
-			}
+        if (decoration.setCursorPosition(cursorPosition) === true) {
+          changedDecorations.push(decoration);
+        }
+      }
 
-			if (changedDecorations.length === 0) {
-				return;
-			}
+      if (changedDecorations.length === 0) {
+        return;
+      }
 
-			this.changeModelDecorations(changedDecorations);
-		}, 25);
+      this.changeModelDecorations(changedDecorations);
+    }, 25);
 
-		this._register(toDisposable(() => {
-			clearInterval(interval);
-		}));
+    this._register(
+      toDisposable(() => {
+        clearInterval(interval);
+      })
+    );
 
-		return this;
-	}
+    return this;
+  }
 
-	/**
-	 * Update existing decorations.
-	 */
-	private changeModelDecorations(
-		decorations: readonly TChangedDecorator[],
-	): this {
-		this.model.changeDecorations((accessor) => {
-			for (const decoration of decorations) {
-				decoration.change(accessor);
-			}
-		});
+  /**
+   * Update existing decorations.
+   */
+  private changeModelDecorations(
+    decorations: readonly TChangedDecorator[]
+  ): this {
+    this.model.changeDecorations((accessor) => {
+      for (const decoration of decorations) {
+        decoration.change(accessor);
+      }
+    });
 
-		return this;
-	}
+    return this;
+  }
 
-	/**
-	 * Add decorations for all prompt tokens.
-	 */
-	private addDecorations(): this {
-		this.model.changeDecorations((accessor) => {
-			const { tokens } = this.parser;
+  /**
+   * Add decorations for all prompt tokens.
+   */
+  private addDecorations(): this {
+    this.model.changeDecorations((accessor) => {
+      const { tokens } = this.parser;
 
-			// remove all existing decorations
-			for (const decoration of this.decorations.splice(0)) {
-				decoration.remove(accessor);
-			}
+      // remove all existing decorations
+      for (const decoration of this.decorations.splice(0)) {
+        decoration.remove(accessor);
+      }
 
-			// then add new decorations based on the current tokens
-			for (const token of tokens) {
-				for (const Decoration of SUPPORTED_DECORATIONS) {
-					if (Decoration.handles(token) === false) {
-						continue;
-					}
+      // then add new decorations based on the current tokens
+      for (const token of tokens) {
+        for (const Decoration of SUPPORTED_DECORATIONS) {
+          if (Decoration.handles(token) === false) {
+            continue;
+          }
 
-					this.decorations.push(
-						new Decoration(accessor, token),
-					);
-					break;
-				}
-			}
-		});
+          this.decorations.push(new Decoration(accessor, token));
+          break;
+        }
+      }
+    });
 
-		return this;
-	}
+    return this;
+  }
 
-	/**
-	 * Remove all existing decorations.
-	 */
-	private removeAllDecorations(): this {
-		if (this.decorations.length === 0) {
-			return this;
-		}
+  /**
+   * Remove all existing decorations.
+   */
+  private removeAllDecorations(): this {
+    if (this.decorations.length === 0) {
+      return this;
+    }
 
-		this.model.changeDecorations((accessor) => {
-			for (const decoration of this.decorations.splice(0)) {
-				decoration.remove(accessor);
-			}
-		});
+    this.model.changeDecorations((accessor) => {
+      for (const decoration of this.decorations.splice(0)) {
+        decoration.remove(accessor);
+      }
+    });
 
-		return this;
-	}
+    return this;
+  }
 
-	public override dispose(): void {
-		if (this.isDisposed) {
-			return;
-		}
+  public override dispose(): void {
+    if (this.isDisposed) {
+      return;
+    }
 
-		this.removeAllDecorations();
-		super.dispose();
-	}
+    this.removeAllDecorations();
+    super.dispose();
+  }
 
-	/**
-	 * Returns a string representation of this object.
-	 */
-	public override toString(): string {
-		return `text-model-prompt-decorator:${this.model.uri.path}`;
-	}
+  /**
+   * Returns a string representation of this object.
+   */
+  public override toString(): string {
+    return `text-model-prompt-decorator:${this.model.uri.path}`;
+  }
 }
 
 /**
  * Register CSS styles of the supported decorations.
  */
 registerThemingParticipant((_theme, collector) => {
-	for (const Decoration of SUPPORTED_DECORATIONS) {
-		for (const [className, styles] of Object.entries(Decoration.cssStyles)) {
-			collector.addRule(`.monaco-editor ${className} { ${styles.join(' ')} }`);
-		}
-	}
+  for (const Decoration of SUPPORTED_DECORATIONS) {
+    for (const [className, styles] of Object.entries(Decoration.cssStyles)) {
+      collector.addRule(`.monaco-editor ${className} { ${styles.join(' ')} }`);
+    }
+  }
 });
 
 /**
  * Provider for prompt syntax decorators on text models.
  */
 export class PromptDecorationsProviderInstanceManager extends ProviderInstanceManagerBase<PromptDecorator> {
-	protected override get InstanceClass(): TProviderClass<PromptDecorator> {
-		return PromptDecorator;
-	}
+  protected override get InstanceClass(): TProviderClass<PromptDecorator> {
+    return PromptDecorator;
+  }
 }

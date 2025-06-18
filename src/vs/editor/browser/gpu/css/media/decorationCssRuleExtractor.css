@@ -4,6 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .monaco-decoration-css-rule-extractor {
-	visibility: hidden;
-	pointer-events: none;
+  visibility: hidden;
+  pointer-events: none;
 }

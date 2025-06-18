@@ -10,8 +10,16 @@ import { cancelPreviousCalls } from '../../../../../../base/common/decorators/ca
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { FailedToResolveContentsStream, ResolveError } from '../../promptFileReferenceErrors.js';
-import { INSTRUCTIONS_LANGUAGE_ID, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
+import {
+  FailedToResolveContentsStream,
+  ResolveError,
+} from '../../promptFileReferenceErrors.js';
+import {
+  INSTRUCTIONS_LANGUAGE_ID,
+  MODE_LANGUAGE_ID,
+  PROMPT_LANGUAGE_ID,
+  PromptsType,
+} from '../promptTypes.js';
 import { ObservableDisposable } from '../utils/observableDisposable.js';
 import { IPromptContentsProvider } from './types.js';
 
@@ -19,18 +27,18 @@ import { IPromptContentsProvider } from './types.js';
  * Options of the {@link PromptContentsProviderBase} class.
  */
 export interface IPromptContentsProviderOptions {
-	/**
-	 * Whether to allow files that don't have usual prompt
-	 * file extension to be treated as a prompt file.
-	 */
-	readonly allowNonPromptFiles: boolean;
+  /**
+   * Whether to allow files that don't have usual prompt
+   * file extension to be treated as a prompt file.
+   */
+  readonly allowNonPromptFiles: boolean;
 }
 
 /**
  * Default {@link IPromptContentsProviderOptions} options.
  */
 export const DEFAULT_OPTIONS: IPromptContentsProviderOptions = {
-	allowNonPromptFiles: false,
+  allowNonPromptFiles: false,
 };
 
 /**
@@ -48,149 +56,156 @@ export const DEFAULT_OPTIONS: IPromptContentsProviderOptions = {
  *     provider type to aid with debugging/tracing
  */
 export abstract class PromptContentsProviderBase<
-	TChangeEvent extends NonNullable<unknown>,
-> extends ObservableDisposable implements IPromptContentsProvider {
-	public abstract readonly uri: URI;
-	public abstract createNew(promptContentsSource: { uri: URI }): IPromptContentsProvider;
-	public abstract override toString(): string;
-	public abstract get languageId(): string;
-	public abstract get sourceName(): string;
+    TChangeEvent extends NonNullable<unknown>,
+  >
+  extends ObservableDisposable
+  implements IPromptContentsProvider
+{
+  public abstract readonly uri: URI;
+  public abstract createNew(promptContentsSource: {
+    uri: URI;
+  }): IPromptContentsProvider;
+  public abstract override toString(): string;
+  public abstract get languageId(): string;
+  public abstract get sourceName(): string;
 
-	/**
-	 * Prompt contents stream.
-	 */
-	public get contents(): Promise<VSBufferReadableStream> {
-		return this.getContentsStream('full');
-	}
+  /**
+   * Prompt contents stream.
+   */
+  public get contents(): Promise<VSBufferReadableStream> {
+    return this.getContentsStream('full');
+  }
 
-	/**
-	 * Prompt type used to determine how to interpret file contents.
-	 */
-	public get promptType(): PromptsType | 'non-prompt' {
-		const { languageId } = this;
+  /**
+   * Prompt type used to determine how to interpret file contents.
+   */
+  public get promptType(): PromptsType | 'non-prompt' {
+    const { languageId } = this;
 
-		if (languageId === PROMPT_LANGUAGE_ID) {
-			return PromptsType.prompt;
-		}
+    if (languageId === PROMPT_LANGUAGE_ID) {
+      return PromptsType.prompt;
+    }
 
-		if (languageId === INSTRUCTIONS_LANGUAGE_ID) {
-			return PromptsType.instructions;
-		}
+    if (languageId === INSTRUCTIONS_LANGUAGE_ID) {
+      return PromptsType.instructions;
+    }
 
-		if (languageId === MODE_LANGUAGE_ID) {
-			return PromptsType.mode;
-		}
+    if (languageId === MODE_LANGUAGE_ID) {
+      return PromptsType.mode;
+    }
 
-		return 'non-prompt';
-	}
+    return 'non-prompt';
+  }
 
-	/**
-	 * Function to get contents stream for the provider. This function should
-	 * throw a `ResolveError` or its derivative if the contents cannot be parsed.
-	 *
-	 * @param changesEvent The event that triggered the change. The special
-	 * `'full'` value means  that everything has changed hence entire prompt
-	 * contents need to be re-parsed from scratch.
-	 */
-	protected abstract getContentsStream(
-		changesEvent: TChangeEvent | 'full',
-		cancellationToken?: CancellationToken,
-	): Promise<VSBufferReadableStream>;
+  /**
+   * Function to get contents stream for the provider. This function should
+   * throw a `ResolveError` or its derivative if the contents cannot be parsed.
+   *
+   * @param changesEvent The event that triggered the change. The special
+   * `'full'` value means  that everything has changed hence entire prompt
+   * contents need to be re-parsed from scratch.
+   */
+  protected abstract getContentsStream(
+    changesEvent: TChangeEvent | 'full',
+    cancellationToken?: CancellationToken
+  ): Promise<VSBufferReadableStream>;
 
-	/**
-	 * Internal event emitter for the prompt contents change event. Classes that extend
-	 * this abstract class are responsible to use this emitter to fire the contents change
-	 * event when the prompt contents get modified.
-	 */
-	protected readonly onChangeEmitter = this._register(new Emitter<TChangeEvent | 'full'>());
+  /**
+   * Internal event emitter for the prompt contents change event. Classes that extend
+   * this abstract class are responsible to use this emitter to fire the contents change
+   * event when the prompt contents get modified.
+   */
+  protected readonly onChangeEmitter = this._register(
+    new Emitter<TChangeEvent | 'full'>()
+  );
 
-	/**
-	 * Options passed to the constructor, extended with
-	 * value defaults from {@link DEFAULT_OPTIONS}.
-	 */
-	protected readonly options: IPromptContentsProviderOptions;
+  /**
+   * Options passed to the constructor, extended with
+   * value defaults from {@link DEFAULT_OPTIONS}.
+   */
+  protected readonly options: IPromptContentsProviderOptions;
 
-	constructor(
-		options: Partial<IPromptContentsProviderOptions>,
-	) {
-		super();
+  constructor(options: Partial<IPromptContentsProviderOptions>) {
+    super();
 
-		this.options = {
-			...DEFAULT_OPTIONS,
-			...options,
-		};
-	}
+    this.options = {
+      ...DEFAULT_OPTIONS,
+      ...options,
+    };
+  }
 
-	/**
-	 * Event emitter for the prompt contents change event.
-	 * See {@link onContentChanged} for more details.
-	 */
-	private readonly onContentChangedEmitter = this._register(new Emitter<VSBufferReadableStream | ResolveError>());
+  /**
+   * Event emitter for the prompt contents change event.
+   * See {@link onContentChanged} for more details.
+   */
+  private readonly onContentChangedEmitter = this._register(
+    new Emitter<VSBufferReadableStream | ResolveError>()
+  );
 
-	/**
-	 * Event that fires when the prompt contents change. The event is either
-	 * a `VSBufferReadableStream` stream with changed contents or an instance of
-	 * the `ResolveError` class representing a parsing failure case.
-	 *
-	 * `Note!` this field is meant to be used by the external consumers of the prompt
-	 *         contents provider that the classes that extend this abstract class.
-	 *         Please use the {@link onChangeEmitter} event to provide a change
-	 *         event in your prompt contents implementation instead.
-	 */
-	public readonly onContentChanged = this.onContentChangedEmitter.event;
+  /**
+   * Event that fires when the prompt contents change. The event is either
+   * a `VSBufferReadableStream` stream with changed contents or an instance of
+   * the `ResolveError` class representing a parsing failure case.
+   *
+   * `Note!` this field is meant to be used by the external consumers of the prompt
+   *         contents provider that the classes that extend this abstract class.
+   *         Please use the {@link onChangeEmitter} event to provide a change
+   *         event in your prompt contents implementation instead.
+   */
+  public readonly onContentChanged = this.onContentChangedEmitter.event;
 
-	/**
-	 * Internal common implementation of the event that should be fired when
-	 * prompt contents change.
-	 */
-	@cancelPreviousCalls
-	private onContentsChanged(
-		event: TChangeEvent | 'full',
-		cancellationToken?: CancellationToken,
-	): this {
-		const promise = (cancellationToken?.isCancellationRequested)
-			? Promise.reject(new CancellationError())
-			: this.getContentsStream(event, cancellationToken);
+  /**
+   * Internal common implementation of the event that should be fired when
+   * prompt contents change.
+   */
+  @cancelPreviousCalls
+  private onContentsChanged(
+    event: TChangeEvent | 'full',
+    cancellationToken?: CancellationToken
+  ): this {
+    const promise = cancellationToken?.isCancellationRequested
+      ? Promise.reject(new CancellationError())
+      : this.getContentsStream(event, cancellationToken);
 
-		promise
-			.then((stream) => {
-				if (cancellationToken?.isCancellationRequested || this.isDisposed) {
-					stream.destroy();
-					throw new CancellationError();
-				}
+    promise
+      .then((stream) => {
+        if (cancellationToken?.isCancellationRequested || this.isDisposed) {
+          stream.destroy();
+          throw new CancellationError();
+        }
 
-				this.onContentChangedEmitter.fire(stream);
-			})
-			.catch((error) => {
-				if (error instanceof ResolveError) {
-					this.onContentChangedEmitter.fire(error);
+        this.onContentChangedEmitter.fire(stream);
+      })
+      .catch((error) => {
+        if (error instanceof ResolveError) {
+          this.onContentChangedEmitter.fire(error);
 
-					return;
-				}
+          return;
+        }
 
-				this.onContentChangedEmitter.fire(
-					new FailedToResolveContentsStream(this.uri, error),
-				);
-			});
+        this.onContentChangedEmitter.fire(
+          new FailedToResolveContentsStream(this.uri, error)
+        );
+      });
 
-		return this;
-	}
+    return this;
+  }
 
-	/**
-	 * Start producing the prompt contents data.
-	 */
-	public start(token?: CancellationToken): this {
-		assert(
-			!this.isDisposed,
-			'Cannot start contents provider that was already disposed.',
-		);
+  /**
+   * Start producing the prompt contents data.
+   */
+  public start(token?: CancellationToken): this {
+    assert(
+      !this.isDisposed,
+      'Cannot start contents provider that was already disposed.'
+    );
 
-		// `'full'` means "everything has changed"
-		this.onContentsChanged('full', token);
+    // `'full'` means "everything has changed"
+    this.onContentsChanged('full', token);
 
-		// subscribe to the change event emitted by a child class
-		this._register(this.onChangeEmitter.event(this.onContentsChanged, this));
+    // subscribe to the change event emitted by a child class
+    this._register(this.onChangeEmitter.event(this.onContentsChanged, this));
 
-		return this;
-	}
+    return this;
+  }
 }

@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .blockDecorations-container {
-	position: absolute;
-	top: 0;
-	pointer-events: none;
+  position: absolute;
+  top: 0;
+  pointer-events: none;
 }
 
 .monaco-editor .blockDecorations-block {
-	position: absolute;
-	box-sizing: border-box;
+  position: absolute;
+  box-sizing: border-box;
 }

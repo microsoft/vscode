@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-link {
-	color: var(--vscode-textLink-foreground);
+  color: var(--vscode-textLink-foreground);
 }
 
 .monaco-link:hover {
-	color: var(--vscode-textLink-activeForeground);
+  color: var(--vscode-textLink-activeForeground);
 }
-

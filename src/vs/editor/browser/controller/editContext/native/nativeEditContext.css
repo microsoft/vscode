@@ -4,47 +4,47 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .native-edit-context {
-	margin: 0;
-	padding: 0;
-	position: absolute;
-	overflow-y: scroll;
-	scrollbar-width: none;
-	z-index: -10;
-	white-space: pre-wrap;
+  margin: 0;
+  padding: 0;
+  position: absolute;
+  overflow-y: scroll;
+  scrollbar-width: none;
+  z-index: -10;
+  white-space: pre-wrap;
 }
 
 .monaco-editor .ime-text-area {
-	min-width: 0;
-	min-height: 0;
-	margin: 0;
-	padding: 0;
-	position: absolute;
-	outline: none !important;
-	resize: none;
-	border: none;
-	overflow: hidden;
-	color: transparent;
-	background-color: transparent;
-	z-index: -10;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  position: absolute;
+  outline: none !important;
+  resize: none;
+  border: none;
+  overflow: hidden;
+  color: transparent;
+  background-color: transparent;
+  z-index: -10;
 }
 
 .monaco-editor .edit-context-composition-none {
-	background-color: transparent;
-	border-bottom: none;
+  background-color: transparent;
+  border-bottom: none;
 }
 
 .monaco-editor :not(.hc-black, .hc-light) .edit-context-composition-secondary {
-	border-bottom: 1px solid var(--vscode-editor-compositionBorder);
+  border-bottom: 1px solid var(--vscode-editor-compositionBorder);
 }
 
 .monaco-editor :not(.hc-black, .hc-light) .edit-context-composition-primary {
-	border-bottom: 2px solid var(--vscode-editor-compositionBorder);
+  border-bottom: 2px solid var(--vscode-editor-compositionBorder);
 }
 
 .monaco-editor :is(.hc-black, .hc-light) .edit-context-composition-secondary {
-	border: 1px solid var(--vscode-editor-compositionBorder);
+  border: 1px solid var(--vscode-editor-compositionBorder);
 }
 
 .monaco-editor :is(.hc-black, .hc-light) .edit-context-composition-primary {
-	border: 2px solid var(--vscode-editor-compositionBorder);
+  border: 2px solid var(--vscode-editor-compositionBorder);
 }

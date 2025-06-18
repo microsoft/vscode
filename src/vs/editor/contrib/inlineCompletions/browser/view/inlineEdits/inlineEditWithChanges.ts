@@ -12,35 +12,46 @@ import { InlineCompletionCommand } from '../../../../../common/languages.js';
 import { InlineSuggestionItem } from '../../model/inlineSuggestionItem.js';
 
 export class InlineEditWithChanges {
-	public get lineEdit() {
-		return LineReplacement.fromSingleTextEdit(this.edit.toReplacement(this.originalText), this.originalText);
-	}
+  public get lineEdit() {
+    return LineReplacement.fromSingleTextEdit(
+      this.edit.toReplacement(this.originalText),
+      this.originalText
+    );
+  }
 
-	public get originalLineRange() { return this.lineEdit.lineRange; }
-	public get modifiedLineRange() { return this.lineEdit.toLineEdit().getNewLineRanges()[0]; }
+  public get originalLineRange() {
+    return this.lineEdit.lineRange;
+  }
+  public get modifiedLineRange() {
+    return this.lineEdit.toLineEdit().getNewLineRanges()[0];
+  }
 
-	public get displayRange() {
-		return this.originalText.lineRange.intersect(
-			this.originalLineRange.join(
-				LineRange.ofLength(this.originalLineRange.startLineNumber, this.lineEdit.newLines.length)
-			)
-		)!;
-	}
+  public get displayRange() {
+    return this.originalText.lineRange.intersect(
+      this.originalLineRange.join(
+        LineRange.ofLength(
+          this.originalLineRange.startLineNumber,
+          this.lineEdit.newLines.length
+        )
+      )
+    )!;
+  }
 
-	constructor(
-		public readonly originalText: AbstractText,
-		public readonly edit: TextEdit,
-		public readonly cursorPosition: Position,
-		public readonly commands: readonly InlineCompletionCommand[],
-		public readonly inlineCompletion: InlineSuggestionItem
-	) {
-	}
+  constructor(
+    public readonly originalText: AbstractText,
+    public readonly edit: TextEdit,
+    public readonly cursorPosition: Position,
+    public readonly commands: readonly InlineCompletionCommand[],
+    public readonly inlineCompletion: InlineSuggestionItem
+  ) {}
 
-	equals(other: InlineEditWithChanges) {
-		return this.originalText.getValue() === other.originalText.getValue() &&
-			this.edit.equals(other.edit) &&
-			this.cursorPosition.equals(other.cursorPosition) &&
-			this.commands === other.commands &&
-			this.inlineCompletion === other.inlineCompletion;
-	}
+  equals(other: InlineEditWithChanges) {
+    return (
+      this.originalText.getValue() === other.originalText.getValue() &&
+      this.edit.equals(other.edit) &&
+      this.cursorPosition.equals(other.cursorPosition) &&
+      this.commands === other.commands &&
+      this.inlineCompletion === other.inlineCompletion
+    );
+  }
 }

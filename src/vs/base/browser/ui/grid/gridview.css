@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-grid-view {
-	position: relative;
-	overflow: hidden;
-	width: 100%;
-	height: 100%;
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
 }
 
 .monaco-grid-branch-node {
-	width: 100%;
-	height: 100%;
+  width: 100%;
+  height: 100%;
 }

@@ -5,7 +5,10 @@
 
 import { Schemas } from '../../../../../../base/common/network.js';
 import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
-import { EditorContributionInstantiation, registerEditorContribution } from '../../../../../../editor/browser/editorExtensions.js';
+import {
+  EditorContributionInstantiation,
+  registerEditorContribution,
+} from '../../../../../../editor/browser/editorExtensions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IChatAgentService } from '../../../../chat/common/chatAgents.js';
 import { EmptyTextEditorHintContribution } from '../../../../codeEditor/browser/emptyTextEditorHint/emptyTextEditorHint.js';
@@ -15,60 +18,70 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 
 export class EmptyCellEditorHintContribution extends EmptyTextEditorHintContribution {
-	public static readonly CONTRIB_ID = 'notebook.editor.contrib.emptyCellEditorHint';
-	constructor(
-		editor: ICodeEditor,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IInlineChatSessionService inlineChatSessionService: IInlineChatSessionService,
-		@IChatAgentService chatAgentService: IChatAgentService,
-		@IInstantiationService instantiationService: IInstantiationService
-	) {
-		super(
-			editor,
-			configurationService,
-			inlineChatSessionService,
-			chatAgentService,
-			instantiationService
-		);
+  public static readonly CONTRIB_ID =
+    'notebook.editor.contrib.emptyCellEditorHint';
+  constructor(
+    editor: ICodeEditor,
+    @IEditorService private readonly _editorService: IEditorService,
+    @IConfigurationService configurationService: IConfigurationService,
+    @IInlineChatSessionService
+    inlineChatSessionService: IInlineChatSessionService,
+    @IChatAgentService chatAgentService: IChatAgentService,
+    @IInstantiationService instantiationService: IInstantiationService
+  ) {
+    super(
+      editor,
+      configurationService,
+      inlineChatSessionService,
+      chatAgentService,
+      instantiationService
+    );
 
-		const activeEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
-		if (!activeEditor) {
-			return;
-		}
+    const activeEditor = getNotebookEditorFromEditorPane(
+      this._editorService.activeEditorPane
+    );
+    if (!activeEditor) {
+      return;
+    }
 
-		this._register(activeEditor.onDidChangeActiveCell(() => this.update()));
-	}
+    this._register(activeEditor.onDidChangeActiveCell(() => this.update()));
+  }
 
-	protected override shouldRenderHint(): boolean {
-		const model = this.editor.getModel();
-		if (!model) {
-			return false;
-		}
+  protected override shouldRenderHint(): boolean {
+    const model = this.editor.getModel();
+    if (!model) {
+      return false;
+    }
 
-		const isNotebookCell = model?.uri.scheme === Schemas.vscodeNotebookCell;
-		if (!isNotebookCell) {
-			return false;
-		}
+    const isNotebookCell = model?.uri.scheme === Schemas.vscodeNotebookCell;
+    if (!isNotebookCell) {
+      return false;
+    }
 
-		const activeEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
-		if (!activeEditor || !activeEditor.isDisposed) {
-			return false;
-		}
+    const activeEditor = getNotebookEditorFromEditorPane(
+      this._editorService.activeEditorPane
+    );
+    if (!activeEditor || !activeEditor.isDisposed) {
+      return false;
+    }
 
-		const shouldRenderHint = super.shouldRenderHint();
-		if (!shouldRenderHint) {
-			return false;
-		}
+    const shouldRenderHint = super.shouldRenderHint();
+    if (!shouldRenderHint) {
+      return false;
+    }
 
-		const activeCell = activeEditor.getActiveCell();
+    const activeCell = activeEditor.getActiveCell();
 
-		if (activeCell?.uri.fragment !== model.uri.fragment) {
-			return false;
-		}
+    if (activeCell?.uri.fragment !== model.uri.fragment) {
+      return false;
+    }
 
-		return true;
-	}
+    return true;
+  }
 }
 
-registerEditorContribution(EmptyCellEditorHintContribution.CONTRIB_ID, EmptyCellEditorHintContribution, EditorContributionInstantiation.Eager); // eager because it needs to render a help message
+registerEditorContribution(
+  EmptyCellEditorHintContribution.CONTRIB_ID,
+  EmptyCellEditorHintContribution,
+  EditorContributionInstantiation.Eager
+); // eager because it needs to render a help message

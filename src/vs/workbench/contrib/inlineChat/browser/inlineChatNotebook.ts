@@ -17,89 +17,99 @@ import { NotebookTextDiffEditor } from '../../notebook/browser/diff/notebookDiff
 import { NotebookMultiTextDiffEditor } from '../../notebook/browser/diff/notebookMultiDiffEditor.js';
 
 export class InlineChatNotebookContribution {
+  private readonly _store = new DisposableStore();
 
-	private readonly _store = new DisposableStore();
+  constructor(
+    @IInlineChatSessionService sessionService: IInlineChatSessionService,
+    @IEditorService editorService: IEditorService,
+    @INotebookEditorService notebookEditorService: INotebookEditorService
+  ) {
+    this._store.add(
+      sessionService.registerSessionKeyComputer(Schemas.vscodeNotebookCell, {
+        getComparisonKey: (editor, uri) => {
+          const data = CellUri.parse(uri);
+          if (!data) {
+            throw illegalState('Expected notebook cell uri');
+          }
+          let fallback: string | undefined;
+          for (const notebookEditor of notebookEditorService.listNotebookEditors()) {
+            if (
+              notebookEditor.hasModel() &&
+              isEqual(notebookEditor.textModel.uri, data.notebook)
+            ) {
+              const candidate = `<notebook>${notebookEditor.getId()}#${uri}`;
 
-	constructor(
-		@IInlineChatSessionService sessionService: IInlineChatSessionService,
-		@IEditorService editorService: IEditorService,
-		@INotebookEditorService notebookEditorService: INotebookEditorService,
-	) {
+              if (!fallback) {
+                fallback = candidate;
+              }
 
-		this._store.add(sessionService.registerSessionKeyComputer(Schemas.vscodeNotebookCell, {
-			getComparisonKey: (editor, uri) => {
-				const data = CellUri.parse(uri);
-				if (!data) {
-					throw illegalState('Expected notebook cell uri');
-				}
-				let fallback: string | undefined;
-				for (const notebookEditor of notebookEditorService.listNotebookEditors()) {
-					if (notebookEditor.hasModel() && isEqual(notebookEditor.textModel.uri, data.notebook)) {
+              // find the code editor in the list of cell-code editors
+              if (
+                notebookEditor.codeEditors.find((tuple) => tuple[1] === editor)
+              ) {
+                return candidate;
+              }
 
-						const candidate = `<notebook>${notebookEditor.getId()}#${uri}`;
+              // 	// reveal cell and try to find code editor again
+              // 	const cell = notebookEditor.getCellByHandle(data.handle);
+              // 	if (cell) {
+              // 		notebookEditor.revealInViewAtTop(cell);
+              // 		if (notebookEditor.codeEditors.find((tuple) => tuple[1] === editor)) {
+              // 			return candidate;
+              // 		}
+              // 	}
+            }
+          }
 
-						if (!fallback) {
-							fallback = candidate;
-						}
+          if (fallback) {
+            return fallback;
+          }
 
-						// find the code editor in the list of cell-code editors
-						if (notebookEditor.codeEditors.find((tuple) => tuple[1] === editor)) {
-							return candidate;
-						}
+          const activeEditor = editorService.activeEditorPane;
+          if (
+            activeEditor &&
+            (activeEditor.getId() === NotebookTextDiffEditor.ID ||
+              activeEditor.getId() === NotebookMultiTextDiffEditor.ID)
+          ) {
+            return `<notebook>${editor.getId()}#${uri}`;
+          }
 
-						// 	// reveal cell and try to find code editor again
-						// 	const cell = notebookEditor.getCellByHandle(data.handle);
-						// 	if (cell) {
-						// 		notebookEditor.revealInViewAtTop(cell);
-						// 		if (notebookEditor.codeEditors.find((tuple) => tuple[1] === editor)) {
-						// 			return candidate;
-						// 		}
-						// 	}
-					}
-				}
+          throw illegalState('Expected notebook editor');
+        },
+      })
+    );
 
-				if (fallback) {
-					return fallback;
-				}
+    this._store.add(
+      sessionService.onWillStartSession((newSessionEditor) => {
+        const candidate = CellUri.parse(newSessionEditor.getModel().uri);
+        if (!candidate) {
+          return;
+        }
+        for (const notebookEditor of notebookEditorService.listNotebookEditors()) {
+          if (isEqual(notebookEditor.textModel?.uri, candidate.notebook)) {
+            let found = false;
+            const editors: ICodeEditor[] = [];
+            for (const [, codeEditor] of notebookEditor.codeEditors) {
+              editors.push(codeEditor);
+              found = codeEditor === newSessionEditor || found;
+            }
+            if (found) {
+              // found the this editor in the outer notebook editor -> make sure to
+              // cancel all sibling sessions
+              for (const editor of editors) {
+                if (editor !== newSessionEditor) {
+                  InlineChatController.get(editor)?.acceptSession();
+                }
+              }
+              break;
+            }
+          }
+        }
+      })
+    );
+  }
 
-				const activeEditor = editorService.activeEditorPane;
-				if (activeEditor && (activeEditor.getId() === NotebookTextDiffEditor.ID || activeEditor.getId() === NotebookMultiTextDiffEditor.ID)) {
-					return `<notebook>${editor.getId()}#${uri}`;
-				}
-
-				throw illegalState('Expected notebook editor');
-			}
-		}));
-
-		this._store.add(sessionService.onWillStartSession(newSessionEditor => {
-			const candidate = CellUri.parse(newSessionEditor.getModel().uri);
-			if (!candidate) {
-				return;
-			}
-			for (const notebookEditor of notebookEditorService.listNotebookEditors()) {
-				if (isEqual(notebookEditor.textModel?.uri, candidate.notebook)) {
-					let found = false;
-					const editors: ICodeEditor[] = [];
-					for (const [, codeEditor] of notebookEditor.codeEditors) {
-						editors.push(codeEditor);
-						found = codeEditor === newSessionEditor || found;
-					}
-					if (found) {
-						// found the this editor in the outer notebook editor -> make sure to
-						// cancel all sibling sessions
-						for (const editor of editors) {
-							if (editor !== newSessionEditor) {
-								InlineChatController.get(editor)?.acceptSession();
-							}
-						}
-						break;
-					}
-				}
-			}
-		}));
-	}
-
-	dispose(): void {
-		this._store.dispose();
-	}
+  dispose(): void {
+    this._store.dispose();
+  }
 }

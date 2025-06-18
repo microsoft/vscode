@@ -4,6 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .selection-anchor {
-	background-color: #007ACC;
-	width: 2px !important;
+  background-color: #007acc;
+  width: 2px !important;
 }

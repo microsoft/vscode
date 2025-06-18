@@ -17,52 +17,50 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
  * allow to subscribe to the change events of the prompt contents.
  */
 export interface IPromptContentsProvider extends IDisposable {
-	/**
-	 * URI component of the prompt associated with this contents provider.
-	 */
-	readonly uri: URI;
+  /**
+   * URI component of the prompt associated with this contents provider.
+   */
+  readonly uri: URI;
 
-	/**
-	 * Language ID of the prompt contents.
-	 */
-	readonly languageId: string;
+  /**
+   * Language ID of the prompt contents.
+   */
+  readonly languageId: string;
 
-	/**
-	 * Prompt type used to determine how to interpret file contents.
-	 */
-	readonly promptType: PromptsType | 'non-prompt';
+  /**
+   * Prompt type used to determine how to interpret file contents.
+   */
+  readonly promptType: PromptsType | 'non-prompt';
 
-	/**
-	 * Prompt contents stream.
-	 */
-	readonly contents: Promise<VSBufferReadableStream>;
+  /**
+   * Prompt contents stream.
+   */
+  readonly contents: Promise<VSBufferReadableStream>;
 
-	/**
-	 * Prompt contents source name.
-	 */
-	readonly sourceName: string;
+  /**
+   * Prompt contents source name.
+   */
+  readonly sourceName: string;
 
-	/**
-	 * Event that fires when the prompt contents change. The event is either a
-	 * {@linkcode VSBufferReadableStream} stream with changed contents or
-	 * an instance of the {@linkcode ResolveError} error.
-	 */
-	readonly onContentChanged: Event<VSBufferReadableStream | ResolveError>;
+  /**
+   * Event that fires when the prompt contents change. The event is either a
+   * {@linkcode VSBufferReadableStream} stream with changed contents or
+   * an instance of the {@linkcode ResolveError} error.
+   */
+  readonly onContentChanged: Event<VSBufferReadableStream | ResolveError>;
 
-	/**
-	 * Subscribe to `onDispose` event of the contents provider.
-	 */
-	readonly onDispose: Event<void>;
+  /**
+   * Subscribe to `onDispose` event of the contents provider.
+   */
+  readonly onDispose: Event<void>;
 
-	/**
-	 * Start the contents provider to produce the underlying contents.
-	 */
-	start(token?: CancellationToken): this;
+  /**
+   * Start the contents provider to produce the underlying contents.
+   */
+  start(token?: CancellationToken): this;
 
-	/**
-	 * Create a new instance of prompt contents provider.
-	 */
-	createNew(
-		promptContentsSource: { uri: URI },
-	): IPromptContentsProvider;
+  /**
+   * Create a new instance of prompt contents provider.
+   */
+  createNew(promptContentsSource: { uri: URI }): IPromptContentsProvider;
 }

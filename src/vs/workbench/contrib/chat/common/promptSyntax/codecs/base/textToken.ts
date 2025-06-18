@@ -11,9 +11,9 @@ import { CompositeToken } from './compositeToken.js';
  * hold an additional meaning in the text.
  */
 export class Text<
-	TTokens extends readonly BaseToken[] = readonly BaseToken[],
+  TTokens extends readonly BaseToken[] = readonly BaseToken[],
 > extends CompositeToken<TTokens> {
-	public override toString(): string {
-		return `text(${this.shortText()})${this.range}`;
-	}
+  public override toString(): string {
+    return `text(${this.shortText()})${this.range}`;
+  }
 }

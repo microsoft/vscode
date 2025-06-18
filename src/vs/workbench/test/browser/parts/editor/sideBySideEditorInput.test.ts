@@ -7,163 +7,275 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { EditorResourceAccessor, IResourceSideBySideEditorInput, isResourceSideBySideEditorInput, isSideBySideEditorInput, IUntypedEditorInput } from '../../../../common/editor.js';
+import {
+  EditorResourceAccessor,
+  IResourceSideBySideEditorInput,
+  isResourceSideBySideEditorInput,
+  isSideBySideEditorInput,
+  IUntypedEditorInput,
+} from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
-import { TestFileEditorInput, workbenchInstantiationService } from '../../workbenchTestServices.js';
+import {
+  TestFileEditorInput,
+  workbenchInstantiationService,
+} from '../../workbenchTestServices.js';
 
 suite('SideBySideEditorInput', () => {
+  const disposables = new DisposableStore();
 
-	const disposables = new DisposableStore();
+  teardown(() => {
+    disposables.clear();
+  });
 
-	teardown(() => {
-		disposables.clear();
-	});
+  class MyEditorInput extends EditorInput {
+    constructor(public resource: URI | undefined = undefined) {
+      super();
+    }
 
-	class MyEditorInput extends EditorInput {
+    fireCapabilitiesChangeEvent(): void {
+      this._onDidChangeCapabilities.fire();
+    }
 
-		constructor(public resource: URI | undefined = undefined) {
-			super();
-		}
+    fireDirtyChangeEvent(): void {
+      this._onDidChangeDirty.fire();
+    }
 
-		fireCapabilitiesChangeEvent(): void {
-			this._onDidChangeCapabilities.fire();
-		}
+    fireLabelChangeEvent(): void {
+      this._onDidChangeLabel.fire();
+    }
 
-		fireDirtyChangeEvent(): void {
-			this._onDidChangeDirty.fire();
-		}
+    override get typeId(): string {
+      return 'myEditorInput';
+    }
+    override resolve(): any {
+      return null;
+    }
 
-		fireLabelChangeEvent(): void {
-			this._onDidChangeLabel.fire();
-		}
+    override toUntyped() {
+      return { resource: this.resource, options: { override: this.typeId } };
+    }
 
-		override get typeId(): string { return 'myEditorInput'; }
-		override resolve(): any { return null; }
+    override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
+      if (super.matches(otherInput)) {
+        return true;
+      }
 
-		override toUntyped() {
-			return { resource: this.resource, options: { override: this.typeId } };
-		}
+      const resource = EditorResourceAccessor.getCanonicalUri(otherInput);
+      return resource?.toString() === this.resource?.toString();
+    }
+  }
 
-		override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-			if (super.matches(otherInput)) {
-				return true;
-			}
+  test('basics', () => {
+    const instantiationService = workbenchInstantiationService(
+      undefined,
+      disposables
+    );
 
-			const resource = EditorResourceAccessor.getCanonicalUri(otherInput);
-			return resource?.toString() === this.resource?.toString();
-		}
-	}
+    let counter = 0;
+    const input = disposables.add(new MyEditorInput(URI.file('/fake')));
+    disposables.add(
+      input.onWillDispose(() => {
+        assert(true);
+        counter++;
+      })
+    );
 
-	test('basics', () => {
-		const instantiationService = workbenchInstantiationService(undefined, disposables);
+    const otherInput = disposables.add(new MyEditorInput(URI.file('/fake2')));
+    disposables.add(
+      otherInput.onWillDispose(() => {
+        assert(true);
+        counter++;
+      })
+    );
 
-		let counter = 0;
-		const input = disposables.add(new MyEditorInput(URI.file('/fake')));
-		disposables.add(input.onWillDispose(() => {
-			assert(true);
-			counter++;
-		}));
+    const sideBySideInput = disposables.add(
+      instantiationService.createInstance(
+        SideBySideEditorInput,
+        'name',
+        'description',
+        input,
+        otherInput
+      )
+    );
+    assert.strictEqual(sideBySideInput.getName(), 'name');
+    assert.strictEqual(sideBySideInput.getDescription(), 'description');
 
-		const otherInput = disposables.add(new MyEditorInput(URI.file('/fake2')));
-		disposables.add(otherInput.onWillDispose(() => {
-			assert(true);
-			counter++;
-		}));
+    assert.ok(isSideBySideEditorInput(sideBySideInput));
+    assert.ok(!isSideBySideEditorInput(input));
 
-		const sideBySideInput = disposables.add(instantiationService.createInstance(SideBySideEditorInput, 'name', 'description', input, otherInput));
-		assert.strictEqual(sideBySideInput.getName(), 'name');
-		assert.strictEqual(sideBySideInput.getDescription(), 'description');
+    assert.strictEqual(sideBySideInput.secondary, input);
+    assert.strictEqual(sideBySideInput.primary, otherInput);
+    assert(sideBySideInput.matches(sideBySideInput));
+    assert(!sideBySideInput.matches(otherInput));
 
-		assert.ok(isSideBySideEditorInput(sideBySideInput));
-		assert.ok(!isSideBySideEditorInput(input));
+    sideBySideInput.dispose();
+    assert.strictEqual(counter, 0);
 
-		assert.strictEqual(sideBySideInput.secondary, input);
-		assert.strictEqual(sideBySideInput.primary, otherInput);
-		assert(sideBySideInput.matches(sideBySideInput));
-		assert(!sideBySideInput.matches(otherInput));
+    const sideBySideInputSame = disposables.add(
+      instantiationService.createInstance(
+        SideBySideEditorInput,
+        undefined,
+        undefined,
+        input,
+        input
+      )
+    );
+    assert.strictEqual(sideBySideInputSame.getName(), input.getName());
+    assert.strictEqual(
+      sideBySideInputSame.getDescription(),
+      input.getDescription()
+    );
+    assert.strictEqual(sideBySideInputSame.getTitle(), input.getTitle());
+    assert.strictEqual(
+      sideBySideInputSame.resource?.toString(),
+      input.resource?.toString()
+    );
+  });
 
-		sideBySideInput.dispose();
-		assert.strictEqual(counter, 0);
+  test('events dispatching', () => {
+    const instantiationService = workbenchInstantiationService(
+      undefined,
+      disposables
+    );
 
-		const sideBySideInputSame = disposables.add(instantiationService.createInstance(SideBySideEditorInput, undefined, undefined, input, input));
-		assert.strictEqual(sideBySideInputSame.getName(), input.getName());
-		assert.strictEqual(sideBySideInputSame.getDescription(), input.getDescription());
-		assert.strictEqual(sideBySideInputSame.getTitle(), input.getTitle());
-		assert.strictEqual(sideBySideInputSame.resource?.toString(), input.resource?.toString());
-	});
+    const input = disposables.add(new MyEditorInput());
+    const otherInput = disposables.add(new MyEditorInput());
 
-	test('events dispatching', () => {
-		const instantiationService = workbenchInstantiationService(undefined, disposables);
+    const sideBySideInut = disposables.add(
+      instantiationService.createInstance(
+        SideBySideEditorInput,
+        'name',
+        'description',
+        otherInput,
+        input
+      )
+    );
 
-		const input = disposables.add(new MyEditorInput());
-		const otherInput = disposables.add(new MyEditorInput());
+    assert.ok(isSideBySideEditorInput(sideBySideInut));
 
-		const sideBySideInut = disposables.add(instantiationService.createInstance(SideBySideEditorInput, 'name', 'description', otherInput, input));
+    let capabilitiesChangeCounter = 0;
+    disposables.add(
+      sideBySideInut.onDidChangeCapabilities(() => capabilitiesChangeCounter++)
+    );
 
-		assert.ok(isSideBySideEditorInput(sideBySideInut));
+    let dirtyChangeCounter = 0;
+    disposables.add(
+      sideBySideInut.onDidChangeDirty(() => dirtyChangeCounter++)
+    );
 
-		let capabilitiesChangeCounter = 0;
-		disposables.add(sideBySideInut.onDidChangeCapabilities(() => capabilitiesChangeCounter++));
+    let labelChangeCounter = 0;
+    disposables.add(
+      sideBySideInut.onDidChangeLabel(() => labelChangeCounter++)
+    );
 
-		let dirtyChangeCounter = 0;
-		disposables.add(sideBySideInut.onDidChangeDirty(() => dirtyChangeCounter++));
+    input.fireCapabilitiesChangeEvent();
+    assert.strictEqual(capabilitiesChangeCounter, 1);
 
-		let labelChangeCounter = 0;
-		disposables.add(sideBySideInut.onDidChangeLabel(() => labelChangeCounter++));
+    otherInput.fireCapabilitiesChangeEvent();
+    assert.strictEqual(capabilitiesChangeCounter, 2);
 
-		input.fireCapabilitiesChangeEvent();
-		assert.strictEqual(capabilitiesChangeCounter, 1);
+    input.fireDirtyChangeEvent();
+    otherInput.fireDirtyChangeEvent();
+    assert.strictEqual(dirtyChangeCounter, 1);
 
-		otherInput.fireCapabilitiesChangeEvent();
-		assert.strictEqual(capabilitiesChangeCounter, 2);
+    input.fireLabelChangeEvent();
+    otherInput.fireLabelChangeEvent();
+    assert.strictEqual(labelChangeCounter, 2);
+  });
 
-		input.fireDirtyChangeEvent();
-		otherInput.fireDirtyChangeEvent();
-		assert.strictEqual(dirtyChangeCounter, 1);
+  test('toUntyped', () => {
+    const instantiationService = workbenchInstantiationService(
+      undefined,
+      disposables
+    );
 
-		input.fireLabelChangeEvent();
-		otherInput.fireLabelChangeEvent();
-		assert.strictEqual(labelChangeCounter, 2);
-	});
+    const primaryInput = disposables.add(new MyEditorInput(URI.file('/fake')));
+    const secondaryInput = disposables.add(
+      new MyEditorInput(URI.file('/fake2'))
+    );
 
-	test('toUntyped', () => {
-		const instantiationService = workbenchInstantiationService(undefined, disposables);
+    const sideBySideInput = disposables.add(
+      instantiationService.createInstance(
+        SideBySideEditorInput,
+        'Side By Side Test',
+        undefined,
+        secondaryInput,
+        primaryInput
+      )
+    );
 
-		const primaryInput = disposables.add(new MyEditorInput(URI.file('/fake')));
-		const secondaryInput = disposables.add(new MyEditorInput(URI.file('/fake2')));
+    const untypedSideBySideInput = sideBySideInput.toUntyped();
+    assert.ok(isResourceSideBySideEditorInput(untypedSideBySideInput));
+  });
 
-		const sideBySideInput = disposables.add(instantiationService.createInstance(SideBySideEditorInput, 'Side By Side Test', undefined, secondaryInput, primaryInput));
+  test('untyped matches', () => {
+    const instantiationService = workbenchInstantiationService(
+      undefined,
+      disposables
+    );
 
-		const untypedSideBySideInput = sideBySideInput.toUntyped();
-		assert.ok(isResourceSideBySideEditorInput(untypedSideBySideInput));
-	});
+    const primaryInput = disposables.add(
+      new TestFileEditorInput(URI.file('/fake'), 'primaryId')
+    );
+    const secondaryInput = disposables.add(
+      new TestFileEditorInput(URI.file('/fake2'), 'secondaryId')
+    );
+    const sideBySideInput = disposables.add(
+      instantiationService.createInstance(
+        SideBySideEditorInput,
+        'Side By Side Test',
+        undefined,
+        secondaryInput,
+        primaryInput
+      )
+    );
 
-	test('untyped matches', () => {
-		const instantiationService = workbenchInstantiationService(undefined, disposables);
+    const primaryUntypedInput = {
+      resource: URI.file('/fake'),
+      options: { override: 'primaryId' },
+    };
+    const secondaryUntypedInput = {
+      resource: URI.file('/fake2'),
+      options: { override: 'secondaryId' },
+    };
+    const sideBySideUntyped: IResourceSideBySideEditorInput = {
+      primary: primaryUntypedInput,
+      secondary: secondaryUntypedInput,
+    };
 
-		const primaryInput = disposables.add(new TestFileEditorInput(URI.file('/fake'), 'primaryId'));
-		const secondaryInput = disposables.add(new TestFileEditorInput(URI.file('/fake2'), 'secondaryId'));
-		const sideBySideInput = disposables.add(instantiationService.createInstance(SideBySideEditorInput, 'Side By Side Test', undefined, secondaryInput, primaryInput));
+    assert.ok(sideBySideInput.matches(sideBySideUntyped));
 
-		const primaryUntypedInput = { resource: URI.file('/fake'), options: { override: 'primaryId' } };
-		const secondaryUntypedInput = { resource: URI.file('/fake2'), options: { override: 'secondaryId' } };
-		const sideBySideUntyped: IResourceSideBySideEditorInput = { primary: primaryUntypedInput, secondary: secondaryUntypedInput };
+    const primaryUntypedInput2 = {
+      resource: URI.file('/fake'),
+      options: { override: 'primaryIdWrong' },
+    };
+    const secondaryUntypedInput2 = {
+      resource: URI.file('/fake2'),
+      options: { override: 'secondaryId' },
+    };
+    const sideBySideUntyped2: IResourceSideBySideEditorInput = {
+      primary: primaryUntypedInput2,
+      secondary: secondaryUntypedInput2,
+    };
 
-		assert.ok(sideBySideInput.matches(sideBySideUntyped));
+    assert.ok(!sideBySideInput.matches(sideBySideUntyped2));
 
-		const primaryUntypedInput2 = { resource: URI.file('/fake'), options: { override: 'primaryIdWrong' } };
-		const secondaryUntypedInput2 = { resource: URI.file('/fake2'), options: { override: 'secondaryId' } };
-		const sideBySideUntyped2: IResourceSideBySideEditorInput = { primary: primaryUntypedInput2, secondary: secondaryUntypedInput2 };
+    const primaryUntypedInput3 = {
+      resource: URI.file('/fake'),
+      options: { override: 'primaryId' },
+    };
+    const secondaryUntypedInput3 = {
+      resource: URI.file('/fake2Wrong'),
+      options: { override: 'secondaryId' },
+    };
+    const sideBySideUntyped3: IResourceSideBySideEditorInput = {
+      primary: primaryUntypedInput3,
+      secondary: secondaryUntypedInput3,
+    };
 
-		assert.ok(!sideBySideInput.matches(sideBySideUntyped2));
+    assert.ok(!sideBySideInput.matches(sideBySideUntyped3));
+  });
 
-		const primaryUntypedInput3 = { resource: URI.file('/fake'), options: { override: 'primaryId' } };
-		const secondaryUntypedInput3 = { resource: URI.file('/fake2Wrong'), options: { override: 'secondaryId' } };
-		const sideBySideUntyped3: IResourceSideBySideEditorInput = { primary: primaryUntypedInput3, secondary: secondaryUntypedInput3 };
-
-		assert.ok(!sideBySideInput.matches(sideBySideUntyped3));
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+  ensureNoDisposablesAreLeakedInTestSuite();
 });

@@ -19,42 +19,47 @@ const getLabelRe = /^\W*at (.*) \($/;
  * Parses a textual stack trace.
  */
 export class StackTraceParser {
-    /** Gets whether the stacktrace has any locations in it. */
-    public static isStackLike(str: string) {
-        return re1.test(str) || re2.test(str);
-    }
-    constructor(private readonly stack: string) { }
+	/** Gets whether the stacktrace has any locations in it. */
+	public static isStackLike(str: string) {
+		return re1.test(str) || re2.test(str);
+	}
+	constructor(private readonly stack: string) {}
 
-    /** Iterates over segments of text and locations in the stack. */
-    *[Symbol.iterator]() {
-        for (const line of this.stack.split('\n')) {
-            const match = re1.exec(line) || re2.exec(line);
-            if (!match) {
-                yield line + '\n';
-                continue;
-            }
+	/** Iterates over segments of text and locations in the stack. */
+	*[Symbol.iterator]() {
+		for (const line of this.stack.split('\n')) {
+			const match = re1.exec(line) || re2.exec(line);
+			if (!match) {
+				yield line + '\n';
+				continue;
+			}
 
-            const [, prefix, url, lineNo, columnNo, suffix] = match;
-            if (prefix) {
-                yield prefix;
-            }
+			const [, prefix, url, lineNo, columnNo, suffix] = match;
+			if (prefix) {
+				yield prefix;
+			}
 
-            yield new StackTraceLocation(getLabelRe.exec(prefix)?.[1], url, Number(lineNo), Number(columnNo));
+			yield new StackTraceLocation(
+				getLabelRe.exec(prefix)?.[1],
+				url,
+				Number(lineNo),
+				Number(columnNo),
+			);
 
-            if (suffix) {
-                yield suffix;
-            }
+			if (suffix) {
+				yield suffix;
+			}
 
-            yield '\n';
-        }
-    }
+			yield '\n';
+		}
+	}
 }
 
 export class StackTraceLocation {
-    constructor(
-        public readonly label: string | undefined,
-        public readonly path: string,
-        public readonly lineBase1: number,
-        public readonly columnBase1: number,
-    ) { }
+	constructor(
+		public readonly label: string | undefined,
+		public readonly path: string,
+		public readonly lineBase1: number,
+		public readonly columnBase1: number,
+	) {}
 }

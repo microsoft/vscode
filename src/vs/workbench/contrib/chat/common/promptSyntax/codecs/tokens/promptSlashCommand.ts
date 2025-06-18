@@ -15,28 +15,27 @@ const START_CHARACTER: string = '/';
  * Represents a `/command` token in a prompt text.
  */
 export class PromptSlashCommand extends PromptToken {
-	constructor(
-		range: Range,
-		/**
-		 * The name of a command, excluding the `/` character at the start.
-		 */
-		public readonly name: string,
-	) {
+  constructor(
+    range: Range,
+    /**
+     * The name of a command, excluding the `/` character at the start.
+     */
+    public readonly name: string
+  ) {
+    super(range);
+  }
 
-		super(range);
-	}
+  /**
+   * Get full text of the token.
+   */
+  public get text(): string {
+    return `${START_CHARACTER}${this.name}`;
+  }
 
-	/**
-	 * Get full text of the token.
-	 */
-	public get text(): string {
-		return `${START_CHARACTER}${this.name}`;
-	}
-
-	/**
-	 * Return a string representation of the token.
-	 */
-	public override toString(): string {
-		return `${this.text}${this.range}`;
-	}
+  /**
+   * Return a string representation of the token.
+   */
+  public override toString(): string {
+    return `${this.text}${this.range}`;
+  }
 }

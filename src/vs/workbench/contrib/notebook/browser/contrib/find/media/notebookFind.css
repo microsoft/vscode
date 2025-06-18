@@ -4,22 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .notebookOverlay.notebook-editor.find-hide-transition {
-	overflow-y: hidden;
+  overflow-y: hidden;
 }
 
 .monaco-workbench .notebookOverlay.notebook-editor.find-show-transition {
-	overflow-y: hidden;
+  overflow-y: hidden;
 }
 
-.monaco-workbench .notebookOverlay.notebook-editor .simple-fr-find-part-wrapper .matchesCount {
-	text-align: center;
-	text-overflow: ellipsis;
-	overflow: hidden;
-	white-space: nowrap;
-	padding: 0 2px;
-	box-sizing: border-box;
+.monaco-workbench
+  .notebookOverlay.notebook-editor
+  .simple-fr-find-part-wrapper
+  .matchesCount {
+  text-align: center;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  padding: 0 2px;
+  box-sizing: border-box;
 }
 
 .monaco-workbench .nb-findScope {
-	background-color: var(--vscode-editor-findRangeHighlightBackground);
+  background-color: var(--vscode-editor-findRangeHighlightBackground);
 }

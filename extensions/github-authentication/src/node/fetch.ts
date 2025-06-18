@@ -5,8 +5,8 @@
 
 let _fetch: typeof fetch;
 try {
-	_fetch = require('electron').net.fetch;
+  _fetch = require('electron').net.fetch;
 } catch {
-	_fetch = fetch;
+  _fetch = fetch;
 }
 export const fetching = _fetch;

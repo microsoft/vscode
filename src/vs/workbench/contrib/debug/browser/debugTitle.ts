@@ -10,26 +10,25 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { ITitleService } from '../../../services/title/browser/titleService.js';
 
 export class DebugTitleContribution implements IWorkbenchContribution {
+  private toDispose: IDisposable[] = [];
 
-	private toDispose: IDisposable[] = [];
+  constructor(
+    @IDebugService debugService: IDebugService,
+    @IHostService hostService: IHostService,
+    @ITitleService titleService: ITitleService
+  ) {
+    const updateTitle = () => {
+      if (debugService.state === State.Stopped && !hostService.hasFocus) {
+        titleService.updateProperties({ prefix: '🔴' });
+      } else {
+        titleService.updateProperties({ prefix: '' });
+      }
+    };
+    this.toDispose.push(debugService.onDidChangeState(updateTitle));
+    this.toDispose.push(hostService.onDidChangeFocus(updateTitle));
+  }
 
-	constructor(
-		@IDebugService debugService: IDebugService,
-		@IHostService hostService: IHostService,
-		@ITitleService titleService: ITitleService
-	) {
-		const updateTitle = () => {
-			if (debugService.state === State.Stopped && !hostService.hasFocus) {
-				titleService.updateProperties({ prefix: '🔴' });
-			} else {
-				titleService.updateProperties({ prefix: '' });
-			}
-		};
-		this.toDispose.push(debugService.onDidChangeState(updateTitle));
-		this.toDispose.push(hostService.onDidChangeFocus(updateTitle));
-	}
-
-	dispose(): void {
-		dispose(this.toDispose);
-	}
+  dispose(): void {
+    dispose(this.toDispose);
+  }
 }

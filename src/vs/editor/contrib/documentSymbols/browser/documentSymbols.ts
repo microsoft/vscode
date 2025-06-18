@@ -10,17 +10,25 @@ import { ITextModelService } from '../../../common/services/resolverService.js';
 import { IOutlineModelService } from './outlineModel.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 
-CommandsRegistry.registerCommand('_executeDocumentSymbolProvider', async function (accessor, ...args) {
-	const [resource] = args;
-	assertType(URI.isUri(resource));
+CommandsRegistry.registerCommand(
+  '_executeDocumentSymbolProvider',
+  async function (accessor, ...args) {
+    const [resource] = args;
+    assertType(URI.isUri(resource));
 
-	const outlineService = accessor.get(IOutlineModelService);
-	const modelService = accessor.get(ITextModelService);
+    const outlineService = accessor.get(IOutlineModelService);
+    const modelService = accessor.get(ITextModelService);
 
-	const reference = await modelService.createModelReference(resource);
-	try {
-		return (await outlineService.getOrCreate(reference.object.textEditorModel, CancellationToken.None)).getTopLevelSymbols();
-	} finally {
-		reference.dispose();
-	}
-});
+    const reference = await modelService.createModelReference(resource);
+    try {
+      return (
+        await outlineService.getOrCreate(
+          reference.object.textEditorModel,
+          CancellationToken.None
+        )
+      ).getTopLevelSymbols();
+    } finally {
+      reference.dispose();
+    }
+  }
+);

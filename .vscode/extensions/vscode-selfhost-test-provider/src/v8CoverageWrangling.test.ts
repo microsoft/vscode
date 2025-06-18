@@ -25,7 +25,7 @@ suite('v8CoverageWrangling', () => {
 					{ start: 5, end: 10, covered: true },
 					{ start: 12, end: 13, covered: true },
 					{ start: 15, end: 20, covered: true },
-				]
+				],
 			);
 		});
 
@@ -45,7 +45,7 @@ suite('v8CoverageWrangling', () => {
 				[
 					{ start: 2, end: 7, covered: true },
 					{ start: 7, end: 10, covered: false },
-				]
+				],
 			);
 		});
 
@@ -58,7 +58,7 @@ suite('v8CoverageWrangling', () => {
 				[
 					{ start: 2, end: 5, covered: false },
 					{ start: 5, end: 10, covered: true },
-				]
+				],
 			);
 		});
 
@@ -72,7 +72,7 @@ suite('v8CoverageWrangling', () => {
 					{ start: 2, end: 5, covered: false },
 					{ start: 5, end: 10, covered: true },
 					{ start: 10, end: 12, covered: false },
-				]
+				],
 			);
 		});
 
@@ -86,7 +86,7 @@ suite('v8CoverageWrangling', () => {
 					{ start: 5, end: 7, covered: false },
 					{ start: 7, end: 9, covered: true },
 					{ start: 9, end: 10, covered: false },
-				]
+				],
 			);
 		});
 
@@ -101,7 +101,7 @@ suite('v8CoverageWrangling', () => {
 					{ start: 5, end: 10, covered: false },
 					{ start: 10, end: 15, covered: true },
 					{ start: 15, end: 20, covered: false },
-				]
+				],
 			);
 		});
 
@@ -125,7 +125,7 @@ suite('v8CoverageWrangling', () => {
 						{ start: 5, end: 15, covered: true },
 						{ start: 15, end: 20, covered: false },
 						{ start: 20, end: 30, covered: true },
-					]
+					],
 				);
 			});
 
@@ -148,7 +148,7 @@ suite('v8CoverageWrangling', () => {
 						{ start: 5, end: 8, covered: true },
 						{ start: 10, end: 12, covered: true },
 						{ start: 15, end: 20, covered: false },
-					]
+					],
 				);
 			});
 		});

@@ -9,16 +9,15 @@ import type { ISuiteSpec } from '../helpers';
 import { createCodeTestSpecs, createCodeTunnelTestSpecs } from './code.test';
 
 export const codeInsidersTestSuite: ISuiteSpec = {
-	name: 'code-insiders',
-	completionSpecs: codeInsidersCompletionSpec,
-	availableCommands: 'code-insiders',
-	testSpecs: createCodeTestSpecs('code-insiders')
+  name: 'code-insiders',
+  completionSpecs: codeInsidersCompletionSpec,
+  availableCommands: 'code-insiders',
+  testSpecs: createCodeTestSpecs('code-insiders'),
 };
 
 export const codeTunnelInsidersTestSuite: ISuiteSpec = {
-	name: 'code-tunnel-insiders',
-	completionSpecs: codeTunnelInsidersCompletionSpec,
-	availableCommands: 'code-tunnel-insiders',
-	testSpecs: createCodeTunnelTestSpecs('code-tunnel-insiders')
+  name: 'code-tunnel-insiders',
+  completionSpecs: codeTunnelInsidersCompletionSpec,
+  availableCommands: 'code-tunnel-insiders',
+  testSpecs: createCodeTunnelTestSpecs('code-tunnel-insiders'),
 };
-

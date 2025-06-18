@@ -12,24 +12,34 @@ import { SerializableObjectWithBuffers } from '../../services/extensions/common/
 import type * as vscode from 'vscode';
 
 export class ExtHostBulkEdits {
+  private readonly _proxy: MainThreadBulkEditsShape;
+  private readonly _versionInformationProvider: WorkspaceEdit.IVersionInformationProvider;
 
-	private readonly _proxy: MainThreadBulkEditsShape;
-	private readonly _versionInformationProvider: WorkspaceEdit.IVersionInformationProvider;
+  constructor(
+    @IExtHostRpcService extHostRpc: IExtHostRpcService,
+    extHostDocumentsAndEditors: ExtHostDocumentsAndEditors
+  ) {
+    this._proxy = extHostRpc.getProxy(MainContext.MainThreadBulkEdits);
 
-	constructor(
-		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
-	) {
-		this._proxy = extHostRpc.getProxy(MainContext.MainThreadBulkEdits);
+    this._versionInformationProvider = {
+      getTextDocumentVersion: (uri) =>
+        extHostDocumentsAndEditors.getDocument(uri)?.version,
+      getNotebookDocumentVersion: () => undefined,
+    };
+  }
 
-		this._versionInformationProvider = {
-			getTextDocumentVersion: uri => extHostDocumentsAndEditors.getDocument(uri)?.version,
-			getNotebookDocumentVersion: () => undefined
-		};
-	}
-
-	applyWorkspaceEdit(edit: vscode.WorkspaceEdit, extension: IExtensionDescription, metadata: vscode.WorkspaceEditMetadata | undefined): Promise<boolean> {
-		const dto = new SerializableObjectWithBuffers(WorkspaceEdit.from(edit, this._versionInformationProvider));
-		return this._proxy.$tryApplyWorkspaceEdit(dto, undefined, metadata?.isRefactoring ?? false);
-	}
+  applyWorkspaceEdit(
+    edit: vscode.WorkspaceEdit,
+    extension: IExtensionDescription,
+    metadata: vscode.WorkspaceEditMetadata | undefined
+  ): Promise<boolean> {
+    const dto = new SerializableObjectWithBuffers(
+      WorkspaceEdit.from(edit, this._versionInformationProvider)
+    );
+    return this._proxy.$tryApplyWorkspaceEdit(
+      dto,
+      undefined,
+      metadata?.isRefactoring ?? false
+    );
+  }
 }

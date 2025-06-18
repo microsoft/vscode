@@ -12,55 +12,73 @@ import { createDecorator } from '../../../platform/instantiation/common/instanti
 import { URI } from '../../../base/common/uri.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 
-export const ICodeEditorService = createDecorator<ICodeEditorService>('codeEditorService');
+export const ICodeEditorService =
+  createDecorator<ICodeEditorService>('codeEditorService');
 
 export interface ICodeEditorService {
-	readonly _serviceBrand: undefined;
+  readonly _serviceBrand: undefined;
 
-	readonly onWillCreateCodeEditor: Event<void>;
-	readonly onCodeEditorAdd: Event<ICodeEditor>;
-	readonly onCodeEditorRemove: Event<ICodeEditor>;
+  readonly onWillCreateCodeEditor: Event<void>;
+  readonly onCodeEditorAdd: Event<ICodeEditor>;
+  readonly onCodeEditorRemove: Event<ICodeEditor>;
 
-	readonly onWillCreateDiffEditor: Event<void>;
-	readonly onDiffEditorAdd: Event<IDiffEditor>;
-	readonly onDiffEditorRemove: Event<IDiffEditor>;
+  readonly onWillCreateDiffEditor: Event<void>;
+  readonly onDiffEditorAdd: Event<IDiffEditor>;
+  readonly onDiffEditorRemove: Event<IDiffEditor>;
 
-	readonly onDidChangeTransientModelProperty: Event<ITextModel>;
-	readonly onDecorationTypeRegistered: Event<string>;
+  readonly onDidChangeTransientModelProperty: Event<ITextModel>;
+  readonly onDecorationTypeRegistered: Event<string>;
 
-	willCreateCodeEditor(): void;
-	addCodeEditor(editor: ICodeEditor): void;
-	removeCodeEditor(editor: ICodeEditor): void;
-	listCodeEditors(): readonly ICodeEditor[];
+  willCreateCodeEditor(): void;
+  addCodeEditor(editor: ICodeEditor): void;
+  removeCodeEditor(editor: ICodeEditor): void;
+  listCodeEditors(): readonly ICodeEditor[];
 
-	willCreateDiffEditor(): void;
-	addDiffEditor(editor: IDiffEditor): void;
-	removeDiffEditor(editor: IDiffEditor): void;
-	listDiffEditors(): readonly IDiffEditor[];
+  willCreateDiffEditor(): void;
+  addDiffEditor(editor: IDiffEditor): void;
+  removeDiffEditor(editor: IDiffEditor): void;
+  listDiffEditors(): readonly IDiffEditor[];
 
-	/**
-	 * Returns the current focused code editor (if the focus is in the editor or in an editor widget) or null.
-	 */
-	getFocusedCodeEditor(): ICodeEditor | null;
+  /**
+   * Returns the current focused code editor (if the focus is in the editor or in an editor widget) or null.
+   */
+  getFocusedCodeEditor(): ICodeEditor | null;
 
-	registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): void;
-	listDecorationTypes(): string[];
-	removeDecorationType(key: string): void;
-	resolveDecorationOptions(typeKey: string, writable: boolean): IModelDecorationOptions;
-	resolveDecorationCSSRules(decorationTypeKey: string): CSSRuleList | null;
+  registerDecorationType(
+    description: string,
+    key: string,
+    options: IDecorationRenderOptions,
+    parentTypeKey?: string,
+    editor?: ICodeEditor
+  ): void;
+  listDecorationTypes(): string[];
+  removeDecorationType(key: string): void;
+  resolveDecorationOptions(
+    typeKey: string,
+    writable: boolean
+  ): IModelDecorationOptions;
+  resolveDecorationCSSRules(decorationTypeKey: string): CSSRuleList | null;
 
-	setModelProperty(resource: URI, key: string, value: any): void;
-	getModelProperty(resource: URI, key: string): any;
+  setModelProperty(resource: URI, key: string, value: any): void;
+  getModelProperty(resource: URI, key: string): any;
 
-	setTransientModelProperty(model: ITextModel, key: string, value: any): void;
-	getTransientModelProperty(model: ITextModel, key: string): any;
-	getTransientModelProperties(model: ITextModel): [string, any][] | undefined;
+  setTransientModelProperty(model: ITextModel, key: string, value: any): void;
+  getTransientModelProperty(model: ITextModel, key: string): any;
+  getTransientModelProperties(model: ITextModel): [string, any][] | undefined;
 
-	getActiveCodeEditor(): ICodeEditor | null;
-	openCodeEditor(input: ITextResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null>;
-	registerCodeEditorOpenHandler(handler: ICodeEditorOpenHandler): IDisposable;
+  getActiveCodeEditor(): ICodeEditor | null;
+  openCodeEditor(
+    input: ITextResourceEditorInput,
+    source: ICodeEditor | null,
+    sideBySide?: boolean
+  ): Promise<ICodeEditor | null>;
+  registerCodeEditorOpenHandler(handler: ICodeEditorOpenHandler): IDisposable;
 }
 
 export interface ICodeEditorOpenHandler {
-	(input: ITextResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null>;
+  (
+    input: ITextResourceEditorInput,
+    source: ICodeEditor | null,
+    sideBySide?: boolean
+  ): Promise<ICodeEditor | null>;
 }

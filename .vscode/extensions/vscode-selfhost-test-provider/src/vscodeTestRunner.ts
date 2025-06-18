@@ -24,7 +24,7 @@ const ATTACH_CONFIG_NAME = 'Attach to VS Code';
 const DEBUG_TYPE = 'pwa-chrome';
 
 export abstract class VSCodeTestRunner {
-	constructor(protected readonly repoLocation: vscode.WorkspaceFolder) { }
+	constructor(protected readonly repoLocation: vscode.WorkspaceFolder) {}
 
 	public async run(baseArgs: ReadonlyArray<string>, filter?: ReadonlyArray<vscode.TestItem>) {
 		const args = this.prepareArguments(baseArgs, filter);
@@ -37,7 +37,11 @@ export abstract class VSCodeTestRunner {
 		return new TestOutputScanner(cp, args);
 	}
 
-	public async debug(testRun: vscode.TestRun, baseArgs: ReadonlyArray<string>, filter?: ReadonlyArray<vscode.TestItem>) {
+	public async debug(
+		testRun: vscode.TestRun,
+		baseArgs: ReadonlyArray<string>,
+		filter?: ReadonlyArray<vscode.TestItem>,
+	) {
 		const port = await this.findOpenPort();
 		const baseConfiguration = vscode.workspace
 			.getConfiguration('launch', this.repoLocation)
@@ -149,7 +153,7 @@ export abstract class VSCodeTestRunner {
 
 	private prepareArguments(
 		baseArgs: ReadonlyArray<string>,
-		filter?: ReadonlyArray<vscode.TestItem>
+		filter?: ReadonlyArray<vscode.TestItem>,
 	) {
 		const args = [...this.getDefaultArgs(), ...baseArgs, '--reporter', 'full-json-stream'];
 		if (!filter) {
@@ -160,13 +164,13 @@ export abstract class VSCodeTestRunner {
 		const runPaths = new Set<string>();
 		const addTestFileRunPath = (data: TestFile) =>
 			runPaths.add(
-				path.relative(data.workspaceFolder.uri.fsPath, data.uri.fsPath).replace(/\\/g, '/')
+				path.relative(data.workspaceFolder.uri.fsPath, data.uri.fsPath).replace(/\\/g, '/'),
 			);
 
 		const itemDatas = filter.map(f => itemData.get(f));
 		/** If true, we have to be careful with greps, as a grep for one test file affects the run of the other test file. */
 		const hasBothTestCaseOrTestSuiteAndTestFileFilters =
-			itemDatas.some(d => (d instanceof TestCase) || (d instanceof TestSuite)) &&
+			itemDatas.some(d => d instanceof TestCase || d instanceof TestSuite) &&
 			itemDatas.some(d => d instanceof TestFile);
 
 		function addTestCaseOrSuite(data: TestCase | TestSuite, test: vscode.TestItem): void {
@@ -218,7 +222,7 @@ export abstract class VSCodeTestRunner {
 	protected async readProductJson() {
 		const projectJson = await fs.readFile(
 			path.join(this.repoLocation.uri.fsPath, 'product.json'),
-			'utf-8'
+			'utf-8',
 		);
 		try {
 			return JSON.parse(projectJson);
@@ -304,10 +308,7 @@ export class PosixTestRunner extends VSCodeTestRunner {
 export class DarwinTestRunner extends PosixTestRunner {
 	/** @override */
 	protected override getDefaultArgs() {
-		return [
-			TEST_ELECTRON_SCRIPT_PATH,
-			'--no-sandbox'
-		];
+		return [TEST_ELECTRON_SCRIPT_PATH, '--no-sandbox'];
 	}
 
 	/** @override */
@@ -315,7 +316,7 @@ export class DarwinTestRunner extends PosixTestRunner {
 		const { nameLong } = await this.readProductJson();
 		return path.join(
 			this.repoLocation.uri.fsPath,
-			`.build/electron/${nameLong}.app/Contents/MacOS/Electron`
+			`.build/electron/${nameLong}.app/Contents/MacOS/Electron`,
 		);
 	}
 }

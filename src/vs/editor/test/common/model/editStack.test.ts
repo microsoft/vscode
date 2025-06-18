@@ -11,24 +11,22 @@ import { EndOfLineSequence } from '../../../common/model.js';
 import { SingleModelEditStackData } from '../../../common/model/editStack.js';
 
 suite('EditStack', () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+  test('issue #118041: unicode character undo bug', () => {
+    const stackData = new SingleModelEditStackData(
+      1,
+      2,
+      EndOfLineSequence.LF,
+      EndOfLineSequence.LF,
+      [new Selection(10, 2, 10, 2)],
+      [new Selection(10, 1, 10, 1)],
+      [new TextChange(428, '﻿', 428, '')]
+    );
 
-	test('issue #118041: unicode character undo bug', () => {
-		const stackData = new SingleModelEditStackData(
-			1,
-			2,
-			EndOfLineSequence.LF,
-			EndOfLineSequence.LF,
-			[new Selection(10, 2, 10, 2)],
-			[new Selection(10, 1, 10, 1)],
-			[new TextChange(428, '﻿', 428, '')]
-		);
+    const buff = stackData.serialize();
+    const actual = SingleModelEditStackData.deserialize(buff);
 
-		const buff = stackData.serialize();
-		const actual = SingleModelEditStackData.deserialize(buff);
-
-		assert.deepStrictEqual(actual, stackData);
-	});
-
+    assert.deepStrictEqual(actual, stackData);
+  });
 });

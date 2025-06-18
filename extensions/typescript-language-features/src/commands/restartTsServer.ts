@@ -8,13 +8,13 @@ import { Lazy } from '../utils/lazy';
 import { Command } from './commandManager';
 
 export class RestartTsServerCommand implements Command {
-	public readonly id = 'typescript.restartTsServer';
+  public readonly id = 'typescript.restartTsServer';
 
-	public constructor(
-		private readonly lazyClientHost: Lazy<TypeScriptServiceClientHost>
-	) { }
+  public constructor(
+    private readonly lazyClientHost: Lazy<TypeScriptServiceClientHost>
+  ) {}
 
-	public execute() {
-		this.lazyClientHost.value.serviceClient.restartTsServer(true);
-	}
+  public execute() {
+    this.lazyClientHost.value.serviceClient.restartTsServer(true);
+  }
 }

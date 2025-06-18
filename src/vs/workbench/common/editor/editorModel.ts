@@ -12,39 +12,38 @@ import { Disposable } from '../../../base/common/lifecycle.js';
  * Editor models are typically cached for some while because they are expensive to construct.
  */
 export class EditorModel extends Disposable {
+  private readonly _onWillDispose = this._register(new Emitter<void>());
+  readonly onWillDispose = this._onWillDispose.event;
 
-	private readonly _onWillDispose = this._register(new Emitter<void>());
-	readonly onWillDispose = this._onWillDispose.event;
+  private resolved = false;
 
-	private resolved = false;
+  /**
+   * Causes this model to resolve returning a promise when loading is completed.
+   */
+  async resolve(): Promise<void> {
+    this.resolved = true;
+  }
 
-	/**
-	 * Causes this model to resolve returning a promise when loading is completed.
-	 */
-	async resolve(): Promise<void> {
-		this.resolved = true;
-	}
+  /**
+   * Returns whether this model was loaded or not.
+   */
+  isResolved(): boolean {
+    return this.resolved;
+  }
 
-	/**
-	 * Returns whether this model was loaded or not.
-	 */
-	isResolved(): boolean {
-		return this.resolved;
-	}
+  /**
+   * Find out if this model has been disposed.
+   */
+  isDisposed(): boolean {
+    return this._store.isDisposed;
+  }
 
-	/**
-	 * Find out if this model has been disposed.
-	 */
-	isDisposed(): boolean {
-		return this._store.isDisposed;
-	}
+  /**
+   * Subclasses should implement to free resources that have been claimed through loading.
+   */
+  override dispose(): void {
+    this._onWillDispose.fire();
 
-	/**
-	 * Subclasses should implement to free resources that have been claimed through loading.
-	 */
-	override dispose(): void {
-		this._onWillDispose.fire();
-
-		super.dispose();
-	}
+    super.dispose();
+  }
 }

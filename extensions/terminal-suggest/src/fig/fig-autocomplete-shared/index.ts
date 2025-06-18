@@ -12,15 +12,15 @@ import { SpecMixin, applyMixin, mergeSubcommands } from './mixins';
 import { SpecLocationSource, makeArray } from './utils';
 
 export {
-	Internal,
-	revertSubcommand,
-	convertSubcommand,
-	Metadata,
-	convertLoadSpec,
-	initializeDefault,
-	SpecMixin,
-	applyMixin,
-	mergeSubcommands,
-	makeArray,
-	SpecLocationSource,
+  Internal,
+  revertSubcommand,
+  convertSubcommand,
+  Metadata,
+  convertLoadSpec,
+  initializeDefault,
+  SpecMixin,
+  applyMixin,
+  mergeSubcommands,
+  makeArray,
+  SpecLocationSource,
 };

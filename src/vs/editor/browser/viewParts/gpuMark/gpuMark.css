@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .margin-view-overlays .gpu-mark {
-	position: absolute;
-	top: 0;
-	bottom: 0;
-	left: 0;
-	width: 100%;
-	display: inline-block;
-	border-left: solid 2px var(--vscode-editorWarning-foreground);
-	opacity: 0.2;
-	transition: background-color 0.1s linear;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  display: inline-block;
+  border-left: solid 2px var(--vscode-editorWarning-foreground);
+  opacity: 0.2;
+  transition: background-color 0.1s linear;
 }
 
 .monaco-editor .margin-view-overlays .gpu-mark:hover {
-	background-color: var(--vscode-editorWarning-foreground)
+  background-color: var(--vscode-editorWarning-foreground);
 }

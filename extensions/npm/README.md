@@ -24,7 +24,7 @@ the hover shown on a script or using the command `Run Selected Npm Script`.
 
 ### Run Scripts from a Folder in the Explorer
 
-The extension supports running a script as a task from a folder in the Explorer. The command  `Run NPM Script in Folder...` shown in the Explorer context menu finds all scripts in `package.json` files that are contained in this folder. You can then select the script to be executed as a task from the resulting list. You enable this support with the `npm.runScriptFromFolder` which is `false` by default.
+The extension supports running a script as a task from a folder in the Explorer. The command `Run NPM Script in Folder...` shown in the Explorer context menu finds all scripts in `package.json` files that are contained in this folder. You can then select the script to be executed as a task from the resulting list. You enable this support with the `npm.runScriptFromFolder` which is `false` by default.
 
 ### Others
 
@@ -36,7 +36,7 @@ The extension fetches data from <https://registry.npmjs.org> and <https://regist
 - `npm.runSilent` - Run npm script with the `--silent` option, the default is `false`.
 - `npm.packageManager` - The package manager used to install dependencies: `auto`, `npm`, `yarn`, `pnpm` or `bun`. The default is `auto`, which detects your package manager based on files in your workspace.
 - `npm.scriptRunner` - The script runner used to run the scripts: `auto`, `npm`, `yarn`, `pnpm`, `bun` or `node`. The default is `auto`, which detects your script runner based on files in your workspace.
-- `npm.exclude` - Glob patterns for folders that should be excluded from automatic script detection. The pattern is matched against the **absolute path** of the package.json. For example, to exclude all test folders use '&ast;&ast;/test/&ast;&ast;'.
+- `npm.exclude` - Glob patterns for folders that should be excluded from automatic script detection. The pattern is matched against the **absolute path** of the package.json. For example, to exclude all test folders use '\*\*/test/\*\*'.
 - `npm.enableScriptExplorer` - Enable an explorer view for npm scripts.
 - `npm.scriptExplorerAction` - The default click action: `open` or `run`, the default is `open`.
 - `npm.enableRunFromFolder` - Enable running npm scripts from the context menu of folders in Explorer, the default is `false`.

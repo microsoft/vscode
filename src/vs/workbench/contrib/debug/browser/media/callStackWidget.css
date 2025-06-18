@@ -4,68 +4,68 @@
  *--------------------------------------------------------------------------------------------*/
 
 .multiCallStackFrame {
-	.header {
-		display: flex;
+  .header {
+    display: flex;
 
-		align-items: center;
-		height: 24px;
-		background: var(--vscode-multiDiffEditor-headerBackground);
-		border-top: 1px solid var(--vscode-multiDiffEditor-border);
-		color: var(--vscode-foreground);
-		padding: 0 5px;
-	}
+    align-items: center;
+    height: 24px;
+    background: var(--vscode-multiDiffEditor-headerBackground);
+    border-top: 1px solid var(--vscode-multiDiffEditor-border);
+    color: var(--vscode-foreground);
+    padding: 0 5px;
+  }
 
-	.title {
-		flex-grow: 1;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+  .title {
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 
-		&[role="link"] {
-			cursor: pointer;
-		}
+    &[role='link'] {
+      cursor: pointer;
+    }
 
-		.monaco-icon-label::before {
-			height: auto;
-		}
-	}
+    .monaco-icon-label::before {
+      height: auto;
+    }
+  }
 
-	&.collapsed {
-		.header {
-			border-bottom: 1px solid var(--vscode-multiDiffEditor-border);
-		}
+  &.collapsed {
+    .header {
+      border-bottom: 1px solid var(--vscode-multiDiffEditor-border);
+    }
 
-		.editorParent {
-			display: none;
-		}
-	}
+    .editorParent {
+      display: none;
+    }
+  }
 
-	.collapse-button {
-		width: 16px;
-		min-height: 1px; /* show even if empty */
-		line-height: 0;
+  .collapse-button {
+    width: 16px;
+    min-height: 1px; /* show even if empty */
+    line-height: 0;
 
-		a {
-			cursor: pointer;
-		}
-	}
+    a {
+      cursor: pointer;
+    }
+  }
 
-	.actions {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		margin-right: 12px;
-	}
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: 12px;
+  }
 }
 
 .multiCallStackWidget {
-	.multiCallStackFrameContainer {
-		background: none !important;
-	}
+  .multiCallStackFrameContainer {
+    background: none !important;
+  }
 }
 
 .monaco-editor .call-stack-go-to-file-link {
-	text-decoration: underline;
-	cursor: pointer;
-	color: var(--vscode-editorLink-activeForeground) !important;
+  text-decoration: underline;
+  cursor: pointer;
+  color: var(--vscode-editorLink-activeForeground) !important;
 }

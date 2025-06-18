@@ -11,13 +11,15 @@
   "scripts": {
     "update-grammar": "node ../node_modules/vscode-grammar-updater/bin dotnet/csharp-tmLanguage grammars/csharp.tmLanguage ./syntaxes/csharp.tmLanguage.json"
   },
-  "categories": ["Programming Languages"],
+  "categories": [
+    "Programming Languages"
+  ],
   "contributes": {
-	"configurationDefaults": {
-		"[csharp]": {
-			"editor.maxTokenizationLineLength": 2500
-		}
-	},
+    "configurationDefaults": {
+      "[csharp]": {
+        "editor.maxTokenizationLineLength": 2500
+      }
+    },
     "languages": [
       {
         "id": "csharp",

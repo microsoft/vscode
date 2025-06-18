@@ -18,47 +18,70 @@ import { IssueFormService } from '../browser/issueFormService.js';
 import { IIssueFormService, IssueReporterData } from '../common/issue.js';
 import { IssueReporter } from './issueReporterService.js';
 
-export class NativeIssueFormService extends IssueFormService implements IIssueFormService {
-	private readonly store = new DisposableStore();
+export class NativeIssueFormService
+  extends IssueFormService
+  implements IIssueFormService
+{
+  private readonly store = new DisposableStore();
 
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IAuxiliaryWindowService auxiliaryWindowService: IAuxiliaryWindowService,
-		@ILogService logService: ILogService,
-		@IDialogService dialogService: IDialogService,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IHostService hostService: IHostService,
-		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,) {
-		super(instantiationService, auxiliaryWindowService, menuService, contextKeyService, logService, dialogService, hostService);
-	}
+  constructor(
+    @IInstantiationService instantiationService: IInstantiationService,
+    @IAuxiliaryWindowService auxiliaryWindowService: IAuxiliaryWindowService,
+    @ILogService logService: ILogService,
+    @IDialogService dialogService: IDialogService,
+    @IMenuService menuService: IMenuService,
+    @IContextKeyService contextKeyService: IContextKeyService,
+    @IHostService hostService: IHostService,
+    @INativeHostService private readonly nativeHostService: INativeHostService,
+    @INativeEnvironmentService
+    private readonly environmentService: INativeEnvironmentService
+  ) {
+    super(
+      instantiationService,
+      auxiliaryWindowService,
+      menuService,
+      contextKeyService,
+      logService,
+      dialogService,
+      hostService
+    );
+  }
 
-	// override to grab platform info
-	override async openReporter(data: IssueReporterData): Promise<void> {
-		if (this.hasToReload(data)) {
-			return;
-		}
+  // override to grab platform info
+  override async openReporter(data: IssueReporterData): Promise<void> {
+    if (this.hasToReload(data)) {
+      return;
+    }
 
-		const bounds = await this.nativeHostService.getActiveWindowPosition();
-		if (!bounds) {
-			return;
-		}
+    const bounds = await this.nativeHostService.getActiveWindowPosition();
+    if (!bounds) {
+      return;
+    }
 
-		await this.openAuxIssueReporter(data, bounds);
+    await this.openAuxIssueReporter(data, bounds);
 
-		// Get platform information
-		const { arch, release, type } = await this.nativeHostService.getOSProperties();
-		this.arch = arch;
-		this.release = release;
-		this.type = type;
+    // Get platform information
+    const { arch, release, type } =
+      await this.nativeHostService.getOSProperties();
+    this.arch = arch;
+    this.release = release;
+    this.type = type;
 
-		// create issue reporter and instantiate
-		if (this.issueReporterWindow) {
-			const issueReporter = this.store.add(this.instantiationService.createInstance(IssueReporter, !!this.environmentService.disableExtensions, data, { type: this.type, arch: this.arch, release: this.release }, product, this.issueReporterWindow));
-			issueReporter.render();
-		} else {
-			this.store.dispose();
-		}
-	}
+    // create issue reporter and instantiate
+    if (this.issueReporterWindow) {
+      const issueReporter = this.store.add(
+        this.instantiationService.createInstance(
+          IssueReporter,
+          !!this.environmentService.disableExtensions,
+          data,
+          { type: this.type, arch: this.arch, release: this.release },
+          product,
+          this.issueReporterWindow
+        )
+      );
+      issueReporter.render();
+    } else {
+      this.store.dispose();
+    }
+  }
 }

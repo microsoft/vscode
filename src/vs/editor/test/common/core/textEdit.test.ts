@@ -10,30 +10,32 @@ import { StringText } from '../../../common/core/text/abstractText.js';
 import { Random } from './random.js';
 
 suite('TextEdit', () => {
-	suite('inverse', () => {
-		ensureNoDisposablesAreLeakedInTestSuite();
+  suite('inverse', () => {
+    ensureNoDisposablesAreLeakedInTestSuite();
 
-		function runTest(seed: number): void {
-			const rand = Random.create(seed);
-			const source = new StringText(rand.nextMultiLineString(10, new OffsetRange(0, 10)));
+    function runTest(seed: number): void {
+      const rand = Random.create(seed);
+      const source = new StringText(
+        rand.nextMultiLineString(10, new OffsetRange(0, 10))
+      );
 
-			const edit = rand.nextTextEdit(source, rand.nextIntRange(1, 5));
-			const invEdit = edit.inverse(source);
+      const edit = rand.nextTextEdit(source, rand.nextIntRange(1, 5));
+      const invEdit = edit.inverse(source);
 
-			const s1 = edit.apply(source);
-			const s2 = invEdit.applyToString(s1);
+      const s1 = edit.apply(source);
+      const s2 = invEdit.applyToString(s1);
 
-			assert.deepStrictEqual(s2, source.value);
-		}
+      assert.deepStrictEqual(s2, source.value);
+    }
 
-		test.skip('brute-force', () => {
-			for (let i = 0; i < 100_000; i++) {
-				runTest(i);
-			}
-		});
+    test.skip('brute-force', () => {
+      for (let i = 0; i < 100_000; i++) {
+        runTest(i);
+      }
+    });
 
-		for (let seed = 0; seed < 20; seed++) {
-			test(`test ${seed}`, () => runTest(seed));
-		}
-	});
+    for (let seed = 0; seed < 20; seed++) {
+      test(`test ${seed}`, () => runTest(seed));
+    }
+  });
 });

@@ -6,46 +6,54 @@
 import { IExperimentationTelemetryReporter } from '../experimentTelemetryReporter';
 
 export interface TelemetryProperties {
-	readonly [prop: string]: string | number | boolean | undefined;
+  readonly [prop: string]: string | number | boolean | undefined;
 }
 
 export interface TelemetryReporter {
-	logTelemetry(eventName: string, properties?: TelemetryProperties): void;
-	logTraceEvent(tracePoint: string, correlationId: string, command?: string): void;
+  logTelemetry(eventName: string, properties?: TelemetryProperties): void;
+  logTraceEvent(
+    tracePoint: string,
+    correlationId: string,
+    command?: string
+  ): void;
 }
 
 export class VSCodeTelemetryReporter implements TelemetryReporter {
-	constructor(
-		private readonly reporter: IExperimentationTelemetryReporter | undefined,
-		private readonly clientVersionDelegate: () => string
-	) { }
+  constructor(
+    private readonly reporter: IExperimentationTelemetryReporter | undefined,
+    private readonly clientVersionDelegate: () => string
+  ) {}
 
-	public logTelemetry(eventName: string, properties: { [prop: string]: string } = {}) {
-		const reporter = this.reporter;
-		if (!reporter) {
-			return;
-		}
+  public logTelemetry(
+    eventName: string,
+    properties: { [prop: string]: string } = {}
+  ) {
+    const reporter = this.reporter;
+    if (!reporter) {
+      return;
+    }
 
-		/* __GDPR__FRAGMENT__
+    /* __GDPR__FRAGMENT__
 			"TypeScriptCommonProperties" : {
 				"version" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
-		properties['version'] = this.clientVersionDelegate();
+    properties['version'] = this.clientVersionDelegate();
 
-		reporter.postEventObj(eventName, properties);
-	}
+    reporter.postEventObj(eventName, properties);
+  }
 
-	public logTraceEvent(point: string, traceId: string, data?: string): void {
-		const event: { point: string; traceId: string; data?: string | undefined } = {
-			point,
-			traceId
-		};
-		if (data) {
-			event.data = data;
-		}
+  public logTraceEvent(point: string, traceId: string, data?: string): void {
+    const event: { point: string; traceId: string; data?: string | undefined } =
+      {
+        point,
+        traceId,
+      };
+    if (data) {
+      event.data = data;
+    }
 
-		/* __GDPR__
+    /* __GDPR__
 			"typeScriptExtension.trace" : {
 				"owner": "dirkb",
 				"${include}": [
@@ -56,6 +64,6 @@ export class VSCodeTelemetryReporter implements TelemetryReporter {
 				"data": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Additional data" }
 			}
 		*/
-		this.logTelemetry('typeScriptExtension.trace', event);
-	}
+    this.logTelemetry('typeScriptExtension.trace', event);
+  }
 }

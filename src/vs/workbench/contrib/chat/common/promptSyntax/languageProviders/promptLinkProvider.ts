@@ -9,80 +9,72 @@ import { ITextModel } from '../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { FolderReference, NotPromptFile } from '../../promptFileReferenceErrors.js';
-import { ILink, ILinksList, LinkProvider } from '../../../../../../editor/common/languages.js';
+import {
+  FolderReference,
+  NotPromptFile,
+} from '../../promptFileReferenceErrors.js';
+import {
+  ILink,
+  ILinksList,
+  LinkProvider,
+} from '../../../../../../editor/common/languages.js';
 
 /**
  * Provides link references for prompt files.
  */
 export class PromptLinkProvider implements LinkProvider {
-	constructor(
-		@IPromptsService private readonly promptsService: IPromptsService,
-	) {
-	}
+  constructor(
+    @IPromptsService private readonly promptsService: IPromptsService
+  ) {}
 
-	/**
-	 * Provide list of links for the provided text model.
-	 */
-	public async provideLinks(
-		model: ITextModel,
-		token: CancellationToken,
-	): Promise<ILinksList> {
-		assert(
-			!token.isCancellationRequested,
-			new CancellationError(),
-		);
+  /**
+   * Provide list of links for the provided text model.
+   */
+  public async provideLinks(
+    model: ITextModel,
+    token: CancellationToken
+  ): Promise<ILinksList> {
+    assert(!token.isCancellationRequested, new CancellationError());
 
-		const parser = this.promptsService.getSyntaxParserFor(model);
-		assert(
-			parser.isDisposed === false,
-			'Prompt parser must not be disposed.',
-		);
+    const parser = this.promptsService.getSyntaxParserFor(model);
+    assert(parser.isDisposed === false, 'Prompt parser must not be disposed.');
 
-		// start the parser in case it was not started yet,
-		// and wait for it to settle to a final result
-		const { references } = await parser
-			.start(token)
-			.settled();
+    // start the parser in case it was not started yet,
+    // and wait for it to settle to a final result
+    const { references } = await parser.start(token).settled();
 
-		// validate that the cancellation was not yet requested
-		assert(
-			!token.isCancellationRequested,
-			new CancellationError(),
-		);
+    // validate that the cancellation was not yet requested
+    assert(!token.isCancellationRequested, new CancellationError());
 
-		// filter out references that are not valid links
-		const links: ILink[] = references
-			.filter((reference) => {
-				const { errorCondition, linkRange } = reference;
-				if (!errorCondition && linkRange) {
-					return true;
-				}
+    // filter out references that are not valid links
+    const links: ILink[] = references
+      .filter((reference) => {
+        const { errorCondition, linkRange } = reference;
+        if (!errorCondition && linkRange) {
+          return true;
+        }
 
-				// don't provide links for folder references
-				if (errorCondition instanceof FolderReference) {
-					return false;
-				}
+        // don't provide links for folder references
+        if (errorCondition instanceof FolderReference) {
+          return false;
+        }
 
-				return errorCondition instanceof NotPromptFile;
-			})
-			.map((reference) => {
-				const { uri, linkRange } = reference;
+        return errorCondition instanceof NotPromptFile;
+      })
+      .map((reference) => {
+        const { uri, linkRange } = reference;
 
-				// must always be true because of the filter above
-				assertDefined(
-					linkRange,
-					'Link range must be defined.',
-				);
+        // must always be true because of the filter above
+        assertDefined(linkRange, 'Link range must be defined.');
 
-				return {
-					range: linkRange,
-					url: uri,
-				};
-			});
+        return {
+          range: linkRange,
+          url: uri,
+        };
+      });
 
-		return {
-			links,
-		};
-	}
+    return {
+      links,
+    };
+  }
 }

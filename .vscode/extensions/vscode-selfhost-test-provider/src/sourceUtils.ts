@@ -40,7 +40,7 @@ export const extractTestFromNode = (src: ts.SourceFile, node: ts.Node, parent: V
 	const end = src.getLineAndCharacterOfPosition(func.end);
 	const range = new vscode.Range(
 		new vscode.Position(start.line, start.character),
-		new vscode.Position(end.line, end.character)
+		new vscode.Position(end.line, end.character),
 	);
 
 	const cparent = parent instanceof TestConstruct ? parent : undefined;
@@ -66,7 +66,9 @@ const enum IdentifiedCall {
 
 const identifyCall = (lhs: ts.Node, needles: ReadonlySet<string>): IdentifiedCall => {
 	if (ts.isIdentifier(lhs)) {
-		return needles.has(lhs.escapedText || lhs.text) ? IdentifiedCall.IsThing : IdentifiedCall.Nothing;
+		return needles.has(lhs.escapedText || lhs.text)
+			? IdentifiedCall.IsThing
+			: IdentifiedCall.Nothing;
 	}
 
 	if (isPropertyCall(lhs) && lhs.name.text === 'skip') {
@@ -74,14 +76,17 @@ const identifyCall = (lhs: ts.Node, needles: ReadonlySet<string>): IdentifiedCal
 	}
 
 	if (ts.isParenthesizedExpression(lhs) && ts.isConditionalExpression(lhs.expression)) {
-		return Math.max(identifyCall(lhs.expression.whenTrue, needles), identifyCall(lhs.expression.whenFalse, needles));
+		return Math.max(
+			identifyCall(lhs.expression.whenTrue, needles),
+			identifyCall(lhs.expression.whenFalse, needles),
+		);
 	}
 
 	return IdentifiedCall.Nothing;
 };
 
 const isPropertyCall = (
-	lhs: ts.Node
+	lhs: ts.Node,
 ): lhs is ts.PropertyAccessExpression & { expression: ts.Identifier; name: ts.Identifier } =>
 	ts.isPropertyAccessExpression(lhs) &&
 	ts.isIdentifier(lhs.expression) &&

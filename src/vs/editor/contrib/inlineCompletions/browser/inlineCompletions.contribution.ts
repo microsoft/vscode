@@ -6,14 +6,37 @@
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { wrapInHotClass1 } from '../../../../platform/observable/common/wrapInHotClass.js';
-import { EditorContributionInstantiation, registerEditorAction, registerEditorCommand, registerEditorContribution } from '../../../browser/editorExtensions.js';
+import {
+  EditorContributionInstantiation,
+  registerEditorAction,
+  registerEditorCommand,
+  registerEditorContribution,
+} from '../../../browser/editorExtensions.js';
 import { HoverParticipantRegistry } from '../../hover/browser/hoverTypes.js';
-import { AcceptInlineCompletion, AcceptNextLineOfInlineCompletion, AcceptNextWordOfInlineCompletion, DevExtractReproSample, HideInlineCompletion, JumpToNextInlineEdit, ShowNextInlineSuggestionAction, ShowPreviousInlineSuggestionAction, ToggleAlwaysShowInlineSuggestionToolbar, ExplicitTriggerInlineEditAction, TriggerInlineSuggestionAction, TriggerInlineEditAction, ToggleInlineCompletionShowCollapsed } from './controller/commands.js';
+import {
+  AcceptInlineCompletion,
+  AcceptNextLineOfInlineCompletion,
+  AcceptNextWordOfInlineCompletion,
+  DevExtractReproSample,
+  HideInlineCompletion,
+  JumpToNextInlineEdit,
+  ShowNextInlineSuggestionAction,
+  ShowPreviousInlineSuggestionAction,
+  ToggleAlwaysShowInlineSuggestionToolbar,
+  ExplicitTriggerInlineEditAction,
+  TriggerInlineSuggestionAction,
+  TriggerInlineEditAction,
+  ToggleInlineCompletionShowCollapsed,
+} from './controller/commands.js';
 import { InlineCompletionsController } from './controller/inlineCompletionsController.js';
 import { InlineCompletionsHoverParticipant } from './hintsWidget/hoverParticipant.js';
 import { InlineCompletionsAccessibleView } from './inlineCompletionsAccessibleView.js';
 
-registerEditorContribution(InlineCompletionsController.ID, wrapInHotClass1(InlineCompletionsController.hot), EditorContributionInstantiation.Eventually);
+registerEditorContribution(
+  InlineCompletionsController.ID,
+  wrapInHotClass1(InlineCompletionsController.hot),
+  EditorContributionInstantiation.Eventually
+);
 
 registerEditorAction(TriggerInlineSuggestionAction);
 registerEditorAction(ExplicitTriggerInlineEditAction);

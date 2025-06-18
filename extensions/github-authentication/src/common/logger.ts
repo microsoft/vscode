@@ -7,26 +7,30 @@ import * as vscode from 'vscode';
 import { AuthProviderType } from '../github';
 
 export class Log {
-	private output: vscode.LogOutputChannel;
+  private output: vscode.LogOutputChannel;
 
-	constructor(private readonly type: AuthProviderType) {
-		const friendlyName = this.type === AuthProviderType.github ? 'GitHub' : 'GitHub Enterprise';
-		this.output = vscode.window.createOutputChannel(`${friendlyName} Authentication`, { log: true });
-	}
+  constructor(private readonly type: AuthProviderType) {
+    const friendlyName =
+      this.type === AuthProviderType.github ? 'GitHub' : 'GitHub Enterprise';
+    this.output = vscode.window.createOutputChannel(
+      `${friendlyName} Authentication`,
+      { log: true }
+    );
+  }
 
-	public trace(message: string): void {
-		this.output.trace(message);
-	}
+  public trace(message: string): void {
+    this.output.trace(message);
+  }
 
-	public info(message: string): void {
-		this.output.info(message);
-	}
+  public info(message: string): void {
+    this.output.info(message);
+  }
 
-	public error(message: string): void {
-		this.output.error(message);
-	}
+  public error(message: string): void {
+    this.output.error(message);
+  }
 
-	public warn(message: string): void {
-		this.output.warn(message);
-	}
+  public warn(message: string): void {
+    this.output.warn(message);
+  }
 }

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .view-overlays .debug-top-stack-frame-line {
-	background-color: var(--vscode-editor-stackFrameHighlightBackground);
+  background-color: var(--vscode-editor-stackFrameHighlightBackground);
 }
 
 .monaco-editor .view-overlays .debug-focused-stack-frame-line {
-	background-color: var(--vscode-editor-focusedStackFrameHighlightBackground);
+  background-color: var(--vscode-editor-focusedStackFrameHighlightBackground);
 }

@@ -37,8 +37,8 @@ The JSON language server expects the client to only send requests and notificati
 
 The JSON language server has the following dependencies on the client's capabilities:
 
-- Code completion requires that the client capability has *snippetSupport*. If not supported by the client, the server will not offer the completion capability.
-- Formatting support requires the client to support *dynamicRegistration* for *rangeFormatting*. If not supported by the client, the server will not offer the format capability.
+- Code completion requires that the client capability has _snippetSupport_. If not supported by the client, the server will not offer the completion capability.
+- Formatting support requires the client to support _dynamicRegistration_ for _rangeFormatting_. If not supported by the client, the server will not offer the format capability.
 
 ## Configuration
 
@@ -57,12 +57,13 @@ Clients may send a `workspace/didChangeConfiguration` notification to notify the
 The server supports the following settings:
 
 - http
+
   - `proxy`: The URL of the proxy server to use when fetching schema. When undefined or empty, no proxy is used.
   - `proxyStrictSSL`: Whether the proxy server certificate should be verified against the list of supplied CAs.
 
 - json
   - `format`
-    - `enable`: Whether the server should register the formatting support. This option is only applicable if the client supports *dynamicRegistration* for *rangeFormatting* and `initializationOptions.provideFormatter` is not defined.
+    - `enable`: Whether the server should register the formatting support. This option is only applicable if the client supports _dynamicRegistration_ for _rangeFormatting_ and `initializationOptions.provideFormatter` is not defined.
   - `validate`
     - `enable`: Whether the server should validate. Defaults to `true` if not set.
   - `schemas`: Configures association of file names to schema URL or schemas and/or associations of schema URL to schema content.
@@ -75,29 +76,26 @@ The server supports the following settings:
   - `jsoncFoldingLimit`: The max number of folding ranges to be computed for jsonc documents (for performance reasons)
 
 ```json
-    {
-        "http": {
-            "proxy": "",
-            "proxyStrictSSL": true
-        },
-        "json": {
-            "format": {
-                "enable": true
-            },
-            "schemas": [
-                {
-                    "fileMatch": [
-                        "foo.json",
-                        "*.superfoo.json"
-                    ],
-                    "url": "http://json.schemastore.org/foo",
-                    "schema": {
-                        "type": "array"
-                    }
-                }
-            ]
+{
+  "http": {
+    "proxy": "",
+    "proxyStrictSSL": true
+  },
+  "json": {
+    "format": {
+      "enable": true
+    },
+    "schemas": [
+      {
+        "fileMatch": ["foo.json", "*.superfoo.json"],
+        "url": "http://json.schemastore.org/foo",
+        "schema": {
+          "type": "array"
         }
-    }
+      }
+    ]
+  }
+}
 ```
 
 ### Schema configuration and custom schema content delivery
@@ -186,7 +184,6 @@ interface ISchemaAssociation {
    */
   schema?: JSONSchema;
 }
-
 ```
 
 `ISchemaAssociations`

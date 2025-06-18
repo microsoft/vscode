@@ -14,9 +14,16 @@ const root = path.dirname(path.dirname(path.dirname(__dirname)));
 
 const rootPackageJsonFile = path.join(root, 'package.json');
 const thisPackageJsonFile = path.join(packageDir, 'package.json');
-const rootPackageJson = JSON.parse(fs.readFileSync(rootPackageJsonFile, 'utf8'));
-const thisPackageJson = JSON.parse(fs.readFileSync(thisPackageJsonFile, 'utf8'));
+const rootPackageJson = JSON.parse(
+  fs.readFileSync(rootPackageJsonFile, 'utf8')
+);
+const thisPackageJson = JSON.parse(
+  fs.readFileSync(thisPackageJsonFile, 'utf8')
+);
 
 thisPackageJson.version = rootPackageJson.version;
 
-fs.writeFileSync(thisPackageJsonFile, JSON.stringify(thisPackageJson, null, '  '));
+fs.writeFileSync(
+  thisPackageJsonFile,
+  JSON.stringify(thisPackageJson, null, '  ')
+);

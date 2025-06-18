@@ -11,53 +11,49 @@ import { NullLogService } from '../../../../platform/log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('ExtHostDocumentsAndEditors', () => {
+  let editors: ExtHostDocumentsAndEditors;
 
-	let editors: ExtHostDocumentsAndEditors;
+  setup(function () {
+    editors = new ExtHostDocumentsAndEditors(
+      new TestRPCProtocol(),
+      new NullLogService()
+    );
+  });
 
-	setup(function () {
-		editors = new ExtHostDocumentsAndEditors(new TestRPCProtocol(), new NullLogService());
-	});
+  ensureNoDisposablesAreLeakedInTestSuite();
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+  test('The value of TextDocument.isClosed is incorrect when a text document is closed, #27949', () => {
+    editors.$acceptDocumentsAndEditorsDelta({
+      addedDocuments: [
+        {
+          EOL: '\n',
+          isDirty: true,
+          languageId: 'fooLang',
+          uri: URI.parse('foo:bar'),
+          versionId: 1,
+          lines: ['first', 'second'],
+          encoding: 'utf8',
+        },
+      ],
+    });
 
-	test('The value of TextDocument.isClosed is incorrect when a text document is closed, #27949', () => {
+    return new Promise((resolve, reject) => {
+      const d = editors.onDidRemoveDocuments((e) => {
+        try {
+          for (const data of e) {
+            assert.strictEqual(data.document.isClosed, true);
+          }
+          resolve(undefined);
+        } catch (e) {
+          reject(e);
+        } finally {
+          d.dispose();
+        }
+      });
 
-		editors.$acceptDocumentsAndEditorsDelta({
-			addedDocuments: [{
-				EOL: '\n',
-				isDirty: true,
-				languageId: 'fooLang',
-				uri: URI.parse('foo:bar'),
-				versionId: 1,
-				lines: [
-					'first',
-					'second'
-				],
-				encoding: 'utf8'
-			}]
-		});
-
-		return new Promise((resolve, reject) => {
-
-			const d = editors.onDidRemoveDocuments(e => {
-				try {
-
-					for (const data of e) {
-						assert.strictEqual(data.document.isClosed, true);
-					}
-					resolve(undefined);
-				} catch (e) {
-					reject(e);
-				} finally {
-					d.dispose();
-				}
-			});
-
-			editors.$acceptDocumentsAndEditorsDelta({
-				removedDocuments: [URI.parse('foo:bar')]
-			});
-
-		});
-	});
-
+      editors.$acceptDocumentsAndEditorsDelta({
+        removedDocuments: [URI.parse('foo:bar')],
+      });
+    });
+  });
 });

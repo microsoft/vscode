@@ -106,12 +106,15 @@ export class TestOutputScanner implements vscode.Disposable {
 	 */
 	public readonly onRunnerExit = this.onExitEmitter.event;
 
-	constructor(private readonly process: ChildProcessWithoutNullStreams, private args?: string[]) {
+	constructor(
+		private readonly process: ChildProcessWithoutNullStreams,
+		private args?: string[],
+	) {
 		process.stdout.pipe(new StreamSplitter(LF)).on('data', this.processData);
 		process.stderr.pipe(new StreamSplitter(LF)).on('data', this.processData);
 		process.on('error', e => this.onExitEmitter.fire(e.message));
 		process.on('exit', code =>
-			this.onExitEmitter.fire(code ? `Test process exited with code ${code}` : undefined)
+			this.onExitEmitter.fire(code ? `Test process exited with code ${code}` : undefined),
 		);
 	}
 
@@ -154,7 +157,7 @@ export async function scanTestOutput(
 	task: vscode.TestRun,
 	scanner: TestOutputScanner,
 	coverageDir: string | undefined,
-	cancellation: vscode.CancellationToken
+	cancellation: vscode.CancellationToken,
 ): Promise<void> {
 	const exitBlockers: Set<Promise<unknown>> = new Set();
 	const skippedTests = new Set(tests.values());
@@ -214,7 +217,7 @@ export async function scanTestOutput(
 						contents + crlf,
 						location,
 						test,
-					])
+					]),
 				);
 			});
 
@@ -283,8 +286,8 @@ export async function scanTestOutput(
 									tcase.uri!,
 									new vscode.Range(
 										tcase.range.start,
-										new vscode.Position(tcase.range.start.line, 100)
-									)
+										new vscode.Position(tcase.range.start.line, 100),
+									),
 								);
 
 							enqueueExitBlocker(
@@ -307,14 +310,14 @@ export async function scanTestOutput(
 										});
 									} else {
 										message = new vscode.TestMessage(
-											stack ? await sourcemapStack(store, stack) : await locationsReplaced
+											stack ? await sourcemapStack(store, stack) : await locationsReplaced,
 										);
 									}
 
 									message.location = stackInfo.primary ?? testFirstLine;
 									message.stackTrace = stackInfo.stack;
 									task.failed(tcase!, message, duration);
-								})()
+								})(),
 							);
 						}
 						break;
@@ -396,7 +399,7 @@ const sourcemapStack = async (store: SourceMapStore, str: string) => {
 					fragment: `L${location.range.start.line + 1}:${location.range.start.character + 1}`,
 				}),
 			};
-		})
+		}),
 	);
 
 	for (const replacement of replacements) {
@@ -431,7 +434,11 @@ export const enum SearchStrategy {
 	FirstAfter = 1,
 }
 
-export type SourceLocationMapper = (line: number, col: number, strategy: SearchStrategy) => vscode.Location | undefined;
+export type SourceLocationMapper = (
+	line: number,
+	col: number,
+	strategy: SearchStrategy,
+) => vscode.Location | undefined;
 
 export class SourceMapStore {
 	private readonly cache = new Map</* file uri */ string, Promise<TraceMap | undefined>>();
@@ -444,11 +451,19 @@ export class SourceMapStore {
 			}
 
 			// 1. Look for the ideal position on this line if it exists
-			const idealPosition = originalPositionFor(sourceMap, { column: col, line: line + 1, bias: SearchStrategy.FirstAfter ? GREATEST_LOWER_BOUND : LEAST_UPPER_BOUND });
-			if (idealPosition.line !== null && idealPosition.column !== null && idealPosition.source !== null) {
+			const idealPosition = originalPositionFor(sourceMap, {
+				column: col,
+				line: line + 1,
+				bias: SearchStrategy.FirstAfter ? GREATEST_LOWER_BOUND : LEAST_UPPER_BOUND,
+			});
+			if (
+				idealPosition.line !== null &&
+				idealPosition.column !== null &&
+				idealPosition.source !== null
+			) {
 				return new vscode.Location(
 					this.completeSourceMapUrl(sourceMap, idealPosition.source),
-					new vscode.Position(idealPosition.line - 1, idealPosition.column)
+					new vscode.Position(idealPosition.line - 1, idealPosition.column),
 				);
 			}
 
@@ -468,9 +483,10 @@ export class SourceMapStore {
 					continue;
 				}
 
-				const index = strategy === SearchStrategy.FirstBefore
-					? findLastIndex(segments, s => s.length !== 1)
-					: segments.findIndex(s => s.length !== 1);
+				const index =
+					strategy === SearchStrategy.FirstBefore
+						? findLastIndex(segments, s => s.length !== 1)
+						: segments.findIndex(s => s.length !== 1);
 				const segment = segments[index];
 
 				if (!segment || segment.length === 1) {
@@ -479,7 +495,7 @@ export class SourceMapStore {
 
 				return new vscode.Location(
 					this.completeSourceMapUrl(sourceMap, sourceMap.sources[segment[MapField.SOURCES_INDEX]]!),
-					new vscode.Position(segment[MapField.SOURCE_LINE] - 1, segment[MapField.SOURCE_COLUMN])
+					new vscode.Position(segment[MapField.SOURCE_LINE] - 1, segment[MapField.SOURCE_COLUMN]),
 				);
 			} while (strategy === SearchStrategy.FirstBefore ? line > 0 : line < decoded.length);
 
@@ -508,7 +524,7 @@ export class SourceMapStore {
 			if (position.line !== null && position.column !== null && position.source !== null) {
 				return new vscode.Location(
 					this.completeSourceMapUrl(sourceMap, position.source),
-					new vscode.Position(position.line - 1, position.column)
+					new vscode.Position(position.line - 1, position.column),
 				);
 			}
 		}
@@ -594,8 +610,8 @@ async function replaceAllLocations(store: SourceMapStore, str: string) {
 			locationPromise.then(location =>
 				location
 					? `${location.uri}:${location.range.start.line + 1}:${location.range.start.character + 1}`
-					: match[0]
-			)
+					: match[0],
+			),
 		);
 
 		lastIndex = endIndex;
@@ -610,19 +626,30 @@ async function replaceAllLocations(store: SourceMapStore, str: string) {
 	return values.join('');
 }
 
-async function deriveStackLocations(
-	store: SourceMapStore,
-	stack: string,
-	tcase: vscode.TestItem
-) {
+async function deriveStackLocations(store: SourceMapStore, stack: string, tcase: vscode.TestItem) {
 	locationRe.lastIndex = 0;
 
-	const locationsRaw = [...new StackTraceParser(stack)].filter(t => t instanceof StackTraceLocation);
-	const locationsMapped = await Promise.all(locationsRaw.map(async location => {
-		const mapped = location.path.startsWith('file:') ? await store.getSourceLocation(location.path, location.lineBase1 - 1, location.columnBase1 - 1) : undefined;
-		const stack = new vscode.TestMessageStackFrame(location.label || '<anonymous>', mapped?.uri, mapped?.range.start || new vscode.Position(location.lineBase1 - 1, location.columnBase1 - 1));
-		return { location: mapped, stack };
-	}));
+	const locationsRaw = [...new StackTraceParser(stack)].filter(
+		t => t instanceof StackTraceLocation,
+	);
+	const locationsMapped = await Promise.all(
+		locationsRaw.map(async location => {
+			const mapped = location.path.startsWith('file:')
+				? await store.getSourceLocation(
+						location.path,
+						location.lineBase1 - 1,
+						location.columnBase1 - 1,
+					)
+				: undefined;
+			const stack = new vscode.TestMessageStackFrame(
+				location.label || '<anonymous>',
+				mapped?.uri,
+				mapped?.range.start ||
+					new vscode.Position(location.lineBase1 - 1, location.columnBase1 - 1),
+			);
+			return { location: mapped, stack };
+		}),
+	);
 
 	let best: undefined | { location: vscode.Location; score: number };
 	for (const { location } of locationsMapped) {

@@ -5,30 +5,37 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ISaveOptions, IRevertOptions, SaveReason, SaveSource } from '../../../common/editor.js';
+import {
+  ISaveOptions,
+  IRevertOptions,
+  SaveReason,
+  SaveSource,
+} from '../../../common/editor.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { VSBufferReadable, VSBufferReadableStream } from '../../../../base/common/buffer.js';
+import {
+  VSBufferReadable,
+  VSBufferReadableStream,
+} from '../../../../base/common/buffer.js';
 
 export const enum WorkingCopyCapabilities {
+  /**
+   * Signals no specific capability for the working copy.
+   */
+  None = 0,
 
-	/**
-	 * Signals no specific capability for the working copy.
-	 */
-	None = 0,
+  /**
+   * Signals that the working copy requires
+   * additional input when saving, e.g. an
+   * associated path to save to.
+   */
+  Untitled = 1 << 1,
 
-	/**
-	 * Signals that the working copy requires
-	 * additional input when saving, e.g. an
-	 * associated path to save to.
-	 */
-	Untitled = 1 << 1,
-
-	/**
-	 * The working copy will not indicate that
-	 * it is dirty and unsaved content will be
-	 * discarded without prompting if closed.
-	 */
-	Scratchpad = 1 << 2
+  /**
+   * The working copy will not indicate that
+   * it is dirty and unsaved content will be
+   * discarded without prompting if closed.
+   */
+  Scratchpad = 1 << 2,
 }
 
 /**
@@ -37,17 +44,16 @@ export const enum WorkingCopyCapabilities {
  * retrieve the backup when loading the working copy.
  */
 export interface IWorkingCopyBackup {
+  /**
+   * Any serializable metadata to be associated with the backup.
+   */
+  meta?: IWorkingCopyBackupMeta;
 
-	/**
-	 * Any serializable metadata to be associated with the backup.
-	 */
-	meta?: IWorkingCopyBackupMeta;
-
-	/**
-	 * The actual snapshot of the contents of the working copy at
-	 * the time the backup was made.
-	 */
-	content?: VSBufferReadable | VSBufferReadableStream;
+  /**
+   * The actual snapshot of the contents of the working copy at
+   * the time the backup was made.
+   */
+  content?: VSBufferReadable | VSBufferReadableStream;
 }
 
 /**
@@ -58,17 +64,16 @@ export interface IWorkingCopyBackup {
  * cannot be used.
  */
 export interface IWorkingCopyBackupMeta {
+  /**
+   * Any property needs to be serializable through JSON.
+   */
+  [key: string]: unknown;
 
-	/**
-	 * Any property needs to be serializable through JSON.
-	 */
-	[key: string]: unknown;
-
-	/**
-	 * `typeId` is a reserved property that cannot be used
-	 * as backup metadata.
-	 */
-	typeId?: never;
+  /**
+   * `typeId` is a reserved property that cannot be used
+   * as backup metadata.
+   */
+  typeId?: never;
 }
 
 /**
@@ -83,34 +88,32 @@ export const NO_TYPE_ID = '';
  * working copy registered with the same `URI` and `typeId`.
  */
 export interface IWorkingCopyIdentifier {
+  /**
+   * The type identifier of the working copy for grouping
+   * working copies of the same domain together.
+   *
+   * There can only be one working copy for a given resource
+   * and type identifier.
+   */
+  readonly typeId: string;
 
-	/**
-	 * The type identifier of the working copy for grouping
-	 * working copies of the same domain together.
-	 *
-	 * There can only be one working copy for a given resource
-	 * and type identifier.
-	 */
-	readonly typeId: string;
-
-	/**
-	 * The resource of the working copy must be unique for
-	 * working copies of the same `typeId`.
-	 */
-	readonly resource: URI;
+  /**
+   * The resource of the working copy must be unique for
+   * working copies of the same `typeId`.
+   */
+  readonly resource: URI;
 }
 
 export interface IWorkingCopySaveEvent {
+  /**
+   * The reason why the working copy was saved.
+   */
+  readonly reason?: SaveReason;
 
-	/**
-	 * The reason why the working copy was saved.
-	 */
-	readonly reason?: SaveReason;
-
-	/**
-	 * The source of the working copy save request.
-	 */
-	readonly source?: SaveSource;
+  /**
+   * The source of the working copy save request.
+   */
+  readonly source?: SaveSource;
 }
 
 /**
@@ -125,97 +128,93 @@ export interface IWorkingCopySaveEvent {
  * when working with file based working copies.
  */
 export interface IWorkingCopy extends IWorkingCopyIdentifier {
+  /**
+   * Human readable name of the working copy.
+   */
+  readonly name: string;
 
-	/**
-	 * Human readable name of the working copy.
-	 */
-	readonly name: string;
+  /**
+   * The capabilities of the working copy.
+   */
+  readonly capabilities: WorkingCopyCapabilities;
 
-	/**
-	 * The capabilities of the working copy.
-	 */
-	readonly capabilities: WorkingCopyCapabilities;
+  //#region Events
 
+  /**
+   * Used by the workbench to signal if the working copy
+   * is dirty or not. Typically a working copy is dirty
+   * once changed until saved or reverted.
+   */
+  readonly onDidChangeDirty: Event<void>;
 
-	//#region Events
+  /**
+   * Used by the workbench e.g. to trigger auto-save
+   * (unless this working copy is untitled) and backups.
+   */
+  readonly onDidChangeContent: Event<void>;
 
-	/**
-	 * Used by the workbench to signal if the working copy
-	 * is dirty or not. Typically a working copy is dirty
-	 * once changed until saved or reverted.
-	 */
-	readonly onDidChangeDirty: Event<void>;
+  /**
+   * Used by the workbench e.g. to track local history
+   * (unless this working copy is untitled).
+   */
+  readonly onDidSave: Event<IWorkingCopySaveEvent>;
 
-	/**
-	 * Used by the workbench e.g. to trigger auto-save
-	 * (unless this working copy is untitled) and backups.
-	 */
-	readonly onDidChangeContent: Event<void>;
+  //#endregion
 
-	/**
-	 * Used by the workbench e.g. to track local history
-	 * (unless this working copy is untitled).
-	 */
-	readonly onDidSave: Event<IWorkingCopySaveEvent>;
+  //#region Dirty Tracking
 
-	//#endregion
+  /**
+   * Indicates that the file has unsaved changes
+   * and should confirm before closing.
+   */
+  isDirty(): boolean;
 
+  /**
+   * Indicates that the file has unsaved changes.
+   * Used for backup tracking and accounts for
+   * working copies that are never dirty e.g.
+   * scratchpads.
+   */
+  isModified(): boolean;
 
-	//#region Dirty Tracking
+  //#endregion
 
-	/**
-	 * Indicates that the file has unsaved changes
-	 * and should confirm before closing.
-	 */
-	isDirty(): boolean;
+  //#region Save / Backup
 
-	/**
-	 * Indicates that the file has unsaved changes.
-	 * Used for backup tracking and accounts for
-	 * working copies that are never dirty e.g.
-	 * scratchpads.
-	 */
-	isModified(): boolean;
+  /**
+   * The delay in milliseconds to wait before triggering
+   * a backup after the content of the model has changed.
+   *
+   * If not configured, a sensible default will be taken
+   * based on user settings.
+   */
+  readonly backupDelay?: number;
 
-	//#endregion
+  /**
+   * The workbench may call this method often after it receives
+   * the `onDidChangeContent` event for the working copy. The motivation
+   * is to allow to quit VSCode with dirty working copies present.
+   *
+   * Providers of working copies should use `IWorkingCopyBackupService.resolve(workingCopy)`
+   * to retrieve the backup metadata associated when loading the working copy.
+   *
+   * @param token support for cancellation
+   */
+  backup(token: CancellationToken): Promise<IWorkingCopyBackup>;
 
+  /**
+   * Asks the working copy to save. If the working copy was dirty, it is
+   * expected to be non-dirty after this operation has finished.
+   *
+   * @returns `true` if the operation was successful and `false` otherwise.
+   */
+  save(options?: ISaveOptions): Promise<boolean>;
 
-	//#region Save / Backup
+  /**
+   * Asks the working copy to revert. If the working copy was dirty, it is
+   * expected to be non-dirty after this operation has finished.
+   */
+  revert(options?: IRevertOptions): Promise<void>;
 
-	/**
-	 * The delay in milliseconds to wait before triggering
-	 * a backup after the content of the model has changed.
-	 *
-	 * If not configured, a sensible default will be taken
-	 * based on user settings.
-	 */
-	readonly backupDelay?: number;
-
-	/**
-	 * The workbench may call this method often after it receives
-	 * the `onDidChangeContent` event for the working copy. The motivation
-	 * is to allow to quit VSCode with dirty working copies present.
-	 *
-	 * Providers of working copies should use `IWorkingCopyBackupService.resolve(workingCopy)`
-	 * to retrieve the backup metadata associated when loading the working copy.
-	 *
-	 * @param token support for cancellation
-	 */
-	backup(token: CancellationToken): Promise<IWorkingCopyBackup>;
-
-	/**
-	 * Asks the working copy to save. If the working copy was dirty, it is
-	 * expected to be non-dirty after this operation has finished.
-	 *
-	 * @returns `true` if the operation was successful and `false` otherwise.
-	 */
-	save(options?: ISaveOptions): Promise<boolean>;
-
-	/**
-	 * Asks the working copy to revert. If the working copy was dirty, it is
-	 * expected to be non-dirty after this operation has finished.
-	 */
-	revert(options?: IRevertOptions): Promise<void>;
-
-	//#endregion
+  //#endregion
 }

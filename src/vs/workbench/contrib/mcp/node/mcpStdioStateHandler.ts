@@ -10,10 +10,10 @@ import { killTree } from '../../../../base/node/processes.js';
 import { isWindows } from '../../../../base/common/platform.js';
 
 const enum McpProcessState {
-	Running,
-	StdinEnded,
-	KilledPolite,
-	KilledForceful,
+  Running,
+  StdinEnded,
+  KilledPolite,
+  KilledForceful,
 }
 
 /**
@@ -26,73 +26,79 @@ const enum McpProcessState {
  * 4. Allow forceful killing if called twice
  */
 export class McpStdioStateHandler implements IDisposable {
-	private static readonly GRACE_TIME_MS = 10_000;
+  private static readonly GRACE_TIME_MS = 10_000;
 
-	private _procState = McpProcessState.Running;
-	private _nextTimeout?: IDisposable;
+  private _procState = McpProcessState.Running;
+  private _nextTimeout?: IDisposable;
 
-	public get stopped() {
-		return this._procState !== McpProcessState.Running;
-	}
+  public get stopped() {
+    return this._procState !== McpProcessState.Running;
+  }
 
-	constructor(
-		private readonly _child: ChildProcessWithoutNullStreams,
-		private readonly _graceTimeMs: number = McpStdioStateHandler.GRACE_TIME_MS
-	) { }
+  constructor(
+    private readonly _child: ChildProcessWithoutNullStreams,
+    private readonly _graceTimeMs: number = McpStdioStateHandler.GRACE_TIME_MS
+  ) {}
 
-	/**
-	 * Initiates graceful shutdown. If called while shutdown is already in progress,
-	 * forces immediate termination.
-	 */
-	public stop(): void {
-		if (this._procState === McpProcessState.Running) {
-			try {
-				this._child.stdin.end();
-			} catch (error) {
-				// If stdin.end() fails, continue with termination sequence
-				// This can happen if the stream is already in an error state
-			}
-			this._nextTimeout = new TimeoutTimer(() => this.killPolite(), this._graceTimeMs);
-		} else {
-			this._nextTimeout?.dispose();
-			this.killForceful();
-		}
-	}
+  /**
+   * Initiates graceful shutdown. If called while shutdown is already in progress,
+   * forces immediate termination.
+   */
+  public stop(): void {
+    if (this._procState === McpProcessState.Running) {
+      try {
+        this._child.stdin.end();
+      } catch (error) {
+        // If stdin.end() fails, continue with termination sequence
+        // This can happen if the stream is already in an error state
+      }
+      this._nextTimeout = new TimeoutTimer(
+        () => this.killPolite(),
+        this._graceTimeMs
+      );
+    } else {
+      this._nextTimeout?.dispose();
+      this.killForceful();
+    }
+  }
 
-	private async killPolite() {
-		this._procState = McpProcessState.KilledPolite;
-		this._nextTimeout = new TimeoutTimer(() => this.killForceful(), this._graceTimeMs);
+  private async killPolite() {
+    this._procState = McpProcessState.KilledPolite;
+    this._nextTimeout = new TimeoutTimer(
+      () => this.killForceful(),
+      this._graceTimeMs
+    );
 
-		if (this._child.pid) {
-			if (!isWindows) {
-				await killTree(this._child.pid, false).catch(() => {
-					this._child.kill('SIGTERM');
-				});
-			}
-		} else {
-			this._child.kill('SIGTERM');
-		}
-	}
+    if (this._child.pid) {
+      if (!isWindows) {
+        await killTree(this._child.pid, false).catch(() => {
+          this._child.kill('SIGTERM');
+        });
+      }
+    } else {
+      this._child.kill('SIGTERM');
+    }
+  }
 
-	private async killForceful() {
-		this._procState = McpProcessState.KilledForceful;
+  private async killForceful() {
+    this._procState = McpProcessState.KilledForceful;
 
-		if (this._child.pid) {
-			await killTree(this._child.pid, true).catch(() => {
-				this._child.kill('SIGKILL');
-			});
-		} else {
-			this._child.kill();
-		}
-	}
+    if (this._child.pid) {
+      await killTree(this._child.pid, true).catch(() => {
+        this._child.kill('SIGKILL');
+      });
+    } else {
+      this._child.kill();
+    }
+  }
 
-	public write(message: string): void {
-		if (!this.stopped) {
-			this._child.stdin.write(message + '\n');
-		}
-	}
+  public write(message: string): void {
+    if (!this.stopped) {
+      this._child.stdin.write(message + '\n');
+    }
+  }
 
-	public dispose() {
-		this._nextTimeout?.dispose();
-	}
+  public dispose() {
+    this._nextTimeout?.dispose();
+  }
 }

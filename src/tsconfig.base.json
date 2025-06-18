@@ -1,26 +1,21 @@
 {
-	"compilerOptions": {
-		"module": "nodenext",
-		"moduleResolution": "nodenext",
-		"moduleDetection": "legacy",
-		"experimentalDecorators": true,
-		"noImplicitReturns": true,
-		"noImplicitOverride": true,
-		"noUnusedLocals": true,
-		"noUncheckedSideEffectImports": true,
-		"allowUnreachableCode": false,
-		"strict": true,
-		"exactOptionalPropertyTypes": false,
-		"useUnknownInCatchVariables": false,
-		"forceConsistentCasingInFileNames": true,
-		"target": "es2022",
-		"useDefineForClassFields": false,
-		"lib": [
-			"ES2022",
-			"DOM",
-			"DOM.Iterable",
-			"WebWorker.ImportScripts"
-		],
-		"allowSyntheticDefaultImports": true
-	}
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "moduleDetection": "legacy",
+    "experimentalDecorators": true,
+    "noImplicitReturns": true,
+    "noImplicitOverride": true,
+    "noUnusedLocals": true,
+    "noUncheckedSideEffectImports": true,
+    "allowUnreachableCode": false,
+    "strict": true,
+    "exactOptionalPropertyTypes": false,
+    "useUnknownInCatchVariables": false,
+    "forceConsistentCasingInFileNames": true,
+    "target": "es2022",
+    "useDefineForClassFields": false,
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker.ImportScripts"],
+    "allowSyntheticDefaultImports": true
+  }
 }

@@ -16,344 +16,384 @@ export const BUILTIN_MANIFEST_CACHE_FILE = 'extensions.builtin.cache';
 export const UNDEFINED_PUBLISHER = 'undefined_publisher';
 
 export interface ICommand {
-	command: string;
-	title: string | ILocalizedString;
-	category?: string | ILocalizedString;
+  command: string;
+  title: string | ILocalizedString;
+  category?: string | ILocalizedString;
 }
 
 export interface IDebugger {
-	label?: string;
-	type: string;
-	runtime?: string;
+  label?: string;
+  type: string;
+  runtime?: string;
 }
 
 export interface IGrammar {
-	language?: string;
+  language?: string;
 }
 
 export interface IJSONValidation {
-	fileMatch: string | string[];
-	url: string;
+  fileMatch: string | string[];
+  url: string;
 }
 
 export interface IKeyBinding {
-	command: string;
-	key: string;
-	when?: string;
-	mac?: string;
-	linux?: string;
-	win?: string;
+  command: string;
+  key: string;
+  when?: string;
+  mac?: string;
+  linux?: string;
+  win?: string;
 }
 
 export interface ILanguage {
-	id: string;
-	extensions: string[];
-	aliases: string[];
+  id: string;
+  extensions: string[];
+  aliases: string[];
 }
 
 export interface IMenu {
-	command: string;
-	alt?: string;
-	when?: string;
-	group?: string;
+  command: string;
+  alt?: string;
+  when?: string;
+  group?: string;
 }
 
 export interface ISnippet {
-	language: string;
+  language: string;
 }
 
 export interface ITheme {
-	label: string;
+  label: string;
 }
 
 export interface IViewContainer {
-	id: string;
-	title: string;
+  id: string;
+  title: string;
 }
 
 export interface IView {
-	id: string;
-	name: string;
+  id: string;
+  name: string;
 }
 
 export interface IColor {
-	id: string;
-	description: string;
-	defaults: { light: string; dark: string; highContrast: string };
+  id: string;
+  description: string;
+  defaults: { light: string; dark: string; highContrast: string };
 }
 
 interface IWebviewEditor {
-	readonly viewType: string;
-	readonly priority: string;
-	readonly selector: readonly {
-		readonly filenamePattern?: string;
-	}[];
+  readonly viewType: string;
+  readonly priority: string;
+  readonly selector: readonly {
+    readonly filenamePattern?: string;
+  }[];
 }
 
 export interface ICodeActionContributionAction {
-	readonly kind: string;
-	readonly title: string;
-	readonly description?: string;
+  readonly kind: string;
+  readonly title: string;
+  readonly description?: string;
 }
 
 export interface ICodeActionContribution {
-	readonly languages: readonly string[];
-	readonly actions: readonly ICodeActionContributionAction[];
+  readonly languages: readonly string[];
+  readonly actions: readonly ICodeActionContributionAction[];
 }
 
 export interface IAuthenticationContribution {
-	readonly id: string;
-	readonly label: string;
-	readonly authorizationServerGlobs?: string[];
+  readonly id: string;
+  readonly label: string;
+  readonly authorizationServerGlobs?: string[];
 }
 
 export interface IWalkthroughStep {
-	readonly id: string;
-	readonly title: string;
-	readonly description: string | undefined;
-	readonly media:
-	| { image: string | { dark: string; light: string; hc: string }; altText: string; markdown?: never; svg?: never; video?: never }
-	| { markdown: string; image?: never; svg?: never; video?: never }
-	| { svg: string; altText: string; markdown?: never; image?: never; video?: never }
-	| { video: string | { dark: string; light: string; hc: string }; poster: string | { dark: string; light: string; hc: string }; altText: string; markdown?: never; image?: never; svg?: never };
-	readonly completionEvents?: string[];
-	/** @deprecated use `completionEvents: 'onCommand:...'` */
-	readonly doneOn?: { command: string };
-	readonly when?: string;
+  readonly id: string;
+  readonly title: string;
+  readonly description: string | undefined;
+  readonly media:
+    | {
+        image: string | { dark: string; light: string; hc: string };
+        altText: string;
+        markdown?: never;
+        svg?: never;
+        video?: never;
+      }
+    | { markdown: string; image?: never; svg?: never; video?: never }
+    | {
+        svg: string;
+        altText: string;
+        markdown?: never;
+        image?: never;
+        video?: never;
+      }
+    | {
+        video: string | { dark: string; light: string; hc: string };
+        poster: string | { dark: string; light: string; hc: string };
+        altText: string;
+        markdown?: never;
+        image?: never;
+        svg?: never;
+      };
+  readonly completionEvents?: string[];
+  /** @deprecated use `completionEvents: 'onCommand:...'` */
+  readonly doneOn?: { command: string };
+  readonly when?: string;
 }
 
 export interface IWalkthrough {
-	readonly id: string;
-	readonly title: string;
-	readonly icon?: string;
-	readonly description: string;
-	readonly steps: IWalkthroughStep[];
-	readonly featuredFor: string[] | undefined;
-	readonly when?: string;
+  readonly id: string;
+  readonly title: string;
+  readonly icon?: string;
+  readonly description: string;
+  readonly steps: IWalkthroughStep[];
+  readonly featuredFor: string[] | undefined;
+  readonly when?: string;
 }
 
 export interface IStartEntry {
-	readonly title: string;
-	readonly description: string;
-	readonly command: string;
-	readonly when?: string;
-	readonly category: 'file' | 'folder' | 'notebook';
+  readonly title: string;
+  readonly description: string;
+  readonly command: string;
+  readonly when?: string;
+  readonly category: 'file' | 'folder' | 'notebook';
 }
 
 export interface INotebookEntry {
-	readonly type: string;
-	readonly displayName: string;
+  readonly type: string;
+  readonly displayName: string;
 }
 
 export interface INotebookRendererContribution {
-	readonly id: string;
-	readonly displayName: string;
-	readonly mimeTypes: string[];
+  readonly id: string;
+  readonly displayName: string;
+  readonly mimeTypes: string[];
 }
 
 export interface IDebugVisualizationContribution {
-	readonly id: string;
-	readonly when: string;
+  readonly id: string;
+  readonly when: string;
 }
 
 export interface ITranslation {
-	id: string;
-	path: string;
+  id: string;
+  path: string;
 }
 
 export interface ILocalizationContribution {
-	languageId: string;
-	languageName?: string;
-	localizedLanguageName?: string;
-	translations: ITranslation[];
-	minimalTranslations?: { [key: string]: string };
+  languageId: string;
+  languageName?: string;
+  localizedLanguageName?: string;
+  translations: ITranslation[];
+  minimalTranslations?: { [key: string]: string };
 }
 
 export interface IChatParticipantContribution {
-	id: string;
-	name: string;
-	fullName: string;
-	description?: string;
-	isDefault?: boolean;
-	commands?: { name: string }[];
+  id: string;
+  name: string;
+  fullName: string;
+  description?: string;
+  isDefault?: boolean;
+  commands?: { name: string }[];
 }
 
 export interface IToolContribution {
-	name: string;
-	displayName: string;
-	modelDescription: string;
-	userDescription?: string;
+  name: string;
+  displayName: string;
+  modelDescription: string;
+  userDescription?: string;
 }
 
 export interface IToolSetContribution {
-	name: string;
-	referenceName: string;
-	description: string;
-	icon?: string;
-	tools: string[];
+  name: string;
+  referenceName: string;
+  description: string;
+  icon?: string;
+  tools: string[];
 }
 
 export interface IMcpCollectionContribution {
-	readonly id: string;
-	readonly label: string;
+  readonly id: string;
+  readonly label: string;
 }
 
 export interface IExtensionContributions {
-	commands?: ICommand[];
-	configuration?: any;
-	debuggers?: IDebugger[];
-	grammars?: IGrammar[];
-	jsonValidation?: IJSONValidation[];
-	keybindings?: IKeyBinding[];
-	languages?: ILanguage[];
-	menus?: { [context: string]: IMenu[] };
-	snippets?: ISnippet[];
-	themes?: ITheme[];
-	iconThemes?: ITheme[];
-	productIconThemes?: ITheme[];
-	viewsContainers?: { [location: string]: IViewContainer[] };
-	views?: { [location: string]: IView[] };
-	colors?: IColor[];
-	localizations?: ILocalizationContribution[];
-	readonly customEditors?: readonly IWebviewEditor[];
-	readonly codeActions?: readonly ICodeActionContribution[];
-	authentication?: IAuthenticationContribution[];
-	walkthroughs?: IWalkthrough[];
-	startEntries?: IStartEntry[];
-	readonly notebooks?: INotebookEntry[];
-	readonly notebookRenderer?: INotebookRendererContribution[];
-	readonly debugVisualizers?: IDebugVisualizationContribution[];
-	readonly chatParticipants?: ReadonlyArray<IChatParticipantContribution>;
-	readonly languageModelTools?: ReadonlyArray<IToolContribution>;
-	readonly languageModelToolSets?: ReadonlyArray<IToolSetContribution>;
-	readonly mcpServerDefinitionProviders?: ReadonlyArray<IMcpCollectionContribution>;
+  commands?: ICommand[];
+  configuration?: any;
+  debuggers?: IDebugger[];
+  grammars?: IGrammar[];
+  jsonValidation?: IJSONValidation[];
+  keybindings?: IKeyBinding[];
+  languages?: ILanguage[];
+  menus?: { [context: string]: IMenu[] };
+  snippets?: ISnippet[];
+  themes?: ITheme[];
+  iconThemes?: ITheme[];
+  productIconThemes?: ITheme[];
+  viewsContainers?: { [location: string]: IViewContainer[] };
+  views?: { [location: string]: IView[] };
+  colors?: IColor[];
+  localizations?: ILocalizationContribution[];
+  readonly customEditors?: readonly IWebviewEditor[];
+  readonly codeActions?: readonly ICodeActionContribution[];
+  authentication?: IAuthenticationContribution[];
+  walkthroughs?: IWalkthrough[];
+  startEntries?: IStartEntry[];
+  readonly notebooks?: INotebookEntry[];
+  readonly notebookRenderer?: INotebookRendererContribution[];
+  readonly debugVisualizers?: IDebugVisualizationContribution[];
+  readonly chatParticipants?: ReadonlyArray<IChatParticipantContribution>;
+  readonly languageModelTools?: ReadonlyArray<IToolContribution>;
+  readonly languageModelToolSets?: ReadonlyArray<IToolSetContribution>;
+  readonly mcpServerDefinitionProviders?: ReadonlyArray<IMcpCollectionContribution>;
 }
 
 export interface IExtensionCapabilities {
-	readonly virtualWorkspaces?: ExtensionVirtualWorkspaceSupport;
-	readonly untrustedWorkspaces?: ExtensionUntrustedWorkspaceSupport;
+  readonly virtualWorkspaces?: ExtensionVirtualWorkspaceSupport;
+  readonly untrustedWorkspaces?: ExtensionUntrustedWorkspaceSupport;
 }
 
-
-export const ALL_EXTENSION_KINDS: readonly ExtensionKind[] = ['ui', 'workspace', 'web'];
+export const ALL_EXTENSION_KINDS: readonly ExtensionKind[] = [
+  'ui',
+  'workspace',
+  'web',
+];
 
 export type LimitedWorkspaceSupportType = 'limited';
-export type ExtensionUntrustedWorkspaceSupportType = boolean | LimitedWorkspaceSupportType;
-export type ExtensionUntrustedWorkspaceSupport = { supported: true } | { supported: false; description: string } | { supported: LimitedWorkspaceSupportType; description: string; restrictedConfigurations?: string[] };
+export type ExtensionUntrustedWorkspaceSupportType =
+  | boolean
+  | LimitedWorkspaceSupportType;
+export type ExtensionUntrustedWorkspaceSupport =
+  | { supported: true }
+  | { supported: false; description: string }
+  | {
+      supported: LimitedWorkspaceSupportType;
+      description: string;
+      restrictedConfigurations?: string[];
+    };
 
-export type ExtensionVirtualWorkspaceSupportType = boolean | LimitedWorkspaceSupportType;
-export type ExtensionVirtualWorkspaceSupport = boolean | { supported: true } | { supported: false | LimitedWorkspaceSupportType; description: string };
+export type ExtensionVirtualWorkspaceSupportType =
+  | boolean
+  | LimitedWorkspaceSupportType;
+export type ExtensionVirtualWorkspaceSupport =
+  | boolean
+  | { supported: true }
+  | { supported: false | LimitedWorkspaceSupportType; description: string };
 
-export function getWorkspaceSupportTypeMessage(supportType: ExtensionUntrustedWorkspaceSupport | ExtensionVirtualWorkspaceSupport | undefined): string | undefined {
-	if (typeof supportType === 'object' && supportType !== null) {
-		if (supportType.supported !== true) {
-			return supportType.description;
-		}
-	}
-	return undefined;
+export function getWorkspaceSupportTypeMessage(
+  supportType:
+    | ExtensionUntrustedWorkspaceSupport
+    | ExtensionVirtualWorkspaceSupport
+    | undefined
+): string | undefined {
+  if (typeof supportType === 'object' && supportType !== null) {
+    if (supportType.supported !== true) {
+      return supportType.description;
+    }
+  }
+  return undefined;
 }
 
-
 export interface IExtensionIdentifier {
-	id: string;
-	uuid?: string;
+  id: string;
+  uuid?: string;
 }
 
 export const EXTENSION_CATEGORIES = [
-	'AI',
-	'Azure',
-	'Chat',
-	'Data Science',
-	'Debuggers',
-	'Extension Packs',
-	'Education',
-	'Formatters',
-	'Keymaps',
-	'Language Packs',
-	'Linters',
-	'Machine Learning',
-	'Notebooks',
-	'Programming Languages',
-	'SCM Providers',
-	'Snippets',
-	'Testing',
-	'Themes',
-	'Visualization',
-	'Other',
+  'AI',
+  'Azure',
+  'Chat',
+  'Data Science',
+  'Debuggers',
+  'Extension Packs',
+  'Education',
+  'Formatters',
+  'Keymaps',
+  'Language Packs',
+  'Linters',
+  'Machine Learning',
+  'Notebooks',
+  'Programming Languages',
+  'SCM Providers',
+  'Snippets',
+  'Testing',
+  'Themes',
+  'Visualization',
+  'Other',
 ];
 
 export interface IRelaxedExtensionManifest {
-	name: string;
-	displayName?: string;
-	publisher: string;
-	version: string;
-	engines: { readonly vscode: string };
-	description?: string;
-	main?: string;
-	type?: string;
-	browser?: string;
-	preview?: boolean;
-	// For now this only supports pointing to l10n bundle files
-	// but it will be used for package.l10n.json files in the future
-	l10n?: string;
-	icon?: string;
-	categories?: string[];
-	keywords?: string[];
-	activationEvents?: string[];
-	extensionDependencies?: string[];
-	extensionPack?: string[];
-	extensionKind?: ExtensionKind | ExtensionKind[];
-	contributes?: IExtensionContributions;
-	repository?: { url: string };
-	bugs?: { url: string };
-	originalEnabledApiProposals?: readonly string[];
-	enabledApiProposals?: readonly string[];
-	api?: string;
-	scripts?: { [key: string]: string };
-	capabilities?: IExtensionCapabilities;
+  name: string;
+  displayName?: string;
+  publisher: string;
+  version: string;
+  engines: { readonly vscode: string };
+  description?: string;
+  main?: string;
+  type?: string;
+  browser?: string;
+  preview?: boolean;
+  // For now this only supports pointing to l10n bundle files
+  // but it will be used for package.l10n.json files in the future
+  l10n?: string;
+  icon?: string;
+  categories?: string[];
+  keywords?: string[];
+  activationEvents?: string[];
+  extensionDependencies?: string[];
+  extensionPack?: string[];
+  extensionKind?: ExtensionKind | ExtensionKind[];
+  contributes?: IExtensionContributions;
+  repository?: { url: string };
+  bugs?: { url: string };
+  originalEnabledApiProposals?: readonly string[];
+  enabledApiProposals?: readonly string[];
+  api?: string;
+  scripts?: { [key: string]: string };
+  capabilities?: IExtensionCapabilities;
 }
 
 export type IExtensionManifest = Readonly<IRelaxedExtensionManifest>;
 
 export const enum ExtensionType {
-	System,
-	User
+  System,
+  User,
 }
 
 export const enum TargetPlatform {
-	WIN32_X64 = 'win32-x64',
-	WIN32_ARM64 = 'win32-arm64',
+  WIN32_X64 = 'win32-x64',
+  WIN32_ARM64 = 'win32-arm64',
 
-	LINUX_X64 = 'linux-x64',
-	LINUX_ARM64 = 'linux-arm64',
-	LINUX_ARMHF = 'linux-armhf',
+  LINUX_X64 = 'linux-x64',
+  LINUX_ARM64 = 'linux-arm64',
+  LINUX_ARMHF = 'linux-armhf',
 
-	ALPINE_X64 = 'alpine-x64',
-	ALPINE_ARM64 = 'alpine-arm64',
+  ALPINE_X64 = 'alpine-x64',
+  ALPINE_ARM64 = 'alpine-arm64',
 
-	DARWIN_X64 = 'darwin-x64',
-	DARWIN_ARM64 = 'darwin-arm64',
+  DARWIN_X64 = 'darwin-x64',
+  DARWIN_ARM64 = 'darwin-arm64',
 
-	WEB = 'web',
+  WEB = 'web',
 
-	UNIVERSAL = 'universal',
-	UNKNOWN = 'unknown',
-	UNDEFINED = 'undefined',
+  UNIVERSAL = 'universal',
+  UNKNOWN = 'unknown',
+  UNDEFINED = 'undefined',
 }
 
 export interface IExtension {
-	readonly type: ExtensionType;
-	readonly isBuiltin: boolean;
-	readonly identifier: IExtensionIdentifier;
-	readonly manifest: IExtensionManifest;
-	readonly location: URI;
-	readonly targetPlatform: TargetPlatform;
-	readonly publisherDisplayName?: string;
-	readonly readmeUrl?: URI;
-	readonly changelogUrl?: URI;
-	readonly isValid: boolean;
-	readonly validations: readonly [Severity, string][];
-	readonly preRelease: boolean;
+  readonly type: ExtensionType;
+  readonly isBuiltin: boolean;
+  readonly identifier: IExtensionIdentifier;
+  readonly manifest: IExtensionManifest;
+  readonly location: URI;
+  readonly targetPlatform: TargetPlatform;
+  readonly publisherDisplayName?: string;
+  readonly readmeUrl?: URI;
+  readonly changelogUrl?: URI;
+  readonly isValid: boolean;
+  readonly validations: readonly [Severity, string][];
+  readonly preRelease: boolean;
 }
 
 /**
@@ -373,177 +413,205 @@ export interface IExtension {
  * extensions have the same UUID, they are considered equal even if their identifier is different.
  */
 export class ExtensionIdentifier {
-	public readonly value: string;
+  public readonly value: string;
 
-	/**
-	 * Do not use directly. This is public to avoid mangling and thus
-	 * allow compatibility between running from source and a built version.
-	 */
-	readonly _lower: string;
+  /**
+   * Do not use directly. This is public to avoid mangling and thus
+   * allow compatibility between running from source and a built version.
+   */
+  readonly _lower: string;
 
-	constructor(value: string) {
-		this.value = value;
-		this._lower = value.toLowerCase();
-	}
+  constructor(value: string) {
+    this.value = value;
+    this._lower = value.toLowerCase();
+  }
 
-	public static equals(a: ExtensionIdentifier | string | null | undefined, b: ExtensionIdentifier | string | null | undefined) {
-		if (typeof a === 'undefined' || a === null) {
-			return (typeof b === 'undefined' || b === null);
-		}
-		if (typeof b === 'undefined' || b === null) {
-			return false;
-		}
-		if (typeof a === 'string' || typeof b === 'string') {
-			// At least one of the arguments is an extension id in string form,
-			// so we have to use the string comparison which ignores case.
-			const aValue = (typeof a === 'string' ? a : a.value);
-			const bValue = (typeof b === 'string' ? b : b.value);
-			return strings.equalsIgnoreCase(aValue, bValue);
-		}
+  public static equals(
+    a: ExtensionIdentifier | string | null | undefined,
+    b: ExtensionIdentifier | string | null | undefined
+  ) {
+    if (typeof a === 'undefined' || a === null) {
+      return typeof b === 'undefined' || b === null;
+    }
+    if (typeof b === 'undefined' || b === null) {
+      return false;
+    }
+    if (typeof a === 'string' || typeof b === 'string') {
+      // At least one of the arguments is an extension id in string form,
+      // so we have to use the string comparison which ignores case.
+      const aValue = typeof a === 'string' ? a : a.value;
+      const bValue = typeof b === 'string' ? b : b.value;
+      return strings.equalsIgnoreCase(aValue, bValue);
+    }
 
-		// Now we know both arguments are ExtensionIdentifier
-		return (a._lower === b._lower);
-	}
+    // Now we know both arguments are ExtensionIdentifier
+    return a._lower === b._lower;
+  }
 
-	/**
-	 * Gives the value by which to index (for equality).
-	 */
-	public static toKey(id: ExtensionIdentifier | string): string {
-		if (typeof id === 'string') {
-			return id.toLowerCase();
-		}
-		return id._lower;
-	}
+  /**
+   * Gives the value by which to index (for equality).
+   */
+  public static toKey(id: ExtensionIdentifier | string): string {
+    if (typeof id === 'string') {
+      return id.toLowerCase();
+    }
+    return id._lower;
+  }
 }
 
 export class ExtensionIdentifierSet {
+  private readonly _set = new Set<string>();
 
-	private readonly _set = new Set<string>();
+  public get size(): number {
+    return this._set.size;
+  }
 
-	public get size(): number {
-		return this._set.size;
-	}
+  constructor(iterable?: Iterable<ExtensionIdentifier | string>) {
+    if (iterable) {
+      for (const value of iterable) {
+        this.add(value);
+      }
+    }
+  }
 
-	constructor(iterable?: Iterable<ExtensionIdentifier | string>) {
-		if (iterable) {
-			for (const value of iterable) {
-				this.add(value);
-			}
-		}
-	}
+  public add(id: ExtensionIdentifier | string): void {
+    this._set.add(ExtensionIdentifier.toKey(id));
+  }
 
-	public add(id: ExtensionIdentifier | string): void {
-		this._set.add(ExtensionIdentifier.toKey(id));
-	}
+  public delete(extensionId: ExtensionIdentifier): boolean {
+    return this._set.delete(ExtensionIdentifier.toKey(extensionId));
+  }
 
-	public delete(extensionId: ExtensionIdentifier): boolean {
-		return this._set.delete(ExtensionIdentifier.toKey(extensionId));
-	}
-
-	public has(id: ExtensionIdentifier | string): boolean {
-		return this._set.has(ExtensionIdentifier.toKey(id));
-	}
+  public has(id: ExtensionIdentifier | string): boolean {
+    return this._set.has(ExtensionIdentifier.toKey(id));
+  }
 }
 
 export class ExtensionIdentifierMap<T> {
+  private readonly _map = new Map<string, T>();
 
-	private readonly _map = new Map<string, T>();
+  public clear(): void {
+    this._map.clear();
+  }
 
-	public clear(): void {
-		this._map.clear();
-	}
+  public delete(id: ExtensionIdentifier | string): void {
+    this._map.delete(ExtensionIdentifier.toKey(id));
+  }
 
-	public delete(id: ExtensionIdentifier | string): void {
-		this._map.delete(ExtensionIdentifier.toKey(id));
-	}
+  public get(id: ExtensionIdentifier | string): T | undefined {
+    return this._map.get(ExtensionIdentifier.toKey(id));
+  }
 
-	public get(id: ExtensionIdentifier | string): T | undefined {
-		return this._map.get(ExtensionIdentifier.toKey(id));
-	}
+  public has(id: ExtensionIdentifier | string): boolean {
+    return this._map.has(ExtensionIdentifier.toKey(id));
+  }
 
-	public has(id: ExtensionIdentifier | string): boolean {
-		return this._map.has(ExtensionIdentifier.toKey(id));
-	}
+  public set(id: ExtensionIdentifier | string, value: T): void {
+    this._map.set(ExtensionIdentifier.toKey(id), value);
+  }
 
-	public set(id: ExtensionIdentifier | string, value: T): void {
-		this._map.set(ExtensionIdentifier.toKey(id), value);
-	}
+  public values(): IterableIterator<T> {
+    return this._map.values();
+  }
 
-	public values(): IterableIterator<T> {
-		return this._map.values();
-	}
+  forEach(
+    callbackfn: (value: T, key: string, map: Map<string, T>) => void
+  ): void {
+    this._map.forEach(callbackfn);
+  }
 
-	forEach(callbackfn: (value: T, key: string, map: Map<string, T>) => void): void {
-		this._map.forEach(callbackfn);
-	}
-
-	[Symbol.iterator](): IterableIterator<[string, T]> {
-		return this._map[Symbol.iterator]();
-	}
+  [Symbol.iterator](): IterableIterator<[string, T]> {
+    return this._map[Symbol.iterator]();
+  }
 }
 
 /**
  * An error that is clearly from an extension, identified by the `ExtensionIdentifier`
  */
 export class ExtensionError extends Error {
+  readonly extension: ExtensionIdentifier;
 
-	readonly extension: ExtensionIdentifier;
-
-	constructor(extensionIdentifier: ExtensionIdentifier, cause: Error, message?: string) {
-		super(`Error in extension ${ExtensionIdentifier.toKey(extensionIdentifier)}: ${message ?? cause.message}`, { cause });
-		this.name = 'ExtensionError';
-		this.extension = extensionIdentifier;
-	}
+  constructor(
+    extensionIdentifier: ExtensionIdentifier,
+    cause: Error,
+    message?: string
+  ) {
+    super(
+      `Error in extension ${ExtensionIdentifier.toKey(extensionIdentifier)}: ${message ?? cause.message}`,
+      { cause }
+    );
+    this.name = 'ExtensionError';
+    this.extension = extensionIdentifier;
+  }
 }
 
-export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest {
-	id?: string;
-	identifier: ExtensionIdentifier;
-	uuid?: string;
-	publisherDisplayName?: string;
-	targetPlatform: TargetPlatform;
-	isBuiltin: boolean;
-	isUserBuiltin: boolean;
-	isUnderDevelopment: boolean;
-	extensionLocation: URI;
-	preRelease: boolean;
+export interface IRelaxedExtensionDescription
+  extends IRelaxedExtensionManifest {
+  id?: string;
+  identifier: ExtensionIdentifier;
+  uuid?: string;
+  publisherDisplayName?: string;
+  targetPlatform: TargetPlatform;
+  isBuiltin: boolean;
+  isUserBuiltin: boolean;
+  isUnderDevelopment: boolean;
+  extensionLocation: URI;
+  preRelease: boolean;
 }
 
 export type IExtensionDescription = Readonly<IRelaxedExtensionDescription>;
 
-export function isApplicationScopedExtension(manifest: IExtensionManifest): boolean {
-	return isLanguagePackExtension(manifest);
+export function isApplicationScopedExtension(
+  manifest: IExtensionManifest
+): boolean {
+  return isLanguagePackExtension(manifest);
 }
 
 export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {
-	return manifest.contributes && manifest.contributes.localizations ? manifest.contributes.localizations.length > 0 : false;
+  return manifest.contributes && manifest.contributes.localizations
+    ? manifest.contributes.localizations.length > 0
+    : false;
 }
 
-export function isAuthenticationProviderExtension(manifest: IExtensionManifest): boolean {
-	return manifest.contributes && manifest.contributes.authentication ? manifest.contributes.authentication.length > 0 : false;
+export function isAuthenticationProviderExtension(
+  manifest: IExtensionManifest
+): boolean {
+  return manifest.contributes && manifest.contributes.authentication
+    ? manifest.contributes.authentication.length > 0
+    : false;
 }
 
-export function isResolverExtension(manifest: IExtensionManifest, remoteAuthority: string | undefined): boolean {
-	if (remoteAuthority) {
-		const activationEvent = `onResolveRemoteAuthority:${getRemoteName(remoteAuthority)}`;
-		return !!manifest.activationEvents?.includes(activationEvent);
-	}
-	return false;
+export function isResolverExtension(
+  manifest: IExtensionManifest,
+  remoteAuthority: string | undefined
+): boolean {
+  if (remoteAuthority) {
+    const activationEvent = `onResolveRemoteAuthority:${getRemoteName(remoteAuthority)}`;
+    return !!manifest.activationEvents?.includes(activationEvent);
+  }
+  return false;
 }
 
-export function parseApiProposals(enabledApiProposals: string[]): { proposalName: string; version?: number }[] {
-	return enabledApiProposals.map(proposal => {
-		const [proposalName, version] = proposal.split('@');
-		return { proposalName, version: version ? parseInt(version) : undefined };
-	});
+export function parseApiProposals(
+  enabledApiProposals: string[]
+): { proposalName: string; version?: number }[] {
+  return enabledApiProposals.map((proposal) => {
+    const [proposalName, version] = proposal.split('@');
+    return { proposalName, version: version ? parseInt(version) : undefined };
+  });
 }
 
-export function parseEnabledApiProposalNames(enabledApiProposals: string[]): string[] {
-	return enabledApiProposals.map(proposal => proposal.split('@')[0]);
+export function parseEnabledApiProposalNames(
+  enabledApiProposals: string[]
+): string[] {
+  return enabledApiProposals.map((proposal) => proposal.split('@')[0]);
 }
 
-export const IBuiltinExtensionsScannerService = createDecorator<IBuiltinExtensionsScannerService>('IBuiltinExtensionsScannerService');
+export const IBuiltinExtensionsScannerService =
+  createDecorator<IBuiltinExtensionsScannerService>(
+    'IBuiltinExtensionsScannerService'
+  );
 export interface IBuiltinExtensionsScannerService {
-	readonly _serviceBrand: undefined;
-	scanBuiltinExtensions(): Promise<IExtension[]>;
+  readonly _serviceBrand: undefined;
+  scanBuiltinExtensions(): Promise<IExtension[]>;
 }

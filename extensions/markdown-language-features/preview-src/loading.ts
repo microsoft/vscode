@@ -5,38 +5,44 @@
 import { MessagePoster } from './messaging';
 
 export class StyleLoadingMonitor {
-	private _unloadedStyles: string[] = [];
-	private _finishedLoading: boolean = false;
+  private _unloadedStyles: string[] = [];
+  private _finishedLoading: boolean = false;
 
-	private _poster?: MessagePoster;
+  private _poster?: MessagePoster;
 
-	constructor() {
-		const onStyleLoadError = (event: any) => {
-			const source = event.target.dataset.source;
-			this._unloadedStyles.push(source);
-		};
+  constructor() {
+    const onStyleLoadError = (event: any) => {
+      const source = event.target.dataset.source;
+      this._unloadedStyles.push(source);
+    };
 
-		window.addEventListener('DOMContentLoaded', () => {
-			for (const link of document.getElementsByClassName('code-user-style') as HTMLCollectionOf<HTMLElement>) {
-				if (link.dataset.source) {
-					link.onerror = onStyleLoadError;
-				}
-			}
-		});
+    window.addEventListener('DOMContentLoaded', () => {
+      for (const link of document.getElementsByClassName(
+        'code-user-style'
+      ) as HTMLCollectionOf<HTMLElement>) {
+        if (link.dataset.source) {
+          link.onerror = onStyleLoadError;
+        }
+      }
+    });
 
-		window.addEventListener('load', () => {
-			if (!this._unloadedStyles.length) {
-				return;
-			}
-			this._finishedLoading = true;
-			this._poster?.postMessage('previewStyleLoadError', { unloadedStyles: this._unloadedStyles });
-		});
-	}
+    window.addEventListener('load', () => {
+      if (!this._unloadedStyles.length) {
+        return;
+      }
+      this._finishedLoading = true;
+      this._poster?.postMessage('previewStyleLoadError', {
+        unloadedStyles: this._unloadedStyles,
+      });
+    });
+  }
 
-	public setPoster(poster: MessagePoster): void {
-		this._poster = poster;
-		if (this._finishedLoading) {
-			poster.postMessage('previewStyleLoadError', { unloadedStyles: this._unloadedStyles });
-		}
-	}
+  public setPoster(poster: MessagePoster): void {
+    this._poster = poster;
+    if (this._finishedLoading) {
+      poster.postMessage('previewStyleLoadError', {
+        unloadedStyles: this._unloadedStyles,
+      });
+    }
+  }
 }

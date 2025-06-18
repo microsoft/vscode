@@ -8,22 +8,27 @@ const vfs = require('vinyl-fs');
 const { eslintFilter } = require('./filters');
 
 function eslint() {
-	const eslint = require('./gulp-eslint');
-	return vfs
-		.src(eslintFilter, { base: '.', follow: true, allowEmpty: true })
-		.pipe(
-			eslint((results) => {
-				if (results.warningCount > 0 || results.errorCount > 0) {
-					throw new Error('eslint failed with warnings and/or errors');
-				}
-			})
-		).pipe(es.through(function () { /* noop, important for the stream to end */ }));
+  const eslint = require('./gulp-eslint');
+  return vfs
+    .src(eslintFilter, { base: '.', follow: true, allowEmpty: true })
+    .pipe(
+      eslint((results) => {
+        if (results.warningCount > 0 || results.errorCount > 0) {
+          throw new Error('eslint failed with warnings and/or errors');
+        }
+      })
+    )
+    .pipe(
+      es.through(function () {
+        /* noop, important for the stream to end */
+      })
+    );
 }
 
 if (require.main === module) {
-	eslint().on('error', (err) => {
-		console.error();
-		console.error(err);
-		process.exit(1);
-	});
+  eslint().on('error', (err) => {
+    console.error();
+    console.error(err);
+    process.exit(1);
+  });
 }

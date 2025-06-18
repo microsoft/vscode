@@ -10,22 +10,22 @@ import { SimpleToken } from './simpleToken.js';
  * value reflects the position of the token in the original data.
  */
 export class FormFeed extends SimpleToken<'\f'> {
-	/**
-	 * The underlying symbol of the token.
-	 */
-	public static override readonly symbol: '\f' = '\f';
+  /**
+   * The underlying symbol of the token.
+   */
+  public static override readonly symbol: '\f' = '\f';
 
-	/**
-	 * Return text representation of the token.
-	 */
-	public override get text(): '\f' {
-		return FormFeed.symbol;
-	}
+  /**
+   * Return text representation of the token.
+   */
+  public override get text(): '\f' {
+    return FormFeed.symbol;
+  }
 
-	/**
-	 * Returns a string representation of the token.
-	 */
-	public override toString(): string {
-		return `formfeed${this.range}`;
-	}
+  /**
+   * Returns a string representation of the token.
+   */
+  public override toString(): string {
+    return `formfeed${this.range}`;
+  }
 }

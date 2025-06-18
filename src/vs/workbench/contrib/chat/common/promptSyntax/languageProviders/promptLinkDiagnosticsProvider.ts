@@ -10,8 +10,15 @@ import { assert } from '../../../../../../base/common/assert.js';
 import { NotPromptFile } from '../../promptFileReferenceErrors.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
-import { ProviderInstanceManagerBase, TProviderClass } from './providerInstanceManagerBase.js';
-import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
+import {
+  ProviderInstanceManagerBase,
+  TProviderClass,
+} from './providerInstanceManagerBase.js';
+import {
+  IMarkerData,
+  IMarkerService,
+  MarkerSeverity,
+} from '../../../../../../platform/markers/common/markers.js';
 
 /**
  * Unique ID of the markers provider class.
@@ -22,56 +29,52 @@ const MARKERS_OWNER_ID = 'prompt-link-diagnostics-provider';
  * Prompt links diagnostics provider for a single text model.
  */
 class PromptLinkDiagnosticsProvider extends ProviderInstanceBase {
-	constructor(
-		model: ITextModel,
-		@IPromptsService promptsService: IPromptsService,
-		@IMarkerService private readonly markerService: IMarkerService,
-	) {
-		super(model, promptsService);
-	}
+  constructor(
+    model: ITextModel,
+    @IPromptsService promptsService: IPromptsService,
+    @IMarkerService private readonly markerService: IMarkerService
+  ) {
+    super(model, promptsService);
+  }
 
-	/**
-	 * Update diagnostic markers for the current editor.
-	 */
-	protected override onPromptSettled(): this {
-		// clean up all previously added markers
-		this.markerService.remove(MARKERS_OWNER_ID, [this.model.uri]);
+  /**
+   * Update diagnostic markers for the current editor.
+   */
+  protected override onPromptSettled(): this {
+    // clean up all previously added markers
+    this.markerService.remove(MARKERS_OWNER_ID, [this.model.uri]);
 
-		const markers: IMarkerData[] = [];
-		for (const link of this.parser.references) {
-			const { topError, linkRange } = link;
+    const markers: IMarkerData[] = [];
+    for (const link of this.parser.references) {
+      const { topError, linkRange } = link;
 
-			if (!topError || !linkRange) {
-				continue;
-			}
+      if (!topError || !linkRange) {
+        continue;
+      }
 
-			const { originalError } = topError;
+      const { originalError } = topError;
 
-			// the `NotPromptFile` error is allowed because we allow users
-			// to include non-prompt file links in the prompt files
-			// note! this check also handles the `FolderReference` error
-			if (originalError instanceof NotPromptFile) {
-				continue;
-			}
+      // the `NotPromptFile` error is allowed because we allow users
+      // to include non-prompt file links in the prompt files
+      // note! this check also handles the `FolderReference` error
+      if (originalError instanceof NotPromptFile) {
+        continue;
+      }
 
-			markers.push(toMarker(link));
-		}
+      markers.push(toMarker(link));
+    }
 
-		this.markerService.changeOne(
-			MARKERS_OWNER_ID,
-			this.model.uri,
-			markers,
-		);
+    this.markerService.changeOne(MARKERS_OWNER_ID, this.model.uri, markers);
 
-		return this;
-	}
+    return this;
+  }
 
-	/**
-	 * Returns a string representation of this object.
-	 */
-	public override toString(): string {
-		return `prompt-link-diagnostics:${this.model.uri.path}`;
-	}
+  /**
+   * Returns a string representation of this object.
+   */
+  public override toString(): string {
+    return `prompt-link-diagnostics:${this.model.uri.path}`;
+  }
 }
 
 /**
@@ -84,35 +87,30 @@ class PromptLinkDiagnosticsProvider extends ProviderInstanceBase {
  *    show diagnostic markers for non-prompt file links in the prompts
  */
 function toMarker(link: IPromptFileReference): IMarkerData {
-	const { topError, linkRange } = link;
+  const { topError, linkRange } = link;
 
-	// a sanity check because this function must be
-	// used only if these link attributes are present
-	assertDefined(
-		topError,
-		'Top error must to be defined.',
-	);
-	assertDefined(
-		linkRange,
-		'Link range must to be defined.',
-	);
+  // a sanity check because this function must be
+  // used only if these link attributes are present
+  assertDefined(topError, 'Top error must to be defined.');
+  assertDefined(linkRange, 'Link range must to be defined.');
 
-	const { originalError } = topError;
-	assert(
-		!(originalError instanceof NotPromptFile),
-		'Error must not be of "not prompt file" type.',
-	);
+  const { originalError } = topError;
+  assert(
+    !(originalError instanceof NotPromptFile),
+    'Error must not be of "not prompt file" type.'
+  );
 
-	// `error` severity for the link itself, `warning` for any of its children
-	const severity = (topError.errorSubject === 'root')
-		? MarkerSeverity.Error
-		: MarkerSeverity.Warning;
+  // `error` severity for the link itself, `warning` for any of its children
+  const severity =
+    topError.errorSubject === 'root'
+      ? MarkerSeverity.Error
+      : MarkerSeverity.Warning;
 
-	return {
-		message: topError.localizedMessage,
-		severity,
-		...linkRange,
-	};
+  return {
+    message: topError.localizedMessage,
+    severity,
+    ...linkRange,
+  };
 }
 
 /**
@@ -120,7 +118,7 @@ function toMarker(link: IPromptFileReference): IMarkerData {
  * classes for each specific editor text model.
  */
 export class PromptLinkDiagnosticsInstanceManager extends ProviderInstanceManagerBase<PromptLinkDiagnosticsProvider> {
-	protected override get InstanceClass(): TProviderClass<PromptLinkDiagnosticsProvider> {
-		return PromptLinkDiagnosticsProvider;
-	}
+  protected override get InstanceClass(): TProviderClass<PromptLinkDiagnosticsProvider> {
+    return PromptLinkDiagnosticsProvider;
+  }
 }

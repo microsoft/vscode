@@ -11,7 +11,9 @@
   "scripts": {
     "update-grammar": "node ../node_modules/vscode-grammar-updater/bin REditorSupport/vscode-R-syntax syntaxes/r.json ./syntaxes/r.tmLanguage.json"
   },
-  "categories": ["Programming Languages"],
+  "categories": [
+    "Programming Languages"
+  ],
   "contributes": {
     "languages": [
       {

@@ -50,7 +50,7 @@ export class FailingDeepStrictEqualAssertFixer {
 				const edit = new WorkspaceEdit();
 				edit.replace(uri, new Range(start, end), formatJsonValue(failingAssertion.actualJSONValue));
 				await workspace.applyEdit(edit);
-			})
+			}),
 		);
 
 		this.disposables.push(
@@ -69,7 +69,7 @@ export class FailingDeepStrictEqualAssertFixer {
 						},
 					];
 				},
-			})
+			}),
 		);
 	}
 
@@ -89,7 +89,12 @@ const formatJsonValue = (value: unknown) => {
 		return JSON.stringify(value, undefined, '\t');
 	}
 
-	const src = ts.createSourceFile('', `(${JSON.stringify(value, undefined, '\t')})`, ts.ScriptTarget.ES5, true);
+	const src = ts.createSourceFile(
+		'',
+		`(${JSON.stringify(value, undefined, '\t')})`,
+		ts.ScriptTarget.ES5,
+		true,
+	);
 	const outerExpression = src.statements[0] as ts.ExpressionStatement;
 	const parenExpression = outerExpression.expression as ts.ParenthesizedExpression;
 
@@ -97,12 +102,12 @@ const formatJsonValue = (value: unknown) => {
 		context => (node: ts.Node) => {
 			const visitor = (node: ts.Node): ts.Node =>
 				ts.isPropertyAssignment(node) &&
-					ts.isStringLiteralLike(node.name) &&
-					identifierLikeRe.test(node.name.text)
+				ts.isStringLiteralLike(node.name) &&
+				identifierLikeRe.test(node.name.text)
 					? ts.factory.createPropertyAssignment(
-						ts.factory.createIdentifier(node.name.text),
-						ts.visitNode(node.initializer, visitor) as ts.Expression
-					)
+							ts.factory.createIdentifier(node.name.text),
+							ts.visitNode(node.initializer, visitor) as ts.Expression,
+						)
 					: ts.isStringLiteralLike(node) && node.text === '[undefined]'
 						? ts.factory.createIdentifier('undefined')
 						: ts.visitEachChild(node, visitor, context);
@@ -116,7 +121,7 @@ const formatJsonValue = (value: unknown) => {
 
 /** Parses the source file, memoizing the last document so cursor moves are efficient */
 const parseSourceFile = memoizeLast((text: string) =>
-	ts.createSourceFile('', text, ts.ScriptTarget.ES5, true)
+	ts.createSourceFile('', text, ts.ScriptTarget.ES5, true),
 );
 
 const assertionFailureMessageRe = /^Expected values to be strictly (deep-)?equal:/;
@@ -124,7 +129,7 @@ const assertionFailureMessageRe = /^Expected values to be strictly (deep-)?equal
 /** Gets information about the failing assertion at the poisition, if any. */
 function detectFailingDeepStrictEqualAssertion(
 	document: TextDocument,
-	position: Position
+	position: Position,
 ): { assertion: StrictEqualAssertion; actualJSONValue: unknown } | undefined {
 	const sf = parseSourceFile(document.getText());
 	const offset = document.offsetAt(position);
@@ -136,7 +141,7 @@ function detectFailingDeepStrictEqualAssertion(
 	const startLine = document.positionAt(assertion.offsetStart).line;
 	const messages = getAllTestStatusMessagesAt(document.uri, startLine);
 	const strictDeepEqualMessage = messages.find(m =>
-		assertionFailureMessageRe.test(typeof m.message === 'string' ? m.message : m.message.value)
+		assertionFailureMessageRe.test(typeof m.message === 'string' ? m.message : m.message.value),
 	);
 
 	if (!strictDeepEqualMessage) {
@@ -188,7 +193,7 @@ class StrictEqualAssertion {
 		return undefined;
 	}
 
-	constructor(private readonly expression: ts.CallExpression) { }
+	constructor(private readonly expression: ts.CallExpression) {}
 
 	/** Gets the expected value */
 	public get expectedValue(): ts.Expression | undefined {

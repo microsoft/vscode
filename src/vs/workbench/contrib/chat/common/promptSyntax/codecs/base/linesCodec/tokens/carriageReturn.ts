@@ -11,34 +11,34 @@ import { SimpleToken } from '../../simpleCodec/tokens/simpleToken.js';
  * value reflects the position of the token in the original data.
  */
 export class CarriageReturn extends SimpleToken<'\r'> {
-	/**
-	 * The underlying symbol of the token.
-	 */
-	public static override readonly symbol: '\r' = '\r';
+  /**
+   * The underlying symbol of the token.
+   */
+  public static override readonly symbol: '\r' = '\r';
 
-	/**
-	 * The byte representation of the {@link symbol}.
-	 */
-	public static readonly byte = VSBuffer.fromString(CarriageReturn.symbol);
+  /**
+   * The byte representation of the {@link symbol}.
+   */
+  public static readonly byte = VSBuffer.fromString(CarriageReturn.symbol);
 
-	/**
-	 * The byte representation of the token.
-	 */
-	public get byte(): VSBuffer {
-		return CarriageReturn.byte;
-	}
+  /**
+   * The byte representation of the token.
+   */
+  public get byte(): VSBuffer {
+    return CarriageReturn.byte;
+  }
 
-	/**
-	 * Return text representation of the token.
-	 */
-	public override get text(): '\r' {
-		return CarriageReturn.symbol;
-	}
+  /**
+   * Return text representation of the token.
+   */
+  public override get text(): '\r' {
+    return CarriageReturn.symbol;
+  }
 
-	/**
-	 * Returns a string representation of the token.
-	 */
-	public override toString(): string {
-		return `CR${this.range}`;
-	}
+  /**
+   * Returns a string representation of the token.
+   */
+  public override toString(): string {
+    return `CR${this.range}`;
+  }
 }

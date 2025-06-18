@@ -8,104 +8,132 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { ChatAgentService, IChatAgentData, IChatAgentImplementation } from '../../common/chatAgents.js';
+import {
+  ChatAgentService,
+  IChatAgentData,
+  IChatAgentImplementation,
+} from '../../common/chatAgents.js';
 
 const testAgentId = 'testAgent';
 const testAgentData: IChatAgentData = {
-	id: testAgentId,
-	name: 'Test Agent',
-	extensionDisplayName: '',
-	extensionId: new ExtensionIdentifier(''),
-	extensionPublisherId: '',
-	locations: [],
-	modes: [],
-	metadata: {},
-	slashCommands: [],
-	disambiguation: [],
+  id: testAgentId,
+  name: 'Test Agent',
+  extensionDisplayName: '',
+  extensionId: new ExtensionIdentifier(''),
+  extensionPublisherId: '',
+  locations: [],
+  modes: [],
+  metadata: {},
+  slashCommands: [],
+  disambiguation: [],
 };
 
 class TestingContextKeyService extends MockContextKeyService {
-	private _contextMatchesRulesReturnsTrue = false;
-	public contextMatchesRulesReturnsTrue() {
-		this._contextMatchesRulesReturnsTrue = true;
-	}
+  private _contextMatchesRulesReturnsTrue = false;
+  public contextMatchesRulesReturnsTrue() {
+    this._contextMatchesRulesReturnsTrue = true;
+  }
 
-	public override contextMatchesRules(rules: ContextKeyExpression): boolean {
-		return this._contextMatchesRulesReturnsTrue;
-	}
+  public override contextMatchesRules(rules: ContextKeyExpression): boolean {
+    return this._contextMatchesRulesReturnsTrue;
+  }
 }
 
 suite('ChatAgents', function () {
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let chatAgentService: ChatAgentService;
-	let contextKeyService: TestingContextKeyService;
-	setup(() => {
-		contextKeyService = new TestingContextKeyService();
-		chatAgentService = store.add(new ChatAgentService(contextKeyService));
-	});
+  let chatAgentService: ChatAgentService;
+  let contextKeyService: TestingContextKeyService;
+  setup(() => {
+    contextKeyService = new TestingContextKeyService();
+    chatAgentService = store.add(new ChatAgentService(contextKeyService));
+  });
 
-	test('registerAgent', async () => {
-		assert.strictEqual(chatAgentService.getAgents().length, 0);
+  test('registerAgent', async () => {
+    assert.strictEqual(chatAgentService.getAgents().length, 0);
 
+    const agentRegistration = chatAgentService.registerAgent(
+      testAgentId,
+      testAgentData
+    );
 
-		const agentRegistration = chatAgentService.registerAgent(testAgentId, testAgentData);
+    assert.strictEqual(chatAgentService.getAgents().length, 1);
+    assert.strictEqual(chatAgentService.getAgents()[0].id, testAgentId);
 
-		assert.strictEqual(chatAgentService.getAgents().length, 1);
-		assert.strictEqual(chatAgentService.getAgents()[0].id, testAgentId);
+    assert.throws(() =>
+      chatAgentService.registerAgent(testAgentId, testAgentData)
+    );
 
-		assert.throws(() => chatAgentService.registerAgent(testAgentId, testAgentData));
+    agentRegistration.dispose();
+    assert.strictEqual(chatAgentService.getAgents().length, 0);
+  });
 
-		agentRegistration.dispose();
-		assert.strictEqual(chatAgentService.getAgents().length, 0);
-	});
+  test('agent when clause', async () => {
+    assert.strictEqual(chatAgentService.getAgents().length, 0);
 
-	test('agent when clause', async () => {
-		assert.strictEqual(chatAgentService.getAgents().length, 0);
+    store.add(
+      chatAgentService.registerAgent(testAgentId, {
+        ...testAgentData,
+        when: 'myKey',
+      })
+    );
+    assert.strictEqual(chatAgentService.getAgents().length, 0);
 
-		store.add(chatAgentService.registerAgent(testAgentId, {
-			...testAgentData,
-			when: 'myKey'
-		}));
-		assert.strictEqual(chatAgentService.getAgents().length, 0);
+    contextKeyService.contextMatchesRulesReturnsTrue();
+    assert.strictEqual(chatAgentService.getAgents().length, 1);
+  });
 
-		contextKeyService.contextMatchesRulesReturnsTrue();
-		assert.strictEqual(chatAgentService.getAgents().length, 1);
-	});
+  suite('registerAgentImplementation', function () {
+    const agentImpl: IChatAgentImplementation = {
+      invoke: async () => {
+        return {};
+      },
+      provideFollowups: async () => {
+        return [];
+      },
+    };
 
-	suite('registerAgentImplementation', function () {
-		const agentImpl: IChatAgentImplementation = {
-			invoke: async () => { return {}; },
-			provideFollowups: async () => { return []; },
-		};
+    test('should register an agent implementation', () => {
+      store.add(chatAgentService.registerAgent(testAgentId, testAgentData));
+      store.add(
+        chatAgentService.registerAgentImplementation(testAgentId, agentImpl)
+      );
 
-		test('should register an agent implementation', () => {
-			store.add(chatAgentService.registerAgent(testAgentId, testAgentData));
-			store.add(chatAgentService.registerAgentImplementation(testAgentId, agentImpl));
+      const agents = chatAgentService.getActivatedAgents();
+      assert.strictEqual(agents.length, 1);
+      assert.strictEqual(agents[0].id, testAgentId);
+    });
 
-			const agents = chatAgentService.getActivatedAgents();
-			assert.strictEqual(agents.length, 1);
-			assert.strictEqual(agents[0].id, testAgentId);
-		});
+    test('can dispose an agent implementation', () => {
+      store.add(chatAgentService.registerAgent(testAgentId, testAgentData));
+      const implRegistration = chatAgentService.registerAgentImplementation(
+        testAgentId,
+        agentImpl
+      );
+      implRegistration.dispose();
 
-		test('can dispose an agent implementation', () => {
-			store.add(chatAgentService.registerAgent(testAgentId, testAgentData));
-			const implRegistration = chatAgentService.registerAgentImplementation(testAgentId, agentImpl);
-			implRegistration.dispose();
+      const agents = chatAgentService.getActivatedAgents();
+      assert.strictEqual(agents.length, 0);
+    });
 
-			const agents = chatAgentService.getActivatedAgents();
-			assert.strictEqual(agents.length, 0);
-		});
+    test('should throw error if agent does not exist', () => {
+      assert.throws(() =>
+        chatAgentService.registerAgentImplementation(
+          'nonexistentAgent',
+          agentImpl
+        )
+      );
+    });
 
-		test('should throw error if agent does not exist', () => {
-			assert.throws(() => chatAgentService.registerAgentImplementation('nonexistentAgent', agentImpl));
-		});
+    test('should throw error if agent already has an implementation', () => {
+      store.add(chatAgentService.registerAgent(testAgentId, testAgentData));
+      store.add(
+        chatAgentService.registerAgentImplementation(testAgentId, agentImpl)
+      );
 
-		test('should throw error if agent already has an implementation', () => {
-			store.add(chatAgentService.registerAgent(testAgentId, testAgentData));
-			store.add(chatAgentService.registerAgentImplementation(testAgentId, agentImpl));
-
-			assert.throws(() => chatAgentService.registerAgentImplementation(testAgentId, agentImpl));
-		});
-	});
+      assert.throws(() =>
+        chatAgentService.registerAgentImplementation(testAgentId, agentImpl)
+      );
+    });
+  });
 });

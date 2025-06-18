@@ -1,4 +1,4 @@
 {
-	"displayName": "CSS Language Basics",
-	"description": "Provides syntax highlighting and bracket matching for CSS, LESS and SCSS files."
+  "displayName": "CSS Language Basics",
+  "description": "Provides syntax highlighting and bracket matching for CSS, LESS and SCSS files."
 }

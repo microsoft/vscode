@@ -3,9 +3,7 @@
 	"compilerOptions": {
 		"outDir": "./out",
 		"downlevelIteration": true,
-		"types": [
-			"node"
-		]
+		"types": ["node"]
 	},
 	"include": [
 		"src/**/*",

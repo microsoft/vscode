@@ -19,41 +19,40 @@ export type TMarkerToken = Dash | CarriageReturn | NewLine;
  * Marker for the start and end of a Front Matter header.
  */
 export class FrontMatterMarker extends MarkdownExtensionsToken {
-	/**
-	 * Returns complete text representation of the token.
-	 */
-	public get text(): string {
-		return BaseToken.render(this.tokens);
-	}
+  /**
+   * Returns complete text representation of the token.
+   */
+  public get text(): string {
+    return BaseToken.render(this.tokens);
+  }
 
-	/**
-	 * List of {@link Dash} tokens in the marker.
-	 */
-	public get dashTokens(): readonly Dash[] {
-		return this.tokens
-			.filter((token) => { return token instanceof Dash; });
-	}
+  /**
+   * List of {@link Dash} tokens in the marker.
+   */
+  public get dashTokens(): readonly Dash[] {
+    return this.tokens.filter((token) => {
+      return token instanceof Dash;
+    });
+  }
 
-	constructor(
-		range: Range,
-		public readonly tokens: readonly TMarkerToken[],
-	) {
-		super(range);
-	}
+  constructor(
+    range: Range,
+    public readonly tokens: readonly TMarkerToken[]
+  ) {
+    super(range);
+  }
 
-	/**
-	 * Create new instance of the token from a provided
-	 * list of tokens.
-	 */
-	public static fromTokens(
-		tokens: readonly TMarkerToken[],
-	): FrontMatterMarker {
-		const range = BaseToken.fullRange(tokens);
+  /**
+   * Create new instance of the token from a provided
+   * list of tokens.
+   */
+  public static fromTokens(tokens: readonly TMarkerToken[]): FrontMatterMarker {
+    const range = BaseToken.fullRange(tokens);
 
-		return new FrontMatterMarker(range, tokens);
-	}
+    return new FrontMatterMarker(range, tokens);
+  }
 
-	public toString(): string {
-		return `frontmatter-marker(${this.dashTokens.length}:${this.range})`;
-	}
+  public toString(): string {
+    return `frontmatter-marker(${this.dashTokens.length}:${this.range})`;
+  }
 }

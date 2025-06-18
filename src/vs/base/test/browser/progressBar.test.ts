@@ -9,28 +9,28 @@ import { mainWindow } from '../../browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 suite('ProgressBar', () => {
-	let fixture: HTMLElement;
+  let fixture: HTMLElement;
 
-	setup(() => {
-		fixture = document.createElement('div');
-		mainWindow.document.body.appendChild(fixture);
-	});
+  setup(() => {
+    fixture = document.createElement('div');
+    mainWindow.document.body.appendChild(fixture);
+  });
 
-	teardown(() => {
-		fixture.remove();
-	});
+  teardown(() => {
+    fixture.remove();
+  });
 
-	test('Progress Bar', function () {
-		const bar = new ProgressBar(fixture);
-		assert(bar.infinite());
-		assert(bar.total(100));
-		assert(bar.worked(50));
-		assert(bar.setWorked(70));
-		assert(bar.worked(30));
-		assert(bar.done());
+  test('Progress Bar', function () {
+    const bar = new ProgressBar(fixture);
+    assert(bar.infinite());
+    assert(bar.total(100));
+    assert(bar.worked(50));
+    assert(bar.setWorked(70));
+    assert(bar.worked(30));
+    assert(bar.done());
 
-		bar.dispose();
-	});
+    bar.dispose();
+  });
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+  ensureNoDisposablesAreLeakedInTestSuite();
 });

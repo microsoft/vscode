@@ -1,7 +1,6 @@
 ---
 name: Feature request
 about: Suggest an idea for this project
-
 ---
 
 <!-- ⚠️⚠️ Do Not Delete This! feature_request_template ⚠️⚠️ -->

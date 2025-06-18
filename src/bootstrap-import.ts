@@ -19,46 +19,60 @@ import { join } from 'node:path';
 const _specifierToUrl: Record<string, string> = {};
 
 export async function initialize(injectPath: string): Promise<void> {
-	// populate mappings
+  // populate mappings
 
-	const injectPackageJSONPath = fileURLToPath(new URL('../package.json', pathToFileURL(injectPath)));
-	const packageJSON = JSON.parse(String(await promises.readFile(injectPackageJSONPath)));
+  const injectPackageJSONPath = fileURLToPath(
+    new URL('../package.json', pathToFileURL(injectPath))
+  );
+  const packageJSON = JSON.parse(
+    String(await promises.readFile(injectPackageJSONPath))
+  );
 
-	for (const [name] of Object.entries(packageJSON.dependencies)) {
-		try {
-			const path = join(injectPackageJSONPath, `../node_modules/${name}/package.json`);
-			let { main } = JSON.parse(String(await promises.readFile(path)));
+  for (const [name] of Object.entries(packageJSON.dependencies)) {
+    try {
+      const path = join(
+        injectPackageJSONPath,
+        `../node_modules/${name}/package.json`
+      );
+      let { main } = JSON.parse(String(await promises.readFile(path)));
 
-			if (!main) {
-				main = 'index.js';
-			}
-			if (!main.endsWith('.js')) {
-				main += '.js';
-			}
-			const mainPath = join(injectPackageJSONPath, `../node_modules/${name}/${main}`);
-			_specifierToUrl[name] = pathToFileURL(mainPath).href;
+      if (!main) {
+        main = 'index.js';
+      }
+      if (!main.endsWith('.js')) {
+        main += '.js';
+      }
+      const mainPath = join(
+        injectPackageJSONPath,
+        `../node_modules/${name}/${main}`
+      );
+      _specifierToUrl[name] = pathToFileURL(mainPath).href;
+    } catch (err) {
+      console.error(name);
+      console.error(err);
+    }
+  }
 
-		} catch (err) {
-			console.error(name);
-			console.error(err);
-		}
-	}
-
-	console.log(`[bootstrap-import] Initialized node_modules redirector for: ${injectPath}`);
+  console.log(
+    `[bootstrap-import] Initialized node_modules redirector for: ${injectPath}`
+  );
 }
 
-export async function resolve(specifier: string | number, context: any, nextResolve: (arg0: any, arg1: any) => any) {
+export async function resolve(
+  specifier: string | number,
+  context: any,
+  nextResolve: (arg0: any, arg1: any) => any
+) {
+  const newSpecifier = _specifierToUrl[specifier];
+  if (newSpecifier !== undefined) {
+    return {
+      format: 'commonjs',
+      shortCircuit: true,
+      url: newSpecifier,
+    };
+  }
 
-	const newSpecifier = _specifierToUrl[specifier];
-	if (newSpecifier !== undefined) {
-		return {
-			format: 'commonjs',
-			shortCircuit: true,
-			url: newSpecifier
-		};
-	}
-
-	// Defer to the next hook in the chain, which would be the
-	// Node.js default resolve if this is the last user-specified loader.
-	return nextResolve(specifier, context);
+  // Defer to the next hook in the chain, which would be the
+  // Node.js default resolve if this is the last user-specified loader.
+  return nextResolve(specifier, context);
 }

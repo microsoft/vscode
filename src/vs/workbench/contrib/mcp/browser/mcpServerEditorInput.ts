@@ -6,7 +6,10 @@
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { EditorInputCapabilities, IUntypedEditorInput } from '../../../common/editor.js';
+import {
+  EditorInputCapabilities,
+  IUntypedEditorInput,
+} from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { join } from '../../../../base/common/path.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -14,46 +17,58 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkbenchMcpServer } from '../common/mcpTypes.js';
 
-const ExtensionEditorIcon = registerIcon('extensions-editor-label-icon', Codicon.extensions, localize('extensionsEditorLabelIcon', 'Icon of the extensions editor label.'));
+const ExtensionEditorIcon = registerIcon(
+  'extensions-editor-label-icon',
+  Codicon.extensions,
+  localize('extensionsEditorLabelIcon', 'Icon of the extensions editor label.')
+);
 
 export class McpServerEditorInput extends EditorInput {
+  static readonly ID = 'workbench.mcpServer.input2';
 
-	static readonly ID = 'workbench.mcpServer.input2';
+  override get typeId(): string {
+    return McpServerEditorInput.ID;
+  }
 
-	override get typeId(): string {
-		return McpServerEditorInput.ID;
-	}
+  override get capabilities(): EditorInputCapabilities {
+    return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
+  }
 
-	override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
-	}
+  override get resource() {
+    return URI.from({
+      scheme: Schemas.extension,
+      path: join(this.mcpServer.id, 'mcpServer'),
+    });
+  }
 
-	override get resource() {
-		return URI.from({
-			scheme: Schemas.extension,
-			path: join(this.mcpServer.id, 'mcpServer')
-		});
-	}
+  constructor(private _mcpServer: IWorkbenchMcpServer) {
+    super();
+  }
 
-	constructor(private _mcpServer: IWorkbenchMcpServer) {
-		super();
-	}
+  get mcpServer(): IWorkbenchMcpServer {
+    return this._mcpServer;
+  }
 
-	get mcpServer(): IWorkbenchMcpServer { return this._mcpServer; }
+  override getName(): string {
+    return localize(
+      'extensionsInputName',
+      'Extension: {0}',
+      this._mcpServer.label
+    );
+  }
 
-	override getName(): string {
-		return localize('extensionsInputName', "Extension: {0}", this._mcpServer.label);
-	}
+  override getIcon(): ThemeIcon | undefined {
+    return ExtensionEditorIcon;
+  }
 
-	override getIcon(): ThemeIcon | undefined {
-		return ExtensionEditorIcon;
-	}
+  override matches(other: EditorInput | IUntypedEditorInput): boolean {
+    if (super.matches(other)) {
+      return true;
+    }
 
-	override matches(other: EditorInput | IUntypedEditorInput): boolean {
-		if (super.matches(other)) {
-			return true;
-		}
-
-		return other instanceof McpServerEditorInput && this._mcpServer.name === other._mcpServer.name;
-	}
+    return (
+      other instanceof McpServerEditorInput &&
+      this._mcpServer.name === other._mcpServer.name
+    );
+  }
 }

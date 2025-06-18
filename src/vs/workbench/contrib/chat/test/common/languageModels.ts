@@ -5,36 +5,63 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import {
+  Disposable,
+  IDisposable,
+} from '../../../../../base/common/lifecycle.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { IChatMessage, ILanguageModelChat, ILanguageModelChatMetadata, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
+import {
+  IChatMessage,
+  ILanguageModelChat,
+  ILanguageModelChatMetadata,
+  ILanguageModelChatResponse,
+  ILanguageModelChatSelector,
+  ILanguageModelsService,
+} from '../../common/languageModels.js';
 
 export class NullLanguageModelsService implements ILanguageModelsService {
-	_serviceBrand: undefined;
+  _serviceBrand: undefined;
 
-	onDidChangeLanguageModels = Event.None;
+  onDidChangeLanguageModels = Event.None;
 
-	getLanguageModelIds(): string[] {
-		return [];
-	}
+  getLanguageModelIds(): string[] {
+    return [];
+  }
 
-	lookupLanguageModel(identifier: string): ILanguageModelChatMetadata | undefined {
-		return undefined;
-	}
+  lookupLanguageModel(
+    identifier: string
+  ): ILanguageModelChatMetadata | undefined {
+    return undefined;
+  }
 
-	async selectLanguageModels(selector: ILanguageModelChatSelector): Promise<string[]> {
-		return [];
-	}
+  async selectLanguageModels(
+    selector: ILanguageModelChatSelector
+  ): Promise<string[]> {
+    return [];
+  }
 
-	registerLanguageModelChat(identifier: string, provider: ILanguageModelChat): IDisposable {
-		return Disposable.None;
-	}
+  registerLanguageModelChat(
+    identifier: string,
+    provider: ILanguageModelChat
+  ): IDisposable {
+    return Disposable.None;
+  }
 
-	sendChatRequest(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse> {
-		throw new Error('Method not implemented.');
-	}
+  sendChatRequest(
+    identifier: string,
+    from: ExtensionIdentifier,
+    messages: IChatMessage[],
+    options: { [name: string]: any },
+    token: CancellationToken
+  ): Promise<ILanguageModelChatResponse> {
+    throw new Error('Method not implemented.');
+  }
 
-	computeTokenLength(identifier: string, message: string | IChatMessage, token: CancellationToken): Promise<number> {
-		throw new Error('Method not implemented.');
-	}
+  computeTokenLength(
+    identifier: string,
+    message: string | IChatMessage,
+    token: CancellationToken
+  ): Promise<number> {
+    throw new Error('Method not implemented.');
+  }
 }

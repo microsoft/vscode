@@ -12,24 +12,33 @@ import { ISubmenuItem } from '../../../../platform/actions/common/actions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 export interface IShareableItem {
-	resourceUri: URI;
-	selection?: Selection;
+  resourceUri: URI;
+  selection?: Selection;
 }
 
 export interface IShareProvider {
-	readonly id: string;
-	readonly label: string;
-	readonly priority: number;
-	readonly selector: LanguageSelector;
-	prepareShare?(item: IShareableItem, token: CancellationToken): Thenable<boolean | undefined>;
-	provideShare(item: IShareableItem, token: CancellationToken): Thenable<URI | string | undefined>;
+  readonly id: string;
+  readonly label: string;
+  readonly priority: number;
+  readonly selector: LanguageSelector;
+  prepareShare?(
+    item: IShareableItem,
+    token: CancellationToken
+  ): Thenable<boolean | undefined>;
+  provideShare(
+    item: IShareableItem,
+    token: CancellationToken
+  ): Thenable<URI | string | undefined>;
 }
 
 export const IShareService = createDecorator<IShareService>('shareService');
 export interface IShareService {
-	_serviceBrand: undefined;
+  _serviceBrand: undefined;
 
-	registerShareProvider(provider: IShareProvider): IDisposable;
-	getShareActions(): ISubmenuItem[];
-	provideShare(item: IShareableItem, token: CancellationToken): Thenable<URI | string | undefined>;
+  registerShareProvider(provider: IShareProvider): IDisposable;
+  getShareActions(): ISubmenuItem[];
+  provideShare(
+    item: IShareableItem,
+    token: CancellationToken
+  ): Thenable<URI | string | undefined>;
 }

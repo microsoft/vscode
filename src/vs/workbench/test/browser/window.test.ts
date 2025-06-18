@@ -10,152 +10,167 @@ import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { BaseWindow } from '../../browser/window.js';
-import { TestEnvironmentService, TestHostService } from './workbenchTestServices.js';
+import {
+  TestEnvironmentService,
+  TestHostService,
+} from './workbenchTestServices.js';
 
 suite('Window', () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+  class TestWindow extends BaseWindow {
+    constructor(
+      window: CodeWindow,
+      dom: {
+        getWindowsCount: () => number;
+        getWindows: () => Iterable<IRegisteredCodeWindow>;
+      }
+    ) {
+      super(window, dom, new TestHostService(), TestEnvironmentService);
+    }
 
-	class TestWindow extends BaseWindow {
+    protected override enableWindowFocusOnElementFocus(): void {}
+  }
 
-		constructor(window: CodeWindow, dom: { getWindowsCount: () => number; getWindows: () => Iterable<IRegisteredCodeWindow> }) {
-			super(window, dom, new TestHostService(), TestEnvironmentService);
-		}
+  test('multi window aware setTimeout()', async function () {
+    return runWithFakedTimers({ useFakeTimers: true }, async () => {
+      const disposables = new DisposableStore();
 
-		protected override enableWindowFocusOnElementFocus(): void { }
-	}
+      let windows: IRegisteredCodeWindow[] = [];
+      const dom = {
+        getWindowsCount: () => windows.length,
+        getWindows: () => windows,
+      };
 
-	test('multi window aware setTimeout()', async function () {
-		return runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const disposables = new DisposableStore();
+      const setTimeoutCalls: number[] = [];
+      const clearTimeoutCalls: number[] = [];
 
-			let windows: IRegisteredCodeWindow[] = [];
-			const dom = {
-				getWindowsCount: () => windows.length,
-				getWindows: () => windows
-			};
+      function createWindow(id: number, slow?: boolean) {
+        const res = {
+          setTimeout: function (
+            callback: Function,
+            delay: number,
+            ...args: any[]
+          ): number {
+            setTimeoutCalls.push(id);
 
-			const setTimeoutCalls: number[] = [];
-			const clearTimeoutCalls: number[] = [];
+            return mainWindow.setTimeout(
+              () => callback(id),
+              slow ? delay * 2 : delay,
+              ...args
+            );
+          },
+          clearTimeout: function (timeoutId: number): void {
+            clearTimeoutCalls.push(id);
 
-			function createWindow(id: number, slow?: boolean) {
-				const res = {
-					setTimeout: function (callback: Function, delay: number, ...args: any[]): number {
-						setTimeoutCalls.push(id);
+            return mainWindow.clearTimeout(timeoutId);
+          },
+        } as any;
 
-						return mainWindow.setTimeout(() => callback(id), slow ? delay * 2 : delay, ...args);
-					},
-					clearTimeout: function (timeoutId: number): void {
-						clearTimeoutCalls.push(id);
+        disposables.add(new TestWindow(res, dom));
 
-						return mainWindow.clearTimeout(timeoutId);
-					}
-				} as any;
+        return res;
+      }
 
-				disposables.add(new TestWindow(res, dom));
+      const window1 = createWindow(1);
+      windows = [{ window: window1, disposables }];
 
-				return res;
-			}
+      // Window Count: 1
 
-			const window1 = createWindow(1);
-			windows = [{ window: window1, disposables }];
+      let called = false;
+      await new Promise<void>((resolve, reject) => {
+        window1.setTimeout(() => {
+          if (!called) {
+            called = true;
+            resolve();
+          } else {
+            reject(new Error('timeout called twice'));
+          }
+        }, 1);
+      });
 
-			// Window Count: 1
+      assert.strictEqual(called, true);
+      assert.deepStrictEqual(setTimeoutCalls, [1]);
+      assert.deepStrictEqual(clearTimeoutCalls, []);
+      called = false;
+      setTimeoutCalls.length = 0;
+      clearTimeoutCalls.length = 0;
 
-			let called = false;
-			await new Promise<void>((resolve, reject) => {
-				window1.setTimeout(() => {
-					if (!called) {
-						called = true;
-						resolve();
-					} else {
-						reject(new Error('timeout called twice'));
-					}
-				}, 1);
-			});
+      await new Promise<void>((resolve, reject) => {
+        window1.setTimeout(() => {
+          if (!called) {
+            called = true;
+            resolve();
+          } else {
+            reject(new Error('timeout called twice'));
+          }
+        }, 0);
+      });
 
-			assert.strictEqual(called, true);
-			assert.deepStrictEqual(setTimeoutCalls, [1]);
-			assert.deepStrictEqual(clearTimeoutCalls, []);
-			called = false;
-			setTimeoutCalls.length = 0;
-			clearTimeoutCalls.length = 0;
+      assert.strictEqual(called, true);
+      assert.deepStrictEqual(setTimeoutCalls, [1]);
+      assert.deepStrictEqual(clearTimeoutCalls, []);
+      called = false;
+      setTimeoutCalls.length = 0;
+      clearTimeoutCalls.length = 0;
 
-			await new Promise<void>((resolve, reject) => {
-				window1.setTimeout(() => {
-					if (!called) {
-						called = true;
-						resolve();
-					} else {
-						reject(new Error('timeout called twice'));
-					}
-				}, 0);
-			});
+      // Window Count: 3
 
-			assert.strictEqual(called, true);
-			assert.deepStrictEqual(setTimeoutCalls, [1]);
-			assert.deepStrictEqual(clearTimeoutCalls, []);
-			called = false;
-			setTimeoutCalls.length = 0;
-			clearTimeoutCalls.length = 0;
+      let window2 = createWindow(2);
+      const window3 = createWindow(3);
+      windows = [
+        { window: window2, disposables },
+        { window: window1, disposables },
+        { window: window3, disposables },
+      ];
 
-			// Window Count: 3
+      await new Promise<void>((resolve, reject) => {
+        window1.setTimeout(() => {
+          if (!called) {
+            called = true;
+            resolve();
+          } else {
+            reject(new Error('timeout called twice'));
+          }
+        }, 1);
+      });
 
-			let window2 = createWindow(2);
-			const window3 = createWindow(3);
-			windows = [
-				{ window: window2, disposables },
-				{ window: window1, disposables },
-				{ window: window3, disposables }
-			];
+      assert.strictEqual(called, true);
+      assert.deepStrictEqual(setTimeoutCalls, [2, 1, 3]);
+      assert.deepStrictEqual(clearTimeoutCalls, [2, 1, 3]);
+      called = false;
+      setTimeoutCalls.length = 0;
+      clearTimeoutCalls.length = 0;
 
-			await new Promise<void>((resolve, reject) => {
-				window1.setTimeout(() => {
-					if (!called) {
-						called = true;
-						resolve();
-					} else {
-						reject(new Error('timeout called twice'));
-					}
-				}, 1);
-			});
+      // Window Count: 2 (1 fast, 1 slow)
 
-			assert.strictEqual(called, true);
-			assert.deepStrictEqual(setTimeoutCalls, [2, 1, 3]);
-			assert.deepStrictEqual(clearTimeoutCalls, [2, 1, 3]);
-			called = false;
-			setTimeoutCalls.length = 0;
-			clearTimeoutCalls.length = 0;
+      window2 = createWindow(2, true);
+      windows = [
+        { window: window2, disposables },
+        { window: window1, disposables },
+      ];
 
-			// Window Count: 2 (1 fast, 1 slow)
+      await new Promise<void>((resolve, reject) => {
+        window1.setTimeout((windowId: number) => {
+          if (!called && windowId === 1) {
+            called = true;
+            resolve();
+          } else if (called) {
+            reject(new Error('timeout called twice'));
+          } else {
+            reject(new Error('timeout called for wrong window'));
+          }
+        }, 1);
+      });
 
-			window2 = createWindow(2, true);
-			windows = [
-				{ window: window2, disposables },
-				{ window: window1, disposables },
-			];
+      assert.strictEqual(called, true);
+      assert.deepStrictEqual(setTimeoutCalls, [2, 1]);
+      assert.deepStrictEqual(clearTimeoutCalls, [2, 1]);
+      called = false;
+      setTimeoutCalls.length = 0;
+      clearTimeoutCalls.length = 0;
 
-			await new Promise<void>((resolve, reject) => {
-				window1.setTimeout((windowId: number) => {
-					if (!called && windowId === 1) {
-						called = true;
-						resolve();
-					} else if (called) {
-						reject(new Error('timeout called twice'));
-					} else {
-						reject(new Error('timeout called for wrong window'));
-					}
-				}, 1);
-			});
-
-			assert.strictEqual(called, true);
-			assert.deepStrictEqual(setTimeoutCalls, [2, 1]);
-			assert.deepStrictEqual(clearTimeoutCalls, [2, 1]);
-			called = false;
-			setTimeoutCalls.length = 0;
-			clearTimeoutCalls.length = 0;
-
-			disposables.dispose();
-		});
-	});
+      disposables.dispose();
+    });
+  });
 });

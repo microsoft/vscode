@@ -10,33 +10,48 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
-import { BrowserProcessExplorerControl, ProcessExplorerControl } from './processExplorerControl.js';
+import {
+  BrowserProcessExplorerControl,
+  ProcessExplorerControl,
+} from './processExplorerControl.js';
 
 export class ProcessExplorerEditor extends EditorPane {
+  static readonly ID: string = 'workbench.editor.processExplorer';
 
-	static readonly ID: string = 'workbench.editor.processExplorer';
+  protected processExplorerControl: ProcessExplorerControl | undefined =
+    undefined;
 
-	protected processExplorerControl: ProcessExplorerControl | undefined = undefined;
+  constructor(
+    group: IEditorGroup,
+    @ITelemetryService telemetryService: ITelemetryService,
+    @IThemeService themeService: IThemeService,
+    @IStorageService storageService: IStorageService,
+    @IInstantiationService
+    protected readonly instantiationService: IInstantiationService
+  ) {
+    super(
+      ProcessExplorerEditor.ID,
+      group,
+      telemetryService,
+      themeService,
+      storageService
+    );
+  }
 
-	constructor(
-		group: IEditorGroup,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService
-	) {
-		super(ProcessExplorerEditor.ID, group, telemetryService, themeService, storageService);
-	}
+  protected override createEditor(parent: HTMLElement): void {
+    this.processExplorerControl = this._register(
+      this.instantiationService.createInstance(
+        BrowserProcessExplorerControl,
+        parent
+      )
+    );
+  }
 
-	protected override createEditor(parent: HTMLElement): void {
-		this.processExplorerControl = this._register(this.instantiationService.createInstance(BrowserProcessExplorerControl, parent));
-	}
+  override focus(): void {
+    this.processExplorerControl?.focus();
+  }
 
-	override focus(): void {
-		this.processExplorerControl?.focus();
-	}
-
-	override layout(dimension: Dimension): void {
-		this.processExplorerControl?.layout(dimension);
-	}
+  override layout(dimension: Dimension): void {
+    this.processExplorerControl?.layout(dimension);
+  }
 }

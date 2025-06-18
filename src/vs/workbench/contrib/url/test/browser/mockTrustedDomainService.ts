@@ -9,14 +9,13 @@ import { ITrustedDomainService } from '../../browser/trustedDomainService.js';
 import { isURLDomainTrusted } from '../../common/trustedDomains.js';
 
 export class MockTrustedDomainService implements ITrustedDomainService {
-	_serviceBrand: undefined;
+  _serviceBrand: undefined;
 
-	constructor(private readonly _trustedDomains: string[] = []) {
-	}
+  constructor(private readonly _trustedDomains: string[] = []) {}
 
-	onDidChangeTrustedDomains: Event<void> = Event.None;
+  onDidChangeTrustedDomains: Event<void> = Event.None;
 
-	isValid(resource: URI): boolean {
-		return isURLDomainTrusted(resource, this._trustedDomains);
-	}
+  isValid(resource: URI): boolean {
+    return isURLDomainTrusted(resource, this._trustedDomains);
+  }
 }

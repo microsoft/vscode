@@ -10,39 +10,39 @@ import { ModelDecorationOptions } from '../../../../../../../editor/common/model
  * Decoration object.
  */
 export interface ITextModelDecoration {
-	/**
-	 * Range of the decoration.
-	 */
-	range: IRange;
+  /**
+   * Range of the decoration.
+   */
+  range: IRange;
 
-	/**
-	 * Associated decoration options.
-	 */
-	options: ModelDecorationOptions;
+  /**
+   * Associated decoration options.
+   */
+  options: ModelDecorationOptions;
 }
 
 /**
  * Decoration CSS class names.
  */
 export enum DecorationClassNames {
-	/**
-	 * CSS class name for `default` prompt syntax decoration.
-	 */
-	Default = 'prompt-decoration',
+  /**
+   * CSS class name for `default` prompt syntax decoration.
+   */
+  Default = 'prompt-decoration',
 
-	/**
-	 * CSS class name for `file reference` prompt syntax decoration.
-	 */
-	FileReference = DecorationClassNames.Default,
+  /**
+   * CSS class name for `file reference` prompt syntax decoration.
+   */
+  FileReference = DecorationClassNames.Default,
 }
 
 /**
  * Decoration CSS class modifiers.
  */
 export enum CssClassModifiers {
-	/**
-	 * CSS class modifier for `active` state of
-	 * a `reactive` prompt syntax decoration.
-	 */
-	Inactive = '.prompt-decoration-inactive',
+  /**
+   * CSS class modifier for `active` state of
+   * a `reactive` prompt syntax decoration.
+   */
+  Inactive = '.prompt-decoration-inactive',
 }

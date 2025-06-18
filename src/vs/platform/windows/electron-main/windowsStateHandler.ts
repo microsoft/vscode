@@ -12,476 +12,630 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { IStateService } from '../../state/node/state.js';
-import { INativeWindowConfiguration, IWindowSettings } from '../../window/common/window.js';
+import {
+  INativeWindowConfiguration,
+  IWindowSettings,
+} from '../../window/common/window.js';
 import { IWindowsMainService } from './windows.js';
-import { defaultWindowState, ICodeWindow, IWindowState as IWindowUIState, WindowMode } from '../../window/electron-main/window.js';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
+import {
+  defaultWindowState,
+  ICodeWindow,
+  IWindowState as IWindowUIState,
+  WindowMode,
+} from '../../window/electron-main/window.js';
+import {
+  isSingleFolderWorkspaceIdentifier,
+  isWorkspaceIdentifier,
+  IWorkspaceIdentifier,
+} from '../../workspace/common/workspace.js';
 
 export interface IWindowState {
-	readonly windowId?: number;
-	workspace?: IWorkspaceIdentifier;
-	folderUri?: URI;
-	backupPath?: string;
-	remoteAuthority?: string;
-	uiState: IWindowUIState;
+  readonly windowId?: number;
+  workspace?: IWorkspaceIdentifier;
+  folderUri?: URI;
+  backupPath?: string;
+  remoteAuthority?: string;
+  uiState: IWindowUIState;
 }
 
 export interface IWindowsState {
-	lastActiveWindow?: IWindowState;
-	lastPluginDevelopmentHostWindow?: IWindowState;
-	openedWindows: IWindowState[];
+  lastActiveWindow?: IWindowState;
+  lastPluginDevelopmentHostWindow?: IWindowState;
+  openedWindows: IWindowState[];
 }
 
 interface INewWindowState extends IWindowUIState {
-	hasDefaultState?: boolean;
+  hasDefaultState?: boolean;
 }
 
 interface ISerializedWindowsState {
-	readonly lastActiveWindow?: ISerializedWindowState;
-	readonly lastPluginDevelopmentHostWindow?: ISerializedWindowState;
-	readonly openedWindows: ISerializedWindowState[];
+  readonly lastActiveWindow?: ISerializedWindowState;
+  readonly lastPluginDevelopmentHostWindow?: ISerializedWindowState;
+  readonly openedWindows: ISerializedWindowState[];
 }
 
 interface ISerializedWindowState {
-	readonly workspaceIdentifier?: { id: string; configURIPath: string };
-	readonly folder?: string;
-	readonly backupPath?: string;
-	readonly remoteAuthority?: string;
-	readonly uiState: IWindowUIState;
+  readonly workspaceIdentifier?: { id: string; configURIPath: string };
+  readonly folder?: string;
+  readonly backupPath?: string;
+  readonly remoteAuthority?: string;
+  readonly uiState: IWindowUIState;
 }
 
 export class WindowsStateHandler extends Disposable {
+  private static readonly windowsStateStorageKey = 'windowsState';
 
-	private static readonly windowsStateStorageKey = 'windowsState';
+  get state() {
+    return this._state;
+  }
+  private readonly _state: IWindowsState;
 
-	get state() { return this._state; }
-	private readonly _state: IWindowsState;
+  private lastClosedState: IWindowState | undefined = undefined;
 
-	private lastClosedState: IWindowState | undefined = undefined;
+  private shuttingDown = false;
 
-	private shuttingDown = false;
+  constructor(
+    @IWindowsMainService
+    private readonly windowsMainService: IWindowsMainService,
+    @IStateService private readonly stateService: IStateService,
+    @ILifecycleMainService
+    private readonly lifecycleMainService: ILifecycleMainService,
+    @ILogService private readonly logService: ILogService,
+    @IConfigurationService
+    private readonly configurationService: IConfigurationService
+  ) {
+    super();
 
-	constructor(
-		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IStateService private readonly stateService: IStateService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@ILogService private readonly logService: ILogService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
-	) {
-		super();
+    this._state = restoreWindowsState(
+      this.stateService.getItem<ISerializedWindowsState>(
+        WindowsStateHandler.windowsStateStorageKey
+      )
+    );
 
-		this._state = restoreWindowsState(this.stateService.getItem<ISerializedWindowsState>(WindowsStateHandler.windowsStateStorageKey));
+    this.registerListeners();
+  }
 
-		this.registerListeners();
-	}
+  private registerListeners(): void {
+    // When a window looses focus, save all windows state. This allows to
+    // prevent loss of window-state data when OS is restarted without properly
+    // shutting down the application (https://github.com/microsoft/vscode/issues/87171)
+    electron.app.on('browser-window-blur', () => {
+      if (!this.shuttingDown) {
+        this.saveWindowsState();
+      }
+    });
 
-	private registerListeners(): void {
+    // Handle various lifecycle events around windows
+    this._register(
+      this.lifecycleMainService.onBeforeCloseWindow((window) =>
+        this.onBeforeCloseWindow(window)
+      )
+    );
+    this._register(
+      this.lifecycleMainService.onBeforeShutdown(() => this.onBeforeShutdown())
+    );
+    this._register(
+      this.windowsMainService.onDidChangeWindowsCount((e) => {
+        if (e.newCount - e.oldCount > 0) {
+          // clear last closed window state when a new window opens. this helps on macOS where
+          // otherwise closing the last window, opening a new window and then quitting would
+          // use the state of the previously closed window when restarting.
+          this.lastClosedState = undefined;
+        }
+      })
+    );
 
-		// When a window looses focus, save all windows state. This allows to
-		// prevent loss of window-state data when OS is restarted without properly
-		// shutting down the application (https://github.com/microsoft/vscode/issues/87171)
-		electron.app.on('browser-window-blur', () => {
-			if (!this.shuttingDown) {
-				this.saveWindowsState();
-			}
-		});
+    // try to save state before destroy because close will not fire
+    this._register(
+      this.windowsMainService.onDidDestroyWindow((window) =>
+        this.onBeforeCloseWindow(window)
+      )
+    );
+  }
 
-		// Handle various lifecycle events around windows
-		this._register(this.lifecycleMainService.onBeforeCloseWindow(window => this.onBeforeCloseWindow(window)));
-		this._register(this.lifecycleMainService.onBeforeShutdown(() => this.onBeforeShutdown()));
-		this._register(this.windowsMainService.onDidChangeWindowsCount(e => {
-			if (e.newCount - e.oldCount > 0) {
-				// clear last closed window state when a new window opens. this helps on macOS where
-				// otherwise closing the last window, opening a new window and then quitting would
-				// use the state of the previously closed window when restarting.
-				this.lastClosedState = undefined;
-			}
-		}));
+  // Note that onBeforeShutdown() and onBeforeCloseWindow() are fired in different order depending on the OS:
+  // - macOS: since the app will not quit when closing the last window, you will always first get
+  //          the onBeforeShutdown() event followed by N onBeforeCloseWindow() events for each window
+  // - other: on other OS, closing the last window will quit the app so the order depends on the
+  //          user interaction: closing the last window will first trigger onBeforeCloseWindow()
+  //          and then onBeforeShutdown(). Using the quit action however will first issue onBeforeShutdown()
+  //          and then onBeforeCloseWindow().
+  //
+  // Here is the behavior on different OS depending on action taken (Electron 1.7.x):
+  //
+  // Legend
+  // -  quit(N): quit application with N windows opened
+  // - close(1): close one window via the window close button
+  // - closeAll: close all windows via the taskbar command
+  // - onBeforeShutdown(N): number of windows reported in this event handler
+  // - onBeforeCloseWindow(N, M): number of windows reported and quitRequested boolean in this event handler
+  //
+  // macOS
+  // 	-     quit(1): onBeforeShutdown(1), onBeforeCloseWindow(1, true)
+  // 	-     quit(2): onBeforeShutdown(2), onBeforeCloseWindow(2, true), onBeforeCloseWindow(2, true)
+  // 	-     quit(0): onBeforeShutdown(0)
+  // 	-    close(1): onBeforeCloseWindow(1, false)
+  //
+  // Windows
+  // 	-     quit(1): onBeforeShutdown(1), onBeforeCloseWindow(1, true)
+  // 	-     quit(2): onBeforeShutdown(2), onBeforeCloseWindow(2, true), onBeforeCloseWindow(2, true)
+  // 	-    close(1): onBeforeCloseWindow(2, false)[not last window]
+  // 	-    close(1): onBeforeCloseWindow(1, false), onBeforeShutdown(0)[last window]
+  // 	- closeAll(2): onBeforeCloseWindow(2, false), onBeforeCloseWindow(2, false), onBeforeShutdown(0)
+  //
+  // Linux
+  // 	-     quit(1): onBeforeShutdown(1), onBeforeCloseWindow(1, true)
+  // 	-     quit(2): onBeforeShutdown(2), onBeforeCloseWindow(2, true), onBeforeCloseWindow(2, true)
+  // 	-    close(1): onBeforeCloseWindow(2, false)[not last window]
+  // 	-    close(1): onBeforeCloseWindow(1, false), onBeforeShutdown(0)[last window]
+  // 	- closeAll(2): onBeforeCloseWindow(2, false), onBeforeCloseWindow(2, false), onBeforeShutdown(0)
+  //
+  private onBeforeShutdown(): void {
+    this.shuttingDown = true;
 
-		// try to save state before destroy because close will not fire
-		this._register(this.windowsMainService.onDidDestroyWindow(window => this.onBeforeCloseWindow(window)));
-	}
+    this.saveWindowsState();
+  }
 
-	// Note that onBeforeShutdown() and onBeforeCloseWindow() are fired in different order depending on the OS:
-	// - macOS: since the app will not quit when closing the last window, you will always first get
-	//          the onBeforeShutdown() event followed by N onBeforeCloseWindow() events for each window
-	// - other: on other OS, closing the last window will quit the app so the order depends on the
-	//          user interaction: closing the last window will first trigger onBeforeCloseWindow()
-	//          and then onBeforeShutdown(). Using the quit action however will first issue onBeforeShutdown()
-	//          and then onBeforeCloseWindow().
-	//
-	// Here is the behavior on different OS depending on action taken (Electron 1.7.x):
-	//
-	// Legend
-	// -  quit(N): quit application with N windows opened
-	// - close(1): close one window via the window close button
-	// - closeAll: close all windows via the taskbar command
-	// - onBeforeShutdown(N): number of windows reported in this event handler
-	// - onBeforeCloseWindow(N, M): number of windows reported and quitRequested boolean in this event handler
-	//
-	// macOS
-	// 	-     quit(1): onBeforeShutdown(1), onBeforeCloseWindow(1, true)
-	// 	-     quit(2): onBeforeShutdown(2), onBeforeCloseWindow(2, true), onBeforeCloseWindow(2, true)
-	// 	-     quit(0): onBeforeShutdown(0)
-	// 	-    close(1): onBeforeCloseWindow(1, false)
-	//
-	// Windows
-	// 	-     quit(1): onBeforeShutdown(1), onBeforeCloseWindow(1, true)
-	// 	-     quit(2): onBeforeShutdown(2), onBeforeCloseWindow(2, true), onBeforeCloseWindow(2, true)
-	// 	-    close(1): onBeforeCloseWindow(2, false)[not last window]
-	// 	-    close(1): onBeforeCloseWindow(1, false), onBeforeShutdown(0)[last window]
-	// 	- closeAll(2): onBeforeCloseWindow(2, false), onBeforeCloseWindow(2, false), onBeforeShutdown(0)
-	//
-	// Linux
-	// 	-     quit(1): onBeforeShutdown(1), onBeforeCloseWindow(1, true)
-	// 	-     quit(2): onBeforeShutdown(2), onBeforeCloseWindow(2, true), onBeforeCloseWindow(2, true)
-	// 	-    close(1): onBeforeCloseWindow(2, false)[not last window]
-	// 	-    close(1): onBeforeCloseWindow(1, false), onBeforeShutdown(0)[last window]
-	// 	- closeAll(2): onBeforeCloseWindow(2, false), onBeforeCloseWindow(2, false), onBeforeShutdown(0)
-	//
-	private onBeforeShutdown(): void {
-		this.shuttingDown = true;
+  private saveWindowsState(): void {
+    // TODO@electron workaround for Electron not being able to restore
+    // multiple (native) fullscreen windows on the same display at once
+    // on macOS.
+    // https://github.com/electron/electron/issues/34367
+    const displaysWithFullScreenWindow = new Set<number | undefined>();
 
-		this.saveWindowsState();
-	}
+    const currentWindowsState: IWindowsState = {
+      openedWindows: [],
+      lastPluginDevelopmentHostWindow:
+        this._state.lastPluginDevelopmentHostWindow,
+      lastActiveWindow: this.lastClosedState,
+    };
 
-	private saveWindowsState(): void {
+    // 1.) Find a last active window (pick any other first window otherwise)
+    if (!currentWindowsState.lastActiveWindow) {
+      let activeWindow = this.windowsMainService.getLastActiveWindow();
+      if (!activeWindow || activeWindow.isExtensionDevelopmentHost) {
+        activeWindow = this.windowsMainService
+          .getWindows()
+          .find((window) => !window.isExtensionDevelopmentHost);
+      }
 
-		// TODO@electron workaround for Electron not being able to restore
-		// multiple (native) fullscreen windows on the same display at once
-		// on macOS.
-		// https://github.com/electron/electron/issues/34367
-		const displaysWithFullScreenWindow = new Set<number | undefined>();
+      if (activeWindow) {
+        currentWindowsState.lastActiveWindow = this.toWindowState(activeWindow);
 
-		const currentWindowsState: IWindowsState = {
-			openedWindows: [],
-			lastPluginDevelopmentHostWindow: this._state.lastPluginDevelopmentHostWindow,
-			lastActiveWindow: this.lastClosedState
-		};
+        if (
+          currentWindowsState.lastActiveWindow.uiState.mode ===
+          WindowMode.Fullscreen
+        ) {
+          displaysWithFullScreenWindow.add(
+            currentWindowsState.lastActiveWindow.uiState.display
+          ); // always allow fullscreen for active window
+        }
+      }
+    }
 
-		// 1.) Find a last active window (pick any other first window otherwise)
-		if (!currentWindowsState.lastActiveWindow) {
-			let activeWindow = this.windowsMainService.getLastActiveWindow();
-			if (!activeWindow || activeWindow.isExtensionDevelopmentHost) {
-				activeWindow = this.windowsMainService.getWindows().find(window => !window.isExtensionDevelopmentHost);
-			}
+    // 2.) Find extension host window
+    const extensionHostWindow = this.windowsMainService
+      .getWindows()
+      .find(
+        (window) =>
+          window.isExtensionDevelopmentHost && !window.isExtensionTestHost
+      );
+    if (extensionHostWindow) {
+      currentWindowsState.lastPluginDevelopmentHostWindow =
+        this.toWindowState(extensionHostWindow);
 
-			if (activeWindow) {
-				currentWindowsState.lastActiveWindow = this.toWindowState(activeWindow);
+      if (
+        currentWindowsState.lastPluginDevelopmentHostWindow.uiState.mode ===
+        WindowMode.Fullscreen
+      ) {
+        if (
+          displaysWithFullScreenWindow.has(
+            currentWindowsState.lastPluginDevelopmentHostWindow.uiState.display
+          )
+        ) {
+          if (isMacintosh && !extensionHostWindow.win?.isSimpleFullScreen()) {
+            currentWindowsState.lastPluginDevelopmentHostWindow.uiState.mode =
+              WindowMode.Normal;
+          }
+        } else {
+          displaysWithFullScreenWindow.add(
+            currentWindowsState.lastPluginDevelopmentHostWindow.uiState.display
+          );
+        }
+      }
+    }
 
-				if (currentWindowsState.lastActiveWindow.uiState.mode === WindowMode.Fullscreen) {
-					displaysWithFullScreenWindow.add(currentWindowsState.lastActiveWindow.uiState.display); // always allow fullscreen for active window
-				}
-			}
-		}
+    // 3.) All windows (except extension host) for N >= 2 to support `restoreWindows: all` or for auto update
+    //
+    // Careful here: asking a window for its window state after it has been closed returns bogus values (width: 0, height: 0)
+    // so if we ever want to persist the UI state of the last closed window (window count === 1), it has
+    // to come from the stored lastClosedWindowState on Win/Linux at least
+    if (this.windowsMainService.getWindowCount() > 1) {
+      currentWindowsState.openedWindows = this.windowsMainService
+        .getWindows()
+        .filter((window) => !window.isExtensionDevelopmentHost)
+        .map((window) => {
+          const windowState = this.toWindowState(window);
 
-		// 2.) Find extension host window
-		const extensionHostWindow = this.windowsMainService.getWindows().find(window => window.isExtensionDevelopmentHost && !window.isExtensionTestHost);
-		if (extensionHostWindow) {
-			currentWindowsState.lastPluginDevelopmentHostWindow = this.toWindowState(extensionHostWindow);
+          if (windowState.uiState.mode === WindowMode.Fullscreen) {
+            if (displaysWithFullScreenWindow.has(windowState.uiState.display)) {
+              if (
+                isMacintosh &&
+                windowState.windowId !==
+                  currentWindowsState.lastActiveWindow?.windowId &&
+                !window.win?.isSimpleFullScreen()
+              ) {
+                windowState.uiState.mode = WindowMode.Normal;
+              }
+            } else {
+              displaysWithFullScreenWindow.add(windowState.uiState.display);
+            }
+          }
 
-			if (currentWindowsState.lastPluginDevelopmentHostWindow.uiState.mode === WindowMode.Fullscreen) {
-				if (displaysWithFullScreenWindow.has(currentWindowsState.lastPluginDevelopmentHostWindow.uiState.display)) {
-					if (isMacintosh && !extensionHostWindow.win?.isSimpleFullScreen()) {
-						currentWindowsState.lastPluginDevelopmentHostWindow.uiState.mode = WindowMode.Normal;
-					}
-				} else {
-					displaysWithFullScreenWindow.add(currentWindowsState.lastPluginDevelopmentHostWindow.uiState.display);
-				}
-			}
-		}
+          return windowState;
+        });
+    }
 
-		// 3.) All windows (except extension host) for N >= 2 to support `restoreWindows: all` or for auto update
-		//
-		// Careful here: asking a window for its window state after it has been closed returns bogus values (width: 0, height: 0)
-		// so if we ever want to persist the UI state of the last closed window (window count === 1), it has
-		// to come from the stored lastClosedWindowState on Win/Linux at least
-		if (this.windowsMainService.getWindowCount() > 1) {
-			currentWindowsState.openedWindows = this.windowsMainService.getWindows().filter(window => !window.isExtensionDevelopmentHost).map(window => {
-				const windowState = this.toWindowState(window);
+    // Persist
+    const state = getWindowsStateStoreData(currentWindowsState);
+    this.stateService.setItem(
+      WindowsStateHandler.windowsStateStorageKey,
+      state
+    );
 
-				if (windowState.uiState.mode === WindowMode.Fullscreen) {
-					if (displaysWithFullScreenWindow.has(windowState.uiState.display)) {
-						if (isMacintosh && windowState.windowId !== currentWindowsState.lastActiveWindow?.windowId && !window.win?.isSimpleFullScreen()) {
-							windowState.uiState.mode = WindowMode.Normal;
-						}
-					} else {
-						displaysWithFullScreenWindow.add(windowState.uiState.display);
-					}
-				}
+    if (this.shuttingDown) {
+      this.logService.trace('[WindowsStateHandler] onBeforeShutdown', state);
+    }
+  }
 
-				return windowState;
-			});
-		}
+  // See note on #onBeforeShutdown() for details how these events are flowing
+  private onBeforeCloseWindow(window: ICodeWindow): void {
+    if (this.lifecycleMainService.quitRequested) {
+      return; // during quit, many windows close in parallel so let it be handled in the before-quit handler
+    }
 
-		// Persist
-		const state = getWindowsStateStoreData(currentWindowsState);
-		this.stateService.setItem(WindowsStateHandler.windowsStateStorageKey, state);
+    // On Window close, update our stored UI state of this window
+    const state: IWindowState = this.toWindowState(window);
+    if (window.isExtensionDevelopmentHost && !window.isExtensionTestHost) {
+      this._state.lastPluginDevelopmentHostWindow = state; // do not let test run window state overwrite our extension development state
+    }
 
-		if (this.shuttingDown) {
-			this.logService.trace('[WindowsStateHandler] onBeforeShutdown', state);
-		}
-	}
+    // Any non extension host window with same workspace or folder
+    else if (!window.isExtensionDevelopmentHost && window.openedWorkspace) {
+      this._state.openedWindows.forEach((openedWindow) => {
+        const sameWorkspace =
+          isWorkspaceIdentifier(window.openedWorkspace) &&
+          openedWindow.workspace?.id === window.openedWorkspace.id;
+        const sameFolder =
+          isSingleFolderWorkspaceIdentifier(window.openedWorkspace) &&
+          openedWindow.folderUri &&
+          extUriBiasedIgnorePathCase.isEqual(
+            openedWindow.folderUri,
+            window.openedWorkspace.uri
+          );
 
-	// See note on #onBeforeShutdown() for details how these events are flowing
-	private onBeforeCloseWindow(window: ICodeWindow): void {
-		if (this.lifecycleMainService.quitRequested) {
-			return; // during quit, many windows close in parallel so let it be handled in the before-quit handler
-		}
+        if (sameWorkspace || sameFolder) {
+          openedWindow.uiState = state.uiState;
+        }
+      });
+    }
 
-		// On Window close, update our stored UI state of this window
-		const state: IWindowState = this.toWindowState(window);
-		if (window.isExtensionDevelopmentHost && !window.isExtensionTestHost) {
-			this._state.lastPluginDevelopmentHostWindow = state; // do not let test run window state overwrite our extension development state
-		}
+    // On Windows and Linux closing the last window will trigger quit. Since we are storing all UI state
+    // before quitting, we need to remember the UI state of this window to be able to persist it.
+    // On macOS we keep the last closed window state ready in case the user wants to quit right after or
+    // wants to open another window, in which case we use this state over the persisted one.
+    if (this.windowsMainService.getWindowCount() === 1) {
+      this.lastClosedState = state;
+    }
+  }
 
-		// Any non extension host window with same workspace or folder
-		else if (!window.isExtensionDevelopmentHost && window.openedWorkspace) {
-			this._state.openedWindows.forEach(openedWindow => {
-				const sameWorkspace = isWorkspaceIdentifier(window.openedWorkspace) && openedWindow.workspace?.id === window.openedWorkspace.id;
-				const sameFolder = isSingleFolderWorkspaceIdentifier(window.openedWorkspace) && openedWindow.folderUri && extUriBiasedIgnorePathCase.isEqual(openedWindow.folderUri, window.openedWorkspace.uri);
+  private toWindowState(window: ICodeWindow): IWindowState {
+    return {
+      windowId: window.id,
+      workspace: isWorkspaceIdentifier(window.openedWorkspace)
+        ? window.openedWorkspace
+        : undefined,
+      folderUri: isSingleFolderWorkspaceIdentifier(window.openedWorkspace)
+        ? window.openedWorkspace.uri
+        : undefined,
+      backupPath: window.backupPath,
+      remoteAuthority: window.remoteAuthority,
+      uiState: window.serializeWindowState(),
+    };
+  }
 
-				if (sameWorkspace || sameFolder) {
-					openedWindow.uiState = state.uiState;
-				}
-			});
-		}
+  getNewWindowState(
+    configuration: INativeWindowConfiguration
+  ): INewWindowState {
+    const state = this.doGetNewWindowState(configuration);
+    const windowConfig = this.configurationService.getValue<
+      IWindowSettings | undefined
+    >('window');
 
-		// On Windows and Linux closing the last window will trigger quit. Since we are storing all UI state
-		// before quitting, we need to remember the UI state of this window to be able to persist it.
-		// On macOS we keep the last closed window state ready in case the user wants to quit right after or
-		// wants to open another window, in which case we use this state over the persisted one.
-		if (this.windowsMainService.getWindowCount() === 1) {
-			this.lastClosedState = state;
-		}
-	}
+    // Fullscreen state gets special treatment
+    if (state.mode === WindowMode.Fullscreen) {
+      // Window state is not from a previous session: only allow fullscreen if we inherit it or user wants fullscreen
+      let allowFullscreen: boolean;
+      if (state.hasDefaultState) {
+        allowFullscreen = !!(
+          windowConfig?.newWindowDimensions &&
+          ['fullscreen', 'inherit', 'offset'].indexOf(
+            windowConfig.newWindowDimensions
+          ) >= 0
+        );
+      }
 
-	private toWindowState(window: ICodeWindow): IWindowState {
-		return {
-			windowId: window.id,
-			workspace: isWorkspaceIdentifier(window.openedWorkspace) ? window.openedWorkspace : undefined,
-			folderUri: isSingleFolderWorkspaceIdentifier(window.openedWorkspace) ? window.openedWorkspace.uri : undefined,
-			backupPath: window.backupPath,
-			remoteAuthority: window.remoteAuthority,
-			uiState: window.serializeWindowState()
-		};
-	}
+      // Window state is from a previous session: only allow fullscreen when we got updated or user wants to restore
+      else {
+        allowFullscreen = !!(
+          this.lifecycleMainService.wasRestarted ||
+          windowConfig?.restoreFullscreen
+        );
+      }
 
-	getNewWindowState(configuration: INativeWindowConfiguration): INewWindowState {
-		const state = this.doGetNewWindowState(configuration);
-		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
+      if (!allowFullscreen) {
+        state.mode = WindowMode.Normal;
+      }
+    }
 
-		// Fullscreen state gets special treatment
-		if (state.mode === WindowMode.Fullscreen) {
+    return state;
+  }
 
-			// Window state is not from a previous session: only allow fullscreen if we inherit it or user wants fullscreen
-			let allowFullscreen: boolean;
-			if (state.hasDefaultState) {
-				allowFullscreen = !!(windowConfig?.newWindowDimensions && ['fullscreen', 'inherit', 'offset'].indexOf(windowConfig.newWindowDimensions) >= 0);
-			}
+  private doGetNewWindowState(
+    configuration: INativeWindowConfiguration
+  ): INewWindowState {
+    const lastActive = this.windowsMainService.getLastActiveWindow();
 
-			// Window state is from a previous session: only allow fullscreen when we got updated or user wants to restore
-			else {
-				allowFullscreen = !!(this.lifecycleMainService.wasRestarted || windowConfig?.restoreFullscreen);
-			}
+    // Restore state unless we are running extension tests
+    if (!configuration.extensionTestsPath) {
+      // extension development host Window - load from stored settings if any
+      if (
+        !!configuration.extensionDevelopmentPath &&
+        this.state.lastPluginDevelopmentHostWindow
+      ) {
+        return this.state.lastPluginDevelopmentHostWindow.uiState;
+      }
 
-			if (!allowFullscreen) {
-				state.mode = WindowMode.Normal;
-			}
-		}
+      // Known Workspace - load from stored settings
+      const workspace = configuration.workspace;
+      if (isWorkspaceIdentifier(workspace)) {
+        const stateForWorkspace = this.state.openedWindows
+          .filter(
+            (openedWindow) =>
+              openedWindow.workspace &&
+              openedWindow.workspace.id === workspace.id
+          )
+          .map((openedWindow) => openedWindow.uiState);
+        if (stateForWorkspace.length) {
+          return stateForWorkspace[0];
+        }
+      }
 
-		return state;
-	}
+      // Known Folder - load from stored settings
+      if (isSingleFolderWorkspaceIdentifier(workspace)) {
+        const stateForFolder = this.state.openedWindows
+          .filter(
+            (openedWindow) =>
+              openedWindow.folderUri &&
+              extUriBiasedIgnorePathCase.isEqual(
+                openedWindow.folderUri,
+                workspace.uri
+              )
+          )
+          .map((openedWindow) => openedWindow.uiState);
+        if (stateForFolder.length) {
+          return stateForFolder[0];
+        }
+      }
 
-	private doGetNewWindowState(configuration: INativeWindowConfiguration): INewWindowState {
-		const lastActive = this.windowsMainService.getLastActiveWindow();
+      // Empty windows with backups
+      else if (configuration.backupPath) {
+        const stateForEmptyWindow = this.state.openedWindows
+          .filter(
+            (openedWindow) =>
+              openedWindow.backupPath === configuration.backupPath
+          )
+          .map((openedWindow) => openedWindow.uiState);
+        if (stateForEmptyWindow.length) {
+          return stateForEmptyWindow[0];
+        }
+      }
 
-		// Restore state unless we are running extension tests
-		if (!configuration.extensionTestsPath) {
+      // First Window
+      const lastActiveState =
+        this.lastClosedState || this.state.lastActiveWindow;
+      if (!lastActive && lastActiveState) {
+        return lastActiveState.uiState;
+      }
+    }
 
-			// extension development host Window - load from stored settings if any
-			if (!!configuration.extensionDevelopmentPath && this.state.lastPluginDevelopmentHostWindow) {
-				return this.state.lastPluginDevelopmentHostWindow.uiState;
-			}
+    //
+    // In any other case, we do not have any stored settings for the window state, so we come up with something smart
+    //
 
-			// Known Workspace - load from stored settings
-			const workspace = configuration.workspace;
-			if (isWorkspaceIdentifier(workspace)) {
-				const stateForWorkspace = this.state.openedWindows.filter(openedWindow => openedWindow.workspace && openedWindow.workspace.id === workspace.id).map(openedWindow => openedWindow.uiState);
-				if (stateForWorkspace.length) {
-					return stateForWorkspace[0];
-				}
-			}
+    // We want the new window to open on the same display that the last active one is in
+    let displayToUse: electron.Display | undefined;
+    const displays = electron.screen.getAllDisplays();
 
-			// Known Folder - load from stored settings
-			if (isSingleFolderWorkspaceIdentifier(workspace)) {
-				const stateForFolder = this.state.openedWindows.filter(openedWindow => openedWindow.folderUri && extUriBiasedIgnorePathCase.isEqual(openedWindow.folderUri, workspace.uri)).map(openedWindow => openedWindow.uiState);
-				if (stateForFolder.length) {
-					return stateForFolder[0];
-				}
-			}
+    // Single Display
+    if (displays.length === 1) {
+      displayToUse = displays[0];
+    }
 
-			// Empty windows with backups
-			else if (configuration.backupPath) {
-				const stateForEmptyWindow = this.state.openedWindows.filter(openedWindow => openedWindow.backupPath === configuration.backupPath).map(openedWindow => openedWindow.uiState);
-				if (stateForEmptyWindow.length) {
-					return stateForEmptyWindow[0];
-				}
-			}
+    // Multi Display
+    else {
+      // on mac there is 1 menu per window so we need to use the monitor where the cursor currently is
+      if (isMacintosh) {
+        const cursorPoint = electron.screen.getCursorScreenPoint();
+        displayToUse = electron.screen.getDisplayNearestPoint(cursorPoint);
+      }
 
-			// First Window
-			const lastActiveState = this.lastClosedState || this.state.lastActiveWindow;
-			if (!lastActive && lastActiveState) {
-				return lastActiveState.uiState;
-			}
-		}
+      // if we have a last active window, use that display for the new window
+      if (!displayToUse && lastActive) {
+        displayToUse = electron.screen.getDisplayMatching(
+          lastActive.getBounds()
+        );
+      }
 
-		//
-		// In any other case, we do not have any stored settings for the window state, so we come up with something smart
-		//
+      // fallback to primary display or first display
+      if (!displayToUse) {
+        displayToUse = electron.screen.getPrimaryDisplay() || displays[0];
+      }
+    }
 
-		// We want the new window to open on the same display that the last active one is in
-		let displayToUse: electron.Display | undefined;
-		const displays = electron.screen.getAllDisplays();
+    // Compute x/y based on display bounds
+    // Note: important to use Math.round() because Electron does not seem to be too happy about
+    // display coordinates that are not absolute numbers.
+    let state = defaultWindowState();
+    state.x = Math.round(
+      displayToUse.bounds.x + displayToUse.bounds.width / 2 - state.width! / 2
+    );
+    state.y = Math.round(
+      displayToUse.bounds.y + displayToUse.bounds.height / 2 - state.height! / 2
+    );
 
-		// Single Display
-		if (displays.length === 1) {
-			displayToUse = displays[0];
-		}
+    // Check for newWindowDimensions setting and adjust accordingly
+    const windowConfig = this.configurationService.getValue<
+      IWindowSettings | undefined
+    >('window');
+    let ensureNoOverlap = true;
+    if (windowConfig?.newWindowDimensions) {
+      if (windowConfig.newWindowDimensions === 'maximized') {
+        state.mode = WindowMode.Maximized;
+        ensureNoOverlap = false;
+      } else if (windowConfig.newWindowDimensions === 'fullscreen') {
+        state.mode = WindowMode.Fullscreen;
+        ensureNoOverlap = false;
+      } else if (
+        (windowConfig.newWindowDimensions === 'inherit' ||
+          windowConfig.newWindowDimensions === 'offset') &&
+        lastActive
+      ) {
+        const lastActiveState = lastActive.serializeWindowState();
+        if (lastActiveState.mode === WindowMode.Fullscreen) {
+          state.mode = WindowMode.Fullscreen; // only take mode (fixes https://github.com/microsoft/vscode/issues/19331)
+        } else {
+          state = {
+            ...lastActiveState,
+            zoomLevel: undefined, // do not inherit zoom level
+          };
+        }
 
-		// Multi Display
-		else {
+        ensureNoOverlap =
+          state.mode !== WindowMode.Fullscreen &&
+          windowConfig.newWindowDimensions === 'offset';
+      }
+    }
 
-			// on mac there is 1 menu per window so we need to use the monitor where the cursor currently is
-			if (isMacintosh) {
-				const cursorPoint = electron.screen.getCursorScreenPoint();
-				displayToUse = electron.screen.getDisplayNearestPoint(cursorPoint);
-			}
+    if (ensureNoOverlap) {
+      state = this.ensureNoOverlap(state);
+    }
 
-			// if we have a last active window, use that display for the new window
-			if (!displayToUse && lastActive) {
-				displayToUse = electron.screen.getDisplayMatching(lastActive.getBounds());
-			}
+    (state as INewWindowState).hasDefaultState = true; // flag as default state
 
-			// fallback to primary display or first display
-			if (!displayToUse) {
-				displayToUse = electron.screen.getPrimaryDisplay() || displays[0];
-			}
-		}
+    return state;
+  }
 
-		// Compute x/y based on display bounds
-		// Note: important to use Math.round() because Electron does not seem to be too happy about
-		// display coordinates that are not absolute numbers.
-		let state = defaultWindowState();
-		state.x = Math.round(displayToUse.bounds.x + (displayToUse.bounds.width / 2) - (state.width! / 2));
-		state.y = Math.round(displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (state.height! / 2));
+  private ensureNoOverlap(state: IWindowUIState): IWindowUIState {
+    if (this.windowsMainService.getWindows().length === 0) {
+      return state;
+    }
 
-		// Check for newWindowDimensions setting and adjust accordingly
-		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
-		let ensureNoOverlap = true;
-		if (windowConfig?.newWindowDimensions) {
-			if (windowConfig.newWindowDimensions === 'maximized') {
-				state.mode = WindowMode.Maximized;
-				ensureNoOverlap = false;
-			} else if (windowConfig.newWindowDimensions === 'fullscreen') {
-				state.mode = WindowMode.Fullscreen;
-				ensureNoOverlap = false;
-			} else if ((windowConfig.newWindowDimensions === 'inherit' || windowConfig.newWindowDimensions === 'offset') && lastActive) {
-				const lastActiveState = lastActive.serializeWindowState();
-				if (lastActiveState.mode === WindowMode.Fullscreen) {
-					state.mode = WindowMode.Fullscreen; // only take mode (fixes https://github.com/microsoft/vscode/issues/19331)
-				} else {
-					state = {
-						...lastActiveState,
-						zoomLevel: undefined // do not inherit zoom level
-					};
-				}
+    state.x = typeof state.x === 'number' ? state.x : 0;
+    state.y = typeof state.y === 'number' ? state.y : 0;
 
-				ensureNoOverlap = state.mode !== WindowMode.Fullscreen && windowConfig.newWindowDimensions === 'offset';
-			}
-		}
+    const existingWindowBounds = this.windowsMainService
+      .getWindows()
+      .map((window) => window.getBounds());
+    while (
+      existingWindowBounds.some(
+        (bounds) => bounds.x === state.x || bounds.y === state.y
+      )
+    ) {
+      state.x += 30;
+      state.y += 30;
+    }
 
-		if (ensureNoOverlap) {
-			state = this.ensureNoOverlap(state);
-		}
-
-		(state as INewWindowState).hasDefaultState = true; // flag as default state
-
-		return state;
-	}
-
-	private ensureNoOverlap(state: IWindowUIState): IWindowUIState {
-		if (this.windowsMainService.getWindows().length === 0) {
-			return state;
-		}
-
-		state.x = typeof state.x === 'number' ? state.x : 0;
-		state.y = typeof state.y === 'number' ? state.y : 0;
-
-		const existingWindowBounds = this.windowsMainService.getWindows().map(window => window.getBounds());
-		while (existingWindowBounds.some(bounds => bounds.x === state.x || bounds.y === state.y)) {
-			state.x += 30;
-			state.y += 30;
-		}
-
-		return state;
-	}
+    return state;
+  }
 }
 
-export function restoreWindowsState(data: ISerializedWindowsState | undefined): IWindowsState {
-	const result: IWindowsState = { openedWindows: [] };
-	const windowsState = data || { openedWindows: [] };
+export function restoreWindowsState(
+  data: ISerializedWindowsState | undefined
+): IWindowsState {
+  const result: IWindowsState = { openedWindows: [] };
+  const windowsState = data || { openedWindows: [] };
 
-	if (windowsState.lastActiveWindow) {
-		result.lastActiveWindow = restoreWindowState(windowsState.lastActiveWindow);
-	}
+  if (windowsState.lastActiveWindow) {
+    result.lastActiveWindow = restoreWindowState(windowsState.lastActiveWindow);
+  }
 
-	if (windowsState.lastPluginDevelopmentHostWindow) {
-		result.lastPluginDevelopmentHostWindow = restoreWindowState(windowsState.lastPluginDevelopmentHostWindow);
-	}
+  if (windowsState.lastPluginDevelopmentHostWindow) {
+    result.lastPluginDevelopmentHostWindow = restoreWindowState(
+      windowsState.lastPluginDevelopmentHostWindow
+    );
+  }
 
-	if (Array.isArray(windowsState.openedWindows)) {
-		result.openedWindows = windowsState.openedWindows.map(windowState => restoreWindowState(windowState));
-	}
+  if (Array.isArray(windowsState.openedWindows)) {
+    result.openedWindows = windowsState.openedWindows.map((windowState) =>
+      restoreWindowState(windowState)
+    );
+  }
 
-	return result;
+  return result;
 }
 
 function restoreWindowState(windowState: ISerializedWindowState): IWindowState {
-	const result: IWindowState = { uiState: windowState.uiState };
-	if (windowState.backupPath) {
-		result.backupPath = windowState.backupPath;
-	}
+  const result: IWindowState = { uiState: windowState.uiState };
+  if (windowState.backupPath) {
+    result.backupPath = windowState.backupPath;
+  }
 
-	if (windowState.remoteAuthority) {
-		result.remoteAuthority = windowState.remoteAuthority;
-	}
+  if (windowState.remoteAuthority) {
+    result.remoteAuthority = windowState.remoteAuthority;
+  }
 
-	if (windowState.folder) {
-		result.folderUri = URI.parse(windowState.folder);
-	}
+  if (windowState.folder) {
+    result.folderUri = URI.parse(windowState.folder);
+  }
 
-	if (windowState.workspaceIdentifier) {
-		result.workspace = { id: windowState.workspaceIdentifier.id, configPath: URI.parse(windowState.workspaceIdentifier.configURIPath) };
-	}
+  if (windowState.workspaceIdentifier) {
+    result.workspace = {
+      id: windowState.workspaceIdentifier.id,
+      configPath: URI.parse(windowState.workspaceIdentifier.configURIPath),
+    };
+  }
 
-	return result;
+  return result;
 }
 
-export function getWindowsStateStoreData(windowsState: IWindowsState): IWindowsState {
-	return {
-		lastActiveWindow: windowsState.lastActiveWindow && serializeWindowState(windowsState.lastActiveWindow),
-		lastPluginDevelopmentHostWindow: windowsState.lastPluginDevelopmentHostWindow && serializeWindowState(windowsState.lastPluginDevelopmentHostWindow),
-		openedWindows: windowsState.openedWindows.map(ws => serializeWindowState(ws))
-	};
+export function getWindowsStateStoreData(
+  windowsState: IWindowsState
+): IWindowsState {
+  return {
+    lastActiveWindow:
+      windowsState.lastActiveWindow &&
+      serializeWindowState(windowsState.lastActiveWindow),
+    lastPluginDevelopmentHostWindow:
+      windowsState.lastPluginDevelopmentHostWindow &&
+      serializeWindowState(windowsState.lastPluginDevelopmentHostWindow),
+    openedWindows: windowsState.openedWindows.map((ws) =>
+      serializeWindowState(ws)
+    ),
+  };
 }
 
-function serializeWindowState(windowState: IWindowState): ISerializedWindowState {
-	return {
-		workspaceIdentifier: windowState.workspace && { id: windowState.workspace.id, configURIPath: windowState.workspace.configPath.toString() },
-		folder: windowState.folderUri && windowState.folderUri.toString(),
-		backupPath: windowState.backupPath,
-		remoteAuthority: windowState.remoteAuthority,
-		uiState: windowState.uiState
-	};
+function serializeWindowState(
+  windowState: IWindowState
+): ISerializedWindowState {
+  return {
+    workspaceIdentifier: windowState.workspace && {
+      id: windowState.workspace.id,
+      configURIPath: windowState.workspace.configPath.toString(),
+    },
+    folder: windowState.folderUri && windowState.folderUri.toString(),
+    backupPath: windowState.backupPath,
+    remoteAuthority: windowState.remoteAuthority,
+    uiState: windowState.uiState,
+  };
 }

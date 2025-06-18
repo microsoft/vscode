@@ -77,54 +77,121 @@ USERNAME=therealnerdybeast@example.tld
 `;
 
 suite('parseEnvFile', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+  ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('parses', () => {
-		const parsed = parseEnvFile(example);
-		assert.strictEqual(parsed.get('BASIC'), 'basic');
-		assert.strictEqual(parsed.get('AFTER_LINE'), 'after_line');
-		assert.strictEqual(parsed.get('EMPTY'), '');
-		assert.strictEqual(parsed.get('EMPTY_SINGLE_QUOTES'), '');
-		assert.strictEqual(parsed.get('EMPTY_DOUBLE_QUOTES'), '');
-		assert.strictEqual(parsed.get('EMPTY_BACKTICKS'), '');
-		assert.strictEqual(parsed.get('SINGLE_QUOTES'), 'single_quotes');
-		assert.strictEqual(parsed.get('SINGLE_QUOTES_SPACED'), '    single quotes    ');
-		assert.strictEqual(parsed.get('DOUBLE_QUOTES'), 'double_quotes');
-		assert.strictEqual(parsed.get('DOUBLE_QUOTES_SPACED'), '    double quotes    ');
-		assert.strictEqual(parsed.get('DOUBLE_QUOTES_INSIDE_SINGLE'), 'double "quotes" work inside single quotes');
-		assert.strictEqual(parsed.get('DOUBLE_QUOTES_WITH_NO_SPACE_BRACKET'), '{ port: $MONGOLAB_PORT}');
-		assert.strictEqual(parsed.get('SINGLE_QUOTES_INSIDE_DOUBLE'), "single 'quotes' work inside double quotes");
-		assert.strictEqual(parsed.get('BACKTICKS_INSIDE_SINGLE'), '`backticks` work inside single quotes');
-		assert.strictEqual(parsed.get('BACKTICKS_INSIDE_DOUBLE'), '`backticks` work inside double quotes');
-		assert.strictEqual(parsed.get('BACKTICKS'), 'backticks');
-		assert.strictEqual(parsed.get('BACKTICKS_SPACED'), '    backticks    ');
-		assert.strictEqual(parsed.get('DOUBLE_QUOTES_INSIDE_BACKTICKS'), 'double "quotes" work inside backticks');
-		assert.strictEqual(parsed.get('SINGLE_QUOTES_INSIDE_BACKTICKS'), "single 'quotes' work inside backticks");
-		assert.strictEqual(parsed.get('DOUBLE_AND_SINGLE_QUOTES_INSIDE_BACKTICKS'), "double \"quotes\" and single 'quotes' work inside backticks");
-		assert.strictEqual(parsed.get('EXPAND_NEWLINES'), 'expand\nnew\nlines');
-		assert.strictEqual(parsed.get('DONT_EXPAND_UNQUOTED'), 'dontexpand\\nnewlines');
-		assert.strictEqual(parsed.get('DONT_EXPAND_SQUOTED'), 'dontexpand\\nnewlines');
-		assert.strictEqual(parsed.get('COMMENTS'), undefined);
-		assert.strictEqual(parsed.get('INLINE_COMMENTS'), 'inline comments');
-		assert.strictEqual(parsed.get('INLINE_COMMENTS_SINGLE_QUOTES'), 'inline comments outside of #singlequotes');
-		assert.strictEqual(parsed.get('INLINE_COMMENTS_DOUBLE_QUOTES'), 'inline comments outside of #doublequotes');
-		assert.strictEqual(parsed.get('INLINE_COMMENTS_BACKTICKS'), 'inline comments outside of #backticks');
-		assert.strictEqual(parsed.get('INLINE_COMMENTS_SPACE'), 'inline comments start with a');
-		assert.strictEqual(parsed.get('EQUAL_SIGNS'), 'equals==');
-		assert.strictEqual(parsed.get('RETAIN_INNER_QUOTES'), '{"foo": "bar"}');
-		assert.strictEqual(parsed.get('RETAIN_INNER_QUOTES_AS_STRING'), '{"foo": "bar"}');
-		assert.strictEqual(parsed.get('RETAIN_INNER_QUOTES_AS_BACKTICKS'), '{"foo": "bar\'s"}');
-		assert.strictEqual(parsed.get('TRIM_SPACE_FROM_UNQUOTED'), 'some spaced out string');
-		assert.strictEqual(parsed.get('USERNAME'), 'therealnerdybeast@example.tld');
-		assert.strictEqual(parsed.get('SPACED_KEY'), 'parsed');
-		const payload = parseEnvFile('BUFFER=true');
-		assert.strictEqual(payload.get('BUFFER'), 'true');
-		const expectedPayload = Object.entries({ SERVER: 'localhost', PASSWORD: 'password', DB: 'tests' });
-		const RPayload = parseEnvFile('SERVER=localhost\rPASSWORD=password\rDB=tests\r');
-		assert.deepStrictEqual([...RPayload], expectedPayload);
-		const NPayload = parseEnvFile('SERVER=localhost\nPASSWORD=password\nDB=tests\n');
-		assert.deepStrictEqual([...NPayload], expectedPayload);
-		const RNPayload = parseEnvFile('SERVER=localhost\r\nPASSWORD=password\r\nDB=tests\r\n');
-		assert.deepStrictEqual([...RNPayload], expectedPayload);
-	});
+  test('parses', () => {
+    const parsed = parseEnvFile(example);
+    assert.strictEqual(parsed.get('BASIC'), 'basic');
+    assert.strictEqual(parsed.get('AFTER_LINE'), 'after_line');
+    assert.strictEqual(parsed.get('EMPTY'), '');
+    assert.strictEqual(parsed.get('EMPTY_SINGLE_QUOTES'), '');
+    assert.strictEqual(parsed.get('EMPTY_DOUBLE_QUOTES'), '');
+    assert.strictEqual(parsed.get('EMPTY_BACKTICKS'), '');
+    assert.strictEqual(parsed.get('SINGLE_QUOTES'), 'single_quotes');
+    assert.strictEqual(
+      parsed.get('SINGLE_QUOTES_SPACED'),
+      '    single quotes    '
+    );
+    assert.strictEqual(parsed.get('DOUBLE_QUOTES'), 'double_quotes');
+    assert.strictEqual(
+      parsed.get('DOUBLE_QUOTES_SPACED'),
+      '    double quotes    '
+    );
+    assert.strictEqual(
+      parsed.get('DOUBLE_QUOTES_INSIDE_SINGLE'),
+      'double "quotes" work inside single quotes'
+    );
+    assert.strictEqual(
+      parsed.get('DOUBLE_QUOTES_WITH_NO_SPACE_BRACKET'),
+      '{ port: $MONGOLAB_PORT}'
+    );
+    assert.strictEqual(
+      parsed.get('SINGLE_QUOTES_INSIDE_DOUBLE'),
+      "single 'quotes' work inside double quotes"
+    );
+    assert.strictEqual(
+      parsed.get('BACKTICKS_INSIDE_SINGLE'),
+      '`backticks` work inside single quotes'
+    );
+    assert.strictEqual(
+      parsed.get('BACKTICKS_INSIDE_DOUBLE'),
+      '`backticks` work inside double quotes'
+    );
+    assert.strictEqual(parsed.get('BACKTICKS'), 'backticks');
+    assert.strictEqual(parsed.get('BACKTICKS_SPACED'), '    backticks    ');
+    assert.strictEqual(
+      parsed.get('DOUBLE_QUOTES_INSIDE_BACKTICKS'),
+      'double "quotes" work inside backticks'
+    );
+    assert.strictEqual(
+      parsed.get('SINGLE_QUOTES_INSIDE_BACKTICKS'),
+      "single 'quotes' work inside backticks"
+    );
+    assert.strictEqual(
+      parsed.get('DOUBLE_AND_SINGLE_QUOTES_INSIDE_BACKTICKS'),
+      'double "quotes" and single \'quotes\' work inside backticks'
+    );
+    assert.strictEqual(parsed.get('EXPAND_NEWLINES'), 'expand\nnew\nlines');
+    assert.strictEqual(
+      parsed.get('DONT_EXPAND_UNQUOTED'),
+      'dontexpand\\nnewlines'
+    );
+    assert.strictEqual(
+      parsed.get('DONT_EXPAND_SQUOTED'),
+      'dontexpand\\nnewlines'
+    );
+    assert.strictEqual(parsed.get('COMMENTS'), undefined);
+    assert.strictEqual(parsed.get('INLINE_COMMENTS'), 'inline comments');
+    assert.strictEqual(
+      parsed.get('INLINE_COMMENTS_SINGLE_QUOTES'),
+      'inline comments outside of #singlequotes'
+    );
+    assert.strictEqual(
+      parsed.get('INLINE_COMMENTS_DOUBLE_QUOTES'),
+      'inline comments outside of #doublequotes'
+    );
+    assert.strictEqual(
+      parsed.get('INLINE_COMMENTS_BACKTICKS'),
+      'inline comments outside of #backticks'
+    );
+    assert.strictEqual(
+      parsed.get('INLINE_COMMENTS_SPACE'),
+      'inline comments start with a'
+    );
+    assert.strictEqual(parsed.get('EQUAL_SIGNS'), 'equals==');
+    assert.strictEqual(parsed.get('RETAIN_INNER_QUOTES'), '{"foo": "bar"}');
+    assert.strictEqual(
+      parsed.get('RETAIN_INNER_QUOTES_AS_STRING'),
+      '{"foo": "bar"}'
+    );
+    assert.strictEqual(
+      parsed.get('RETAIN_INNER_QUOTES_AS_BACKTICKS'),
+      '{"foo": "bar\'s"}'
+    );
+    assert.strictEqual(
+      parsed.get('TRIM_SPACE_FROM_UNQUOTED'),
+      'some spaced out string'
+    );
+    assert.strictEqual(parsed.get('USERNAME'), 'therealnerdybeast@example.tld');
+    assert.strictEqual(parsed.get('SPACED_KEY'), 'parsed');
+    const payload = parseEnvFile('BUFFER=true');
+    assert.strictEqual(payload.get('BUFFER'), 'true');
+    const expectedPayload = Object.entries({
+      SERVER: 'localhost',
+      PASSWORD: 'password',
+      DB: 'tests',
+    });
+    const RPayload = parseEnvFile(
+      'SERVER=localhost\rPASSWORD=password\rDB=tests\r'
+    );
+    assert.deepStrictEqual([...RPayload], expectedPayload);
+    const NPayload = parseEnvFile(
+      'SERVER=localhost\nPASSWORD=password\nDB=tests\n'
+    );
+    assert.deepStrictEqual([...NPayload], expectedPayload);
+    const RNPayload = parseEnvFile(
+      'SERVER=localhost\r\nPASSWORD=password\r\nDB=tests\r\n'
+    );
+    assert.deepStrictEqual([...RNPayload], expectedPayload);
+  });
 });

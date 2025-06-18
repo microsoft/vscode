@@ -17,7 +17,10 @@ import { randomBoolean } from '../../../../../../../base/test/common/testUtils.j
 import { timeout } from '../../../../../../../base/common/async.js';
 import { NullPolicyService } from '../../../../../../../platform/policy/common/policy.js';
 import { Line } from '../../../../common/promptSyntax/codecs/base/linesCodec/tokens/line.js';
-import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
+import {
+  ILogService,
+  NullLogService,
+} from '../../../../../../../platform/log/common/log.js';
 import { LinesDecoder } from '../../../../common/promptSyntax/codecs/base/linesCodec/linesDecoder.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -32,219 +35,243 @@ import { TestInstantiationService } from '../../../../../../../platform/instanti
 const CONTENT_CHANGED_TIMEOUT = 50;
 
 suite('FilePromptContentsProvider', () => {
-	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
+  const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let instantiationService: TestInstantiationService;
-	setup(async () => {
-		const nullPolicyService = new NullPolicyService();
-		const nullLogService = testDisposables.add(new NullLogService());
-		const nullFileService = testDisposables.add(new FileService(nullLogService));
-		const nullConfigService = testDisposables.add(new ConfigurationService(
-			URI.file('/config.json'),
-			nullFileService,
-			nullPolicyService,
-			nullLogService,
-		));
-		instantiationService = testDisposables.add(new TestInstantiationService());
+  let instantiationService: TestInstantiationService;
+  setup(async () => {
+    const nullPolicyService = new NullPolicyService();
+    const nullLogService = testDisposables.add(new NullLogService());
+    const nullFileService = testDisposables.add(
+      new FileService(nullLogService)
+    );
+    const nullConfigService = testDisposables.add(
+      new ConfigurationService(
+        URI.file('/config.json'),
+        nullFileService,
+        nullPolicyService,
+        nullLogService
+      )
+    );
+    instantiationService = testDisposables.add(new TestInstantiationService());
 
-		const fileSystemProvider = testDisposables.add(new InMemoryFileSystemProvider());
-		testDisposables.add(nullFileService.registerProvider(Schemas.file, fileSystemProvider));
+    const fileSystemProvider = testDisposables.add(
+      new InMemoryFileSystemProvider()
+    );
+    testDisposables.add(
+      nullFileService.registerProvider(Schemas.file, fileSystemProvider)
+    );
 
-		instantiationService.stub(IFileService, nullFileService);
-		instantiationService.stub(ILogService, nullLogService);
-		instantiationService.stub(IConfigurationService, nullConfigService);
-	});
+    instantiationService.stub(IFileService, nullFileService);
+    instantiationService.stub(ILogService, nullLogService);
+    instantiationService.stub(IConfigurationService, nullConfigService);
+  });
 
-	test('provides contents of a file', async () => {
-		const fileService = instantiationService.get(IFileService);
+  test('provides contents of a file', async () => {
+    const fileService = instantiationService.get(IFileService);
 
-		const fileName = `file-${randomInt(10000)}.prompt.md`;
-		const fileUri = URI.file(`/${fileName}`);
+    const fileName = `file-${randomInt(10000)}.prompt.md`;
+    const fileUri = URI.file(`/${fileName}`);
 
-		if (await fileService.exists(fileUri)) {
-			await fileService.del(fileUri);
-		}
-		await fileService.writeFile(fileUri, VSBuffer.fromString('Hello, world!'));
-		await timeout(5);
+    if (await fileService.exists(fileUri)) {
+      await fileService.del(fileUri);
+    }
+    await fileService.writeFile(fileUri, VSBuffer.fromString('Hello, world!'));
+    await timeout(5);
 
-		const contentsProvider = testDisposables.add(instantiationService.createInstance(
-			FilePromptContentProvider,
-			fileUri,
-			{},
-		));
+    const contentsProvider = testDisposables.add(
+      instantiationService.createInstance(
+        FilePromptContentProvider,
+        fileUri,
+        {}
+      )
+    );
 
-		let streamOrError: ReadableStream<VSBuffer> | Error | undefined;
-		testDisposables.add(contentsProvider.onContentChanged((event) => {
-			streamOrError = event;
-		}));
-		contentsProvider.start();
+    let streamOrError: ReadableStream<VSBuffer> | Error | undefined;
+    testDisposables.add(
+      contentsProvider.onContentChanged((event) => {
+        streamOrError = event;
+      })
+    );
+    contentsProvider.start();
 
-		await timeout(CONTENT_CHANGED_TIMEOUT);
+    await timeout(CONTENT_CHANGED_TIMEOUT);
 
-		assertDefined(
-			streamOrError,
-			'The `streamOrError` must be defined.',
-		);
+    assertDefined(streamOrError, 'The `streamOrError` must be defined.');
 
-		assert(
-			!(streamOrError instanceof Error),
-			`Provider must produce a byte stream, got '${streamOrError}'.`,
-		);
+    assert(
+      !(streamOrError instanceof Error),
+      `Provider must produce a byte stream, got '${streamOrError}'.`
+    );
 
-		const stream = new LinesDecoder(streamOrError);
+    const stream = new LinesDecoder(streamOrError);
 
-		const receivedLines = await stream.consumeAll();
-		assert.strictEqual(
-			receivedLines.length,
-			1,
-			'Must read the correct number of lines from the provider.',
-		);
+    const receivedLines = await stream.consumeAll();
+    assert.strictEqual(
+      receivedLines.length,
+      1,
+      'Must read the correct number of lines from the provider.'
+    );
 
-		const expectedLine = new Line(1, 'Hello, world!');
-		const receivedLine = receivedLines[0];
-		assert(
-			receivedLine.equals(expectedLine),
-			`Expected to receive '${expectedLine}', got '${receivedLine}'.`,
-		);
-	});
+    const expectedLine = new Line(1, 'Hello, world!');
+    const receivedLine = receivedLines[0];
+    assert(
+      receivedLine.equals(expectedLine),
+      `Expected to receive '${expectedLine}', got '${receivedLine}'.`
+    );
+  });
 
-	suite('options', () => {
-		suite('allowNonPromptFiles', () => {
-			test('true', async () => {
-				const fileService = instantiationService.get(IFileService);
+  suite('options', () => {
+    suite('allowNonPromptFiles', () => {
+      test('true', async () => {
+        const fileService = instantiationService.get(IFileService);
 
-				const fileName = (randomBoolean() === true)
-					? `file-${randomInt(10_000)}.md`
-					: `file-${randomInt(10_000)}.txt`;
+        const fileName =
+          randomBoolean() === true
+            ? `file-${randomInt(10_000)}.md`
+            : `file-${randomInt(10_000)}.txt`;
 
-				const fileUri = URI.file(`/${fileName}`);
+        const fileUri = URI.file(`/${fileName}`);
 
-				if (await fileService.exists(fileUri)) {
-					await fileService.del(fileUri);
-				}
-				await fileService.writeFile(fileUri, VSBuffer.fromString('Hello, world!'));
-				await timeout(5);
+        if (await fileService.exists(fileUri)) {
+          await fileService.del(fileUri);
+        }
+        await fileService.writeFile(
+          fileUri,
+          VSBuffer.fromString('Hello, world!')
+        );
+        await timeout(5);
 
-				const contentsProvider = testDisposables.add(instantiationService.createInstance(
-					FilePromptContentProvider,
-					fileUri,
-					{ allowNonPromptFiles: true },
-				));
+        const contentsProvider = testDisposables.add(
+          instantiationService.createInstance(
+            FilePromptContentProvider,
+            fileUri,
+            { allowNonPromptFiles: true }
+          )
+        );
 
-				let streamOrError: ReadableStream<VSBuffer> | Error | undefined;
-				testDisposables.add(contentsProvider.onContentChanged((event) => {
-					streamOrError = event;
-				}));
-				contentsProvider.start();
+        let streamOrError: ReadableStream<VSBuffer> | Error | undefined;
+        testDisposables.add(
+          contentsProvider.onContentChanged((event) => {
+            streamOrError = event;
+          })
+        );
+        contentsProvider.start();
 
-				await timeout(CONTENT_CHANGED_TIMEOUT);
+        await timeout(CONTENT_CHANGED_TIMEOUT);
 
-				assertDefined(
-					streamOrError,
-					'The `streamOrError` must be defined.',
-				);
+        assertDefined(streamOrError, 'The `streamOrError` must be defined.');
 
-				assert(
-					!(streamOrError instanceof Error),
-					`Provider must produce a byte stream, got '${streamOrError}'.`,
-				);
+        assert(
+          !(streamOrError instanceof Error),
+          `Provider must produce a byte stream, got '${streamOrError}'.`
+        );
 
-				const stream = new LinesDecoder(streamOrError);
+        const stream = new LinesDecoder(streamOrError);
 
-				const receivedLines = await stream.consumeAll();
-				assert.strictEqual(
-					receivedLines.length,
-					1,
-					'Must read the correct number of lines from the provider.',
-				);
+        const receivedLines = await stream.consumeAll();
+        assert.strictEqual(
+          receivedLines.length,
+          1,
+          'Must read the correct number of lines from the provider.'
+        );
 
-				const expectedLine = new Line(1, 'Hello, world!');
-				const receivedLine = receivedLines[0];
-				assert(
-					receivedLine.equals(expectedLine),
-					`Expected to receive '${expectedLine}', got '${receivedLine}'.`,
-				);
-			});
+        const expectedLine = new Line(1, 'Hello, world!');
+        const receivedLine = receivedLines[0];
+        assert(
+          receivedLine.equals(expectedLine),
+          `Expected to receive '${expectedLine}', got '${receivedLine}'.`
+        );
+      });
 
-			test('false', async () => {
-				const fileService = instantiationService.get(IFileService);
+      test('false', async () => {
+        const fileService = instantiationService.get(IFileService);
 
-				const fileName = (randomBoolean() === true)
-					? `file-${randomInt(10_000)}.md`
-					: `file-${randomInt(10_000)}.txt`;
+        const fileName =
+          randomBoolean() === true
+            ? `file-${randomInt(10_000)}.md`
+            : `file-${randomInt(10_000)}.txt`;
 
-				const fileUri = URI.file(`/${fileName}`);
+        const fileUri = URI.file(`/${fileName}`);
 
-				if (await fileService.exists(fileUri)) {
-					await fileService.del(fileUri);
-				}
-				await fileService.writeFile(fileUri, VSBuffer.fromString('Hello, world!'));
-				await timeout(5);
+        if (await fileService.exists(fileUri)) {
+          await fileService.del(fileUri);
+        }
+        await fileService.writeFile(
+          fileUri,
+          VSBuffer.fromString('Hello, world!')
+        );
+        await timeout(5);
 
-				const contentsProvider = testDisposables.add(instantiationService.createInstance(
-					FilePromptContentProvider,
-					fileUri,
-					{ allowNonPromptFiles: false },
-				));
+        const contentsProvider = testDisposables.add(
+          instantiationService.createInstance(
+            FilePromptContentProvider,
+            fileUri,
+            { allowNonPromptFiles: false }
+          )
+        );
 
-				let streamOrError: ReadableStream<VSBuffer> | Error | undefined;
-				testDisposables.add(contentsProvider.onContentChanged((event) => {
-					streamOrError = event;
-				}));
-				contentsProvider.start();
+        let streamOrError: ReadableStream<VSBuffer> | Error | undefined;
+        testDisposables.add(
+          contentsProvider.onContentChanged((event) => {
+            streamOrError = event;
+          })
+        );
+        contentsProvider.start();
 
-				await timeout(CONTENT_CHANGED_TIMEOUT);
+        await timeout(CONTENT_CHANGED_TIMEOUT);
 
-				assertDefined(
-					streamOrError,
-					'The `streamOrError` must be defined.',
-				);
+        assertDefined(streamOrError, 'The `streamOrError` must be defined.');
 
-				assert(
-					streamOrError instanceof NotPromptFile,
-					`Provider must produce an 'NotPromptFile' error, got '${streamOrError}'.`,
-				);
-			});
+        assert(
+          streamOrError instanceof NotPromptFile,
+          `Provider must produce an 'NotPromptFile' error, got '${streamOrError}'.`
+        );
+      });
 
-			test('undefined', async () => {
-				const fileService = instantiationService.get(IFileService);
+      test('undefined', async () => {
+        const fileService = instantiationService.get(IFileService);
 
-				const fileName = (randomBoolean() === true)
-					? `file-${randomInt(10_000)}.md`
-					: `file-${randomInt(10_000)}.txt`;
+        const fileName =
+          randomBoolean() === true
+            ? `file-${randomInt(10_000)}.md`
+            : `file-${randomInt(10_000)}.txt`;
 
-				const fileUri = URI.file(`/${fileName}`);
+        const fileUri = URI.file(`/${fileName}`);
 
-				if (await fileService.exists(fileUri)) {
-					await fileService.del(fileUri);
-				}
-				await fileService.writeFile(fileUri, VSBuffer.fromString('Hello, world!'));
-				await timeout(5);
+        if (await fileService.exists(fileUri)) {
+          await fileService.del(fileUri);
+        }
+        await fileService.writeFile(
+          fileUri,
+          VSBuffer.fromString('Hello, world!')
+        );
+        await timeout(5);
 
-				const contentsProvider = testDisposables.add(instantiationService.createInstance(
-					FilePromptContentProvider,
-					fileUri,
-					{},
-				));
+        const contentsProvider = testDisposables.add(
+          instantiationService.createInstance(
+            FilePromptContentProvider,
+            fileUri,
+            {}
+          )
+        );
 
-				let streamOrError: ReadableStream<VSBuffer> | Error | undefined;
-				testDisposables.add(contentsProvider.onContentChanged((event) => {
-					streamOrError = event;
-				}));
-				contentsProvider.start();
+        let streamOrError: ReadableStream<VSBuffer> | Error | undefined;
+        testDisposables.add(
+          contentsProvider.onContentChanged((event) => {
+            streamOrError = event;
+          })
+        );
+        contentsProvider.start();
 
-				await timeout(CONTENT_CHANGED_TIMEOUT);
+        await timeout(CONTENT_CHANGED_TIMEOUT);
 
-				assertDefined(
-					streamOrError,
-					'The `streamOrError` must be defined.',
-				);
+        assertDefined(streamOrError, 'The `streamOrError` must be defined.');
 
-				assert(
-					streamOrError instanceof NotPromptFile,
-					`Provider must produce an 'NotPromptFile' error, got '${streamOrError}'.`,
-				);
-			});
-		});
-	});
+        assert(
+          streamOrError instanceof NotPromptFile,
+          `Provider must produce an 'NotPromptFile' error, got '${streamOrError}'.`
+        );
+      });
+    });
+  });
 });

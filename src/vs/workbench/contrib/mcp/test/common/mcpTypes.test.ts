@@ -8,20 +8,24 @@ import { McpResourceURI } from '../../common/mcpTypes.js';
 import * as assert from 'assert';
 
 suite('MCP Types', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+  ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('McpResourceURI - round trips', () => {
-		const roundTrip = (uri: string) => {
-			const from = McpResourceURI.fromServer({ label: '', id: 'my-id' }, uri);
-			const to = McpResourceURI.toServer(from);
-			assert.strictEqual(to.definitionId, 'my-id');
-			assert.strictEqual(to.resourceURI.toString(true), uri, `expected to round trip ${uri}`);
-		};
+  test('McpResourceURI - round trips', () => {
+    const roundTrip = (uri: string) => {
+      const from = McpResourceURI.fromServer({ label: '', id: 'my-id' }, uri);
+      const to = McpResourceURI.toServer(from);
+      assert.strictEqual(to.definitionId, 'my-id');
+      assert.strictEqual(
+        to.resourceURI.toString(true),
+        uri,
+        `expected to round trip ${uri}`
+      );
+    };
 
-		roundTrip('file:///path/to/file.txt');
-		roundTrip('custom-scheme://my-path/to/resource.txt');
-		roundTrip('custom-scheme://my-path');
-		roundTrip('custom-scheme://my-path/');
-		roundTrip('custom-scheme://my-path/?with=query&params=here');
-	});
+    roundTrip('file:///path/to/file.txt');
+    roundTrip('custom-scheme://my-path/to/resource.txt');
+    roundTrip('custom-scheme://my-path');
+    roundTrip('custom-scheme://my-path/');
+    roundTrip('custom-scheme://my-path/?with=query&params=here');
+  });
 });

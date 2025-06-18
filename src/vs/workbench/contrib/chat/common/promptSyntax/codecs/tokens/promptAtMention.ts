@@ -6,7 +6,10 @@
 import { PromptToken } from './promptToken.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
-import { INVALID_NAME_CHARACTERS, STOP_CHARACTERS } from '../parsers/promptVariableParser.js';
+import {
+  INVALID_NAME_CHARACTERS,
+  STOP_CHARACTERS,
+} from '../parsers/promptVariableParser.js';
 
 /**
  * All prompt at-mentions start with `@` character.
@@ -17,36 +20,36 @@ const START_CHARACTER: string = '@';
  * Represents a `@mention` token in a prompt text.
  */
 export class PromptAtMention extends PromptToken {
-	constructor(
-		range: Range,
-		/**
-		 * The name of a mention, excluding the `@` character at the start.
-		 */
-		public readonly name: string,
-	) {
-		// sanity check of characters used in the provided mention name
-		for (const character of name) {
-			assert(
-				(INVALID_NAME_CHARACTERS.includes(character) === false) &&
-				(STOP_CHARACTERS.includes(character) === false),
-				`Mention 'name' cannot contain character '${character}', got '${name}'.`,
-			);
-		}
+  constructor(
+    range: Range,
+    /**
+     * The name of a mention, excluding the `@` character at the start.
+     */
+    public readonly name: string
+  ) {
+    // sanity check of characters used in the provided mention name
+    for (const character of name) {
+      assert(
+        INVALID_NAME_CHARACTERS.includes(character) === false &&
+          STOP_CHARACTERS.includes(character) === false,
+        `Mention 'name' cannot contain character '${character}', got '${name}'.`
+      );
+    }
 
-		super(range);
-	}
+    super(range);
+  }
 
-	/**
-	 * Get full text of the token.
-	 */
-	public get text(): string {
-		return `${START_CHARACTER}${this.name}`;
-	}
+  /**
+   * Get full text of the token.
+   */
+  public get text(): string {
+    return `${START_CHARACTER}${this.name}`;
+  }
 
-	/**
-	 * Return a string representation of the token.
-	 */
-	public override toString(): string {
-		return `${this.text}${this.range}`;
-	}
+  /**
+   * Return a string representation of the token.
+   */
+  public override toString(): string {
+    return `${this.text}${this.range}`;
+  }
 }

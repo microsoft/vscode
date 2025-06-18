@@ -4,34 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .outline-pane {
-	display: flex;
-	flex-direction: column;
+  display: flex;
+  flex-direction: column;
 }
 
 .monaco-workbench .outline-pane .outline-progress {
-	width: 100%;
-	height: 2px;
-	padding-bottom: 3px;
-	position: absolute;
+  width: 100%;
+  height: 2px;
+  padding-bottom: 3px;
+  position: absolute;
 }
 
 .monaco-workbench .outline-pane .outline-tree {
-	height: 100%;
+  height: 100%;
 }
 
 .monaco-workbench .outline-pane .outline-message {
-	display: none;
-	padding: 10px 22px 0 22px;
-	opacity: 0.5;
-	position: absolute;
-	pointer-events: none;
+  display: none;
+  padding: 10px 22px 0 22px;
+  opacity: 0.5;
+  position: absolute;
+  pointer-events: none;
 }
 
 .monaco-workbench .outline-pane.message .outline-message {
-	display: inherit;
+  display: inherit;
 }
 
 .monaco-workbench .outline-pane.message .outline-progress,
 .monaco-workbench .outline-pane.message .outline-tree {
-	display: none;
+  display: none;
 }

@@ -9,7 +9,7 @@ import { parse } from '../parser';
 import { strictEqual } from 'node:assert';
 
 function parseCommand(command: string): string {
-	return JSON.stringify(parse(command), null, '  ');
+  return JSON.stringify(parse(command), null, '  ');
 }
 
 /**
@@ -18,23 +18,23 @@ function parseCommand(command: string): string {
  * @param nameComment The first character of each title line
  */
 function getData(
-	filePath: string,
-	nameComment: string,
+  filePath: string,
+  nameComment: string
 ): [name: string, value: string][] {
-	if (!fs.existsSync(filePath)) {
-		fs.writeFileSync(filePath, '');
-		return [];
-	}
-	return fs
-		.readFileSync(filePath, { encoding: 'utf8' })
-		.replaceAll('\r\n', '\n')
-		.split('\n\n')
-		.map((testCase) => {
-			const firstNewline = testCase.indexOf('\n');
-			const title = testCase.slice(0, firstNewline);
-			const block = testCase.slice(firstNewline);
-			return [title.slice(nameComment.length).trim(), block.trim()];
-		});
+  if (!fs.existsSync(filePath)) {
+    fs.writeFileSync(filePath, '');
+    return [];
+  }
+  return fs
+    .readFileSync(filePath, { encoding: 'utf8' })
+    .replaceAll('\r\n', '\n')
+    .split('\n\n')
+    .map((testCase) => {
+      const firstNewline = testCase.indexOf('\n');
+      const title = testCase.slice(0, firstNewline);
+      const block = testCase.slice(firstNewline);
+      return [title.slice(nameComment.length).trim(), block.trim()];
+    });
 }
 
 // function outputNewFile(
@@ -71,36 +71,39 @@ function getData(
 // }
 
 suite('fig/shell-parser/ fixtures', () => {
-	const fixturesPath = path.join(__dirname, '../../../../fixtures/shell-parser');
-	const fixtures = fs.readdirSync(fixturesPath);
-	for (const fixture of fixtures) {
-		// console.log('fixture', fixture);
-		suite(fixture, () => {
-			const inputFile = path.join(fixturesPath, fixture, 'input.sh');
-			const outputFile = path.join(fixturesPath, fixture, 'output.txt');
-			const inputData = new Map(getData(inputFile, '###'));
-			const outputData = new Map(getData(outputFile, '//'));
+  const fixturesPath = path.join(
+    __dirname,
+    '../../../../fixtures/shell-parser'
+  );
+  const fixtures = fs.readdirSync(fixturesPath);
+  for (const fixture of fixtures) {
+    // console.log('fixture', fixture);
+    suite(fixture, () => {
+      const inputFile = path.join(fixturesPath, fixture, 'input.sh');
+      const outputFile = path.join(fixturesPath, fixture, 'output.txt');
+      const inputData = new Map(getData(inputFile, '###'));
+      const outputData = new Map(getData(outputFile, '//'));
 
-			// clean diffs and regenerate files if required.
-			// if (!process.env.NO_FIXTURES_EDIT) {
-			// 	const [newInputs, extraOutputs] = mapKeysDiff(inputData, outputData);
-			// 	extraOutputs.forEach((v) => outputData.delete(v));
-			// 	newInputs.forEach((v) =>
-			// 		outputData.set(v, parseCommand(inputData.get(v) ?? '')),
-			// 	);
-			// 	if (extraOutputs.length || newInputs.length) {
-			// 		outputNewFile(outputFile, '//', [...outputData.entries()]);
-			// 	}
-			// }
+      // clean diffs and regenerate files if required.
+      // if (!process.env.NO_FIXTURES_EDIT) {
+      // 	const [newInputs, extraOutputs] = mapKeysDiff(inputData, outputData);
+      // 	extraOutputs.forEach((v) => outputData.delete(v));
+      // 	newInputs.forEach((v) =>
+      // 		outputData.set(v, parseCommand(inputData.get(v) ?? '')),
+      // 	);
+      // 	if (extraOutputs.length || newInputs.length) {
+      // 		outputNewFile(outputFile, '//', [...outputData.entries()]);
+      // 	}
+      // }
 
-			for (const [caseName, input] of inputData.entries()) {
-				if (caseName) {
-					test(caseName, () => {
-						const output = outputData.get(caseName);
-						strictEqual(parseCommand(input ?? ''), output);
-					});
-				}
-			}
-		});
-	}
+      for (const [caseName, input] of inputData.entries()) {
+        if (caseName) {
+          test(caseName, () => {
+            const output = outputData.get(caseName);
+            strictEqual(parseCommand(input ?? ''), output);
+          });
+        }
+      }
+    });
+  }
 });

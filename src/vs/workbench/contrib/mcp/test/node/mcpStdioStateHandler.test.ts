@@ -12,49 +12,49 @@ import { isWindows } from '../../../../../base/common/platform.js';
 const GRACE_TIME = 100;
 
 suite('McpStdioStateHandler', () => {
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function run(code: string) {
-		const child = spawn('node', ['-e', code], {
-			stdio: 'pipe',
-			env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
-		});
+  function run(code: string) {
+    const child = spawn('node', ['-e', code], {
+      stdio: 'pipe',
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+    });
 
-		return {
-			child,
-			handler: store.add(new McpStdioStateHandler(child, GRACE_TIME)),
-			processId: new Promise<number>((resolve) => {
-				child.on('spawn', () => resolve(child.pid!));
-			}),
-			output: new Promise<string>((resolve) => {
-				let output = '';
-				child.stderr.setEncoding('utf-8').on('data', (data) => {
-					output += data.toString();
-				});
-				child.stdout.setEncoding('utf-8').on('data', (data) => {
-					output += data.toString();
-				});
-				child.on('close', () => resolve(output));
-			}),
-		};
-	}
+    return {
+      child,
+      handler: store.add(new McpStdioStateHandler(child, GRACE_TIME)),
+      processId: new Promise<number>((resolve) => {
+        child.on('spawn', () => resolve(child.pid!));
+      }),
+      output: new Promise<string>((resolve) => {
+        let output = '';
+        child.stderr.setEncoding('utf-8').on('data', (data) => {
+          output += data.toString();
+        });
+        child.stdout.setEncoding('utf-8').on('data', (data) => {
+          output += data.toString();
+        });
+        child.on('close', () => resolve(output));
+      }),
+    };
+  }
 
-	test('stdin ends process', async () => {
-		const { child, handler, output } = run(`
+  test('stdin ends process', async () => {
+    const { child, handler, output } = run(`
 			const data = require('fs').readFileSync(0, 'utf-8');
 			process.stdout.write('Data received: ' + data);
 			process.on('SIGTERM', () => process.stdout.write('SIGTERM received'));
 		`);
 
-		child.stdin.write('Hello MCP!');
-		handler.stop();
-		const result = await output;
-		assert.strictEqual(result.trim(), 'Data received: Hello MCP!');
-	});
+    child.stdin.write('Hello MCP!');
+    handler.stop();
+    const result = await output;
+    assert.strictEqual(result.trim(), 'Data received: Hello MCP!');
+  });
 
-	if (!isWindows) {
-		test('sigterm after grace', async () => {
-			const { handler, output } = run(`
+  if (!isWindows) {
+    test('sigterm after grace', async () => {
+      const { handler, output } = run(`
 			setInterval(() => {}, 1000);
 			process.stdin.on('end', () => process.stdout.write('stdin ended\\n'));
 			process.stdin.resume();
@@ -63,17 +63,20 @@ suite('McpStdioStateHandler', () => {
 			});
 		`);
 
-			const before = Date.now();
-			handler.stop();
-			const result = await output;
-			const delay = Date.now() - before;
-			assert.strictEqual(result.trim(), 'stdin ended\nSIGTERM received');
-			assert.ok(delay >= GRACE_TIME, `Expected at least ${GRACE_TIME}ms delay, got ${delay}ms`);
-		});
-	}
+      const before = Date.now();
+      handler.stop();
+      const result = await output;
+      const delay = Date.now() - before;
+      assert.strictEqual(result.trim(), 'stdin ended\nSIGTERM received');
+      assert.ok(
+        delay >= GRACE_TIME,
+        `Expected at least ${GRACE_TIME}ms delay, got ${delay}ms`
+      );
+    });
+  }
 
-	test('sigkill after grace', async () => {
-		const { handler, output } = run(`
+  test('sigkill after grace', async () => {
+    const { handler, output } = run(`
 			setInterval(() => {}, 1000);
 			process.stdin.on('end', () => process.stdout.write('stdin ended\\n'));
 			process.stdin.resume();
@@ -82,15 +85,18 @@ suite('McpStdioStateHandler', () => {
 			});
 		`);
 
-		const before = Date.now();
-		handler.stop();
-		const result = await output;
-		const delay = Date.now() - before;
-		if (!isWindows) {
-			assert.strictEqual(result.trim(), 'stdin ended\nSIGTERM received');
-		} else {
-			assert.strictEqual(result.trim(), 'stdin ended');
-		}
-		assert.ok(delay >= GRACE_TIME * 2, `Expected at least ${GRACE_TIME * 2}ms delay, got ${delay}ms`);
-	});
+    const before = Date.now();
+    handler.stop();
+    const result = await output;
+    const delay = Date.now() - before;
+    if (!isWindows) {
+      assert.strictEqual(result.trim(), 'stdin ended\nSIGTERM received');
+    } else {
+      assert.strictEqual(result.trim(), 'stdin ended');
+    }
+    assert.ok(
+      delay >= GRACE_TIME * 2,
+      `Expected at least ${GRACE_TIME * 2}ms delay, got ${delay}ms`
+    );
+  });
 });

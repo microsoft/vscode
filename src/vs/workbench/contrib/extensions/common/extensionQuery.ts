@@ -4,88 +4,132 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IExtensionGalleryManifest } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
-import { FilterType, SortBy } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import {
+  FilterType,
+  SortBy,
+} from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { EXTENSION_CATEGORIES } from '../../../../platform/extensions/common/extensions.js';
 
 export class Query {
+  constructor(
+    public value: string,
+    public sortBy: string
+  ) {
+    this.value = value.trim();
+  }
 
-	constructor(public value: string, public sortBy: string) {
-		this.value = value.trim();
-	}
+  static suggestions(
+    query: string,
+    galleryManifest: IExtensionGalleryManifest | null
+  ): string[] {
+    const commands = ['installed', 'updates', 'enabled', 'disabled', 'builtin'];
+    if (
+      galleryManifest?.capabilities.extensionQuery?.filtering?.some(
+        (c) => c.name === FilterType.Featured
+      )
+    ) {
+      commands.push('featured');
+    }
 
-	static suggestions(query: string, galleryManifest: IExtensionGalleryManifest | null): string[] {
+    commands.push(
+      ...[
+        'popular',
+        'recommended',
+        'recentlyPublished',
+        'workspaceUnsupported',
+        'deprecated',
+        'sort',
+      ]
+    );
+    const isCategoriesEnabled =
+      galleryManifest?.capabilities.extensionQuery?.filtering?.some(
+        (c) => c.name === FilterType.Category
+      );
+    if (isCategoriesEnabled) {
+      commands.push('category');
+    }
 
-		const commands = ['installed', 'updates', 'enabled', 'disabled', 'builtin'];
-		if (galleryManifest?.capabilities.extensionQuery?.filtering?.some(c => c.name === FilterType.Featured)) {
-			commands.push('featured');
-		}
+    commands.push(...['tag', 'ext', 'id', 'outdated', 'recentlyUpdated']);
+    const sortCommands = [];
+    if (
+      galleryManifest?.capabilities.extensionQuery?.sorting?.some(
+        (c) => c.name === SortBy.InstallCount
+      )
+    ) {
+      sortCommands.push('installs');
+    }
+    if (
+      galleryManifest?.capabilities.extensionQuery?.sorting?.some(
+        (c) => c.name === SortBy.WeightedRating
+      )
+    ) {
+      sortCommands.push('rating');
+    }
+    sortCommands.push('name', 'publishedDate', 'updateDate');
 
-		commands.push(...['popular', 'recommended', 'recentlyPublished', 'workspaceUnsupported', 'deprecated', 'sort']);
-		const isCategoriesEnabled = galleryManifest?.capabilities.extensionQuery?.filtering?.some(c => c.name === FilterType.Category);
-		if (isCategoriesEnabled) {
-			commands.push('category');
-		}
+    const subcommands = {
+      sort: sortCommands,
+      category: isCategoriesEnabled
+        ? EXTENSION_CATEGORIES.map((c) => `"${c.toLowerCase()}"`)
+        : [],
+      tag: [''],
+      ext: [''],
+      id: [''],
+    } as const;
 
-		commands.push(...['tag', 'ext', 'id', 'outdated', 'recentlyUpdated']);
-		const sortCommands = [];
-		if (galleryManifest?.capabilities.extensionQuery?.sorting?.some(c => c.name === SortBy.InstallCount)) {
-			sortCommands.push('installs');
-		}
-		if (galleryManifest?.capabilities.extensionQuery?.sorting?.some(c => c.name === SortBy.WeightedRating)) {
-			sortCommands.push('rating');
-		}
-		sortCommands.push('name', 'publishedDate', 'updateDate');
+    const queryContains = (substr: string) => query.indexOf(substr) > -1;
+    const hasSort = subcommands.sort.some((subcommand) =>
+      queryContains(`@sort:${subcommand}`)
+    );
+    const hasCategory = subcommands.category.some((subcommand) =>
+      queryContains(`@category:${subcommand}`)
+    );
 
-		const subcommands = {
-			'sort': sortCommands,
-			'category': isCategoriesEnabled ? EXTENSION_CATEGORIES.map(c => `"${c.toLowerCase()}"`) : [],
-			'tag': [''],
-			'ext': [''],
-			'id': ['']
-		} as const;
+    return commands.flatMap((command) => {
+      if (
+        (hasSort && command === 'sort') ||
+        (hasCategory && command === 'category')
+      ) {
+        return [];
+      }
+      if (command in subcommands) {
+        return (subcommands as Record<string, readonly string[]>)[command].map(
+          (subcommand) =>
+            `@${command}:${subcommand}${subcommand === '' ? '' : ' '}`
+        );
+      } else {
+        return queryContains(`@${command}`) ? [] : [`@${command} `];
+      }
+    });
+  }
 
-		const queryContains = (substr: string) => query.indexOf(substr) > -1;
-		const hasSort = subcommands.sort.some(subcommand => queryContains(`@sort:${subcommand}`));
-		const hasCategory = subcommands.category.some(subcommand => queryContains(`@category:${subcommand}`));
+  static parse(value: string): Query {
+    let sortBy = '';
+    value = value.replace(
+      /@sort:(\w+)(-\w*)?/g,
+      (match, by: string, order: string) => {
+        sortBy = by;
 
-		return commands.flatMap(command => {
-			if (hasSort && command === 'sort' || hasCategory && command === 'category') {
-				return [];
-			}
-			if (command in subcommands) {
-				return (subcommands as Record<string, readonly string[]>)[command]
-					.map(subcommand => `@${command}:${subcommand}${subcommand === '' ? '' : ' '}`);
-			}
-			else {
-				return queryContains(`@${command}`) ? [] : [`@${command} `];
-			}
-		});
-	}
+        return '';
+      }
+    );
+    return new Query(value, sortBy);
+  }
 
-	static parse(value: string): Query {
-		let sortBy = '';
-		value = value.replace(/@sort:(\w+)(-\w*)?/g, (match, by: string, order: string) => {
-			sortBy = by;
+  toString(): string {
+    let result = this.value;
 
-			return '';
-		});
-		return new Query(value, sortBy);
-	}
+    if (this.sortBy) {
+      result = `${result}${result ? ' ' : ''}@sort:${this.sortBy}`;
+    }
+    return result;
+  }
 
-	toString(): string {
-		let result = this.value;
+  isValid(): boolean {
+    return !/@outdated/.test(this.value);
+  }
 
-		if (this.sortBy) {
-			result = `${result}${result ? ' ' : ''}@sort:${this.sortBy}`;
-		}
-		return result;
-	}
-
-	isValid(): boolean {
-		return !/@outdated/.test(this.value);
-	}
-
-	equals(other: Query): boolean {
-		return this.value === other.value && this.sortBy === other.sortBy;
-	}
+  equals(other: Query): boolean {
+    return this.value === other.value && this.sortBy === other.sortBy;
+  }
 }

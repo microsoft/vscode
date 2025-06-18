@@ -15,23 +15,33 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
  * including all the nested child file references it may have.
  */
 export class FilePromptParser extends BasePromptParser<FilePromptContentProvider> {
-	constructor(
-		uri: URI,
-		options: Partial<IPromptParserOptions>,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
-		@ILogService logService: ILogService,
-	) {
-		const contentsProvider = instantiationService.createInstance(FilePromptContentProvider, uri, options);
-		super(contentsProvider, options, instantiationService, workspaceService, logService);
+  constructor(
+    uri: URI,
+    options: Partial<IPromptParserOptions>,
+    @IInstantiationService instantiationService: IInstantiationService,
+    @IWorkspaceContextService workspaceService: IWorkspaceContextService,
+    @ILogService logService: ILogService
+  ) {
+    const contentsProvider = instantiationService.createInstance(
+      FilePromptContentProvider,
+      uri,
+      options
+    );
+    super(
+      contentsProvider,
+      options,
+      instantiationService,
+      workspaceService,
+      logService
+    );
 
-		this._register(contentsProvider);
-	}
+    this._register(contentsProvider);
+  }
 
-	/**
-	 * Returns a string representation of this object.
-	 */
-	public override toString(): string {
-		return `file-prompt:${this.uri.path}`;
-	}
+  /**
+   * Returns a string representation of this object.
+   */
+  public override toString(): string {
+    return `file-prompt:${this.uri.path}`;
+  }
 }

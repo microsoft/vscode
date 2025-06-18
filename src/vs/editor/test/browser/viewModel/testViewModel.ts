@@ -12,24 +12,40 @@ import { createTextModel } from '../../common/testTextModel.js';
 import { TestLanguageConfigurationService } from '../../common/modes/testLanguageConfigurationService.js';
 import { TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
 
-export function testViewModel(text: string[], options: IEditorOptions, callback: (viewModel: ViewModel, model: TextModel) => void): void {
-	const EDITOR_ID = 1;
+export function testViewModel(
+  text: string[],
+  options: IEditorOptions,
+  callback: (viewModel: ViewModel, model: TextModel) => void
+): void {
+  const EDITOR_ID = 1;
 
-	const configuration = new TestConfiguration(options);
-	const model = createTextModel(text.join('\n'));
-	const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(configuration.options);
-	const testLanguageConfigurationService = new TestLanguageConfigurationService();
-	const viewModel = new ViewModel(EDITOR_ID, configuration, model, monospaceLineBreaksComputerFactory, monospaceLineBreaksComputerFactory, null!, testLanguageConfigurationService, new TestThemeService(), {
-		setVisibleLines(visibleLines, stabilized) {
-		},
-	}, {
-		batchChanges: (cb) => cb(),
-	});
+  const configuration = new TestConfiguration(options);
+  const model = createTextModel(text.join('\n'));
+  const monospaceLineBreaksComputerFactory =
+    MonospaceLineBreaksComputerFactory.create(configuration.options);
+  const testLanguageConfigurationService =
+    new TestLanguageConfigurationService();
+  const viewModel = new ViewModel(
+    EDITOR_ID,
+    configuration,
+    model,
+    monospaceLineBreaksComputerFactory,
+    monospaceLineBreaksComputerFactory,
+    null!,
+    testLanguageConfigurationService,
+    new TestThemeService(),
+    {
+      setVisibleLines(visibleLines, stabilized) {},
+    },
+    {
+      batchChanges: (cb) => cb(),
+    }
+  );
 
-	callback(viewModel, model);
+  callback(viewModel, model);
 
-	viewModel.dispose();
-	model.dispose();
-	configuration.dispose();
-	testLanguageConfigurationService.dispose();
+  viewModel.dispose();
+  model.dispose();
+  configuration.dispose();
+  testLanguageConfigurationService.dispose();
 }

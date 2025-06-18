@@ -18,50 +18,89 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { KeybindingsEditorInput } from '../../../services/preferences/browser/keybindingsEditorInput.js';
 import { SettingsEditor2Input } from '../../../services/preferences/common/preferencesEditorInput.js';
 
-export class UserDataSyncTrigger extends Disposable implements IWorkbenchContribution {
+export class UserDataSyncTrigger
+  extends Disposable
+  implements IWorkbenchContribution
+{
+  constructor(
+    @IEditorService editorService: IEditorService,
+    @IUserDataProfilesService
+    private readonly userDataProfilesService: IUserDataProfilesService,
+    @IViewsService viewsService: IViewsService,
+    @IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
+    @IHostService hostService: IHostService
+  ) {
+    super();
+    const event = Event.filter(
+      Event.any<string | undefined>(
+        Event.map(editorService.onDidActiveEditorChange, () =>
+          this.getUserDataEditorInputSource(editorService.activeEditor)
+        ),
+        Event.map(
+          Event.filter(
+            viewsService.onDidChangeViewContainerVisibility,
+            (e) => e.id === VIEWLET_ID && e.visible
+          ),
+          (e) => e.id
+        )
+      ),
+      (source) => source !== undefined
+    );
+    if (isWeb) {
+      this._register(
+        Event.debounce<string, string[]>(
+          Event.any<string>(
+            Event.map(hostService.onDidChangeFocus, () => 'windowFocus'),
+            Event.map(event, (source) => source!)
+          ),
+          (last, source) => (last ? [...last, source] : [source]),
+          1000
+        )((sources) =>
+          userDataAutoSyncService.triggerSync(sources, {
+            skipIfSyncedRecently: true,
+          })
+        )
+      );
+    } else {
+      this._register(
+        event((source) =>
+          userDataAutoSyncService.triggerSync([source!], {
+            skipIfSyncedRecently: true,
+          })
+        )
+      );
+    }
+  }
 
-	constructor(
-		@IEditorService editorService: IEditorService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
-		@IViewsService viewsService: IViewsService,
-		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
-		@IHostService hostService: IHostService,
-	) {
-		super();
-		const event = Event.filter(
-			Event.any<string | undefined>(
-				Event.map(editorService.onDidActiveEditorChange, () => this.getUserDataEditorInputSource(editorService.activeEditor)),
-				Event.map(Event.filter(viewsService.onDidChangeViewContainerVisibility, e => e.id === VIEWLET_ID && e.visible), e => e.id)
-			), source => source !== undefined);
-		if (isWeb) {
-			this._register(Event.debounce<string, string[]>(
-				Event.any<string>(
-					Event.map(hostService.onDidChangeFocus, () => 'windowFocus'),
-					Event.map(event, source => source!),
-				), (last, source) => last ? [...last, source] : [source], 1000)
-				(sources => userDataAutoSyncService.triggerSync(sources, { skipIfSyncedRecently: true })));
-		} else {
-			this._register(event(source => userDataAutoSyncService.triggerSync([source!], { skipIfSyncedRecently: true })));
-		}
-	}
-
-	private getUserDataEditorInputSource(editorInput: EditorInput | undefined): string | undefined {
-		if (!editorInput) {
-			return undefined;
-		}
-		if (editorInput instanceof SettingsEditor2Input) {
-			return 'settingsEditor';
-		}
-		if (editorInput instanceof KeybindingsEditorInput) {
-			return 'keybindingsEditor';
-		}
-		const resource = editorInput.resource;
-		if (isEqual(resource, this.userDataProfilesService.defaultProfile.settingsResource)) {
-			return 'settingsEditor';
-		}
-		if (isEqual(resource, this.userDataProfilesService.defaultProfile.keybindingsResource)) {
-			return 'keybindingsEditor';
-		}
-		return undefined;
-	}
+  private getUserDataEditorInputSource(
+    editorInput: EditorInput | undefined
+  ): string | undefined {
+    if (!editorInput) {
+      return undefined;
+    }
+    if (editorInput instanceof SettingsEditor2Input) {
+      return 'settingsEditor';
+    }
+    if (editorInput instanceof KeybindingsEditorInput) {
+      return 'keybindingsEditor';
+    }
+    const resource = editorInput.resource;
+    if (
+      isEqual(
+        resource,
+        this.userDataProfilesService.defaultProfile.settingsResource
+      )
+    ) {
+      return 'settingsEditor';
+    }
+    if (
+      isEqual(
+        resource,
+        this.userDataProfilesService.defaultProfile.keybindingsResource
+      )
+    ) {
+      return 'keybindingsEditor';
+    }
+    return undefined;
+  }
 }

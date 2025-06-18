@@ -8,26 +8,27 @@ import { Client as MessagePortClient } from '../../browser/ipc.mp.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../test/common/utils.js';
 
 suite('IPC, MessagePorts', () => {
+  test('message port close event', async () => {
+    const { port1, port2 } = new MessageChannel();
 
-	test('message port close event', async () => {
-		const { port1, port2 } = new MessageChannel();
+    const client1 = new MessagePortClient(port1, 'client1');
+    const client2 = new MessagePortClient(port2, 'client2');
 
-		const client1 = new MessagePortClient(port1, 'client1');
-		const client2 = new MessagePortClient(port2, 'client2');
+    // This test ensures that Electron's API for the close event
+    // does not break because we rely on it to dispose client
+    // connections from the server.
+    //
+    // This event is not provided by browser MessagePort API though.
+    const whenClosed = new Promise<boolean>((resolve) =>
+      port1.addEventListener('close', () => resolve(true))
+    );
 
-		// This test ensures that Electron's API for the close event
-		// does not break because we rely on it to dispose client
-		// connections from the server.
-		//
-		// This event is not provided by browser MessagePort API though.
-		const whenClosed = new Promise<boolean>(resolve => port1.addEventListener('close', () => resolve(true)));
+    client2.dispose();
 
-		client2.dispose();
+    assert.ok(await whenClosed);
 
-		assert.ok(await whenClosed);
+    client1.dispose();
+  });
 
-		client1.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+  ensureNoDisposablesAreLeakedInTestSuite();
 });

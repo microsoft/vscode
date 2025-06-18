@@ -10,22 +10,22 @@ import { SpacingToken } from './simpleToken.js';
  * value reflects the position of the token in the original data.
  */
 export class Space extends SpacingToken<' '> {
-	/**
-	 * The underlying symbol of the `Space` token.
-	 */
-	public static override readonly symbol: ' ' = ' ';
+  /**
+   * The underlying symbol of the `Space` token.
+   */
+  public static override readonly symbol: ' ' = ' ';
 
-	/**
-	 * Return text representation of the token.
-	 */
-	public override get text(): ' ' {
-		return Space.symbol;
-	}
+  /**
+   * Return text representation of the token.
+   */
+  public override get text(): ' ' {
+    return Space.symbol;
+  }
 
-	/**
-	 * Returns a string representation of the token.
-	 */
-	public override toString(): string {
-		return `space${this.range}`;
-	}
+  /**
+   * Returns a string representation of the token.
+   */
+  public override toString(): string {
+    return `space${this.range}`;
+  }
 }
