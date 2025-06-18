@@ -70,6 +70,7 @@ import { MicrotaskDelay } from '../../../../base/common/symbols.js';
 import { IChatRequestVariableEntry, ChatRequestVariableSet as ChatRequestVariableSet, isPromptFileVariableEntry, toPromptFileVariableEntry } from '../common/chatVariableEntries.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
 
 const $ = dom.$;
 
@@ -1209,7 +1210,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _findPromptFileInContext(attachedContext: ChatRequestVariableSet): URI | undefined {
 		for (const item of attachedContext.asArray()) {
 			if (isPromptFileVariableEntry(item) && item.isRoot && this.promptsService.getPromptFileType(item.value) === PromptsType.prompt) {
-				return IChatRequestVariableEntry.toUri(item);
+				return item.value;
 			}
 		}
 		return undefined;
@@ -1288,7 +1289,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				// process the prompt command
 				await this._applyPromptFileIfSet(requestInputs);
 				await this._autoAttachInstructions(requestInputs.attachedContext);
-				await this._collectReferencedInstructions(requestInputs.attachedContext);
 			}
 
 			if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentMode === ChatMode.Edit && !this.chatService.edits2Enabled) {
@@ -1617,50 +1617,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.selectedToolsModel.enable(enabledToolSets, enabledTools, true);
 	}
 
-	private async _collectReferencedInstructions(attachedContext: ChatRequestVariableSet): Promise<void> {
-		for (const variable of attachedContext.asArray()) {
-			if (isPromptFileVariableEntry(variable)) {
-				const result = await this.promptsService.parse(variable.value, CancellationToken.None);
-				for (const ref of result.allValidReferences) {
-					const reason = localize('instruction.file.reason.referenced', 'Referenced by {0}', basename(variable.value));
-					attachedContext.add(toPromptFileVariableEntry(ref, true, reason));
-				}
-			}
-		}
-	}
-
 	/**
-	 * Resolves instructions that have `applyTo` metadata that can
-	 * match file references in the attached context and then attaches
-	 * such instructions to the context.
+	 * Adds additional instructions to the context
+	 * - instructions that have a 'applyTo' pattern that matches the current input
+	 * - instructions referenced in the copilot settings 'copilot-instructions*
+	 * - instructions referenced in an already included instruction file
 	 */
 	private async _autoAttachInstructions(attachedContext: ChatRequestVariableSet): Promise<void> {
-		const existingInstructions = new ResourceSet();
-		const fileInContext = [];
-
-		for (const variable of attachedContext.asArray()) {
-			if (isPromptFileVariableEntry(variable)) {
-				existingInstructions.add(variable.value);
-			} else {
-				const uri = IChatRequestVariableEntry.toUri(variable);
-				if (uri) {
-					fileInContext.push(uri);
-				}
-			}
-		}
-
-		const automaticInstructions = await this.promptsService.findInstructionFilesFor(fileInContext, existingInstructions);
-		const promptVariableEntries = automaticInstructions.map(instruction => toPromptFileVariableEntry(instruction.uri, true, instruction.reason));
-
-		// add instructions to the final context list
-		attachedContext.add(...promptVariableEntries);
+		const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions);
+		await computer.collect(attachedContext, true, CancellationToken.None);
 
 		// add to attached list to make the instructions sticky
-		this.inputPart.attachmentModel.addContext(...promptVariableEntries);
+		//this.inputPart.attachmentModel.addContext(...computer.autoAddedInstructions);
 	}
 }
-
-
 
 export class ChatWidgetService extends Disposable implements IChatWidgetService {
 
