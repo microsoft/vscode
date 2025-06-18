@@ -429,13 +429,6 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 			return;
 		}
 
-		if (this._options.selectionModeSettingId) {
-			const selectionMode = this._configurationService.getValue<SuggestSelectionMode>(this._options.selectionModeSettingId);
-			if (selectionMode === SuggestSelectionMode.Partial) {
-				this._list.style(getListStyles({ listInactiveFocusOutline: focusBorder }));
-			}
-		}
-
 		const visibleCount = this._completionModel?.items.length ?? 0;
 		const isEmpty = visibleCount === 0;
 		// this._ctxSuggestWidgetMultipleSuggestions.set(visibleCount > 1);
@@ -472,7 +465,19 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 			// Reset focus border
 			// this._details.widget.domNode.classList.remove('focused');
 		});
+		this._updateListStyles();
 		this._afterRender();
+	}
+
+	private _updateListStyles(): void {
+		if (this._options.selectionModeSettingId) {
+			const selectionMode = this._configurationService.getValue<SuggestSelectionMode>(this._options.selectionModeSettingId);
+			if (selectionMode === SuggestSelectionMode.Partial) {
+				this._list.style(getListStyles({ listInactiveFocusOutline: focusBorder }));
+			} else {
+				this._list.style(getListStyles({ listInactiveFocusBackground: editorSuggestWidgetSelectedBackground }));
+			}
+		}
 	}
 
 	setLineContext(lineContext: LineContext): void {
