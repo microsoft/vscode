@@ -555,21 +555,16 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 }
 
 class RemoteSearchProvider implements IRemoteSearchProvider {
-	private _embeddingsSearchProvider: EmbeddingsSearchProvider;
 	private _tfIdfSearchProvider: TfIdfSearchProvider;
 	private _filter: string = '';
 
-	constructor(
-		@IAiSettingsSearchService private readonly aiSettingsSearchService: IAiSettingsSearchService
-	) {
-		this._embeddingsSearchProvider = new EmbeddingsSearchProvider(this.aiSettingsSearchService, true);
+	constructor() {
 		this._tfIdfSearchProvider = new TfIdfSearchProvider();
 	}
 
 	setFilter(filter: string): void {
 		this._filter = filter;
 		this._tfIdfSearchProvider.setFilter(filter);
-		this._embeddingsSearchProvider.setFilter(filter);
 	}
 
 	async searchModel(preferencesModel: ISettingsEditorModel, token: CancellationToken): Promise<ISearchResult | null> {
@@ -577,21 +572,8 @@ class RemoteSearchProvider implements IRemoteSearchProvider {
 			return null;
 		}
 
-		if (!this.aiSettingsSearchService.isEnabled()) {
-			return this._tfIdfSearchProvider.searchModel(preferencesModel, token);
-		}
-
-		let results = await this._embeddingsSearchProvider.searchModel(preferencesModel, token);
-		if (results?.filterMatches.length) {
-			return results;
-		}
-		if (!token.isCancellationRequested) {
-			results = await this._tfIdfSearchProvider.searchModel(preferencesModel, token);
-			if (results?.filterMatches.length) {
-				return results;
-			}
-		}
-		return null;
+		const results = await this._tfIdfSearchProvider.searchModel(preferencesModel, token);
+		return results;
 	}
 }
 
