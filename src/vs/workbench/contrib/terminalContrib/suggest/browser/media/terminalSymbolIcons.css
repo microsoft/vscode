@@ -5,36 +5,36 @@
 
 .monaco-editor .codicon.codicon-terminal-symbol-alias,
 .monaco-workbench .codicon.codicon-terminal-symbol-alias,
-#terminal .partial-selection.workbench-suggest-widget .monaco-list .monaco-list-row.focused .codicon.codicon.codicon-terminal-symbol-alias { color: var(--vscode-terminalSymbolIcon-aliasForeground); }
+.partial-selection.workbench-suggest-widget .monaco-list .monaco-list-row.focused .codicon.codicon.codicon-terminal-symbol-alias { color: var(--vscode-terminalSymbolIcon-aliasForeground) !important; }
 
 .monaco-editor .codicon.codicon-terminal-symbol-flag,
 .monaco-workbench .codicon.codicon-terminal-symbol-flag,
-#terminal .partial-selection.workbench-suggest-widget .monaco-list .monaco-list-row.focused .codicon.codicon.codicon-terminal-symbol-flag { color: var(--vscode-terminalSymbolIcon-flagForeground); }
+.partial-selection.workbench-suggest-widget .monaco-list .monaco-list-row.focused .codicon.codicon.codicon-terminal-symbol-flag { color: var(--vscode-terminalSymbolIcon-flagForeground) !important; }
 
 .monaco-editor .codicon.codicon-terminal-symbol-option-value,
 .monaco-workbench .codicon.codicon-terminal-symbol-option-value,
-#terminal .partial-selection.workbench-suggest-widget .monaco-list .monaco-list-row.focused .codicon.codicon.codicon-terminal-symbol-option-value { color: var(--vscode-terminalSymbolIcon-optionValueForeground); }
+.partial-selection.workbench-suggest-widget .monaco-list .monaco-list-row.focused .codicon.codicon.codicon-terminal-symbol-option-value { color: var(--vscode-terminalSymbolIcon-optionValueForeground) !important	; }
 
 .monaco-editor .codicon.codicon-terminal-symbol-method,
 .monaco-workbench .codicon.codicon-terminal-symbol-method,
-#terminal .partial-selection.workbench-suggest-widget .monaco-list .monaco-list-row.focused .codicon.codicon.codicon-terminal-symbol-method { color: var(--vscode-terminalSymbolIcon-methodForeground); }
+.partial-selection.workbench-suggest-widget .monaco-list .monaco-list-row.focused .codicon.codicon.codicon-terminal-symbol-method { color: var(--vscode-terminalSymbolIcon-methodForeground) !important; }
 
 .monaco-editor .codicon.codicon-terminal-symbol-argument,
 .monaco-workbench .codicon.codicon-terminal-symbol-argument,
-#terminal .partial-selection.workbench-suggest-widget .monaco-list .monaco-list-row.focused .codicon.codicon.codicon-terminal-symbol-argument { color: var(--vscode-terminalSymbolIcon-argumentForeground); }
+.partial-selection.workbench-suggest-widget .monaco-list .monaco-list-row.focused .codicon.codicon.codicon-terminal-symbol-argument { color: var(--vscode-terminalSymbolIcon-argumentForeground) !important; }
 
 .monaco-editor .codicon.codicon-terminal-symbol-option,
 .monaco-workbench .codicon.codicon-terminal-symbol-option,
-#terminal .partial-selection.workbench-suggest-widget .monaco-list .monaco-list-row.focused .codicon.codicon.codicon-terminal-symbol-option { color: var(--vscode-terminalSymbolIcon-optionForeground); }
+.partial-selection.workbench-suggest-widget .monaco-list .monaco-list-row.focused .codicon.codicon.codicon-terminal-symbol-option { color: var(--vscode-terminalSymbolIcon-optionForeground) !important; }
 
 .monaco-editor .codicon.codicon-terminal-symbol-inline-suggestion,
 .monaco-workbench .codicon.codicon-terminal-symbol-inline-suggestion,
-#terminal .partial-selection.workbench-suggest-widget .monaco-list .monaco-list-row.focused .codicon.codicon.codicon-terminal-symbol-inline-suggestion { color: var(--vscode-terminalSymbolIcon-inlineSuggestionForeground); }
+.partial-selection.workbench-suggest-widget .monaco-list .monaco-list-row.focused .codicon.codicon.codicon-terminal-symbol-inline-suggestion { color: var(--vscode-terminalSymbolIcon-inlineSuggestionForeground) !important; }
 
 .monaco-editor .codicon.codicon-terminal-symbol-file,
 .monaco-workbench .codicon.codicon-terminal-symbol-file,
-#terminal .partial-selection.workbench-suggest-widget .monaco-list .monaco-list-row.focused .codicon.codicon.codicon-terminal-symbol-file { color: var(--vscode-terminalSymbolIcon-fileForeground); }
+.partial-selection.workbench-suggest-widget .monaco-list .monaco-list-row.focused .codicon.codicon.codicon-terminal-symbol-file { color: var(--vscode-terminalSymbolIcon-fileForeground) !important; }
 
 .monaco-editor .codicon.codicon-terminal-symbol-folder,
 .monaco-workbench .codicon.codicon-terminal-symbol-folder,
-#terminal .partial-selection.workbench-suggest-widget .monaco-list .monaco-list-row.focused .codicon.codicon.codicon-terminal-symbol-folder { color: var(--vscode-terminalSymbolIcon-folderForeground); }
+.partial-selection.workbench-suggest-widget .monaco-list .monaco-list-row.focused .codicon.codicon.codicon-terminal-symbol-folder { color: var(--vscode-terminalSymbolIcon-folderForeground) !important; }
