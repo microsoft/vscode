@@ -870,12 +870,6 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	provideInlineCompletions(model: model.ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
 
 	/**
-	 * @experimental
-	 * @internal
-	*/
-	provideInlineEditsForRange?(model: model.ITextModel, range: Range, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
-
-	/**
 	 * Will be called when an item is shown.
 	 * @param updatedInsertText Is useful to understand bracket completion.
 	*/
@@ -924,7 +918,7 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	toString?(): string;
 }
 
-export type InlineCompletionsDisposeReason = 'lostRace' | 'tokenCancellation' | 'other';
+export type InlineCompletionsDisposeReason = { kind: 'lostRace' | 'tokenCancellation' | 'other' };
 
 export enum InlineCompletionEndOfLifeReasonKind {
 	Accepted = 0,

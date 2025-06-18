@@ -31,7 +31,7 @@ export type InlineCompletionContextWithoutUuid = Omit<InlineCompletionContext, '
 
 export async function provideInlineCompletions(
 	providers: InlineCompletionsProvider[],
-	positionOrRange: Position | Range,
+	position: Position,
 	model: ITextModel,
 	context: InlineCompletionContextWithoutUuid,
 	baseToken: CancellationToken = CancellationToken.None,
@@ -52,7 +52,7 @@ export async function provideInlineCompletions(
 
 	const contextWithUuid: InlineCompletionContext = { ...context, requestUuid: requestUuid };
 
-	const defaultReplaceRange = positionOrRange instanceof Position ? getDefaultRange(positionOrRange, model) : positionOrRange;
+	const defaultReplaceRange = getDefaultRange(position, model);
 
 	const providersByGroupId = groupByMap(providers, p => p.groupId);
 	const yieldsToGraph = DirectedGraph.from(providers, p => {
@@ -81,11 +81,7 @@ export async function provideInlineCompletions(
 
 		let result: InlineCompletions | null | undefined;
 		try {
-			if (positionOrRange instanceof Position) {
-				result = await provider.provideInlineCompletions(model, positionOrRange, contextWithUuid, combinedToken);
-			} else {
-				result = await provider.provideInlineEditsForRange?.(model, positionOrRange, contextWithUuid, combinedToken);
-			}
+			result = await provider.provideInlineCompletions(model, position, contextWithUuid, combinedToken);
 		} catch (e) {
 			onUnexpectedExternalError(e);
 			return undefined;
@@ -96,7 +92,7 @@ export async function provideInlineCompletions(
 		const data: InlineSuggestData[] = [];
 		const list = new InlineSuggestionList(result, data, provider);
 		runWhenCancelled(combinedToken, () => {
-			return list.removeRef(lostRaceToken.isCancellationRequested ? 'lostRace' : 'tokenCancellation');
+			return list.removeRef(lostRaceToken.isCancellationRequested ? { kind: 'lostRace' } : { kind: 'tokenCancellation' });
 		});
 
 		for (const item of result.items) {
@@ -381,7 +377,7 @@ export class InlineSuggestionList {
 		this.refCount++;
 	}
 
-	removeRef(reason: InlineCompletionsDisposeReason = 'other'): void {
+	removeRef(reason: InlineCompletionsDisposeReason = { kind: 'other' }): void {
 		this.refCount--;
 		if (this.refCount === 0) {
 			for (const item of this.inlineSuggestionsData) {
