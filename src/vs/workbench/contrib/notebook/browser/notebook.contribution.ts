@@ -71,6 +71,7 @@ import './controller/apiActions.js';
 import './controller/foldingController.js';
 import './controller/chat/notebook.chat.contribution.js';
 import './controller/variablesActions.js';
+import './controller/transientOutputsActions.js';
 
 // Editor Contribution
 import './contrib/editorHint/emptyCellEditorHint.js';
@@ -1311,6 +1312,12 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			default: '',
 			tags: ['notebookLayout']
+		},
+		[NotebookSetting.transientOutputs]: {
+			markdownDescription: nls.localize('notebook.transientOutputs', "When enabled, notebook cell outputs won't be saved with the notebook document. This can reduce file size and improve performance for large notebooks."),
+			type: 'boolean',
+			default: false,
+			scope: 'resource'
 		}
 	}
 });

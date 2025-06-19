@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ISequence, LcsDiff } from '../../../../../base/common/diff/diff.js';
 import { Emitter, Event, PauseableEmitter } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
@@ -23,7 +24,7 @@ import { IModelContentChangedEvent } from '../../../../../editor/common/textMode
 import { IResourceUndoRedoElement, IUndoRedoElement, IUndoRedoService, IWorkspaceUndoRedoElement, UndoRedoElementType, UndoRedoGroup } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
 import { SnapshotContext } from '../../../../services/workingCopy/common/fileWorkingCopy.js';
-import { CellEditType, CellKind, CellUri, diff, ICell, ICellDto2, ICellEditOperation, ICellOutput, INotebookSnapshotOptions, INotebookTextModel, IOutputDto, IOutputItemDto, ISelectionState, NotebookCellCollapseState, NotebookCellDefaultCollapseConfig, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookData, NotebookDocumentMetadata, NotebookTextModelChangedEvent, NotebookTextModelWillAddRemoveEvent, NullablePartialNotebookCellInternalMetadata, NullablePartialNotebookCellMetadata, TransientOptions } from '../notebookCommon.js';
+import { CellEditType, CellKind, CellUri, diff, ICell, ICellDto2, ICellEditOperation, ICellOutput, INotebookSnapshotOptions, INotebookTextModel, IOutputDto, IOutputItemDto, ISelectionState, NotebookCellCollapseState, NotebookCellDefaultCollapseConfig, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookData, NotebookDocumentMetadata, NotebookSetting, NotebookTextModelChangedEvent, NotebookTextModelWillAddRemoveEvent, NullablePartialNotebookCellInternalMetadata, NullablePartialNotebookCellMetadata, TransientOptions } from '../notebookCommon.js';
 import { INotebookExecutionStateService } from '../notebookExecutionStateService.js';
 import { CellMetadataEdit, MoveCellEdit, SpliceCellsEdit } from './cellEdit.js';
 import { NotebookCellOutputTextModel } from './notebookCellOutputTextModel.js';
@@ -252,6 +253,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageDetectionService private readonly _languageDetectionService: ILanguageDetectionService,
 		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this.transientOptions = options;
@@ -460,12 +462,21 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		);
 	}
 
+	private _shouldTreatOutputsAsTransient(): boolean {
+		return this.transientOptions.transientOutputs || // From serializer
+			!!this.metadata.transientOutputs || // From notebook metadata
+			this._configurationService.getValue(NotebookSetting.transientOutputs, { resource: this.uri }); // From user setting
+	}
+
 	createSnapshot(options: INotebookSnapshotOptions): NotebookData {
 		const transientOptions = options.transientOptions ?? this.transientOptions;
 		const data: NotebookData = {
 			metadata: filter(this.metadata, key => !transientOptions.transientDocumentMetadata[key]),
 			cells: [],
 		};
+
+		// Check if outputs should be transient based on multiple sources
+		const shouldTreatOutputsAsTransient = this._shouldTreatOutputsAsTransient();
 
 		let outputSize = 0;
 		for (const cell of this.cells) {
@@ -489,7 +500,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				}
 			}
 
-			cellData.outputs = !transientOptions.transientOutputs ? cell.outputs : [];
+			cellData.outputs = !shouldTreatOutputsAsTransient ? cell.outputs : [];
 			cellData.metadata = filter(cell.metadata, key => !transientOptions.transientCellMetadata[key]);
 
 			data.cells.push(cellData);
@@ -1210,7 +1221,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				index: this._cells.indexOf(cell),
 				outputs: cell.outputs.map(output => output.asDto()) ?? [],
 				append,
-				transient: this.transientOptions.transientOutputs,
+				transient: this._shouldTreatOutputsAsTransient(),
 			}],
 			versionId: this.versionId,
 			synchronous: true,
@@ -1227,7 +1238,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					outputId: outputId,
 					outputItems: items,
 					append: true,
-					transient: this.transientOptions.transientOutputs
+					transient: this._shouldTreatOutputsAsTransient()
 
 				}],
 				versionId: this.versionId,
@@ -1246,7 +1257,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					outputId: outputId,
 					outputItems: items,
 					append: false,
-					transient: this.transientOptions.transientOutputs
+					transient: this._shouldTreatOutputsAsTransient()
 
 				}],
 				versionId: this.versionId,

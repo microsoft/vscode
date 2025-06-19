@@ -77,8 +77,8 @@ import { NotebookEditorContextKeys } from './viewParts/notebookEditorWidgetConte
 import { NotebookOverviewRuler } from './viewParts/notebookOverviewRuler.js';
 import { ListTopCellToolbar } from './viewParts/notebookTopCellToolbar.js';
 import { NotebookTextModel } from '../common/model/notebookTextModel.js';
-import { CellEditType, CellKind, INotebookFindOptions, NotebookFindScopeType, RENDERER_NOT_AVAILABLE, SelectionStateType } from '../common/notebookCommon.js';
-import { NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_OUTPUT_INPUT_FOCUSED } from '../common/notebookContextKeys.js';
+import { CellEditType, CellKind, INotebookFindOptions, NotebookCellsChangeType, NotebookFindScopeType, NotebookSetting, RENDERER_NOT_AVAILABLE, SelectionStateType } from '../common/notebookCommon.js';
+import { NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_OUTPUT_INPUT_FOCUSED, NOTEBOOK_OUTPUTS_TRANSIENT } from '../common/notebookContextKeys.js';
 import { INotebookExecutionService } from '../common/notebookExecutionService.js';
 import { INotebookKernelService } from '../common/notebookKernelService.js';
 import { NotebookOptions, OutputInnerContainerTopPadding } from './notebookOptions.js';
@@ -220,6 +220,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private readonly _editorEditable: IContextKey<boolean>;
 	private readonly _cursorNavMode: IContextKey<boolean>;
 	private readonly _outputInputFocus: IContextKey<boolean>;
+	private readonly _outputsTransient: IContextKey<boolean>;
 	protected readonly _contributions = new Map<string, INotebookEditorContribution>();
 	private _scrollBeyondLastLine: boolean;
 	private readonly _insetModifyQueueByOutputId = new SequencerByKey<string>();
@@ -439,6 +440,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._outputInputFocus = NOTEBOOK_OUTPUT_INPUT_FOCUSED.bindTo(this.scopedContextKeyService);
 		this._editorEditable = NOTEBOOK_EDITOR_EDITABLE.bindTo(this.scopedContextKeyService);
 		this._cursorNavMode = NOTEBOOK_CURSOR_NAVIGATION_MODE.bindTo(this.scopedContextKeyService);
+		this._outputsTransient = NOTEBOOK_OUTPUTS_TRANSIENT.bindTo(this.scopedContextKeyService);
 		// Never display the native cut/copy context menu items in notebooks
 		new RawContextKey<boolean>(PreventDefaultContextMenuItemsContextKeyName, false).bindTo(this.scopedContextKeyService).set(true);
 
@@ -1275,6 +1277,20 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 	}
 
+	private _updateTransientOutputsContext() {
+		if (!this.viewModel) {
+			return;
+		}
+
+		const notebookDocument = this.viewModel.notebookDocument;
+		const isTransient = 
+			notebookDocument.transientOptions.transientOutputs || // From serializer
+			!!notebookDocument.metadata.transientOutputs || // From notebook metadata
+			this.configurationService.getValue(NotebookSetting.transientOutputs, { resource: notebookDocument.uri }); // From user setting
+
+		this._outputsTransient.set(isTransient);
+	}
+
 	async setOptions(options: INotebookEditorOptions | undefined) {
 		if (options?.isReadOnly !== undefined) {
 			this._readOnly = options?.isReadOnly;
@@ -1502,6 +1518,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._onDidChangeSelection.fire();
 			this.updateSelectedMarkdownPreviews();
 		}));
+
+		// Listen for metadata changes to update transient outputs context
+		this._localStore.add(this.viewModel.notebookDocument.onDidChangeContent(e => {
+			if (e.rawEvents.some(event => event.kind === NotebookCellsChangeType.ChangeDocumentMetadata)) {
+				this._updateTransientOutputsContext();
+			}
+		}));
+
+		// Initial update of transient outputs context
+		this._updateTransientOutputsContext();
 
 		this._localStore.add(this._list.onWillScroll(e => {
 			if (this._webview?.isResolved()) {

@@ -1062,6 +1062,7 @@ export const NotebookSetting = {
 	outputBackupSizeLimit: 'notebook.backup.sizeLimit',
 	multiCursor: 'notebook.multiCursor.enabled',
 	markupFontFamily: 'notebook.markup.fontFamily',
+	transientOutputs: 'notebook.transientOutputs',
 } as const;
 
 export const enum CellStatusbarAlignment {
