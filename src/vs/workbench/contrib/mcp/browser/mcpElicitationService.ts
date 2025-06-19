@@ -6,10 +6,14 @@
 import { Action } from '../../../../base/common/actions.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IMarkdownString, markdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { ChatModel } from '../../chat/common/chatModel.js';
+import { IChatElicitationRequest, IChatService } from '../../chat/common/chatService.js';
+import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { IMcpElicitationService, IMcpServer, IMcpToolCallContext } from '../common/mcpTypes.js';
 import { MCP } from '../common/modelContextProtocol.js';
 
@@ -21,22 +25,53 @@ export class McpElicitationService implements IMcpElicitationService {
 	constructor(
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@IChatService private readonly _chatService: IChatService,
 	) { }
 
 	public elicit(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequest['params'], token: CancellationToken): Promise<MCP.ElicitResult> {
 		const store = new DisposableStore();
 		return new Promise<MCP.ElicitResult>(resolve => {
-			const handle = this._notificationService.notify({
-				message: elicitation.message,
-				source: localize('mcp.elicit.source', 'MCP Server ({0})', server.definition.label),
-				severity: Severity.Info,
-				actions: {
-					primary: [store.add(new Action('mcp.elicit.give', localize('mcp.elicit.give', 'Respond'), undefined, true, () => resolve(this._doElicit(elicitation, token))))],
-					secondary: [store.add(new Action('mcp.elicit.cancel', localize('mcp.elicit.cancel', 'Cancel'), undefined, true, () => resolve({ action: 'decline' })))],
+			const chatModel = context?.chatSessionId && this._chatService.getSession(context.chatSessionId);
+			if (chatModel instanceof ChatModel) {
+				const request = chatModel.getRequests().at(-1);
+				if (request) {
+					const part = new ChatElicitationRequestPart(
+						localize('mcp.elicit.title', 'Request for Input'),
+						elicitation.message,
+						new MarkdownString(markdownCommandLink({
+							id: McpCommandIds.ShowConfiguration,
+							title: localize('msg.subtitle', "{0} (MCP Server)", server.definition.label),
+							arguments: [server.collection.id, server.definition.id],
+						}), { isTrusted: true }),
+						async () => {
+							const p = this._doElicit(elicitation, token);
+							resolve(p);
+							const result = await p;
+							part.state = result.action === 'accept' ? 'accepted' : 'rejected';
+							part.acceptedResult = result.content;
+						},
+						() => {
+							resolve({ action: 'decline' });
+							part.state = 'rejected';
+							return Promise.resolve();
+						}
+					);
+					chatModel.acceptResponseProgress(request, part);
 				}
-			});
-			store.add(handle.onDidClose(() => resolve({ action: 'cancel' })));
-			store.add(token.onCancellationRequested(() => resolve({ action: 'cancel' })));
+			} else {
+				const handle = this._notificationService.notify({
+					message: elicitation.message,
+					source: localize('mcp.elicit.source', 'MCP Server ({0})', server.definition.label),
+					severity: Severity.Info,
+					actions: {
+						primary: [store.add(new Action('mcp.elicit.give', localize('mcp.elicit.give', 'Respond'), undefined, true, () => resolve(this._doElicit(elicitation, token))))],
+						secondary: [store.add(new Action('mcp.elicit.cancel', localize('mcp.elicit.cancel', 'Cancel'), undefined, true, () => resolve({ action: 'decline' })))],
+					}
+				});
+				store.add(handle.onDidClose(() => resolve({ action: 'cancel' })));
+				store.add(token.onCancellationRequested(() => resolve({ action: 'cancel' })));
+			}
+
 		}).finally(() => store.dispose());
 	}
 
@@ -165,14 +200,21 @@ export class McpElicitationService implements IMcpElicitationService {
 				const validation = this._validateInput(quickPick.value, schema);
 				quickPick.validationMessage = validation.message;
 				if (validation.isValid) {
-					items.push({ id: '$current', label: `➤ ${quickPick.value}` });
+					items.push({ id: '$current', label: `\u27A4 ${quickPick.value}` });
 				}
 			} else {
 				quickPick.validationMessage = '';
 			}
-			if (!required) {
-				items.push(noneItem);
+
+			if (quickPick.validationMessage) {
+				quickPick.severity = Severity.Warning;
+			} else {
+				quickPick.severity = Severity.Ignore;
+				if (!required) {
+					items.push(noneItem);
+				}
 			}
+
 			quickPick.items = items;
 		};
 
@@ -262,7 +304,7 @@ export class McpElicitationService implements IMcpElicitationService {
 	}
 
 	private _validateNumber(value: string, schema: MCP.NumberSchema): { isValid: boolean; parsedValue?: number; message?: string } {
-		const parsed = schema.type === 'integer' ? parseInt(value, 10) : parseFloat(value);
+		const parsed = Number(value);
 		if (isNaN(parsed)) {
 			return { isValid: false, message: localize('mcp.elicit.validation.number', 'Please enter a valid number') };
 		}
@@ -276,5 +318,29 @@ export class McpElicitationService implements IMcpElicitationService {
 			return { isValid: false, message: localize('mcp.elicit.validation.maximum', 'Maximum value is {0}', schema.maximum) };
 		}
 		return { isValid: true, parsedValue: parsed };
+	}
+}
+
+class ChatElicitationRequestPart implements IChatElicitationRequest {
+	public readonly kind = 'elicitation';
+	public state: 'pending' | 'accepted' | 'rejected' = 'pending';
+	public acceptedResult?: Record<string, unknown>;
+
+	constructor(
+		public readonly title: string | IMarkdownString,
+		public readonly message: string | IMarkdownString,
+		public readonly originMessage: string | IMarkdownString,
+		public readonly accept: () => Promise<void>,
+		public readonly reject: () => Promise<void>,
+	) { }
+
+	public toJSON() {
+		return {
+			kind: 'elicitation',
+			title: this.title,
+			message: this.message,
+			state: this.state === 'pending' ? 'rejected' : this.state,
+			acceptedResult: this.acceptedResult,
+		} satisfies Partial<IChatElicitationRequest>;
 	}
 }
