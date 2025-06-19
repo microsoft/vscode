@@ -39,11 +39,6 @@ body {
 
 a {
 	color: var(--vscode-textLink-foreground);
-	text-decoration: none;
-}
-
-a:hover {
-	text-decoration: underline;
 }
 
 .container {
@@ -52,11 +47,6 @@ a:hover {
 	align-items: center;
 	justify-content: center;
 	text-align: center;
-}
-
-.content {
-	max-width: 500px;
-	padding: 40px 20px;
 }
 
 .icon-container {
