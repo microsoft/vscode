@@ -7466,6 +7466,8 @@ declare namespace monaco.languages {
 	export type LifetimeSummary = {
 		requestUuid: string;
 		shown: boolean;
+		shownDuration: number;
+		shownDurationUncollapsed: number;
 		editorType: string;
 		viewKind: string | undefined;
 		error: string | undefined;

@@ -40,3 +40,15 @@ export interface IInlineEditModel {
 	jump(): void;
 	abort(reason: string): void;
 }
+
+export enum InlineCompletionViewKind {
+	GhostText = 'ghostText',
+	Custom = 'custom',
+	SideBySide = 'sideBySide',
+	Deletion = 'deletion',
+	InsertionInline = 'insertionInline',
+	InsertionMultiLine = 'insertionMultiLine',
+	WordReplacements = 'wordReplacements',
+	LineReplacement = 'lineReplacement',
+	Collapsed = 'collapsed'
+}

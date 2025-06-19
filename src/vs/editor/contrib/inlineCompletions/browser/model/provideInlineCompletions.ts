@@ -26,6 +26,7 @@ import { getReadonlyEmptyArray } from '../utils.js';
 import { groupByMap } from '../../../../../base/common/collections.js';
 import { DirectedGraph } from './graph.js';
 import { CachedFunction } from '../../../../../base/common/cache.js';
+import { InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
 
 export type InlineCompletionContextWithoutUuid = Omit<InlineCompletionContext, 'requestUuid'>;
 
@@ -34,7 +35,7 @@ export async function provideInlineCompletions(
 	position: Position,
 	model: ITextModel,
 	context: InlineCompletionContextWithoutUuid,
-	editorType: string,
+	editorType: InlineCompletionEditorType,
 	baseToken: CancellationToken = CancellationToken.None,
 	languageConfigurationService?: ILanguageConfigurationService,
 ): Promise<InlineCompletionProviderResult> {
@@ -197,7 +198,7 @@ function createInlineCompletionItem(
 	textModel: ITextModel,
 	languageConfigurationService: ILanguageConfigurationService | undefined,
 	context: InlineCompletionContext,
-	editorType: string,
+	editorType: InlineCompletionEditorType,
 ): InlineSuggestData {
 	let insertText: string;
 	let snippetInfo: SnippetInfo | undefined;
@@ -276,13 +277,18 @@ function createInlineCompletionItem(
 }
 
 export type InlineSuggestViewData = {
-	editorType: string;
-	viewKind?: string;
+	editorType: InlineCompletionEditorType;
+	viewKind?: InlineCompletionViewKind;
 	error?: string;
 };
 
 export class InlineSuggestData {
 	private _didShow = false;
+	private _showStartTime: number | undefined = undefined;
+	private _shownDuration: number = 0;
+	private _showUncollapsedStartTime: number | undefined = undefined;
+	private _showUncollapsedDuration: number = 0;
+
 	private _viewData: InlineSuggestViewData;
 	private _didReportEndOfLife = false;
 	private _lastSetEndOfLifeReason: InlineCompletionEndOfLifeReason | undefined = undefined;
@@ -299,7 +305,7 @@ export class InlineSuggestData {
 		public readonly context: InlineCompletionContext,
 		public readonly isInlineEdit: boolean,
 
-		editorType: string,
+		editorType: InlineCompletionEditorType,
 	) {
 		this._viewData = { editorType };
 	}
@@ -310,7 +316,9 @@ export class InlineSuggestData {
 		return new TextReplacement(this.range, this.insertText);
 	}
 
-	public async reportInlineEditShown(commandService: ICommandService, updatedInsertText: string, viewKind: string): Promise<void> {
+	public async reportInlineEditShown(commandService: ICommandService, updatedInsertText: string, viewKind: InlineCompletionViewKind): Promise<void> {
+		this.updateShownDuration(viewKind);
+
 		if (this._didShow) {
 			return;
 		}
@@ -343,6 +351,7 @@ export class InlineSuggestData {
 			return;
 		}
 		this._didReportEndOfLife = true;
+		this.reportInlineEditHidden();
 
 		if (!reason) {
 			reason = this._lastSetEndOfLifeReason ?? { kind: InlineCompletionEndOfLifeReasonKind.Ignored, userTypingDisagreed: false, supersededBy: undefined };
@@ -356,9 +365,11 @@ export class InlineSuggestData {
 			const summary: LifetimeSummary = {
 				requestUuid: this.context.requestUuid,
 				shown: this._didShow,
+				shownDuration: this._shownDuration,
+				shownDurationUncollapsed: this._showUncollapsedDuration,
 				editorType: this._viewData.editorType,
 				viewKind: this._viewData.viewKind,
-				error: this._viewData.error
+				error: this._viewData.error,
 			};
 			this.source.provider.handleEndOfLifetime(this.source.inlineSuggestions, this.sourceInlineCompletion, reason, summary);
 		}
@@ -376,7 +387,39 @@ export class InlineSuggestData {
 	 * Sets the end of life reason, but does not send the event to the provider yet.
 	*/
 	public setEndOfLifeReason(reason: InlineCompletionEndOfLifeReason): void {
+		this.reportInlineEditHidden();
 		this._lastSetEndOfLifeReason = reason;
+	}
+
+	private updateShownDuration(viewKind: InlineCompletionViewKind) {
+		const timeNow = Date.now();
+		if (!this._showStartTime) {
+			this._showStartTime = timeNow;
+		}
+
+		const isCollapsed = viewKind === InlineCompletionViewKind.Collapsed;
+		if (!isCollapsed && this._showUncollapsedStartTime === undefined) {
+			this._showUncollapsedStartTime = timeNow;
+		}
+
+		if (isCollapsed && this._showUncollapsedStartTime !== undefined) {
+			this._showUncollapsedDuration += timeNow - this._showUncollapsedStartTime;
+		}
+	}
+
+	private reportInlineEditHidden() {
+		if (this._showStartTime === undefined) {
+			return;
+		}
+		const timeNow = Date.now();
+		this._shownDuration += timeNow - this._showStartTime;
+		this._showStartTime = undefined;
+
+		if (this._showUncollapsedStartTime === undefined) {
+			return;
+		}
+		this._showUncollapsedDuration += timeNow - this._showUncollapsedStartTime;
+		this._showUncollapsedStartTime = undefined;
 	}
 }
 
@@ -389,6 +432,11 @@ export interface SnippetInfo {
 export interface IDisplayLocation {
 	range: Range;
 	label: string;
+}
+
+export enum InlineCompletionEditorType {
+	TextEditor = 'textEditor',
+	DiffEditor = 'diffEditor'
 }
 
 /**
