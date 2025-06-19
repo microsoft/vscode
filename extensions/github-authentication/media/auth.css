@@ -61,16 +61,25 @@ a:hover, a:focus {
 @keyframes rise-and-glow {
 	0% {
 		opacity: 0;
-		transform: translateY(10px);
+		transform: translateY(15px) scale(0.95);
 		filter: drop-shadow(0 0 0 rgba(0, 122, 204, 0));
 	}
-	60% {
-		opacity: 1;
-		transform: translateY(0);
+
+	50% {
+		opacity: 0.8;
+		transform: translateY(-2px) scale(1.02);
+		filter: drop-shadow(0 4px 12px rgba(0, 122, 204, 0.15));
 	}
+
+	70% {
+		opacity: 1;
+		transform: translateY(1px) scale(0.99);
+		filter: drop-shadow(0 6px 18px rgba(0, 122, 204, 0.25));
+	}
+
 	100% {
 		opacity: 1;
-		transform: translateY(0);
+		transform: translateY(0) scale(1);
 		filter: drop-shadow(0 8px 24px rgba(0, 122, 204, 0.3));
 	}
 }
@@ -78,7 +87,7 @@ a:hover, a:focus {
 .vscode-icon {
 	width: 128px;
 	height: 128px;
-	animation: rise-and-glow 1.2s ease-in-out forwards;
+	animation: rise-and-glow 1.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
 }
 
 .title {
