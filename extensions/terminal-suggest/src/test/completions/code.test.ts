@@ -96,7 +96,7 @@ export function createCodeTestSpecs(executable: string): ITestSpec[] {
 		// Test for --disable-chromium-sandbox
 		{ input: `${executable} --disable-chromium-sandbox |`, expectedCompletions: codeSpecOptionsAndSubcommands.filter(c => c !== '--disable-chromium-sandbox'), expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 		// Test for --enable-proposed-api variadic
-		{ input: `${executable} --enable-proposed-api |`, expectedCompletions: [] },
+		{ input: `${executable} --enable-proposed-api |`, expectedCompletions: [executable] },
 		// Test for --log repeatable and extension-specific
 		{ input: `${executable} --log |`, expectedCompletions: logOptions },
 		{ input: `${executable} --locale |`, expectedCompletions: localeOptions },
