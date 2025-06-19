@@ -228,9 +228,10 @@ suite('TerminalCompletionModel', function () {
 				createItem({ label: ':' }),
 				createItem({ label: 'c' }),
 				createItem({ label: '[' }),
+				createItem({ label: '...' }),
 			];
 			model = new TerminalCompletionModel(items, new LineContext('', 0));
-			assertItems(model, ['a', 'b', 'c', ',', ';', ':', '[']);
+			assertItems(model, ['a', 'b', 'c', ',', ';', ':', '[', '...']);
 		});
 	});
 
