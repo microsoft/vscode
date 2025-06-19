@@ -150,7 +150,7 @@ export class PathExecutableCache implements vscode.Disposable {
 				result.add({
 					label: file,
 					documentation: formattedPath,
-					kind: vscode.TerminalCompletionItemKind.Method
+					kind: kind ?? vscode.TerminalCompletionItemKind.Method
 				});
 				labels.add(file);
 			}
