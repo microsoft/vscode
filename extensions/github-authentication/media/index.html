@@ -11,18 +11,20 @@
 
 <body>
 	<div class="container">
-		<div class="icon-container">
-			<img src="code-icon.svg" class="vscode-icon">
-		</div>
-		<h1 class="title">Launching in <span class="app-name"></span></h1>
-		<div class="message">
-			<div class="success-message">
-				<p class="subtitle">You will be redirected in a few moments.</p>
-				<p class="fallback-text">If nothing happens, <a href="#" id="fallback-link">open this link in your browser</a>.</p>
+		<div class="content">
+			<div class="icon-container">
+				<img src="code-icon.svg" class="vscode-icon">
 			</div>
-			<div class="error-message">
-				<p class="error-title">An error occurred while signing in:</p>
-				<div class="error-text"></div>
+			<h1 class="title">Launching in <span class="app-name"></span></h1>
+			<div class="message">
+				<div class="success-message">
+					<p class="subtitle">You will be redirected in a few moments.</p>
+					<p class="detail">If nothing happens, <a href="#" id="fallback-link">open this link in your browser</a>.</p>
+				</div>
+				<div class="error-message">
+					<p class="subtitle">An error occurred while signing in:</p>
+					<div class="detail"></div>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -34,7 +36,7 @@
 		const error = urlParams.get('error');
 		const redirectUri = urlParams.get('redirect_uri');
 		if (error) {
-			document.querySelector('.error-text').textContent = error;
+			document.querySelector('.error-message > .detail').textContent = error;
 			document.querySelector('body').classList.add('error');
 		} else if (redirectUri) {
 			// Set up the fallback link
