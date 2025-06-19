@@ -255,7 +255,7 @@ export const extensionManagementOptions = (cliName: string): Fig.Option[] => [
 		args: {
 			name: 'extension-id',
 			generators: createCodeGenerators(cliName),
-			isVariadic: true
+			isVariadic: true,
 		}
 	},
 ];
@@ -361,7 +361,7 @@ export const troubleshootingOptions = (cliName: string): Fig.Option[] => [
 
 export function createCodeGenerators(cliName: string): Fig.Generator {
 	return {
-		script: [cliName, '--list-extensions', '--show-versions'],
+		script: [cliName, '--list-extensions', '--show-versions', '--enable-proposed-api'],
 		postProcess: parseInstalledExtensions
 	};
 }
