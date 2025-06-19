@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -21,11 +22,17 @@ registerAction2(class ToggleTransientOutputsAction extends Action2 {
 			id: TOGGLE_NOTEBOOK_TRANSIENT_OUTPUTS,
 			title: localize2('notebook.toggleTransientOutputs', "Toggle Transient Outputs"),
 			f1: true,
-			precondition: NOTEBOOK_EDITOR_FOCUSED,
+			precondition: ContextKeyExpr.and(
+				NOTEBOOK_EDITOR_FOCUSED,
+				ContextKeyExpr.equals('config.notebook.transientOutputs', false) // Only show when global setting is false
+			),
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			menu: {
 				id: MenuId.NotebookToolbar,
-				when: NOTEBOOK_EDITOR_FOCUSED,
+				when: ContextKeyExpr.and(
+					NOTEBOOK_EDITOR_FOCUSED,
+					ContextKeyExpr.equals('config.notebook.transientOutputs', false) // Only show when global setting is false
+				),
 				group: 'notebook/cell/execute'
 			}
 		});
@@ -54,5 +61,26 @@ registerAction2(class ToggleTransientOutputsAction extends Action2 {
 			editType: CellEditType.DocumentMetadata,
 			metadata: newMetadata
 		}], true, undefined, () => undefined, undefined, true);
+	}
+});
+
+// Status indicator for when outputs are transient
+registerAction2(class TransientOutputsIndicatorAction extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.transientOutputsIndicator',
+			title: localize2('notebook.transientOutputsIndicator', "Transient Outputs Enabled"),
+			icon: Codicon.saveAll,
+			menu: {
+				id: MenuId.NotebookToolbar,
+				when: NOTEBOOK_OUTPUTS_TRANSIENT,
+				group: 'status',
+				order: 100
+			}
+		});
+	}
+
+	async run(): Promise<void> {
+		// This is a status indicator only, no action needed
 	}
 });
