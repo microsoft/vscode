@@ -99,8 +99,8 @@ abstract class InlineSuggestionItemBase {
 		this.source.removeRef();
 	}
 
-	public reportInlineEditShown(commandService: ICommandService) {
-		this._data.reportInlineEditShown(commandService, this.insertText);
+	public reportInlineEditShown(commandService: ICommandService, viewKind: string) {
+		this._data.reportInlineEditShown(commandService, this.insertText, viewKind);
 	}
 
 	public reportPartialAccept(acceptedCharacters: number, info: PartialAcceptInfo) {
@@ -113,6 +113,10 @@ abstract class InlineSuggestionItemBase {
 
 	public setEndOfLifeReason(reason: InlineCompletionEndOfLifeReason): void {
 		this._data.setEndOfLifeReason(reason);
+	}
+
+	public reportInlineEditError(reason: string): void {
+		this._data.reportInlineEditError(reason);
 	}
 
 	/**

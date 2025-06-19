@@ -76,8 +76,6 @@ export class InlineEditsView extends Disposable {
 				return undefined;
 			}
 
-			model.handleInlineEditShown();
-
 			const inlineEdit = model.inlineEdit;
 			let mappings = RangeMapping.fromEdit(inlineEdit.edit);
 			let newText = inlineEdit.edit.apply(inlineEdit.originalText);
@@ -88,6 +86,8 @@ export class InlineEditsView extends Disposable {
 				model.abort(`unable to determine view: tried to render ${this._previousView?.view}`);
 				return undefined;
 			}
+
+			model.handleInlineEditShown(state.kind);
 
 			if (state.kind === 'sideBySide') {
 				const indentationAdjustmentEdit = createReindentEdit(newText, inlineEdit.modifiedLineRange);
