@@ -153,6 +153,12 @@ export interface IAuthenticationService {
 	isAuthenticationProviderRegistered(id: string): boolean;
 
 	/**
+	 * Checks if an authentication provider is dynamic
+	 * @param id The id of the provider to check
+	 */
+	isDynamicAuthenticationProvider(id: string): boolean;
+
+	/**
 	 * Registers an authentication provider
 	 * @param id The id of the provider
 	 * @param provider The implementation of the provider
