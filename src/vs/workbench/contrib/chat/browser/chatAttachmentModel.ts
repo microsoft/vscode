@@ -10,10 +10,9 @@ import { IRange } from '../../../../editor/common/core/range.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IChatRequestFileEntry, IChatRequestVariableEntry, isPromptFileVariableEntry } from '../common/chatVariableEntries.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { resolveImageEditorAttachContext } from './chatAttachmentResolve.js';
+import { IChatAttachmentResolveService } from './chatAttachmentResolveService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { equals } from '../../../../base/common/objects.js';
 import { Iterable } from '../../../../base/common/iterator.js';
@@ -33,8 +32,8 @@ export class ChatAttachmentModel extends Disposable {
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
-		@IDialogService private readonly dialogService: IDialogService,
 		@ISharedWebContentExtractorService private readonly webContentExtractorService: ISharedWebContentExtractorService,
+		@IChatAttachmentResolveService private readonly chatAttachmentResolveService: IChatAttachmentResolveService
 	) {
 		super();
 	}
@@ -152,11 +151,11 @@ export class ChatAttachmentModel extends Disposable {
 	// Gets an image variable for a given URI, which may be a file or a web URL
 	async asImageVariableEntry(uri: URI): Promise<IChatRequestVariableEntry | undefined> {
 		if (uri.scheme === Schemas.file && await this.fileService.canHandleResource(uri)) {
-			return await resolveImageEditorAttachContext(this.fileService, this.dialogService, uri);
+			return await this.chatAttachmentResolveService.resolveImageEditorAttachContext(uri);
 		} else if (uri.scheme === Schemas.http || uri.scheme === Schemas.https) {
 			const extractedImages = await this.webContentExtractorService.readImage(uri, CancellationToken.None);
 			if (extractedImages) {
-				return await resolveImageEditorAttachContext(this.fileService, this.dialogService, uri, extractedImages);
+				return await this.chatAttachmentResolveService.resolveImageEditorAttachContext(uri, extractedImages);
 			}
 		}
 

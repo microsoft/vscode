@@ -11,17 +11,18 @@ import { observableCodeEditor } from '../../../../../browser/observableCodeEdito
 import { LineRange } from '../../../../../common/core/ranges/lineRange.js';
 import { TextEdit } from '../../../../../common/core/edits/textEdit.js';
 import { StringText } from '../../../../../common/core/text/abstractText.js';
-import { Command, InlineCompletionDisplayLocation } from '../../../../../common/languages.js';
+import { Command, InlineCompletionCommand, InlineCompletionDisplayLocation } from '../../../../../common/languages.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { InlineCompletionItem } from '../../model/inlineSuggestionItem.js';
-import { IInlineEditHost, IInlineEditModel, InlineEditTabAction } from './inlineEditsViewInterface.js';
+import { IInlineEditHost, IInlineEditModel, InlineCompletionViewKind, InlineEditTabAction } from './inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
 
 export class InlineEditModel implements IInlineEditModel {
 
 	readonly action: Command | undefined;
 	readonly displayName: string;
-	readonly extensionCommands: Command[];
+	readonly extensionCommands: InlineCompletionCommand[];
+	readonly isInDiffEditor: boolean;
 
 	readonly displayLocation: InlineCompletionDisplayLocation | undefined;
 	readonly showCollapsed: IObservable<boolean>;
@@ -34,6 +35,7 @@ export class InlineEditModel implements IInlineEditModel {
 		this.action = this.inlineEdit.inlineCompletion.action;
 		this.displayName = this.inlineEdit.inlineCompletion.source.provider.displayName ?? localize('inlineEdit', "Inline Edit");
 		this.extensionCommands = this.inlineEdit.inlineCompletion.source.inlineSuggestions.commands ?? [];
+		this.isInDiffEditor = this._model.isInDiffEditor;
 
 		this.displayLocation = this.inlineEdit.inlineCompletion.displayLocation;
 		this.showCollapsed = this._model.showCollapsed;
@@ -48,12 +50,13 @@ export class InlineEditModel implements IInlineEditModel {
 	}
 
 	abort(reason: string) {
-		console.error(reason); // TODO: add logs/telemetry
+		console.error(reason);
+		this.inlineEdit.inlineCompletion.reportInlineEditError(reason);
 		this._model.stop();
 	}
 
-	handleInlineEditShown() {
-		this._model.handleInlineSuggestionShown(this.inlineEdit.inlineCompletion);
+	handleInlineEditShown(viewKind: InlineCompletionViewKind) {
+		this._model.handleInlineSuggestionShown(this.inlineEdit.inlineCompletion, viewKind);
 	}
 }
 

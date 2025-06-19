@@ -115,7 +115,7 @@
 		"type": "label",
 		"name": "*duplicate",
 		"action": "close",
-		"reason": "duplicate",
+		"reason": "not_planned",
 		"comment": "Thanks for creating this issue! We figured it's covering the same as another one we already have. Thus, we closed this one as a duplicate. You can search for [similar existing issues](${duplicateQuery}). See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nHappy Coding!"
 	},
 	{

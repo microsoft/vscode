@@ -6,7 +6,7 @@
 import { IMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { IObservable } from '../../../../../../base/common/observable.js';
-import { Command, InlineCompletionDisplayLocation } from '../../../../../common/languages.js';
+import { Command, InlineCompletionCommand, InlineCompletionDisplayLocation } from '../../../../../common/languages.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
 
 export enum InlineEditTabAction {
@@ -28,14 +28,27 @@ export interface IInlineEditHost {
 export interface IInlineEditModel {
 	displayName: string;
 	action: Command | undefined;
-	extensionCommands: Command[];
+	extensionCommands: InlineCompletionCommand[];
+	isInDiffEditor: boolean;
 	inlineEdit: InlineEditWithChanges;
 	tabAction: IObservable<InlineEditTabAction>;
 	showCollapsed: IObservable<boolean>;
 	displayLocation: InlineCompletionDisplayLocation | undefined;
 
-	handleInlineEditShown(): void;
+	handleInlineEditShown(viewKind: string): void;
 	accept(): void;
 	jump(): void;
 	abort(reason: string): void;
+}
+
+export enum InlineCompletionViewKind {
+	GhostText = 'ghostText',
+	Custom = 'custom',
+	SideBySide = 'sideBySide',
+	Deletion = 'deletion',
+	InsertionInline = 'insertionInline',
+	InsertionMultiLine = 'insertionMultiLine',
+	WordReplacements = 'wordReplacements',
+	LineReplacement = 'lineReplacement',
+	Collapsed = 'collapsed'
 }

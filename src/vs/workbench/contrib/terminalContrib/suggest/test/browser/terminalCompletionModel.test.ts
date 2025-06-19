@@ -218,6 +218,34 @@ suite('TerminalCompletionModel', function () {
 		});
 	});
 
+	suite('Punctuation', () => {
+		test('punctuation chars should be below other methods', function () {
+			const items = [
+				createItem({ label: 'a' }),
+				createItem({ label: 'b' }),
+				createItem({ label: ',' }),
+				createItem({ label: ';' }),
+				createItem({ label: ':' }),
+				createItem({ label: 'c' }),
+				createItem({ label: '[' }),
+				createItem({ label: '...' }),
+			];
+			model = new TerminalCompletionModel(items, new LineContext('', 0));
+			assertItems(model, ['a', 'b', 'c', ',', ';', ':', '[', '...']);
+		});
+		test('punctuation chars should be below other files', function () {
+			const items = [
+				createItem({ label: '..' }),
+				createItem({ label: '...' }),
+				createItem({ label: '../' }),
+				createItem({ label: './a/' }),
+				createItem({ label: './b/' }),
+			];
+			model = new TerminalCompletionModel(items, new LineContext('', 0));
+			assertItems(model, ['./a/', './b/', '..', '...', '../']);
+		});
+	});
+
 	suite('inline completions', () => {
 		function createItems(kind: TerminalCompletionItemKind.InlineSuggestion | TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop) {
 			return [

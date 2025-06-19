@@ -12,7 +12,7 @@ import { IBufferMarkCapability, ICommandDetectionCapability, ICwdDetectionCapabi
 import { PartialCommandDetectionCapability } from '../capabilities/partialCommandDetectionCapability.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { BufferMarkCapability } from '../capabilities/bufferMarkCapability.js';
 import type { ITerminalAddon, Terminal } from '@xterm/headless';
 import { URI } from '../../../../base/common/uri.js';
@@ -342,6 +342,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	constructor(
 		private _nonce: string,
 		private readonly _disableTelemetry: boolean | undefined,
+		private _onDidExecuteText: Event<void> | undefined,
 		private readonly _telemetryService: ITelemetryService | undefined,
 		private readonly _logService: ILogService
 	) {
@@ -359,7 +360,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 
 	activate(xterm: Terminal) {
 		this._terminal = xterm;
-		this.capabilities.add(TerminalCapability.PartialCommandDetection, this._register(new PartialCommandDetectionCapability(this._terminal)));
+		this.capabilities.add(TerminalCapability.PartialCommandDetection, this._register(new PartialCommandDetectionCapability(this._terminal, this._onDidExecuteText)));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => this._handleVSCodeSequence(data)));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.ITerm, data => this._doHandleITermSequence(data)));
 		this._commonProtocolDisposables.push(

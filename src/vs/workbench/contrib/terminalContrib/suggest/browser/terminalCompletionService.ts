@@ -18,6 +18,7 @@ import { env as processEnv } from '../../../../../base/common/process.js';
 import type { IProcessEnvironment } from '../../../../../base/common/platform.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { gitBashToWindowsPath } from './terminalGitBashHelpers.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
 
@@ -193,7 +194,13 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (completions.resourceRequestConfig) {
 				const resourceCompletions = await this.resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition, provider.id, capabilities, shellType);
 				if (resourceCompletions) {
-					completionItems.push(...resourceCompletions);
+					for (const item of resourceCompletions) {
+						const labels = new Set(completionItems.map(c => c.label));
+						// Ensure no duplicates such as .
+						if (!labels.has(item.label)) {
+							completionItems.push(item);
+						}
+					}
 				}
 			}
 			return completionItems;
@@ -349,7 +356,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					break;
 				}
 			}
-
 			resourceCompletions.push({
 				label,
 				provider,
@@ -367,6 +373,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// - (tilde)    `cd ~/src/`  -> `cd ~/src/folder1/`, ...
 		for (const child of stat.children) {
 			let kind: TerminalCompletionItemKind | undefined;
+			let detail: string | undefined = undefined;
 			if (foldersRequested && child.isDirectory) {
 				if (child.isSymbolicLink) {
 					kind = TerminalCompletionItemKind.SymbolicLinkFolder;
@@ -403,11 +410,23 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				}
 			}
 
+			// Try to resolve symlink target for symbolic links
+			if (child.isSymbolicLink) {
+				try {
+					const realpath = await this._fileService.realpath(child.resource);
+					if (realpath && !isEqual(child.resource, realpath)) {
+						detail = `${getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind, shellType)} -> ${getFriendlyPath(realpath, resourceRequestConfig.pathSeparator, kind, shellType)}`;
+					}
+				} catch (error) {
+					// Ignore errors resolving symlink targets - they may be dangling links
+				}
+			}
+
 			resourceCompletions.push({
 				label,
 				provider,
 				kind,
-				detail: getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind, shellType),
+				detail: detail ?? getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind, shellType),
 				replacementIndex: cursorPosition - lastWord.length,
 				replacementLength: lastWord.length
 			});
