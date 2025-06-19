@@ -52,13 +52,9 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		return 1;
 	}
 
-	// Sort by underscore penalty (eg. `__init__/` should be penalized)
-	if (a.underscorePenalty !== b.underscorePenalty) {
-		return a.underscorePenalty - b.underscorePenalty;
-	}
-
 	if (a.punctuationPenalty !== b.punctuationPenalty) {
-		// ; should appear after alias for example
+		// Sort by underscore penalty (eg. `__init__/` should be penalized)
+		// Sort by punctuation penalty (eg. `;` should be penalized)
 		return a.punctuationPenalty - b.punctuationPenalty;
 	}
 

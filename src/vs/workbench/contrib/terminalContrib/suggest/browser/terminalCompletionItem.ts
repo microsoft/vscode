@@ -86,17 +86,13 @@ export class TerminalCompletionItem extends SimpleCompletionItem {
 	labelLowNormalizedPath: string;
 
 	/**
-	 * A penalty that applies to files or folders starting with the underscore character.
-	 */
-	underscorePenalty: 0 | 1 = 0;
-
-	/**
 	 * The file extension part from {@link labelLow}.
 	 */
 	fileExtLow: string = '';
 
 	/**
-	 * A penalty that applies to completions that are comprised of only punctuation characters.
+	 * A penalty that applies to completions that are comprised of only punctuation characters or
+	 * that applies to files or folders starting with the underscore character.
 	 */
 	punctuationPenalty: 0 | 1 = 0;
 
@@ -128,12 +124,10 @@ export class TerminalCompletionItem extends SimpleCompletionItem {
 			if (completion.kind === TerminalCompletionItemKind.Folder) {
 				this.labelLowNormalizedPath = this.labelLowNormalizedPath.replace(/\/$/, '');
 			}
-			this.underscorePenalty = basename(this.labelLowNormalizedPath).startsWith('_') ? 1 : 0;
+			this.punctuationPenalty = isPunctuation(this.labelLowExcludeFileExt) ? 1 : 0;
 		}
 
-		if (isPunctuation(this.labelLowExcludeFileExt)) {
-			this.punctuationPenalty = 1;
-		}
+		this.punctuationPenalty = !this.punctuationPenalty ? isPunctuation(this.labelLowExcludeFileExt) ? 1 : 0 : this.punctuationPenalty;
 	}
 }
 
@@ -142,5 +136,5 @@ function isFile(completion: ITerminalCompletion): boolean {
 }
 
 function isPunctuation(label: string): boolean {
-	return /^[\[\]\{\}\(\)\.,;:!?\/\\\-_@#~*%^=$]+$/.test(label);
+	return basename(label).startsWith('_') || /^[\[\]\{\}\(\)\.,;:!?\/\\\-_@#~*%^=$]+$/.test(label);
 }
