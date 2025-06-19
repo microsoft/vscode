@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, timeout } from '../../../base/common/async.js';
+import { CancelablePromise, createCancelablePromise, retry, timeout } from '../../../base/common/async.js';
+import { VSBufferReadableStream } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -18,13 +19,12 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { IHeaders, IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
+import { getServiceMachineId } from '../../externalServices/common/serviceMachineId.js';
 import { IFileService } from '../../files/common/files.js';
 import { IProductService } from '../../product/common/productService.js';
 import { asJson, asText, asTextOrError, hasNoContent, IRequestService, isSuccess, isSuccess as isSuccessContext } from '../../request/common/request.js';
-import { getServiceMachineId } from '../../externalServices/common/serviceMachineId.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { HEADER_EXECUTION_ID, HEADER_OPERATION_ID, IAuthenticationProvider, IResourceRefHandle, IUserData, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncStore, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, ServerResource, SYNC_SERVICE_URL_TYPE, UserDataSyncErrorCode, UserDataSyncStoreError, UserDataSyncStoreType } from './userDataSync.js';
-import { VSBufferReadableStream } from '../../../base/common/buffer.js';
 
 const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 const SYNC_PREVIOUS_STORE = 'sync.previous.store';
@@ -33,6 +33,8 @@ const USER_SESSION_ID_KEY = 'sync.user-session-id';
 const MACHINE_SESSION_ID_KEY = 'sync.machine-session-id';
 const REQUEST_SESSION_LIMIT = 100;
 const REQUEST_SESSION_INTERVAL = 1000 * 60 * 5; /* 5 minutes */
+const REQUEST_RETRY_COUNT = 3;
+const REQUEST_RETRY_DELAY_MS = 100;
 
 type UserDataSyncStore = IUserDataSyncStore & { defaultType: UserDataSyncStoreType };
 
@@ -344,7 +346,9 @@ export class UserDataSyncStoreClient extends Disposable {
 			headers['If-None-Match'] = oldValue.ref;
 		}
 
-		const context = await this.request(url, { type: 'GET', headers }, [304], CancellationToken.None);
+		const context = await retry(() => {
+			return this.request(url, { type: 'GET', headers }, [304], CancellationToken.None);
+		}, REQUEST_RETRY_DELAY_MS, REQUEST_RETRY_COUNT);
 
 		let userData: IUserData | null = null;
 		if (context.res.statusCode === 304) {
