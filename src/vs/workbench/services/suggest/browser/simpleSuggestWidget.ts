@@ -28,7 +28,7 @@ import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { editorSuggestWidgetSelectedBackground } from '../../../../editor/contrib/suggest/browser/suggestWidget.js';
 import { getListStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { activeContrastBorder, focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
+import { activeContrastBorder, focusBorder, listFocusForeground } from '../../../../platform/theme/common/colorRegistry.js';
 
 const $ = dom.$;
 
@@ -930,7 +930,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 
 function getListStylesWithMode(partial?: boolean): IListStyles {
 	if (partial) {
-		return getListStyles({ listInactiveFocusOutline: focusBorder });
+		return getListStyles({ listInactiveFocusOutline: focusBorder, listInactiveFocusForeground: listFocusForeground });
 	} else {
 		return getListStyles({ listInactiveFocusBackground: editorSuggestWidgetSelectedBackground, listInactiveFocusOutline: activeContrastBorder });
 	}
