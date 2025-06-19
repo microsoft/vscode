@@ -1526,6 +1526,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 		}));
 
+		// Listen for configuration changes to update transient outputs context
+		this._localStore.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(NotebookSetting.transientOutputs)) {
+				this._updateTransientOutputsContext();
+			}
+		}));
+
 		// Initial update of transient outputs context
 		this._updateTransientOutputsContext();
 
