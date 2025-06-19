@@ -138,8 +138,10 @@ declare module 'vscode' {
 
 	export enum InlineCompletionsDisposeReasonKind {
 		Other = 0,
-		tokenCancellation = 1,
-		LostRace = 2,
+		Empty = 1,
+		TokenCancellation = 2,
+		LostRace = 3,
+		NotTaken = 4,
 	}
 
 	export type InlineCompletionsDisposeReason = { kind: InlineCompletionsDisposeReasonKind };

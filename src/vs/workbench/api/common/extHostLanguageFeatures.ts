@@ -1455,8 +1455,14 @@ class InlineCompletionAdapter {
 					case 'lostRace':
 						return { kind: InlineCompletionsDisposeReasonKind.LostRace };
 					case 'tokenCancellation':
-						return { kind: InlineCompletionsDisposeReasonKind.tokenCancellation };
+						return { kind: InlineCompletionsDisposeReasonKind.TokenCancellation };
 					case 'other':
+						return { kind: InlineCompletionsDisposeReasonKind.Other };
+					case 'empty':
+						return { kind: InlineCompletionsDisposeReasonKind.Empty };
+					case 'notTaken':
+						return { kind: InlineCompletionsDisposeReasonKind.NotTaken };
+					default:
 						return { kind: InlineCompletionsDisposeReasonKind.Other };
 				}
 			}
@@ -2571,7 +2577,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	}
 
 	$provideInlineCompletions(handle: number, resource: UriComponents, position: IPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
-		return this._withAdapter(handle, InlineCompletionAdapter, adapter => adapter.provideInlineCompletions(URI.revive(resource), position, context, token), undefined, token);
+		return this._withAdapter(handle, InlineCompletionAdapter, adapter => adapter.provideInlineCompletions(URI.revive(resource), position, context, token), undefined, undefined);
 	}
 
 	$handleInlineCompletionDidShow(handle: number, pid: number, idx: number, updatedInsertText: string): void {
