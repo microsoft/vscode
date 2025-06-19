@@ -186,24 +186,31 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 }
 
 export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
+	private _renderedMessage: HTMLElement | undefined;
+
 	constructor(
 		title: string | IMarkdownString,
 		subtitle: string | IMarkdownString | undefined,
-		private readonly message: string | IMarkdownString,
+		message: string | IMarkdownString,
 		buttons: IChatConfirmationButton[],
-		container: HTMLElement,
+		private readonly _container: HTMLElement,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHostService hostService: IHostService,
 	) {
 		super(title, subtitle, buttons, instantiationService, contextMenuService, configurationService, hostService);
+		this.updateMessage(message);
+	}
 
+	public updateMessage(message: string | IMarkdownString): void {
+		this._renderedMessage?.remove();
 		const renderedMessage = this._register(this.markdownRenderer.render(
-			typeof this.message === 'string' ? new MarkdownString(this.message) : this.message,
+			typeof message === 'string' ? new MarkdownString(message) : message,
 			{ asyncRenderCallback: () => this._onDidChangeHeight.fire() }
 		));
-		this.renderMessage(renderedMessage.element, container);
+		this.renderMessage(renderedMessage.element, this._container);
+		this._renderedMessage = renderedMessage.element;
 	}
 }
 
