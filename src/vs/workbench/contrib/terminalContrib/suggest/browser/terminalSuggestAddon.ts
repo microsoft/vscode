@@ -265,17 +265,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		};
 		this._requestedCompletionsIndex = this._currentPromptInputState.cursorIndex;
 
-		// Show loading indicator before making async completion request
-		const suggestWidget = this._ensureSuggestWidget(terminal);
-		const dimensions = this._getTerminalDimensions();
-		if (dimensions.width && dimensions.height) {
-			const xtermBox = this._screen!.getBoundingClientRect();
-			const cursorPosition = {
-				left: xtermBox.left + terminal.buffer.active.cursorX * dimensions.width,
-				top: xtermBox.top + terminal.buffer.active.cursorY * dimensions.height,
-				height: dimensions.height
-			};
-			suggestWidget.showTriggered(!explicitlyInvoked, explicitlyInvoked ? 50 : 250, cursorPosition);
+		// Show loading indicator before making async completion request (only for explicit invocations)
+		if (explicitlyInvoked) {
+			const suggestWidget = this._ensureSuggestWidget(terminal);
+			const cursorPosition = this._getCursorPosition(terminal);
+			if (cursorPosition) {
+				suggestWidget.showTriggered(true, 50, cursorPosition);
+			}
 		}
 
 		const quickSuggestionsConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).quickSuggestions;
@@ -560,16 +556,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
-		const dimensions = this._getTerminalDimensions();
-		if (!dimensions.width || !dimensions.height) {
+		const cursorPosition = this._getCursorPosition(this._terminal);
+		if (!cursorPosition) {
 			return;
 		}
-		const xtermBox = this._screen!.getBoundingClientRect();
-		this._suggestWidget.showSuggestions(0, false, true, {
-			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
-			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
-			height: dimensions.height
-		});
+		this._suggestWidget.showSuggestions(0, false, true, cursorPosition);
 	}
 
 	private _refreshInlineCompletion(completions: ITerminalCompletion[]): void {
@@ -616,6 +607,19 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		return {
 			width: cssCellDims.width,
 			height: cssCellDims.height,
+		};
+	}
+
+	private _getCursorPosition(terminal: Terminal): { top: number; left: number; height: number } | undefined {
+		const dimensions = this._getTerminalDimensions();
+		if (!dimensions.width || !dimensions.height) {
+			return undefined;
+		}
+		const xtermBox = this._screen!.getBoundingClientRect();
+		return {
+			left: xtermBox.left + terminal.buffer.active.cursorX * dimensions.width,
+			top: xtermBox.top + terminal.buffer.active.cursorY * dimensions.height,
+			height: dimensions.height
 		};
 	}
 
@@ -673,16 +677,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 		this._model = model;
-		const dimensions = this._getTerminalDimensions();
-		if (!dimensions.width || !dimensions.height) {
+		const cursorPosition = this._getCursorPosition(this._terminal);
+		if (!cursorPosition) {
 			return;
 		}
-		const xtermBox = this._screen!.getBoundingClientRect();
-		suggestWidget.showSuggestions(0, false, !explicitlyInvoked, {
-			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
-			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
-			height: dimensions.height
-		});
+		suggestWidget.showSuggestions(0, false, !explicitlyInvoked, cursorPosition);
 	}
 
 

@@ -98,7 +98,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	private static NO_SUGGESTIONS_MESSAGE: string = localize('suggestWidget.noSuggestions', "No suggestions.");
 
 	private _state: State = State.Hidden;
-	private _isAuto: boolean = false;
+	private _explicitlyInvoked: boolean = false;
 	private _loadingTimeout?: IDisposable;
 	private _completionModel?: TModel;
 	private _cappedHeight?: { wanted: number; capped: number };
@@ -405,14 +405,14 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._persistedSize.reset();
 	}
 
-	showTriggered(auto: boolean, delay: number, cursorPosition: { top: number; left: number; height: number }) {
+	showTriggered(explicitlyInvoked: boolean, delay: number, cursorPosition: { top: number; left: number; height: number }) {
 		if (this._state !== State.Hidden) {
 			return;
 		}
 		this._cursorPosition = cursorPosition;
-		this._isAuto = !!auto;
+		this._explicitlyInvoked = !!explicitlyInvoked;
 
-		if (!this._isAuto) {
+		if (this._explicitlyInvoked) {
 			this._loadingTimeout = disposableTimeout(() => this._setState(State.Loading), delay);
 		}
 	}
