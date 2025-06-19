@@ -870,12 +870,6 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	provideInlineCompletions(model: model.ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
 
 	/**
-	 * @experimental
-	 * @internal
-	*/
-	provideInlineEditsForRange?(model: model.ITextModel, range: Range, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
-
-	/**
 	 * Will be called when an item is shown.
 	 * @param updatedInsertText Is useful to understand bracket completion.
 	*/
@@ -896,7 +890,7 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 * Is called when an inline completion item is no longer being used.
 	 * Provides a reason of why it is not used anymore.
 	*/
-	handleEndOfLifetime?(completions: T, item: T['items'][number], reason: InlineCompletionEndOfLifeReason<T['items'][number]>): void;
+	handleEndOfLifetime?(completions: T, item: T['items'][number], reason: InlineCompletionEndOfLifeReason<T['items'][number]>, lifetimeSummary: LifetimeSummary): void;
 
 	/**
 	 * Will be called when a completions list is no longer in use and can be garbage-collected.
@@ -924,7 +918,7 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	toString?(): string;
 }
 
-export type InlineCompletionsDisposeReason = 'lostRace' | 'tokenCancellation' | 'other';
+export type InlineCompletionsDisposeReason = { kind: 'lostRace' | 'tokenCancellation' | 'other' };
 
 export enum InlineCompletionEndOfLifeReasonKind {
 	Accepted = 0,
@@ -940,6 +934,14 @@ export type InlineCompletionEndOfLifeReason<TInlineCompletion = InlineCompletion
 	kind: InlineCompletionEndOfLifeReasonKind.Ignored;
 	supersededBy?: TInlineCompletion;
 	userTypingDisagreed: boolean;
+};
+
+export type LifetimeSummary = {
+	requestUuid: string;
+	shown: boolean;
+	editorType: string;
+	viewKind: string | undefined;
+	error: string | undefined;
 };
 
 export interface CodeAction {

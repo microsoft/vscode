@@ -189,6 +189,13 @@ export interface IPromptFileVariableEntry extends IBaseChatRequestVariableEntry 
 	readonly modelDescription: string;
 }
 
+export interface IPromptTextVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'promptText';
+	readonly value: string;
+	readonly settingId?: string;
+	readonly modelDescription: string;
+}
+
 export interface ISCMHistoryItemVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'scmHistoryItem';
 	readonly value: URI;
@@ -199,7 +206,7 @@ export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChat
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
-	| IPromptFileVariableEntry | ISCMHistoryItemVariableEntry;
+	| IPromptFileVariableEntry | IPromptTextVariableEntry | ISCMHistoryItemVariableEntry;
 
 
 export namespace IChatRequestVariableEntry {
@@ -249,6 +256,10 @@ export function isPromptFileVariableEntry(obj: IChatRequestVariableEntry): obj i
 	return obj.kind === 'promptFile';
 }
 
+export function isPromptTextVariableEntry(obj: IChatRequestVariableEntry): obj is IPromptTextVariableEntry {
+	return obj.kind === 'promptText';
+}
+
 export function isChatRequestVariableEntry(obj: unknown): obj is IChatRequestVariableEntry {
 	const entry = obj as IChatRequestVariableEntry;
 	return typeof entry === 'object' &&
@@ -286,10 +297,35 @@ export function toPromptFileVariableEntry(uri: URI, isRoot: boolean, originLabel
 	};
 }
 
+export function toPromptTextVariableEntry(content: string, settingId?: string): IPromptTextVariableEntry {
+	return {
+		id: `vscode.prompt.instructions.text${settingId ? `.${settingId}` : ''}`,
+		name: `prompt:text`,
+		value: content,
+		settingId,
+		kind: 'promptText',
+		modelDescription: 'Prompt instructions text'
+	};
+}
+
+export function toFileVariableEntry(uri: URI, range?: IRange): IChatRequestFileEntry {
+	return {
+		kind: 'file',
+		value: range ? { uri, range } : uri,
+		id: uri.toString() + (range?.toString() ?? ''),
+		name: basename(uri),
+	};
+}
+
 export class ChatRequestVariableSet {
 	private _ids = new Set<string>();
 	private _entries: IChatRequestVariableEntry[] = [];
 
+	constructor(entries?: IChatRequestVariableEntry[]) {
+		if (entries) {
+			this.add(...entries);
+		}
+	}
 
 	public add(...entry: IChatRequestVariableEntry[]): void {
 		for (const e of entry) {

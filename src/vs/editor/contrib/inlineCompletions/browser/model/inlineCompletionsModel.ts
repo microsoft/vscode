@@ -45,6 +45,7 @@ import { InlineCompletionContextWithoutUuid } from './provideInlineCompletions.j
 import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 import { SuggestItemInfo } from './suggestWidgetAdapter.js';
 import { TextModelEditReason } from '../../../../common/textModelEditReason.js';
+import { ICodeEditorService } from '../../../../browser/services/codeEditorService.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -87,6 +88,7 @@ export class InlineCompletionsModel extends Disposable {
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 	) {
 		super();
 		this._source = this._register(this._instantiationService.createInstance(InlineCompletionsSource, this.textModel, this._textModelVersionId, this._debounceValue));
@@ -225,7 +227,7 @@ export class InlineCompletionsModel extends Disposable {
 			const suppressedProviderGroupIds = this._suppressedInlineCompletionGroupIds.get();
 			const availableProviders = providers.filter(provider => !(provider.groupId && suppressedProviderGroupIds.has(provider.groupId)));
 
-			return this._source.fetch(availableProviders, cursorPosition, context, itemToPreserve?.identity, changeSummary.shouldDebounce, userJumpedToActiveCompletion, !!changeSummary.provider);
+			return this._source.fetch(availableProviders, cursorPosition, context, itemToPreserve?.identity, changeSummary.shouldDebounce, userJumpedToActiveCompletion, !!changeSummary.provider, this.editorType);
 		});
 		this._inlineCompletionItems = derivedOpts({ owner: this }, reader => {
 			const c = this._source.inlineCompletions.read(reader);
@@ -522,6 +524,14 @@ export class InlineCompletionsModel extends Disposable {
 			return s.cursorAtInlineEdit.read(reader);
 		});
 
+		const [diffEditor] = this._codeEditorService.listDiffEditors()
+			.filter(d =>
+				d.getOriginalEditor().getId() === this._editor.getId() ||
+				d.getModifiedEditor().getId() === this._editor.getId());
+
+		this.editorType = !!diffEditor ? 'diffEditor' : 'textEditor';
+		this.isInDiffEditor = !!diffEditor;
+
 		this._register(recomputeInitiallyAndOnChange(this._fetchInlineCompletionsPromise));
 
 		this._register(autorun(reader => {
@@ -529,7 +539,7 @@ export class InlineCompletionsModel extends Disposable {
 			const item = this.inlineCompletionState.read(reader);
 			const completion = item?.inlineCompletion;
 			if (completion) {
-				this.handleInlineSuggestionShown(completion);
+				this.handleInlineSuggestionShown(completion, 'ghostText');
 			}
 		}));
 
@@ -739,6 +749,10 @@ export class InlineCompletionsModel extends Disposable {
 	public readonly tabShouldJumpToInlineEdit;
 
 	public readonly tabShouldAcceptInlineEdit;
+
+	public readonly isInDiffEditor;
+
+	public readonly editorType: 'textEditor' | 'diffEditor';
 
 	private async _deltaSelectedInlineCompletionIndex(delta: 1 | -1): Promise<void> {
 		await this.triggerExplicitly();
@@ -1005,8 +1019,8 @@ export class InlineCompletionsModel extends Disposable {
 		});
 	}
 
-	public async handleInlineSuggestionShown(inlineCompletion: InlineSuggestionItem): Promise<void> {
-		await inlineCompletion.reportInlineEditShown(this._commandService);
+	public async handleInlineSuggestionShown(inlineCompletion: InlineSuggestionItem, viewKind: string): Promise<void> {
+		await inlineCompletion.reportInlineEditShown(this._commandService, viewKind);
 	}
 }
 
