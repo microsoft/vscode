@@ -584,7 +584,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._inlineCompletionItem.fileExtLow = x.fileExtLow;
 			this._inlineCompletionItem.labelLowExcludeFileExt = x.labelLowExcludeFileExt;
 			this._inlineCompletionItem.labelLowNormalizedPath = x.labelLowNormalizedPath;
-			this._inlineCompletionItem.underscorePenalty = x.underscorePenalty;
+			this._inlineCompletionItem.punctuationPenalty = x.punctuationPenalty;
 			this._inlineCompletionItem.word = x.word;
 			this._model?.forceRefilterAll();
 		}

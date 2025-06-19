@@ -194,7 +194,13 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (completions.resourceRequestConfig) {
 				const resourceCompletions = await this.resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition, provider.id, capabilities, shellType);
 				if (resourceCompletions) {
-					completionItems.push(...resourceCompletions);
+					for (const item of resourceCompletions) {
+						const labels = new Set(completionItems.map(c => c.label));
+						// Ensure no duplicates such as .
+						if (!labels.has(item.label)) {
+							completionItems.push(item);
+						}
+					}
 				}
 			}
 			return completionItems;
@@ -350,7 +356,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					break;
 				}
 			}
-
 			resourceCompletions.push({
 				label,
 				provider,
