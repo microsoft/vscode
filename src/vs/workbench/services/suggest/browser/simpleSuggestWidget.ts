@@ -29,8 +29,6 @@ import { isWindows } from '../../../../base/common/platform.js';
 import { editorSuggestWidgetSelectedBackground } from '../../../../editor/contrib/suggest/browser/suggestWidget.js';
 import { getListStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { activeContrastBorder, focusBorder, listFocusForeground } from '../../../../platform/theme/common/colorRegistry.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { ColorScheme } from '../../../../platform/theme/common/theme.js';
 
 const $ = dom.$;
 
@@ -155,8 +153,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IContextKeyService _contextKeyService: IContextKeyService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IContextKeyService _contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -475,7 +472,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	private _updateListStyles(): void {
 		if (this._options.selectionModeSettingId) {
 			const selectionMode = this._configurationService.getValue<SuggestSelectionMode>(this._options.selectionModeSettingId);
-			this._list.style(getListStylesWithMode(this._themeService, selectionMode === SuggestSelectionMode.Partial));
+			this._list.style(getListStylesWithMode(selectionMode === SuggestSelectionMode.Partial));
 		}
 	}
 
@@ -864,7 +861,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	}
 
 	selectNext(): boolean {
-		this._list.style(getListStylesWithMode(this._themeService, false));
+		this._list.style(getListStylesWithMode(false));
 		this._list.focusNext(1, true);
 		const focus = this._list.getFocus();
 		if (focus.length > 0) {
@@ -931,16 +928,9 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	}
 }
 
-function getListStylesWithMode(themeService: IThemeService, partial?: boolean): IListStyles {
+function getListStylesWithMode(partial?: boolean): IListStyles {
 	if (partial) {
-		const themeIsLight = themeService.getColorTheme().type === ColorScheme.LIGHT;
-		if (themeIsLight) {
-			// Background is light, so we need to use a darker foreground color because the focus is only
-			// shown as a border, not as a background. #251932
-			return getListStyles({ listInactiveFocusOutline: focusBorder, listInactiveFocusForeground: listFocusForeground });
-		} else {
-			return getListStyles({ listInactiveFocusOutline: focusBorder });
-		}
+		return getListStyles({ listInactiveFocusOutline: focusBorder, listInactiveFocusForeground: listFocusForeground });
 	} else {
 		return getListStyles({ listInactiveFocusBackground: editorSuggestWidgetSelectedBackground, listInactiveFocusOutline: activeContrastBorder });
 	}
