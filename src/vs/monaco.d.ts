@@ -4457,12 +4457,14 @@ declare namespace monaco.editor {
 		other?: boolean | QuickSuggestionsValue;
 		comments?: boolean | QuickSuggestionsValue;
 		strings?: boolean | QuickSuggestionsValue;
+		regex?: boolean | QuickSuggestionsValue;
 	}
 
 	export interface InternalQuickSuggestionsOptions {
 		readonly other: QuickSuggestionsValue;
 		readonly comments: QuickSuggestionsValue;
 		readonly strings: QuickSuggestionsValue;
+		readonly regex: QuickSuggestionsValue;
 	}
 
 	export type LineNumbersType = 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
