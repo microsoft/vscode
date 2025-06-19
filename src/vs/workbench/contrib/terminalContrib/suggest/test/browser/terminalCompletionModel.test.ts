@@ -237,11 +237,12 @@ suite('TerminalCompletionModel', function () {
 			const items = [
 				createItem({ label: '..' }),
 				createItem({ label: '...' }),
+				createItem({ label: '../' }),
 				createItem({ label: './a/' }),
 				createItem({ label: './b/' }),
 			];
 			model = new TerminalCompletionModel(items, new LineContext('', 0));
-			assertItems(model, ['./a/', './b/', '..', '...']);
+			assertItems(model, ['./a/', './b/', '..', '...', '../']);
 		});
 	});
 
