@@ -21,7 +21,8 @@ import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.j
 import { match } from '../../../../base/common/glob.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
-import { raceTimeout } from '../../../../base/common/async.js';
+import { raceCancellation, raceTimeout } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 
 export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest:${id}`; }
 
@@ -110,7 +111,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 	private readonly _delegates: IAuthenticationProviderHostDelegate[] = [];
 
-	private _isDisposable: boolean = false;
+	private _disposedSource = new CancellationTokenSource();
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -119,7 +120,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
-		this._register(toDisposable(() => this._isDisposable = true));
+		this._register(toDisposable(() => this._disposedSource.dispose(true)));
 		this._register(authenticationAccessService.onDidChangeExtensionSessionAccess(e => {
 			// The access has changed, not the actual session itself but extensions depend on this event firing
 			// when they have gained access to an account so this fires that event.
@@ -276,7 +277,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	}
 
 	async getSessions(id: string, scopes?: string[], options?: IAuthenticationGetSessionsOptions, activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
-		if (this._isDisposable) {
+		if (this._disposedSource.token.isCancellationRequested) {
 			return [];
 		}
 
@@ -297,7 +298,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	}
 
 	async createSession(id: string, scopes: string[], options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession> {
-		if (this._isDisposable) {
+		if (this._disposedSource.token.isCancellationRequested) {
 			throw new Error('Authentication service is disposed.');
 		}
 
@@ -310,7 +311,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	}
 
 	async removeSession(id: string, sessionId: string): Promise<void> {
-		if (this._isDisposable) {
+		if (this._disposedSource.token.isCancellationRequested) {
 			throw new Error('Authentication service is disposed.');
 		}
 
@@ -382,17 +383,23 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		if (provider) {
 			return provider;
 		}
+		if (this._disposedSource.token.isCancellationRequested) {
+			throw new Error('Authentication service is disposed.');
+		}
 
-		const store = this._register(new DisposableStore());
+		const store = new DisposableStore();
 		try {
 			const result = await raceTimeout(
-				Event.toPromise(
-					Event.filter(
-						this.onDidRegisterAuthenticationProvider,
-						e => e.id === providerId,
+				raceCancellation(
+					Event.toPromise(
+						Event.filter(
+							this.onDidRegisterAuthenticationProvider,
+							e => e.id === providerId,
+							store
+						),
 						store
 					),
-					store
+					this._disposedSource.token
 				),
 				5000
 			);
