@@ -30,11 +30,11 @@ export const commonOptions: Fig.Option[] = [
 			'Perform a three-way merge by providing paths for two modified versions of a file, the common origin of both modified versions and the output file to save merge results',
 		args: [
 			{
-				name: 'path1',
+				name: 'file',
 				template: 'filepaths',
 			},
 			{
-				name: 'path2',
+				name: 'file',
 				template: 'filepaths',
 			},
 			{
@@ -129,7 +129,7 @@ export const commonOptions: Fig.Option[] = [
 		description:
 			'Opens the provided folder or workspace with the given profile and associates the profile with the workspace. If the profile does not exist, a new empty one is created. A folder or workspace must be provided for the profile to take effect',
 		args: {
-			name: 'settingsProfileName',
+			name: 'profileName',
 		},
 	},
 	{
