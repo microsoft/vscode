@@ -300,7 +300,7 @@ export async function getCompletionItemsFromSpecs(
 					command,
 					command.detail,
 					command.documentation,
-					vscode.TerminalCompletionItemKind.Method
+					/^\.{2,}$/.test(labelWithoutExtension) ? vscode.TerminalCompletionItemKind.Folder : vscode.TerminalCompletionItemKind.Method
 				));
 				labels.add(commandTextLabel);
 			}

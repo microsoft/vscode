@@ -350,15 +350,17 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					break;
 				}
 			}
-
-			resourceCompletions.push({
-				label,
-				provider,
-				kind: TerminalCompletionItemKind.Folder,
-				detail: getFriendlyPath(lastWordFolderResource, resourceRequestConfig.pathSeparator, TerminalCompletionItemKind.Folder, shellType),
-				replacementIndex: cursorPosition - lastWord.length,
-				replacementLength: lastWord.length
-			});
+			if (label !== '.') {
+				// The . completion already gets provided by the extension, don't duplicate
+				resourceCompletions.push({
+					label,
+					provider,
+					kind: TerminalCompletionItemKind.Folder,
+					detail: getFriendlyPath(lastWordFolderResource, resourceRequestConfig.pathSeparator, TerminalCompletionItemKind.Folder, shellType),
+					replacementIndex: cursorPosition - lastWord.length,
+					replacementLength: lastWord.length
+				});
+			}
 		}
 
 		// Add all direct children files or folders
