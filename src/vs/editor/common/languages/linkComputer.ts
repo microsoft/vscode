@@ -155,7 +155,7 @@ function getClassifier(): CharacterClassifier<CharacterClass> {
 		_classifier = new CharacterClassifier<CharacterClass>(CharacterClass.None);
 
 		// allow-any-unicode-next-line
-		const FORCE_TERMINATION_CHARACTERS = ' \t<>\'\"、。｡､，．：；‘〈「『〔（［｛｢｣｝］）〕』」〉’｀～…';
+		const FORCE_TERMINATION_CHARACTERS = '\t<>\'\"、。｡､，．：；‘〈「『〔（［｛｢｣｝］）〕』」〉’｀～…\'';
 		for (let i = 0; i < FORCE_TERMINATION_CHARACTERS.length; i++) {
 			_classifier.set(FORCE_TERMINATION_CHARACTERS.charCodeAt(i), CharacterClass.ForceTermination);
 		}
@@ -259,14 +259,20 @@ export class LinkComputer {
 							chClass = (hasOpenCurlyBracket ? CharacterClass.None : CharacterClass.ForceTermination);
 							break;
 
-						// The following three rules make it that ' or " or ` are allowed inside links
+						// The following rules allow `'`, `"`, or `` ` `` inside links
 						// only if the link is wrapped by some other quote character
 						case CharCode.SingleQuote:
 						case CharCode.DoubleQuote:
 						case CharCode.BackTick:
 							if (linkBeginChCode === chCode) {
+								// If the link started with this character, terminate the link
 								chClass = CharacterClass.ForceTermination;
-							} else if (linkBeginChCode === CharCode.SingleQuote || linkBeginChCode === CharCode.DoubleQuote || linkBeginChCode === CharCode.BackTick) {
+							} else if (
+								linkBeginChCode === CharCode.SingleQuote ||
+								linkBeginChCode === CharCode.DoubleQuote ||
+								linkBeginChCode === CharCode.BackTick
+							) {
+								// Allow internal quotes if link began with a different quote
 								chClass = CharacterClass.None;
 							} else {
 								chClass = CharacterClass.ForceTermination;
