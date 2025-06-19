@@ -195,9 +195,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				const resourceCompletions = await this.resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition, provider.id, capabilities, shellType);
 				if (resourceCompletions) {
 					for (const item of resourceCompletions) {
-						const labels = completionItems.map(c => c.label);
+						const labels = new Set(completionItems.map(c => c.label));
 						// Ensure no duplicates such as .
-						if (!labels.includes(item.label)) {
+						if (!labels.has(item.label)) {
 							completionItems.push(item);
 						}
 					}
