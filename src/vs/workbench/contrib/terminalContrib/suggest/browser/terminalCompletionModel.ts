@@ -58,7 +58,7 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 	}
 
 	if (a.punctuationPenalty !== b.punctuationPenalty) {
-		// ; should appear alias for example
+		// ; should appear after alias for example
 		return a.punctuationPenalty - b.punctuationPenalty;
 	}
 
