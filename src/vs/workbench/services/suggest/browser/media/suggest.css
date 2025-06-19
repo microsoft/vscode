@@ -121,8 +121,16 @@
 	color: var(--vscode-editorSuggestWidget-selectedForeground);
 }
 
+.workbench-suggest-widget.suggest-partial-mode .monaco-list .monaco-list-row.focused {
+	color: var(--vscode-editorSuggestWidget-foreground);
+}
+
 .workbench-suggest-widget .monaco-list .monaco-list-row.focused .codicon {
 	color: var(--vscode-editorSuggestWidget-selectedIconForeground);
+}
+
+.workbench-suggest-widget.suggest-partial-mode .monaco-list .monaco-list-row.focused .codicon {
+	color: inherit;
 }
 
 .workbench-suggest-widget .monaco-list .monaco-list-row > .contents {

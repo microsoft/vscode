@@ -29,7 +29,6 @@ import { isWindows } from '../../../../base/common/platform.js';
 import { editorSuggestWidgetSelectedBackground } from '../../../../editor/contrib/suggest/browser/suggestWidget.js';
 import { getListStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { activeContrastBorder, focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
-import { quickInputListFocusForeground } from '../../../../platform/theme/common/colors/quickpickColors.js';
 
 const $ = dom.$;
 
@@ -473,7 +472,9 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	private _updateListStyles(): void {
 		if (this._options.selectionModeSettingId) {
 			const selectionMode = this._configurationService.getValue<SuggestSelectionMode>(this._options.selectionModeSettingId);
-			this._list.style(getListStylesWithMode(selectionMode === SuggestSelectionMode.Partial));
+			const isPartial = selectionMode === SuggestSelectionMode.Partial;
+			this._list.style(getListStylesWithMode(isPartial));
+			this.element.domNode.classList.toggle('suggest-partial-mode', isPartial);
 		}
 	}
 
@@ -931,10 +932,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 
 function getListStylesWithMode(partial?: boolean): IListStyles {
 	if (partial) {
-		return getListStyles({ 
-			listInactiveFocusOutline: focusBorder,
-			listInactiveFocusForeground: quickInputListFocusForeground
-		});
+		return getListStyles({ listInactiveFocusOutline: focusBorder });
 	} else {
 		return getListStyles({ listInactiveFocusBackground: editorSuggestWidgetSelectedBackground, listInactiveFocusOutline: activeContrastBorder });
 	}
