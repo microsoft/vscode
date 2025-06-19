@@ -270,7 +270,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			const suggestWidget = this._ensureSuggestWidget(terminal);
 			const cursorPosition = this._getCursorPosition(terminal);
 			if (cursorPosition) {
-				suggestWidget.showTriggered(true, 50, cursorPosition);
+				suggestWidget.showTriggered(true, 250, cursorPosition);
 			}
 		}
 
