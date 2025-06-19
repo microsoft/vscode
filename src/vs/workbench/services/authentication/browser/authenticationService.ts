@@ -106,6 +106,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 	private _authenticationProviders: Map<string, IAuthenticationProvider> = new Map<string, IAuthenticationProvider>();
 	private _authenticationProviderDisposables: DisposableMap<string, IDisposable> = this._register(new DisposableMap<string, IDisposable>());
+	private _dynamicAuthenticationProviderIds = new Set<string>();
 
 	private readonly _delegates: IAuthenticationProviderHostDelegate[] = [];
 
@@ -213,6 +214,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		return this._authenticationProviders.has(id);
 	}
 
+	isDynamicAuthenticationProvider(id: string): boolean {
+		return this._dynamicAuthenticationProviderIds.has(id);
+	}
+
 	registerAuthenticationProvider(id: string, authenticationProvider: IAuthenticationProvider): void {
 		this._authenticationProviders.set(id, authenticationProvider);
 		const disposableStore = new DisposableStore();
@@ -232,6 +237,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		const provider = this._authenticationProviders.get(id);
 		if (provider) {
 			this._authenticationProviders.delete(id);
+			// If this is a dynamic provider, remove it from the set of dynamic providers
+			if (this._dynamicAuthenticationProviderIds.has(id)) {
+				this._dynamicAuthenticationProviderIds.delete(id);
+			}
 			this._onDidUnregisterAuthenticationProvider.fire({ id, label: provider.label });
 		}
 		this._authenticationProviderDisposables.deleteAndDispose(id);
@@ -346,6 +355,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		const provider = this._authenticationProviders.get(providerId);
 		if (provider) {
 			this._logService.debug(`Created dynamic authentication provider: ${providerId}`);
+			this._dynamicAuthenticationProviderIds.add(providerId);
 			return provider;
 		}
 		this._logService.error(`Failed to create dynamic authentication provider: ${providerId}`);

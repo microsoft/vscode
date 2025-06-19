@@ -151,7 +151,7 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 							? fsPathForRemote(src.path.workspaceFolder.uri)
 							: undefined,
 				},
-				roots: src.path.workspaceFolder ? [src.path.workspaceFolder.uri] : [],
+				roots: src.path.workspaceFolder ? [src.path.workspaceFolder.uri] : undefined,
 				variableReplacement: {
 					folder: src.path.workspaceFolder,
 					section: mcpConfigurationSection,
