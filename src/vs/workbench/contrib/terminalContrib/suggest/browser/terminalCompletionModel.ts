@@ -57,6 +57,11 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		return a.underscorePenalty - b.underscorePenalty;
 	}
 
+	if (a.punctuationPenalty !== b.punctuationPenalty) {
+		// ; should appear alias for example
+		return a.punctuationPenalty - b.punctuationPenalty;
+	}
+
 	// Sort files of the same name by extension
 	const isArg = leadingLineContent.includes(' ');
 	if (!isArg && a.completion.kind === TerminalCompletionItemKind.File && b.completion.kind === TerminalCompletionItemKind.File) {
@@ -147,11 +152,6 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		if ((b.completion.kind === TerminalCompletionItemKind.File || b.completion.kind === TerminalCompletionItemKind.Folder) && (a.completion.kind !== TerminalCompletionItemKind.File && a.completion.kind !== TerminalCompletionItemKind.Folder)) {
 			return -1; // Resources should come last
 		}
-	}
-
-	if (a.completion.kind === TerminalCompletionItemKind.Method && b.completion.kind === TerminalCompletionItemKind.Method && a.punctuationPenalty !== b.punctuationPenalty) {
-		// ; should appear alias for example
-		return a.punctuationPenalty - b.punctuationPenalty;
 	}
 
 	// Sort alphabetically, ignoring punctuation causes dot files to be mixed in rather than

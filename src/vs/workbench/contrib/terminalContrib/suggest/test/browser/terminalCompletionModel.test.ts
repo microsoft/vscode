@@ -233,6 +233,16 @@ suite('TerminalCompletionModel', function () {
 			model = new TerminalCompletionModel(items, new LineContext('', 0));
 			assertItems(model, ['a', 'b', 'c', ',', ';', ':', '[', '...']);
 		});
+		test('punctuation chars should be below other files', function () {
+			const items = [
+				createItem({ label: '..' }),
+				createItem({ label: '...' }),
+				createItem({ label: './a/' }),
+				createItem({ label: './b/' }),
+			];
+			model = new TerminalCompletionModel(items, new LineContext('', 0));
+			assertItems(model, ['./a/', './b/', '..', '...']);
+		});
 	});
 
 	suite('inline completions', () => {

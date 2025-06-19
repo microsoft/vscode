@@ -142,5 +142,5 @@ function isFile(completion: ITerminalCompletion): boolean {
 }
 
 function isPunctuation(label: string): boolean {
-	return /^[\[\]\{\}\(\)\.,;:!?\-_/@#~*%^=$]+$/.test(label);
+	return /^[\[\]\{\}\(\)\.,;:!?\-_@#~*%^=$]+$/.test(label);
 }
