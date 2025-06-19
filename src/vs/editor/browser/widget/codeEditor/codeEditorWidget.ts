@@ -1095,6 +1095,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				}
 				case editorCommon.Handler.CompositionType: {
 					const args = <Partial<editorCommon.CompositionTypePayload>>payload;
+					console.log('compositionType args : ', args);
 					this._compositionType(source, args.text || '', args.replacePrevCharCnt || 0, args.replaceNextCharCnt || 0, args.positionDelta || 0);
 					return;
 				}
@@ -1861,12 +1862,15 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				},
 				compositionType: (text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number) => {
 					// Try if possible to go through the existing `replacePreviousChar` command
+					console.log('compositionType');
 					if (replaceNextCharCnt || positionDelta) {
 						// must be handled through the new command
 						const payload: editorCommon.CompositionTypePayload = { text, replacePrevCharCnt, replaceNextCharCnt, positionDelta };
+						console.log('ExecuteCommand CompositionType ', payload);
 						this._commandService.executeCommand(editorCommon.Handler.CompositionType, payload);
 					} else {
 						const payload: editorCommon.ReplacePreviousCharPayload = { text, replaceCharCnt: replacePrevCharCnt };
+						console.log('ExecuteCommand ReplacePreviousChar ', payload);
 						this._commandService.executeCommand(editorCommon.Handler.ReplacePreviousChar, payload);
 					}
 				},

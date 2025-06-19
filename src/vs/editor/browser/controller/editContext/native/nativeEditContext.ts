@@ -406,6 +406,10 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _onType(viewController: ViewController, typeInput: ITypeData): void {
+		console.log('typeInput', typeInput);
+		console.log('typeInput.replacePrevCharCnt', typeInput.replacePrevCharCnt);
+		console.log('typeInput.replaceNextCharCnt', typeInput.replaceNextCharCnt);
+		console.log('typeInput.positionDelta', typeInput.positionDelta);
 		if (typeInput.replacePrevCharCnt || typeInput.replaceNextCharCnt || typeInput.positionDelta) {
 			viewController.compositionType(typeInput.text, typeInput.replacePrevCharCnt, typeInput.replaceNextCharCnt, typeInput.positionDelta);
 		} else {
