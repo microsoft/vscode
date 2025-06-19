@@ -300,6 +300,7 @@ export async function getCompletionItemsFromSpecs(
 					command,
 					command.detail,
 					command.documentation,
+					// If the label is only dots (e.g. '..'), treat as folder, else as method
 					/^\.{2,}$/.test(labelWithoutExtension) ? vscode.TerminalCompletionItemKind.Folder : vscode.TerminalCompletionItemKind.Method
 				));
 				labels.add(commandTextLabel);
