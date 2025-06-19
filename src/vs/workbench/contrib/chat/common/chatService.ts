@@ -18,9 +18,10 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult } from './chatAgents.js';
-import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
+import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
+import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
 import { ChatAgentLocation, ChatMode } from './constants.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult } from './languageModelToolsService.js';
@@ -36,6 +37,12 @@ export enum ChatErrorLevel {
 	Error = 2
 }
 
+export interface IChatResponseErrorDetailsConfirmationButton {
+	data: any;
+	label: string;
+	isSecondary?: boolean;
+}
+
 export interface IChatResponseErrorDetails {
 	message: string;
 	responseIsIncomplete?: boolean;
@@ -43,6 +50,7 @@ export interface IChatResponseErrorDetails {
 	responseIsRedacted?: boolean;
 	isQuotaExceeded?: boolean;
 	level?: ChatErrorLevel;
+	confirmationButtons?: IChatResponseErrorDetailsConfirmationButton[];
 }
 
 export interface IChatResponseProgressFileTreeData {
@@ -219,6 +227,17 @@ export interface IChatConfirmation {
 	kind: 'confirmation';
 }
 
+export interface IChatElicitationRequest {
+	kind: 'elicitation';
+	title: string | IMarkdownString;
+	message: string | IMarkdownString;
+	originMessage?: string | IMarkdownString;
+	state: 'pending' | 'accepted' | 'rejected';
+	acceptedResult?: Record<string, unknown>;
+	accept(): Promise<void>;
+	reject(): Promise<void>;
+}
+
 export interface IChatTerminalToolInvocationData {
 	kind: 'terminal';
 	command: string;
@@ -232,7 +251,7 @@ export interface IChatToolInputInvocationData {
 
 export interface IChatToolInvocation {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent;
 	/** Presence of this property says that confirmation is required */
 	confirmationMessages?: IToolConfirmationMessages;
 	confirmed: DeferredPromise<boolean>;
@@ -257,7 +276,7 @@ export interface IChatToolInvocation {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
@@ -302,7 +321,8 @@ export type IChatProgress =
 	| IChatExtensionsContent
 	| IChatUndoStop
 	| IChatPrepareToolInvocationPart
-	| IChatTaskSerialized;
+	| IChatTaskSerialized
+	| IChatElicitationRequest;
 
 export interface IChatFollowup {
 	kind: 'reply';
@@ -480,9 +500,8 @@ export type IChatLocationData = IChatEditorLocationData | IChatNotebookLocationD
 export interface IChatSendRequestOptions {
 	mode?: ChatMode;
 	userSelectedModelId?: string;
-	userSelectedTools?: string[];
-	userSelectedTools2?: Record<string, boolean>;
-	toolSelectionIsExclusive?: boolean;
+	userSelectedTools?: Record<string, boolean>;
+	modeInstructions?: string;
 	location?: ChatAgentLocation;
 	locationData?: IChatLocationData;
 	parserContext?: IChatParserContext;

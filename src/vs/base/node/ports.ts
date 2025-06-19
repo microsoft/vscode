@@ -64,7 +64,7 @@ function doFindFreePort(startPort: number, giveUpAfter: number, stride: number, 
 }
 
 // Reference: https://chromium.googlesource.com/chromium/src.git/+/refs/heads/main/net/base/port_util.cc#56
-export const BROWSER_RESTRICTED_PORTS: any = {
+export const BROWSER_RESTRICTED_PORTS: Record<number, boolean> = {
 	1: true,      // tcpmux
 	7: true,      // echo
 	9: true,      // discard
@@ -156,7 +156,7 @@ export function isPortFree(port: number, timeout: number): Promise<boolean> {
  */
 export function findFreePortFaster(startPort: number, giveUpAfter: number, timeout: number, hostname: string = '127.0.0.1'): Promise<number> {
 	let resolved: boolean = false;
-	let timeoutHandle: NodeJS.Timeout | undefined = undefined;
+	let timeoutHandle: Timeout | undefined = undefined;
 	let countTried: number = 1;
 	const server = net.createServer({ pauseOnConnect: true });
 	function doResolve(port: number, resolve: (port: number) => void) {

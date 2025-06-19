@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from '../../../nls.js';
 import { disposableTimeout } from '../../../base/common/async.js';
+import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
+import { IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../base/common/oauth.js';
 import { ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import Severity from '../../../base/common/severity.js';
-import { URI } from '../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import * as nls from '../../../nls.js';
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
 import { IMcpMessageTransport, IMcpRegistry } from '../../contrib/mcp/common/mcpRegistryTypes.js';
@@ -23,7 +25,6 @@ import { ExtensionHostKind, extensionHostKindToString } from '../../services/ext
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostContext, ExtHostMcpShape, MainContext, MainThreadMcpShape } from '../common/extHost.protocol.js';
-import { CancellationError } from '../../../base/common/errors.js';
 
 @extHostNamedCustomer(MainContext.MainThreadMcp)
 export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
@@ -137,19 +138,23 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		this._servers.get(id)?.pushMessage(message);
 	}
 
-	async $getTokenFromServerMetadata(id: number, metadata: { issuer: string; authorizationEndpoint: string; tokenEndpoint: string; registrationEndpoint: string; scopesSupported: string[] }): Promise<string | undefined> {
+	async $getTokenFromServerMetadata(id: number, authServerComponents: UriComponents, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined): Promise<string | undefined> {
 		const server = this._serverDefinitions.get(id);
 		if (!server) {
 			return undefined;
 		}
 
-		const issuer = URI.parse(metadata.issuer);
-		const scopesSupported = metadata.scopesSupported;
-		const providerId = await this._authenticationService.getOrActivateProviderIdForIssuer(issuer);
+		const authorizationServer = URI.revive(authServerComponents);
+		const scopesSupported = resourceMetadata?.scopes_supported || serverMetadata.scopes_supported || [];
+		let providerId = await this._authenticationService.getOrActivateProviderIdForServer(authorizationServer);
 		if (!providerId) {
-			return undefined;
+			const provider = await this._authenticationService.createDynamicAuthenticationProvider(authorizationServer, serverMetadata, resourceMetadata);
+			if (!provider) {
+				return undefined;
+			}
+			providerId = provider.id;
 		}
-		const sessions = await this._authenticationService.getSessions(providerId, scopesSupported, undefined, true, issuer);
+		const sessions = await this._authenticationService.getSessions(providerId, scopesSupported, { authorizationServer: authorizationServer }, true);
 		const accountNamePreference = this.authenticationMcpServersService.getAccountPreference(server.id, providerId);
 		let matchingAccountPreferenceSession: AuthenticationSession | undefined;
 		if (accountNamePreference) {
@@ -160,10 +165,12 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		if (sessions.length) {
 			// If we have an existing session preference, use that. If not, we'll return any valid session at the end of this function.
 			if (matchingAccountPreferenceSession && this.authenticationMCPServerAccessService.isAccessAllowed(providerId, matchingAccountPreferenceSession.account.label, server.id)) {
+				this._mcpRegistry.setAuthenticationUsage(server.id, providerId);
 				return matchingAccountPreferenceSession.accessToken;
 			}
 			// If we only have one account for a single auth provider, lets just check if it's allowed and return it if it is.
 			if (!provider.supportsMultipleAccounts && this.authenticationMCPServerAccessService.isAccessAllowed(providerId, sessions[0].account.label, server.id)) {
+				this._mcpRegistry.setAuthenticationUsage(server.id, providerId);
 				return sessions[0].accessToken;
 			}
 		}
@@ -187,7 +194,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 					{
 						activateImmediate: true,
 						account: accountToCreate,
-						issuer
+						authorizationServer
 					});
 			} while (
 				accountToCreate
@@ -196,6 +203,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			);
 		}
 
+		this._mcpRegistry.setAuthenticationUsage(server.id, providerId);
 		this.authenticationMCPServerAccessService.updateAllowedMcpServers(providerId, session.account.label, [{ id: server.id, name: server.label, allowed: true }]);
 		this.authenticationMcpServersService.updateAccountPreference(server.id, providerId, session.account);
 		this.authenticationMCPServerUsageService.addAccountUsage(providerId, session.account.label, scopesSupported, server.id, server.label);
@@ -229,8 +237,8 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 
 	private async loginPrompt(mcpLabel: string, providerLabel: string, recreatingSession: boolean): Promise<boolean> {
 		const message = recreatingSession
-			? nls.localize('confirmRelogin', "The MCP Server '{0}' wants you to sign in again using {1}.", mcpLabel, providerLabel)
-			: nls.localize('confirmLogin', "The MCP Server '{0}' wants to sign in using {1}.", mcpLabel, providerLabel);
+			? nls.localize('confirmRelogin', "The MCP Server Definition '{0}' wants you to authenticate to {1}.", mcpLabel, providerLabel)
+			: nls.localize('confirmLogin', "The MCP Server Definition '{0}' wants to authenticate to {1}.", mcpLabel, providerLabel);
 
 		const buttons: IPromptButton<boolean | undefined>[] = [
 			{

@@ -9,15 +9,12 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { combinedDisposable, Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { sep } from '../../../../../base/common/path.js';
 import { commonPrefixLength } from '../../../../../base/common/strings.js';
-import { editorSuggestWidgetSelectedBackground } from '../../../../../editor/contrib/suggest/browser/suggestWidget.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TerminalCapability, type ITerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import type { IPromptInputModel, IPromptInputModelState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
-import { getListStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { activeContrastBorder } from '../../../../../platform/theme/common/colorRegistry.js';
 import type { IXtermCore } from '../../../terminal/browser/xterm-private.js';
 import { TerminalStorageKeys } from '../../../terminal/common/terminalStorageKeys.js';
 import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
@@ -37,7 +34,7 @@ import { TerminalCompletionItem, TerminalCompletionItemKind, type ITerminalCompl
 import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
 import { localize } from '../../../../../nls.js';
 import { TerminalSuggestTelemetry } from './terminalSuggestTelemetry.js';
-import { terminalSymbolAliasIcon, terminalSymbolArgumentIcon, terminalSymbolEnumMember, terminalSymbolFileIcon, terminalSymbolFlagIcon, terminalSymbolInlineSuggestionIcon, terminalSymbolMethodIcon, terminalSymbolOptionIcon, terminalSymbolFolderIcon } from './terminalSymbolIcons.js';
+import { terminalSymbolAliasIcon, terminalSymbolArgumentIcon, terminalSymbolEnumMember, terminalSymbolFileIcon, terminalSymbolFlagIcon, terminalSymbolInlineSuggestionIcon, terminalSymbolMethodIcon, terminalSymbolOptionIcon, terminalSymbolFolderIcon, terminalSymbolSymbolicLinkFileIcon, terminalSymbolSymbolicLinkFolderIcon } from './terminalSymbolIcons.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -93,6 +90,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _kindToIconMap = new Map<number, ThemeIcon>([
 		[TerminalCompletionItemKind.File, terminalSymbolFileIcon],
 		[TerminalCompletionItemKind.Folder, terminalSymbolFolderIcon],
+		[TerminalCompletionItemKind.SymbolicLinkFile, terminalSymbolSymbolicLinkFileIcon],
+		[TerminalCompletionItemKind.SymbolicLinkFolder, terminalSymbolSymbolicLinkFolderIcon],
 		[TerminalCompletionItemKind.Method, terminalSymbolMethodIcon],
 		[TerminalCompletionItemKind.Alias, terminalSymbolAliasIcon],
 		[TerminalCompletionItemKind.Argument, terminalSymbolArgumentIcon],
@@ -106,6 +105,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _kindToKindLabelMap = new Map<number, string>([
 		[TerminalCompletionItemKind.File, localize('file', 'File')],
 		[TerminalCompletionItemKind.Folder, localize('folder', 'Folder')],
+		[TerminalCompletionItemKind.SymbolicLinkFile, localize('symbolicLinkFile', 'Symbolic Link File')],
+		[TerminalCompletionItemKind.SymbolicLinkFolder, localize('symbolicLinkFolder', 'Symbolic Link Folder')],
 		[TerminalCompletionItemKind.Method, localize('method', 'Method')],
 		[TerminalCompletionItemKind.Alias, localize('alias', 'Alias')],
 		[TerminalCompletionItemKind.Argument, localize('argument', 'Argument')],
@@ -261,9 +262,18 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		};
 		this._requestedCompletionsIndex = this._currentPromptInputState.cursorIndex;
 
+		// Show loading indicator before making async completion request (only for explicit invocations)
+		if (explicitlyInvoked) {
+			const suggestWidget = this._ensureSuggestWidget(terminal);
+			const cursorPosition = this._getCursorPosition(terminal);
+			if (cursorPosition) {
+				suggestWidget.showTriggered(true, cursorPosition);
+			}
+		}
+
 		const quickSuggestionsConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).quickSuggestions;
 		const allowFallbackCompletions = explicitlyInvoked || quickSuggestionsConfig.unknown === 'on';
-		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._currentPromptInputState.prefix, this._currentPromptInputState.cursorIndex, allowFallbackCompletions, this.shellType, this._capabilities, token, doNotRequestExtensionCompletions);
+		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._currentPromptInputState.prefix, this._currentPromptInputState.cursorIndex, allowFallbackCompletions, this.shellType, this._capabilities, token, false, doNotRequestExtensionCompletions, explicitlyInvoked);
 
 		if (token.isCancellationRequested) {
 			return;
@@ -543,16 +553,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
-		const dimensions = this._getTerminalDimensions();
-		if (!dimensions.width || !dimensions.height) {
+		const cursorPosition = this._getCursorPosition(this._terminal);
+		if (!cursorPosition) {
 			return;
 		}
-		const xtermBox = this._screen!.getBoundingClientRect();
-		this._suggestWidget.showSuggestions(0, false, true, {
-			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
-			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
-			height: dimensions.height
-		});
+		this._suggestWidget.showSuggestions(0, false, true, cursorPosition);
 	}
 
 	private _refreshInlineCompletion(completions: ITerminalCompletion[]): void {
@@ -583,7 +588,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._inlineCompletionItem.fileExtLow = x.fileExtLow;
 			this._inlineCompletionItem.labelLowExcludeFileExt = x.labelLowExcludeFileExt;
 			this._inlineCompletionItem.labelLowNormalizedPath = x.labelLowNormalizedPath;
-			this._inlineCompletionItem.underscorePenalty = x.underscorePenalty;
+			this._inlineCompletionItem.punctuationPenalty = x.punctuationPenalty;
 			this._inlineCompletionItem.word = x.word;
 			this._model?.forceRefilterAll();
 		}
@@ -599,6 +604,19 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		return {
 			width: cssCellDims.width,
 			height: cssCellDims.height,
+		};
+	}
+
+	private _getCursorPosition(terminal: Terminal): { top: number; left: number; height: number } | undefined {
+		const dimensions = this._getTerminalDimensions();
+		if (!dimensions.width || !dimensions.height) {
+			return undefined;
+		}
+		const xtermBox = this._screen!.getBoundingClientRect();
+		return {
+			left: xtermBox.left + terminal.buffer.active.cursorX * dimensions.width,
+			top: xtermBox.top + terminal.buffer.active.cursorY * dimensions.height,
+			height: dimensions.height
 		};
 	}
 
@@ -656,16 +674,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 		this._model = model;
-		const dimensions = this._getTerminalDimensions();
-		if (!dimensions.width || !dimensions.height) {
+		const cursorPosition = this._getCursorPosition(this._terminal);
+		if (!cursorPosition) {
 			return;
 		}
-		const xtermBox = this._screen!.getBoundingClientRect();
-		suggestWidget.showSuggestions(0, false, !explicitlyInvoked, {
-			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
-			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
-			height: dimensions.height
-		});
+		suggestWidget.showSuggestions(0, false, !explicitlyInvoked, cursorPosition);
 	}
 
 
@@ -677,16 +690,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				this._instantiationService.createInstance(PersistedWidgetSize),
 				{
 					statusBarMenuId: MenuId.MenubarTerminalSuggestStatusMenu,
-					showStatusBarSettingId: TerminalSuggestSettingId.ShowStatusBar
+					showStatusBarSettingId: TerminalSuggestSettingId.ShowStatusBar,
+					selectionModeSettingId: TerminalSuggestSettingId.SelectionMode,
 				},
 				this._getFontInfo.bind(this),
 				this._onDidFontConfigurationChange.event.bind(this),
 				this._getAdvancedExplainModeDetails.bind(this)
 			)) as any as SimpleSuggestWidget<TerminalCompletionModel, TerminalCompletionItem>;
-			this._suggestWidget.list.style(getListStyles({
-				listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
-				listInactiveFocusOutline: activeContrastBorder
-			}));
 			this._register(this._suggestWidget.onDidSelect(async e => this.acceptSelectedSuggestion(e)));
 			this._register(this._suggestWidget.onDidHide(() => this._terminalSuggestWidgetVisibleContextKey.reset()));
 			this._register(this._suggestWidget.onDidShow(() => this._terminalSuggestWidgetVisibleContextKey.set(true)));

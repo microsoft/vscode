@@ -40,6 +40,7 @@ export interface IPreferencesSearchService {
 
 	getLocalSearchProvider(filter: string): ISearchProvider;
 	getRemoteSearchProvider(filter: string, newExtensionsOnly?: boolean): ISearchProvider | undefined;
+	getAiSearchProvider(filter: string): IAiSearchProvider;
 }
 
 export interface ISearchProvider {
@@ -50,10 +51,15 @@ export interface IRemoteSearchProvider extends ISearchProvider {
 	setFilter(filter: string): void;
 }
 
+export interface IAiSearchProvider extends IRemoteSearchProvider {
+	getLLMRankedResults(token: CancellationToken): Promise<ISearchResult | null>;
+}
+
 export const PREFERENCES_EDITOR_COMMAND_OPEN = 'workbench.preferences.action.openPreferencesEditor';
 export const CONTEXT_PREFERENCES_SEARCH_FOCUS = new RawContextKey<boolean>('inPreferencesSearch', false);
 
 export const SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'settings.action.clearSearchResults';
+export const SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS = 'settings.action.showAIResults';
 export const SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU = 'settings.action.showContextMenu';
 export const SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS = 'settings.action.suggestFilters';
 
@@ -103,6 +109,10 @@ export const ENABLE_LANGUAGE_FILTER = true;
 
 export const ENABLE_EXTENSION_TOGGLE_SETTINGS = true;
 export const EXTENSION_FETCH_TIMEOUT_MS = 1000;
+
+export enum WorkbenchSettingsEditorSettings {
+	ShowAISearchToggle = 'workbench.settings.showAISearchToggle',
+}
 
 export type ExtensionToggleData = {
 	settingsEditorRecommendedExtensions: IStringDictionary<IExtensionRecommendations>;

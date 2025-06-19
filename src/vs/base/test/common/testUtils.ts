@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { randomInt } from '../../common/numbers.js';
-import { assertOneOf } from '../../common/types.js';
 
 export function flakySuite(title: string, fn: () => void) /* Suite */ {
 	return suite(title, function () {
@@ -22,22 +20,6 @@ export function flakySuite(title: string, fn: () => void) /* Suite */ {
 }
 
 /**
- * @deprecated use `async#timeout` instead
- */
-export const wait = (ms: number): Promise<void> => {
-	return new Promise(resolve => setTimeout(resolve, ms));
-};
-
-/**
- * Helper function that allows to await for a random amount of time.
- * @param maxMs The `maximum` amount of time to wait, in milliseconds.
- * @param minMs [`optional`] The `minimum` amount of time to wait, in milliseconds.
- */
-export const waitRandom = (maxMs: number, minMs: number = 0): Promise<void> => {
-	return wait(randomInt(maxMs, minMs));
-};
-
-/**
  * (pseudo)Random boolean generator.
  *
  * ## Examples
@@ -50,33 +32,3 @@ export const waitRandom = (maxMs: number, minMs: number = 0): Promise<void> => {
 export const randomBoolean = (): boolean => {
 	return Math.random() > 0.5;
 };
-
-/**
- *@deprecated use `mock.ts#mock` instead
- */
-export function mockObject<TObject extends Object>(
-	overrides: Partial<TObject>,
-): TObject {
-	// ensure that the overrides object cannot be modified afterward
-	overrides = Object.freeze(overrides);
-
-	const keys = Object.keys(overrides) as (keyof (typeof overrides))[];
-	const service = new Proxy(
-		{},
-		{
-			get: (_target, key: string | number | Symbol) => {
-				// sanity check for the provided `key`
-				assertOneOf(
-					key,
-					keys,
-					`The '${key}' is not mocked.`,
-				);
-
-				return overrides[key];
-			},
-		});
-
-	// note! it's ok to `as TObject` here, because of
-	// 		 the runtime checks in the `Proxy` getter
-	return service as (typeof overrides) as TObject;
-}

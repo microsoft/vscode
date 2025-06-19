@@ -3,17 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
-import { MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { SignOutOfAccountAction } from './actions/signOutOfAccountAction.js';
-import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
 import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from '../../../services/extensionManagement/common/extensionFeatures.js';
 import { ManageTrustedExtensionsForAccountAction } from './actions/manageTrustedExtensionsForAccountAction.js';
@@ -21,6 +19,7 @@ import { ManageAccountPreferencesForExtensionAction } from './actions/manageAcco
 import { IAuthenticationUsageService } from '../../../services/authentication/browser/authenticationUsageService.js';
 import { ManageAccountPreferencesForMcpServerAction } from './actions/manageAccountPreferencesForMcpServerAction.js';
 import { ManageTrustedMcpServersForAccountAction } from './actions/manageTrustedMcpServersForAccountAction.js';
+import { RemoveDynamicAuthenticationProvidersAction } from './actions/manageDynamicAuthenticationProvidersAction.js';
 
 const codeExchangeProxyCommand = CommandsRegistry.registerCommand('workbench.getCodeExchangeProxyEndpoints', function (accessor, _) {
 	const environmentService = accessor.get(IBrowserWorkbenchEnvironmentService);
@@ -53,7 +52,7 @@ class AuthenticationDataRenderer extends Disposable implements IExtensionFeature
 				return [
 					auth.label,
 					auth.id,
-					(auth.issuerGlobs ?? []).join(',\n')
+					(auth.authorizationServerGlobs ?? []).join(',\n')
 				];
 			});
 
@@ -79,42 +78,12 @@ const extensionFeature = Registry.as<IExtensionFeaturesRegistry>(Extensions.Exte
 class AuthenticationContribution extends Disposable implements IWorkbenchContribution {
 	static ID = 'workbench.contrib.authentication';
 
-	private _placeholderMenuItem: IDisposable | undefined = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
-		command: {
-			id: 'noAuthenticationProviders',
-			title: localize('authentication.Placeholder', "No accounts requested yet..."),
-			precondition: ContextKeyExpr.false()
-		},
-	});
-
-	constructor(@IAuthenticationService private readonly _authenticationService: IAuthenticationService) {
+	constructor() {
 		super();
 		this._register(codeExchangeProxyCommand);
 		this._register(extensionFeature);
 
-		// Clear the placeholder menu item if there are already providers registered.
-		if (_authenticationService.getProviderIds().length) {
-			this._clearPlaceholderMenuItem();
-		}
-		this._registerHandlers();
 		this._registerActions();
-	}
-
-	private _registerHandlers(): void {
-		this._register(this._authenticationService.onDidRegisterAuthenticationProvider(_e => {
-			this._clearPlaceholderMenuItem();
-		}));
-		this._register(this._authenticationService.onDidUnregisterAuthenticationProvider(_e => {
-			if (!this._authenticationService.getProviderIds().length) {
-				this._placeholderMenuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
-					command: {
-						id: 'noAuthenticationProviders',
-						title: localize('loading', "Loading..."),
-						precondition: ContextKeyExpr.false()
-					}
-				});
-			}
-		}));
 	}
 
 	private _registerActions(): void {
@@ -123,11 +92,7 @@ class AuthenticationContribution extends Disposable implements IWorkbenchContrib
 		this._register(registerAction2(ManageAccountPreferencesForExtensionAction));
 		this._register(registerAction2(ManageTrustedMcpServersForAccountAction));
 		this._register(registerAction2(ManageAccountPreferencesForMcpServerAction));
-	}
-
-	private _clearPlaceholderMenuItem(): void {
-		this._placeholderMenuItem?.dispose();
-		this._placeholderMenuItem = undefined;
+		this._register(registerAction2(RemoveDynamicAuthenticationProvidersAction));
 	}
 }
 

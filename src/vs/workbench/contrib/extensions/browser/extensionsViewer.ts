@@ -26,7 +26,6 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IListStyles } from '../../../../base/browser/ui/list/listWidget.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IStyleOverride } from '../../../../platform/theme/browser/defaultStyles.js';
-import { getAriaLabelForExtension } from './extensionsViews.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -35,6 +34,17 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { getLocationBasedViewColors } from '../../../browser/parts/views/viewPane.js';
 import { DelayedPagedModel, IPagedModel } from '../../../../base/common/paging.js';
+import { ExtensionIconWidget } from './extensionsWidgets.js';
+
+function getAriaLabelForExtension(extension: IExtension | null): string {
+	if (!extension) {
+		return '';
+	}
+	const publisher = extension.publisherDomain?.verified ? localize('extension.arialabel.verifiedPublisher', "Verified Publisher {0}", extension.publisherDisplayName) : localize('extension.arialabel.publisher', "Publisher {0}", extension.publisherDisplayName);
+	const deprecated = extension?.deprecationInfo ? localize('extension.arialabel.deprecated', "Deprecated") : '';
+	const rating = extension?.rating ? localize('extension.arialabel.rating', "Rated {0} out of 5 stars by {1} users", extension.rating.toFixed(2), extension.ratingCount) : '';
+	return `${extension.displayName}, ${deprecated ? `${deprecated}, ` : ''}${extension.version}, ${publisher}, ${extension.description} ${rating ? `, ${rating}` : ''}`;
+}
 
 export class ExtensionsList extends Disposable {
 
@@ -201,7 +211,6 @@ export class ExtensionsGridView extends Disposable {
 }
 
 interface IExtensionTemplateData {
-	icon: HTMLImageElement;
 	name: HTMLElement;
 	identifier: HTMLElement;
 	author: HTMLElement;
@@ -257,6 +266,7 @@ class ExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData>, IExt
 		container.classList.add('extension');
 
 		const icon = dom.append(container, dom.$<HTMLImageElement>('img.icon'));
+		const iconWidget = this.instantiationService.createInstance(ExtensionIconWidget, icon);
 		const details = dom.append(container, dom.$('.details'));
 
 		const header = dom.append(details, dom.$('.header'));
@@ -266,18 +276,18 @@ class ExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData>, IExt
 			openExtensionAction.run(e.ctrlKey || e.metaKey);
 			e.stopPropagation();
 			e.preventDefault();
-		})];
+		}), iconWidget, openExtensionAction];
 		const identifier = dom.append(header, dom.$('span.identifier'));
 
 		const footer = dom.append(details, dom.$('.footer'));
 		const author = dom.append(footer, dom.$('.author'));
 		return {
-			icon,
 			name,
 			identifier,
 			author,
 			extensionDisposables,
 			set extensionData(extensionData: IExtensionData) {
+				iconWidget.extension = extensionData.extension;
 				openExtensionAction.extension = extensionData.extension;
 			}
 		};
@@ -285,16 +295,6 @@ class ExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData>, IExt
 
 	public renderElement(node: ITreeNode<IExtensionData>, index: number, data: IExtensionTemplateData): void {
 		const extension = node.element.extension;
-		data.extensionDisposables.push(dom.addDisposableListener(data.icon, 'error', () => data.icon.src = extension.iconUrlFallback, { once: true }));
-		data.icon.src = extension.iconUrl;
-
-		if (!data.icon.complete) {
-			data.icon.style.visibility = 'hidden';
-			data.icon.onload = () => data.icon.style.visibility = 'inherit';
-		} else {
-			data.icon.style.visibility = 'inherit';
-		}
-
 		data.name.textContent = extension.displayName;
 		data.identifier.textContent = extension.identifier.id;
 		data.author.textContent = extension.publisherDisplayName;

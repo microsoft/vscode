@@ -24,6 +24,8 @@ export interface IChatConfirmationButton {
 	isSecondary?: boolean;
 	tooltip?: string;
 	data: any;
+	disabled?: boolean;
+	onDidChangeDisablement?: Event<boolean>;
 	moreActions?: IChatConfirmationButton[];
 }
 
@@ -101,6 +103,10 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		return this._domNode;
 	}
 
+	private get showingButtons() {
+		return !this.domNode.classList.contains('hideButtons');
+	}
+
 	setShowButtons(showButton: boolean): void {
 		this.domNode.classList.toggle('hideButtons', !showButton);
 	}
@@ -109,7 +115,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 	protected readonly markdownRenderer: MarkdownRenderer;
 
 	constructor(
-		title: string,
+		title: string | IMarkdownString,
 		subtitle: string | IMarkdownString | undefined,
 		buttons: IChatConfirmationButton[],
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
@@ -122,7 +128,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		const elements = dom.h('.chat-confirmation-widget@root', [
 			dom.h('.chat-confirmation-widget-title@title'),
 			dom.h('.chat-confirmation-widget-message@message'),
-			dom.h('.chat-confirmation-buttons-container@buttonsContainer'),
+			dom.h('.chat-buttons-container@buttonsContainer'),
 		]);
 		this._domNode = elements.root;
 		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
@@ -139,7 +145,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 
 		this.messageElement = elements.message;
 		buttons.forEach(buttonData => {
-			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, secondary: buttonData.isSecondary, title: buttonData.tooltip };
+			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, secondary: buttonData.isSecondary, title: buttonData.tooltip, disabled: buttonData.disabled };
 
 			let button: IButton;
 			if (buttonData.moreActions) {
@@ -151,7 +157,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 						action.label,
 						action.label,
 						undefined,
-						true,
+						!action.disabled,
 						() => {
 							this._onDidClick.fire(action);
 							return Promise.resolve();
@@ -165,13 +171,16 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 			this._register(button);
 			button.label = buttonData.label;
 			this._register(button.onDidClick(() => this._onDidClick.fire(buttonData)));
+			if (buttonData.onDidChangeDisablement) {
+				this._register(buttonData.onDidChangeDisablement(disabled => button.enabled = !disabled));
+			}
 		});
 	}
 
 	protected renderMessage(element: HTMLElement, listContainer: HTMLElement): void {
 		this.messageElement.append(element);
 
-		if (this._configurationService.getValue<boolean>('chat.focusWindowOnConfirmation')) {
+		if (this.showingButtons && this._configurationService.getValue<boolean>('chat.notifyWindowOnConfirmation')) {
 			const targetWindow = dom.getWindow(listContainer);
 			if (!targetWindow.document.hasFocus()) {
 				this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
@@ -181,30 +190,37 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 }
 
 export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
+	private _renderedMessage: HTMLElement | undefined;
+
 	constructor(
-		title: string,
+		title: string | IMarkdownString,
 		subtitle: string | IMarkdownString | undefined,
-		private readonly message: string | IMarkdownString,
+		message: string | IMarkdownString,
 		buttons: IChatConfirmationButton[],
-		container: HTMLElement,
+		private readonly _container: HTMLElement,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHostService hostService: IHostService,
 	) {
 		super(title, subtitle, buttons, instantiationService, contextMenuService, configurationService, hostService);
+		this.updateMessage(message);
+	}
 
+	public updateMessage(message: string | IMarkdownString): void {
+		this._renderedMessage?.remove();
 		const renderedMessage = this._register(this.markdownRenderer.render(
-			typeof this.message === 'string' ? new MarkdownString(this.message) : this.message,
+			typeof message === 'string' ? new MarkdownString(message) : message,
 			{ asyncRenderCallback: () => this._onDidChangeHeight.fire() }
 		));
-		this.renderMessage(renderedMessage.element, container);
+		this.renderMessage(renderedMessage.element, this._container);
+		this._renderedMessage = renderedMessage.element;
 	}
 }
 
 export class ChatCustomConfirmationWidget extends BaseChatConfirmationWidget {
 	constructor(
-		title: string,
+		title: string | IMarkdownString,
 		subtitle: string | IMarkdownString | undefined,
 		messageElement: HTMLElement,
 		buttons: IChatConfirmationButton[],

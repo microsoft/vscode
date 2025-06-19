@@ -13,19 +13,15 @@ import { UriList } from '../../../../base/common/dataTransfer.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../base/common/mime.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { CodeDataTransfers, containsDragType, extractEditorsDropData, extractMarkerDropData, extractNotebookCellOutputDropData, extractSymbolDropData } from '../../../../platform/dnd/browser/dnd.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
-import { IChatRequestVariableEntry } from '../common/chatModel.js';
+import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatWidgetService } from './chat.js';
-import { ImageTransferData, resolveEditorAttachContext, resolveImageAttachContext, resolveMarkerAttachContext, resolveNotebookOutputAttachContext, resolveSymbolsAttachContext } from './chatAttachmentResolve.js';
+import { IChatAttachmentResolveService, ImageTransferData } from './chatAttachmentResolveService.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatInputStyles } from './chatInputPart.js';
 import { convertStringToUInt8Array } from './imageUtils.js';
@@ -55,13 +51,10 @@ export class ChatDragAndDrop extends Themable {
 		private readonly styles: IChatInputStyles,
 		@IThemeService themeService: IThemeService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IFileService private readonly fileService: IFileService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@ITextModelService private readonly textModelService: ITextModelService,
 		@ISharedWebContentExtractorService private readonly webContentExtractorService: ISharedWebContentExtractorService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@ILogService private readonly logService: ILogService,
+		@IChatAttachmentResolveService private readonly chatAttachmentResolveService: IChatAttachmentResolveService
 	) {
 		super(themeService);
 
@@ -218,24 +211,24 @@ export class ChatDragAndDrop extends Themable {
 		if (containsDragType(e, CodeDataTransfers.NOTEBOOK_CELL_OUTPUT)) {
 			const notebookOutputData = extractNotebookCellOutputDropData(e);
 			if (notebookOutputData) {
-				return resolveNotebookOutputAttachContext(notebookOutputData, this.editorService);
+				return this.chatAttachmentResolveService.resolveNotebookOutputAttachContext(notebookOutputData);
 			}
 		}
 
 		const markerData = extractMarkerDropData(e);
 		if (markerData) {
-			return resolveMarkerAttachContext(markerData);
+			return this.chatAttachmentResolveService.resolveMarkerAttachContext(markerData);
 		}
 
 		if (containsDragType(e, CodeDataTransfers.SYMBOLS)) {
 			const symbolsData = extractSymbolDropData(e);
-			return resolveSymbolsAttachContext(symbolsData);
+			return this.chatAttachmentResolveService.resolveSymbolsAttachContext(symbolsData);
 		}
 
 		const editorDragData = extractEditorsDropData(e);
 		if (editorDragData.length > 0) {
 			return coalesce(await Promise.all(editorDragData.map(editorInput => {
-				return resolveEditorAttachContext(editorInput, this.fileService, this.editorService, this.textModelService, this.extensionService, this.dialogService);
+				return this.chatAttachmentResolveService.resolveEditorAttachContext(editorInput);
 			})));
 		}
 
@@ -244,7 +237,7 @@ export class ChatDragAndDrop extends Themable {
 			const uriList = UriList.parse(internal);
 			if (uriList.length) {
 				return coalesce(await Promise.all(
-					uriList.map(uri => resolveEditorAttachContext({ resource: URI.parse(uri) }, this.fileService, this.editorService, this.textModelService, this.extensionService, this.dialogService))
+					uriList.map(uri => this.chatAttachmentResolveService.resolveEditorAttachContext({ resource: URI.parse(uri) }))
 				));
 			}
 		}
@@ -335,7 +328,7 @@ export class ChatDragAndDrop extends Themable {
 			imageTransferData.push(...imageTransferDataFromUrl.filter(data => !!data));
 		}
 
-		return await resolveImageAttachContext(imageTransferData);
+		return await this.chatAttachmentResolveService.resolveImageAttachContext(imageTransferData);
 	}
 
 	private setOverlay(target: HTMLElement, type: ChatDragAndDropType | undefined): void {

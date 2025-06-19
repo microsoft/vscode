@@ -19,7 +19,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../platform
 import { ITitleService } from '../services/title/browser/titleService.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { StartupKind, ILifecycleService } from '../services/lifecycle/common/lifecycle.js';
-import { getMenuBarVisibility, IPath, hasNativeTitlebar, hasCustomTitlebar, TitleBarSetting, CustomTitleBarVisibility, useWindowControlsOverlay, DEFAULT_WINDOW_SIZE } from '../../platform/window/common/window.js';
+import { getMenuBarVisibility, IPath, hasNativeTitlebar, hasCustomTitlebar, TitleBarSetting, CustomTitleBarVisibility, useWindowControlsOverlay, DEFAULT_WINDOW_SIZE, hasNativeMenu, MenuSettings } from '../../platform/window/common/window.js';
 import { IHostService } from '../services/host/browser/host.js';
 import { IBrowserWorkbenchEnvironmentService } from '../services/environment/browser/environmentService.js';
 import { IEditorService } from '../services/editor/common/editorService.js';
@@ -30,7 +30,7 @@ import { IStatusbarService } from '../services/statusbar/browser/statusbar.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { isCodeEditor } from '../../editor/browser/editorBrowser.js';
 import { coalesce } from '../../base/common/arrays.js';
-import { assertIsDefined } from '../../base/common/types.js';
+import { assertReturnsDefined } from '../../base/common/types.js';
 import { INotificationService, NotificationsFilter } from '../../platform/notification/common/notification.js';
 import { IThemeService } from '../../platform/theme/common/themeService.js';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from '../common/theme.js';
@@ -128,7 +128,7 @@ export const TITLE_BAR_SETTINGS = [
 	...COMMAND_CENTER_SETTINGS,
 	LayoutSettings.EDITOR_ACTIONS_LOCATION,
 	LayoutSettings.LAYOUT_ACTIONS,
-	'window.menuBarVisibility',
+	MenuSettings.MenuBarVisibility,
 	TitleBarSetting.TITLE_BAR_STYLE,
 	TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY,
 ];
@@ -556,9 +556,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.stateModel.setRuntimeValue(LayoutStateKeys.SIDEBAR_POSITON, position);
 
 		// Adjust CSS
-		const activityBarContainer = assertIsDefined(activityBar.getContainer());
-		const sideBarContainer = assertIsDefined(sideBar.getContainer());
-		const auxiliaryBarContainer = assertIsDefined(auxiliaryBar.getContainer());
+		const activityBarContainer = assertReturnsDefined(activityBar.getContainer());
+		const sideBarContainer = assertReturnsDefined(sideBar.getContainer());
+		const auxiliaryBarContainer = assertReturnsDefined(auxiliaryBar.getContainer());
 		activityBarContainer.classList.remove(oldPositionValue);
 		sideBarContainer.classList.remove(oldPositionValue);
 		activityBarContainer.classList.add(newPositionValue);
@@ -1400,9 +1400,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Zen Mode Configuration Changes
 			this.state.runtime.zenMode.transitionDisposables.set('configurationChange', this.configurationService.onDidChangeConfiguration(e => {
 				// Activity Bar
-				if (e.affectsConfiguration(ZenModeSettings.HIDE_ACTIVITYBAR)) {
+				if (e.affectsConfiguration(ZenModeSettings.HIDE_ACTIVITYBAR) || e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
 					const zenModeHideActivityBar = this.configurationService.getValue<boolean>(ZenModeSettings.HIDE_ACTIVITYBAR);
-					this.setActivityBarHidden(zenModeHideActivityBar);
+					const activityBarLocation = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+					this.setActivityBarHidden(zenModeHideActivityBar ? true : (activityBarLocation === ActivityBarPosition.TOP || activityBarLocation === ActivityBarPosition.BOTTOM));
 				}
 
 				// Status Bar
@@ -2114,12 +2115,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		let newVisibilityValue: string;
 		if (currentVisibilityValue === 'visible' || currentVisibilityValue === 'classic') {
-			newVisibilityValue = hasNativeTitlebar(this.configurationService) ? 'toggle' : 'compact';
+			newVisibilityValue = hasNativeMenu(this.configurationService) ? 'toggle' : 'compact';
 		} else {
 			newVisibilityValue = 'classic';
 		}
 
-		this.configurationService.updateValue('window.menuBarVisibility', newVisibilityValue);
+		this.configurationService.updateValue(MenuSettings.MenuBarVisibility, newVisibilityValue);
 	}
 
 	getPanelPosition(): Position {
@@ -2136,7 +2137,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const newPositionValue = positionToString(position);
 
 		// Adjust CSS
-		const panelContainer = assertIsDefined(panelPart.getContainer());
+		const panelContainer = assertReturnsDefined(panelPart.getContainer());
 		panelContainer.classList.remove(oldPositionValue);
 		panelContainer.classList.add(newPositionValue);
 

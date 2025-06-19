@@ -45,6 +45,13 @@ export const discoverySourceLabel: Record<DiscoverySource, string> = {
 export const mcpConfigurationSection = 'mcp';
 export const mcpDiscoverySection = 'chat.mcp.discovery.enabled';
 export const mcpEnabledSection = 'chat.mcp.enabled';
+export const mcpServerSamplingSection = 'chat.mcp.serverSampling';
+
+export interface IMcpServerSamplingConfiguration {
+	allowedDuringChat?: boolean;
+	allowedOutsideChat?: boolean;
+	allowedModels?: string[];
+}
 
 export const mcpSchemaExampleServers = {
 	'mcp-server-time': {
@@ -214,7 +221,7 @@ export const mcpContributionPoint: IExtensionPointDescriptor<IMcpCollectionContr
 		}
 	},
 	jsonSchema: {
-		description: localize('vscode.extension.contributes.mcp', 'Contributes Model Context Protocol servers. Users of this should also use `vscode.lm.registerMcpConfigurationProvider`.'),
+		description: localize('vscode.extension.contributes.mcp', 'Contributes Model Context Protocol servers. Users of this should also use `vscode.lm.registerMcpServerDefinitionProvider`.'),
 		type: 'array',
 		defaultSnippets: [{ body: [{ id: '', label: '' }] }],
 		items: {

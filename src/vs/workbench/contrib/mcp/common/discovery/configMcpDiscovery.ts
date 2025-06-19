@@ -7,10 +7,13 @@ import { equals as arrayEquals } from '../../../../../base/common/arrays.js';
 import { Throttler } from '../../../../../base/common/async.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorunDelta, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { posix as pathPosix, win32 as pathWin32, sep as pathSep } from '../../../../../base/common/path.js';
+import { isWindows, OperatingSystem } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Location } from '../../../../../editor/common/languages.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { getMcpServerMapping } from '../mcpConfigFileUtils.js';
 import { IMcpConfigPath, IMcpConfigPathsService } from '../mcpConfigPathsService.js';
 import { IMcpConfiguration, mcpConfigurationSection } from '../mcpConfiguration.js';
@@ -36,6 +39,7 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IMcpConfigPathsService private readonly _mcpConfigPathsService: IMcpConfigPathsService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 	) {
 		super();
 	}
@@ -99,6 +103,7 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 			const uri = src.path.uri;
 			return uri && src.getServerToLocationMapping(uri);
 		}));
+		const remoteEnv = await this._remoteAgentService.getEnvironment();
 
 		for (const [index, src] of this.configSources.entries()) {
 			const collectionId = `mcp.config.${src.path.id}`;
@@ -115,6 +120,14 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 			}
 
 			const configMapping = configMappings[index];
+			const { isAbsolute, join, sep } = src.path.remoteAuthority && remoteEnv
+				? (remoteEnv.os === OperatingSystem.Windows ? pathWin32 : pathPosix)
+				: (isWindows ? pathWin32 : pathPosix);
+			const fsPathForRemote = (uri: URI) => {
+				const fsPathLocal = uri.fsPath;
+				return fsPathLocal.replaceAll(pathSep, sep);
+			};
+
 			const nextDefinitions = Object.entries(value?.servers || {}).map(([name, value]): McpServerDefinition => ({
 				id: `${collectionId}.${name}`,
 				label: name,
@@ -128,9 +141,17 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 					command: value.command,
 					env: value.env || {},
 					envFile: value.envFile,
-					cwd: src.path.workspaceFolder?.uri,
+					cwd: value.cwd
+						// if the cwd is defined in a workspace folder but not absolute (and not
+						// a variable or tilde-expansion) then resolve it in the workspace folder
+						? (!isAbsolute(value.cwd) && !value.cwd.startsWith('~') && !value.cwd.startsWith('${') && src.path.workspaceFolder
+							? join(fsPathForRemote(src.path.workspaceFolder.uri), value.cwd)
+							: value.cwd)
+						: src.path.workspaceFolder
+							? fsPathForRemote(src.path.workspaceFolder.uri)
+							: undefined,
 				},
-				roots: src.path.workspaceFolder ? [src.path.workspaceFolder.uri] : [],
+				roots: src.path.workspaceFolder ? [src.path.workspaceFolder.uri] : undefined,
 				variableReplacement: {
 					folder: src.path.workspaceFolder,
 					section: mcpConfigurationSection,
@@ -159,6 +180,7 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 					remoteAuthority: src.path.remoteAuthority || null,
 					serverDefinitions: src.serverDefinitions,
 					isTrustedByDefault: true,
+					configTarget: src.path.target,
 					scope: src.path.scope,
 				});
 			}

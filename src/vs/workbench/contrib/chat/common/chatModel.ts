@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { asArray } from '../../../../base/common/arrays.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -18,240 +17,29 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI, UriComponents, UriDto, isUriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IRange } from '../../../../editor/common/core/range.js';
-import { IOffsetRange, OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
-import { Location, SymbolKind, TextEdit } from '../../../../editor/common/languages.js';
+import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
+import { TextEdit } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IMarker, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
-import { IChatRequestVariableValue } from './chatVariables.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
+import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatMode } from './constants.js';
 
-interface IBaseChatRequestVariableEntry {
-	id: string;
-	fullName?: string;
-	icon?: ThemeIcon;
-	name: string;
-	modelDescription?: string;
 
-	/**
-	 * The offset-range in the prompt. This means this entry has been explicitly typed out
-	 * by the user.
-	 */
-	range?: IOffsetRange;
-	value: IChatRequestVariableValue;
-	references?: IChatContentReference[];
+export const CHAT_ATTACHABLE_IMAGE_MIME_TYPES: Record<string, string> = {
+	png: 'image/png',
+	jpg: 'image/jpeg',
+	jpeg: 'image/jpeg',
+	gif: 'image/gif',
+	webp: 'image/webp',
+};
 
-	omittedState?: OmittedState;
-}
-
-export interface IGenericChatRequestVariableEntry extends IBaseChatRequestVariableEntry {
-	kind: 'generic';
-}
-
-export interface IChatRequestDirectoryEntry extends IBaseChatRequestVariableEntry {
-	kind: 'directory';
-}
-
-export interface IChatRequestFileEntry extends IBaseChatRequestVariableEntry {
-	kind: 'file';
-}
-
-export const enum OmittedState {
-	NotOmitted,
-	Partial,
-	Full,
-}
-
-export interface IChatRequestToolEntry extends IBaseChatRequestVariableEntry {
-	readonly kind: 'tool';
-}
-
-export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVariableEntry {
-	readonly kind: 'implicit';
-	readonly isFile: true;
-	readonly value: URI | Location | undefined;
-	readonly isSelection: boolean;
-	readonly isPromptFile: boolean;
-	enabled: boolean;
-}
-
-export interface IChatRequestPasteVariableEntry extends IBaseChatRequestVariableEntry {
-	readonly kind: 'paste';
-	code: string;
-	language: string;
-	pastedLines: string;
-
-	// This is only used for old serialized data and should be removed once we no longer support it
-	fileName: string;
-
-	// This is only undefined on old serialized data
-	copiedFrom: {
-		readonly uri: URI;
-		readonly range: IRange;
-	} | undefined;
-}
-
-export interface ISymbolVariableEntry extends IBaseChatRequestVariableEntry {
-	readonly kind: 'symbol';
-	readonly value: Location;
-	readonly symbolKind: SymbolKind;
-}
-
-export interface ICommandResultVariableEntry extends IBaseChatRequestVariableEntry {
-	readonly kind: 'command';
-}
-
-export interface IImageVariableEntry extends IBaseChatRequestVariableEntry {
-	readonly kind: 'image';
-	readonly isPasted?: boolean;
-	readonly isURL?: boolean;
-	readonly mimeType?: string;
-}
-
-export interface INotebookOutputVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
-	readonly kind: 'notebookOutput';
-	readonly outputIndex?: number;
-	readonly mimeType?: string;
-}
-
-export interface IDiagnosticVariableEntryFilterData {
-	readonly owner?: string;
-	readonly problemMessage?: string;
-	readonly filterUri?: URI;
-	readonly filterSeverity?: MarkerSeverity;
-	readonly filterRange?: IRange;
-}
-
-/**
- * Chat variable that represents an attached prompt file.
- */
-export interface IPromptVariableEntry extends IBaseChatRequestVariableEntry {
-	readonly kind: 'file';
-	readonly value: URI | Location;
-	readonly isRoot: boolean;
-	readonly modelDescription: string;
-}
-
-export namespace IDiagnosticVariableEntryFilterData {
-	export const icon = Codicon.error;
-
-	export function fromMarker(marker: IMarker): IDiagnosticVariableEntryFilterData {
-		return {
-			filterUri: marker.resource,
-			owner: marker.owner,
-			problemMessage: marker.message,
-			filterRange: { startLineNumber: marker.startLineNumber, endLineNumber: marker.endLineNumber, startColumn: marker.startColumn, endColumn: marker.endColumn }
-		};
-	}
-
-	export function toEntry(data: IDiagnosticVariableEntryFilterData): IDiagnosticVariableEntry {
-		return {
-			id: id(data),
-			name: label(data),
-			icon,
-			value: data,
-			kind: 'diagnostic',
-			...data,
-		};
-	}
-
-	export function id(data: IDiagnosticVariableEntryFilterData) {
-		return [data.filterUri, data.owner, data.filterSeverity, data.filterRange?.startLineNumber].join(':');
-	}
-
-	export function label(data: IDiagnosticVariableEntryFilterData) {
-		const enum TrimThreshold {
-			MaxChars = 30,
-			MaxSpaceLookback = 10,
-		}
-		if (data.problemMessage) {
-			if (data.problemMessage.length < TrimThreshold.MaxChars) {
-				return data.problemMessage;
-			}
-
-			// Trim the message, on a space if it would not lose too much
-			// data (MaxSpaceLookback) or just blindly otherwise.
-			const lastSpace = data.problemMessage.lastIndexOf(' ', TrimThreshold.MaxChars);
-			if (lastSpace === -1 || lastSpace + TrimThreshold.MaxSpaceLookback < TrimThreshold.MaxChars) {
-				return data.problemMessage.substring(0, TrimThreshold.MaxChars) + '…';
-			}
-			return data.problemMessage.substring(0, lastSpace) + '…';
-		}
-		let labelStr = localize('chat.attachment.problems.all', "All Problems");
-		if (data.filterUri) {
-			labelStr = localize('chat.attachment.problems.inFile', "Problems in {0}", basename(data.filterUri));
-		}
-
-		return labelStr;
-	}
-}
-
-export interface IDiagnosticVariableEntry extends IBaseChatRequestVariableEntry, IDiagnosticVariableEntryFilterData {
-	readonly kind: 'diagnostic';
-}
-
-export interface IElementVariableEntry extends IBaseChatRequestVariableEntry {
-	readonly kind: 'element';
-}
-
-export interface IPromptFileVariableEntry extends IBaseChatRequestVariableEntry {
-	readonly kind: 'promptFile';
-}
-
-export interface ISCMHistoryItemVariableEntry extends IBaseChatRequestVariableEntry {
-	readonly kind: 'scmHistoryItem';
-	readonly title: string;
-	readonly value: URI;
-}
-
-export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
-	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry | IChatRequestToolEntry
-	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
-	| IPromptFileVariableEntry | ISCMHistoryItemVariableEntry;
-
-export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
-	return obj.kind === 'implicit';
-}
-
-export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {
-	return obj.kind === 'paste';
-}
-
-export function isImageVariableEntry(obj: IChatRequestVariableEntry): obj is IImageVariableEntry {
-	return obj.kind === 'image';
-}
-
-export function isNotebookOutputVariableEntry(obj: IChatRequestVariableEntry): obj is INotebookOutputVariableEntry {
-	return obj.kind === 'notebookOutput';
-}
-
-export function isElementVariableEntry(obj: IChatRequestVariableEntry): obj is IElementVariableEntry {
-	return obj.kind === 'element';
-}
-
-export function isDiagnosticsVariableEntry(obj: IChatRequestVariableEntry): obj is IDiagnosticVariableEntry {
-	return obj.kind === 'diagnostic';
-}
-
-export function isChatRequestFileEntry(obj: IChatRequestVariableEntry): obj is IChatRequestFileEntry {
-	return obj.kind === 'file';
-}
-
-export function isChatRequestVariableEntry(obj: unknown): obj is IChatRequestVariableEntry {
-	const entry = obj as IChatRequestVariableEntry;
-	return typeof entry === 'object' &&
-		entry !== null &&
-		typeof entry.id === 'string' &&
-		typeof entry.name === 'string';
-}
-
-export function isSCMHistoryItemVariableEntry(obj: IChatRequestVariableEntry): obj is ISCMHistoryItemVariableEntry {
-	return obj.kind === 'scmHistoryItem';
+export function getAttachableImageExtension(mimeType: string): string | undefined {
+	return Object.entries(CHAT_ATTACHABLE_IMAGE_MIME_TYPES).find(([_, value]) => value === mimeType)?.[0];
 }
 
 export interface IChatRequestVariableData {
@@ -335,7 +123,8 @@ export type IChatProgressResponseContent =
 	| IChatToolInvocation
 	| IChatToolInvocationSerialized
 	| IChatUndoStop
-	| IChatPrepareToolInvocationPart;
+	| IChatPrepareToolInvocationPart
+	| IChatElicitationRequest;
 
 const nonHistoryKinds = new Set(['toolInvocation', 'toolInvocationSerialized', 'undoStop', 'prepareToolInvocation']);
 function isChatProgressHistoryResponseContent(content: IChatProgressResponseContent): content is IChatProgressHistoryResponseContent {
@@ -561,6 +350,7 @@ class AbstractResponse implements IResponse {
 				case 'extensions':
 				case 'undoStop':
 				case 'prepareToolInvocation':
+				case 'elicitation':
 					// Ignore
 					continue;
 				case 'inlineReference':
@@ -624,7 +414,14 @@ class ResponseView extends AbstractResponse {
 		_response: IResponse,
 		public readonly undoStop: string,
 	) {
-		const idx = _response.value.findIndex(v => v.kind === 'undoStop' && v.id === undoStop);
+		let idx = _response.value.findIndex(v => v.kind === 'undoStop' && v.id === undoStop);
+		// Undo stops are inserted before `codeblockUri`'s, which are preceeded by a
+		// markdownContent containing the opening code fence. Adjust the index
+		// backwards to avoid a buggy response if it looked like this happened.
+		if (_response.value[idx + 1]?.kind === 'codeblockUri' && _response.value[idx - 1]?.kind === 'markdownContent') {
+			idx--;
+		}
+
 		super(idx === -1 ? _response.value.slice() : _response.value.slice(0, idx));
 	}
 }
@@ -654,7 +451,7 @@ export class Response extends AbstractResponse implements IDisposable {
 		this._updateRepr(true);
 	}
 
-	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatUndoStop, quiet?: boolean): void {
+	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask, quiet?: boolean): void {
 		if (progress.kind === 'markdownContent') {
 
 			// last response which is NOT a text edit group because we do want to support heterogenous streaming but not have
@@ -1705,8 +1502,9 @@ export class ChatModel extends Disposable implements IChatModel {
 			request.response.applyCodeCitation(progress);
 		} else if (progress.kind === 'move') {
 			this._onDidChange.fire({ kind: 'move', target: progress.uri, range: progress.range });
-		} else if (progress.kind === 'undoStop') {
-			request.response.addUndoStop(progress);
+		} else if (progress.kind === 'codeblockUri' && progress.isEdit) {
+			request.response.addUndoStop({ id: generateUuid(), kind: 'undoStop' });
+			request.response.updateContent(progress, quiet);
 		} else if (progress.kind === 'progressTaskResult') {
 			// Should have been handled upstream, not sent to model
 			this.logService.error(`Couldn't handle progress: ${JSON.stringify(progress)}`);
@@ -1901,4 +1699,40 @@ export enum ChatRequestEditedFileEventKind {
 export interface IChatAgentEditedFileEvent {
 	readonly uri: URI;
 	readonly eventKind: ChatRequestEditedFileEventKind;
+}
+
+/** URI for a resource embedded in a chat request/response */
+export namespace ChatResponseResource {
+	export const scheme = 'vscode-chat-response-resource';
+
+	export function createUri(sessionId: string, requestId: string, toolCallId: string, index: number, basename?: string): URI {
+		return URI.from({
+			scheme: ChatResponseResource.scheme,
+			authority: sessionId,
+			path: `/tool/${requestId}/${toolCallId}/${index}` + (basename ? `/${basename}` : ''),
+		});
+	}
+
+	export function parseUri(uri: URI): undefined | { sessionId: string; requestId: string; toolCallId: string; index: number } {
+		if (uri.scheme !== ChatResponseResource.scheme) {
+			return undefined;
+		}
+
+		const parts = uri.path.split('/');
+		if (parts.length < 5) {
+			return undefined;
+		}
+
+		const [, kind, requestId, toolCallId, index] = parts;
+		if (kind !== 'tool') {
+			return undefined;
+		}
+
+		return {
+			sessionId: uri.authority,
+			requestId: requestId,
+			toolCallId: toolCallId,
+			index: Number(index),
+		};
+	}
 }

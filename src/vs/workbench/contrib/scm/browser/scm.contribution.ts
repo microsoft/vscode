@@ -642,6 +642,12 @@ MenuRegistry.appendMenuItem(MenuId.EditorLineNumberContext, {
 	group: '9_quickDiffDecorations'
 });
 
+MenuRegistry.appendMenuItem(MenuId.SCMHistoryItemContext, {
+	title: localize('scmHistoryItemChatContext', "Copilot"),
+	submenu: MenuId.SCMHistoryItemChatContext,
+	group: '8_chat'
+});
+
 registerSingleton(ISCMService, SCMService, InstantiationType.Delayed);
 registerSingleton(ISCMViewService, SCMViewService, InstantiationType.Delayed);
 registerSingleton(IQuickDiffService, QuickDiffService, InstantiationType.Delayed);

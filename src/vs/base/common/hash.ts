@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from './buffer.js';
+import { encodeHex, VSBuffer } from './buffer.js';
 import * as strings from './strings.js';
 
 type NotSyncHashable = ArrayBufferLike | ArrayBufferView;
@@ -116,7 +116,7 @@ function toHexString(buffer: ArrayBuffer): string;
 function toHexString(value: number, bitsize?: number): string;
 function toHexString(bufferOrValue: ArrayBuffer | number, bitsize: number = 32): string {
 	if (bufferOrValue instanceof ArrayBuffer) {
-		return Array.from(new Uint8Array(bufferOrValue)).map(b => b.toString(16).padStart(2, '0')).join('');
+		return encodeHex(VSBuffer.wrap(new Uint8Array(bufferOrValue)));
 	}
 
 	return (bufferOrValue >>> 0).toString(16).padStart(bitsize / 4, '0');

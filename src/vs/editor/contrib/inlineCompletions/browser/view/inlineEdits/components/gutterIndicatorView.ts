@@ -60,6 +60,13 @@ export class InlineEditsGutterIndicator extends Disposable {
 			return model.tabAction.read(reader);
 		});
 
+		this._hoverVisible = observableValue(this, false);
+		this.isHoverVisible = this._hoverVisible;
+		this._isHoveredOverIcon = observableValue(this, false);
+		this._isHoveredOverIconDebounced = debouncedObservable(this._isHoveredOverIcon, 100);
+		this.isHoveredOverIcon = this._isHoveredOverIconDebounced;
+		this._isHoveredOverInlineEditDebounced = debouncedObservable(this._isHoveringOverInlineEdit, 100);
+
 		this._gutterIndicatorStyles = this._tabAction.map((v, reader) => {
 			switch (v) {
 				case InlineEditTabAction.Inactive: return {
@@ -190,7 +197,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 			const layout = this._editorObs.layoutInfo.read(reader);
 
-			const lineHeight = this._editorObs.getOption(EditorOption.lineHeight).read(reader);
+			const lineHeight = this._editorObs.observeLineHeightForLine(s.range.map(r => r.startLineNumber)).read(reader);
 			const gutterViewPortPadding = 1;
 
 			// Entire gutter view from top left to bottom right
@@ -233,7 +240,14 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 			if (pillIsFullyDocked) {
 				const pillRect = pillFullyDockedRect;
-				const lineNumberWidth = Math.max(layout.lineNumbersLeft + layout.lineNumbersWidth - gutterViewPortWithStickyScroll.left, 0);
+
+				let lineNumberWidth;
+				if (layout.lineNumbersWidth === 0) {
+					lineNumberWidth = Math.min(Math.max(layout.lineNumbersLeft - gutterViewPortWithStickyScroll.left, 0), pillRect.width - idealIconWidth);
+				} else {
+					lineNumberWidth = Math.max(layout.lineNumbersLeft + layout.lineNumbersWidth - gutterViewPortWithStickyScroll.left, 0);
+				}
+
 				const lineNumberRect = pillRect.withWidth(lineNumberWidth);
 				const iconWidth = Math.max(Math.min(layout.decorationsWidth, idealIconWidth), minimalIconWidth);
 				const iconRect = pillRect.withWidth(iconWidth).translateX(lineNumberWidth);
@@ -287,11 +301,6 @@ export class InlineEditsGutterIndicator extends Disposable {
 		});
 		this._iconRef = n.ref<HTMLDivElement>();
 		this.isVisible = this._layout.map(l => !!l);
-		this._hoverVisible = observableValue(this, false);
-		this.isHoverVisible = this._hoverVisible;
-		this._isHoveredOverIcon = observableValue(this, false);
-		this._isHoveredOverIconDebounced = debouncedObservable(this._isHoveredOverIcon, 100);
-		this.isHoveredOverIcon = this._isHoveredOverIconDebounced;
 		this._indicator = n.div({
 			class: 'inline-edits-view-gutter-indicator',
 			onclick: () => {
@@ -393,8 +402,6 @@ export class InlineEditsGutterIndicator extends Disposable {
 		this._register(this._editorObs.editor.onDidScrollChange(() => {
 			this._isHoveredOverIcon.set(false, undefined);
 		}));
-
-		this._isHoveredOverInlineEditDebounced = debouncedObservable(this._isHoveringOverInlineEdit, 100);
 
 		// pulse animation when hovering inline edit
 		this._register(runOnChange(this._isHoveredOverInlineEditDebounced, (isHovering) => {

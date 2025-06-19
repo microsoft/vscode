@@ -12,7 +12,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogger, log, LogLevel } from '../../../../platform/log/common/log.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { IMcpServerConnection, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
+import { IMcpClientMethods, IMcpServerConnection, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
 
 export class McpServerConnection extends Disposable implements IMcpServerConnection {
 	private readonly _launch = this._register(new MutableDisposable<IReference<IMcpMessageTransport>>());
@@ -34,7 +34,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 	}
 
 	/** @inheritdoc */
-	public async start(): Promise<McpConnectionState> {
+	public async start(methods: IMcpClientMethods): Promise<McpConnectionState> {
 		const currentState = this._state.get();
 		if (!McpConnectionState.canBeStarted(currentState.state)) {
 			return this._waitForState(McpConnectionState.Kind.Running, McpConnectionState.Kind.Error);
@@ -46,7 +46,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 
 		try {
 			const launch = this._delegate.start(this._collection, this.definition, this.launchDefinition);
-			this._launch.value = this.adoptLaunch(launch);
+			this._launch.value = this.adoptLaunch(launch, methods);
 			return this._waitForState(McpConnectionState.Kind.Running, McpConnectionState.Kind.Error);
 		} catch (e) {
 			const errorState: McpConnectionState = {
@@ -58,7 +58,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 		}
 	}
 
-	private adoptLaunch(launch: IMcpMessageTransport): IReference<IMcpMessageTransport> {
+	private adoptLaunch(launch: IMcpMessageTransport, methods: IMcpClientMethods): IReference<IMcpMessageTransport> {
 		const store = new DisposableStore();
 		const cts = new CancellationTokenSource();
 
@@ -76,7 +76,12 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 
 			if (state.state === McpConnectionState.Kind.Running && !didStart) {
 				didStart = true;
-				McpServerRequestHandler.create(this._instantiationService, launch, this._logger, this.definition.devMode ? LogLevel.Info : LogLevel.Debug, cts.token).then(
+				McpServerRequestHandler.create(this._instantiationService, {
+					launch,
+					logger: this._logger,
+					requestLogLevel: this.definition.devMode ? LogLevel.Info : LogLevel.Debug,
+					...methods,
+				}, cts.token).then(
 					handler => {
 						if (!store.isDisposed) {
 							this._requestHandler.set(handler, undefined);

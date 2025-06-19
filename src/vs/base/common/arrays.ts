@@ -624,16 +624,7 @@ function getActualStartIndex<T>(array: T[], start: number): number {
 	return start < 0 ? Math.max(start + array.length, 0) : Math.min(start, array.length);
 }
 
-/**
- * @deprecated do not use, use property access
- */
-export const pick = <TObject, TKeyName extends keyof TObject>(
-	key: TKeyName,
-) => {
-	return (obj: TObject): TObject[TKeyName] => {
-		return obj[key];
-	};
-};
+
 
 /**
  * When comparing two values,

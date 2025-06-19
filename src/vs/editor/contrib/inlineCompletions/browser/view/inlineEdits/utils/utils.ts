@@ -104,6 +104,26 @@ export function getContentRenderWidth(content: string, editor: ICodeEditor, text
 	return numNoneTabs * w + numTabs * tabSize;
 }
 
+export function getEditorValidOverlayRect(editor: ObservableCodeEditor): IObservable<Rect> {
+	const contentLeft = editor.layoutInfoContentLeft;
+
+	const width = derived(r => {
+		const hasMinimapOnTheRight = editor.layoutInfoMinimap.read(r).minimapLeft !== 0;
+		const editorWidth = editor.layoutInfoWidth.read(r) - contentLeft.read(r);
+
+		if (hasMinimapOnTheRight) {
+			const minimapAndScrollbarWidth = editor.layoutInfoMinimap.read(r).minimapWidth + editor.layoutInfoVerticalScrollbarWidth.read(r);
+			return editorWidth - minimapAndScrollbarWidth;
+		}
+
+		return editorWidth;
+	});
+
+	const height = derived(r => editor.layoutInfoHeight.read(r) + editor.contentHeight.read(r));
+
+	return derived(r => Rect.fromLeftTopWidthHeight(contentLeft.read(r), 0, width.read(r), height.read(r)));
+}
+
 export class StatusBarViewItem extends MenuEntryActionViewItem {
 	protected readonly _updateLabelListener = this._register(this._contextKeyService.onDidChangeContext(() => {
 		this.updateLabel();

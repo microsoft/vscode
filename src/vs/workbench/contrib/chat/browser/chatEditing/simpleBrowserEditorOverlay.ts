@@ -31,7 +31,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IChatRequestVariableEntry } from '../../common/chatModel.js';
+import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { IBrowserElementsService } from '../../../../services/browserElements/browser/browserElementsService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -46,7 +46,7 @@ class SimpleBrowserOverlayWidget {
 
 	private readonly _showStore = new DisposableStore();
 
-	private _timeout: any | undefined = undefined;
+	private _timeout: Timeout | undefined = undefined;
 
 	private _activeBrowserType: BrowserType | undefined = undefined;
 
@@ -347,6 +347,10 @@ class SimpleBrowserOverlayController {
 		this._store.add(toDisposable(() => this._domNode.remove()));
 		this._store.add(widget);
 
+		const connectingWebviewElement = document.createElement('div');
+		connectingWebviewElement.className = 'connecting-webview-element';
+
+
 		const getActiveBrowserType = () => {
 			const editor = group.activeEditorPane;
 			const isSimpleBrowser = editor?.input.editorId === 'mainThreadWebview-simpleBrowser.view';
@@ -356,15 +360,27 @@ class SimpleBrowserOverlayController {
 
 		let cts = new CancellationTokenSource();
 		const show = async () => {
+			// Show the connecting indicator while establishing the session
+			connectingWebviewElement.textContent = localize('connectingWebviewElement', 'Connecting to webview...');
+			if (!container.contains(connectingWebviewElement)) {
+				container.appendChild(connectingWebviewElement);
+			}
+
 			cts = new CancellationTokenSource();
 			const activeBrowserType = getActiveBrowserType();
 			if (activeBrowserType) {
-				await this._browserElementsService.startDebugSession(cts.token, activeBrowserType);
+				try {
+					await this._browserElementsService.startDebugSession(cts.token, activeBrowserType);
+				} catch (error) {
+					connectingWebviewElement.textContent = localize('reopenErrorWebviewElement', 'Please reopen the preview.');
+					return;
+				}
 			}
 
 			if (!container.contains(this._domNode)) {
 				container.appendChild(this._domNode);
 			}
+			connectingWebviewElement.remove();
 		};
 
 		const hide = () => {
@@ -372,6 +388,7 @@ class SimpleBrowserOverlayController {
 				cts.cancel();
 				this._domNode.remove();
 			}
+			connectingWebviewElement.remove();
 		};
 
 		const activeEditorSignal = observableSignalFromEvent(this, Event.any(group.onDidActiveEditorChange, group.onDidModelChange));

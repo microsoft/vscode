@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { TypeScriptServiceConfiguration } from '../configuration/configuration';
 import { TelemetryReporter } from '../logging/telemetry';
 import Tracer from '../logging/tracer';
-import { CallbackMap } from '../tsServer/callbackMap';
+import { CallbackMap, type CallbackItem } from '../tsServer/callbackMap';
 import { RequestItem, RequestQueue, RequestQueueingType } from '../tsServer/requestQueue';
 import { TypeScriptServerError } from '../tsServer/serverError';
 import { ServerResponse, ServerType, TypeScriptRequests } from '../typescriptService';
@@ -235,8 +235,22 @@ export class SingleTsServer extends Disposable implements ITypeScriptServer {
 		let result: Promise<ServerResponse.Response<Proto.Response>> | undefined;
 		if (executeInfo.expectsResult) {
 			result = new Promise<ServerResponse.Response<Proto.Response>>((resolve, reject) => {
-				this._callbacks.add(request.seq, { onSuccess: resolve as () => ServerResponse.Response<Proto.Response> | undefined, onError: reject, queuingStartTime: Date.now(), isAsync: executeInfo.isAsync, traceId: request.arguments?.$traceId }, executeInfo.isAsync);
-
+				const item: CallbackItem<ServerResponse.Response<Proto.Response> | undefined> = typeof request.arguments?.$traceId === 'string'
+					? {
+						onSuccess: resolve as () => ServerResponse.Response<Proto.Response> | undefined,
+						onError: reject,
+						queuingStartTime: Date.now(),
+						isAsync: executeInfo.isAsync,
+						command: request.command,
+						traceId: request.arguments.$traceId
+					} : {
+						onSuccess: resolve as () => ServerResponse.Response<Proto.Response> | undefined,
+						onError: reject,
+						queuingStartTime: Date.now(),
+						isAsync: executeInfo.isAsync,
+						command: request.command,
+					};
+				this._callbacks.add(request.seq, item, executeInfo.isAsync);
 				if (executeInfo.token) {
 
 					const cancelViaSAB = isWebAndHasSharedArrayBuffers()
@@ -272,11 +286,38 @@ export class SingleTsServer extends Disposable implements ITypeScriptServer {
 		if (args && typeof (args as any).$traceId === 'string') {
 			const queueLength = this._requestQueue.length - 1;
 			const pendingResponses = this._pendingResponses.size;
-			this._telemetryReporter.logTraceEvent('TSServer.enqueueRequest', (args as any).$traceId, JSON.stringify({ command, queueLength, pendingResponses }));
+			const data: { command: string; queueLength: number; pendingResponses: number; queuedCommands?: string[]; pendingCommands?: string[] } = {
+				command: request.command,
+				queueLength,
+				pendingResponses
+			};
+			if (queueLength > 0) {
+				data.queuedCommands = this._requestQueue.getQueuedCommands(true);
+			}
+			if (pendingResponses > 0) {
+				data.pendingCommands = this.getPendingCommands();
+			}
+
+			this._telemetryReporter.logTraceEvent('TSServer.enqueueRequest', (args as any).$traceId, JSON.stringify(data));
 		}
 		this.sendNextRequests();
 
 		return [result];
+	}
+
+	private getPendingCommands(): string[] {
+		const result: string[] = [];
+		for (const seq of this._pendingResponses) {
+			const callback = this._callbacks.peek(seq);
+			if (typeof callback?.command !== 'string') {
+				continue;
+			}
+			result.push(callback.command);
+			if (result.length >= 5) {
+				break;
+			}
+		}
+		return result;
 	}
 
 	private sendNextRequests(): void {

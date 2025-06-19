@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/extensionManagement.css';
 import { localize, localize2 } from '../../../../nls.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -286,6 +287,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					name: 'ExtensionGalleryServiceUrl',
 					minimumVersion: '1.99',
 				},
+			},
+			'extensions.supportNodeGlobalNavigator': {
+				type: 'boolean',
+				description: localize('extensionsSupportNodeGlobalNavigator', "When enabled, Node.js navigator object is exposed on the global scope."),
+				default: false,
 			},
 		}
 	});
@@ -1653,11 +1659,11 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			title: localize('download VSIX', "Download VSIX"),
 			menu: {
 				id: MenuId.ExtensionContext,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('isGalleryExtension')),
+				when: ContextKeyExpr.and(ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('isGalleryExtension')),
 				order: this.productService.quality === 'stable' ? 0 : 1
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
-				accessor.get(IExtensionsWorkbenchService).downloadVSIX(extensionId, false);
+				accessor.get(IExtensionsWorkbenchService).downloadVSIX(extensionId, 'release');
 			}
 		});
 
@@ -1666,11 +1672,24 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			title: localize('download pre-release', "Download Pre-Release VSIX"),
 			menu: {
 				id: MenuId.ExtensionContext,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.has('extensionHasPreReleaseVersion')),
+				when: ContextKeyExpr.and(ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.has('extensionHasPreReleaseVersion')),
 				order: this.productService.quality === 'stable' ? 1 : 0
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
-				accessor.get(IExtensionsWorkbenchService).downloadVSIX(extensionId, true);
+				accessor.get(IExtensionsWorkbenchService).downloadVSIX(extensionId, 'prerelease');
+			}
+		});
+
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.downloadSpecificVersion',
+			title: localize('download specific version', "Download Specific Version VSIX..."),
+			menu: {
+				id: MenuId.ExtensionContext,
+				when: ContextKeyExpr.and(ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('isGalleryExtension')),
+				order: 2
+			},
+			run: async (accessor: ServicesAccessor, extensionId: string) => {
+				accessor.get(IExtensionsWorkbenchService).downloadVSIX(extensionId, 'any');
 			}
 		});
 

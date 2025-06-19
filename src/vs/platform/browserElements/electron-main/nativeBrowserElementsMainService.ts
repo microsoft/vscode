@@ -58,14 +58,20 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 
 		// search for webview via search parameters
 		if (matchingTarget) {
-			const url = new URL(matchingTarget.url);
-			const resultId = url.searchParams.get('id')!;
+			let resultId: string | undefined;
+			let url: URL | undefined;
+			try {
+				url = new URL(matchingTarget.url);
+				resultId = url.searchParams.get('id')!;
+			} catch (e) {
+				return undefined;
+			}
+
 			target = targetInfos.find((targetInfo: { url: string }) => {
 				try {
 					const url = new URL(targetInfo.url);
 					const isLiveServer = browserType === BrowserType.LiveServer && url.searchParams.get('serverWindowId') === resultId;
 					const isSimpleBrowser = browserType === BrowserType.SimpleBrowser && url.searchParams.get('id') === resultId && url.searchParams.has('vscodeBrowserReqId');
-
 					if (isLiveServer || isSimpleBrowser) {
 						this.currentLocalAddress = url.origin;
 						return true;
@@ -75,6 +81,10 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 					return false;
 				}
 			});
+
+			if (target) {
+				return target.targetId;
+			}
 		}
 
 		// fallback: search for webview without parameters based on current origin
@@ -94,12 +104,12 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		return target.targetId;
 	}
 
-	async waitForWebviewTargets(debuggers: any, windowId: number): Promise<any> {
+	async waitForWebviewTargets(debuggers: any, windowId: number, browserType: BrowserType): Promise<any> {
 		const start = Date.now();
 		const timeout = 10000;
 
 		while (Date.now() - start < timeout) {
-			const targetId = await this.findWebviewTarget(debuggers, windowId, BrowserType.SimpleBrowser);
+			const targetId = await this.findWebviewTarget(debuggers, windowId, browserType);
 			if (targetId) {
 				return targetId;
 			}
@@ -108,6 +118,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 			await new Promise(resolve => setTimeout(resolve, 500));
 		}
 
+		debuggers.detach();
 		return undefined;
 	}
 
@@ -131,16 +142,19 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		}
 
 		try {
-			const matchingTargetId = await this.waitForWebviewTargets(debuggers, windowId!);
+			const matchingTargetId = await this.waitForWebviewTargets(debuggers, windowId!, browserType);
 			if (!matchingTargetId) {
-				return undefined;
+				if (debuggers.isAttached()) {
+					debuggers.detach();
+				}
+				throw new Error('No target found');
 			}
 
 		} catch (e) {
 			if (debuggers.isAttached()) {
 				debuggers.detach();
 			}
-			throw new Error('No target found', e);
+			throw new Error('No target found');
 		}
 
 		window.win.webContents.on('ipc-message', async (event, channel, closedCancelAndDetachId) => {

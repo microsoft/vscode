@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { addDisposableListener } from '../../../base/browser/dom.js';
 import { CachedFunction } from '../../../base/common/cache.js';
 import { getStructuralKey } from '../../../base/common/equals.js';
 import { Event, IValueWithChangeEvent } from '../../../base/common/event.js';
-import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../base/common/network.js';
 import { derived, observableFromEvent, ValueWithChangeEventFromObservable } from '../../../base/common/observable.js';
 import { localize } from '../../../nls.js';
@@ -61,6 +62,12 @@ export interface IAccessbilitySignalOptions {
 	 * play the sound if the user triggered the action.
 	 */
 	userGesture?: boolean;
+
+	/**
+	 * The custom message to alert with.
+	 * This will override the default announcement message.
+	 */
+	customAlertMessage?: string;
 }
 
 export class AccessibilitySignalService extends Disposable implements IAccessibilitySignalService {
@@ -94,7 +101,7 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 					const setting = this._signalConfigValue.get(arg.signal).read(reader);
 
 					if (arg.modality === 'sound' || arg.modality === undefined) {
-						if (checkEnabledState(setting.sound, () => this.screenReaderAttached.read(reader), arg.userGesture)) {
+						if (arg.signal.managesOwnEnablement || checkEnabledState(setting.sound, () => this.screenReaderAttached.read(reader), arg.userGesture)) {
 							return true;
 						}
 					}
@@ -115,7 +122,7 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 
 	public async playSignal(signal: AccessibilitySignal, options: IAccessbilitySignalOptions = {}): Promise<void> {
 		const shouldPlayAnnouncement = options.modality === 'announcement' || options.modality === undefined;
-		const announcementMessage = signal.announcementMessage;
+		const announcementMessage = options.customAlertMessage ?? signal.announcementMessage;
 		if (shouldPlayAnnouncement && this.isAnnouncementEnabled(signal, options.userGesture) && announcementMessage) {
 			this.accessibilityService.status(announcementMessage);
 		}
@@ -271,17 +278,26 @@ function checkEnabledState(state: EnabledState, getScreenReaderAttached: () => b
  * Play the given audio url.
  * @volume value between 0 and 1
  */
-function playAudio(url: string, volume: number): Promise<HTMLAudioElement> {
-	return new Promise((resolve, reject) => {
+async function playAudio(url: string, volume: number): Promise<HTMLAudioElement> {
+	const disposables = new DisposableStore();
+	try {
+		return await doPlayAudio(url, volume, disposables);
+	} finally {
+		disposables.dispose();
+	}
+}
+
+function doPlayAudio(url: string, volume: number, disposables: DisposableStore): Promise<HTMLAudioElement> {
+	return new Promise<HTMLAudioElement>((resolve, reject) => {
 		const audio = new Audio(url);
 		audio.volume = volume;
-		audio.addEventListener('ended', () => {
+		disposables.add(addDisposableListener(audio, 'ended', () => {
 			resolve(audio);
-		});
-		audio.addEventListener('error', (e) => {
+		}));
+		disposables.add(addDisposableListener(audio, 'error', (e) => {
 			// When the error event fires, ended might not be called
 			reject(e.error);
-		});
+		}));
 		audio.play().catch(e => {
 			// When play fails, the error event is not fired.
 			reject(e);
@@ -326,6 +342,9 @@ export class Sound {
 	public static readonly editsUndone = Sound.register({ fileName: 'editsUndone.mp3' });
 	public static readonly nextEditSuggestion = Sound.register({ fileName: 'nextEditSuggestion.mp3' });
 	public static readonly terminalCommandSucceeded = Sound.register({ fileName: 'terminalCommandSucceeded.mp3' });
+	public static readonly chatUserActionRequired = Sound.register({ fileName: 'chatUserActionRequired.mp3' });
+	public static readonly codeActionTriggered = Sound.register({ fileName: 'codeActionTriggered.mp3' });
+	public static readonly codeActionApplied = Sound.register({ fileName: 'codeActionApplied.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -352,7 +371,8 @@ export class AccessibilitySignal {
 		public readonly legacySoundSettingsKey: string | undefined,
 		public readonly settingsKey: string,
 		public readonly legacyAnnouncementSettingsKey: string | undefined,
-		public readonly announcementMessage: string | undefined
+		public readonly announcementMessage: string | undefined,
+		public readonly managesOwnEnablement: boolean = false
 	) { }
 
 	private static _signals = new Set<AccessibilitySignal>();
@@ -370,6 +390,7 @@ export class AccessibilitySignal {
 		legacyAnnouncementSettingsKey?: string;
 		announcementMessage?: string;
 		delaySettingsKey?: string;
+		managesOwnEnablement?: boolean;
 	}): AccessibilitySignal {
 		const soundSource = new SoundSource('randomOneOf' in options.sound ? options.sound.randomOneOf : [options.sound]);
 		const signal = new AccessibilitySignal(
@@ -379,6 +400,7 @@ export class AccessibilitySignal {
 			options.settingsKey,
 			options.legacyAnnouncementSettingsKey,
 			options.announcementMessage,
+			options.managesOwnEnablement
 		);
 		AccessibilitySignal._signals.add(signal);
 		return signal;
@@ -590,7 +612,7 @@ export class AccessibilitySignal {
 
 	public static readonly codeActionTriggered = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.codeActionRequestTriggered', 'Code Action Request Triggered'),
-		sound: Sound.voiceRecordingStarted,
+		sound: Sound.codeActionTriggered,
 		legacySoundSettingsKey: 'audioCues.codeActionRequestTriggered',
 		legacyAnnouncementSettingsKey: 'accessibility.alert.codeActionRequestTriggered',
 		announcementMessage: localize('accessibility.signals.codeActionRequestTriggered', 'Code Action Request Triggered'),
@@ -600,7 +622,7 @@ export class AccessibilitySignal {
 	public static readonly codeActionApplied = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.codeActionApplied', 'Code Action Applied'),
 		legacySoundSettingsKey: 'audioCues.codeActionApplied',
-		sound: Sound.voiceRecordingStopped,
+		sound: Sound.codeActionApplied,
 		settingsKey: 'accessibility.signals.codeActionApplied'
 	});
 
@@ -667,5 +689,13 @@ export class AccessibilitySignal {
 		sound: Sound.editsUndone,
 		announcementMessage: localize('accessibility.signals.editsUndone', 'Edits Undone'),
 		settingsKey: 'accessibility.signals.editsUndone',
+	});
+
+	public static readonly chatUserActionRequired = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.chatUserActionRequired', 'Chat User Action Required'),
+		sound: Sound.chatUserActionRequired,
+		announcementMessage: localize('accessibility.signals.chatUserActionRequired', 'Chat User Action Required'),
+		settingsKey: 'accessibility.signals.chatUserActionRequired',
+		managesOwnEnablement: true
 	});
 }
