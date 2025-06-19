@@ -254,8 +254,9 @@ export const extensionManagementOptions = (cliName: string): Fig.Option[] => [
 			'Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually',
 		args: {
 			name: 'extension-id',
-			isVariadic: true,
-		},
+			generators: createCodeGenerators(cliName),
+			isVariadic: true
+		}
 	},
 ];
 
