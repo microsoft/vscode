@@ -293,6 +293,8 @@ export async function getCompletionItemsFromSpecs(
 			const commandTextLabel = typeof command.label === 'string' ? command.label : command.label.label;
 			// Remove any file extension for matching on Windows
 			const labelWithoutExtension = isWindows ? commandTextLabel.replace(/\.[^ ]+$/, '') : commandTextLabel;
+			// If the label is only dots (e.g. '..'), treat as folder, else as method
+			const kind = /^\.{2,}$/.test(labelWithoutExtension) ? vscode.TerminalCompletionItemKind.Folder : vscode.TerminalCompletionItemKind.Method;
 			if (!labels.has(labelWithoutExtension)) {
 				items.push(createCompletionItem(
 					terminalContext.cursorPosition,
@@ -300,8 +302,7 @@ export async function getCompletionItemsFromSpecs(
 					command,
 					command.detail,
 					command.documentation,
-					// If the label is only dots (e.g. '..'), treat as folder, else as method
-					/^\.{2,}$/.test(labelWithoutExtension) ? vscode.TerminalCompletionItemKind.Folder : vscode.TerminalCompletionItemKind.Method
+					kind
 				));
 				labels.add(commandTextLabel);
 			}
