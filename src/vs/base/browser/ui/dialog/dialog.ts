@@ -62,6 +62,7 @@ export interface IDialogOptions {
 	readonly checkboxStyles: ICheckboxStyles;
 	readonly inputBoxStyles: IInputBoxStyles;
 	readonly dialogStyles: IDialogStyles;
+	readonly onBeforeButtonClick?: (index: number, values?: string[], checkboxChecked?: boolean) => boolean | Promise<boolean>;
 }
 
 export interface IDialogResult {
@@ -269,11 +270,19 @@ export class Dialog extends Disposable {
 			const buttonBar = this.buttonBar = this._register(new ButtonBar(this.buttonsContainer, { alignment: this.options?.alignment === DialogContentsAlignment.Vertical ? ButtonBarAlignment.Vertical : ButtonBarAlignment.Horizontal }));
 			const buttonMap = this.rearrangeButtons(this.buttons, this.options.cancelId);
 
-			const onButtonClick = (index: number) => {
+			const onButtonClick = async (index: number) => {
+				const values = this.inputs.length > 0 ? this.inputs.map(input => input.value) : undefined;
+				const checkboxChecked = this.checkbox ? this.checkbox.checked : undefined;
+				if (this.options.onBeforeButtonClick) {
+					const canClose = await this.options.onBeforeButtonClick(index, values, checkboxChecked);
+					if (!canClose) {
+						return;
+					}
+				}
 				resolve({
 					button: buttonMap[index].index,
-					checkboxChecked: this.checkbox ? this.checkbox.checked : undefined,
-					values: this.inputs.length > 0 ? this.inputs.map(input => input.value) : undefined
+					checkboxChecked,
+					values
 				});
 			};
 
@@ -294,7 +303,7 @@ export class Dialog extends Disposable {
 							run: async () => {
 								await action.run();
 
-								onButtonClick(index);
+								await onButtonClick(index);
 							}
 						}))
 					}));
@@ -314,12 +323,12 @@ export class Dialog extends Disposable {
 						button.description = buttonOptions?.sublabel;
 					}
 				}
-				this._register(button.onDidClick(e => {
+				this._register(button.onDidClick(async e => {
 					if (e) {
 						EventHelper.stop(e);
 					}
 
-					onButtonClick(index);
+					await onButtonClick(index);
 				}));
 			});
 
