@@ -918,7 +918,7 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	toString?(): string;
 }
 
-export type InlineCompletionsDisposeReason = { kind: 'lostRace' | 'tokenCancellation' | 'other' };
+export type InlineCompletionsDisposeReason = { kind: 'lostRace' | 'tokenCancellation' | 'other' | 'empty' | 'notTaken' };
 
 export enum InlineCompletionEndOfLifeReasonKind {
 	Accepted = 0,

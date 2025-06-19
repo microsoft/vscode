@@ -91,14 +91,14 @@ export class InlineCompletionsModel extends Disposable {
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 	) {
 		super();
-		this._source = this._register(this._instantiationService.createInstance(InlineCompletionsSource, this.textModel, this._textModelVersionId, this._debounceValue));
+		this.primaryPosition = derived(this, reader => this._positions.read(reader)[0] ?? new Position(1, 1));
+		this._source = this._register(this._instantiationService.createInstance(InlineCompletionsSource, this.textModel, this._textModelVersionId, this._debounceValue, this.primaryPosition));
 		this._isActive = observableValue<boolean>(this, false);
 		this._onlyRequestInlineEditsSignal = observableSignal(this);
 		this._forceUpdateExplicitlySignal = observableSignal(this);
 		this._noDelaySignal = observableSignal(this);
 		this._fetchSpecificProviderSignal = observableSignal<InlineCompletionsProvider | undefined>(this);
 		this._selectedInlineCompletionId = observableValue<string | undefined>(this, undefined);
-		this.primaryPosition = derived(this, reader => this._positions.read(reader)[0] ?? new Position(1, 1));
 		this._isAcceptingPartially = false;
 		this._onDidAccept = new Emitter<void>();
 		this.onDidAccept = this._onDidAccept.event;
@@ -187,7 +187,6 @@ export class InlineCompletionsModel extends Disposable {
 				this._source.seedInlineCompletionsWithSuggestWidget();
 			}
 
-			const cursorPosition = this.primaryPosition.get();
 			if (changeSummary.dontRefetch) {
 				return Promise.resolve(true);
 			}
@@ -227,8 +226,9 @@ export class InlineCompletionsModel extends Disposable {
 			const suppressedProviderGroupIds = this._suppressedInlineCompletionGroupIds.get();
 			const availableProviders = providers.filter(provider => !(provider.groupId && suppressedProviderGroupIds.has(provider.groupId)));
 
-			return this._source.fetch(availableProviders, cursorPosition, context, itemToPreserve?.identity, changeSummary.shouldDebounce, userJumpedToActiveCompletion, !!changeSummary.provider, this.editorType);
+			return this._source.fetch(availableProviders, context, itemToPreserve?.identity, changeSummary.shouldDebounce, userJumpedToActiveCompletion, !!changeSummary.provider, this.editorType);
 		});
+
 		this._inlineCompletionItems = derivedOpts({ owner: this }, reader => {
 			const c = this._source.inlineCompletions.read(reader);
 			if (!c) { return undefined; }
