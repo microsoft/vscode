@@ -41,11 +41,12 @@ import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostT
 import { InlineCompletionsSource } from './inlineCompletionsSource.js';
 import { InlineEdit } from './inlineEdit.js';
 import { InlineCompletionItem, InlineEditItem, InlineSuggestionItem } from './inlineSuggestionItem.js';
-import { InlineCompletionContextWithoutUuid } from './provideInlineCompletions.js';
+import { InlineCompletionContextWithoutUuid, InlineCompletionEditorType } from './provideInlineCompletions.js';
 import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 import { SuggestItemInfo } from './suggestWidgetAdapter.js';
 import { TextModelEditReason } from '../../../../common/textModelEditReason.js';
 import { ICodeEditorService } from '../../../../browser/services/codeEditorService.js';
+import { InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -524,13 +525,15 @@ export class InlineCompletionsModel extends Disposable {
 			return s.cursorAtInlineEdit.read(reader);
 		});
 
-		const [diffEditor] = this._codeEditorService.listDiffEditors()
-			.filter(d =>
-				d.getOriginalEditor().getId() === this._editor.getId() ||
-				d.getModifiedEditor().getId() === this._editor.getId());
+		{ // Determine editor type
+			const [diffEditor] = this._codeEditorService.listDiffEditors()
+				.filter(d =>
+					d.getOriginalEditor().getId() === this._editor.getId() ||
+					d.getModifiedEditor().getId() === this._editor.getId());
 
-		this.editorType = !!diffEditor ? 'diffEditor' : 'textEditor';
-		this.isInDiffEditor = !!diffEditor;
+			this.editorType = !!diffEditor ? InlineCompletionEditorType.DiffEditor : InlineCompletionEditorType.TextEditor;
+			this.isInDiffEditor = this.editorType === InlineCompletionEditorType.DiffEditor;
+		}
 
 		this._register(recomputeInitiallyAndOnChange(this._fetchInlineCompletionsPromise));
 
@@ -539,7 +542,7 @@ export class InlineCompletionsModel extends Disposable {
 			const item = this.inlineCompletionState.read(reader);
 			const completion = item?.inlineCompletion;
 			if (completion) {
-				this.handleInlineSuggestionShown(completion, 'ghostText');
+				this.handleInlineSuggestionShown(completion, InlineCompletionViewKind.GhostText);
 			}
 		}));
 
@@ -752,7 +755,7 @@ export class InlineCompletionsModel extends Disposable {
 
 	public readonly isInDiffEditor;
 
-	public readonly editorType: 'textEditor' | 'diffEditor';
+	public readonly editorType: InlineCompletionEditorType;
 
 	private async _deltaSelectedInlineCompletionIndex(delta: 1 | -1): Promise<void> {
 		await this.triggerExplicitly();
@@ -1019,7 +1022,7 @@ export class InlineCompletionsModel extends Disposable {
 		});
 	}
 
-	public async handleInlineSuggestionShown(inlineCompletion: InlineSuggestionItem, viewKind: string): Promise<void> {
+	public async handleInlineSuggestionShown(inlineCompletion: InlineSuggestionItem, viewKind: InlineCompletionViewKind): Promise<void> {
 		await inlineCompletion.reportInlineEditShown(this._commandService, viewKind);
 	}
 }

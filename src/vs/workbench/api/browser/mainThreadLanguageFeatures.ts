@@ -651,15 +651,18 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				const endOfLifeSummary: InlineCompletionEndOfLifeEvent = {
 					id: lifetimeSummary.requestUuid,
 					shown: lifetimeSummary.shown,
+					shownDuration: lifetimeSummary.shownDuration,
+					shownDurationUncollapsed: lifetimeSummary.shownDurationUncollapsed,
 					editorType: lifetimeSummary.editorType,
 					viewKind: lifetimeSummary.viewKind,
 					error: lifetimeSummary.error,
+					extensionId,
 					superseded: reason.kind === InlineCompletionEndOfLifeReasonKind.Ignored && !!reason.supersededBy,
 					reason: reason.kind === InlineCompletionEndOfLifeReasonKind.Accepted ? 'accepted'
 						: reason.kind === InlineCompletionEndOfLifeReasonKind.Rejected ? 'rejected'
 							: 'ignored'
 				};
-
+				console.log('Inline completion end of life:', endOfLifeSummary);
 				this._telemetryService.publicLog2<InlineCompletionEndOfLifeEvent, InlineCompletionsEndOfLifeClassification>('inlineCompletion.endOfLife', endOfLifeSummary);
 			},
 			disposeInlineCompletions: (completions: IdentifiableInlineCompletions, reason: languages.InlineCompletionsDisposeReason): void => {
@@ -1284,7 +1287,10 @@ export class MainThreadDocumentRangeSemanticTokensProvider implements languages.
 
 type InlineCompletionEndOfLifeEvent = {
 	id: string;
+	extensionId: string;
 	shown: boolean;
+	shownDuration: number;
+	shownDurationUncollapsed: number;
 	reason: 'accepted' | 'rejected' | 'ignored';
 	error: string | undefined;
 	superseded: boolean;
@@ -1296,7 +1302,10 @@ type InlineCompletionsEndOfLifeClassification = {
 	owner: 'benibenj';
 	comment: 'Inline completions ended';
 	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier for the inline completion request' };
+	extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier for the extension that contributed the inline completion' };
 	shown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was shown to the user' };
+	shownDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown' };
+	shownDurationUncollapsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown without collapsing' };
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion ending' };
 	error: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The error message if the inline completion failed' };
 	superseded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was superseded by another one' };
