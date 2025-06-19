@@ -227,19 +227,22 @@ export class ComputeAutomaticInstructions {
 				continue;
 			}
 			const applyTo = metadata?.applyTo;
-
-
+			const description = metadata?.description ?? '';
 			if (applyTo && applyTo !== '**' && applyTo !== '**/*' && applyTo !== '*') {
-				entries.push(`Instruction file '${getFilePath(uri)}' contains important rules for all files matching ${metadata.applyTo}.`);
+				entries.push(`| ${metadata.applyTo} | '${getFilePath(uri)}' | ${description} |`);
 			}
 		}
 		if (entries.length === 0) {
 			return entries;
 		}
 		return [
-			'The user has provided a list of custopm instruction files that contain rules that need to be followed when modifying or creating new code.',
-			'Each file comes with a glob pattern that specifies which files the instructions apply to.',
-			'It is important to follow these instructions when working with the codebase. If the file is not already available as attachment, use the `read_file` tool to acquire it.',
+			'Here is a list of instruction files that contain rules for modifying or creating new code.',
+			'These files are important for ensuring that the code is modified or created correctly.',
+			'Please make sure to follow the rules specified in these files when working with the codebase.',
+			'If the file is not already available as attachment, use the `read_file` tool to acquire it.',
+			'Make sure to acquire the instructions before making any changes to the code.',
+			'| Pattern | File Path | Description |',
+			'| ------- | --------- | ----------- |',
 		].concat(entries);
 	}
 
