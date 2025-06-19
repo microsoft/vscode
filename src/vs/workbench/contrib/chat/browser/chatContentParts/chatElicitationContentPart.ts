@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../../../base/common/event.js';
-import { isMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString, isMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -30,7 +30,7 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 			{ label: localize('accept', "Respond"), data: true },
 			{ label: localize('dismiss', "Cancel"), data: false, isSecondary: true },
 		];
-		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, elicitation.title, elicitation.originMessage, elicitation.message, buttons, context.container));
+		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, elicitation.title, elicitation.originMessage, this.getMessageToRender(elicitation), buttons, context.container));
 		confirmationWidget.setShowButtons(elicitation.state === 'pending');
 
 		this._register(confirmationWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
@@ -43,16 +43,22 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 			}
 
 			confirmationWidget.setShowButtons(false);
-			if (elicitation.acceptedResult) {
-				const messageMd = isMarkdownString(elicitation.message) ? MarkdownString.lift(elicitation.message) : new MarkdownString(elicitation.message);
-				messageMd.appendCodeblock('json', JSON.stringify(elicitation.acceptedResult, null, 2));
-				confirmationWidget.updateMessage(messageMd);
-			}
+			confirmationWidget.updateMessage(this.getMessageToRender(elicitation));
 
 			this._onDidChangeHeight.fire();
 		}));
 
 		this.domNode = confirmationWidget.domNode;
+	}
+
+	private getMessageToRender(elicitation: IChatElicitationRequest): IMarkdownString | string {
+		if (!elicitation.acceptedResult) {
+			return elicitation.message;
+		}
+
+		const messageMd = isMarkdownString(elicitation.message) ? MarkdownString.lift(elicitation.message) : new MarkdownString(elicitation.message);
+		messageMd.appendCodeblock('json', JSON.stringify(elicitation.acceptedResult, null, 2));
+		return messageMd;
 	}
 
 	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
