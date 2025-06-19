@@ -7444,7 +7444,7 @@ declare namespace monaco.languages {
 	}
 
 	export type InlineCompletionsDisposeReason = {
-		kind: 'lostRace' | 'tokenCancellation' | 'other';
+		kind: 'lostRace' | 'tokenCancellation' | 'other' | 'empty' | 'notTaken';
 	};
 
 	export enum InlineCompletionEndOfLifeReasonKind {
