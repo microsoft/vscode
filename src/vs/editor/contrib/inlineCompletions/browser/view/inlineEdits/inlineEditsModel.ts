@@ -50,12 +50,13 @@ export class InlineEditModel implements IInlineEditModel {
 	}
 
 	abort(reason: string) {
-		console.error(reason); // TODO: add logs/telemetry
+		console.error(reason);
+		this.inlineEdit.inlineCompletion.reportInlineEditError(reason);
 		this._model.stop();
 	}
 
-	handleInlineEditShown() {
-		this._model.handleInlineSuggestionShown(this.inlineEdit.inlineCompletion);
+	handleInlineEditShown(viewKind: string) {
+		this._model.handleInlineSuggestionShown(this.inlineEdit.inlineCompletion, viewKind);
 	}
 }
 
