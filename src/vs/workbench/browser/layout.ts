@@ -270,6 +270,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private auxiliaryBarPartView!: ISerializableView;
 	private editorPartView!: ISerializableView;
 	private statusBarPartView!: ISerializableView;
+	private bottomNavigationBarPartView!: ISerializableView; // <<< ADDED
 
 	private environmentService!: IBrowserWorkbenchEnvironmentService;
 	private extensionService!: IExtensionService;
@@ -1109,6 +1110,22 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			Promises.settled(layoutRestoredPromises).finally(() => {
 				this.restored = true;
 				this.whenRestoredPromise.complete();
+
+				// START TEMPORARY MOBILE DRAWER ACTIVATION
+				if (isWeb) { // Using isWeb as a temporary proxy for mobile context
+					try {
+						const sidebarPart = this.getPart(Parts.SIDEBAR_PART) as SidebarPart;
+						if (sidebarPart && typeof sidebarPart.setMobileDrawerMode === 'function') {
+							this.logService.info('Layout: Attempting to activate mobile drawer mode for SidebarPart.');
+							sidebarPart.setMobileDrawerMode(true);
+						} else {
+							this.logService.warn('Layout: SidebarPart not found or setMobileDrawerMode is not available.');
+						}
+					} catch (error) {
+						this.logService.error('Layout: Error trying to activate mobile drawer mode.', error);
+					}
+				}
+				// END TEMPORARY MOBILE DRAWER ACTIVATION
 			});
 		});
 	}
@@ -1522,6 +1539,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const auxiliaryBarPart = this.getPart(Parts.AUXILIARYBAR_PART);
 		const sideBar = this.getPart(Parts.SIDEBAR_PART);
 		const statusBar = this.getPart(Parts.STATUSBAR_PART);
+		const bottomNavigationBar = this.getPart(Parts.BOTTOM_NAVIGATION_BAR_PART); // <<< ADDED
 
 		// View references for all parts
 		this.titleBarPartView = titleBar;
@@ -1532,6 +1550,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.panelPartView = panelPart;
 		this.auxiliaryBarPartView = auxiliaryBarPart;
 		this.statusBarPartView = statusBar;
+		this.bottomNavigationBarPartView = bottomNavigationBar; // <<< ADDED
 
 		const viewMap = {
 			[Parts.ACTIVITYBAR_PART]: this.activityBarPartView,
@@ -1541,10 +1560,26 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			[Parts.PANEL_PART]: this.panelPartView,
 			[Parts.SIDEBAR_PART]: this.sideBarPartView,
 			[Parts.STATUSBAR_PART]: this.statusBarPartView,
-			[Parts.AUXILIARYBAR_PART]: this.auxiliaryBarPartView
+			[Parts.AUXILIARYBAR_PART]: this.auxiliaryBarPartView,
+			// [Parts.BOTTOM_NAVIGATION_BAR_PART]: this.bottomNavigationBarPartView // <<< Placeholder, will be properly added if part exists
 		};
 
-		const fromJSON = ({ type }: { type: Parts }) => viewMap[type];
+		// Ensure all parts in viewMap are actually registered before using fromJSON
+		const fromJSON = ({ type }: { type: Parts }) => {
+			if (!viewMap[type]) {
+				this.logService.warn(`Layout: Attempted to deserialize an unknown part type: ${type}. This might indicate a missing part registration or an outdated layout state.`);
+				// Fallback or throw, depending on desired strictness. For now, returning undefined might be risky.
+				// Consider returning a dummy view or throwing if this state is critical.
+				// For BottomNavigationBarPart, it's not critical yet as it's being added.
+				if (type === Parts.BOTTOM_NAVIGATION_BAR_PART && this.bottomNavigationBarPartView) {
+					return this.bottomNavigationBarPartView;
+				}
+				// A more robust fallback would be a minimal, non-functional view or specific error handling.
+				// For now, let's assume other parts must exist.
+				throw new Error(`Unknown part type ${type} in layout deserialization.`);
+			}
+			return viewMap[type];
+		};
 		const workbenchGrid = SerializableGrid.deserialize(
 			this.createGridDescriptor(),
 			{ fromJSON },
@@ -1556,7 +1591,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid = workbenchGrid;
 		this.workbenchGrid.edgeSnapping = this.state.runtime.mainWindowFullscreen;
 
-		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar, auxiliaryBarPart, bannerPart]) {
+		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar, auxiliaryBarPart, bannerPart, bottomNavigationBar]) { // <<< MODIFIED
 			this._register(part.onDidVisibilityChange((visible) => {
 				if (part === sideBar) {
 					this.setSideBarHidden(!visible);
@@ -1566,6 +1601,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					this.setAuxiliaryBarHidden(!visible, true);
 				} else if (part === editorPart) {
 					this.setEditorHidden(!visible);
+				} else if (part === bottomNavigationBar) { // <<< ADDED
+					// this.setBottomNavigationBarHidden(!visible); // This method will be created in a subsequent step
 				}
 				this._onDidChangePartVisibility.fire();
 				this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension);
@@ -2386,8 +2423,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const titleBarHeight = this.titleBarPartView.minimumHeight;
 		const bannerHeight = this.bannerPartView.minimumHeight;
 		const statusBarHeight = this.statusBarPartView.minimumHeight;
+		const bottomNavigationBarHeight = this.parts.has(Parts.BOTTOM_NAVIGATION_BAR_PART) ? this.bottomNavigationBarPartView.minimumHeight : 0; // Check if part exists
 		const activityBarWidth = this.activityBarPartView.minimumWidth;
-		const middleSectionHeight = height - titleBarHeight - statusBarHeight;
+		const bottomNavVisible = this.parts.has(Parts.BOTTOM_NAVIGATION_BAR_PART) ? this.isVisible(Parts.BOTTOM_NAVIGATION_BAR_PART, mainWindow) : false; // Check if part exists
+		const middleSectionHeight = height - titleBarHeight - statusBarHeight - (bottomNavVisible ? bottomNavigationBarHeight : 0) - bannerHeight;
 
 		const titleAndBanner: ISerializedNode[] = [
 			{
@@ -2458,6 +2497,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 						data: middleSection,
 						size: middleSectionHeight
 					},
+					// Conditionally add bottom navigation bar node if the part exists and is visible
+					...(this.parts.has(Parts.BOTTOM_NAVIGATION_BAR_PART) && bottomNavVisible ? [{
+						type: 'leaf' as const,
+						data: { type: Parts.BOTTOM_NAVIGATION_BAR_PART },
+						size: bottomNavigationBarHeight,
+						visible: bottomNavVisible
+					}] : []),
 					{
 						type: 'leaf',
 						data: { type: Parts.STATUSBAR_PART },

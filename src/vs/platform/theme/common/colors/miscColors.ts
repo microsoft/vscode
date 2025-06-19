@@ -85,3 +85,17 @@ export const chartAxis = registerColor('chart.axis',
 export const chartGuide = registerColor('chart.guide',
 	{ dark: Color.fromHex('#BFBFBF').transparent(0.2), light: Color.fromHex('#000000').transparent(0.2), hcDark: contrastBorder, hcLight: contrastBorder },
 	nls.localize('chartGuide', "Guide line for the chart."));
+
+// ----- Floating Action Button -----
+
+export const fabBackground = registerColor('fab.background',
+	{ defaults: { dark: '#0E70C0', light: '#0E70C0', hcDark: '#0E70C0', hcLight: '#0E70C0' } }, // Using progressBarBackground as a stand-in, ideally this would be a distinct color
+	nls.localize('fab.background', "Floating Action Button background color."));
+
+export const fabForeground = registerColor('fab.foreground',
+	{ defaults: { dark: Color.white, light: Color.white, hcDark: Color.white, hcLight: Color.white } },
+	nls.localize('fab.foreground', "Floating Action Button foreground color."));
+
+export const fabHoverBackground = registerColor('fab.hoverBackground',
+	{ defaults: { dark: Color.fromHex('#0E70C0').lighten(0.2), light: Color.fromHex('#0E70C0').lighten(0.2), hcDark: Color.fromHex('#0E70C0').lighten(0.2), hcLight: Color.fromHex('#0E70C0').lighten(0.2) } }, // Slightly lighter version of progressBarBackground
+	nls.localize('fab.hoverBackground', "Floating Action Button hover background color."));
