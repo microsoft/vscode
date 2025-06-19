@@ -58,10 +58,27 @@ a:hover, a:focus {
 	margin-bottom: 24px;
 }
 
+@keyframes rise-and-glow {
+	0% {
+		opacity: 0;
+		transform: translateY(10px);
+		filter: drop-shadow(0 0 0 rgba(0, 122, 204, 0));
+	}
+	60% {
+		opacity: 1;
+		transform: translateY(0);
+	}
+	100% {
+		opacity: 1;
+		transform: translateY(0);
+		filter: drop-shadow(0 8px 24px rgba(0, 122, 204, 0.3));
+	}
+}
+
 .vscode-icon {
 	width: 128px;
 	height: 128px;
-	filter: drop-shadow(0 8px 24px rgba(0, 122, 204, 0.3));
+	animation: rise-and-glow 1.2s ease-in-out forwards;
 }
 
 .title {
