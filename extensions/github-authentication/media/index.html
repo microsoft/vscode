@@ -10,16 +10,22 @@
 </head>
 
 <body>
-	<a class="branding app-name" href="https://code.visualstudio.com/"></a>
-	<div class="message-container">
-		<div class="message">
-			Sign-in successful! Returning to <span class="app-name"></span>...
-			<br><br>
-			If you're not redirected automatically, <a href="#" id="fallback-link">click here</a> or close this page.
-		</div>
-		<div class="error-message">
-			An error occurred while signing in:
-			<div class="error-text"></div>
+	<div class="container">
+		<div class="content">
+			<div class="icon-container">
+				<img src="code-icon.svg" class="vscode-icon">
+			</div>
+			<h1 class="title">Launching <span class="app-name"></span></h1>
+			<div class="message">
+				<div class="success-message">
+					<p class="subtitle">You will be redirected in a few moments.</p>
+					<p class="detail">If nothing happens, <a href="#" id="fallback-link">open this link in your browser</a>.</p>
+				</div>
+				<div class="error-message">
+					<p class="subtitle">An error occurred while signing in:</p>
+					<div class="detail"></div>
+				</div>
+			</div>
 		</div>
 	</div>
 	<script>
@@ -30,10 +36,8 @@
 		const error = urlParams.get('error');
 		const redirectUri = urlParams.get('redirect_uri');
 		if (error) {
-			document.querySelector('.error-text')
-				.textContent = error;
-			document.querySelector('body')
-				.classList.add('error');
+			document.querySelector('.error-message > .detail').textContent = error;
+			document.querySelector('body').classList.add('error');
 		} else if (redirectUri) {
 			// Set up the fallback link
 			const fallbackLink = document.getElementById('fallback-link');
