@@ -124,10 +124,9 @@ export class TerminalCompletionItem extends SimpleCompletionItem {
 			if (completion.kind === TerminalCompletionItemKind.Folder) {
 				this.labelLowNormalizedPath = this.labelLowNormalizedPath.replace(/\/$/, '');
 			}
-			this.punctuationPenalty = isPunctuation(this.labelLowExcludeFileExt) ? 1 : 0;
 		}
 
-		this.punctuationPenalty = !this.punctuationPenalty ? isPunctuation(this.labelLowExcludeFileExt) ? 1 : 0 : this.punctuationPenalty;
+		this.punctuationPenalty = shouldPenalizeForPunctuation(this.labelLowExcludeFileExt) ? 1 : 0;
 	}
 }
 
@@ -135,6 +134,6 @@ function isFile(completion: ITerminalCompletion): boolean {
 	return !!(completion.kind === TerminalCompletionItemKind.File || completion.isFileOverride);
 }
 
-function isPunctuation(label: string): boolean {
+function shouldPenalizeForPunctuation(label: string): boolean {
 	return basename(label).startsWith('_') || /^[\[\]\{\}\(\)\.,;:!?\/\\\-_@#~*%^=$]+$/.test(label);
 }
