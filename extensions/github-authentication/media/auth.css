@@ -39,46 +39,72 @@ body {
 
 a {
 	color: var(--vscode-textLink-foreground);
-}
-
-.branding {
-	background-image: url('code-icon.svg');
-	background-size: 24px;
-	background-repeat: no-repeat;
-	background-position: left center;
-	padding-left: 36px;
-	font-size: 20px;
-	letter-spacing: -0.04rem;
-	font-weight: 400;
-	color: var(--vscode-foreground);
 	text-decoration: none;
 }
 
-.message-container {
-	flex-grow: 1;
+a:hover {
+	text-decoration: underline;
+}
+
+.container {
+	height: 100vh;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	margin: 0 30px;
+	text-align: center;
 }
 
-.message {
+.content {
+	max-width: 500px;
+	padding: 40px 20px;
+}
+
+.icon-container {
+	margin-bottom: 24px;
+}
+
+.vscode-icon {
+	width: 128px;
+	height: 128px;
+	filter: drop-shadow(0 8px 24px rgba(0, 122, 204, 0.3));
+}
+
+.title {
+	font-size: 28px;
 	font-weight: 300;
-	font-size: 1.4rem;
+	line-height: 1.4;
+	margin: 0 0 8px 0;
+	color: var(--vscode-foreground);
 }
 
-body.error .message {
+.subtitle {
+	font-size: 18px;
+	font-weight: 300;
+	color: var(--vscode-foreground);
+	opacity: 0.8;
+	margin: 0 0 36px 0;
+}
+
+.fallback-text {
+	font-size: 14px;
+	color: var(--vscode-foreground);
+	opacity: 0.8;
+	margin: 0;
+}
+
+body.error .success-message {
 	display: none;
 }
 
-body.error .error-message {
-	display: block;
+body:not(.error) .error-message {
+	display: none;
 }
 
-.error-message {
-	display: none;
+.error-title {
 	font-weight: 300;
 	font-size: 1.3rem;
+	color: var(--vscode-error-foreground);
+	margin: 0 0 16px 0;
 }
 
 .error-text {
