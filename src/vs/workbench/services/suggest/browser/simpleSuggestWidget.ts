@@ -405,7 +405,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._persistedSize.reset();
 	}
 
-	showTriggered(explicitlyInvoked: boolean, delay: number, cursorPosition: { top: number; left: number; height: number }) {
+	showTriggered(explicitlyInvoked: boolean, cursorPosition: { top: number; left: number; height: number }) {
 		if (this._state !== State.Hidden) {
 			return;
 		}
@@ -413,7 +413,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._explicitlyInvoked = !!explicitlyInvoked;
 
 		if (this._explicitlyInvoked) {
-			this._loadingTimeout = disposableTimeout(() => this._setState(State.Loading), delay);
+			this._loadingTimeout = disposableTimeout(() => this._setState(State.Loading), 250);
 		}
 	}
 
