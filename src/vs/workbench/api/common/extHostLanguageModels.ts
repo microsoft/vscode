@@ -215,6 +215,15 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		});
 	}
 
+	registerLanguageModelProvider2(extension: IExtensionDescription, vendor: string, provider: vscode.LanguageModelChatProvider2): IDisposable {
+		// TODO: Implement full provider2 support when infrastructure is ready
+		// For now, this is a placeholder implementation
+		this._logService.warn('registerLanguageModelProvider2 is not yet fully implemented');
+		return toDisposable(() => {
+			// Cleanup logic will be added when implementation is complete
+		});
+	}
+
 	async $startChatRequest(handle: number, requestId: number, from: ExtensionIdentifier, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: vscode.LanguageModelChatRequestOptions, token: CancellationToken): Promise<void> {
 		const data = this._languageModels.get(handle);
 		if (!data) {
