@@ -95,6 +95,11 @@ export class TerminalCompletionItem extends SimpleCompletionItem {
 	 */
 	fileExtLow: string = '';
 
+	/**
+	 * A penalty that applies to methods that are just punctuation characters.
+	 */
+	punctuationPenalty: 0 | 1 = 0;
+
 	constructor(
 		override readonly completion: ITerminalCompletion
 	) {
@@ -125,9 +130,20 @@ export class TerminalCompletionItem extends SimpleCompletionItem {
 			}
 			this.underscorePenalty = basename(this.labelLowNormalizedPath).startsWith('_') ? 1 : 0;
 		}
+
+		if (isPunctuation(this.labelLowExcludeFileExt)) {
+			this.punctuationPenalty = 1;
+		}
 	}
 }
 
 function isFile(completion: ITerminalCompletion): boolean {
 	return !!(completion.kind === TerminalCompletionItemKind.File || completion.isFileOverride);
+}
+
+function isPunctuation(label: string): boolean {
+	if (label.length > 1) {
+		return false;
+	}
+	return /^[\[\]\{\}\(\)\.,;:!?\-_/@#~*%^=$]$/.test(label);
 }

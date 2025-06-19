@@ -149,6 +149,11 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		}
 	}
 
+	if (a.completion.kind === TerminalCompletionItemKind.Method && b.completion.kind === TerminalCompletionItemKind.Method && a.punctuationPenalty !== b.punctuationPenalty) {
+		// ; should appear alias for example
+		return a.punctuationPenalty - b.punctuationPenalty;
+	}
+
 	// Sort alphabetically, ignoring punctuation causes dot files to be mixed in rather than
 	// all at the top
 	return a.labelLow.localeCompare(b.labelLow, undefined, { ignorePunctuation: true });

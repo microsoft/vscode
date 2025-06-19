@@ -218,6 +218,22 @@ suite('TerminalCompletionModel', function () {
 		});
 	});
 
+	suite('Punctuation', () => {
+		test('punctuation chars should be below other methods', function () {
+			const items = [
+				createItem({ label: 'a' }),
+				createItem({ label: 'b' }),
+				createItem({ label: ',' }),
+				createItem({ label: ';' }),
+				createItem({ label: ':' }),
+				createItem({ label: 'c' }),
+				createItem({ label: '[' }),
+			];
+			model = new TerminalCompletionModel(items, new LineContext('', 0));
+			assertItems(model, ['a', 'b', 'c', ',', ';', ':', '[']);
+		});
+	});
+
 	suite('inline completions', () => {
 		function createItems(kind: TerminalCompletionItemKind.InlineSuggestion | TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop) {
 			return [
