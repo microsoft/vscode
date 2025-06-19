@@ -96,7 +96,7 @@ export class TerminalCompletionItem extends SimpleCompletionItem {
 	fileExtLow: string = '';
 
 	/**
-	 * A penalty that applies to methods that are just punctuation characters.
+	 * A penalty that applies to completions that are comprised of only punctuation characters.
 	 */
 	punctuationPenalty: 0 | 1 = 0;
 
