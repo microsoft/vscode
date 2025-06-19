@@ -194,7 +194,12 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (completions.resourceRequestConfig) {
 				const resourceCompletions = await this.resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition, provider.id, capabilities, shellType);
 				if (resourceCompletions) {
-					completionItems.push(...resourceCompletions);
+					for (const item of resourceCompletions) {
+						const labels = completionItems.map(c => c.label);
+						if (!labels.includes(item.label)) {
+							completionItems.push(item);
+						}
+					}
 				}
 			}
 			return completionItems;
@@ -204,7 +209,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		return results.filter(result => !!result).flat();
 	}
 
-	async resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number, provider: string, capabilities: ITerminalCapabilityStore, shellType?: TerminalShellType): Promise<ITerminalCompletion[] | undefined> {
+	async resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number, provider: string, capabilities: ITerminalCapabilityStore, shellType?: TerminalShellType, existingLabels?: string[]): Promise<ITerminalCompletion[] | undefined> {
 		const useWindowsStylePath = resourceRequestConfig.pathSeparator === '\\';
 		if (useWindowsStylePath) {
 			// for tests, make sure the right path separator is used
@@ -350,7 +355,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					break;
 				}
 			}
-			if (label !== '.') {
+			if (label !== '.' || !existingLabels?.includes('.')) {
 				// The . completion already gets provided by the extension, don't duplicate
 				resourceCompletions.push({
 					label,
