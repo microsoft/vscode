@@ -72,6 +72,15 @@ export interface ITerminalCompletion extends ISimpleCompletion {
 	 * Whether the completion is a keyword.
 	 */
 	isKeyword?: boolean;
+
+	/**
+	 * A command to execute when this completion is selected.
+	 * This is used for special completion types like tasks that should run commands instead of inserting text.
+	 */
+	command?: {
+		id: string;
+		arguments?: any[];
+	};
 }
 
 export class TerminalCompletionItem extends SimpleCompletionItem {

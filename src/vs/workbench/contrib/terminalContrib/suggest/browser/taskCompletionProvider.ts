@@ -157,7 +157,11 @@ export class TaskCompletionProvider implements ITerminalCompletionProvider {
 			icon,
 			provider: this.id,
 			replacementIndex: 0, // Will be set by the completion service
-			replacementLength: currentWord.length
+			replacementLength: currentWord.length,
+			command: {
+				id: 'workbench.action.tasks.runTask',
+				arguments: [task]
+			}
 		};
 	}
 
