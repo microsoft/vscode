@@ -46,6 +46,9 @@ export interface ISuggestController {
 	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion<TerminalCompletionItem>, 'item' | 'model'>): void;
 	hideSuggestWidget(cancelAnyRequests: boolean, wasClosedByUser?: boolean): void;
 }
+
+let firstShownObj: { shell: Partial<Record<TerminalShellType, boolean>>; window: boolean } | undefined = undefined;
+
 export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggestController {
 	private _terminal?: Terminal;
 
@@ -148,8 +151,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService
 	) {
 		super();
 
@@ -219,10 +220,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				this._model?.forceRefilterAll();
 			}
 		}));
-
-		this._lifecycleService.onBeforeShutdown(() => {
-			this._storageService.store(TerminalStorageKeys.FirstShown, undefined, StorageScope.PROFILE, StorageTarget.MACHINE);
-		});
 	}
 
 	activate(xterm: Terminal): void {
@@ -705,6 +702,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			if (this._suggestTelemetry && this.shellType) {
 				const firstShown = this.getFirstShown(this.shellType);
 				this.updateShown();
+				console.log(`Completions shown for ${this.shellType} after ${completionLatency}ms first shown for shell: ${firstShown.shell} first shown for window: ${firstShown.window}`);
 				this._suggestTelemetry.logCompletionLatency(this._sessionId, completionLatency, firstShown);
 			}
 			this._completionRequestTimestamp = undefined;
@@ -885,15 +883,20 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	getFirstShown(shellType: TerminalShellType): { window: boolean; shell: boolean } {
-		const raw = this._storageService.get(TerminalStorageKeys.FirstShown, StorageScope.PROFILE);
+		const raw = firstShownObj;
 		if (!raw) {
+			firstShownObj = {
+				window: true,
+				shell: {
+					[shellType]: true
+				}
+			};
 			return { window: true, shell: true };
 		}
 
 		try {
-			const obj = JSON.parse(raw);
-			const isFirstForWindow = obj.window;
-			const isFirstForShell = obj.shell[shellType] === undefined;
+			const isFirstForWindow = raw.window;
+			const isFirstForShell = raw.shell[shellType] === undefined;
 
 			if (isFirstForWindow || isFirstForShell) {
 				this.updateShown();
@@ -910,29 +913,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	updateShown(): void {
-		if (!this.shellType) {
+		if (!this.shellType || !firstShownObj) {
 			return;
 		}
 
-		const raw = this._storageService.get(TerminalStorageKeys.FirstShown, StorageScope.PROFILE);
-		let obj: any = { shell: {} };
-
-		if (raw) {
-			try {
-				obj = JSON.parse(raw);
-				obj.shell ??= {};
-			} catch { }
-		}
-
-		obj.window = false;
-		obj.shell[this.shellType] = false;
-
-		this._storageService.store(
-			TerminalStorageKeys.FirstShown,
-			JSON.stringify(obj),
-			StorageScope.PROFILE,
-			StorageTarget.MACHINE
-		);
+		firstShownObj.window = false;
+		firstShownObj.shell[this.shellType] = false;
 	}
 }
 
