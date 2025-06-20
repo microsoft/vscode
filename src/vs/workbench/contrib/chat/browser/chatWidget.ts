@@ -691,14 +691,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			dom.clearNode(this.welcomeMessageContainer);
 			const tips = undefined;
 			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentMode);
-			const additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;		this.welcomePart.value = this.instantiationService.createInstance(
-			ChatViewWelcomePart,
-			{ ...welcomeContent, additionalMessage },
-			{
-				location: this.location,
-				isWidgetAgentWelcomeViewContent: this.input?.currentMode === ChatMode.Agent
-			}
-		);
+			const additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage; this.welcomePart.value = this.instantiationService.createInstance(
+				ChatViewWelcomePart,
+				{ ...welcomeContent, additionalMessage },
+				{
+					location: this.location,
+					isWidgetAgentWelcomeViewContent: this.input?.currentMode === ChatMode.Agent
+				}
+			);
 			dom.append(this.welcomeMessageContainer, this.welcomePart.value.element);
 		}
 
