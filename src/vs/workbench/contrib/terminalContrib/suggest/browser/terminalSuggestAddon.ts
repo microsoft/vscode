@@ -342,7 +342,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			lineContext
 		);
 		if (token.isCancellationRequested) {
-			// If cancelled, reset the tracker
 			this._completionRequestTimestamp = undefined;
 			return;
 		}
