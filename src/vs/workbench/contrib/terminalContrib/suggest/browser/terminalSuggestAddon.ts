@@ -46,6 +46,8 @@ export interface ISuggestController {
 	hideSuggestWidget(cancelAnyRequests: boolean, wasClosedByUser?: boolean): void;
 }
 
+
+let firstShownTracker: { shell: Partial<Record<TerminalShellType, boolean>>; window: boolean } | undefined = undefined;
 export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggestController {
 	private _terminal?: Terminal;
 
@@ -55,8 +57,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _mostRecentPromptInputState?: IPromptInputModelState;
 	private _currentPromptInputState?: IPromptInputModelState;
 	private _model?: TerminalCompletionModel;
-
-	private _firstShownTracker: { shell: Partial<Record<TerminalShellType, boolean>>; window: boolean } | undefined = undefined;
 
 	private _container?: HTMLElement;
 	private _screen?: HTMLElement;
@@ -219,7 +219,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				this._model?.forceRefilterAll();
 			}
 		}));
-		this._register(this._extensionService.onWillStop(() => this._firstShownTracker = undefined));
+		this._register(this._extensionService.onWillStop(() => firstShownTracker = undefined));
 	}
 
 	activate(xterm: Terminal): void {
@@ -701,6 +701,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			const completionLatency = Date.now() - this._completionRequestTimestamp;
 			if (this._suggestTelemetry && this.shellType) {
 				const firstShown = this.getFirstShown(this.shellType);
+				console.log('first shown ', firstShown.shell, firstShown.window);
 				this.updateShown();
 				this._suggestTelemetry.logCompletionLatency(this._sessionId, completionLatency, firstShown);
 			}
@@ -882,16 +883,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	getFirstShown(shellType: TerminalShellType): { window: boolean; shell: boolean } {
-		if (!this._firstShownTracker) {
-			this._firstShownTracker = {
+		if (!firstShownTracker) {
+			firstShownTracker = {
 				window: true,
 				shell: { [shellType]: true }
 			};
 			return { window: true, shell: true };
 		}
 
-		const isFirstForWindow = this._firstShownTracker.window;
-		const isFirstForShell = !this._firstShownTracker.shell[shellType];
+		const isFirstForWindow = firstShownTracker.window;
+		const isFirstForShell = firstShownTracker.shell[shellType] ?? true;
 
 		if (isFirstForWindow || isFirstForShell) {
 			this.updateShown();
@@ -904,12 +905,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	updateShown(): void {
-		if (!this.shellType || !this._firstShownTracker) {
+		if (!this.shellType || !firstShownTracker) {
 			return;
 		}
 
-		this._firstShownTracker.window = false;
-		this._firstShownTracker.shell[this.shellType] = false;
+		firstShownTracker.window = false;
+		firstShownTracker.shell[this.shellType] = false;
 	}
 }
 
