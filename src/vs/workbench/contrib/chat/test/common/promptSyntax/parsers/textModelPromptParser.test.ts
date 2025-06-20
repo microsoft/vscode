@@ -290,9 +290,9 @@ suite('TextModelPromptParser', () => {
 	});
 
 	suite('header', () => {
-		suite(' • metadata', () => {
-			suite(' • instructions', () => {
-				test(`• empty header`, async () => {
+		suite('metadata', () => {
+			suite('instructions', () => {
+				test(`empty header`, async () => {
 					const test = createTest(
 						URI.file('/absolute/folder/and/a/filename.txt'),
 						[
@@ -335,7 +335,7 @@ suite('TextModelPromptParser', () => {
 					);
 				});
 
-				test(`• has correct 'instructions' metadata`, async () => {
+				test(`has correct 'instructions' metadata`, async () => {
 					const test = createTest(
 						URI.file('/absolute/folder/and/a/filename.instructions.md'),
 						[
@@ -392,8 +392,8 @@ suite('TextModelPromptParser', () => {
 				});
 			});
 
-			suite(' • prompts', () => {
-				test(`• empty header`, async () => {
+			suite('prompts', () => {
+				test(`empty header`, async () => {
 					const test = createTest(
 						URI.file('/absolute/folder/and/a/filename.txt'),
 						[
@@ -436,7 +436,7 @@ suite('TextModelPromptParser', () => {
 					);
 				});
 
-				test(`• has correct 'prompt' metadata`, async () => {
+				test(`has correct 'prompt' metadata`, async () => {
 					const test = createTest(
 						URI.file('/absolute/folder/and/a/filename.txt'),
 						[
@@ -494,8 +494,8 @@ suite('TextModelPromptParser', () => {
 				});
 			});
 
-			suite(' • modes', () => {
-				test(`• empty header`, async () => {
+			suite('modes', () => {
+				test(`empty header`, async () => {
 					const test = createTest(
 						URI.file('/absolute/folder/and/a/filename.txt'),
 						[
@@ -538,7 +538,7 @@ suite('TextModelPromptParser', () => {
 					);
 				});
 
-				test(`• has correct metadata`, async () => {
+				test(`has correct metadata`, async () => {
 					const test = createTest(
 						URI.file('/absolute/folder/and/a/filename.txt'),
 						[

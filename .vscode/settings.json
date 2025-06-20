@@ -181,5 +181,9 @@
 		"*": "error",
 		"ts": "warning",
 		"eslint": "warning"
+	},
+	"chat.instructionsFilesLocations": {
+		".github/instructions": true,
+		".vscode": true
 	}
 }

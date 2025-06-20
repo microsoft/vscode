@@ -678,6 +678,11 @@ export function getMetadataWithDefaultValues(metadata: IAuthorizationServerMetad
 }
 
 /**
+ * The grant types that we support
+ */
+const grantTypesSupported = ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code'];
+
+/**
  * Default port for the authorization flow. We try to use this port so that
  * the redirect URI does not change when running on localhost. This is useful
  * for servers that only allow exact matches on the redirect URI. The spec
@@ -685,8 +690,11 @@ export function getMetadataWithDefaultValues(metadata: IAuthorizationServerMetad
  * the spec and require an exact match.
  */
 export const DEFAULT_AUTH_FLOW_PORT = 33418;
-export async function fetchDynamicRegistration(registrationEndpoint: string, clientName: string, scopes?: string[]): Promise<IAuthorizationDynamicClientRegistrationResponse> {
-	const response = await fetch(registrationEndpoint, {
+export async function fetchDynamicRegistration(serverMetadata: IAuthorizationServerMetadata, clientName: string, scopes?: string[]): Promise<IAuthorizationDynamicClientRegistrationResponse> {
+	if (!serverMetadata.registration_endpoint) {
+		throw new Error('Server does not support dynamic registration');
+	}
+	const response = await fetch(serverMetadata.registration_endpoint, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json'
@@ -694,7 +702,9 @@ export async function fetchDynamicRegistration(registrationEndpoint: string, cli
 		body: JSON.stringify({
 			client_name: clientName,
 			client_uri: 'https://code.visualstudio.com',
-			grant_types: ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code'],
+			grant_types: serverMetadata.grant_types_supported
+				? serverMetadata.grant_types_supported.filter(gt => grantTypesSupported.includes(gt))
+				: grantTypesSupported,
 			response_types: ['code'],
 			redirect_uris: [
 				'https://insiders.vscode.dev/redirect',
@@ -767,4 +777,36 @@ export function getClaimsFromJWT(token: string): IAuthorizationJWTClaims {
 		}
 		throw new Error('Failed to parse JWT token');
 	}
+}
+
+/**
+ * Extracts the resource server base URL from an OAuth protected resource metadata discovery endpoint URL.
+ *
+ * @param discoveryUrl The full URL to the OAuth protected resource metadata discovery endpoint
+ * @returns The base URL of the resource server
+ *
+ * @example
+ * ```typescript
+ * getResourceServerBaseUrlFromDiscoveryUrl('https://mcp.example.com/.well-known/oauth-protected-resource')
+ * // Returns: 'https://mcp.example.com/'
+ *
+ * getResourceServerBaseUrlFromDiscoveryUrl('https://mcp.example.com/.well-known/oauth-protected-resource/mcp')
+ * // Returns: 'https://mcp.example.com/mcp'
+ * ```
+ */
+export function getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl: string): string {
+	const url = new URL(discoveryUrl);
+
+	// Remove the well-known discovery path only if it appears at the beginning
+	if (!url.pathname.startsWith(AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH)) {
+		throw new Error(`Invalid discovery URL: expected path to start with ${AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH}`);
+	}
+
+	const pathWithoutDiscovery = url.pathname.substring(AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH.length);
+
+	// Construct the base URL
+	const baseUrl = new URL(url.origin);
+	baseUrl.pathname = pathWithoutDiscovery || '/';
+
+	return baseUrl.toString();
 }

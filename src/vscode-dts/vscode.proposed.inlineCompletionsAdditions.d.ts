@@ -92,12 +92,15 @@ declare module 'vscode' {
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleEndOfLifetime?(completionItem: InlineCompletionItem, reason: InlineCompletionEndOfLifeReason): void;
 
+		/**
+		 * Is called when an inline completion list is no longer being used (same reference as the list returned by provideInlineEditsForRange).
+		*/
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		handleListEndOfLifetime?(list: InlineCompletionList, reason: InlineCompletionsDisposeReason): void;
+
 		onDidChange?: Event<void>;
 
 		// #region Deprecated methods
-
-		/** @deprecated */
-		provideInlineEditsForRange?(document: TextDocument, range: Range, context: InlineCompletionContext, token: CancellationToken): ProviderResult<InlineCompletionItem[] | InlineCompletionList>;
 
 		/**
 		 * Is called when an inline completion item was accepted partially.
@@ -133,6 +136,16 @@ declare module 'vscode' {
 		userTypingDisagreed: boolean;
 	};
 
+	export enum InlineCompletionsDisposeReasonKind {
+		Other = 0,
+		Empty = 1,
+		TokenCancellation = 2,
+		LostRace = 3,
+		NotTaken = 4,
+	}
+
+	export type InlineCompletionsDisposeReason = { kind: InlineCompletionsDisposeReasonKind };
+
 	export interface InlineCompletionContext {
 		readonly userPrompt?: string;
 
@@ -159,7 +172,7 @@ declare module 'vscode' {
 		/**
 		 * A list of commands associated with the inline completions of this list.
 		 */
-		commands?: Command[];
+		commands?: Array<Command | { command: Command; icon: ThemeIcon }>;
 
 		/**
 		 * When set and the user types a suggestion without deviating from it, the inline suggestion is not updated.

@@ -30,6 +30,10 @@ import { IPromptFileReference } from '../../../../common/promptSyntax/parsers/ty
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
 import { MockFilesystem } from '../testUtils/mockFilesystem.js';
+import { ILabelService } from '../../../../../../../platform/label/common/label.js';
+import { ComputeAutomaticInstructions } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
+import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { ResourceSet } from '../../../../../../../base/common/map.js';
 
 /**
  * Helper class to assert the properties of a link.
@@ -126,11 +130,13 @@ suite('PromptsService', () => {
 				return 'plaintext';
 			}
 		});
+		instaService.stub(ILabelService, { getUriLabel: (uri: URI) => uri.path });
 
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 
 		service = disposables.add(instaService.createInstance(PromptsService));
+		instaService.stub(IPromptsService, service);
 	});
 
 	suite('getParserFor', () => {
@@ -868,13 +874,19 @@ suite('PromptsService', () => {
 				}
 			])).mock();
 
-			const instructions = await service
-				.findInstructionFilesFor([
+			const instructionFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions);
+			const context = {
+				files: new ResourceSet([
 					URI.joinPath(rootFolderUri, 'folder1/main.tsx'),
-				]);
+				]),
+				instructions: new ResourceSet(),
+			};
+
+			const instructions = await contextComputer.findInstructionFilesFor(instructionFiles, context, CancellationToken.None);
 
 			assert.deepStrictEqual(
-				instructions.map(i => i.path),
+				instructions.map(i => i.value.path),
 				[
 					// local instructions
 					URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md').path,
@@ -1047,15 +1059,21 @@ suite('PromptsService', () => {
 				}
 			])).mock();
 
-			const instructions = await service
-				.findInstructionFilesFor([
+			const instructionFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions);
+			const context = {
+				files: new ResourceSet([
 					URI.joinPath(rootFolderUri, 'folder1/main.tsx'),
 					URI.joinPath(rootFolderUri, 'folder1/index.tsx'),
 					URI.joinPath(rootFolderUri, 'folder1/constants.tsx'),
-				]);
+				]),
+				instructions: new ResourceSet(),
+			};
+
+			const instructions = await contextComputer.findInstructionFilesFor(instructionFiles, context, CancellationToken.None);
 
 			assert.deepStrictEqual(
-				instructions.map(i => i.path),
+				instructions.map(i => i.value.path),
 				[
 					// local instructions
 					URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md').path,

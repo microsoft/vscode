@@ -21,7 +21,8 @@ import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.j
 import { match } from '../../../../base/common/glob.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
-import { raceTimeout } from '../../../../base/common/async.js';
+import { raceCancellation, raceTimeout } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 
 export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest:${id}`; }
 
@@ -106,10 +107,11 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 	private _authenticationProviders: Map<string, IAuthenticationProvider> = new Map<string, IAuthenticationProvider>();
 	private _authenticationProviderDisposables: DisposableMap<string, IDisposable> = this._register(new DisposableMap<string, IDisposable>());
+	private _dynamicAuthenticationProviderIds = new Set<string>();
 
 	private readonly _delegates: IAuthenticationProviderHostDelegate[] = [];
 
-	private _isDisposable: boolean = false;
+	private _disposedSource = new CancellationTokenSource();
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -118,7 +120,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
-		this._register(toDisposable(() => this._isDisposable = true));
+		this._register(toDisposable(() => this._disposedSource.dispose(true)));
 		this._register(authenticationAccessService.onDidChangeExtensionSessionAccess(e => {
 			// The access has changed, not the actual session itself but extensions depend on this event firing
 			// when they have gained access to an account so this fires that event.
@@ -213,6 +215,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		return this._authenticationProviders.has(id);
 	}
 
+	isDynamicAuthenticationProvider(id: string): boolean {
+		return this._dynamicAuthenticationProviderIds.has(id);
+	}
+
 	registerAuthenticationProvider(id: string, authenticationProvider: IAuthenticationProvider): void {
 		this._authenticationProviders.set(id, authenticationProvider);
 		const disposableStore = new DisposableStore();
@@ -232,6 +238,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		const provider = this._authenticationProviders.get(id);
 		if (provider) {
 			this._authenticationProviders.delete(id);
+			// If this is a dynamic provider, remove it from the set of dynamic providers
+			if (this._dynamicAuthenticationProviderIds.has(id)) {
+				this._dynamicAuthenticationProviderIds.delete(id);
+			}
 			this._onDidUnregisterAuthenticationProvider.fire({ id, label: provider.label });
 		}
 		this._authenticationProviderDisposables.deleteAndDispose(id);
@@ -267,7 +277,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	}
 
 	async getSessions(id: string, scopes?: string[], options?: IAuthenticationGetSessionsOptions, activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
-		if (this._isDisposable) {
+		if (this._disposedSource.token.isCancellationRequested) {
 			return [];
 		}
 
@@ -281,30 +291,27 @@ export class AuthenticationService extends Disposable implements IAuthentication
 					throw new Error(`The authorization server '${authServerStr}' is not supported by the authentication provider '${id}'.`);
 				}
 			}
-			return await authProvider.getSessions(scopes, { account: options?.account, authorizationServer: options?.authorizationServer });
+			return await authProvider.getSessions(scopes, { ...options });
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
 	}
 
 	async createSession(id: string, scopes: string[], options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession> {
-		if (this._isDisposable) {
+		if (this._disposedSource.token.isCancellationRequested) {
 			throw new Error('Authentication service is disposed.');
 		}
 
 		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, !!options?.activateImmediate);
 		if (authProvider) {
-			return await authProvider.createSession(scopes, {
-				account: options?.account,
-				authorizationServer: options?.authorizationServer
-			});
+			return await authProvider.createSession(scopes, { ...options });
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
 	}
 
 	async removeSession(id: string, sessionId: string): Promise<void> {
-		if (this._isDisposable) {
+		if (this._disposedSource.token.isCancellationRequested) {
 			throw new Error('Authentication service is disposed.');
 		}
 
@@ -349,6 +356,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		const provider = this._authenticationProviders.get(providerId);
 		if (provider) {
 			this._logService.debug(`Created dynamic authentication provider: ${providerId}`);
+			this._dynamicAuthenticationProviderIds.add(providerId);
 			return provider;
 		}
 		this._logService.error(`Failed to create dynamic authentication provider: ${providerId}`);
@@ -375,17 +383,23 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		if (provider) {
 			return provider;
 		}
+		if (this._disposedSource.token.isCancellationRequested) {
+			throw new Error('Authentication service is disposed.');
+		}
 
-		const store = this._register(new DisposableStore());
+		const store = new DisposableStore();
 		try {
 			const result = await raceTimeout(
-				Event.toPromise(
-					Event.filter(
-						this.onDidRegisterAuthenticationProvider,
-						e => e.id === providerId,
+				raceCancellation(
+					Event.toPromise(
+						Event.filter(
+							this.onDidRegisterAuthenticationProvider,
+							e => e.id === providerId,
+							store
+						),
 						store
 					),
-					store
+					this._disposedSource.token
 				),
 				5000
 			);

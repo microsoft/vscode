@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TTree } from '../utils/treeUtils.js';
 import { ChatMode } from '../../constants.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Event } from '../../../../../../base/common/event.js';
@@ -71,7 +70,7 @@ export interface IMetadata {
 	/**
 	 * List of metadata for each valid child prompt reference.
 	 */
-	readonly children?: readonly TTree<IMetadata | null>[];
+	readonly children?: readonly IMetadata[];
 }
 
 export interface ICustomChatMode {
@@ -173,18 +172,12 @@ export interface IPromptsService extends IDisposable {
 	/**
 	 * Gets the prompt file for a slash command.
 	 */
-	resolvePromptSlashCommand(data: IChatPromptSlashCommand): Promise<IMetadata | undefined>;
+	resolvePromptSlashCommand(data: IChatPromptSlashCommand, _token: CancellationToken): Promise<IPromptParserResult | undefined>;
 
 	/**
 	 * Returns a prompt command if the command name is valid.
 	 */
 	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]>;
-
-	/**
-	 * Find all instruction files which have a glob pattern in their
-	 * 'applyTo' metadata record that match the provided list of files.
-	 */
-	findInstructionFilesFor(fileUris: readonly URI[]): Promise<readonly URI[]>;
 
 	/**
 	 * Event that is triggered when the list of custom chat modes changes.
@@ -195,11 +188,6 @@ export interface IPromptsService extends IDisposable {
 	 * Finds all available custom chat modes
 	 */
 	getCustomChatModes(token: CancellationToken): Promise<readonly ICustomChatMode[]>;
-
-	/**
-	 * Gets the metadata for the given prompt file uri.
-	 */
-	getMetadata(promptFileUri: URI): Promise<IMetadata>;
 
 	/**
 	 * Get all metadata for entire prompt references tree
@@ -216,6 +204,12 @@ export interface IPromptsService extends IDisposable {
 	 * @param uris
 	 */
 	parse(uri: URI, token: CancellationToken): Promise<IPromptParserResult>;
+
+	/**
+	 * Returns the prompt file type for the given URI.
+	 * @param resource the URI of the resource
+	 */
+	getPromptFileType(resource: URI): PromptsType | undefined;
 }
 
 export interface IChatPromptSlashCommand {

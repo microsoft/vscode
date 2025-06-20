@@ -1879,7 +1879,7 @@ export class InlineSuggestion implements vscode.InlineCompletionItem {
 export class InlineSuggestionList implements vscode.InlineCompletionList {
 	items: vscode.InlineCompletionItem[];
 
-	commands: vscode.Command[] | undefined = undefined;
+	commands: (vscode.Command | { command: vscode.Command; icon: vscode.ThemeIcon })[] | undefined = undefined;
 
 	suppressSuggestions: boolean | undefined = undefined;
 
@@ -3349,6 +3349,14 @@ export class EvaluatableExpression implements vscode.EvaluatableExpression {
 export enum InlineCompletionTriggerKind {
 	Invoke = 0,
 	Automatic = 1,
+}
+
+export enum InlineCompletionsDisposeReasonKind {
+	Other = 0,
+	Empty = 1,
+	TokenCancellation = 2,
+	LostRace = 3,
+	NotTaken = 4,
 }
 
 @es5ClassCompat
@@ -5197,22 +5205,6 @@ export enum TextToSpeechStatus {
 export enum KeywordRecognitionStatus {
 	Recognized = 1,
 	Stopped = 2
-}
-
-//#endregion
-
-//#region InlineEdit
-
-export class InlineEdit implements vscode.InlineEdit {
-	constructor(
-		public readonly text: string,
-		public readonly range: Range,
-	) { }
-}
-
-export enum InlineEditTriggerKind {
-	Invoke = 0,
-	Automatic = 1,
 }
 
 //#endregion

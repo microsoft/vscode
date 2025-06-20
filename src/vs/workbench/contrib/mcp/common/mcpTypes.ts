@@ -342,6 +342,11 @@ export const mcpPromptPrefix = (definition: McpDefinitionReference) =>
 
 export interface IMcpPromptMessage extends MCP.PromptMessage { }
 
+export interface IMcpToolCallContext {
+	chatSessionId?: string;
+	chatRequestId?: string;
+}
+
 export interface IMcpTool {
 
 	readonly id: string;
@@ -355,12 +360,12 @@ export interface IMcpTool {
 	 * @throws {@link MpcResponseError} if the tool fails to execute
 	 * @throws {@link McpConnectionFailedError} if the connection to the server fails
 	 */
-	call(params: Record<string, unknown>, token?: CancellationToken): Promise<MCP.CallToolResult>;
+	call(params: Record<string, unknown>, context?: IMcpToolCallContext, token?: CancellationToken): Promise<MCP.CallToolResult>;
 
 	/**
 	 * Identical to {@link call}, but reports progress.
 	 */
-	callWithProgress(params: Record<string, unknown>, progress: ToolProgress, token?: CancellationToken): Promise<MCP.CallToolResult>;
+	callWithProgress(params: Record<string, unknown>, progress: ToolProgress, context?: IMcpToolCallContext, token?: CancellationToken): Promise<MCP.CallToolResult>;
 }
 
 export const enum McpServerTransportType {
@@ -456,6 +461,8 @@ export interface IMcpServerConnection extends IDisposable {
 export interface IMcpClientMethods {
 	/** Handler for `sampling/createMessage` */
 	createMessageRequestHandler?(req: MCP.CreateMessageRequest['params']): Promise<MCP.CreateMessageResult>;
+	/** Handler for `elicitation/create` */
+	elicitationRequestHandler?(req: MCP.ElicitRequest['params']): Promise<MCP.ElicitResult>;
 }
 
 /**
@@ -716,3 +723,20 @@ export const enum McpToolName {
 	MaxPrefixLen = 18,
 	MaxLength = 64,
 }
+
+
+export interface IMcpElicitationService {
+	_serviceBrand: undefined;
+
+	/**
+	 * Elicits a response from the user. The `context` is optional and can be used
+	 * to provide additional information about the request.
+	 *
+	 * @param context Context for the elicitation, e.g. chat session ID.
+	 * @param elicitation Request to elicit a response.
+	 * @returns A promise that resolves to an {@link ElicitationResult}.
+	 */
+	elicit(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequest['params'], token: CancellationToken): Promise<MCP.ElicitResult>;
+}
+
+export const IMcpElicitationService = createDecorator<IMcpElicitationService>('IMcpElicitationService');
