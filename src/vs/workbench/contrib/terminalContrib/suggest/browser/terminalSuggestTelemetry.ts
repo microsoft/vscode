@@ -10,7 +10,7 @@ import { IPromptInputModel } from '../../../../../platform/terminal/common/capab
 import { ITerminalCompletion, TerminalCompletionItemKind } from './terminalCompletionItem.js';
 
 export class TerminalSuggestTelemetry extends Disposable {
-	private _acceptedCompletions: Array<{ label: string; kind?: string; sessionId: string; providerId: string }> | undefined;
+	private _acceptedCompletions: Array<{ label: string; kind?: string; sessionId: string; provider: string }> | undefined;
 
 	private _kindMap = new Map<number, string>([
 		[TerminalCompletionItemKind.File, 'File'],
@@ -46,16 +46,16 @@ export class TerminalSuggestTelemetry extends Disposable {
 			return;
 		}
 		this._acceptedCompletions = this._acceptedCompletions || [];
-		this._acceptedCompletions.push({ label: typeof completion.label === 'string' ? completion.label : completion.label.label, kind: this._kindMap.get(completion.kind!), sessionId, providerId: completion.provider });
+		this._acceptedCompletions.push({ label: typeof completion.label === 'string' ? completion.label : completion.label.label, kind: this._kindMap.get(completion.kind!), sessionId, provider: completion.provider });
 	}
 	private _sendTelemetryInfo(fromInterrupt?: boolean, exitCode?: number): void {
 		const commandLine = this._promptInputModel?.value;
 		for (const completion of this._acceptedCompletions || []) {
 			const label = completion?.label;
 			const kind = completion?.kind;
-			const providerId = completion?.providerId;
+			const provider = completion?.provider;
 
-			if (label === undefined || commandLine === undefined || kind === undefined) {
+			if (label === undefined || commandLine === undefined || kind === undefined || provider === undefined) {
 				return;
 			}
 
@@ -74,7 +74,7 @@ export class TerminalSuggestTelemetry extends Disposable {
 				outcome: string;
 				exitCode: number | undefined;
 				sessionId: string;
-				providerId: string | undefined;
+				provider: string | undefined;
 			}, {
 				owner: 'meganrogge';
 				comment: 'This data is collected to understand the outcome of a terminal completion acceptance.';
@@ -98,7 +98,7 @@ export class TerminalSuggestTelemetry extends Disposable {
 					purpose: 'FeatureInsight';
 					comment: 'The session ID of the terminal session where the completion was accepted';
 				};
-				providerId: {
+				provider: {
 					classification: 'SystemMetaData';
 					purpose: 'FeatureInsight';
 					comment: 'The ID of the provider that supplied the completion';
@@ -108,7 +108,7 @@ export class TerminalSuggestTelemetry extends Disposable {
 				outcome,
 				exitCode,
 				sessionId: completion.sessionId,
-				providerId
+				provider
 			});
 		}
 	}
