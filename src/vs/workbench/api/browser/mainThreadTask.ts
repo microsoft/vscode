@@ -727,6 +727,7 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 				platform = Platform.Platform.Mac;
 				break;
 			case 'linux':
+			case 'freebsd':
 				platform = Platform.Platform.Linux;
 				break;
 			default:
