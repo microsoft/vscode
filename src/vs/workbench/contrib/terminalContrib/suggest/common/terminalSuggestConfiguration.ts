@@ -80,6 +80,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 			'terminal-suggest': true,
 			'pwsh-shell-integration': true,
 			'lsp': true,
+			'builtinTasks': true,
 		},
 		tags: ['preview'],
 	},
