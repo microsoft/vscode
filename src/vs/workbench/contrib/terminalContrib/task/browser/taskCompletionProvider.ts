@@ -24,18 +24,6 @@ export class TaskCompletionProvider implements ITerminalCompletionProvider {
 			return [];
 		}
 
-		// Get the text up to the cursor position
-		const prefix = value.substring(0, cursorPosition);
-		const words = prefix.trim().split(/\s+/);
-
-		// Only suggest tasks if we're at the beginning of a command or it's a single word
-		// This prevents tasks from appearing in the middle of complex commands
-		if (words.length > 1 && prefix.trim() !== words[0]) {
-			return [];
-		}
-
-		const currentWord = words[words.length - 1] || '';
-
 		try {
 			// Get all available tasks
 			const tasks = await this._taskService.getKnownTasks();
@@ -47,8 +35,8 @@ export class TaskCompletionProvider implements ITerminalCompletionProvider {
 			const completions: ITerminalCompletion[] = [];
 
 			for (const task of tasks) {
-				if (this._shouldIncludeTask(task, currentWord)) {
-					const completion = this._createTaskCompletion(task, currentWord);
+				if (this._shouldIncludeTask(task, value, cursorPosition)) {
+					const completion = this._createTaskCompletion(task);
 					if (completion) {
 						completions.push(completion);
 					}
@@ -62,7 +50,7 @@ export class TaskCompletionProvider implements ITerminalCompletionProvider {
 		}
 	}
 
-	private _shouldIncludeTask(task: Task, currentWord: string): boolean {
+	private _shouldIncludeTask(task: Task, value: string, cursorPosition: number): boolean {
 		if (task._source.kind === 'extension') {
 			return false;
 		}
@@ -70,65 +58,35 @@ export class TaskCompletionProvider implements ITerminalCompletionProvider {
 			return false;
 		}
 
-		// If no input, don't show tasks (too many)
-		if (!currentWord) {
-			return false;
-		}
+		// Get the text up to the cursor position
+		const prefix = value.substring(0, cursorPosition);
+		const words = prefix.trim().split(/\s+/);
 
-		const lowerCurrentWord = currentWord.toLowerCase();
-		const lowerTaskLabel = task._label.toLowerCase();
-
-		// Match if the task label starts with the current word
-		if (lowerTaskLabel.startsWith(lowerCurrentWord)) {
+		// If there are no spaces in value, show all tasks
+		if (words.length <= 1) {
 			return true;
 		}
 
-		// Match if any word in the task label starts with the current word
-		// This handles cases like "vs code build" matching "build" input
-		const taskWords = lowerTaskLabel.split(/\s+/);
-		for (const word of taskWords) {
-			if (word.startsWith(lowerCurrentWord)) {
-				return true;
+		// If there are spaces, only show tasks where the words before cursor position
+		// (except the word that the cursor is on) match the text of the task exactly
+		const wordsBeforeCursor = words.slice(0, -1);
+		const taskWords = task._label.trim().split(/\s+/);
+
+		// Check if the task label starts with the exact sequence of words before cursor
+		if (wordsBeforeCursor.length > taskWords.length) {
+			return false;
+		}
+
+		for (let i = 0; i < wordsBeforeCursor.length; i++) {
+			if (wordsBeforeCursor[i].toLowerCase() !== taskWords[i].toLowerCase()) {
+				return false;
 			}
 		}
 
-		// For npm scripts and other tasks, check the task's command and arguments
-		// This handles cases where the script name differs from the label
-		try {
-			const command = this._getTaskCommand(task);
-			if (command) {
-				// Check command name (e.g., "npm")
-				if (command.command && typeof command.command === 'string') {
-					if (command.command.toLowerCase().includes(lowerCurrentWord)) {
-						return true;
-					}
-				}
-
-				// Check command arguments (e.g., ["run", "watch"])
-				if (command.args && Array.isArray(command.args)) {
-					for (const arg of command.args) {
-						if (typeof arg === 'string' && arg.toLowerCase().includes(lowerCurrentWord)) {
-							return true;
-						}
-					}
-				}
-			}
-		} catch (error) {
-			// Ignore errors accessing task command
-		}
-
-		return false;
+		return true;
 	}
 
-	private _getTaskCommand(task: Task): any {
-		// Handle different task types
-		if ('command' in task) {
-			return task.command;
-		}
-		return undefined;
-	}
-
-	private _createTaskCompletion(task: Task, currentWord: string): ITerminalCompletion | undefined {
+	private _createTaskCompletion(task: Task): ITerminalCompletion | undefined {
 		if (!task._label) {
 			return undefined;
 		}
@@ -154,13 +112,10 @@ export class TaskCompletionProvider implements ITerminalCompletionProvider {
 			inputData,
 			detail,
 			kind: TerminalCompletionItemKind.VscodeCommand,
-			// Lower priority so tasks appear below other suggestions
-			// Using a priority that puts them below most other suggestions but above random files
-			// priority: 20,
 			icon,
 			provider: this.id,
 			replacementIndex: 0, // Will be set by the completion service
-			replacementLength: currentWord.length,
+			replacementLength: 0, // Will be set by the completion service
 			command: {
 				id: 'workbench.action.tasks.runTask',
 				arguments: [task]

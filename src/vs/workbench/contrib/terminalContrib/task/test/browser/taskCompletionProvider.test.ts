@@ -45,40 +45,55 @@ suite('TaskCompletionProvider', () => {
 		provider = new TaskCompletionProvider(taskService);
 	});
 
-	test('should provide completions for task labels starting with input', async () => {
+	test('should provide all completions for single word input', async () => {
 		const completions = await provider.provideCompletions('bu', 2, true, CancellationToken.None);
 
-		strictEqual(completions.length, 2);
+		// With the new implementation, all tasks are returned and filtering is done by the suggest system
+		strictEqual(completions.length, 3);
 		strictEqual(completions[0].label, 'build');
 		strictEqual(completions[0].kind, TerminalCompletionItemKind.VscodeCommand);
 		strictEqual(completions[0].command?.id, 'workbench.action.tasks.runTask');
-		strictEqual(completions[1].label, 'vs code build');
+		strictEqual(completions[1].label, 'test');
+		strictEqual(completions[2].label, 'vs code build');
 	});
 
-	test('should provide completions for task labels containing input word', async () => {
+	test('should provide all completions for any single word input', async () => {
 		const completions = await provider.provideCompletions('code', 4, true, CancellationToken.None);
 
-		strictEqual(completions.length, 1);
-		strictEqual(completions[0].label, 'vs code build');
-		strictEqual(completions[0].kind, TerminalCompletionItemKind.VscodeCommand);
+		// All tasks should be returned for single word input
+		strictEqual(completions.length, 3);
+		strictEqual(completions[0].label, 'build');
+		strictEqual(completions[1].label, 'test');
+		strictEqual(completions[2].label, 'vs code build');
 	});
 
-	test('should not provide completions for empty input', async () => {
+	test('should provide all completions for empty input', async () => {
 		const completions = await provider.provideCompletions('', 0, true, CancellationToken.None);
 
-		strictEqual(completions.length, 0);
+		// All tasks should be returned for empty input (no spaces)
+		strictEqual(completions.length, 3);
 	});
 
-	test('should not provide completions for non-matching input', async () => {
-		const completions = await provider.provideCompletions('xyz', 3, true, CancellationToken.None);
+	test('should provide matching completions for multi-word input', async () => {
+		// Test exact match at beginning of task label
+		const completions = await provider.provideCompletions('vs code ', 8, true, CancellationToken.None);
 
+		// Only tasks that start with "vs code" should be returned
+		strictEqual(completions.length, 1);
+		strictEqual(completions[0].label, 'vs code build');
+	});
+
+	test('should not provide completions for non-matching multi-word input', async () => {
+		const completions = await provider.provideCompletions('test build ', 11, true, CancellationToken.None);
+
+		// No tasks start with "test build"
 		strictEqual(completions.length, 0);
 	});
 
 	test('should include task detail and icon', async () => {
 		const completions = await provider.provideCompletions('build', 5, true, CancellationToken.None);
 
-		strictEqual(completions.length, 2);
+		strictEqual(completions.length, 3); // All tasks are returned for single word
 		strictEqual(completions[0].detail, 'Build the project');
 		strictEqual(completions[0].icon?.id, 'tools');
 	});
@@ -86,8 +101,8 @@ suite('TaskCompletionProvider', () => {
 	test('should set correct provider and replacement properties', async () => {
 		const completions = await provider.provideCompletions('test', 4, true, CancellationToken.None);
 
-		strictEqual(completions.length, 1);
+		strictEqual(completions.length, 3); // All tasks are returned for single word
 		strictEqual(completions[0].provider, 'tasks');
-		strictEqual(completions[0].replacementLength, 4);
+		strictEqual(completions[0].replacementLength, 0); // Replacement is handled by the suggest system
 	});
 });
