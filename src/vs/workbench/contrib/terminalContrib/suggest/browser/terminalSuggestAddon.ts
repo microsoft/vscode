@@ -217,6 +217,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				this._model?.forceRefilterAll();
 			}
 		}));
+
+		const activeWindow = dom.getActiveWindow();
+		if (typeof activeWindow !== 'undefined' && typeof activeWindow.addEventListener === 'function') {
+			activeWindow.addEventListener('beforeunload', () => {
+				this.setHasShownCompletions(false);
+			});
+		}
 	}
 
 	activate(xterm: Terminal): void {
