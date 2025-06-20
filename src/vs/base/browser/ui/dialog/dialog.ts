@@ -273,14 +273,15 @@ export class Dialog extends Disposable {
 			const onButtonClick = async (index: number) => {
 				const values = this.inputs.length > 0 ? this.inputs.map(input => input.value) : undefined;
 				const checkboxChecked = this.checkbox ? this.checkbox.checked : undefined;
+				const button = buttonMap[index].index;
 				if (this.options.onBeforeButtonClick) {
-					const canClose = await this.options.onBeforeButtonClick(index, values, checkboxChecked);
+					const canClose = await this.options.onBeforeButtonClick(button, values, checkboxChecked);
 					if (!canClose) {
 						return;
 					}
 				}
 				resolve({
-					button: buttonMap[index].index,
+					button,
 					checkboxChecked,
 					values
 				});
