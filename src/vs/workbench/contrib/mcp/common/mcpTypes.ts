@@ -283,6 +283,7 @@ export interface IMcpResource {
 	/** Identifier of the file as given from the MCP server. */
 	readonly mcpUri: string;
 	readonly name: string;
+	readonly title?: string;
 	readonly description?: string;
 	readonly mimeType?: string;
 	readonly sizeInBytes?: number;
@@ -290,6 +291,7 @@ export interface IMcpResource {
 
 export interface IMcpResourceTemplate {
 	readonly name: string;
+	readonly title?: string;
 	readonly description?: string;
 	readonly mimeType?: string;
 	readonly template: UriTemplate;
@@ -326,6 +328,7 @@ export const enum McpServerCacheState {
 export interface IMcpPrompt {
 	readonly id: string;
 	readonly name: string;
+	readonly title?: string;
 	readonly description?: string;
 	readonly arguments: readonly MCP.PromptArgument[];
 
