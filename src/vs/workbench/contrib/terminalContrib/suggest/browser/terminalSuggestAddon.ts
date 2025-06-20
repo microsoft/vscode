@@ -136,8 +136,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _suggestTelemetry: TerminalSuggestTelemetry | undefined;
 
 	private _completionRequestTimestamp: number | undefined;
-	private _completionLatency: number | undefined;
-	private _hasShownCompletions: boolean = false;
 
 	constructor(
 		private readonly _sessionId: string,
@@ -149,6 +147,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
+		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super();
 
@@ -697,12 +696,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		// Track the time when completions are shown for the first time
 		if (this._completionRequestTimestamp !== undefined) {
-			this._completionLatency = Date.now() - this._completionRequestTimestamp;
+			const completionLatency = Date.now() - this._completionRequestTimestamp;
 			if (this._suggestTelemetry) {
-				this._suggestTelemetry.logCompletionLatency(this._sessionId, this._completionLatency, !this._hasShownCompletions);
+				this._suggestTelemetry.logCompletionLatency(this._sessionId, completionLatency, this.hasShownCompletions());
 			}
 			this._completionRequestTimestamp = undefined;
-			this._hasShownCompletions = true;
+			this.setHasShownCompletions(true);
 		}
 		suggestWidget.showSuggestions(0, false, !explicitlyInvoked, cursorPosition);
 	}
@@ -877,6 +876,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._currentPromptInputState = undefined;
 		this._leadingLineContent = undefined;
 		this._suggestWidget?.hide();
+	}
+
+	hasShownCompletions(): boolean {
+		return this._storageService.get(TerminalStorageKeys.HasShownCompletions, StorageScope.PROFILE, 'false') === 'true' ? true : false;
+	}
+
+	setHasShownCompletions(value: boolean): void {
+		this._storageService.store(TerminalStorageKeys.HasShownCompletions, String(value), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 }
 
