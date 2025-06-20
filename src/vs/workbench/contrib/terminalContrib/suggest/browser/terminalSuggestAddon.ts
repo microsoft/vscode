@@ -706,7 +706,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			if (this._suggestTelemetry && this.shellType) {
 				const firstShown = this.getFirstShown(this.shellType);
 				this.updateShown();
-				console.log(`Completions shown for ${this.shellType} after ${completionLatency}ms first shown for shell: ${firstShown.shell} first shown for window: ${firstShown.window}`);
 				this._suggestTelemetry.logCompletionLatency(this._sessionId, completionLatency, firstShown);
 			}
 			this._completionRequestTimestamp = undefined;
