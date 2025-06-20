@@ -135,6 +135,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _shouldSyncWhenReady: boolean = false;
 	private _suggestTelemetry: TerminalSuggestTelemetry | undefined;
 
+	private _completionRequestTimestamp: number | undefined;
+	private _completionLatency: number | undefined;
+	private _hasShownCompletions: boolean = false;
+
 	constructor(
 		private readonly _sessionId: string,
 		shellType: TerminalShellType | undefined,
@@ -333,8 +337,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			lineContext
 		);
 		if (token.isCancellationRequested) {
+			// If cancelled, reset the tracker
+			this._completionRequestTimestamp = undefined;
 			return;
 		}
+
 		this._showCompletions(model, explicitlyInvoked);
 	}
 
@@ -377,7 +384,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		this._cancellationTokenSource = new CancellationTokenSource();
 		const token = this._cancellationTokenSource.token;
+
+		// Track the time when completions are requested
+		this._completionRequestTimestamp = Date.now();
+
 		await this._handleCompletionProviders(this._terminal, token, explicitlyInvoked);
+
+		// If completions are not shown (widget not visible), reset the tracker
+		if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
+			this._completionRequestTimestamp = undefined;
+		}
 	}
 
 	private _addPropertiesToInlineCompletionItem(completions: ITerminalCompletion[]): void {
@@ -678,6 +694,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const cursorPosition = this._getCursorPosition(this._terminal);
 		if (!cursorPosition) {
 			return;
+		}
+		// Track the time when completions are shown for the first time
+		if (this._completionRequestTimestamp !== undefined) {
+			this._completionLatency = Date.now() - this._completionRequestTimestamp;
+			if (this._suggestTelemetry) {
+				this._suggestTelemetry.logCompletionLatency(this._sessionId, this._completionLatency, !this._hasShownCompletions);
+			}
+			this._completionRequestTimestamp = undefined;
+			this._hasShownCompletions = true;
 		}
 		suggestWidget.showSuggestions(0, false, !explicitlyInvoked, cursorPosition);
 	}

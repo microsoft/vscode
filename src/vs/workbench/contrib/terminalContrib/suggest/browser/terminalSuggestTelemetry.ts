@@ -48,6 +48,44 @@ export class TerminalSuggestTelemetry extends Disposable {
 		this._acceptedCompletions = this._acceptedCompletions || [];
 		this._acceptedCompletions.push({ label: typeof completion.label === 'string' ? completion.label : completion.label.label, kind: this._kindMap.get(completion.kind!), sessionId });
 	}
+
+	/**
+	 * Logs the latency (ms) from completion request to completions shown.
+	 * @param sessionId The terminal session ID
+	 * @param latency The measured latency in ms
+	 * @param first Whether this is the first ever showing of completions in the session
+	 */
+	logCompletionLatency(sessionId: string, latency: number, first: boolean): void {
+		this._telemetryService.publicLog2<{
+			sessionId: string;
+			latency: number;
+			first: boolean;
+		}, {
+			owner: 'meganrogge';
+			comment: 'Latency in ms from terminal completion request to completions shown.';
+			sessionId: {
+				classification: 'SystemMetaData';
+				purpose: 'FeatureInsight';
+				comment: 'The session ID of the terminal session.';
+			};
+			latency: {
+				classification: 'SystemMetaData';
+				purpose: 'PerformanceAndHealth';
+				comment: 'The latency in milliseconds.';
+			};
+			first: {
+				classification: 'SystemMetaData';
+				purpose: 'FeatureInsight';
+				comment: 'Whether this is the first ever showing of completions in the session.';
+			};
+		}>('terminal.suggest.completionLatency', {
+			sessionId,
+			latency,
+			first
+		});
+	}
+
+
 	private _sendTelemetryInfo(fromInterrupt?: boolean, exitCode?: number): void {
 		const commandLine = this._promptInputModel?.value;
 		for (const completion of this._acceptedCompletions || []) {
