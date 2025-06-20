@@ -94,14 +94,24 @@ export class TaskCompletionProvider implements ITerminalCompletionProvider {
 			}
 		}
 
-		// For npm scripts, also check if the task command includes the current word
+		// For npm scripts and other tasks, check the task's command and arguments
 		// This handles cases where the script name differs from the label
 		try {
 			const command = this._getTaskCommand(task);
-			if (command && command.args && Array.isArray(command.args)) {
-				for (const arg of command.args) {
-					if (typeof arg === 'string' && arg.toLowerCase().includes(lowerCurrentWord)) {
+			if (command) {
+				// Check command name (e.g., "npm")
+				if (command.command && typeof command.command === 'string') {
+					if (command.command.toLowerCase().includes(lowerCurrentWord)) {
 						return true;
+					}
+				}
+				
+				// Check command arguments (e.g., ["run", "watch"])
+				if (command.args && Array.isArray(command.args)) {
+					for (const arg of command.args) {
+						if (typeof arg === 'string' && arg.toLowerCase().includes(lowerCurrentWord)) {
+							return true;
+						}
 					}
 				}
 			}
@@ -128,14 +138,9 @@ export class TaskCompletionProvider implements ITerminalCompletionProvider {
 		// Use the task label as the display text
 		const label = task._label;
 		
-		// For input, we need to consider what the user typed vs what should be replaced
-		// If the task label has spaces, we need to handle it appropriately
-		let inputData = label;
-		if (label.includes(' ')) {
-			// If the label has spaces, we might need to quote it or handle it differently
-			// For now, just use the label as-is
-			inputData = label;
-		}
+		// For input data, we use the full task label
+		// The terminal suggest system will handle the replacement appropriately
+		const inputData = label;
 
 		// Create a description that includes the task source
 		let detail = task.configurationProperties?.detail;
