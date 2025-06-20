@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TaskCompletionProvider } from '../../browser/taskCompletionProvider.js';
 import { CustomTask } from '../../../../tasks/common/tasks.js';
-import { TerminalCompletionItemKind } from '../../browser/terminalCompletionItem.js';
+import { TerminalCompletionItemKind } from '../../../suggest/browser/terminalCompletionItem.js';
 import { ITaskService } from '../../../../tasks/common/taskService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
@@ -66,7 +66,7 @@ suite('TaskCompletionProvider', () => {
 		
 		strictEqual(completions.length, 2);
 		strictEqual(completions[0].label, 'build');
-		strictEqual(completions[0].kind, TerminalCompletionItemKind.Task);
+		strictEqual(completions[0].kind, TerminalCompletionItemKind.VscodeCommand);
 		strictEqual(completions[0].command?.id, 'workbench.action.tasks.runTask');
 		strictEqual(completions[1].label, 'vs code build');
 	});
@@ -76,7 +76,7 @@ suite('TaskCompletionProvider', () => {
 		
 		strictEqual(completions.length, 1);
 		strictEqual(completions[0].label, 'vs code build');
-		strictEqual(completions[0].kind, TerminalCompletionItemKind.Task);
+		strictEqual(completions[0].kind, TerminalCompletionItemKind.VscodeCommand);
 	});
 
 	test('should not provide completions for empty input', async () => {

@@ -39,10 +39,6 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { env } from '../../../../../base/common/process.js';
 import { PYLANCE_DEBUG_DISPLAY_NAME } from './lspTerminalUtil.js';
-import { TaskCompletionProvider } from './taskCompletionProvider.js';
-import { ITaskService } from '../../../tasks/common/taskService.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
@@ -74,9 +70,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
-		@ITaskService private readonly _taskService: ITaskService,
-		@ICommandService private readonly _commandService: ICommandService,
-		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
 		this.add(toDisposable(() => {
@@ -87,9 +80,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			this._lspModelProvider?.dispose();
 		}));
 		this._terminalSuggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(this._contextKeyService);
-		
-		// Register task completion provider immediately as it doesn't depend on xterm
-		this._registerTaskCompletionProvider();
 		
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSuggestSettingId.Enabled)) {
@@ -271,19 +261,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		// Relies on shell type being set
 		this._loadLspCompletionAddon(this._ctx.instance.xterm.raw);
 		this._loadPwshCompletionAddon(this._ctx.instance.xterm.raw);
-	}
-
-	private _registerTaskCompletionProvider(): void {
-		const taskCompletionProvider = new TaskCompletionProvider(
-			this._taskService,
-			this._commandService,
-			this._themeService
-		);
-		this.add(this._terminalCompletionService.registerTerminalCompletionProvider(
-			'builtinTasks',
-			taskCompletionProvider.id,
-			taskCompletionProvider
-		));
 	}
 }
 

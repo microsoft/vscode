@@ -101,7 +101,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		[TerminalCompletionItemKind.Flag, terminalSymbolFlagIcon],
 		[TerminalCompletionItemKind.InlineSuggestion, terminalSymbolInlineSuggestionIcon],
 		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, terminalSymbolInlineSuggestionIcon],
-		[TerminalCompletionItemKind.Task, ThemeIcon.fromId('tools')],
+		[TerminalCompletionItemKind.VscodeCommand, ThemeIcon.fromId('tools')],
 	]);
 
 	private _kindToKindLabelMap = new Map<number, string>([
@@ -117,7 +117,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		[TerminalCompletionItemKind.Flag, localize('flag', 'Flag')],
 		[TerminalCompletionItemKind.InlineSuggestion, localize('inlineSuggestion', 'Inline Suggestion')],
 		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, localize('inlineSuggestionAlwaysOnTop', 'Inline Suggestion')],
-		[TerminalCompletionItemKind.Task, localize('task', 'Task')],
+		[TerminalCompletionItemKind.VscodeCommand, localize('vscodeCommand', 'Command')],
 	]);
 
 	private readonly _inlineCompletion: ITerminalCompletion = {
@@ -841,8 +841,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			SuggestAddon.lastAcceptedCompletionTimestamp = 0;
 		}
 
-		// Handle task completions that should execute commands instead of inserting text
-		if (completion.kind === TerminalCompletionItemKind.Task && completion.command) {
+		// Handle command completions that should execute commands instead of inserting text
+		if (completion.kind === TerminalCompletionItemKind.VscodeCommand && completion.command) {
 			try {
 				await this._commandService.executeCommand(completion.command.id, ...(completion.command.arguments || []));
 				this._suggestTelemetry?.acceptCompletion(completion, this._mostRecentPromptInputState?.value);

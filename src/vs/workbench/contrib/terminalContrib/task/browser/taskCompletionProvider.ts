@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { ITerminalCompletionProvider } from './terminalCompletionService.js';
-import { ITerminalCompletion, TerminalCompletionItemKind } from './terminalCompletionItem.js';
+import { ITerminalCompletionProvider } from '../../suggest/browser/terminalCompletionService.js';
+import { ITerminalCompletion, TerminalCompletionItemKind } from '../../suggest/browser/terminalCompletionItem.js';
 import { ITaskService } from '../../../tasks/common/taskService.js';
 import { Task } from '../../../tasks/common/tasks.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -155,7 +155,7 @@ export class TaskCompletionProvider implements ITerminalCompletionProvider {
 			label,
 			inputData,
 			detail,
-			kind: TerminalCompletionItemKind.Task,
+			kind: TerminalCompletionItemKind.VscodeCommand,
 			// Lower priority so tasks appear below other suggestions
 			// Using a priority that puts them below most other suggestions but above random files
 			priority: 20,

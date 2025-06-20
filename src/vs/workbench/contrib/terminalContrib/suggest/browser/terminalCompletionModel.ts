@@ -142,12 +142,12 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		if ((b.completion.kind === TerminalCompletionItemKind.Method || b.completion.kind === TerminalCompletionItemKind.Alias) && (a.completion.kind !== TerminalCompletionItemKind.Method && a.completion.kind !== TerminalCompletionItemKind.Alias)) {
 			return 1; // Methods and aliases should come first
 		}
-		// Tasks should come before files and folders but after other completion types
-		if (a.completion.kind === TerminalCompletionItemKind.Task && (b.completion.kind === TerminalCompletionItemKind.File || b.completion.kind === TerminalCompletionItemKind.Folder)) {
-			return -1; // Tasks should come before files and folders
+		// Commands should come before files and folders but after other completion types
+		if (a.completion.kind === TerminalCompletionItemKind.VscodeCommand && (b.completion.kind === TerminalCompletionItemKind.File || b.completion.kind === TerminalCompletionItemKind.Folder)) {
+			return -1; // Commands should come before files and folders
 		}
-		if (b.completion.kind === TerminalCompletionItemKind.Task && (a.completion.kind === TerminalCompletionItemKind.File || a.completion.kind === TerminalCompletionItemKind.Folder)) {
-			return 1; // Tasks should come before files and folders
+		if (b.completion.kind === TerminalCompletionItemKind.VscodeCommand && (a.completion.kind === TerminalCompletionItemKind.File || a.completion.kind === TerminalCompletionItemKind.Folder)) {
+			return 1; // Commands should come before files and folders
 		}
 		if ((a.completion.kind === TerminalCompletionItemKind.File || a.completion.kind === TerminalCompletionItemKind.Folder) && (b.completion.kind !== TerminalCompletionItemKind.File && b.completion.kind !== TerminalCompletionItemKind.Folder)) {
 			return 1; // Resources should come last
