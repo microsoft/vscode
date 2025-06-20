@@ -35,7 +35,6 @@ import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js
 import { localize } from '../../../../../nls.js';
 import { TerminalSuggestTelemetry } from './terminalSuggestTelemetry.js';
 import { terminalSymbolAliasIcon, terminalSymbolArgumentIcon, terminalSymbolEnumMember, terminalSymbolFileIcon, terminalSymbolFlagIcon, terminalSymbolInlineSuggestionIcon, terminalSymbolMethodIcon, terminalSymbolOptionIcon, terminalSymbolFolderIcon, terminalSymbolSymbolicLinkFileIcon, terminalSymbolSymbolicLinkFolderIcon } from './terminalSymbolIcons.js';
-import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
