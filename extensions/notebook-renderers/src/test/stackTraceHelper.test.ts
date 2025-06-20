@@ -24,7 +24,7 @@ suite('StackTraceHelper', () => {
 		return text.replace(formatSequence, '');
 	}
 
-	test('IPython stack line numbers are linkified for IPython 8.3.6', () => {
+	test('IPython stack line numbers are linkified', () => {
 		const stack =
 			'\u001b[1;31m---------------------------------------------------------------------------\u001b[0m\n' +
 			'\u001b[1;31mException\u001b[0m                                 Traceback (most recent call last)\n' +
