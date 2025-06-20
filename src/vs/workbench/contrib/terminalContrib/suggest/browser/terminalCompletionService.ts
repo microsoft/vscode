@@ -447,8 +447,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				return label;
 			}
 
-			const specialCharsSet = new Set([' ', '[', ']', '(', ')', '{', '}', `'`, '"', '\\', '$', '`', ';', '&', '|', '<', '>', '*', '?', '~', '#', '=', '%', '!']);
-			const specialCharsRegex = /[ \[\]\(\)\{\}'"\\$\`;&|<>*?~#=%!]/;
+			const specialCharsSet = new Set(['[', ']', '(', ')', '{', '}', `'`, '"', '\\', '$', '`', ';', '&', '|', '<', '>', '*', '?', '~', '#', '=', '%', '!']);
+			const specialCharsRegex = /[\[\]\(\)\{\}'"\\$\`;&|<>\*?~#=%!]/;
 			if (!specialCharsRegex.test(label)) {
 				return label;
 			}
