@@ -715,6 +715,29 @@ suite('TerminalCompletionService', () => {
 			});
 		});
 	}
+	suite('completion label escaping', () => {
+		test('| should escape special characters in file/folder names for POSIX shells', async () => {
+			const resourceRequestConfig: TerminalResourceRequestConfig = {
+				cwd: URI.parse('file:///test'),
+				foldersRequested: true,
+				pathSeparator
+			};
+			validResources = [URI.parse('file:///test')];
+			childResources = [
+				{ resource: URI.parse('file:///test/[folder1]/'), isDirectory: true },
+				{ resource: URI.parse('file:///test/folder 2/'), isDirectory: true },
+				{ resource: URI.parse('file:///test/!special$chars&/'), isDirectory: true }
+			];
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '', 0, provider, capabilities);
+
+			assertCompletions(result, [
+				{ label: '.', detail: '/test/' },
+				{ label: './[folder1]/', detail: '/test/\[folder1]\/' },
+				{ label: './folder\ 2/', detail: '/test/folder\ 2/' },
+				{ label: './\!special\$chars\&/', detail: '/test/\!special\$chars\&/' },
+				{ label: '../', detail: '/' },
+				standardTidleItem,
+			], { replacementIndex: 0, replacementLength: 0 });
+		});
+	});
 });
-
-
