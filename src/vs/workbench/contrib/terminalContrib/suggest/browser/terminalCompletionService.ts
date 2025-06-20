@@ -72,7 +72,7 @@ export interface ITerminalCompletionService {
 	_serviceBrand: undefined;
 	readonly providers: IterableIterator<ITerminalCompletionProvider>;
 	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider, ...triggerCharacters: string[]): IDisposable;
-	provideCompletions(promptValue: string, cursorPosition: number, allowFallbackCompletions: boolean, shellType: TerminalShellType, capabilities: ITerminalCapabilityStore, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean): Promise<ITerminalCompletion[] | undefined>;
+	provideCompletions(promptValue: string, cursorPosition: number, allowFallbackCompletions: boolean, shellType: TerminalShellType, capabilities: ITerminalCapabilityStore, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean, explicitlyInvoked?: boolean): Promise<ITerminalCompletion[] | undefined>;
 }
 
 export class TerminalCompletionService extends Disposable implements ITerminalCompletionService {
@@ -122,7 +122,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		});
 	}
 
-	async provideCompletions(promptValue: string, cursorPosition: number, allowFallbackCompletions: boolean, shellType: TerminalShellType, capabilities: ITerminalCapabilityStore, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean): Promise<ITerminalCompletion[] | undefined> {
+	async provideCompletions(promptValue: string, cursorPosition: number, allowFallbackCompletions: boolean, shellType: TerminalShellType, capabilities: ITerminalCapabilityStore, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean, explicitlyInvoked?: boolean): Promise<ITerminalCompletion[] | undefined> {
 		if (!this._providers || !this._providers.values || cursorPosition < 0) {
 			return undefined;
 		}
@@ -148,7 +148,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		if (skipExtensionCompletions) {
 			providers = providers.filter(p => p.isBuiltin);
-			return this._collectCompletions(providers, shellType, promptValue, cursorPosition, allowFallbackCompletions, capabilities, token);
+			return this._collectCompletions(providers, shellType, promptValue, cursorPosition, allowFallbackCompletions, capabilities, token, explicitlyInvoked);
 		}
 
 		const providerConfig: { [key: string]: boolean } = this._configurationService.getValue(TerminalSuggestSettingId.Providers);
@@ -161,17 +161,18 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			return;
 		}
 
-		return this._collectCompletions(providers, shellType, promptValue, cursorPosition, allowFallbackCompletions, capabilities, token);
+		return this._collectCompletions(providers, shellType, promptValue, cursorPosition, allowFallbackCompletions, capabilities, token, explicitlyInvoked);
 	}
 
-	private async _collectCompletions(providers: ITerminalCompletionProvider[], shellType: TerminalShellType, promptValue: string, cursorPosition: number, allowFallbackCompletions: boolean, capabilities: ITerminalCapabilityStore, token: CancellationToken): Promise<ITerminalCompletion[] | undefined> {
+	private async _collectCompletions(providers: ITerminalCompletionProvider[], shellType: TerminalShellType, promptValue: string, cursorPosition: number, allowFallbackCompletions: boolean, capabilities: ITerminalCapabilityStore, token: CancellationToken, explicitlyInvoked?: boolean): Promise<ITerminalCompletion[] | undefined> {
 		const completionPromises = providers.map(async provider => {
 			if (provider.shellTypes && !provider.shellTypes.includes(shellType)) {
 				return undefined;
 			}
+			const timeoutMs = explicitlyInvoked ? 30000 : 5000;
 			const completions = await Promise.race([
 				provider.provideCompletions(promptValue, cursorPosition, allowFallbackCompletions, token),
-				timeout(5000)
+				timeout(timeoutMs)
 			]);
 			if (!completions) {
 				return undefined;
@@ -194,7 +195,13 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (completions.resourceRequestConfig) {
 				const resourceCompletions = await this.resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition, provider.id, capabilities, shellType);
 				if (resourceCompletions) {
-					completionItems.push(...resourceCompletions);
+					for (const item of resourceCompletions) {
+						const labels = new Set(completionItems.map(c => c.label));
+						// Ensure no duplicates such as .
+						if (!labels.has(item.label)) {
+							completionItems.push(item);
+						}
+					}
 				}
 			}
 			return completionItems;
@@ -350,7 +357,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					break;
 				}
 			}
-
 			resourceCompletions.push({
 				label,
 				provider,
