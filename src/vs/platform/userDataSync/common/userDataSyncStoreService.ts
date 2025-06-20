@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancelablePromise, createCancelablePromise, timeout } from '../../../base/common/async.js';
+import { VSBufferReadableStream } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -18,13 +19,12 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { IHeaders, IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
+import { getServiceMachineId } from '../../externalServices/common/serviceMachineId.js';
 import { IFileService } from '../../files/common/files.js';
 import { IProductService } from '../../product/common/productService.js';
 import { asJson, asText, asTextOrError, hasNoContent, IRequestService, isSuccess, isSuccess as isSuccessContext } from '../../request/common/request.js';
-import { getServiceMachineId } from '../../externalServices/common/serviceMachineId.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { HEADER_EXECUTION_ID, HEADER_OPERATION_ID, IAuthenticationProvider, IResourceRefHandle, IUserData, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncStore, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, ServerResource, SYNC_SERVICE_URL_TYPE, UserDataSyncErrorCode, UserDataSyncStoreError, UserDataSyncStoreType } from './userDataSync.js';
-import { VSBufferReadableStream } from '../../../base/common/buffer.js';
 
 const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 const SYNC_PREVIOUS_STORE = 'sync.previous.store';
@@ -263,6 +263,7 @@ export class UserDataSyncStoreClient extends Disposable {
 		if (!collectionId) {
 			throw new UserDataSyncStoreError('Server did not return the collection id', url, UserDataSyncErrorCode.NoCollection, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
 		}
+		await this.throttleUpdate();
 		return collectionId;
 	}
 
@@ -275,6 +276,17 @@ export class UserDataSyncStoreClient extends Disposable {
 		headers = { ...headers };
 
 		await this.request(url, { type: 'DELETE', headers }, [], CancellationToken.None);
+		await this.throttleUpdate();
+	}
+
+	/**
+	 * This is a helper function to avoid write conflicts in Cosmos DB.
+	 * Session tokens in Cosmos DB seem to include a timestamp in seconds.
+	 * Writing multiple collections under the same timestamp results in a case where only the last collection seems to be written successfully.
+	 * This function acts as a throttle by forcing the client to wait for around a second.
+	 */
+	private async throttleUpdate(): Promise<void> {
+		await timeout(1000);
 	}
 
 	// #endregion

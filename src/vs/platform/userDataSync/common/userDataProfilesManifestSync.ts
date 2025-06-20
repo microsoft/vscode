@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toFormattedString } from '../../../base/common/jsonFormatter.js';
 import { URI } from '../../../base/common/uri.js';
@@ -217,7 +216,6 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 					this.logService.trace(`${this.syncResourceLogLabel}: Created collection "${collection}" for "${profile.name}".`);
 					addedCollections.push(collection);
 					remoteProfiles.push({ id: profile.id, name: profile.name, collection, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags });
-					await this.throttleUpdate();
 				}
 			} else {
 				this.logService.info(`${this.syncResourceLogLabel}: Could not create remote profiles as there are too many profiles.`);
@@ -240,7 +238,6 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 					this.logService.info(`${this.syncResourceLogLabel}: Failed to update remote profiles. Cleaning up added collections...`);
 					for (const collection of addedCollections) {
 						await this.userDataSyncStoreService.deleteCollection(collection, this.syncHeaders);
-						await this.throttleUpdate();
 					}
 				}
 				throw error;
@@ -248,7 +245,6 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 
 			for (const profile of remote?.removed || []) {
 				await this.userDataSyncStoreService.deleteCollection(profile.collection, this.syncHeaders);
-				await this.throttleUpdate();
 			}
 		}
 
@@ -258,16 +254,6 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 			await this.updateLastSyncUserData(remoteUserData);
 			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized profiles.`);
 		}
-	}
-
-	/**
-	 * This is a helper function to avoid write conflicts in Cosmos DB.
-	 * Session tokens in Cosmos DB seem to include a timestamp in seconds.
-	 * Writing multiple collections under the same timestamp results in a case where only the last collection seems to be written successfully.
-	 * This function acts as a throttle by forcing the client to wait for around a second.
-	 */
-	private async throttleUpdate(): Promise<void> {
-		await timeout(1000);
 	}
 
 	async updateRemoteProfiles(profiles: ISyncUserDataProfile[], ref: string | null): Promise<IRemoteUserData> {
