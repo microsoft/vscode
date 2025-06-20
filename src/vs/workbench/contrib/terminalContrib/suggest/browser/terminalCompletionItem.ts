@@ -22,6 +22,7 @@ export enum TerminalCompletionItemKind {
 	// Kinds only for core
 	InlineSuggestion = 100,
 	InlineSuggestionAlwaysOnTop = 101,
+	Task = 102,
 }
 
 // Maps CompletionItemKind from language server based completion to TerminalCompletionItemKind
