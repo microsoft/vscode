@@ -188,7 +188,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 						return offsetDigits[i].usableWidthLeftOfLineNumber;
 					}
 				}
-				throw new BugIndicatingError('Could not find avilable width for icon');
+				throw new BugIndicatingError('Could not find available width for icon');
 			};
 		});
 		this._layout = derived(this, reader => {
