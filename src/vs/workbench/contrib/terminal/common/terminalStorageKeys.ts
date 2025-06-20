@@ -14,5 +14,5 @@ export const enum TerminalStorageKeys {
 	TerminalLayoutInfo = 'terminal.integrated.layoutInfo',
 	PinnedRecentCommandsPrefix = 'terminal.pinnedRecentCommands',
 	TerminalSuggestSize = 'terminal.integrated.suggestSize',
-	HasShownCompletions = 'terminal.integrated.hasShownCompletions',
+	FirstShown = 'terminal.integrated.firstShownCompletions',
 }

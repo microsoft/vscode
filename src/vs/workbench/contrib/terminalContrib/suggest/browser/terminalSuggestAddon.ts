@@ -35,6 +35,7 @@ import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js
 import { localize } from '../../../../../nls.js';
 import { TerminalSuggestTelemetry } from './terminalSuggestTelemetry.js';
 import { terminalSymbolAliasIcon, terminalSymbolArgumentIcon, terminalSymbolEnumMember, terminalSymbolFileIcon, terminalSymbolFlagIcon, terminalSymbolInlineSuggestionIcon, terminalSymbolMethodIcon, terminalSymbolOptionIcon, terminalSymbolFolderIcon, terminalSymbolSymbolicLinkFileIcon, terminalSymbolSymbolicLinkFolderIcon } from './terminalSymbolIcons.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -147,7 +148,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
-		@IStorageService private readonly _storageService: IStorageService
+		@IStorageService private readonly _storageService: IStorageService,
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService
 	) {
 		super();
 
@@ -218,12 +220,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			}
 		}));
 
-		const activeWindow = dom.getActiveWindow();
-		if (typeof activeWindow !== 'undefined' && typeof activeWindow.addEventListener === 'function') {
-			activeWindow.addEventListener('beforeunload', () => {
-				this.setHasShownCompletions(false);
-			});
-		}
+		this._lifecycleService.onBeforeShutdown(() => {
+			this._storageService.store(TerminalStorageKeys.FirstShown, undefined, StorageScope.PROFILE, StorageTarget.MACHINE);
+		});
 	}
 
 	activate(xterm: Terminal): void {
@@ -704,11 +703,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// Track the time when completions are shown for the first time
 		if (this._completionRequestTimestamp !== undefined) {
 			const completionLatency = Date.now() - this._completionRequestTimestamp;
-			if (this._suggestTelemetry) {
-				this._suggestTelemetry.logCompletionLatency(this._sessionId, completionLatency, this.hasShownCompletions());
+			if (this._suggestTelemetry && this.shellType) {
+				const firstShown = this.getFirstShown(this.shellType);
+				this.updateShown();
+				console.log(`Completions shown for ${this.shellType} after ${completionLatency}ms first shown for shell: ${firstShown.shell} first shown for window: ${firstShown.window}`);
+				this._suggestTelemetry.logCompletionLatency(this._sessionId, completionLatency, firstShown);
 			}
 			this._completionRequestTimestamp = undefined;
-			this.setHasShownCompletions(true);
 		}
 		suggestWidget.showSuggestions(0, false, !explicitlyInvoked, cursorPosition);
 	}
@@ -885,12 +886,55 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._suggestWidget?.hide();
 	}
 
-	hasShownCompletions(): boolean {
-		return this._storageService.get(TerminalStorageKeys.HasShownCompletions, StorageScope.PROFILE, 'false') === 'true' ? true : false;
+	getFirstShown(shellType: TerminalShellType): { window: boolean; shell: boolean } {
+		const raw = this._storageService.get(TerminalStorageKeys.FirstShown, StorageScope.PROFILE);
+		if (!raw) {
+			return { window: true, shell: true };
+		}
+
+		try {
+			const obj = JSON.parse(raw);
+			const isFirstForWindow = obj.window;
+			const isFirstForShell = obj.shell[shellType] === undefined;
+
+			if (isFirstForWindow || isFirstForShell) {
+				this.updateShown();
+			}
+
+			return {
+				window: isFirstForWindow,
+				shell: isFirstForShell
+			};
+
+		} catch {
+			return { window: false, shell: false };
+		}
 	}
 
-	setHasShownCompletions(value: boolean): void {
-		this._storageService.store(TerminalStorageKeys.HasShownCompletions, String(value), StorageScope.PROFILE, StorageTarget.MACHINE);
+	updateShown(): void {
+		if (!this.shellType) {
+			return;
+		}
+
+		const raw = this._storageService.get(TerminalStorageKeys.FirstShown, StorageScope.PROFILE);
+		let obj: any = { shell: {} };
+
+		if (raw) {
+			try {
+				obj = JSON.parse(raw);
+				obj.shell ??= {};
+			} catch { }
+		}
+
+		obj.window = false;
+		obj.shell[this.shellType] = false;
+
+		this._storageService.store(
+			TerminalStorageKeys.FirstShown,
+			JSON.stringify(obj),
+			StorageScope.PROFILE,
+			StorageTarget.MACHINE
+		);
 	}
 }
 

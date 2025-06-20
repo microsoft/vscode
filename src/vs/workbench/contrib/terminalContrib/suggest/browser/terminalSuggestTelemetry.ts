@@ -53,13 +53,14 @@ export class TerminalSuggestTelemetry extends Disposable {
 	 * Logs the latency (ms) from completion request to completions shown.
 	 * @param sessionId The terminal session ID
 	 * @param latency The measured latency in ms
-	 * @param first Whether this is the first ever showing of completions in the session
+	 * @param firstShownFor Object indicating if completions have been shown for window/shell
 	 */
-	logCompletionLatency(sessionId: string, latency: number, first: boolean): void {
+	logCompletionLatency(sessionId: string, latency: number, firstShownFor: { window: boolean; shell: boolean }): void {
 		this._telemetryService.publicLog2<{
 			sessionId: string;
 			latency: number;
-			first: boolean;
+			firstWindow: boolean;
+			firstShell: boolean;
 		}, {
 			owner: 'meganrogge';
 			comment: 'Latency in ms from terminal completion request to completions shown.';
@@ -73,15 +74,21 @@ export class TerminalSuggestTelemetry extends Disposable {
 				purpose: 'PerformanceAndHealth';
 				comment: 'The latency in milliseconds.';
 			};
-			first: {
+			firstWindow: {
 				classification: 'SystemMetaData';
 				purpose: 'FeatureInsight';
-				comment: 'Whether this is the first ever showing of completions in the session.';
+				comment: 'Whether this is the first ever showing of completions in the window.';
+			};
+			firstShell: {
+				classification: 'SystemMetaData';
+				purpose: 'FeatureInsight';
+				comment: 'Whether this is the first ever showing of completions in the shell.';
 			};
 		}>('terminal.suggest.completionLatency', {
 			sessionId,
 			latency,
-			first
+			firstWindow: firstShownFor.window,
+			firstShell: firstShownFor.shell
 		});
 	}
 
