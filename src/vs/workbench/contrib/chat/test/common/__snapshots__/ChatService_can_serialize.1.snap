@@ -6,6 +6,7 @@
   initialLocation: "panel",
   requests: [
     {
+      requestId: undefined,
       message: {
         parts: [
           {
@@ -30,6 +31,7 @@
               publisherDisplayName: "",
               extensionDisplayName: "",
               locations: [ "panel" ],
+              modes: [ "ask" ],
               metadata: { requester: { name: "test" } },
               slashCommands: [  ],
               disambiguation: [  ]
@@ -55,6 +57,8 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
+      responseId: undefined,
+      shouldBeRemovedOnSend: undefined,
       result: { metadata: { metadataKey: "value" } },
       followups: [
         {
@@ -78,6 +82,7 @@
         publisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
+        modes: [ "ask" ],
         metadata: { requester: { name: "test" } },
         slashCommands: [  ],
         disambiguation: [  ]
@@ -101,9 +106,13 @@
         kind: "usedContext"
       },
       contentReferences: [  ],
-      codeCitations: [  ]
+      codeCitations: [  ],
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined
     },
     {
+      requestId: undefined,
       message: {
         parts: [
           {
@@ -125,6 +134,8 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
+      responseId: undefined,
+      shouldBeRemovedOnSend: undefined,
       result: {  },
       followups: [  ],
       isCanceled: false,
@@ -141,6 +152,7 @@
         publisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
+        modes: [ "ask" ],
         metadata: { requester: { name: "test" } },
         slashCommands: [  ],
         disambiguation: [  ],
@@ -149,7 +161,10 @@
       slashCommand: undefined,
       usedContext: undefined,
       contentReferences: [  ],
-      codeCitations: [  ]
+      codeCitations: [  ],
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined
     }
   ]
 }

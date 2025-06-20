@@ -27,6 +27,7 @@ import { isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { HoverStartSource } from '../../hover/browser/hoverOperation.js';
 
 class InlayHintsHoverAnchor extends HoverForeignElementAnchor {
 	constructor(
@@ -76,7 +77,7 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 		return [];
 	}
 
-	override computeAsync(anchor: HoverAnchor, _lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<MarkdownHover> {
+	override computeAsync(anchor: HoverAnchor, _lineDecorations: IModelDecoration[], source: HoverStartSource, token: CancellationToken): AsyncIterableObject<MarkdownHover> {
 		if (!(anchor instanceof InlayHintsHoverAnchor)) {
 			return AsyncIterableObject.EMPTY;
 		}

@@ -37,6 +37,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 		uri: URI, lines: string[], eol: string, versionId: number,
 		private _languageId: string,
 		private _isDirty: boolean,
+		private _encoding: string
 	) {
 		super(uri, lines, eol, versionId);
 	}
@@ -66,6 +67,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 				get version() { return that._versionId; },
 				get isClosed() { return that._isDisposed; },
 				get isDirty() { return that._isDirty; },
+				get encoding() { return that._encoding; },
 				save() { return that._save(); },
 				getText(range?) { return range ? that._getTextInRange(range) : that.getText(); },
 				get eol() { return that._eol === '\n' ? EndOfLine.LF : EndOfLine.CRLF; },
@@ -92,6 +94,11 @@ export class ExtHostDocumentData extends MirrorTextModel {
 	_acceptIsDirty(isDirty: boolean): void {
 		ok(!this._isDisposed);
 		this._isDirty = isDirty;
+	}
+
+	_acceptEncoding(encoding: string): void {
+		ok(!this._isDisposed);
+		this._encoding = encoding;
 	}
 
 	private _save(): Promise<boolean> {

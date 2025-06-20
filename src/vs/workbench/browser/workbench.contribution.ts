@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from '../../platform/registry/common/platform.js';
-import { localize } from '../../nls.js';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../platform/configuration/common/configurationRegistry.js';
-import { isMacintosh, isWindows, isLinux, isWeb, isNative } from '../../base/common/platform.js';
-import { ConfigurationMigrationWorkbenchContribution, DynamicWorkbenchSecurityConfiguration, IConfigurationMigrationRegistry, workbenchConfigurationNodeBase, Extensions, ConfigurationKeyValuePairs, problemsConfigurationNodeBase, windowConfigurationNodeBase, DynamicWindowConfiguration } from '../common/configuration.js';
 import { isStandalone } from '../../base/browser/browser.js';
+import { isLinux, isMacintosh, isNative, isWeb, isWindows } from '../../base/common/platform.js';
+import { localize } from '../../nls.js';
+import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../platform/configuration/common/configurationRegistry.js';
+import product from '../../platform/product/common/product.js';
+import { Registry } from '../../platform/registry/common/platform.js';
+import { ConfigurationKeyValuePairs, ConfigurationMigrationWorkbenchContribution, DynamicWindowConfiguration, DynamicWorkbenchSecurityConfiguration, Extensions, IConfigurationMigrationRegistry, problemsConfigurationNodeBase, windowConfigurationNodeBase, workbenchConfigurationNodeBase } from '../common/configuration.js';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from '../common/contributions.js';
+import { CustomEditorLabelService } from '../services/editor/common/customEditorLabelService.js';
 import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings } from '../services/layout/browser/layoutService.js';
 import { defaultWindowTitle, defaultWindowTitleSeparator } from './parts/titlebar/windowTitle.js';
-import { CustomEditorLabelService } from '../services/editor/common/customEditorLabelService.js';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -163,19 +164,16 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.editor.historyBasedLanguageDetection': {
 				type: 'boolean',
 				default: true,
-				tags: ['experimental'],
 				description: localize('workbench.editor.historyBasedLanguageDetection', "Enables use of editor history in language detection. This causes automatic language detection to favor languages that have been recently opened and allows for automatic language detection to operate with smaller inputs."),
 			},
 			'workbench.editor.preferHistoryBasedLanguageDetection': {
 				type: 'boolean',
 				default: false,
-				tags: ['experimental'],
 				description: localize('workbench.editor.preferBasedLanguageDetection', "When enabled, a language detection model that takes into account editor history will be given higher precedence."),
 			},
 			'workbench.editor.languageDetectionHints': {
 				type: 'object',
 				default: { 'untitledEditors': true, 'notebookEditors': true },
-				tags: ['experimental'],
 				description: localize('workbench.editor.showLanguageDetectionHints', "When enabled, shows a Status bar Quick Fix when the editor language doesn't match detected content language."),
 				additionalProperties: false,
 				properties: {
@@ -536,6 +534,23 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.panel.opensMaximized.preserve', "Open the panel to the state that it was in, before it was closed.")
 				]
 			},
+			'workbench.secondarySideBar.defaultVisibility': {
+				'type': 'string',
+				'enum': ['hidden', 'visibleInWorkspace', 'visible'],
+				'default': 'hidden',
+				'tags': ['onExp'],
+				'description': localize('secondarySideBarDefaultVisibility', "Controls the default visibility of the secondary side bar in workspaces or empty windows opened for the first time."),
+				'enumDescriptions': [
+					localize('workbench.secondarySideBar.defaultVisibility.hidden', "The secondary side bar is hidden by default."),
+					localize('workbench.secondarySideBar.defaultVisibility.visibleInWorkspace', "The secondary side bar is visible by default if a workspace is opened."),
+					localize('workbench.secondarySideBar.defaultVisibility.visible', "The secondary side bar is visible by default.")
+				]
+			},
+			'workbench.secondarySideBar.showLabels': {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': localize('secondarySideBarShowLabels', "Controls whether activity items in the secondary side bar title are shown as label or icon. This setting only has an effect when {0} is not set to {1}.", '`#workbench.activityBar.location#`', '`top`'),
+			},
 			'workbench.statusBar.visible': {
 				'type': 'boolean',
 				'default': true,
@@ -568,6 +583,18 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'description': localize('viewVisibility', "Controls the visibility of view header actions. View header actions may either be always visible, or only visible when that view is focused or hovered over.")
 			},
+			'workbench.view.showQuietly': {
+				'type': 'object',
+				'description': localize('workbench.view.showQuietly', "If an extension requests a hidden view to be shown, display a clickable status bar indicator instead."),
+				'scope': ConfigurationScope.WINDOW,
+				'properties': {
+					'workbench.panel.output': {
+						'type': 'boolean',
+						'description': localize('workbench.panel.output', "Output view")
+					}
+				},
+				'additionalProperties': false
+			},
 			'workbench.fontAliasing': {
 				'type': 'string',
 				'enum': ['default', 'antialiased', 'none', 'auto'],
@@ -589,9 +616,15 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('settings.editor.ui', "Use the settings UI editor."),
 					localize('settings.editor.json', "Use the JSON file editor."),
 				],
-				'description': localize('settings.editor.desc', "Determines which settings editor to use by default."),
+				'description': localize('settings.editor.desc', "Determines which Settings editor to use by default."),
 				'default': 'ui',
 				'scope': ConfigurationScope.WINDOW
+			},
+			'workbench.settings.showAISearchToggle': {
+				'type': 'boolean',
+				'default': product.quality !== 'stable',
+				'description': localize('settings.showAISearchToggle', "Controls whether the AI search results toggle is shown in the search bar in the Settings editor after doing a search and once AI search results are available."),
+				'tags': ['experimental', 'onExP']
 			},
 			'workbench.hover.delay': {
 				'type': 'number',
@@ -612,6 +645,13 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				default: 'auto',
 				tags: ['accessibility'],
 				enum: ['on', 'off', 'auto']
+			},
+			'workbench.navigationControl.enabled': {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': isWeb ?
+					localize('navigationControlEnabledWeb', "Controls whether the navigation control in the title bar is shown.") :
+					localize({ key: 'navigationControlEnabled', comment: ['{0}, {1} is a placeholder for a setting identifier.'] }, "Controls whether the navigation control is shown in the custom title bar. This setting only has an effect when {0} is not set to {1}.", '`#window.customTitleBarVisibility#`', '`never`')
 			},
 			[LayoutSettings.LAYOUT_ACTIONS]: {
 				'type': 'boolean',
@@ -661,6 +701,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 		localize('focusedView', "`${focusedView}`: the name of the view that is currently focused."),
 		localize('activeRepositoryName', "`${activeRepositoryName}`: the name of the active repository (e.g. vscode)."),
 		localize('activeRepositoryBranchName', "`${activeRepositoryBranchName}`: the name of the active branch in the active repository (e.g. main)."),
+		localize('activeEditorState', "`${activeEditorState}`: provides information about the state of the active editor (e.g. modified). This will be appended by default when in screen reader mode with {0} enabled.", '`accessibility.windowTitleOptimized`'),
 		localize('separator', "`${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
 	].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
@@ -696,7 +737,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('window.menuBarVisibility.hidden', "Menu is always hidden."),
 					isWeb ?
 						localize('window.menuBarVisibility.compact.web', "Menu is displayed as a compact button in the side bar.") :
-						localize({ key: 'window.menuBarVisibility.compact', comment: ['{0}, {1} is a placeholder for a setting identifier.'] }, "Menu is displayed as a compact button in the side bar. This value is ignored when {0} is {1}.", '`#window.titleBarStyle#`', '`native`')
+						localize({ key: 'window.menuBarVisibility.compact', comment: ['{0}, {1} is a placeholder for a setting identifier.'] }, "Menu is displayed as a compact button in the side bar. This value is ignored when {0} is {1} and {2} is either {3} or {4}.", '`#window.titleBarStyle#`', '`native`', '`#window.menuStyle#`', '`native`', '`inherit`')
 				],
 				'default': isWeb ? 'compact' : 'classic',
 				'scope': ConfigurationScope.APPLICATION,

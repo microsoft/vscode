@@ -6,7 +6,7 @@
 import { addDisposableListener, EventType, getWindow } from '../../../../../base/browser/dom.js';
 import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { isChrome } from '../../../../../base/common/platform.js';
+import { isChrome, isMacintosh } from '../../../../../base/common/platform.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { INotebookEditorDelegate } from '../notebookBrowser.js';
 
@@ -18,7 +18,21 @@ export class NotebookHorizontalTracker extends Disposable {
 		super();
 
 		this._register(addDisposableListener(this._listViewScrollablement, EventType.MOUSE_WHEEL, (event: IMouseWheelEvent) => {
-			if (event.deltaX === 0) {
+			let deltaX = event.deltaX;
+			let deltaY = event.deltaY;
+			let wheelDeltaX = event.wheelDeltaX;
+			let wheelDeltaY = event.wheelDeltaY;
+			const wheelDelta = event.wheelDelta;
+
+			const shiftConvert = !isMacintosh && event.shiftKey;
+			if (shiftConvert && !deltaX) {
+				deltaX = deltaY;
+				deltaY = 0;
+				wheelDeltaX = wheelDeltaY;
+				wheelDeltaY = 0;
+			}
+
+			if (deltaX === 0) {
 				return;
 			}
 
@@ -44,11 +58,11 @@ export class NotebookHorizontalTracker extends Disposable {
 			const targetWindow = getWindow(event);
 			const evt = {
 				deltaMode: event.deltaMode,
-				deltaX: event.deltaX,
+				deltaX: deltaX,
 				deltaY: 0,
 				deltaZ: 0,
-				wheelDelta: event.wheelDelta && isChrome ? (event.wheelDelta / targetWindow.devicePixelRatio) : event.wheelDelta,
-				wheelDeltaX: event.wheelDeltaX && isChrome ? (event.wheelDeltaX / targetWindow.devicePixelRatio) : event.wheelDeltaX,
+				wheelDelta: wheelDelta && isChrome ? (wheelDelta / targetWindow.devicePixelRatio) : wheelDelta,
+				wheelDeltaX: wheelDeltaX && isChrome ? (wheelDeltaX / targetWindow.devicePixelRatio) : wheelDeltaX,
 				wheelDeltaY: 0,
 				detail: event.detail,
 				shiftKey: event.shiftKey,

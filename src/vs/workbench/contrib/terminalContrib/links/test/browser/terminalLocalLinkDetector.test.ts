@@ -104,6 +104,7 @@ const supportedLinkFormats: LinkFormatInfo[] = [
 	{ urlFormat: '{0}": line {1}, col {2}', line: '5', column: '3' },
 	{ urlFormat: '{0}({1})', line: '5' },
 	{ urlFormat: '{0} ({1})', line: '5' },
+	{ urlFormat: '{0}, {1}', line: '5' },
 	{ urlFormat: '{0}({1},{2})', line: '5', column: '3' },
 	{ urlFormat: '{0} ({1},{2})', line: '5', column: '3' },
 	{ urlFormat: '{0}: ({1},{2})', line: '5', column: '3' },
@@ -248,6 +249,13 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 			validResources = [URI.file('/parent/cwd/foo')];
 			await assertLinks(TerminalBuiltinLinkType.LocalFile, '"foo]" on line 5', [
 				{ range: [[1, 1], [16, 1]], uri: URI.file('/parent/cwd/foo') }
+			]);
+		});
+
+		test('should support finding links after brackets', async () => {
+			validResources = [URI.file('/parent/cwd/foo')];
+			await assertLinks(TerminalBuiltinLinkType.LocalFile, 'bar[foo:5', [
+				{ range: [[5, 1], [9, 1]], uri: URI.file('/parent/cwd/foo') }
 			]);
 		});
 	});

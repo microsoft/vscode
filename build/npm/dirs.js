@@ -44,6 +44,7 @@ const dirs = [
 	'extensions/typescript-language-features',
 	'extensions/vscode-api-tests',
 	'extensions/vscode-colorize-tests',
+	'extensions/vscode-colorize-perf-tests',
 	'extensions/vscode-test-resolver',
 	'remote',
 	'remote/web',

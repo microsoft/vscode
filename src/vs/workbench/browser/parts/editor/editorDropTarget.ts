@@ -5,12 +5,12 @@
 
 import './media/editordroptarget.css';
 import { DataTransfers } from '../../../../base/browser/dnd.js';
-import { addDisposableListener, DragAndDropObserver, EventHelper, EventType, getWindow, isAncestor } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, DragAndDropObserver, EventHelper, EventType, getWindow, isAncestor } from '../../../../base/browser/dom.js';
 import { renderFormattedText } from '../../../../base/browser/formattedTextRenderer.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { isMacintosh, isWeb } from '../../../../base/common/platform.js';
-import { assertAllDefined, assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsAllDefined, assertReturnsDefined } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -20,7 +20,7 @@ import { IThemeService, Themable } from '../../../../platform/theme/common/theme
 import { isTemporaryWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { CodeDataTransfers, containsDragType, Extensions as DragAndDropExtensions, IDragAndDropContributionRegistry, LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, extractTreeDropData, ResourcesDropHandler } from '../../dnd.js';
-import { fillActiveEditorViewState, IEditorGroupView } from './editor.js';
+import { IEditorGroupView, prepareMoveCopyEditors } from './editor.js';
 import { EditorInputCapabilities, IEditorIdentifier, IUntypedEditorInput } from '../../../common/editor.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_DROP_INTO_PROMPT_BACKGROUND, EDITOR_DROP_INTO_PROMPT_BORDER, EDITOR_DROP_INTO_PROMPT_FOREGROUND } from '../../../common/theme.js';
 import { GroupDirection, IEditorDropTargetDelegate, IEditorGroup, IEditorGroupsService, IMergeGroupOptions, MergeGroupMode } from '../../../services/editor/common/editorGroupsService.js';
@@ -84,8 +84,7 @@ class DropOverlay extends Themable {
 		const overlayOffsetHeight = this.getOverlayOffsetHeight();
 
 		// Container
-		const container = this.container = document.createElement('div');
-		container.id = DropOverlay.OVERLAY_ID;
+		const container = this.container = $('div', { id: DropOverlay.OVERLAY_ID });
 		container.style.top = `${overlayOffsetHeight}px`;
 
 		// Parent
@@ -97,8 +96,7 @@ class DropOverlay extends Themable {
 		}));
 
 		// Overlay
-		this.overlay = document.createElement('div');
-		this.overlay.classList.add('editor-group-overlay-indicator');
+		this.overlay = $('.editor-group-overlay-indicator');
 		container.appendChild(this.overlay);
 
 		if (this.enableDropIntoEditor) {
@@ -115,7 +113,7 @@ class DropOverlay extends Themable {
 	}
 
 	override updateStyles(): void {
-		const overlay = assertIsDefined(this.overlay);
+		const overlay = assertReturnsDefined(this.overlay);
 
 		// Overlay drop background
 		overlay.style.backgroundColor = this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) || '';
@@ -329,20 +327,11 @@ class DropOverlay extends Themable {
 							return;
 						}
 
-						const editors = draggedEditors.map(draggedEditor => (
-							{
-								editor: draggedEditor.identifier.editor,
-								options: fillActiveEditorViewState(sourceGroup, draggedEditor.identifier.editor, {
-									pinned: true,													// always pin dropped editor
-									sticky: sourceGroup.isSticky(draggedEditor.identifier.editor)	// preserve sticky state
-								})
-							}
-						));
-
+						const editorsWithOptions = prepareMoveCopyEditors(this.groupView, draggedEditors.map(editor => editor.identifier.editor));
 						if (!copyEditor) {
-							sourceGroup.moveEditors(editors, targetGroup);
+							sourceGroup.moveEditors(editorsWithOptions, targetGroup);
 						} else {
-							sourceGroup.copyEditors(editors, targetGroup);
+							sourceGroup.copyEditors(editorsWithOptions, targetGroup);
 						}
 					}
 
@@ -503,7 +492,7 @@ class DropOverlay extends Themable {
 		}
 
 		// Make sure the overlay is visible now
-		const overlay = assertIsDefined(this.overlay);
+		const overlay = assertReturnsDefined(this.overlay);
 		overlay.style.opacity = '1';
 
 		// Enable transition after a timeout to prevent initial animation
@@ -514,7 +503,7 @@ class DropOverlay extends Themable {
 	}
 
 	private doPositionOverlay(options: { top: string; left: string; width: string; height: string }): void {
-		const [container, overlay] = assertAllDefined(this.container, this.overlay);
+		const [container, overlay] = assertReturnsAllDefined(this.container, this.overlay);
 
 		// Container
 		const offsetHeight = this.getOverlayOffsetHeight();
@@ -543,7 +532,7 @@ class DropOverlay extends Themable {
 	}
 
 	private hideOverlay(): void {
-		const overlay = assertIsDefined(this.overlay);
+		const overlay = assertReturnsDefined(this.overlay);
 
 		// Reset overlay
 		this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '100%' });

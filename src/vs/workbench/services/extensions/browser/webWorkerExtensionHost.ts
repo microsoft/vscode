@@ -146,7 +146,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		let port!: MessagePort;
 		let barrierError: Error | null = null;
 		let barrierHasError = false;
-		let startTimeout: any = null;
+		let startTimeout: Timeout | undefined = undefined;
 
 		const rejectBarrier = (exitCode: number, error: Error) => {
 			barrierError = error;
@@ -294,6 +294,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			commit: this._productService.commit,
 			version: this._productService.version,
 			quality: this._productService.quality,
+			date: this._productService.date,
 			parentPid: 0,
 			environment: {
 				isExtensionDevelopmentDebug: this._environmentService.debugRenderer,
@@ -301,7 +302,6 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				appHost: this._productService.embedderIdentifier ?? (platform.isWeb ? 'web' : 'desktop'),
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
-				extensionTelemetryLogResource: this._environmentService.extHostTelemetryLogFile,
 				isExtensionTelemetryLoggingOnly: isLoggingOnly(this._productService, this._environmentService),
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,

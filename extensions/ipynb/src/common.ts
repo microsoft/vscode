@@ -62,6 +62,6 @@ export interface CellMetadata {
 	/**
 	 * The code cell's prompt number. Will be null if the cell has not been run.
 	 */
-	execution_count?: number;
+	execution_count?: number | null;
 }
 

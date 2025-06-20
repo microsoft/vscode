@@ -7,7 +7,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { EditorAction2, ServicesAccessor } from '../../../browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { Action2, MenuId } from '../../../../platform/actions/common/actions.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -15,7 +15,7 @@ import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { StickyScrollController } from './stickyScrollController.js';
 
-export class ToggleStickyScroll extends Action2 {
+export class ToggleStickyScroll extends EditorAction2 {
 
 	constructor() {
 		super({
@@ -41,10 +41,14 @@ export class ToggleStickyScroll extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 		const newValue = !configurationService.getValue('editor.stickyScroll.enabled');
-		return configurationService.updateValue('editor.stickyScroll.enabled', newValue);
+		const isFocused = StickyScrollController.get(editor)?.isFocused();
+		configurationService.updateValue('editor.stickyScroll.enabled', newValue);
+		if (isFocused) {
+			editor.focus();
+		}
 	}
 }
 
@@ -56,8 +60,8 @@ export class FocusStickyScroll extends EditorAction2 {
 		super({
 			id: 'editor.action.focusStickyScroll',
 			title: {
-				...localize2('focusStickyScroll', "Focus on the editor sticky scroll"),
-				mnemonicTitle: localize({ key: 'mifocusStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Focus Sticky Scroll"),
+				...localize2('focusStickyScroll', "Focus Editor Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'mifocusEditorStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Focus Editor Sticky Scroll"),
 			},
 			precondition: ContextKeyExpr.and(ContextKeyExpr.has('config.editor.stickyScroll.enabled'), EditorContextKeys.stickyScrollVisible),
 			menu: [

@@ -90,7 +90,7 @@ impl DownloadCache {
 			return Ok(target_dir);
 		}
 
-		let temp_dir = self.path.join(format!("{}{}", name, STAGING_SUFFIX));
+		let temp_dir = self.path.join(format!("{name}{STAGING_SUFFIX}"));
 		let _ = remove_dir_all(&temp_dir).await; // cleanup any existing
 
 		create_dir_all(&temp_dir).map_err(|e| wrap(e, "error creating server directory"))?;

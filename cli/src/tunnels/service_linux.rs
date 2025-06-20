@@ -62,7 +62,7 @@ impl SystemdService {
 	}
 
 	fn service_name_string() -> String {
-		format!("{}-tunnel.service", APPLICATION_NAME)
+		format!("{APPLICATION_NAME}-tunnel.service")
 	}
 }
 

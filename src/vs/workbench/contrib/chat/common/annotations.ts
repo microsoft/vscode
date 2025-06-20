@@ -2,21 +2,23 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { findLastIdx } from '../../../../base/common/arraysFind.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IChatProgressRenderableResponseContent, IChatProgressResponseContent, appendMarkdownString, canMergeMarkdownStrings } from './chatModel.js';
 import { IChatAgentVulnerabilityDetails, IChatMarkdownContent } from './chatService.js';
 
 export const contentRefUrl = 'http://_vscodecontentref_'; // must be lowercase for URI
 
-export function annotateSpecialMarkdownContent(response: ReadonlyArray<IChatProgressResponseContent>): IChatProgressRenderableResponseContent[] {
+export function annotateSpecialMarkdownContent(response: Iterable<IChatProgressResponseContent>): IChatProgressRenderableResponseContent[] {
+	let refIdPool = 0;
+
 	const result: IChatProgressRenderableResponseContent[] = [];
 	for (const item of response) {
-		const previousItem = result.filter(p => p.kind !== 'textEditGroup').at(-1);
-		const previousItemIndex = result.findIndex(p => p === previousItem);
+		const previousItemIndex = findLastIdx(result, p => p.kind !== 'textEditGroup' && p.kind !== 'undoStop');
+		const previousItem = result[previousItemIndex];
 		if (item.kind === 'inlineReference') {
 			let label: string | undefined = item.name;
 			if (!label) {
@@ -29,8 +31,8 @@ export function annotateSpecialMarkdownContent(response: ReadonlyArray<IChatProg
 				}
 			}
 
-			const refId = generateUuid();
-			const printUri = URI.parse(contentRefUrl).with({ path: refId });
+			const refId = refIdPool++;
+			const printUri = URI.parse(contentRefUrl).with({ path: String(refId) });
 			const markdownText = `[${label}](${printUri.toString()})`;
 
 			const annotationMetadata = { [refId]: item };
@@ -56,9 +58,12 @@ export function annotateSpecialMarkdownContent(response: ReadonlyArray<IChatProg
 			}
 		} else if (item.kind === 'codeblockUri') {
 			if (previousItem?.kind === 'markdownContent') {
-				const markdownText = `<vscode_codeblock_uri>${item.uri.toString()}</vscode_codeblock_uri>`;
+				const isEditText = item.isEdit ? ` isEdit` : '';
+				const markdownText = `<vscode_codeblock_uri${isEditText}>${item.uri.toString()}</vscode_codeblock_uri>`;
 				const merged = appendMarkdownString(previousItem.content, new MarkdownString(markdownText));
-				result[previousItemIndex] = { ...previousItem, content: merged };
+				// delete the previous and append to ensure that we don't reorder the edit before the undo stop containing it
+				result.splice(previousItemIndex, 1);
+				result.push({ ...previousItem, content: merged });
 			}
 		} else {
 			result.push(item);
@@ -98,12 +103,15 @@ export function annotateVulnerabilitiesInText(response: ReadonlyArray<IChatProgr
 	return result;
 }
 
-export function extractCodeblockUrisFromText(text: string): { uri: URI; textWithoutResult: string } | undefined {
-	const match = /<vscode_codeblock_uri>(.*?)<\/vscode_codeblock_uri>/ms.exec(text);
-	if (match && match[1]) {
-		const result = URI.parse(match[1]);
-		const textWithoutResult = text.substring(0, match.index) + text.substring(match.index + match[0].length);
-		return { uri: result, textWithoutResult };
+export function extractCodeblockUrisFromText(text: string): { uri: URI; isEdit?: boolean; textWithoutResult: string } | undefined {
+	const match = /<vscode_codeblock_uri( isEdit)?>(.*?)<\/vscode_codeblock_uri>/ms.exec(text);
+	if (match) {
+		const [all, isEdit, uriString] = match;
+		if (uriString) {
+			const result = URI.parse(uriString);
+			const textWithoutResult = text.substring(0, match.index) + text.substring(match.index + all.length);
+			return { uri: result, textWithoutResult, isEdit: !!isEdit };
+		}
 	}
 	return undefined;
 }

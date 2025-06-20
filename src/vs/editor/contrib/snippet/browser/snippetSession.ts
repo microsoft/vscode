@@ -375,6 +375,7 @@ const _defaultOptions: ISnippetSessionInsertOptions = {
 export interface ISnippetEdit {
 	range: Range;
 	template: string;
+	keepWhitespace?: boolean;
 }
 
 export class SnippetSession {
@@ -471,7 +472,7 @@ export class SnippetSession {
 		const readClipboardText = () => clipboardText;
 
 		// know what text the overwrite[Before|After] extensions
-		// of the primary curser have selected because only when
+		// of the primary cursor have selected because only when
 		// secondary selections extend to the same text we can grow them
 		const firstBeforeText = model.getValueInRange(SnippetSession.adjustSelection(model, editor.getSelection(), overwriteBefore, 0));
 		const firstAfterText = model.getValueInRange(SnippetSession.adjustSelection(model, editor.getSelection(), 0, overwriteAfter));
@@ -530,7 +531,7 @@ export class SnippetSession {
 			]));
 
 			// store snippets with the index of their originating selection.
-			// that ensures the primiary cursor stays primary despite not being
+			// that ensures the primary cursor stays primary despite not being
 			// the one with lowest start position
 			edits[idx] = EditOperation.replace(snippetSelection, snippet.toString());
 			edits[idx].identifier = { major: idx, minor: 0 }; // mark the edit so only our undo edits will be used to generate end cursors
@@ -569,7 +570,7 @@ export class SnippetSession {
 		let offset = 0;
 		for (let i = 0; i < snippetEdits.length; i++) {
 
-			const { range, template } = snippetEdits[i];
+			const { range, template, keepWhitespace } = snippetEdits[i];
 
 			// gaps between snippet edits are appended as text nodes. this
 			// ensures placeholder-offsets are later correct
@@ -582,7 +583,7 @@ export class SnippetSession {
 			}
 
 			const newNodes = parser.parseFragment(template, snippet);
-			SnippetSession.adjustWhitespace(model, range.getStartPosition(), true, snippet, new Set(newNodes));
+			SnippetSession.adjustWhitespace(model, range.getStartPosition(), keepWhitespace !== undefined ? !keepWhitespace : adjustWhitespace, snippet, new Set(newNodes));
 			snippet.resolveVariables(resolver);
 
 			const snippetText = snippet.toString();

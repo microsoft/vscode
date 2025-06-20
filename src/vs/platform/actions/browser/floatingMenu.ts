@@ -8,7 +8,7 @@ import { Widget } from '../../../base/browser/ui/widget.js';
 import { IAction } from '../../../base/common/actions.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
-import { createAndFillInActionBarActions } from './menuEntryActionViewItem.js';
+import { getFlatActionBarActions } from './menuEntryActionViewItem.js';
 import { IMenu, IMenuService, MenuId } from '../common/actions.js';
 import { IContextKeyService } from '../../contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -69,8 +69,7 @@ export abstract class AbstractFloatingClickMenu extends Disposable {
 			if (!this.isVisible()) {
 				return;
 			}
-			const actions: IAction[] = [];
-			createAndFillInActionBarActions(this.menu, { renderShortTitle: true, shouldForwardArgs: true }, actions);
+			const actions = getFlatActionBarActions(this.menu.getActions({ renderShortTitle: true, shouldForwardArgs: true }));
 			if (actions.length === 0) {
 				return;
 			}

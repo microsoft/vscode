@@ -15,9 +15,9 @@ import { ConfigurationModel, ConfigurationChangeEvent, mergeChanges } from '../.
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, isConfigurationOverrides, IConfigurationData, IConfigurationValue, IConfigurationChange, ConfigurationTargetToString, IConfigurationUpdateOverrides, isConfigurationUpdateOverrides, IConfigurationService, IConfigurationUpdateOptions } from '../../../../platform/configuration/common/configuration.js';
 import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from '../../../../platform/configuration/common/configurations.js';
 import { Configuration } from '../common/configurationModels.js';
-import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId, APPLY_ALL_PROFILES_SETTING } from '../common/configuration.js';
+import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId, APPLY_ALL_PROFILES_SETTING, APPLICATION_SCOPES } from '../common/configuration.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId, applicationMachineSettings } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, getStoredWorkspaceFolder, toWorkspaceFolders } from '../../../../platform/workspaces/common/workspaces.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ConfigurationEditing, EditableConfigurationTarget } from '../common/configurationEditing.js';
@@ -49,9 +49,11 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { runWhenWindowIdle } from '../../../../base/browser/dom.js';
 
 function getLocalUserConfigurationScopes(userDataProfile: IUserDataProfile, hasRemote: boolean): ConfigurationScope[] | undefined {
-	return (userDataProfile.isDefault || userDataProfile.useDefaultFlags?.settings)
-		? hasRemote ? LOCAL_MACHINE_SCOPES : undefined
-		: hasRemote ? LOCAL_MACHINE_PROFILE_SCOPES : PROFILE_SCOPES;
+	const isDefaultProfile = userDataProfile.isDefault || userDataProfile.useDefaultFlags?.settings;
+	if (isDefaultProfile) {
+		return hasRemote ? LOCAL_MACHINE_SCOPES : undefined;
+	}
+	return hasRemote ? LOCAL_MACHINE_PROFILE_SCOPES : PROFILE_SCOPES;
 }
 
 class Workspace extends BaseWorkspace {
@@ -330,10 +332,10 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 
 	updateValue(key: string, value: any): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
-	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, options?: IConfigurationUpdateOptions): Promise<void>;
-	async updateValue(key: string, value: any, arg3?: any, arg4?: any, options?: any): Promise<void> {
+	updateValue(key: string, value: unknown, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
+	updateValue(key: string, value: unknown, target: ConfigurationTarget): Promise<void>;
+	updateValue(key: string, value: unknown, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, options?: IConfigurationUpdateOptions): Promise<void>;
+	async updateValue(key: string, value: unknown, arg3?: any, arg4?: any, options?: any): Promise<void> {
 		const overrides: IConfigurationUpdateOverrides | undefined = isConfigurationUpdateOverrides(arg3) ? arg3
 			: isConfigurationOverrides(arg3) ? { resource: arg3.resource, overrideIdentifiers: arg3.overrideIdentifier ? [arg3.overrideIdentifier] : undefined } : undefined;
 		const target: ConfigurationTarget | undefined = overrides ? arg4 : arg3;
@@ -492,7 +494,8 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 
 	isSettingAppliedForAllProfiles(key: string): boolean {
-		if (this.configurationRegistry.getConfigurationProperties()[key]?.scope === ConfigurationScope.APPLICATION) {
+		const scope = this.configurationRegistry.getConfigurationProperties()[key]?.scope;
+		if (scope && APPLICATION_SCOPES.includes(scope)) {
 			return true;
 		}
 		const allProfilesSettings = this.getValue<string[]>(APPLY_ALL_PROFILES_SETTING) ?? [];
@@ -780,7 +783,8 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		const configurationProperties = this.configurationRegistry.getConfigurationProperties();
 		const changedKeys: string[] = [];
 		for (const changedKey of change.keys) {
-			if (configurationProperties[changedKey]?.scope === ConfigurationScope.APPLICATION) {
+			const scope = configurationProperties[changedKey]?.scope;
+			if (scope && APPLICATION_SCOPES.includes(scope)) {
 				changedKeys.push(changedKey);
 				if (changedKey === APPLY_ALL_PROFILES_SETTING) {
 					for (const previousAllProfileSetting of previousAllProfilesSettings) {
@@ -992,7 +996,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return validWorkspaceFolders;
 	}
 
-	private async writeConfigurationValue(key: string, value: any, target: ConfigurationTarget, overrides: IConfigurationUpdateOverrides | undefined, options?: IConfigurationUpdateOverrides): Promise<void> {
+	private async writeConfigurationValue(key: string, value: unknown, target: ConfigurationTarget, overrides: IConfigurationUpdateOverrides | undefined, options?: IConfigurationUpdateOverrides): Promise<void> {
 		if (!this.instantiationService) {
 			throw new Error('Cannot write configuration because the configuration service is not yet ready to accept writes.');
 		}
@@ -1076,7 +1080,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		}
 	}
 
-	private deriveConfigurationTargets(key: string, value: any, inspect: IConfigurationValue<any>): ConfigurationTarget[] {
+	private deriveConfigurationTargets(key: string, value: unknown, inspect: IConfigurationValue<any>): ConfigurationTarget[] {
 		if (equals(value, inspect.value)) {
 			return [];
 		}
@@ -1124,7 +1128,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		if (target === ConfigurationTarget.USER) {
 			if (this.remoteUserConfiguration) {
 				const scope = this.configurationRegistry.getConfigurationProperties()[key]?.scope;
-				if (scope === ConfigurationScope.MACHINE || scope === ConfigurationScope.MACHINE_OVERRIDABLE) {
+				if (scope === ConfigurationScope.MACHINE || scope === ConfigurationScope.MACHINE_OVERRIDABLE || scope === ConfigurationScope.APPLICATION_MACHINE) {
 					return EditableConfigurationTarget.USER_REMOTE;
 				}
 				if (this.inspect(key).userRemoteValue !== undefined) {
@@ -1207,6 +1211,7 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 
 		const machineSettingsSchema: IJSONSchema = {
 			properties: Object.assign({},
+				applicationMachineSettings.properties,
 				machineSettings.properties,
 				machineOverridableSettings.properties,
 				windowSettings.properties,
@@ -1364,7 +1369,7 @@ class UpdateExperimentalSettingsDefaults extends Disposable implements IWorkbenc
 			// Many experimental settings refer to in-development or unstable settings.
 			// onExP more clearly indicates that the setting could be
 			// part of an experiment.
-			if (!tags || (!tags.includes('experimental') && !tags.includes('onExP'))) {
+			if (!tags || !tags.some(tag => tag.toLowerCase() === 'onexp')) {
 				continue;
 			}
 			if (this.processedExperimentalSettings.has(property)) {

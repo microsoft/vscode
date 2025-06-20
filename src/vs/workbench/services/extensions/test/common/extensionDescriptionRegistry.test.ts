@@ -28,6 +28,8 @@ suite('ExtensionDescriptionRegistry', () => {
 		registry.deltaExtensions([extensionA2], [idA]);
 
 		assert.deepStrictEqual(registry.getAllExtensionDescriptions(), [extensionA2]);
+
+		registry.dispose();
 	});
 
 	function desc(id: ExtensionIdentifier, version: string, activationEvents: string[] = ['*']): IExtensionDescription {
@@ -46,6 +48,7 @@ suite('ExtensionDescriptionRegistry', () => {
 			targetPlatform: TargetPlatform.UNDEFINED,
 			extensionDependencies: [],
 			enabledApiProposals: undefined,
+			preRelease: false,
 		};
 	}
 });

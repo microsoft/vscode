@@ -7,4 +7,4 @@ steps:
 
   - script: cargo test
     workingDirectory: cli
-    displayName: Run unit tests
+    displayName: 🧪 Run unit tests

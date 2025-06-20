@@ -38,6 +38,7 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 
 		switch (command) {
 			case 'stat': return this.stat(uriTransformer, arg[0]);
+			case 'realpath': return this.realpath(uriTransformer, arg[0]);
 			case 'readdir': return this.readdir(uriTransformer, arg[0]);
 			case 'open': return this.open(uriTransformer, arg[0], arg[1]);
 			case 'close': return this.close(arg[0]);
@@ -78,6 +79,12 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		const resource = this.transformIncoming(uriTransformer, _resource, true);
 
 		return this.provider.stat(resource);
+	}
+
+	private realpath(uriTransformer: IURITransformer, _resource: UriComponents): Promise<string> {
+		const resource = this.transformIncoming(uriTransformer, _resource, true);
+
+		return this.provider.realpath(resource);
 	}
 
 	private readdir(uriTransformer: IURITransformer, _resource: UriComponents): Promise<[string, FileType][]> {
@@ -272,15 +279,17 @@ export abstract class AbstractSessionFileWatcher extends Disposable implements I
 	// This is important because we want to ensure that we only
 	// forward events from the watched paths for this session and
 	// not other clients that asked to watch other paths.
-	private readonly fileWatcher = this._register(new DiskFileSystemProvider(this.logService));
+	private readonly fileWatcher: DiskFileSystemProvider;
 
 	constructor(
 		private readonly uriTransformer: IURITransformer,
 		sessionEmitter: Emitter<IFileChange[] | string>,
-		private readonly logService: ILogService,
+		logService: ILogService,
 		private readonly environmentService: IEnvironmentService
 	) {
 		super();
+
+		this.fileWatcher = this._register(new DiskFileSystemProvider(logService));
 
 		this.registerListeners(sessionEmitter);
 	}

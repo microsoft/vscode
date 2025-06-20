@@ -26,8 +26,6 @@ import { ContiguousMultilineTokens } from './tokens/contiguousMultilineTokens.js
 import { localize } from '../../nls.js';
 import { ExtensionIdentifier } from '../../platform/extensions/common/extensions.js';
 import { IMarkerData } from '../../platform/markers/common/markers.js';
-import { IModelTokensChangedEvent } from './textModelEvents.js';
-import type { Parser } from '@vscode/tree-sitter-wasm';
 
 /**
  * @internal
@@ -84,15 +82,18 @@ export class EncodedTokenizationResult {
 	}
 }
 
-/**
- * An intermediate interface for scaffolding the new tree sitter tokenization support. Not final.
- * @internal
- */
-export interface ITreeSitterTokenizationSupport {
-	tokenizeEncoded(lineNumber: number, textModel: model.ITextModel): Uint32Array | undefined;
-	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): Parser.QueryCapture[];
-	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): Parser.QueryCapture[];
-	onDidChangeTokens: Event<{ textModel: model.ITextModel; changes: IModelTokensChangedEvent }>;
+export interface SyntaxNode {
+	startIndex: number;
+	endIndex: number;
+	startPosition: IPosition;
+	endPosition: IPosition;
+}
+
+export interface QueryCapture {
+	name: string;
+	text?: string;
+	node: SyntaxNode;
+	encodedLanguageId: number;
 }
 
 /**
@@ -361,6 +362,7 @@ export const enum CompletionItemKind {
 	TypeParameter,
 	User,
 	Issue,
+	Tool,
 	Snippet, // <- highest value (used for compare!)
 }
 
@@ -399,6 +401,7 @@ export namespace CompletionItemKinds {
 	byKind.set(CompletionItemKind.TypeParameter, Codicon.symbolTypeParameter);
 	byKind.set(CompletionItemKind.User, Codicon.account);
 	byKind.set(CompletionItemKind.Issue, Codicon.issues);
+	byKind.set(CompletionItemKind.Tool, Codicon.tools);
 
 	/**
 	 * @internal
@@ -410,6 +413,44 @@ export namespace CompletionItemKinds {
 			codicon = Codicon.symbolProperty;
 		}
 		return codicon;
+	}
+
+	/**
+	 * @internal
+	 */
+	export function toLabel(kind: CompletionItemKind): string {
+		switch (kind) {
+			case CompletionItemKind.Method: return localize('suggestWidget.kind.method', 'Method');
+			case CompletionItemKind.Function: return localize('suggestWidget.kind.function', 'Function');
+			case CompletionItemKind.Constructor: return localize('suggestWidget.kind.constructor', 'Constructor');
+			case CompletionItemKind.Field: return localize('suggestWidget.kind.field', 'Field');
+			case CompletionItemKind.Variable: return localize('suggestWidget.kind.variable', 'Variable');
+			case CompletionItemKind.Class: return localize('suggestWidget.kind.class', 'Class');
+			case CompletionItemKind.Struct: return localize('suggestWidget.kind.struct', 'Struct');
+			case CompletionItemKind.Interface: return localize('suggestWidget.kind.interface', 'Interface');
+			case CompletionItemKind.Module: return localize('suggestWidget.kind.module', 'Module');
+			case CompletionItemKind.Property: return localize('suggestWidget.kind.property', 'Property');
+			case CompletionItemKind.Event: return localize('suggestWidget.kind.event', 'Event');
+			case CompletionItemKind.Operator: return localize('suggestWidget.kind.operator', 'Operator');
+			case CompletionItemKind.Unit: return localize('suggestWidget.kind.unit', 'Unit');
+			case CompletionItemKind.Value: return localize('suggestWidget.kind.value', 'Value');
+			case CompletionItemKind.Constant: return localize('suggestWidget.kind.constant', 'Constant');
+			case CompletionItemKind.Enum: return localize('suggestWidget.kind.enum', 'Enum');
+			case CompletionItemKind.EnumMember: return localize('suggestWidget.kind.enumMember', 'Enum Member');
+			case CompletionItemKind.Keyword: return localize('suggestWidget.kind.keyword', 'Keyword');
+			case CompletionItemKind.Text: return localize('suggestWidget.kind.text', 'Text');
+			case CompletionItemKind.Color: return localize('suggestWidget.kind.color', 'Color');
+			case CompletionItemKind.File: return localize('suggestWidget.kind.file', 'File');
+			case CompletionItemKind.Reference: return localize('suggestWidget.kind.reference', 'Reference');
+			case CompletionItemKind.Customcolor: return localize('suggestWidget.kind.customcolor', 'Custom Color');
+			case CompletionItemKind.Folder: return localize('suggestWidget.kind.folder', 'Folder');
+			case CompletionItemKind.TypeParameter: return localize('suggestWidget.kind.typeParameter', 'Type Parameter');
+			case CompletionItemKind.User: return localize('suggestWidget.kind.user', 'User');
+			case CompletionItemKind.Issue: return localize('suggestWidget.kind.issue', 'Issue');
+			case CompletionItemKind.Tool: return localize('suggestWidget.kind.tool', 'Tool');
+			case CompletionItemKind.Snippet: return localize('suggestWidget.kind.snippet', 'Snippet');
+			default: return '';
+		}
 	}
 
 	const data = new Map<string, CompletionItemKind>();
@@ -443,6 +484,7 @@ export namespace CompletionItemKinds {
 	data.set('typeParameter', CompletionItemKind.TypeParameter);
 	data.set('account', CompletionItemKind.User);
 	data.set('issue', CompletionItemKind.Issue);
+	data.set('tool', CompletionItemKind.Tool);
 
 	/**
 	 * @internal
@@ -555,9 +597,6 @@ export interface CompletionItem {
 	/**
 	 * A range of text that should be replaced by this completion item.
 	 *
-	 * Defaults to a range from the start of the {@link TextDocument.getWordRangeAtPosition current word} to the
-	 * current position.
-	 *
 	 * *Note:* The range must be a {@link Range.isSingleLine single line} and it must
 	 * {@link Range.contains contain} the position at which completion has been {@link CompletionItemProvider.provideCompletionItems requested}.
 	 */
@@ -578,6 +617,10 @@ export interface CompletionItem {
 	 * A command that should be run upon acceptance of this item.
 	 */
 	command?: Command;
+	/**
+	 * A command that should be run upon acceptance of this item.
+	 */
+	action?: Command;
 	/**
 	 * @internal
 	 */
@@ -605,6 +648,7 @@ export interface CompletionList {
  */
 export interface PartialAcceptInfo {
 	kind: PartialAcceptTriggerKind;
+	acceptedLength: number;
 }
 
 /**
@@ -705,6 +749,14 @@ export interface InlineCompletionContext {
 	 * @internal
 	*/
 	readonly userPrompt?: string | undefined;
+	/**
+	 * @experimental
+	 * @internal
+	*/
+	readonly requestUuid: string;
+
+	readonly includeInlineEdits: boolean;
+	readonly includeInlineCompletions: boolean;
 }
 
 export class SelectedSuggestionInfo {
@@ -756,6 +808,14 @@ export interface InlineCompletion {
 
 	readonly command?: Command;
 
+	readonly action?: Command;
+
+	/**
+	 * Is called the first time an inline completion is shown.
+	 * @deprecated. Use `onDidShow` of the provider instead.
+	*/
+	readonly shownCommand?: Command;
+
 	/**
 	 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
 	 * Defaults to `false`.
@@ -763,14 +823,36 @@ export interface InlineCompletion {
 	readonly completeBracketPairs?: boolean;
 
 	readonly isInlineEdit?: boolean;
+	readonly showInlineEditMenu?: boolean;
+
+	readonly showRange?: IRange;
+
+	readonly warning?: InlineCompletionWarning;
+
+	readonly displayLocation?: InlineCompletionDisplayLocation;
 }
+
+export interface InlineCompletionWarning {
+	message: IMarkdownString | string;
+	icon?: IconPath;
+}
+
+export interface InlineCompletionDisplayLocation {
+	range: IRange;
+	label: string;
+}
+
+/**
+ * TODO: add `| URI | { light: URI; dark: URI }`.
+*/
+export type IconPath = ThemeIcon;
 
 export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
 	readonly items: readonly TItem[];
 	/**
 	 * A list of commands associated with the inline completions of this list.
 	 */
-	readonly commands?: Command[];
+	readonly commands?: InlineCompletionCommand[];
 
 	readonly suppressSuggestions?: boolean | undefined;
 
@@ -780,16 +862,12 @@ export interface InlineCompletions<TItem extends InlineCompletion = InlineComple
 	readonly enableForwardStability?: boolean | undefined;
 }
 
+export type InlineCompletionCommand = { command: Command; icon?: ThemeIcon };
+
 export type InlineCompletionProviderGroupId = string;
 
 export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {
 	provideInlineCompletions(model: model.ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
-
-	/**
-	 * @experimental
-	 * @internal
-	*/
-	provideInlineEditsForRange?(model: model.ITextModel, range: Range, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
 
 	/**
 	 * Will be called when an item is shown.
@@ -798,14 +876,28 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	handleItemDidShow?(completions: T, item: T['items'][number], updatedInsertText: string): void;
 
 	/**
-	 * Will be called when an item is partially accepted.
+	 * Will be called when an item is partially accepted. TODO: also handle full acceptance here!
+	 * @param acceptedCharacters Deprecated. Use `info.acceptedCharacters` instead.
 	 */
 	handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, info: PartialAcceptInfo): void;
 
 	/**
+	 * @deprecated Use `handleEndOfLifetime` instead.
+	*/
+	handleRejection?(completions: T, item: T['items'][number]): void;
+
+	/**
+	 * Is called when an inline completion item is no longer being used.
+	 * Provides a reason of why it is not used anymore.
+	*/
+	handleEndOfLifetime?(completions: T, item: T['items'][number], reason: InlineCompletionEndOfLifeReason<T['items'][number]>, lifetimeSummary: LifetimeSummary): void;
+
+	/**
 	 * Will be called when a completions list is no longer in use and can be garbage-collected.
 	*/
-	freeInlineCompletions(completions: T): void;
+	disposeInlineCompletions(completions: T, reason: InlineCompletionsDisposeReason): void;
+
+	onDidChangeInlineCompletions?: Event<void>;
 
 	/**
 	 * Only used for {@link yieldsToGroupIds}.
@@ -819,8 +911,40 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 */
 	yieldsToGroupIds?: InlineCompletionProviderGroupId[];
 
+	displayName?: string;
+
+	debounceDelayMs?: number;
+
 	toString?(): string;
 }
+
+export type InlineCompletionsDisposeReason = { kind: 'lostRace' | 'tokenCancellation' | 'other' | 'empty' | 'notTaken' };
+
+export enum InlineCompletionEndOfLifeReasonKind {
+	Accepted = 0,
+	Rejected = 1,
+	Ignored = 2,
+}
+
+export type InlineCompletionEndOfLifeReason<TInlineCompletion = InlineCompletion> = {
+	kind: InlineCompletionEndOfLifeReasonKind.Accepted; // User did an explicit action to accept
+} | {
+	kind: InlineCompletionEndOfLifeReasonKind.Rejected; // User did an explicit action to reject
+} | {
+	kind: InlineCompletionEndOfLifeReasonKind.Ignored;
+	supersededBy?: TInlineCompletion;
+	userTypingDisagreed: boolean;
+};
+
+export type LifetimeSummary = {
+	requestUuid: string;
+	shown: boolean;
+	shownDuration: number;
+	shownDurationUncollapsed: number;
+	editorType: string;
+	viewKind: string | undefined;
+	error: string | undefined;
+};
 
 export interface CodeAction {
 	title: string;
@@ -892,7 +1016,7 @@ export interface DocumentPasteEdit {
 	readonly title: string;
 	readonly kind: HierarchicalKind;
 	readonly handledMimeType?: string;
-	readonly yieldTo?: readonly DropYieldTo[];
+	yieldTo?: readonly DropYieldTo[];
 	insertText: string | { readonly snippet: string };
 	additionalEdit?: WorkspaceEdit;
 }
@@ -926,9 +1050,9 @@ export interface DocumentPasteEditsSession {
  */
 export interface DocumentPasteEditProvider {
 	readonly id?: string;
-	readonly copyMimeTypes?: readonly string[];
-	readonly pasteMimeTypes?: readonly string[];
-	readonly providedPasteEditKinds?: readonly HierarchicalKind[];
+	readonly copyMimeTypes: readonly string[];
+	readonly pasteMimeTypes: readonly string[];
+	readonly providedPasteEditKinds: readonly HierarchicalKind[];
 
 	prepareDocumentPaste?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<undefined | IReadonlyVSDataTransfer>;
 
@@ -1388,6 +1512,45 @@ export namespace SymbolKinds {
 		}
 		return icon;
 	}
+
+	const byCompletionKind = new Map<SymbolKind, CompletionItemKind>();
+	byCompletionKind.set(SymbolKind.File, CompletionItemKind.File);
+	byCompletionKind.set(SymbolKind.Module, CompletionItemKind.Module);
+	byCompletionKind.set(SymbolKind.Namespace, CompletionItemKind.Module);
+	byCompletionKind.set(SymbolKind.Package, CompletionItemKind.Module);
+	byCompletionKind.set(SymbolKind.Class, CompletionItemKind.Class);
+	byCompletionKind.set(SymbolKind.Method, CompletionItemKind.Method);
+	byCompletionKind.set(SymbolKind.Property, CompletionItemKind.Property);
+	byCompletionKind.set(SymbolKind.Field, CompletionItemKind.Field);
+	byCompletionKind.set(SymbolKind.Constructor, CompletionItemKind.Constructor);
+	byCompletionKind.set(SymbolKind.Enum, CompletionItemKind.Enum);
+	byCompletionKind.set(SymbolKind.Interface, CompletionItemKind.Interface);
+	byCompletionKind.set(SymbolKind.Function, CompletionItemKind.Function);
+	byCompletionKind.set(SymbolKind.Variable, CompletionItemKind.Variable);
+	byCompletionKind.set(SymbolKind.Constant, CompletionItemKind.Constant);
+	byCompletionKind.set(SymbolKind.String, CompletionItemKind.Text);
+	byCompletionKind.set(SymbolKind.Number, CompletionItemKind.Value);
+	byCompletionKind.set(SymbolKind.Boolean, CompletionItemKind.Value);
+	byCompletionKind.set(SymbolKind.Array, CompletionItemKind.Value);
+	byCompletionKind.set(SymbolKind.Object, CompletionItemKind.Value);
+	byCompletionKind.set(SymbolKind.Key, CompletionItemKind.Keyword);
+	byCompletionKind.set(SymbolKind.Null, CompletionItemKind.Value);
+	byCompletionKind.set(SymbolKind.EnumMember, CompletionItemKind.EnumMember);
+	byCompletionKind.set(SymbolKind.Struct, CompletionItemKind.Struct);
+	byCompletionKind.set(SymbolKind.Event, CompletionItemKind.Event);
+	byCompletionKind.set(SymbolKind.Operator, CompletionItemKind.Operator);
+	byCompletionKind.set(SymbolKind.TypeParameter, CompletionItemKind.TypeParameter);
+	/**
+	 * @internal
+	 */
+	export function toCompletionKind(kind: SymbolKind): CompletionItemKind {
+		let completionKind = byCompletionKind.get(kind);
+		if (completionKind === undefined) {
+			console.info('No completion kind found for SymbolKind ' + kind);
+			completionKind = CompletionItemKind.File;
+		}
+		return completionKind;
+	}
 }
 
 export interface DocumentSymbol {
@@ -1424,7 +1587,14 @@ export interface TextEdit {
 /** @internal */
 export abstract class TextEdit {
 	static asEditOperation(edit: TextEdit): ISingleEditOperation {
-		return EditOperation.replace(Range.lift(edit.range), edit.text);
+		const range = Range.lift(edit.range);
+		return range.isEmpty()
+			? EditOperation.insert(range.getStartPosition(), edit.text) // moves marker
+			: EditOperation.replace(range, edit.text);
+	}
+	static isTextEdit(thing: any): thing is TextEdit {
+		const possibleTextEdit = thing as TextEdit;
+		return typeof possibleTextEdit.text === 'string' && Range.isIRange(possibleTextEdit.range);
 	}
 }
 
@@ -1741,13 +1911,20 @@ export interface IWorkspaceFileEdit {
 
 export interface IWorkspaceTextEdit {
 	resource: URI;
-	textEdit: TextEdit & { insertAsSnippet?: boolean };
+	textEdit: TextEdit & { insertAsSnippet?: boolean; keepWhitespace?: boolean };
 	versionId: number | undefined;
 	metadata?: WorkspaceEditMetadata;
 }
 
 export interface WorkspaceEdit {
-	edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>;
+	edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit | ICustomEdit>;
+}
+
+export interface ICustomEdit {
+	readonly resource: URI;
+	readonly metadata?: WorkspaceEditMetadata;
+	undo(): Promise<void> | void;
+	redo(): Promise<void> | void;
 }
 
 export interface Rejection {
@@ -1908,7 +2085,7 @@ export interface CommentThread<T = IRange> {
 	onDidChangeInitialCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
 	state?: CommentThreadState;
 	applicability?: CommentThreadApplicability;
-	canReply: boolean;
+	canReply: boolean | CommentAuthorInformation;
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
 	onDidChangeLabel: Event<string | undefined>;
@@ -2046,7 +2223,7 @@ export interface CodeLens {
 
 export interface CodeLensList {
 	lenses: CodeLens[];
-	dispose(): void;
+	dispose?(): void;
 }
 
 export interface CodeLensProvider {
@@ -2229,11 +2406,6 @@ export const TokenizationRegistry: ITokenizationRegistry<ITokenizationSupport> =
 /**
  * @internal
  */
-export const TreeSitterTokenizationRegistry: ITokenizationRegistry<ITreeSitterTokenizationSupport> = new TokenizationRegistryImpl();
-
-/**
- * @internal
- */
 export enum ExternalUriOpenerPriority {
 	None = 0,
 	Option = 1,
@@ -2272,84 +2444,8 @@ export interface DocumentDropEditsSession {
 export interface DocumentDropEditProvider {
 	readonly id?: string;
 	readonly dropMimeTypes?: readonly string[];
+	readonly providedDropEditKinds?: readonly HierarchicalKind[];
 
 	provideDocumentDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentDropEditsSession>;
 	resolveDocumentDropEdit?(edit: DocumentDropEdit, token: CancellationToken): Promise<DocumentDropEdit>;
-}
-
-export interface DocumentContextItem {
-	readonly uri: URI;
-	readonly version: number;
-	readonly ranges: IRange[];
-}
-
-export interface MappedEditsContext {
-	/** The outer array is sorted by priority - from highest to lowest. The inner arrays contain elements of the same priority. */
-	readonly documents: DocumentContextItem[][];
-	/**
-	 * @internal
-	 */
-	readonly conversation?: (ConversationRequest | ConversationResponse)[];
-}
-
-/**
- * @internal
- */
-export interface ConversationRequest {
-	readonly type: 'request';
-	readonly message: string;
-}
-
-/**
- * @internal
- */
-export interface ConversationResponse {
-	readonly type: 'response';
-	readonly message: string;
-	readonly references?: DocumentContextItem[];
-}
-
-export interface MappedEditsProvider {
-	/**
-	 * @internal
-	 */
-	readonly displayName: string; // internal
-
-	/**
-	 * Provider maps code blocks from the chat into a workspace edit.
-	 *
-	 * @param document The document to provide mapped edits for.
-	 * @param codeBlocks Code blocks that come from an LLM's reply.
-	 * 						"Apply in Editor" in the panel chat only sends one edit that the user clicks on, but inline chat can send multiple blocks and let the lang server decide what to do with them.
-	 * @param context The context for providing mapped edits.
-	 * @param token A cancellation token.
-	 * @returns A provider result of text edits.
-	 */
-	provideMappedEdits(
-		document: model.ITextModel,
-		codeBlocks: string[],
-		context: MappedEditsContext,
-		token: CancellationToken
-	): Promise<WorkspaceEdit | null>;
-}
-
-export interface IInlineEdit {
-	text: string;
-	range: IRange;
-	accepted?: Command;
-	rejected?: Command;
-}
-
-export interface IInlineEditContext {
-	triggerKind: InlineEditTriggerKind;
-}
-
-export enum InlineEditTriggerKind {
-	Invoke = 0,
-	Automatic = 1,
-}
-
-export interface InlineEditProvider<T extends IInlineEdit = IInlineEdit> {
-	provideInlineEdit(model: model.ITextModel, context: IInlineEditContext, token: CancellationToken): ProviderResult<T>;
-	freeInlineEdit(edit: T): void;
 }
