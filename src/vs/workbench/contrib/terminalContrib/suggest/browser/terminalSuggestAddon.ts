@@ -47,7 +47,7 @@ export interface ISuggestController {
 }
 
 
-let firstShownTracker: { shell: Partial<Record<TerminalShellType, boolean>>; window: boolean } | undefined = undefined;
+let firstShownTracker: { shell: Set<TerminalShellType>; window: boolean } | undefined = undefined;
 export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggestController {
 	private _terminal?: Terminal;
 
@@ -885,13 +885,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!firstShownTracker) {
 			firstShownTracker = {
 				window: true,
-				shell: { [shellType]: true }
+				shell: new Set([shellType])
 			};
 			return { window: true, shell: true };
 		}
 
 		const isFirstForWindow = firstShownTracker.window;
-		const isFirstForShell = firstShownTracker.shell[shellType] ?? true;
+		const isFirstForShell = !firstShownTracker.shell.has(shellType);
 
 		if (isFirstForWindow || isFirstForShell) {
 			this.updateShown();
@@ -909,7 +909,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		firstShownTracker.window = false;
-		firstShownTracker.shell[this.shellType] = false;
+		firstShownTracker.shell.add(this.shellType);
 	}
 }
 
