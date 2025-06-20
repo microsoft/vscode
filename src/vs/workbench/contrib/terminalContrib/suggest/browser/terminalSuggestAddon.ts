@@ -136,6 +136,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _suggestTelemetry: TerminalSuggestTelemetry | undefined;
 
 	constructor(
+		private readonly _sessionId: string,
 		shellType: TerminalShellType | undefined,
 		private readonly _capabilities: ITerminalCapabilityStore,
 		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>,
@@ -753,7 +754,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		const initialPromptInputState = this._mostRecentPromptInputState;
 		if (!suggestion || !initialPromptInputState || this._leadingLineContent === undefined || !this._model) {
-			this._suggestTelemetry?.acceptCompletion(undefined, this._mostRecentPromptInputState?.value);
+			this._suggestTelemetry?.acceptCompletion(this._sessionId, undefined, this._mostRecentPromptInputState?.value);
 			return;
 		}
 		SuggestAddon.lastAcceptedCompletionTimestamp = Date.now();
@@ -839,7 +840,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		// Send the completion
 		this._onAcceptedCompletion.fire(resultSequence);
-		this._suggestTelemetry?.acceptCompletion(completion, this._mostRecentPromptInputState?.value);
+		this._suggestTelemetry?.acceptCompletion(this._sessionId, completion, this._mostRecentPromptInputState?.value);
 		this.hideSuggestWidget(true);
 	}
 
