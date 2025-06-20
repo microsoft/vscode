@@ -177,9 +177,9 @@ export class BuiltinChatMode implements IChatMode {
 }
 
 export namespace ChatMode2 {
-	export const Ask = new BuiltinChatMode(ChatMode.Ask, localize('chatDescription', "Ask Copilot"));
+	export const Ask = new BuiltinChatMode(ChatMode.Ask, localize('chatDescription', "Ask a question"));
 	export const Edit = new BuiltinChatMode(ChatMode.Edit, localize('editsDescription', "Edit files in your workspace"));
-	export const Agent = new BuiltinChatMode(ChatMode.Agent, localize('agentDescription', "Edit files in your workspace in agent mode"));
+	export const Agent = new BuiltinChatMode(ChatMode.Agent, localize('agentDescription', "Build autonomously"));
 }
 
 export function validateChatMode2(mode: unknown): IChatMode | undefined {

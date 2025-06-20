@@ -11,7 +11,6 @@ import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IMarkdownRenderResult, MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
-import { localize } from '../../../../../nls.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -149,10 +148,7 @@ export class ChatViewWelcomePart extends Disposable {
 			title.textContent = content.title;
 
 			// Preview indicator
-			if (typeof content.message !== 'function' && options?.isWidgetAgentWelcomeViewContent) {
-				const container = dom.append(this.element, $('.chat-welcome-view-indicator-container'));
-				dom.append(container, $('.chat-welcome-view-subtitle', undefined, localize('agentModeSubtitle', "Agent Mode")));
-			}
+			// Removed Agent Mode subtitle display
 
 			// Message
 			const message = dom.append(this.element, $('.chat-welcome-view-message'));
@@ -161,7 +157,6 @@ export class ChatViewWelcomePart extends Disposable {
 			} else {
 				const messageResult = this.renderMarkdownMessageContent(renderer, content.message, options);
 				dom.append(message, messageResult.element);
-
 			}
 
 			// Additional message
