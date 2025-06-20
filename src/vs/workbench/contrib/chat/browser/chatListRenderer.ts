@@ -669,7 +669,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				// If it becomes properly sync, then this could be removed.
 				element.currentRenderedHeight = templateData.rowContainer.offsetHeight;
 				disposable.dispose();
-				this._onDidChangeItemHeight.fire({ element, height: element.currentRenderedHeight });
+				// this._onDidChangeItemHeight.fire({ element, height: element.currentRenderedHeight });
 			}));
 		}
 	}

@@ -3036,7 +3036,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.stickyScrollController?.focusedLast() ? AbstractTreePart.StickyScroll : AbstractTreePart.Tree;
 	}
 
-	reveal(location: TRef, relativeTop?: number): void {
+	reveal(location: TRef, relativeTop?: number, animationDuration: number = 0): void {
 		this.model.expandTo(location);
 
 		const index = this.model.getListIndex(location);
@@ -3046,10 +3046,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		}
 
 		if (!this.stickyScrollController) {
-			this.view.reveal(index, relativeTop);
+			this.view.reveal(index, relativeTop, undefined, animationDuration);
 		} else {
 			const paddingTop = this.stickyScrollController.nodePositionTopBelowWidget(this.getNode(location));
-			this.view.reveal(index, relativeTop, paddingTop);
+			this.view.reveal(index, relativeTop, paddingTop, animationDuration);
 		}
 	}
 

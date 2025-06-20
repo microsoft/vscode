@@ -358,14 +358,14 @@ export class Scrollable extends Disposable {
 		return Boolean(this._smoothScrolling);
 	}
 
-	private _performSmoothScrolling(): void {
+	private _performSmoothScrolling(options?: ISmoothScrollOptions): void {
 		if (!this._smoothScrolling) {
 			return;
 		}
 		const update = this._smoothScrolling.tick();
 		const newState = this._state.withScrollPosition(update);
 
-		this._setState(newState, true);
+		this._setState(newState, options ?? true);
 
 		if (!this._smoothScrolling) {
 			// Looks like someone canceled the smooth scrolling
@@ -389,7 +389,7 @@ export class Scrollable extends Disposable {
 		});
 	}
 
-	private _setState(newState: ScrollState, inSmoothScrolling: boolean): void {
+	private _setState(newState: ScrollState, inSmoothScrolling: boolean | ISmoothScrollOptions): void {
 		const oldState = this._state;
 		if (oldState.equals(newState)) {
 			// no change

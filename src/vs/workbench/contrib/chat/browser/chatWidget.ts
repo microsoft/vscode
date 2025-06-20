@@ -828,6 +828,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			delegate,
 			[this.renderer],
 			{
+				enableStickyScroll: false,
+				// smoothScrolling: true,
 				identityProvider: { getId: (e: ChatTreeItem) => e.id },
 				horizontalScrolling: false,
 				alwaysConsumeMouseWheel: false,
@@ -907,7 +909,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
 						// Can't set scrollTop during this event listener, the list might overwrite the change
 
-						this.scrollToEnd();
+						// this.scrollToEnd();
 					}, 0);
 				}
 			}
@@ -1094,7 +1096,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			this.onDidChangeItems();
 			if (events?.some(e => e?.kind === 'addRequest') && this.visible) {
-				this.scrollToEnd();
+				const lastItem = this.viewModel.getItems().at(-1);
+				if (lastItem) {
+					this.tree.reveal(lastItem, undefined, 200);
+				}
 			}
 
 			if (this._editingSession) {
