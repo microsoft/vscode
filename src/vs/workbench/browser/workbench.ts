@@ -214,6 +214,10 @@ export class Workbench extends Layout {
 
 	private registerListeners(lifecycleService: ILifecycleService, storageService: IStorageService, configurationService: IConfigurationService, hostService: IHostService, dialogService: IDialogService): void {
 
+		this._register(configurationService.onDidChangeConfiguration(() => {
+			this.mainContainer.style.fontFamily = configurationService.getValue('workbench.fontFamily');
+		}));
+
 		// Configuration changes
 		this._register(configurationService.onDidChangeConfiguration(e => this.updateFontAliasing(e, configurationService)));
 
