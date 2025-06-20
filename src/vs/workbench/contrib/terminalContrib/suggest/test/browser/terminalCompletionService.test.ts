@@ -720,13 +720,15 @@ suite('TerminalCompletionService', () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
+				filesRequested: true,
 				pathSeparator
 			};
 			validResources = [URI.parse('file:///test')];
 			childResources = [
 				{ resource: URI.parse('file:///test/[folder1]/'), isDirectory: true },
 				{ resource: URI.parse('file:///test/folder 2/'), isDirectory: true },
-				{ resource: URI.parse('file:///test/!special$chars&/'), isDirectory: true }
+				{ resource: URI.parse('file:///test/!special$chars&/'), isDirectory: true },
+				{ resource: URI.parse('file:///test/!special$chars2&'), isFile: true }
 			];
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '', 0, provider, capabilities);
 
@@ -735,6 +737,7 @@ suite('TerminalCompletionService', () => {
 				{ label: './[folder1]/', detail: '/test/\[folder1]\/' },
 				{ label: './folder\ 2/', detail: '/test/folder\ 2/' },
 				{ label: './\!special\$chars\&/', detail: '/test/\!special\$chars\&/' },
+				{ label: './\!special\$chars2\&', detail: '/test/\!special\$chars2\&', kind: TerminalCompletionItemKind.File },
 				{ label: '../', detail: '/' },
 				standardTidleItem,
 			], { replacementIndex: 0, replacementLength: 0 });
