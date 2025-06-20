@@ -283,7 +283,7 @@ export class UserDataSyncStoreClient extends Disposable {
 	 * This is a helper function to avoid write conflicts in Cosmos DB.
 	 * Session tokens in Cosmos DB seem to include a timestamp in seconds.
 	 * Writing multiple collections under the same timestamp results in a case where only the last collection seems to be written successfully.
-	 * This function acts as a throttle by forcing the client to wait for around a second.
+	 * This function acts as a throttle by forcing the client to wait for around a second before continuing.
 	 */
 	private async throttleUpdate(): Promise<void> {
 		await timeout(1000);
