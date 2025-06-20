@@ -10,7 +10,7 @@ import { IPromptInputModel } from '../../../../../platform/terminal/common/capab
 import { ITerminalCompletion, TerminalCompletionItemKind } from './terminalCompletionItem.js';
 
 export class TerminalSuggestTelemetry extends Disposable {
-	private _acceptedCompletions: Array<{ label: string; kind?: string }> | undefined;
+	private _acceptedCompletions: Array<{ label: string; kind?: string; sessionId: string }> | undefined;
 
 	private _kindMap = new Map<number, string>([
 		[TerminalCompletionItemKind.File, 'File'],
@@ -40,13 +40,13 @@ export class TerminalSuggestTelemetry extends Disposable {
 			this._acceptedCompletions = undefined;
 		}));
 	}
-	acceptCompletion(completion: ITerminalCompletion | undefined, commandLine?: string): void {
+	acceptCompletion(sessionId: string, completion: ITerminalCompletion | undefined, commandLine?: string): void {
 		if (!completion || !commandLine) {
 			this._acceptedCompletions = undefined;
 			return;
 		}
 		this._acceptedCompletions = this._acceptedCompletions || [];
-		this._acceptedCompletions.push({ label: typeof completion.label === 'string' ? completion.label : completion.label.label, kind: this._kindMap.get(completion.kind!) });
+		this._acceptedCompletions.push({ label: typeof completion.label === 'string' ? completion.label : completion.label.label, kind: this._kindMap.get(completion.kind!), sessionId });
 	}
 	private _sendTelemetryInfo(fromInterrupt?: boolean, exitCode?: number): void {
 		const commandLine = this._promptInputModel?.value;
@@ -72,6 +72,7 @@ export class TerminalSuggestTelemetry extends Disposable {
 				kind: string | undefined;
 				outcome: string;
 				exitCode: number | undefined;
+				sessionId: string;
 			}, {
 				owner: 'meganrogge';
 				comment: 'This data is collected to understand the outcome of a terminal completion acceptance.';
@@ -90,10 +91,16 @@ export class TerminalSuggestTelemetry extends Disposable {
 					purpose: 'FeatureInsight';
 					comment: 'The exit code from the command';
 				};
+				sessionId: {
+					classification: 'SystemMetaData';
+					purpose: 'FeatureInsight';
+					comment: 'The session ID of the terminal session where the completion was accepted';
+				};
 			}>('terminal.suggest.acceptedCompletion', {
 				kind,
 				outcome,
-				exitCode
+				exitCode,
+				sessionId: completion.sessionId
 			});
 		}
 	}
