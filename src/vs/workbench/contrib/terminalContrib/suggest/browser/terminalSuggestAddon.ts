@@ -219,6 +219,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				this._model?.forceRefilterAll();
 			}
 		}));
+		this._register(this._extensionService.onWillStop(() => firstShownTracker = undefined));
 	}
 
 	activate(xterm: Terminal): void {
