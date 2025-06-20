@@ -358,47 +358,99 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 	protected override async resolveMainMenuActions(accountsMenu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
 		await super.resolveMainMenuActions(accountsMenu, disposables);
 
-		const providers = this.authenticationService.getProviderIds();
+		const providers = this.authenticationService.getProviderIds().filter(p => !p.startsWith(INTERNAL_AUTH_PROVIDER_PREFIX));
 		const otherCommands = accountsMenu.getActions();
 		let menus: IAction[] = [];
 
-		for (const providerId of providers) {
-			if (providerId.startsWith(INTERNAL_AUTH_PROVIDER_PREFIX)) {
-				continue;
-			}
-			if (!this.initialized) {
-				const noAccountsAvailableAction = disposables.add(new Action('noAccountsAvailable', localize('loading', "Loading..."), undefined, false));
-				menus.push(noAccountsAvailableAction);
-				break;
-			}
-			const provider = this.authenticationService.getProvider(providerId);
-			const accounts = this.groupedAccounts.get(providerId);
-			if (!accounts) {
-				if (this.problematicProviders.has(providerId)) {
-					const providerUnavailableAction = disposables.add(new Action('providerUnavailable', localize('authProviderUnavailable', '{0} is currently unavailable', provider.label), undefined, false));
-					menus.push(providerUnavailableAction);
-					// try again in the background so that if the failure was intermittent, we can resolve it on the next showing of the menu
-					try {
-						await this.addAccountsFromProvider(providerId);
-					} catch (e) {
-						this.logService.error(e);
+		const registeredProviders = providers.filter(providerId => !this.authenticationService.isDynamicAuthenticationProvider(providerId));
+		const dynamicProviders = providers.filter(providerId => this.authenticationService.isDynamicAuthenticationProvider(providerId));
+
+		if (!this.initialized) {
+			const noAccountsAvailableAction = disposables.add(new Action('noAccountsAvailable', localize('loading', "Loading..."), undefined, false));
+			menus.push(noAccountsAvailableAction);
+		} else {
+			for (const providerId of registeredProviders) {
+				const provider = this.authenticationService.getProvider(providerId);
+				const accounts = this.groupedAccounts.get(providerId);
+				if (!accounts) {
+					if (this.problematicProviders.has(providerId)) {
+						const providerUnavailableAction = disposables.add(new Action('providerUnavailable', localize('authProviderUnavailable', '{0} is currently unavailable', provider.label), undefined, false));
+						menus.push(providerUnavailableAction);
+						// try again in the background so that if the failure was intermittent, we can resolve it on the next showing of the menu
+						try {
+							await this.addAccountsFromProvider(providerId);
+						} catch (e) {
+							this.logService.error(e);
+						}
 					}
+					continue;
 				}
-				continue;
+
+				const canUseMcp = !!provider.authorizationServers?.length;
+				for (const account of accounts) {
+					const manageExtensionsAction = toAction({
+						id: `configureSessions${account.label}`,
+						label: localize('manageTrustedExtensions', "Manage Trusted Extensions"),
+						enabled: true,
+						run: () => this.commandService.executeCommand('_manageTrustedExtensionsForAccount', { providerId, accountLabel: account.label })
+					});
+
+
+					const providerSubMenuActions: IAction[] = [manageExtensionsAction];
+					if (canUseMcp) {
+						const manageMCPAction = toAction({
+							id: `configureSessions${account.label}`,
+							label: localize('manageTrustedMCPServers', "Manage Trusted MCP Servers"),
+							enabled: true,
+							run: () => this.commandService.executeCommand('_manageTrustedMCPServersForAccount', { providerId, accountLabel: account.label })
+						});
+						providerSubMenuActions.push(manageMCPAction);
+					}
+					if (account.canSignOut) {
+						providerSubMenuActions.push(toAction({
+							id: 'signOut',
+							label: localize('signOut', "Sign Out"),
+							enabled: true,
+							run: () => this.commandService.executeCommand('_signOutOfAccount', { providerId, accountLabel: account.label })
+						}));
+					}
+
+					const providerSubMenu = new SubmenuAction('activitybar.submenu', `${account.label} (${provider.label})`, providerSubMenuActions);
+					menus.push(providerSubMenu);
+				}
 			}
 
-			const canUseMcp = !!provider.authorizationServers?.length;
-			for (const account of accounts) {
-				const manageExtensionsAction = toAction({
-					id: `configureSessions${account.label}`,
-					label: localize('manageTrustedExtensions', "Manage Trusted Extensions"),
-					enabled: true,
-					run: () => this.commandService.executeCommand('_manageTrustedExtensionsForAccount', { providerId, accountLabel: account.label })
-				});
+			if (dynamicProviders.length && registeredProviders.length) {
+				menus.push(new Separator());
+			}
 
+			for (const providerId of dynamicProviders) {
+				const provider = this.authenticationService.getProvider(providerId);
+				const accounts = this.groupedAccounts.get(providerId);
+				if (!accounts) {
+					if (this.problematicProviders.has(providerId)) {
+						const providerUnavailableAction = disposables.add(new Action('providerUnavailable', localize('authProviderUnavailable', '{0} is currently unavailable', provider.label), undefined, false));
+						menus.push(providerUnavailableAction);
+						// try again in the background so that if the failure was intermittent, we can resolve it on the next showing of the menu
+						try {
+							await this.addAccountsFromProvider(providerId);
+						} catch (e) {
+							this.logService.error(e);
+						}
+					}
+					continue;
+				}
 
-				const providerSubMenuActions: IAction[] = [manageExtensionsAction];
-				if (canUseMcp) {
+				for (const account of accounts) {
+					// TODO@TylerLeonhardt: Is there a nice way to bring this back?
+					// const manageExtensionsAction = toAction({
+					// 	id: `configureSessions${account.label}`,
+					// 	label: localize('manageTrustedExtensions', "Manage Trusted Extensions"),
+					// 	enabled: true,
+					// 	run: () => this.commandService.executeCommand('_manageTrustedExtensionsForAccount', { providerId, accountLabel: account.label })
+					// });
+
+					const providerSubMenuActions: IAction[] = [];
 					const manageMCPAction = toAction({
 						id: `configureSessions${account.label}`,
 						label: localize('manageTrustedMCPServers', "Manage Trusted MCP Servers"),
@@ -406,18 +458,18 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 						run: () => this.commandService.executeCommand('_manageTrustedMCPServersForAccount', { providerId, accountLabel: account.label })
 					});
 					providerSubMenuActions.push(manageMCPAction);
-				}
-				if (account.canSignOut) {
-					providerSubMenuActions.push(toAction({
-						id: 'signOut',
-						label: localize('signOut', "Sign Out"),
-						enabled: true,
-						run: () => this.commandService.executeCommand('_signOutOfAccount', { providerId, accountLabel: account.label })
-					}));
-				}
+					if (account.canSignOut) {
+						providerSubMenuActions.push(toAction({
+							id: 'signOut',
+							label: localize('signOut', "Sign Out"),
+							enabled: true,
+							run: () => this.commandService.executeCommand('_signOutOfAccount', { providerId, accountLabel: account.label })
+						}));
+					}
 
-				const providerSubMenu = new SubmenuAction('activitybar.submenu', `${account.label} (${provider.label})`, providerSubMenuActions);
-				menus.push(providerSubMenu);
+					const providerSubMenu = new SubmenuAction('activitybar.submenu', `${account.label} (${provider.label})`, providerSubMenuActions);
+					menus.push(providerSubMenu);
+				}
 			}
 		}
 

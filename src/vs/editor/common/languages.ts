@@ -918,7 +918,7 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	toString?(): string;
 }
 
-export type InlineCompletionsDisposeReason = { kind: 'lostRace' | 'tokenCancellation' | 'other' };
+export type InlineCompletionsDisposeReason = { kind: 'lostRace' | 'tokenCancellation' | 'other' | 'empty' | 'notTaken' };
 
 export enum InlineCompletionEndOfLifeReasonKind {
 	Accepted = 0,
@@ -939,6 +939,8 @@ export type InlineCompletionEndOfLifeReason<TInlineCompletion = InlineCompletion
 export type LifetimeSummary = {
 	requestUuid: string;
 	shown: boolean;
+	shownDuration: number;
+	shownDurationUncollapsed: number;
 	editorType: string;
 	viewKind: string | undefined;
 	error: string | undefined;

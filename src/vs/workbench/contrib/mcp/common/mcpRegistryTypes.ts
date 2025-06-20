@@ -64,6 +64,9 @@ export interface IMcpRegistry {
 	registerDelegate(delegate: IMcpHostDelegate): IDisposable;
 	registerCollection(collection: McpCollectionDefinition): IDisposable;
 
+	getAuthenticationUsage(mcpServerId: string): string | undefined;
+	setAuthenticationUsage(mcpServerId: string, providerId: string): void;
+
 	/** Resets the trust state of all collections. */
 	resetTrust(): void;
 

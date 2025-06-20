@@ -225,7 +225,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	async $registerDynamicAuthenticationProvider(id: string, label: string, authorizationServer: UriComponents, clientId: string): Promise<void> {
-		await this.$registerAuthenticationProvider(id, label, false, [authorizationServer]);
+		await this.$registerAuthenticationProvider(id, label, true, [authorizationServer]);
 		this.dynamicAuthProviderStorageService.storeClientId(id, URI.revive(authorizationServer).toString(true), clientId, label);
 	}
 

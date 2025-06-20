@@ -28,7 +28,7 @@ import type { AuthenticationProvider, AuthenticationSession } from 'vscode';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { AuthenticationAccessService, IAuthenticationAccessService } from '../../../services/authentication/browser/authenticationAccessService.js';
-import { AuthenticationUsageService, IAuthenticationUsageService } from '../../../services/authentication/browser/authenticationUsageService.js';
+import { IAccountUsage, IAuthenticationUsageService } from '../../../services/authentication/browser/authenticationUsageService.js';
 import { AuthenticationExtensionsService } from '../../../services/authentication/browser/authenticationExtensionsService.js';
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
 import { IExtHostInitDataService } from '../../common/extHostInitDataService.js';
@@ -74,6 +74,15 @@ class AuthTestQuickInputService extends TestQuickInputService {
 	override createQuickPick() {
 		return <any>new AuthQuickPick();
 	}
+}
+
+class TestAuthUsageService implements IAuthenticationUsageService {
+	_serviceBrand: undefined;
+	initializeExtensionUsageCache(): Promise<void> { return Promise.resolve(); }
+	extensionUsesAuth(extensionId: string): Promise<boolean> { return Promise.resolve(false); }
+	readAccountUsages(providerId: string, accountName: string): IAccountUsage[] { return []; }
+	removeAccountUsage(providerId: string, accountName: string): void { }
+	addAccountUsage(providerId: string, accountName: string, scopes: ReadonlyArray<string>, extensionId: string, extensionName: string): void { }
 }
 
 class TestAuthProvider implements AuthenticationProvider {
@@ -136,7 +145,7 @@ suite('ExtHostAuthentication', () => {
 		services.set(IUserActivityService, new SyncDescriptor(UserActivityService));
 		services.set(IAuthenticationAccessService, new SyncDescriptor(AuthenticationAccessService));
 		services.set(IAuthenticationService, new SyncDescriptor(AuthenticationService));
-		services.set(IAuthenticationUsageService, new SyncDescriptor(AuthenticationUsageService));
+		services.set(IAuthenticationUsageService, new SyncDescriptor(TestAuthUsageService));
 		services.set(IAuthenticationExtensionsService, new SyncDescriptor(AuthenticationExtensionsService));
 		mainInstantiationService = disposables.add(new TestInstantiationService(services, undefined, undefined, true));
 
