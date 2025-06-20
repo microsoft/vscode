@@ -130,7 +130,6 @@ export interface ILanguageModelChatMetadata {
 	readonly family: string;
 	readonly maxInputTokens: number;
 	readonly maxOutputTokens: number;
-	readonly targetExtensions?: string[];
 
 	readonly isDefault?: boolean;
 	readonly isUserSelectable?: boolean;
@@ -149,6 +148,10 @@ export interface ILanguageModelChatMetadata {
 export interface ILanguageModelChatResponse {
 	stream: AsyncIterable<IChatResponseFragment | IChatResponseFragment[]>;
 	result: Promise<any>;
+}
+
+export interface ILanguageModelChatProvider {
+
 }
 
 export interface ILanguageModelChat {
@@ -191,6 +194,8 @@ export interface ILanguageModelsService {
 
 	selectLanguageModels(selector: ILanguageModelChatSelector): Promise<string[]>;
 
+	registerLanguageModelProvider(vendor: string, provider: ILanguageModelChatProvider): IDisposable;
+
 	registerLanguageModelChat(identifier: string, provider: ILanguageModelChat): IDisposable;
 
 	sendChatRequest(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse>;
@@ -204,12 +209,22 @@ const languageModelType: IJSONSchema = {
 		vendor: {
 			type: 'string',
 			description: localize('vscode.extension.contributes.languageModels.vendor', "A globally unique vendor of language models.")
+		},
+		displayName: {
+			type: 'string',
+			description: localize('vscode.extension.contributes.languageModels.displayName', "The display name of the language model vendor.")
+		},
+		managementCommand: {
+			type: 'string',
+			description: localize('vscode.extension.contributes.languageModels.managementCommand', "A command to manage the language model vendor, e.g. 'Manage Copilot models'. This is used in the chat model picker. If not provided, a gear icon is not rendered during vendor selection.")
 		}
 	}
 };
 
 interface IUserFriendlyLanguageModel {
 	vendor: string;
+	displayName: string;
+	managementCommand?: string;
 }
 
 export const languageModelExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IUserFriendlyLanguageModel | IUserFriendlyLanguageModel[]>({
@@ -324,9 +339,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			if ((selector.vendor === undefined || model.metadata.vendor === selector.vendor)
 				&& (selector.family === undefined || model.metadata.family === selector.family)
 				&& (selector.version === undefined || model.metadata.version === selector.version)
-				&& (selector.id === undefined || model.metadata.id === selector.id)
-				&& (!model.metadata.targetExtensions || model.metadata.targetExtensions.some(candidate => ExtensionIdentifier.equals(candidate, selector.extension)))
-			) {
+				&& (selector.id === undefined || model.metadata.id === selector.id)) {
 				result.push(identifier);
 			}
 		}

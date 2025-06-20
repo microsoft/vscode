@@ -31,7 +31,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 
 	private readonly _proxy: ExtHostLanguageModelsShape;
 	private readonly _store = new DisposableStore();
-	private readonly _providerRegistrations = new DisposableMap<number>();
+	private readonly _providerRegistrations = new DisposableMap<string>();
 	private readonly _pendingProgress = new Map<number, { defer: DeferredPromise<any>; stream: AsyncIterableSource<IChatResponseFragment | IChatResponseFragment[]> }>();
 	private readonly _ignoredFileProviderRegistrations = new DisposableMap<number>();
 
@@ -119,8 +119,8 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		}
 	}
 
-	$unregisterProvider(handle: number): void {
-		this._providerRegistrations.deleteAndDispose(handle);
+	$unregisterProvider(vendor: string): void {
+		this._providerRegistrations.deleteAndDispose(vendor);
 	}
 
 	$selectChatModels(selector: ILanguageModelChatSelector): Promise<string[]> {

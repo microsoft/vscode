@@ -135,7 +135,7 @@ declare module 'vscode' {
 
 	export namespace lm {
 
-		export function registerChatModelProvider2(vendor: string, provider: LanguageModelChatProvider2): Disposable;
+		export function registerChatModelProvider(vendor: string, provider: LanguageModelChatProvider2): Disposable;
 	}
 
 
@@ -144,101 +144,4 @@ declare module 'vscode' {
 		index: number;
 		part: LanguageModelTextPart | LanguageModelToolCallPart;
 	}
-
-
-	/**
-	 * Represents a large language model that accepts ChatML messages and produces a streaming response
-	*/
-	export interface LanguageModelChatProvider {
-
-		// TODO@API remove or keep proposed?
-		onDidReceiveLanguageModelResponse2?: Event<{ readonly extensionId: string; readonly participant?: string; readonly tokenCount?: number }>;
-
-		// TODO@API
-		// have dedicated options, don't reuse the LanguageModelChatRequestOptions so that consumer and provider part of the API can develop independently
-		provideLanguageModelResponse(messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: LanguageModelChatRequestOptions, extensionId: string, progress: Progress<ChatResponseFragment2>, token: CancellationToken): Thenable<any>;
-
-		provideTokenCount(text: string | LanguageModelChatMessage | LanguageModelChatMessage2, token: CancellationToken): Thenable<number>;
-	}
-
-	export type ChatResponseProvider = LanguageModelChatProvider;
-
-	export interface ChatResponseProviderMetadata {
-
-		readonly vendor: string;
-
-		/**
-		 * Human-readable name of the language model.
-		 */
-		readonly name: string;
-		/**
-		 * Opaque family-name of the language model. Values might be `gpt-3.5-turbo`, `gpt4`, `phi2`, or `llama`
-		 * but they are defined by extensions contributing languages and subject to change.
-		 */
-		readonly family: string;
-
-		/**
-		 * An optional, human-readable description of the language model.
-		 */
-		readonly description?: string;
-
-		/**
-		 * An optional, human-readable string representing the cost of using the language model.
-		 */
-		readonly cost?: string;
-
-		/**
-		 * Opaque version string of the model. This is defined by the extension contributing the language model
-		 * and subject to change while the identifier is stable.
-		 */
-		readonly version: string;
-
-		readonly maxInputTokens: number;
-
-		readonly maxOutputTokens: number;
-
-		/**
-		 * When present, this gates the use of `requestLanguageModelAccess` behind an authorization flow where
-		 * the user must approve of another extension accessing the models contributed by this extension.
-		 * Additionally, the extension can provide a label that will be shown in the UI.
-		 */
-		auth?: true | { label: string };
-
-		// TODO@API maybe an enum, LanguageModelChatProviderPickerAvailability?
-		readonly isDefault?: boolean;
-		readonly isUserSelectable?: boolean;
-
-		readonly capabilities?: {
-			readonly vision?: boolean;
-
-			// TODO@API should be `boolean | number` so extensions can express how many tools they support
-			readonly toolCalling?: boolean;
-
-			// TODO@API WHY is agentMode a capability? This seems wrong?
-			readonly agentMode?: boolean;
-
-			// TODO@API support prompt TSX style messages
-			// readonly promptTsx?:boolean
-		};
-
-		/**
-		 * Optional category to group models by in the model picker.
-		 * The lower the order, the higher the category appears in the list.
-		 * Has no effect if `isUserSelectable` is `false`.
-		 * If not specified, the model will appear in the "Other Models" category.
-		 */
-		readonly category?: { label: string; order: number };
-	}
-
-	export interface ChatResponseProviderMetadata {
-		// limit this provider to some extensions
-		// TODO@API remove? unused?
-		extensions?: string[];
-	}
-
-	export namespace lm {
-
-		export function registerChatModelProvider(id: string, provider: LanguageModelChatProvider, metadata: ChatResponseProviderMetadata): Disposable;
-	}
-
 }
