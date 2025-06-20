@@ -710,7 +710,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private getWelcomeViewContent(): IChatWelcomeMessageContent {
-		const baseMessage = localize('chatMessage', "[Disable Telemetry](telemetry.telemetryLevel) before handling customer data. \n\n AI responses may be inaccurate.");
+		const baseMessage = localize('chatMessage', "Ask questions about your codebase, coding, and general technology concepts \n\n AI responses may be inaccurate. Review output carefully before use.");
 		if (this.input.currentMode === ChatMode.Ask) {
 			return {
 				title: localize('chatDescription', "Ask about your code."),
@@ -720,13 +720,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		} else if (this.input.currentMode === ChatMode.Edit) {
 			return {
 				title: localize('editsTitle', "Edit in context. "),
-				message: new MarkdownString(localize('editsMessage', "[Disable Telemetry](telemetry.telemetryLevel) before handling customer data. \n\n AI responses may be inaccurate.")),
+				message: new MarkdownString(localize('editsMessage', "Start by defining a set of files that you want to work with. Then ask for the changes you want to make. \n\n AI responses may be inaccurate. Review output carefully before use.")),
 				icon: Codicon.vscode
 			};
 		} else {
 			return {
-				title: localize('agentTitle', "Build with Agent Mode. "),
-				message: new MarkdownString(localize('agentMessage', "[Disable Telemetry](telemetry.telemetryLevel) before handling customer data. \n\n AI responses may be inaccurate.")),
+				title: localize('agentTitle', "Build with agent mode. "),
+				message: new MarkdownString(localize('agentMessage', "Let AI autonomously reason about the request, plan the work needed, and apply the changes to your codebase. \n\n AI responses may be inaccurate. Review output carefully before use.")),
 				icon: Codicon.vscode
 			};
 		}
