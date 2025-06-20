@@ -48,6 +48,51 @@ export class TerminalSuggestTelemetry extends Disposable {
 		this._acceptedCompletions = this._acceptedCompletions || [];
 		this._acceptedCompletions.push({ label: typeof completion.label === 'string' ? completion.label : completion.label.label, kind: this._kindMap.get(completion.kind!), sessionId });
 	}
+
+	/**
+	 * Logs the latency (ms) from completion request to completions shown.
+	 * @param sessionId The terminal session ID
+	 * @param latency The measured latency in ms
+	 * @param firstShownFor Object indicating if completions have been shown for window/shell
+	 */
+	logCompletionLatency(sessionId: string, latency: number, firstShownFor: { window: boolean; shell: boolean }): void {
+		this._telemetryService.publicLog2<{
+			sessionId: string;
+			latency: number;
+			firstWindow: boolean;
+			firstShell: boolean;
+		}, {
+			owner: 'meganrogge';
+			comment: 'Latency in ms from terminal completion request to completions shown.';
+			sessionId: {
+				classification: 'SystemMetaData';
+				purpose: 'FeatureInsight';
+				comment: 'The session ID of the terminal session.';
+			};
+			latency: {
+				classification: 'SystemMetaData';
+				purpose: 'PerformanceAndHealth';
+				comment: 'The latency in milliseconds.';
+			};
+			firstWindow: {
+				classification: 'SystemMetaData';
+				purpose: 'FeatureInsight';
+				comment: 'Whether this is the first ever showing of completions in the window.';
+			};
+			firstShell: {
+				classification: 'SystemMetaData';
+				purpose: 'FeatureInsight';
+				comment: 'Whether this is the first ever showing of completions in the shell.';
+			};
+		}>('terminal.suggest.completionLatency', {
+			sessionId,
+			latency,
+			firstWindow: firstShownFor.window,
+			firstShell: firstShownFor.shell
+		});
+	}
+
+
 	private _sendTelemetryInfo(fromInterrupt?: boolean, exitCode?: number): void {
 		const commandLine = this._promptInputModel?.value;
 		for (const completion of this._acceptedCompletions || []) {
