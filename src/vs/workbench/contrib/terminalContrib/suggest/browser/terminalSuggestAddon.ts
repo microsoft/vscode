@@ -46,7 +46,7 @@ export interface ISuggestController {
 	hideSuggestWidget(cancelAnyRequests: boolean, wasClosedByUser?: boolean): void;
 }
 
-let firstShownObj: { shell: Partial<Record<TerminalShellType, boolean>>; window: boolean } | undefined = undefined;
+let firstShownTracker: { shell: Partial<Record<TerminalShellType, boolean>>; window: boolean } | undefined = undefined;
 
 export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggestController {
 	private _terminal?: Terminal;
@@ -882,9 +882,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	getFirstShown(shellType: TerminalShellType): { window: boolean; shell: boolean } {
-		const raw = firstShownObj;
+		const raw = firstShownTracker;
 		if (!raw) {
-			firstShownObj = {
+			firstShownTracker = {
 				window: true,
 				shell: {
 					[shellType]: true
@@ -912,12 +912,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	updateShown(): void {
-		if (!this.shellType || !firstShownObj) {
+		if (!this.shellType || !firstShownTracker) {
 			return;
 		}
 
-		firstShownObj.window = false;
-		firstShownObj.shell[this.shellType] = false;
+		firstShownTracker.window = false;
+		firstShownTracker.shell[this.shellType] = false;
 	}
 }
 
