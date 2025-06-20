@@ -844,7 +844,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// Handle command completions that should execute commands instead of inserting text
 		if (completion.kind === TerminalCompletionItemKind.VscodeCommand && completion.command) {
 			try {
-				await this._commandService.executeCommand(completion.command.id, ...(completion.command.arguments || []));
+				// Don't await for the command to execute, just fire it and let it run
+				this._commandService.executeCommand(completion.command.id, ...(completion.command.arguments || []));
 				this._suggestTelemetry?.acceptCompletion(completion, this._mostRecentPromptInputState?.value);
 				this.hideSuggestWidget(true);
 				return;

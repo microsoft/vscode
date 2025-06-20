@@ -4,24 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { ITerminalCompletionProvider } from '../../suggest/browser/terminalCompletionService.js';
-import { ITerminalCompletion, TerminalCompletionItemKind } from '../../suggest/browser/terminalCompletionItem.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ITaskService } from '../../../tasks/common/taskService.js';
 import { Task } from '../../../tasks/common/tasks.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
-import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
+import { ITerminalCompletion, TerminalCompletionItemKind } from '../../suggest/browser/terminalCompletionItem.js';
+import { ITerminalCompletionProvider } from '../../suggest/browser/terminalCompletionService.js';
 
 export class TaskCompletionProvider implements ITerminalCompletionProvider {
 	readonly id = 'tasks';
 	readonly isBuiltin = true;
 
 	constructor(
-		private readonly _taskService: ITaskService,
-		private readonly _commandService: ICommandService,
-		private readonly _themeService: IThemeService
+		@ITaskService private readonly _taskService: ITaskService,
 	) { }
 
 	async provideCompletions(value: string, cursorPosition: number, allowFallbackCompletions: boolean, token: CancellationToken): Promise<ITerminalCompletion[]> {
@@ -32,7 +27,7 @@ export class TaskCompletionProvider implements ITerminalCompletionProvider {
 		// Get the text up to the cursor position
 		const prefix = value.substring(0, cursorPosition);
 		const words = prefix.trim().split(/\s+/);
-		
+
 		// Only suggest tasks if we're at the beginning of a command or it's a single word
 		// This prevents tasks from appearing in the middle of complex commands
 		if (words.length > 1 && prefix.trim() !== words[0]) {
@@ -40,11 +35,11 @@ export class TaskCompletionProvider implements ITerminalCompletionProvider {
 		}
 
 		const currentWord = words[words.length - 1] || '';
-		
+
 		try {
 			// Get all available tasks
 			const tasks = await this._taskService.getKnownTasks();
-			
+
 			if (token.isCancellationRequested) {
 				return [];
 			}
@@ -68,6 +63,9 @@ export class TaskCompletionProvider implements ITerminalCompletionProvider {
 	}
 
 	private _shouldIncludeTask(task: Task, currentWord: string): boolean {
+		if (task._source.kind === 'extension') {
+			return false;
+		}
 		if (!task._label) {
 			return false;
 		}
@@ -105,7 +103,7 @@ export class TaskCompletionProvider implements ITerminalCompletionProvider {
 						return true;
 					}
 				}
-				
+
 				// Check command arguments (e.g., ["run", "watch"])
 				if (command.args && Array.isArray(command.args)) {
 					for (const arg of command.args) {
@@ -137,7 +135,7 @@ export class TaskCompletionProvider implements ITerminalCompletionProvider {
 
 		// Use the task label as the display text
 		const label = task._label;
-		
+
 		// For input data, we use the full task label
 		// The terminal suggest system will handle the replacement appropriately
 		const inputData = label;
@@ -158,7 +156,7 @@ export class TaskCompletionProvider implements ITerminalCompletionProvider {
 			kind: TerminalCompletionItemKind.VscodeCommand,
 			// Lower priority so tasks appear below other suggestions
 			// Using a priority that puts them below most other suggestions but above random files
-			priority: 20,
+			// priority: 20,
 			icon,
 			provider: this.id,
 			replacementIndex: 0, // Will be set by the completion service
