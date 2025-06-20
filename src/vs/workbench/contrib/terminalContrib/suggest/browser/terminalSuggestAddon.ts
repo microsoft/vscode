@@ -881,8 +881,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	getFirstShown(shellType: TerminalShellType): { window: boolean; shell: boolean } {
-		const raw = firstShownTracker;
-		if (!raw) {
+		if (!firstShownTracker) {
 			firstShownTracker = {
 				window: true,
 				shell: {
@@ -893,8 +892,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		try {
-			const isFirstForWindow = raw.window;
-			const isFirstForShell = raw.shell[shellType] === undefined;
+			const isFirstForWindow = firstShownTracker.window;
+			const isFirstForShell = firstShownTracker.shell[shellType] === undefined;
 
 			if (isFirstForWindow || isFirstForShell) {
 				this.updateShown();
