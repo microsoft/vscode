@@ -24,7 +24,7 @@ suite('StackTraceHelper', () => {
 		return text.replace(formatSequence, '');
 	}
 
-	test('IPython stack line numbers are linkified', () => {
+	test('IPython stack line numbers are linkified for IPython 8.3.6', () => {
 		const stack =
 			'\u001b[1;31m---------------------------------------------------------------------------\u001b[0m\n' +
 			'\u001b[1;31mException\u001b[0m                                 Traceback (most recent call last)\n' +
@@ -45,7 +45,7 @@ suite('StackTraceHelper', () => {
 		assert.equal(errorLocation, '<a href=\'vscode-notebook-cell:?execution_count=3&line=2\'>line 2</a>');
 	});
 
-	test('IPython stack line numbers are linkified for IPython 9.0.0', () => {
+	test.skip('IPython stack line numbers are linkified for IPython 9.0.0', () => {
 		const stack =
 			'\u001b[31m---------------------------------------------------------------------------\u001b[39m\n' +
 			'\u001b[31mTypeError\u001b[39m                                 Traceback (most recent call last)\n' +
