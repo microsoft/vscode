@@ -885,29 +885,22 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!firstShownTracker) {
 			firstShownTracker = {
 				window: true,
-				shell: {
-					[shellType]: true
-				}
+				shell: { [shellType]: true }
 			};
 			return { window: true, shell: true };
 		}
 
-		try {
-			const isFirstForWindow = firstShownTracker.window;
-			const isFirstForShell = firstShownTracker.shell[shellType] === undefined;
+		const isFirstForWindow = firstShownTracker.window;
+		const isFirstForShell = firstShownTracker.shell[shellType] === undefined;
 
-			if (isFirstForWindow || isFirstForShell) {
-				this.updateShown();
-			}
-
-			return {
-				window: isFirstForWindow,
-				shell: isFirstForShell
-			};
-
-		} catch {
-			return { window: false, shell: false };
+		if (isFirstForWindow || isFirstForShell) {
+			this.updateShown();
 		}
+
+		return {
+			window: isFirstForWindow,
+			shell: isFirstForShell
+		};
 	}
 
 	updateShown(): void {
