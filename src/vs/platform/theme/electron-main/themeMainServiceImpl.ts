@@ -343,7 +343,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 			} else if (auxiliaryBarVisible === false) {
 				auxiliarySideBarWidth = 0;
 			} else {
-				if (auxiliarySideBarDefaultVisibility === 'visible' || auxiliarySideBarDefaultVisibility === 'visibleInWorkspace') {
+				if (auxiliarySideBarDefaultVisibility === 'visible' || auxiliarySideBarDefaultVisibility === 'visibleInWorkspace' || auxiliarySideBarDefaultVisibility === 'visibleInNewWorkspace') {
 					auxiliarySideBarWidth = override.layoutInfo.auxiliaryBarWidth || partSplash.layoutInfo.auxiliarySideBarWidth || ThemeMainService.DEFAULT_BAR_WIDTH;
 				} else {
 					auxiliarySideBarWidth = 0;
