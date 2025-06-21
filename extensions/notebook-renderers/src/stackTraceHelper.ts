@@ -32,10 +32,8 @@ export function formatStackTrace(stack: string, trustHtml: boolean): { formatted
 
 const formatSequence = /\u001b\[.+?m/g;
 const fileRegex = /File\s+(?:\u001b\[.+?m)?(.+):(\d+)/;
-// look for the "--->" before a line number
-const lineNumberRegex = /^((?:\u001b\[.+?m|\s)*[-]+>(?:\u001b\[.+?m|\s)*)(\d+)(?:\u001b\[.+?m)*( .*)/;
-// just capturing parts of "Cell In[3], line 2" with lots of formatting in between
-const cellRegex = /(?<prefix>(?:\u001b\[.+?m)*Cell(?:\u001b\[.+?m|\s)*In(?:\u001b\[.+?m|\s)*\[(?<executionCount>\d+)\](?:\u001b\[.+?m|\s|,)+)(?<lineLabel>line (?<lineNumber>\d+)).*/;
+const lineNumberRegex = /^((?:\u001b\[.+?m)?[ \->]+?)(\d+)(?:\u001b\[0m)?( .*)/;
+const cellRegex = /(?<prefix>Cell\s+(?:\u001b\[.+?m)?In\s*\[(?<executionCount>\d+)\],\s*)(?<lineLabel>line (?<lineNumber>\d+)).*/;
 // older versions of IPython ~8.3.0
 const inputRegex = /(?<prefix>Input\s+?(?:\u001b\[.+?m)(?<cellLabel>In\s*\[(?<executionCount>\d+)\]))(?<postfix>.*)/;
 
