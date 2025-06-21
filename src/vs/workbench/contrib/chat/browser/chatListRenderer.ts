@@ -985,11 +985,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			renderedError.addDisposable(renderedError.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 			return renderedError;
 		} else if (content.errorDetails.confirmationButtons && isLast) {
-			const errorConfirmation = this.instantiationService.createInstance(ChatErrorConfirmationContentPart, ChatErrorLevel.Error, new MarkdownString(content.errorDetails.message), content, content.errorDetails.confirmationButtons, this.renderer, context);
+			const level = content.errorDetails.level ?? ChatErrorLevel.Error;
+			const errorConfirmation = this.instantiationService.createInstance(ChatErrorConfirmationContentPart, level, new MarkdownString(content.errorDetails.message), content, content.errorDetails.confirmationButtons, this.renderer, context);
 			errorConfirmation.addDisposable(errorConfirmation.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 			return errorConfirmation;
 		} else {
-			const level = content.errorDetails.level ?? (content.errorDetails.responseIsFiltered ? ChatErrorLevel.Info : ChatErrorLevel.Error);
+			const level = content.errorDetails.level ?? ChatErrorLevel.Error;
 			return this.instantiationService.createInstance(ChatErrorContentPart, level, new MarkdownString(content.errorDetails.message), content, this.renderer);
 		}
 	}
