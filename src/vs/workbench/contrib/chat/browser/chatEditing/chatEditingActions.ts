@@ -27,7 +27,7 @@ import { IEditorPane } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, isChatRequestCheckpointed, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
@@ -413,6 +413,42 @@ registerAction2(class RemoveAction extends Action2 {
 		if (isRequestVM(item) && configurationService.getValue('chat.undoRequests.restoreInput')) {
 			widget?.focusInput();
 			widget?.input.setValue(item.messageText, false);
+		}
+	}
+});
+
+
+registerAction2(class RestoreWorkingSetAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.restoreWorkingSet',
+			title: localize2('chat.restoreWorkingSet.label', 'Restore Working Set'),
+			f1: false,
+			shortTitle: localize2('chat.restoreWorkingSet.label', 'Restore Working Set'),
+			toggled: isChatRequestCheckpointed,
+			menu: {
+				id: MenuId.ChatMessageFooter,
+				group: 'navigation',
+				order: 1000,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.isResponse,
+					ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key))
+			}
+		});
+	}
+
+	override run(accessor: ServicesAccessor, ...args: any[]): void {
+		const item = args[0];
+		if (!isResponseVM(item)) {
+			return;
+		}
+
+		const { session, requestId } = item.model;
+		if (requestId === session.checkpoint?.id) {
+			// Unset the existing checkpoint
+			session.setCheckpoint(undefined);
+		} else {
+			session.setCheckpoint(requestId);
 		}
 	}
 });

@@ -277,6 +277,7 @@ export const inChatEditingSessionContextKey = new RawContextKey<boolean | undefi
 export const hasUndecidedChatEditingResourceContextKey = new RawContextKey<boolean | undefined>('hasUndecidedChatEditingResource', false);
 export const hasAppliedChatEditsContextKey = new RawContextKey<boolean | undefined>('hasAppliedChatEdits', false);
 export const applyingChatEditsFailedContextKey = new RawContextKey<boolean | undefined>('applyingChatEditsFailed', false);
+export const isChatRequestCheckpointed = new RawContextKey<boolean | undefined>('isChatRequestCheckpointed', false);
 
 export const chatEditingMaxFileAssignmentName = 'chatEditingSessionFileLimit';
 export const defaultChatEditingMaxFileLimit = 10;
