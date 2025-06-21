@@ -534,6 +534,58 @@ export class CancelAction extends Action2 {
 	}
 }
 
+export const CancelChatEditId = 'workbench.edit.chat.cancel';
+export class CancelEdit extends Action2 {
+	static readonly ID = CancelChatEditId;
+	constructor() {
+		super({
+			id: CancelEdit.ID,
+			title: localize2('interactive.cancelEdit.label', "Cancel Edit"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			icon: Codicon.x,
+			menu: {
+				id: MenuId.ChatExecute,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+					ChatContextKeys.inQuickChat.negate(), ChatContextKeys.currentlyEditing),
+				order: 3,
+				group: 'navigation',
+			},
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.Escape,
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		const context: IChatExecuteActionContext | undefined = args[0];
+
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+		if (!widget) {
+			return;
+		}
+		// const requests = widget.viewModel?.model.getRequests();
+		// for (const request of requests ?? []) {
+		// 	request.shouldBeBlocked = false;
+		// 	// if (request.response) {
+		// 	// 	request.response.shouldBeBlocked = false;
+		// 	// }
+		// }
+
+		// Unset the existing checkpoint
+		widget.viewModel?.model.setCheckpoint(undefined);
+		// } else {
+		// 	this.viewModel?.model.setCheckpoint(curr.id);
+		// }
+		widget.input.dispose();
+	}
+}
+
+
 export function registerChatExecuteActions() {
 	registerAction2(ChatSubmitAction);
 	registerAction2(ChatEditingSessionSubmitAction);
@@ -546,4 +598,5 @@ export function registerChatExecuteActions() {
 	registerAction2(SwitchToNextModelAction);
 	registerAction2(OpenModelPickerAction);
 	registerAction2(ChangeChatModelAction);
+	registerAction2(CancelEdit);
 }

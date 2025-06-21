@@ -36,7 +36,7 @@ export function assertIsResponseVM(item: unknown): asserts item is IChatResponse
 	}
 }
 
-export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | IChatSetHiddenEvent | null;
+export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | IChatSetHiddenEvent | IChatSetCheckpointEvent | null;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
@@ -52,6 +52,10 @@ export interface IChatSessionInitEvent {
 
 export interface IChatSetHiddenEvent {
 	kind: 'setHidden';
+}
+
+export interface IChatSetCheckpointEvent {
+	kind: 'setCheckpoint';
 }
 
 export interface IChatViewModel {
@@ -86,6 +90,7 @@ export interface IChatRequestViewModel {
 	readonly isCompleteAddedRequest: boolean;
 	readonly slashCommand: IChatAgentCommand | undefined;
 	readonly agentOrSlashCommandDetected: boolean;
+	readonly shouldBeBlocked?: boolean;
 }
 
 export interface IChatResponseMarkdownRenderData {
@@ -212,6 +217,7 @@ export interface IChatResponseViewModel {
 	usedReferencesExpanded?: boolean;
 	vulnerabilitiesListExpanded: boolean;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): void;
+	readonly shouldBeBlocked: boolean;
 }
 
 export class ChatViewModel extends Disposable implements IChatViewModel {
@@ -304,7 +310,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 				e.kind === 'addRequest' ? { kind: 'addRequest' }
 					: e.kind === 'initialize' ? { kind: 'initialize' }
 						: e.kind === 'setHidden' ? { kind: 'setHidden' }
-							: null;
+							: e.kind === 'setCheckpoint' ? { kind: 'setCheckpoint' } : null;
 			this._onDidChange.fire(modelEventToVmEvent);
 		}));
 	}
@@ -406,6 +412,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.shouldBeRemovedOnSend;
 	}
 
+	get shouldBeBlocked() {
+		return this._model.shouldBeBlocked;
+	}
+
 	get slashCommand(): IChatAgentCommand | undefined {
 		return this._model.response?.slashCommand;
 	}
@@ -500,6 +510,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get isCanceled() {
 		return this._model.isCanceled;
+	}
+
+	get shouldBeBlocked() {
+		return this._model.shouldBeBlocked;
 	}
 
 	get shouldBeRemovedOnSend() {
