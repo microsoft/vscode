@@ -6,26 +6,26 @@
 .monaco-keybinding {
 	display: flex;
 	align-items: center;
-	line-height: 10px;
+	line-height: var(--vscode-keybinding-key-line-height);
 }
 
 .monaco-keybinding > .monaco-keybinding-key {
 	display: inline-block;
 	border-style: solid;
-	border-width: 1px;
-	border-radius: 3px;
+	border-width: var(--vscode-base-line-width-s);
+	border-radius: var(--vscode-base-corner-radius-s);
 	vertical-align: middle;
-	font-size: 11px;
-	padding: 3px 5px;
-	margin: 0 2px;
+	font-size: var(--vscode-font-body3-size);
+	padding: var(--vscode-keybinding-key-vertical-spacing) var(--vscode-keybinding-key-horizontal-spacing);
+	margin: var(--vscode-base-spacing-none) var(--vscode-base-spacing-xxs);
 }
 
 .monaco-keybinding > .monaco-keybinding-key:first-child {
-	margin-left: 0;
+	margin-left: var(--vscode-base-spacing-none);
 }
 
 .monaco-keybinding > .monaco-keybinding-key:last-child {
-	margin-right: 0;
+	margin-right: var(--vscode-base-spacing-none);
 }
 
 .monaco-keybinding > .monaco-keybinding-key-separator {
@@ -33,5 +33,5 @@
 }
 
 .monaco-keybinding > .monaco-keybinding-key-chord-separator {
-	width: 6px;
+	width: var(--vscode-keybinding-chord-gap);
 }
