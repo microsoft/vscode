@@ -163,13 +163,26 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 	}
 
 	protected getConfigurationOverrides(configuration: IEditorConfiguration): ICodeEditorOptions {
-		return {
+		const options: ICodeEditorOptions = {
 			overviewRulerLanes: 3,
 			lineNumbersMinChars: 3,
 			fixedOverflowWidgets: true,
 			...this.getReadonlyConfiguration(this.input?.isReadonly()),
 			renderValidationDecorations: configuration.problems?.visibility !== false ? 'on' : 'off'
 		};
+
+		// Conditionally enable mouseWheelZoom and disable minimap for touch-supporting environments
+		const isTouchDevice = globalThis.navigator?.maxTouchPoints > 0 || globalThis.navigator?.msMaxTouchPoints > 0 || (globalThis.window as any).DocumentTouch && document instanceof (globalThis.window as any).DocumentTouch;
+		if (isTouchDevice) {
+			options.mouseWheelZoom = true;
+			if (options.minimap) {
+				options.minimap.enabled = false;
+			} else {
+				options.minimap = { enabled: false };
+			}
+		}
+
+		return options;
 	}
 
 	protected createEditor(parent: HTMLElement): void {

@@ -1,0 +1,131 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .part.bottom-navigation-bar {
+	width: 100%;
+	height: 56px; /* Material 3 standard height */
+	/* position: fixed; bottom: 0; left: 0; */ /* Position is handled by WorkbenchLayout grid if integrated, or by direct style if standalone */
+	display: flex; /* Default display, controlled by Part.setVisible and WorkbenchLayout, or by updateVisibility() in the part itself */
+	align-items: stretch; /* Stretch children (actionbar container) to full height */
+	box-sizing: border-box;
+	z-index: 200; /* Ensure it's above editor, but potentially below overlays like quick pick */
+	/* Background, foreground, and border will be set by JS from theme */
+}
+
+/* Container for the action bar, helps in centering/distributing items */
+.monaco-workbench .part.bottom-navigation-bar > .bottom-nav-actionbar-container {
+	flex: 1;
+	display: flex;
+	height: 100%;
+	align-items: stretch; /* Ensure action items can take full height */
+}
+
+.monaco-workbench .part.bottom-navigation-bar > .bottom-nav-actionbar-container > .monaco-action-bar {
+	flex: 1;
+	display: flex;
+	justify-content: space-around; /* Distribute items evenly */
+	height: 100%;
+}
+
+.monaco-workbench .part.bottom-navigation-bar .action-item.bottom-nav-action-item {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	flex: 1 1 0; /* Allow items to grow and shrink equally */
+	min-width: 56px; /* Minimum touch target width */
+	max-width: 168px; /* Max width for items with labels (Material 3 guideline for 3-5 items) */
+	height: 100%;
+	padding: 4px 2px 8px 2px; /* Top, Hori, Bottom, Hori - Adjusted for label space */
+	box-sizing: border-box;
+	cursor: pointer;
+	user-select: none;
+	-webkit-tap-highlight-color: transparent; /* Remove tap highlight on touch devices */
+	position: relative; /* For potential active indicator styling */
+	color: var(--vscode-bottomNavigationBar-inactiveItemForeground); /* Default color for icon and text */
+}
+
+/* Icon container (the .action-label class is applied by ActionBar) */
+/* This is where the Codicon is rendered */
+.monaco-workbench .part.bottom-navigation-bar .action-item.bottom-nav-action-item .action-label {
+	font-size: 24px; /* Icon size */
+	width: 32px; /* Icon container width for active indicator pill */
+	height: 24px; /* Icon container height, adjusted for label */
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin-bottom: 0px; /* Default for icon-only, label visibility will adjust this */
+	border-radius: 16px; /* Pill shape for active indicator background (M3 style) */
+	transition: background-color 0.1s ease-out; /* Smooth transition for hover */
+}
+
+/* Text label for the action item (custom class added in ActionViewItem) */
+.monaco-workbench .part.bottom-navigation-bar .action-item.bottom-nav-action-item .action-item-label {
+	font-size: 12px; /* Label text size */
+	line-height: 1.33;
+	display: none; /* Labels hidden by default */
+	text-align: center;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	margin-top: 2px;
+	/* Color is inherited from .action-item or set by JS */
+}
+
+/* Active state: icon color handled by JS, background pill for Material 3 */
+.monaco-workbench .part.bottom-navigation-bar .action-item.bottom-nav-action-item.active .action-label {
+	background-color: var(--vscode-bottomNavigationBar-itemHoverBackground); /* Using hover for active indication as per M3 */
+}
+.monaco-workbench .part.bottom-navigation-bar .action-item.bottom-nav-action-item.active .codicon {
+	color: var(--vscode-bottomNavigationBar-activeItemForeground) !important;
+}
+.monaco-workbench .part.bottom-navigation-bar .action-item.bottom-nav-action-item.active .action-item-label {
+	color: var(--vscode-bottomNavigationBar-activeItemForeground) !important;
+}
+
+
+/* Styles for wider screens or landscape where labels might be shown */
+.monaco-workbench .part.bottom-navigation-bar.show-labels .action-item.bottom-nav-action-item .action-item-label {
+	display: block;
+}
+
+.monaco-workbench .part.bottom-navigation-bar.show-labels .action-item.bottom-nav-action-item .action-label {
+	margin-bottom: 0; /* Icon directly above label */
+	height: 24px; /* Adjust icon container height when labels are shown */
+}
+.monaco-workbench .part.bottom-navigation-bar.show-labels .action-item.bottom-nav-action-item {
+	padding-top: 6px; /* Adjust padding when labels shown */
+	padding-bottom: 8px;
+}
+
+
+/* Focus indicator */
+.monaco-workbench .part.bottom-navigation-bar .action-item.bottom-nav-action-item:focus {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: -2px;
+}
+.monaco-workbench .part.bottom-navigation-bar .action-item.bottom-nav-action-item:focus:not(:focus-visible) {
+	outline: none; /* Hide outline if not focus-visible (mouse click) */
+}
+
+/* Hover: Apply hover background to the icon container (.action-label) if not active */
+.monaco-workbench .part.bottom-navigation-bar .action-item.bottom-nav-action-item .action-label:hover:not(.active) {
+	background-color: var(--vscode-bottomNavigationBar-itemHoverBackground);
+}
+
+/* Ensure inactive item text color is applied (JS also handles this) */
+.monaco-workbench .part.bottom-navigation-bar .action-item.bottom-nav-action-item:not(.active) .codicon {
+	color: var(--vscode-bottomNavigationBar-inactiveItemForeground) !important;
+}
+
+.monaco-workbench .part.bottom-navigation-bar .action-item.bottom-nav-action-item:not(.active) .action-item-label {
+	color: var(--vscode-bottomNavigationBar-inactiveItemForeground) !important;
+}
+
+/* Override for icon color when action item itself is directly colored by JS, to ensure icon matches */
+/* This is needed if the .element (action-item) has its color set directly by JS */
+.monaco-workbench .part.bottom-navigation-bar .action-item.bottom-nav-action-item[style*="color:"] .action-label .codicon {
+	color: inherit !important;
+}

@@ -37,6 +37,8 @@ import { WorkbenchContextKeysHandler } from './contextkeys.js';
 import { coalesce } from '../../base/common/arrays.js';
 import { InstantiationService } from '../../platform/instantiation/common/instantiationService.js';
 import { Layout } from './layout.js';
+import { BottomNavigationBarPart } from './parts/bottomnavigationbar/bottomNavigationBarPart.js'; // Import the new part
+import { FabPart } from './parts/fab/fabPart.js'; // +++ FAB
 import { IHostService } from '../services/host/browser/host.js';
 import { IDialogService } from '../../platform/dialogs/common/dialogs.js';
 import { mainWindow } from '../../base/browser/window.js';
@@ -209,6 +211,19 @@ export class Workbench extends Layout {
 			lifecycleService.phase = LifecyclePhase.Ready;
 		});
 
+		// Parts (take a defensive copy of of the map from `Layout` into our map)
+		this.parts.forEach((value, key) => this.parts.set(key, value));
+		this.parts.set(Parts.TITLEBAR_PART, instantiationService.createInstance(TitlebarPart));
+		this.parts.set(Parts.BANNER_PART, instantiationService.createInstance(BannerPart));
+		this.parts.set(Parts.ACTIVITYBAR_PART, instantiationService.createInstance(ActivitybarPart));
+		this.parts.set(Parts.SIDEBAR_PART, instantiationService.createInstance(SidebarPart));
+		this.parts.set(Parts.PANEL_PART, instantiationService.createInstance(PanelPart));
+		this.parts.set(Parts.AUXILIARYBAR_PART, instantiationService.createInstance(AuxiliaryBarPart));
+		this.parts.set(Parts.EDITOR_PART, instantiationService.createInstance(MainEditorPart, this));
+		this.parts.set(Parts.STATUSBAR_PART, instantiationService.createInstance(StatusbarPart));
+		this.parts.set(Parts.BOTTOM_NAVIGATION_BAR_PART, instantiationService.createInstance(BottomNavigationBarPart));
+		this.parts.set(Parts.FAB_PART, instantiationService.createInstance(FabPart)); // +++ FAB
+
 		return instantiationService;
 	}
 
@@ -328,6 +343,7 @@ export class Workbench extends Layout {
 
 		// Create Parts
 		for (const { id, role, classes, options } of [
+			{ id: Parts.FAB_PART, role: 'button', classes: ['fab-part-container'] }, // +++ FAB
 			{ id: Parts.TITLEBAR_PART, role: 'none', classes: ['titlebar'] },
 			{ id: Parts.BANNER_PART, role: 'banner', classes: ['banner'] },
 			{ id: Parts.ACTIVITYBAR_PART, role: 'none', classes: ['activitybar', this.getSideBarPosition() === Position.LEFT ? 'left' : 'right'] }, // Use role 'none' for some parts to make screen readers less chatty #114892
@@ -335,7 +351,9 @@ export class Workbench extends Layout {
 			{ id: Parts.EDITOR_PART, role: 'main', classes: ['editor'], options: { restorePreviousState: this.willRestoreEditors() } },
 			{ id: Parts.PANEL_PART, role: 'none', classes: ['panel', 'basepanel', positionToString(this.getPanelPosition())] },
 			{ id: Parts.AUXILIARYBAR_PART, role: 'none', classes: ['auxiliarybar', 'basepanel', this.getSideBarPosition() === Position.LEFT ? 'right' : 'left'] },
-			{ id: Parts.STATUSBAR_PART, role: 'status', classes: ['statusbar'] }
+			{ id: Parts.STATUSBAR_PART, role: 'status', classes: ['statusbar'] },
+			{ id: Parts.BOTTOM_NAVIGATION_BAR_PART, role: 'navigation', classes: ['bottom-navigation-bar'] }, // Add the new part here
+			{ id: Parts.FAB_PART, role: 'button', classes: ['fab-part-container'] } // +++ FAB
 		]) {
 			const partContainer = this.createPart(id, role, classes);
 
