@@ -36,7 +36,7 @@ import { ConfigurationChangedEvent, EditorOption } from '../../../../editor/comm
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { deepClone } from '../../../../base/common/objects.js';
-import { ICodeEditor, getCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditor, IDiffEditor, getCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
@@ -153,6 +153,7 @@ class StateChange {
 	inputMode: boolean = false;
 	columnSelectionMode: boolean = false;
 	metadata: boolean = false;
+	diffInfo: boolean = false;
 
 	combine(other: StateChange) {
 		this.indentation = this.indentation || other.indentation;
@@ -165,6 +166,7 @@ class StateChange {
 		this.inputMode = this.inputMode || other.inputMode;
 		this.columnSelectionMode = this.columnSelectionMode || other.columnSelectionMode;
 		this.metadata = this.metadata || other.metadata;
+		this.diffInfo = this.diffInfo || other.diffInfo;
 	}
 
 	hasChanges(): boolean {
@@ -177,7 +179,8 @@ class StateChange {
 			|| this.tabFocusMode
 			|| this.inputMode
 			|| this.columnSelectionMode
-			|| this.metadata;
+			|| this.metadata
+			|| this.diffInfo;
 	}
 }
 
@@ -191,6 +194,7 @@ type StateDelta = (
 	| { type: 'columnSelectionMode'; columnSelectionMode: boolean }
 	| { type: 'metadata'; metadata: string | undefined }
 	| { type: 'inputMode'; inputMode: 'overtype' | 'insert' }
+	| { type: 'diffInfo'; diffInfo: string | undefined }
 );
 
 class State {
@@ -221,6 +225,9 @@ class State {
 
 	private _metadata: string | undefined;
 	get metadata(): string | undefined { return this._metadata; }
+
+	private _diffInfo: string | undefined;
+	get diffInfo(): string | undefined { return this._diffInfo; }
 
 	update(update: StateDelta): StateChange {
 		const change = new StateChange();
@@ -288,6 +295,13 @@ class State {
 					change.metadata = true;
 				}
 				break;
+
+			case 'diffInfo':
+				if (this._diffInfo !== update.diffInfo) {
+					this._diffInfo = update.diffInfo;
+					change.diffInfo = true;
+				}
+				break;
 		}
 
 		return change;
@@ -352,6 +366,7 @@ class EditorStatus extends Disposable {
 	private readonly eolElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly languageElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly metadataElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly diffInfoElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 
 	private readonly currentMarkerStatus: ShowCurrentMarkerInStatusbarContribution;
 	private readonly tabFocusMode: TabFocusMode;
@@ -491,6 +506,20 @@ class EditorStatus extends Disposable {
 		} else {
 			this.columnSelectionModeElement.clear();
 		}
+	}
+
+	private updateDiffInfoElement(text: string | undefined): void {
+		if (!text) {
+			this.diffInfoElement.clear();
+			return;
+		}
+		const props: IStatusbarEntry = {
+			name: localize('status.editor.diffInfo', "Diff information"),
+			text,
+			ariaLabel: text,
+			tooltip: localize('diffInfo', "Diff information")
+		};
+		this.updateElement(this.diffInfoElement, props, 'status.editor.diffInfo', StatusbarAlignment.RIGHT, 100.9);
 	}
 
 	private updateSelectionElement(text: string | undefined): void {
@@ -645,6 +674,7 @@ class EditorStatus extends Disposable {
 		this.updateSelectionElement(this.state.selectionStatus);
 		this.updateEncodingElement(this.state.encoding);
 		this.updateEOLElement(this.state.EOL ? this.state.EOL === '\r\n' ? nlsEOLCRLF : nlsEOLLF : undefined);
+		this.updateDiffInfoElement(this.state.diffInfo);
 		this.updateLanguageIdElement(this.state.languageId);
 		this.updateMetadataElement(this.state.metadata);
 	}
@@ -676,7 +706,9 @@ class EditorStatus extends Disposable {
 	private updateStatusBar(): void {
 		const activeInput = this.editorService.activeEditor;
 		const activeEditorPane = this.editorService.activeEditorPane;
-		const activeCodeEditor = activeEditorPane ? getCodeEditor(activeEditorPane.getControl()) ?? undefined : undefined;
+		const activeEditorControl = activeEditorPane?.getControl();
+		const activeCodeEditor = activeEditorPane ? getCodeEditor(activeEditorControl) ?? undefined : undefined;
+		const diffEditor = isDiffEditor(activeEditorControl) ? activeEditorControl as IDiffEditor : undefined;
 
 		// Update all states
 		this.onColumnSelectionModeChange(activeCodeEditor);
@@ -686,6 +718,7 @@ class EditorStatus extends Disposable {
 		this.onEncodingChange(activeEditorPane, activeCodeEditor);
 		this.onIndentationChange(activeCodeEditor);
 		this.onMetadataChange(activeEditorPane);
+		this.onDiffChange(diffEditor);
 		this.currentMarkerStatus.update(activeCodeEditor);
 
 		// Dispose old active editor listeners
@@ -744,6 +777,13 @@ class EditorStatus extends Disposable {
 			this.activeEditorListeners.add(activeCodeEditor.onDidChangeModelOptions(() => {
 				this.onIndentationChange(activeCodeEditor);
 			}));
+
+			// Hook Listener for Diff changes
+			if (diffEditor) {
+				this.activeEditorListeners.add(diffEditor.onDidUpdateDiff(() => {
+					this.onDiffChange(diffEditor);
+				}));
+			}
 		}
 
 		// Handle binary editors
@@ -878,6 +918,19 @@ class EditorStatus extends Disposable {
 			if (codeEditorModel) {
 				info.EOL = codeEditorModel.getEOL();
 			}
+		}
+
+		this.updateState(info);
+	}
+
+	private onDiffChange(diffEditor: IDiffEditor | undefined): void {
+		const info: StateDelta = { type: 'diffInfo', diffInfo: undefined };
+
+		if (diffEditor) {
+			const diffResult = diffEditor.getDiffComputationResult();
+			info.diffInfo = diffResult?.identical
+				? localize('diff.Identical', "Content is identical")
+				: localize('diff.Changes', "{0} change(s)", diffResult?.changes2.length ?? 0);
 		}
 
 		this.updateState(info);
