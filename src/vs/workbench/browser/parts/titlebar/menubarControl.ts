@@ -11,7 +11,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IAction, Action, SubmenuAction, Separator, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, toAction } from '../../../../base/common/actions.js';
 import { addDisposableListener, Dimension, EventType } from '../../../../base/browser/dom.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { isMacintosh, isWeb, isIOS, isNative } from '../../../../base/common/platform.js';
+import { isMacintosh, isWeb, isIOS, isNative, isAndroid } from '../../../../base/common/platform.js'; // update imports
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -801,7 +801,7 @@ export class CustomMenubarControl extends MenubarControl {
 		super.registerListeners();
 
 		this._register(addDisposableListener(mainWindow, EventType.RESIZE, () => {
-			if (this.menubar && !(isIOS && BrowserFeatures.pointerEvents)) {
+			if (this.menubar && !((isIOS || isAndroid) && BrowserFeatures.pointerEvents)) { /* Android is mobile too, menubar blur onresize should also be ignored for that! */
 				this.menubar.blur();
 			}
 		}));
