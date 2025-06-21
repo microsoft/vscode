@@ -12,7 +12,7 @@ import { URI } from '../../../base/common/uri.js';
 import { getSystemShell } from '../../../base/node/shell.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
 import { RequestStore } from '../common/requestStore.js';
-import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions, IPtyHostLatencyMeasurement, type IPtyServiceContribution } from '../common/terminal.js';
+import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions, IPtyHostLatencyMeasurement, type IPtyServiceContribution, PosixShellType } from '../common/terminal.js';
 import { TerminalDataBufferer } from '../common/terminalDataBuffering.js';
 import { escapeNonWindowsPath } from '../common/terminalEnvironment.js';
 import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from '@xterm/addon-serialize';
@@ -489,7 +489,7 @@ export class PtyService extends Disposable implements IPtyService {
 			}
 			return new Promise<string>(c => {
 				const proc = execFile(wslExecutable, ['-e', 'wslpath', original], {}, (error, stdout, stderr) => {
-					c(error ? original : escapeNonWindowsPath(stdout.trim()));
+					c(error ? original : escapeNonWindowsPath(stdout.trim(), PosixShellType.Bash));
 				});
 				proc.stdin!.end();
 			});
