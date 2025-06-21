@@ -46,9 +46,9 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	private static readonly MAX_NOTIFICATIONS = 3;
 
 	private static readonly PURGE_TIMEOUT: { [severity: number]: number } = {
-		[Severity.Info]: 15000,
-		[Severity.Warning]: 18000,
-		[Severity.Error]: 20000
+		[Severity.Info]: 10000,
+		[Severity.Warning]: 12000,
+		[Severity.Error]: 15000
 	};
 
 	private static readonly SPAM_PROTECTION = {
