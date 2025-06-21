@@ -80,6 +80,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			this._lspModelProvider?.dispose();
 		}));
 		this._terminalSuggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(this._contextKeyService);
+		
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSuggestSettingId.Enabled)) {
 				const completionsEnabled = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).enabled;

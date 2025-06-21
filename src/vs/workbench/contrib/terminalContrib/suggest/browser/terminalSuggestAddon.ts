@@ -10,6 +10,7 @@ import { combinedDisposable, Disposable, MutableDisposable } from '../../../../.
 import { sep } from '../../../../../base/common/path.js';
 import { commonPrefixLength } from '../../../../../base/common/strings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -103,6 +104,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		[TerminalCompletionItemKind.Flag, terminalSymbolFlagIcon],
 		[TerminalCompletionItemKind.InlineSuggestion, terminalSymbolInlineSuggestionIcon],
 		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, terminalSymbolInlineSuggestionIcon],
+		[TerminalCompletionItemKind.VscodeCommand, ThemeIcon.fromId('tools')],
 	]);
 
 	private _kindToKindLabelMap = new Map<number, string>([
@@ -118,6 +120,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		[TerminalCompletionItemKind.Flag, localize('flag', 'Flag')],
 		[TerminalCompletionItemKind.InlineSuggestion, localize('inlineSuggestion', 'Inline Suggestion')],
 		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, localize('inlineSuggestionAlwaysOnTop', 'Inline Suggestion')],
+		[TerminalCompletionItemKind.VscodeCommand, localize('vscodeCommand', 'Command')],
 	]);
 
 	private readonly _inlineCompletion: ITerminalCompletion = {
@@ -150,6 +153,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 
@@ -863,6 +867,20 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// For folders, allow the next completion request to get completions for that folder
 		if (completion.kind === TerminalCompletionItemKind.Folder) {
 			SuggestAddon.lastAcceptedCompletionTimestamp = 0;
+		}
+
+		// Handle command completions that should execute commands instead of inserting text
+		if (completion.kind === TerminalCompletionItemKind.VscodeCommand && completion.command) {
+			try {
+				// Don't await for the command to execute, just fire it and let it run
+				this._commandService.executeCommand(completion.command.id, ...(completion.command.arguments || []));
+				this._suggestTelemetry?.acceptCompletion(completion, this._mostRecentPromptInputState?.value);
+				this.hideSuggestWidget(true);
+				return;
+			} catch (error) {
+				// If command execution fails, fall back to normal text insertion
+				console.error('Failed to execute task command:', error);
+			}
 		}
 
 		// Send the completion
