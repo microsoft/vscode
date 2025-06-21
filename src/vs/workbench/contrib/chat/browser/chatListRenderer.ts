@@ -559,29 +559,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('chat-response-loading', (isResponseVM(element) && !element.isComplete));
 
 		const content: IChatRendererContent[] = [];
-		// Always add the references to avoid shifting the content parts when a reference is added, and having to re-diff all the content.
-		// The part will hide itself if the list is empty.
-		content.push({ kind: 'references', references: element.contentReferences });
-		content.push(...annotateSpecialMarkdownContent(element.response.value));
-		if (element.codeCitations.length) {
-			content.push({ kind: 'codeCitations', citations: element.codeCitations });
+		const isFiltered = !!element.errorDetails?.responseIsFiltered;
+		if (!isFiltered) {
+			// Always add the references to avoid shifting the content parts when a reference is added, and having to re-diff all the content.
+			// The part will hide itself if the list is empty.
+			content.push({ kind: 'references', references: element.contentReferences });
+			content.push(...annotateSpecialMarkdownContent(element.response.value));
+			if (element.codeCitations.length) {
+				content.push({ kind: 'codeCitations', citations: element.codeCitations });
+			}
 		}
 
 		if (element.errorDetails?.message && element.errorDetails.message !== canceledName) {
 			content.push({ kind: 'errorDetails', errorDetails: element.errorDetails, isLast: index === this.delegate.getListLength() - 1 });
 		}
 
-		const isFiltered = !!element.errorDetails?.responseIsFiltered;
-		if (!isFiltered) {
-			const diff = this.diff(templateData.renderedParts ?? [], content, element);
-			this.renderChatContentDiff(diff, content, element, index, templateData);
-		} else {
-			dom.clearNode(templateData.value);
-			if (templateData.renderedParts) {
-				dispose(templateData.renderedParts);
-			}
-			templateData.renderedParts = [];
-		}
+		const diff = this.diff(templateData.renderedParts ?? [], content, element);
+		this.renderChatContentDiff(diff, content, element, index, templateData);
 
 		this.updateItemHeightOnRender(element, templateData);
 	}
@@ -991,11 +985,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			renderedError.addDisposable(renderedError.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 			return renderedError;
 		} else if (content.errorDetails.confirmationButtons && isLast) {
-			const errorConfirmation = this.instantiationService.createInstance(ChatErrorConfirmationContentPart, ChatErrorLevel.Error, new MarkdownString(content.errorDetails.message), content, content.errorDetails.confirmationButtons, this.renderer, context);
+			const level = content.errorDetails.level ?? ChatErrorLevel.Error;
+			const errorConfirmation = this.instantiationService.createInstance(ChatErrorConfirmationContentPart, level, new MarkdownString(content.errorDetails.message), content, content.errorDetails.confirmationButtons, this.renderer, context);
 			errorConfirmation.addDisposable(errorConfirmation.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 			return errorConfirmation;
 		} else {
-			const level = content.errorDetails.level ?? (content.errorDetails.responseIsFiltered ? ChatErrorLevel.Info : ChatErrorLevel.Error);
+			const level = content.errorDetails.level ?? ChatErrorLevel.Error;
 			return this.instantiationService.createInstance(ChatErrorContentPart, level, new MarkdownString(content.errorDetails.message), content, this.renderer);
 		}
 	}
