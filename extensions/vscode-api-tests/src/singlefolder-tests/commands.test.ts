@@ -164,4 +164,63 @@ suite('vscode API - commands', () => {
 
 		return closeAllEditors();
 	});
+
+	test('conditional: no condition', async function () {
+		let args: IArguments;
+		const registration = commands.registerCommand('t1', function () {
+			args = arguments;
+		});
+
+		const result = await commands.conditionallyExecuteCommand('', 't1', 'start');
+		assert.ok(result.executed);
+		registration.dispose();
+		assert.ok(args!);
+		assert.strictEqual(args!.length, 1);
+		assert.strictEqual(args![0], 'start');
+	});
+
+	test('conditional: true condition', async function () {
+		let args: IArguments;
+		const registration = commands.registerCommand('t1', function () {
+			args = arguments;
+		});
+
+		const result = await commands.conditionallyExecuteCommand('true', 't1', 'start');
+		assert.ok(result.executed);
+		registration.dispose();
+		assert.ok(args!);
+		assert.strictEqual(args!.length, 1);
+		assert.strictEqual(args![0], 'start');
+	});
+
+	test('conditional: false condition', async function () {
+		let args: IArguments;
+		const registration = commands.registerCommand('t1', function () {
+			args = arguments;
+		});
+
+		const result = await commands.conditionallyExecuteCommand('false', 't1', 'start');
+		assert.strictEqual(result.executed, false);
+		registration.dispose();
+		assert.strictEqual(args!, undefined);
+	});
+
+	test('conditional: sidebarVisible', async function () {
+		const registration = commands.registerCommand('t1', function () {
+			return true;
+		});
+
+		let result = await commands.conditionallyExecuteCommand('sideBarVisible', 't1');
+		assert.ok(result.executed);
+		assert.ok(result.result);
+
+		commands.executeCommand('workbench.action.closeSidebar');
+
+		result = await commands.conditionallyExecuteCommand('sideBarVisible', 't1');
+		assert.strictEqual(result.executed, false);
+		assert.strictEqual(result.result, undefined);
+
+		registration.dispose();
+
+	});
 });
