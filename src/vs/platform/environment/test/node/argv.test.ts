@@ -181,5 +181,38 @@ suite('parseArgs', () => {
 		);
 	});
 
+	test('background option', () => {
+		interface TestArgs {
+			background?: boolean;
+			_: string[];
+		}
+
+		const options = {
+			background: { type: 'boolean', description: 'Open in the background without focusing the window.' },
+			_: { type: 'string[]' }
+		} as OptionDescriptions<TestArgs>;
+
+		assertParse(
+			options,
+			['--background'],
+			{ background: true, '_': [] },
+			[]
+		);
+
+		assertParse(
+			options,
+			[],
+			{ '_': [] },
+			[]
+		);
+
+		assertParse(
+			options,
+			['--background', 'file.txt'],
+			{ background: true, '_': ['file.txt'] },
+			[]
+		);
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
