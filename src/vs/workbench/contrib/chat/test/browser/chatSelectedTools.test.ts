@@ -19,6 +19,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 suite('ChatSelectedTools', () => {
 
@@ -48,6 +49,7 @@ suite('ChatSelectedTools', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	const mcpSource: ToolDataSource = { type: 'mcp', label: 'MCP', collectionId: '', definitionId: '' };
 	test('Can\'t enable/disable MCP tools directly #18161', () => {
 
 		return runWithFakedTimers({}, async () => {
@@ -58,14 +60,14 @@ suite('ChatSelectedTools', () => {
 				displayName: 'Test Tool 1',
 				canBeReferencedInPrompt: true,
 				toolReferenceName: 't1',
-				source: ToolDataSource.Internal,
+				source: mcpSource,
 			};
 
 			const toolData2: IToolData = {
 				id: 'testTool2',
 				modelDescription: 'Test Tool 2',
 				displayName: 'Test Tool 2',
-				source: ToolDataSource.Internal,
+				source: mcpSource,
 				canBeReferencedInPrompt: true,
 				toolReferenceName: 't2',
 			};
@@ -74,13 +76,13 @@ suite('ChatSelectedTools', () => {
 				id: 'testTool3',
 				modelDescription: 'Test Tool 3',
 				displayName: 'Test Tool 3',
-				source: ToolDataSource.Internal,
+				source: mcpSource,
 				canBeReferencedInPrompt: true,
 				toolReferenceName: 't3',
 			};
 
 			const toolset = toolsService.createToolSet(
-				ToolDataSource.Internal,
+				mcpSource,
 				'mcp', 'mcp'
 			);
 
@@ -110,6 +112,71 @@ suite('ChatSelectedTools', () => {
 			assert.strictEqual(map.get(toolData1), true);
 			assert.strictEqual(map.get(toolData2), false);
 			assert.strictEqual(map.get(toolData3), false);
+		});
+	});
+
+	test('Can still enable/disable user toolsets #251640', () => {
+		return runWithFakedTimers({}, async () => {
+			const toolData1: IToolData = {
+				id: 'testTool1',
+				modelDescription: 'Test Tool 1',
+				displayName: 'Test Tool 1',
+				canBeReferencedInPrompt: true,
+				toolReferenceName: 't1',
+				source: ToolDataSource.Internal,
+			};
+
+			const toolData2: IToolData = {
+				id: 'testTool2',
+				modelDescription: 'Test Tool 2',
+				displayName: 'Test Tool 2',
+				source: mcpSource,
+				canBeReferencedInPrompt: true,
+				toolReferenceName: 't2',
+			};
+
+			const toolData3: IToolData = {
+				id: 'testTool3',
+				modelDescription: 'Test Tool 3',
+				displayName: 'Test Tool 3',
+				source: ToolDataSource.Internal,
+				canBeReferencedInPrompt: true,
+				toolReferenceName: 't3',
+			};
+
+			const toolset = toolsService.createToolSet(
+				{ type: 'user', label: 'User Toolset', file: URI.file('/userToolset.json') },
+				'userToolset', 'userToolset'
+			);
+
+			store.add(toolsService.registerToolData(toolData1));
+			store.add(toolsService.registerToolData(toolData2));
+			store.add(toolsService.registerToolData(toolData3));
+
+			store.add(toolset);
+			store.add(toolset.addTool(toolData1));
+			store.add(toolset.addTool(toolData2));
+			store.add(toolset.addTool(toolData3));
+
+			assert.strictEqual(Iterable.length(toolsService.getTools()), 3);
+
+			const size = Iterable.length(toolset.getTools());
+			assert.strictEqual(size, 3);
+
+			await timeout(1000); // UGLY the tools service updates its state sync but emits the event async (750ms) delay. This affects the observable that depends on the event
+
+			assert.strictEqual(selectedTools.entriesMap.size, 4); // 1 toolset, 3 tools
+
+			// Toolset is checked, tools 2 and 3 are unchecked
+			selectedTools.disable([], [toolData2, toolData3], false);
+
+			const map = selectedTools.asEnablementMap();
+			assert.strictEqual(map.size, 3); // 3 tools
+
+			// User toolset is enabled - all tools are enabled
+			assert.strictEqual(map.get(toolData1), true);
+			assert.strictEqual(map.get(toolData2), true);
+			assert.strictEqual(map.get(toolData3), true);
 		});
 	});
 });
