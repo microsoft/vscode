@@ -9,7 +9,7 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { DropdownMenuActionViewItem, IDropdownMenuActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { IListElementRenderDetails, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { coalesce, distinct } from '../../../../base/common/arrays.js';
@@ -50,7 +50,7 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatConfirmation, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
-import { IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatWorkingProgress, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
+import { IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatMode } from '../common/constants.js';
@@ -150,6 +150,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly _onDidClickRequest = this._register(new Emitter<IChatListItemTemplate>());
 	readonly onDidClickRequest: Event<IChatListItemTemplate> = this._onDidClickRequest.event;
 
+	private readonly _onDidRerender = this._register(new Emitter<IChatListItemTemplate>());
+	readonly onDidRerender: Event<IChatListItemTemplate> = this._onDidRerender.event;
+
+	private readonly _onDidNotEditing = this._register(new Emitter<IChatListItemTemplate>());
+	readonly onDidNotEditing: Event<IChatListItemTemplate> = this._onDidNotEditing.event;
+
+	private readonly _onDidDispose = this._register(new Emitter<IChatListItemTemplate>());
+	readonly onDidDispose: Event<IChatListItemTemplate> = this._onDidDispose.event;
+
 	private readonly _onDidFocusOutside = this._register(new Emitter<void>());
 	readonly onDidFocusOutside: Event<void> = this._onDidFocusOutside.event;
 
@@ -178,6 +187,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		private readonly delegate: IChatRendererDelegate,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		overflowWidgetsDomNode: HTMLElement | undefined,
+		private viewModel: IChatViewModel | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
@@ -247,6 +257,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[] {
 		const codeBlocks = this.codeBlocksByResponseId.get(response.id);
 		return codeBlocks ?? [];
+	}
+
+	updateViewModel(viewModel: IChatViewModel | undefined): void {
+		this.viewModel = viewModel;
 	}
 
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined {
@@ -460,8 +474,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		templateData.disabledOverlay.classList.toggle('disabled', element.shouldBeBlocked);
+		templateData.rowContainer.classList.toggle('clicked', element.id === this.viewModel?.editing?.id);
 		templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.CLICK, () => {
-			if (ChatContextKeys.currentlyEditing.getValue(templateData.contextKeyService) && ChatContextKeys.inChatSession.getValue(templateData.contextKeyService) && (!ChatContextKeys.inChatInput.getValue(templateData.contextKeyService) && !ChatContextKeys.inputHasFocus.getValue(templateData.contextKeyService))) {
+			if (!this.viewModel?.editing) {
+				return;
+			}
+
+			if (element.id !== this.viewModel?.editing?.id) {
 				this._onDidFocusOutside.fire();
 			}
 		}));
@@ -602,16 +621,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderChatRequest(element: IChatRequestViewModel, index: number, templateData: IChatListItemTemplate) {
 		templateData.rowContainer.classList.toggle('chat-response-loading', false);
-
-		// Make the entire row container clickable for requests
-		templateData.rowContainer.classList.add('chat-request-clickable');
-
-		templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.CLICK, () => {
-			if (!ChatContextKeys.currentlyEditing.getValue(templateData.contextKeyService) && !ChatContextKeys.requestInProgress.getValue(templateData.contextKeyService)) {
-				templateData.rowContainer.classList.add('clicked');
-				this._onDidClickRequest.fire(templateData);
-			}
-		}));
+		if (element.id === this.viewModel?.editing?.id) {
+			this._onDidRerender.fire(templateData);
+		}
 
 		let content: IChatRendererContent[] = [];
 		if (!element.confirmation) {
@@ -1182,12 +1194,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.renderer, this._currentLayoutWidth, this.codeBlockModelCollection, {});
 		if (isRequestVM(element)) {
 			markdownPart.domNode.tabIndex = 0;
-			// markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, 'focus', () => {
-			// 	dom.show(templateData.requestHover);
-			// }));
-			// markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, 'blur', () => {
-			// 	dom.hide(templateData.requestHover);
-			// }));
+			templateData.elementDisposables.add(dom.addDisposableListener(markdownPart.domNode, dom.EventType.CLICK, (e: MouseEvent) => {
+				if (this.viewModel?.editing?.id !== element.id && !this.viewModel?.requestInProgress) {
+					this._onDidClickRequest.fire(templateData);
+				}
+			}));
+			this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), markdownPart.domNode, localize('requestMarkdownPartTitle', "Click to edit"), { trapFocus: true }));
 		}
 
 		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => {
@@ -1200,9 +1212,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return markdownPart;
 	}
 
-	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate): void {
+	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, _details?: IListElementRenderDetails, onScroll?: boolean): void {
 		this.traceLayout('disposeElement', `Disposing element, index=${index}`);
 		templateData.elementDisposables.clear();
+
+		if (isRequestVM(node.element) && node.element.id === this.viewModel?.editing?.id && onScroll) {
+			this._onDidDispose.fire(templateData);
+		}
 
 		// Don't retain the toolbar context which includes chat viewmodels
 		if (templateData.titleToolbar) {

@@ -232,6 +232,7 @@ export class MenuId {
 	static readonly ChatMessageTitle = new MenuId('ChatMessageTitle');
 	static readonly ChatMessageFooter = new MenuId('ChatMessageFooter');
 	static readonly ChatExecute = new MenuId('ChatExecute');
+	static readonly ChatExecuteInline = new MenuId('ChatExecuteInline');
 	static readonly ChatExecuteSecondary = new MenuId('ChatExecuteSecondary');
 	static readonly ChatInput = new MenuId('ChatInput');
 	static readonly ChatInputSide = new MenuId('ChatInputSide');

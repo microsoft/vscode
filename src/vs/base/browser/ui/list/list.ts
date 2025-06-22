@@ -26,7 +26,7 @@ export interface IListRenderer<T, TTemplateData> {
 	readonly templateId: string;
 	renderTemplate(container: HTMLElement): TTemplateData;
 	renderElement(element: T, index: number, templateData: TTemplateData, details?: IListElementRenderDetails): void;
-	disposeElement?(element: T, index: number, templateData: TTemplateData, details?: IListElementRenderDetails): void;
+	disposeElement?(element: T, index: number, templateData: TTemplateData, details?: IListElementRenderDetails, onScroll?: boolean): void;
 	disposeTemplate(templateData: TTemplateData): void;
 }
 

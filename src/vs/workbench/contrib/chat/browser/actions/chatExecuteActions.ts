@@ -83,6 +83,15 @@ export class ChatSubmitAction extends SubmitAction {
 					),
 					group: 'navigation',
 				},
+				{
+					id: MenuId.ChatExecuteInline,
+					order: 4,
+					when: ContextKeyExpr.and(
+						whenNotInProgressOrPaused,
+						precondition,
+					),
+					group: 'navigation',
+				},
 			]
 		});
 	}
@@ -193,6 +202,17 @@ export class ToggleRequestPausedAction extends Action2 {
 			menu: [
 				{
 					id: MenuId.ChatExecute,
+					order: 3.5,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.canRequestBePaused,
+						ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+						ContextKeyExpr.or(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.inputHasText.negate()),
+					),
+					group: 'navigation',
+				},
+				{
+					id: MenuId.ChatExecuteInline,
 					order: 3.5,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.canRequestBePaused,
@@ -329,6 +349,17 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 				},
 				{
 					id: MenuId.ChatExecute,
+					order: 4,
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.or(
+							ContextKeyExpr.and(ChatContextKeys.isRequestPaused, ChatContextKeys.inputHasText),
+							ChatContextKeys.requestInProgress.negate(),
+						),
+						precondition),
+					group: 'navigation',
+				},
+				{
+					id: MenuId.ChatExecuteInline,
 					order: 4,
 					when: ContextKeyExpr.and(
 						ContextKeyExpr.or(
@@ -504,12 +535,20 @@ export class CancelAction extends Action2 {
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.stopCircle,
-			menu: {
+			menu: [{
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.requestInProgress),
 				order: 4,
 				group: 'navigation',
 			},
+			{
+				id: MenuId.ChatExecuteInline,
+				when: ContextKeyExpr.and(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.requestInProgress),
+				order: 4,
+				group: 'navigation',
+			}
+
+			],
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.Escape,
@@ -545,7 +584,7 @@ export class CancelEdit extends Action2 {
 			category: CHAT_CATEGORY,
 			icon: Codicon.x,
 			menu: {
-				id: MenuId.ChatExecute,
+				id: MenuId.ChatExecuteInline,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.enabled,
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
@@ -577,7 +616,7 @@ export class CancelEdit extends Action2 {
 		// }
 
 		// Unset the existing checkpoint
-		widget.viewModel?.model.setCheckpoint(undefined);
+		// widget.viewModel?.model.setCheckpoint(undefined);
 		// } else {
 		// 	this.viewModel?.model.setCheckpoint(curr.id);
 		// }

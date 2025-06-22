@@ -1879,6 +1879,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		margin-left: auto;
 	}
 
+		.interactive-item-container.interactive-request .value .rendered-markdown:hover{
+			cursor: text;
+			background-color: var(--vscode-list-hoverBackground);
+		}
+
 	.interactive-item-container.interactive-request .value .rendered-markdown > :last-child {
 		margin-bottom: 0px;
 	}
@@ -1963,17 +1968,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.chat-request-clickable {
-	cursor: pointer;
-}
-
-.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.chat-request-clickable:hover {
-	background-color: var(--vscode-list-hoverBackground);
-}
-
-.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.chat-request-clickable:focus {
-	outline: 1px solid var(--vscode-focusBorder);
-}
 
 .chat-buttons-container {
 	display: flex;
@@ -2018,7 +2012,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .disabled-overlay.disabled,
-.chat-input-overlay.disabled {
+.chat-input-overlay.disabled,
+.disabled-overlay.not-editing {
 	position: absolute;
 	width: 100%;
 	height: 100%;

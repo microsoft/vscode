@@ -260,7 +260,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._inputEditor;
 	}
 
-	private readonly dnd: ChatDragAndDrop;
+	readonly dnd: ChatDragAndDrop;
 
 	private history: HistoryNavigator2<IChatHistoryEntry>;
 	private historyNavigationBackwardsEnablement!: IContextKey<boolean>;
@@ -346,6 +346,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		private readonly options: IChatInputPartOptions,
 		styles: IChatInputStyles,
 		getContribsInputState: () => any,
+		private readonly inline: boolean,
 		@IChatWidgetHistoryService private readonly historyService: IChatWidgetHistoryService,
 		@IModelService private readonly modelService: IModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -1070,7 +1071,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		this._register(this._inputEditor.onDidContentSizeChange(e => {
 			if (e.contentHeightChanged) {
-				this.inputEditorHeight = !ChatContextKeys.currentlyEditing.getValue(this.contextKeyService) ? e.contentHeight : this.inputEditorHeight;
+				this.inputEditorHeight = !this.inline ? e.contentHeight : this.inputEditorHeight;
 				this._onDidChangeHeight.fire();
 			}
 		}));

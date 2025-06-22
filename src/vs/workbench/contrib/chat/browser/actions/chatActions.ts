@@ -495,12 +495,18 @@ export function registerChatActions() {
 				icon: Codicon.mention,
 				f1: false,
 				category: CHAT_CATEGORY,
-				menu: {
+				menu: [{
 					id: MenuId.ChatExecute,
 					when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
 					group: 'navigation',
 					order: 1
-				}
+				},
+				{
+					id: MenuId.ChatExecuteInline,
+					when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
+					group: 'navigation',
+					order: 1
+				}]
 			});
 		}
 

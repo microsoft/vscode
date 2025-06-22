@@ -69,6 +69,8 @@ export interface IChatViewModel {
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel)[];
 	setInputPlaceholder(text: string): void;
 	resetInputPlaceholder(): void;
+	editing?: IChatRequestViewModel;
+	setEditing(editing: IChatRequestViewModel): void;
 }
 
 export interface IChatRequestViewModel {
@@ -329,6 +331,20 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel)[] {
 		return this._items.filter((item) => !item.shouldBeRemovedOnSend || item.shouldBeRemovedOnSend.afterUndoStop);
+	}
+
+
+	private _editing: IChatRequestViewModel | undefined = undefined;
+	get editing(): IChatRequestViewModel | undefined {
+		return this._editing;
+	}
+
+	setEditing(editing: IChatRequestViewModel | undefined): void {
+		if (this._editing && editing && this._editing.id === editing.id) {
+			return; // already editing this request
+		}
+
+		this._editing = editing;
 	}
 
 	override dispose() {

@@ -1249,11 +1249,11 @@ class PipelineRenderer<T> implements IListRenderer<T, any> {
 		}
 	}
 
-	disposeElement(element: T, index: number, templateData: any[], renderDetails?: IListElementRenderDetails): void {
+	disposeElement(element: T, index: number, templateData: any[], renderDetails?: IListElementRenderDetails, onScroll?: boolean): void {
 		let i = 0;
 
 		for (const renderer of this.renderers) {
-			renderer.disposeElement?.(element, index, templateData[i], renderDetails);
+			renderer.disposeElement?.(element, index, templateData[i], renderDetails, onScroll);
 
 			i += 1;
 		}
