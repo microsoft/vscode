@@ -1,7 +1,7 @@
 {
-  "name": "vaporview",
+  "name": "WaveFormViewer",
   "publisher": "lramseyer",
-  "displayName": "VaporView",
+  "displayName": "WaveFormViewer",
   "description": "Waveform Viewer for VS code",
   "icon": "media/icon.png",
   "galleryBanner": {
@@ -9,7 +9,7 @@
     "theme": "dark"
   },
   "version": "1.3.4",
-  "repository": "https://github.com/lramseyer/vaporview",
+  "repository": "https://github.com/voltai-inc/VoltaiCode",
   "categories": [
     "Debuggers",
     "Visualization",
@@ -37,7 +37,7 @@
       "activitybar": [
         {
           "id": "vaporViewActivityBar",
-          "title": "Vaporview",
+          "title": "Waveform Viewer",
           "icon": "media/activityBar.svg"
         }
       ]
@@ -107,7 +107,7 @@
       }
     ],
     "configuration": {
-      "title": "VaporView",
+      "title": "Waveform Viewer",
       "properties": {
         "vaporview.fstMaxStaticLoadSize": {
           "type": "number",

@@ -77,7 +77,7 @@ export class LabelsPanels {
   constructor(events: EventHandler) {
     this.events = events;
 
-    const webview           = document.getElementById('vaporview-top');
+    const webview           = document.getElementById('Waveform-top');
     const labels            = document.getElementById('waveform-labels');
     const transitionDisplay = document.getElementById('transition-display');
     const labelsScroll      = document.getElementById('waveform-labels-container');
@@ -109,7 +109,7 @@ export class LabelsPanels {
     this.handleAddVariable     = this.handleAddVariable.bind(this);
     this.handleRedrawVariable  = this.handleRedrawVariable.bind(this);
     this.handleUpdateColor     = this.handleUpdateColor.bind(this);
-  
+
     // click and drag handlers to rearrange the order of waveform signals
     labels.addEventListener('mousedown', (e) => {this.dragStart(e);});
     // Event handlers to handle clicking on a waveform label to select a signal
@@ -338,7 +338,7 @@ export class LabelsPanels {
     viewerState.selectedSignal      = netlistId;
     viewerState.selectedSignalIndex = viewerState.displayedSignals.findIndex((signal) => {return signal === netlistId;});
     if (viewerState.selectedSignalIndex === -1) {viewerState.selectedSignalIndex = null;}
-  
+
     //setSeletedSignalOnStatusBar(netlistId);
     this.renderLabelsPanels();
   }

@@ -4,6 +4,17 @@ VaporView is an open source waveform viewer extension for Visual Studio Code - [
 
 ![](https://github.com/Lramseyer/vaporview/blob/main/readme_assets/overview.png?raw=true)
 
+#getting started
+
+```
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+#get Node.js (20.18.0 or later) update npm
+npm install --ignore-scripts
+npm run generate:model
+npm run build
+```
+
+
 # Waveform Viewer Features
 
 Natively supports VCD, FST, and GHW waveform dump formats. Also supports FSDB files where external libraries are present.

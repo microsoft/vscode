@@ -203,8 +203,8 @@ class VaporviewWebview {
   touchpadCheckTimer: any = 0;
 
   constructor(
-    events: EventHandler, 
-    viewport: Viewport, 
+    events: EventHandler,
+    viewport: Viewport,
     controlBar: ControlBar
   ) {
 
@@ -212,7 +212,7 @@ class VaporviewWebview {
     this.viewport   = viewport;
     this.controlBar = controlBar;
     // Assuming you have a reference to the webview element
-    const webview           = document.getElementById('vaporview-top');
+    const webview           = document.getElementById('Waveform-top');
     const labelsScroll      = document.getElementById('waveform-labels-container');
     const transitionScroll  = document.getElementById('transition-display-container');
     const scrollArea        = document.getElementById('scrollArea');
@@ -232,7 +232,7 @@ class VaporviewWebview {
     this.scrollbar        = scrollbar;
 
     webview.style.gridTemplateColumns = `150px 50px auto`;
- 
+
     // #region Primitive Handlers
     window.addEventListener('message', (e) => {this.handleMessage(e);});
     window.addEventListener('keydown', (e) => {this.keyDownHandler(e);});
@@ -342,7 +342,7 @@ class VaporviewWebview {
 
   keyDownHandler(e: any) {
 
-    if (controlBar.searchInFocus) {return;} 
+    if (controlBar.searchInFocus) {return;}
     else {e.preventDefault();}
 
     // debug handler to print the data cache
