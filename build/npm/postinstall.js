@@ -82,7 +82,8 @@ async function npmInstall(dir, opts) {
 			: path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp');
 
 	// Scripts may call `node-gyp rebuild` directly, so ensure our version is used.
-	opts.env['PATH'] = path.join(__dirname, 'gyp', 'node_modules', '.bin') + path.delimiter + opts.env['PATH'];
+	const pathVar = process.platform === 'win32' ? 'Path' : 'PATH';
+	opts.env[pathVar] = path.join(__dirname, 'gyp', 'node_modules', '.bin') + path.delimiter + opts.env[pathVar];
 
 	const start = Date.now();
 	const command = process.env['npm_command'] || 'install';
