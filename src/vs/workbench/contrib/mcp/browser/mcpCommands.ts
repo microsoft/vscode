@@ -616,7 +616,10 @@ export class AddConfigurationAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, configUri?: string): Promise<void> {
-		return accessor.get(IInstantiationService).createInstance(McpAddConfigurationCommand, configUri).run();
+		const instantiationService = accessor.get(IInstantiationService);
+		const workspaceService = accessor.get(IWorkspaceContextService);
+		const target = configUri ? workspaceService.getWorkspaceFolder(URI.parse(configUri)) : undefined;
+		return instantiationService.createInstance(McpAddConfigurationCommand, target ?? undefined).run();
 	}
 }
 
