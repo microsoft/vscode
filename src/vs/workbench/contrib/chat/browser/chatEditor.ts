@@ -18,6 +18,7 @@ import { IEditorOpenContext } from '../../../common/editor.js';
 import { Memento } from '../../../common/memento.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatModel, IExportableChatData, ISerializableChatData } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { ChatAgentLocation, ChatMode } from '../common/constants.js';
@@ -60,6 +61,7 @@ export class ChatEditor extends EditorPane {
 	protected override createEditor(parent: HTMLElement): void {
 		this._scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
+		ChatContextKeys.inChatEditor.bindTo(this._scopedContextKeyService).set(true);
 
 		this.widget = this._register(
 			scopedInstantiationService.createInstance(
