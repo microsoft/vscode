@@ -51,6 +51,7 @@ export interface IWindowCreationOptions {
 	readonly state: IWindowState;
 	readonly extensionDevelopmentPath?: string[];
 	readonly isExtensionTestHost?: boolean;
+	readonly background?: boolean;
 }
 
 interface ITouchBarSegment extends electron.SegmentedControlSegment {
@@ -277,7 +278,10 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 			// to reduce flicker from the default window size
 			// to maximize or fullscreen, we only show after
-			this._win?.show();
+			// but skip showing if background mode is enabled
+			if (!this.background) {
+				this._win?.show();
+			}
 		}
 	}
 
@@ -604,6 +608,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private readonly configObjectUrl: IIPCObjectUrl<INativeWindowConfiguration>;
 	private pendingLoadConfig: INativeWindowConfiguration | undefined;
 	private wasLoaded = false;
+	private readonly background: boolean;
 
 	private readonly jsCallStackMap: Map<string, number>;
 	private readonly jsCallStackEffectiveSampleCount: number;
@@ -635,6 +640,8 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	) {
 		super(configurationService, stateService, environmentMainService, logService);
 
+		this.background = config.background || false;
+
 		//#region create browser window
 		{
 			this.configObjectUrl = this._register(protocolMainService.createIPCObjectUrl<INativeWindowConfiguration>());
@@ -644,7 +651,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this.windowState = state;
 			this.logService.trace('window#ctor: using window state', state);
 
-			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, undefined, {
+			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, { background: this.background }, {
 				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js').fsPath,
 				additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
 				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',

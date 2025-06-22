@@ -1330,7 +1330,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const existingWindow = findWindowOnExtensionDevelopmentPath(this.getWindows(), extensionDevelopmentPaths);
 		if (existingWindow) {
 			this.lifecycleMainService.reload(existingWindow, openConfig.cli);
-			existingWindow.focus(); // make sure it gets focus and is restored
+			if (!openConfig.cli?.background) {
+				existingWindow.focus(); // make sure it gets focus and is restored
+			}
 
 			return [existingWindow];
 		}
@@ -1440,7 +1442,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		let window: ICodeWindow | undefined;
 		if (!options.forceNewWindow && !options.forceNewTabbedWindow) {
 			window = options.windowToUse || lastActiveWindow;
-			if (window) {
+			if (window && !options.cli?.background) {
 				window.focus();
 			}
 		}
@@ -1525,7 +1527,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const createdWindow = window = this.instantiationService.createInstance(CodeWindow, {
 				state,
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
-				isExtensionTestHost: !!configuration.extensionTestsPath
+				isExtensionTestHost: !!configuration.extensionTestsPath,
+				background: options.cli?.background
 			});
 			mark('code/didCreateCodeWindow');
 
