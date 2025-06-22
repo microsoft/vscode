@@ -114,6 +114,9 @@ function setNpmrcConfig(dir, env) {
 			? path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd')
 			: path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp');
 
+	// Scripts may call `node-gyp rebuild` directly, so ensure our version is used.
+	env['PATH'] = path.join(__dirname, 'gyp', 'node_modules', '.bin') + path.delimiter + env['PATH'];
+
 	// Force node-gyp to use process.config on macOS
 	// which defines clang variable as expected. Otherwise we
 	// run into compilation errors due to incorrect compiler
