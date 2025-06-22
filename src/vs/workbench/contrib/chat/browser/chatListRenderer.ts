@@ -49,7 +49,7 @@ import { IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatConfirmation, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
 import { IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
@@ -80,6 +80,7 @@ import { ChatEditorOptions } from './chatOptions.js';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from './codeBlockPart.js';
 import { canceledName } from '../../../../base/common/errors.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
+import { ChatElicitationContentPart } from './chatContentParts/chatElicitationContentPart.js';
 
 const $ = dom.$;
 
@@ -592,29 +593,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('chat-response-loading', (isResponseVM(element) && !element.isComplete));
 
 		const content: IChatRendererContent[] = [];
-		// Always add the references to avoid shifting the content parts when a reference is added, and having to re-diff all the content.
-		// The part will hide itself if the list is empty.
-		content.push({ kind: 'references', references: element.contentReferences });
-		content.push(...annotateSpecialMarkdownContent(element.response.value));
-		if (element.codeCitations.length) {
-			content.push({ kind: 'codeCitations', citations: element.codeCitations });
+		const isFiltered = !!element.errorDetails?.responseIsFiltered;
+		if (!isFiltered) {
+			// Always add the references to avoid shifting the content parts when a reference is added, and having to re-diff all the content.
+			// The part will hide itself if the list is empty.
+			content.push({ kind: 'references', references: element.contentReferences });
+			content.push(...annotateSpecialMarkdownContent(element.response.value));
+			if (element.codeCitations.length) {
+				content.push({ kind: 'codeCitations', citations: element.codeCitations });
+			}
 		}
 
 		if (element.errorDetails?.message && element.errorDetails.message !== canceledName) {
 			content.push({ kind: 'errorDetails', errorDetails: element.errorDetails, isLast: index === this.delegate.getListLength() - 1 });
 		}
 
-		const isFiltered = !!element.errorDetails?.responseIsFiltered;
-		if (!isFiltered) {
-			const diff = this.diff(templateData.renderedParts ?? [], content, element);
-			this.renderChatContentDiff(diff, content, element, index, templateData);
-		} else {
-			dom.clearNode(templateData.value);
-			if (templateData.renderedParts) {
-				dispose(templateData.renderedParts);
-			}
-			templateData.renderedParts = [];
-		}
+		const diff = this.diff(templateData.renderedParts ?? [], content, element);
+		this.renderChatContentDiff(diff, content, element, index, templateData);
 
 		this.updateItemHeightOnRender(element, templateData);
 	}
@@ -1000,6 +995,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderUndoStop(content);
 			} else if (content.kind === 'errorDetails') {
 				return this.renderChatErrorDetails(context, content, templateData);
+			} else if (content.kind === 'elicitation') {
+				return this.renderElicitation(context, content, templateData);
 			}
 
 			return this.renderNoContent(other => content.kind === other.kind);
@@ -1025,11 +1022,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			renderedError.addDisposable(renderedError.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 			return renderedError;
 		} else if (content.errorDetails.confirmationButtons && isLast) {
-			const errorConfirmation = this.instantiationService.createInstance(ChatErrorConfirmationContentPart, ChatErrorLevel.Error, new MarkdownString(content.errorDetails.message), content, content.errorDetails.confirmationButtons, this.renderer, context);
+			const level = content.errorDetails.level ?? ChatErrorLevel.Error;
+			const errorConfirmation = this.instantiationService.createInstance(ChatErrorConfirmationContentPart, level, new MarkdownString(content.errorDetails.message), content, content.errorDetails.confirmationButtons, this.renderer, context);
 			errorConfirmation.addDisposable(errorConfirmation.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 			return errorConfirmation;
 		} else {
-			const level = content.errorDetails.level ?? (content.errorDetails.responseIsFiltered ? ChatErrorLevel.Info : ChatErrorLevel.Error);
+			const level = content.errorDetails.level ?? ChatErrorLevel.Error;
 			return this.instantiationService.createInstance(ChatErrorContentPart, level, new MarkdownString(content.errorDetails.message), content, this.renderer);
 		}
 	}
@@ -1169,6 +1167,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderConfirmation(context: IChatContentPartRenderContext, confirmation: IChatConfirmation, templateData: IChatListItemTemplate): IChatContentPart {
 		const part = this.instantiationService.createInstance(ChatConfirmationContentPart, confirmation, context);
+		part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
+		return part;
+	}
+
+	private renderElicitation(context: IChatContentPartRenderContext, elicitation: IChatElicitationRequest, templateData: IChatListItemTemplate): IChatContentPart {
+		const part = this.instantiationService.createInstance(ChatElicitationContentPart, elicitation, context);
 		part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 		return part;
 	}

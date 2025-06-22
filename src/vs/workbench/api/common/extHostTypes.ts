@@ -3351,6 +3351,14 @@ export enum InlineCompletionTriggerKind {
 	Automatic = 1,
 }
 
+export enum InlineCompletionsDisposeReasonKind {
+	Other = 0,
+	Empty = 1,
+	TokenCancellation = 2,
+	LostRace = 3,
+	NotTaken = 4,
+}
+
 @es5ClassCompat
 export class InlineValueText implements vscode.InlineValueText {
 	readonly range: Range;
