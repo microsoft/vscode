@@ -1,0 +1,5 @@
+cargo:rerun-if-changed=build/probe.rs
+cargo:rustc-check-cfg=cfg(error_generic_member_access)
+cargo:rustc-check-cfg=cfg(thiserror_nightly_testing)
+cargo:rustc-check-cfg=cfg(thiserror_no_backtrace_type)
+cargo:rerun-if-env-changed=RUSTC_BOOTSTRAP

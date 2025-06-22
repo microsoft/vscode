@@ -1,0 +1,22 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "Run Example",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceRoot}",
+			],
+			"outFiles": [
+				"${workspaceRoot}/dist/*.js"
+			],
+			"sourceMaps": true,
+			"preLaunchTask": "npm: build",
+			"env": {
+				"LD_LIBRARY_PATH": "/home/heyfey/verdi/2022.06/share/FsdbReader/linux64" // path to find libnffr.so, libnsys.so
+			}
+		}
+	]
+}

@@ -1,0 +1,16 @@
+cargo:rustc-check-cfg=cfg(fuzzing)
+cargo:rustc-check-cfg=cfg(no_is_available)
+cargo:rustc-check-cfg=cfg(no_literal_byte_character)
+cargo:rustc-check-cfg=cfg(no_literal_c_string)
+cargo:rustc-check-cfg=cfg(no_source_text)
+cargo:rustc-check-cfg=cfg(proc_macro_span)
+cargo:rustc-check-cfg=cfg(procmacro2_backtrace)
+cargo:rustc-check-cfg=cfg(procmacro2_nightly_testing)
+cargo:rustc-check-cfg=cfg(procmacro2_semver_exempt)
+cargo:rustc-check-cfg=cfg(randomize_layout)
+cargo:rustc-check-cfg=cfg(span_locations)
+cargo:rustc-check-cfg=cfg(super_unstable)
+cargo:rustc-check-cfg=cfg(wrap_proc_macro)
+cargo:rerun-if-changed=build/probe.rs
+cargo:rustc-cfg=wrap_proc_macro
+cargo:rerun-if-env-changed=RUSTC_BOOTSTRAP

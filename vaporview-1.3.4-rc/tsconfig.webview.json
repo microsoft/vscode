@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "es6",
+    "module": "es6",
+    "strict": true,
+    "noImplicitAny": true,
+    "moduleResolution": "node",
+    "outDir": "./out/webview",
+    "rootDir": "./src/webview",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "lib": ["es6", "dom"],
+    "sourceMap": true
+  },
+  "include": ["src/webview/**/*.ts"],
+  "exclude": ["node_modules"]
+}

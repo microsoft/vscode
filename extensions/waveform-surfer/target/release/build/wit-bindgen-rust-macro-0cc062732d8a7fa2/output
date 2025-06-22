@@ -1,0 +1,2 @@
+cargo:rerun-if-changed=build.rs
+cargo:rustc-env=DEBUG_OUTPUT_DIR=/Users/johan/Documents/VoltaiCode/extensions/waveform-surfer/target/release/build/wit-bindgen-rust-macro-0cc062732d8a7fa2/out

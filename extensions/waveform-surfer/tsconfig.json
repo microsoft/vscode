@@ -1,0 +1,29 @@
+{
+    "compilerOptions": {
+        "rootDir": "./src/extension_core",
+        "skipLibCheck": true,
+        "lib": [
+            "es2022",
+            "webworker"
+        ],
+        "types": [
+            "vscode",
+            "node"
+        ],
+        "module": "Node16",
+        "moduleResolution": "Node16",
+        "outDir": "./out/core",
+        "strict": true,
+        "noImplicitAny": true,
+        "noImplicitReturns": true,
+        "noImplicitThis": true,
+        "declaration": true,
+        "stripInternal": true,
+        "sourceMap": true,
+        "declarationMap": true,
+        "noUnusedLocals": false,
+        "noUnusedParameters": false
+    },
+    "include": ["src/extension_core/**/*.ts"],
+    "exclude": ["src/webview/**/*.ts"]
+}

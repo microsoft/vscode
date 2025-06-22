@@ -1,0 +1,12 @@
+cargo:rerun-if-changed=src/nightly.rs
+cargo:rerun-if-env-changed=RUSTC_BOOTSTRAP
+cargo:rustc-check-cfg=cfg(anyhow_build_probe)
+cargo:rustc-check-cfg=cfg(anyhow_nightly_testing)
+cargo:rustc-check-cfg=cfg(anyhow_no_core_error)
+cargo:rustc-check-cfg=cfg(anyhow_no_core_unwind_safe)
+cargo:rustc-check-cfg=cfg(anyhow_no_fmt_arguments_as_str)
+cargo:rustc-check-cfg=cfg(anyhow_no_ptr_addr_of)
+cargo:rustc-check-cfg=cfg(anyhow_no_unsafe_op_in_unsafe_fn_lint)
+cargo:rustc-check-cfg=cfg(error_generic_member_access)
+cargo:rustc-check-cfg=cfg(std_backtrace)
+cargo:rustc-cfg=std_backtrace

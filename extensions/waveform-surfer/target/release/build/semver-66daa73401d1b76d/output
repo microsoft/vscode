@@ -1,0 +1,10 @@
+cargo:rerun-if-changed=build.rs
+cargo:rustc-check-cfg=cfg(no_alloc_crate)
+cargo:rustc-check-cfg=cfg(no_const_vec_new)
+cargo:rustc-check-cfg=cfg(no_exhaustive_int_match)
+cargo:rustc-check-cfg=cfg(no_non_exhaustive)
+cargo:rustc-check-cfg=cfg(no_nonzero_bitscan)
+cargo:rustc-check-cfg=cfg(no_str_strip_prefix)
+cargo:rustc-check-cfg=cfg(no_track_caller)
+cargo:rustc-check-cfg=cfg(no_unsafe_op_in_unsafe_fn_lint)
+cargo:rustc-check-cfg=cfg(test_node_semver)

@@ -1,0 +1,11 @@
+/Users/johan/Documents/VoltaiCode/extensions/waveform-surfer/target/wasm32-unknown-unknown/release/deps/libfst_reader-2171b561cada2591.rmeta: /Users/johan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fst-reader-0.10.2/src/lib.rs /Users/johan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fst-reader-0.10.2/src/fastlz.rs /Users/johan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fst-reader-0.10.2/src/io.rs /Users/johan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fst-reader-0.10.2/src/reader.rs /Users/johan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fst-reader-0.10.2/src/types.rs
+
+/Users/johan/Documents/VoltaiCode/extensions/waveform-surfer/target/wasm32-unknown-unknown/release/deps/libfst_reader-2171b561cada2591.rlib: /Users/johan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fst-reader-0.10.2/src/lib.rs /Users/johan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fst-reader-0.10.2/src/fastlz.rs /Users/johan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fst-reader-0.10.2/src/io.rs /Users/johan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fst-reader-0.10.2/src/reader.rs /Users/johan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fst-reader-0.10.2/src/types.rs
+
+/Users/johan/Documents/VoltaiCode/extensions/waveform-surfer/target/wasm32-unknown-unknown/release/deps/fst_reader-2171b561cada2591.d: /Users/johan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fst-reader-0.10.2/src/lib.rs /Users/johan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fst-reader-0.10.2/src/fastlz.rs /Users/johan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fst-reader-0.10.2/src/io.rs /Users/johan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fst-reader-0.10.2/src/reader.rs /Users/johan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fst-reader-0.10.2/src/types.rs
+
+/Users/johan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fst-reader-0.10.2/src/lib.rs:
+/Users/johan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fst-reader-0.10.2/src/fastlz.rs:
+/Users/johan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fst-reader-0.10.2/src/io.rs:
+/Users/johan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fst-reader-0.10.2/src/reader.rs:
+/Users/johan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fst-reader-0.10.2/src/types.rs:

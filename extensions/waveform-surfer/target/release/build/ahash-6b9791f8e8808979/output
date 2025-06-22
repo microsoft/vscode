@@ -1,0 +1,4 @@
+cargo:rerun-if-changed=build.rs
+cargo:rustc-check-cfg=cfg(specialize)
+cargo:rustc-check-cfg=cfg(folded_multiply)
+cargo:rustc-cfg=folded_multiply
