@@ -328,18 +328,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			valueParent = rhsContainer;
 		}
 
-		templateDisposables.add(dom.addDisposableListener(rowContainer, dom.EventType.MOUSE_ENTER, () => {
-			if (isRequestVM(template.currentElement) && !this.viewModel?.editing) {
-				dom.show(requestHover);
-			}
-		}));
-
-		templateDisposables.add(dom.addDisposableListener(rowContainer, dom.EventType.MOUSE_LEAVE, () => {
-			if (isRequestVM(template.currentElement)) {
-				dom.hide(requestHover);
-			}
-		}));
-
 		const header = dom.append(headerParent, $('.header'));
 		const contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(rowContainer));
 		const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
@@ -358,6 +346,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				},
 			}));
 		}
+
+		templateDisposables.add(dom.addDisposableListener(rowContainer, dom.EventType.MOUSE_ENTER, () => {
+			if (isRequestVM(template.currentElement) && !this.viewModel?.editing) {
+				dom.show(requestHover);
+			}
+		}));
+
+		templateDisposables.add(dom.addDisposableListener(rowContainer, dom.EventType.MOUSE_LEAVE, () => {
+			if (isRequestVM(template.currentElement)) {
+				dom.hide(requestHover);
+			}
+		}));
 
 		dom.hide(requestHover);
 		const user = dom.append(header, $('.user'));

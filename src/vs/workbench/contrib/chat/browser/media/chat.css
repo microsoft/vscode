@@ -2011,3 +2011,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	z-index: 100;
 	user-select: none;
 }
+
+.interactive-session .focused-input-dom {
+	position:absolute;
+	top: -50000px;
+	width: 1px;
+	height: 1px;
+}

@@ -153,9 +153,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidDispose: Emitter<void>;
 	readonly onDidDispose: Event<void>;
 
-	private _onDidAccept: Emitter<void>;
-	readonly onDidAccept: Event<void>;
-
 	private _onDidChangeContext: Emitter<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>;
 	readonly onDidChangeContext: Event<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>;
 
@@ -380,8 +377,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.onDidBlur = this._onDidBlur.event;
 		this._onDidDispose = this._register(new Emitter<void>());
 		this.onDidDispose = this._onDidDispose.event;
-		this._onDidAccept = this._register(new Emitter<void>());
-		this.onDidAccept = this._onDidAccept.event;
 		this._onDidChangeContext = this._register(new Emitter<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>());
 		this.onDidChangeContext = this._onDidChangeContext.event;
 		this._onDidAcceptFollowup = this._register(new Emitter<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>());
@@ -1267,7 +1262,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public toggleChatInputOverlay(editing: boolean): void {
 		this.chatInputOverlay.classList.toggle('disabled', editing);
-
 	}
 
 	public renderAttachedContext() {

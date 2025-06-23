@@ -158,7 +158,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private inlineInputPart!: ChatInputPart;
 	private templateData: IChatListItemTemplate | undefined;
 	private inputContainer!: HTMLElement;
-	private _focusedInputDOM!: HTMLElement;
+	private focusedInputDOM!: HTMLElement;
 	private editorOptions!: ChatEditorOptions;
 
 	private listContainer!: HTMLElement;
@@ -581,12 +581,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.attachmentModel.updateContext(oldPromptAttachments, newPromptAttachments.values());
 		}));
 
-		if (!this._focusedInputDOM) {
-			this._focusedInputDOM = this.container.appendChild(dom.$('.focused-input-dom'));
-			this._focusedInputDOM.style.position = 'absolute';
-			this._focusedInputDOM.style.top = '-50000px';
-			this._focusedInputDOM.style.width = '1px';
-			this._focusedInputDOM.style.height = '1px';
+		if (!this.focusedInputDOM) {
+			this.focusedInputDOM = this.container.appendChild(dom.$('.focused-input-dom'));
 		}
 	}
 
@@ -837,7 +833,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 
 		this._register(this.renderer.onDidDispose((item) => {
-			this._focusedInputDOM.appendChild(this.inputContainer);
+			this.focusedInputDOM.appendChild(this.inputContainer);
 			this.input.focus();
 		}));
 
