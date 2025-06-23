@@ -41,10 +41,17 @@ type ShellGlobalsCacheEntry = {
 	commands: ICompletionResource[] | undefined;
 	existingCommands?: string[];
 };
-const cachedGlobals: Map<TerminalShellType, ShellGlobalsCacheEntry> = new Map();
+
+type ShellGlobalsCacheEntryWithMeta = ShellGlobalsCacheEntry & { timestamp: number };
+const cachedGlobals: Map<string, ShellGlobalsCacheEntryWithMeta> = new Map();
 let pathExecutableCache: PathExecutableCache;
-const CACHE_KEY = 'terminalSuggestGlobalsCache';
-let workspaceState: vscode.Memento;
+const CACHE_KEY = 'terminalSuggestGlobalsCacheV2';
+let globalStorage: vscode.Memento;
+const CACHE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+
+function getCacheKey(machineId: string, remoteAuthority: string | undefined, shellType: TerminalShellType): string {
+	return `${machineId}:${remoteAuthority ?? 'local'}:${shellType}`;
+}
 
 export const availableSpecs: Fig.Spec[] = [
 	cdSpec,
@@ -68,28 +75,54 @@ const getShellSpecificGlobals: Map<TerminalShellType, (options: ExecOptionsWithS
 	[TerminalShellType.PowerShell, getPwshGlobals],
 ]);
 
-async function getShellGlobals(shellType: TerminalShellType, existingCommands?: Set<string>): Promise<ICompletionResource[] | undefined> {
-	try {
-		const cached = cachedGlobals.get(shellType);
-		const existingCommandsArr = existingCommands ? Array.from(existingCommands) : undefined;
-		let shouldRefresh = false;
-		if (cached) {
+
+async function getShellGlobals(
+	shellType: TerminalShellType,
+	existingCommands?: Set<string>,
+	machineId?: string,
+	remoteAuthority?: string
+): Promise<ICompletionResource[] | undefined> {
+	if (!machineId) {
+		// fallback: don't cache
+		return await fetchAndCacheShellGlobals(shellType, existingCommands, undefined, undefined);
+	}
+	const cacheKey = getCacheKey(machineId, remoteAuthority, shellType);
+	const cached = cachedGlobals.get(cacheKey);
+	const now = Date.now();
+	const existingCommandsArr = existingCommands ? Array.from(existingCommands) : undefined;
+	let shouldRefresh = false;
+	if (cached) {
+		// Evict if too old
+		if (now - cached.timestamp > CACHE_MAX_AGE_MS) {
+			cachedGlobals.delete(cacheKey);
+			await writeGlobalsCache();
+		} else {
 			if (existingCommandsArr && cached.existingCommands) {
-				// Only compare length
 				if (existingCommandsArr.length !== cached.existingCommands.length) {
 					shouldRefresh = true;
 				}
 			} else if (existingCommandsArr || cached.existingCommands) {
-				// One is undefined, the other is not
 				shouldRefresh = true;
 			}
 			if (!shouldRefresh && cached.commands) {
+				// Trigger background refresh
+				void fetchAndCacheShellGlobals(shellType, existingCommands, machineId, remoteAuthority, true);
 				return cached.commands;
 			}
 		}
-		if (!shellType) {
-			return;
-		}
+	}
+	// No cache or should refresh
+	return await fetchAndCacheShellGlobals(shellType, existingCommands, machineId, remoteAuthority);
+}
+
+async function fetchAndCacheShellGlobals(
+	shellType: TerminalShellType,
+	existingCommands?: Set<string>,
+	machineId?: string,
+	remoteAuthority?: string,
+	background?: boolean
+): Promise<ICompletionResource[] | undefined> {
+	try {
 		let execShellType = shellType;
 		if (shellType === TerminalShellType.GitBash) {
 			execShellType = TerminalShellType.Bash; // Git Bash is a bash shell
@@ -97,43 +130,62 @@ async function getShellGlobals(shellType: TerminalShellType, existingCommands?: 
 		const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell: execShellType, windowsHide: true };
 		const mixedCommands: (string | ICompletionResource)[] | undefined = await getShellSpecificGlobals.get(shellType)?.(options, existingCommands);
 		const normalizedCommands = mixedCommands?.map(command => typeof command === 'string' ? ({ label: command }) : command);
-		cachedGlobals.set(shellType, { commands: normalizedCommands, existingCommands: existingCommandsArr });
-		await writeGlobalsCache();
+		if (machineId) {
+			const cacheKey = getCacheKey(machineId, remoteAuthority, shellType);
+			cachedGlobals.set(cacheKey, {
+				commands: normalizedCommands,
+				existingCommands: existingCommands ? Array.from(existingCommands) : undefined,
+				timestamp: Date.now()
+			});
+			await writeGlobalsCache();
+		}
 		return normalizedCommands;
 	} catch (error) {
-		console.error('Error fetching builtin commands:', error);
+		if (!background) {
+			console.error('Error fetching builtin commands:', error);
+		}
 		return;
 	}
 }
 
+
 async function writeGlobalsCache(): Promise<void> {
-	if (!workspaceState) {
+	if (!globalStorage) {
 		return;
 	}
-	const obj: Record<string, ShellGlobalsCacheEntry> = {};
+	// Remove old entries
+	const now = Date.now();
+	for (const [key, value] of cachedGlobals.entries()) {
+		if (now - value.timestamp > CACHE_MAX_AGE_MS) {
+			cachedGlobals.delete(key);
+		}
+	}
+	const obj: Record<string, ShellGlobalsCacheEntryWithMeta> = {};
 	for (const [key, value] of cachedGlobals.entries()) {
 		obj[key] = value;
 	}
 	try {
-		await workspaceState.update(CACHE_KEY, obj);
+		await globalStorage.update(CACHE_KEY, obj);
 	} catch (err) {
 		console.error('Failed to write terminal suggest globals cache:', err);
 	}
 }
 
+
 async function readGlobalsCache(): Promise<void> {
-	if (!workspaceState) {
+	if (!globalStorage) {
 		return;
 	}
 	try {
-		const obj = workspaceState.get<Record<string, ShellGlobalsCacheEntry>>(CACHE_KEY);
+		const obj = globalStorage.get<Record<string, ShellGlobalsCacheEntryWithMeta>>(CACHE_KEY);
 		if (obj) {
 			for (const key of Object.keys(obj)) {
-				cachedGlobals.set(key as TerminalShellType, obj[key]);
+				cachedGlobals.set(key, obj[key]);
 			}
 		}
 	} catch { }
 }
+
 
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -141,8 +193,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(pathExecutableCache);
 	let currentTerminalEnv: ITerminalEnvironment = process.env;
 
-	workspaceState = context.workspaceState;
+	globalStorage = context.globalState;
 	await readGlobalsCache();
+
+	// Get a machineId for this install (persisted per machine, not synced)
+	const machineId = await vscode.env.machineId;
+	const remoteAuthority = vscode.env.remoteName;
 
 	context.subscriptions.push(vscode.window.registerTerminalCompletionProvider({
 		id: 'terminal-suggest',
@@ -164,7 +220,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType),
 				(async () => {
 					const executables = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType);
-					return getShellGlobals(terminalShellType, executables?.labels);
+					return getShellGlobals(terminalShellType, executables?.labels, machineId, remoteAuthority);
 				})()
 			]);
 			const shellGlobalsArr = shellGlobals ?? [];
