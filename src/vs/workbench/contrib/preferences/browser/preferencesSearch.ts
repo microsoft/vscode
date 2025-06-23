@@ -72,7 +72,11 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		return this._remoteSearchProvider;
 	}
 
-	getAiSearchProvider(filter: string): IAiSearchProvider {
+	getAiSearchProvider(filter: string): IAiSearchProvider | undefined {
+		if (!this.remoteSearchAllowed) {
+			return undefined;
+		}
+
 		this._aiSearchProvider ??= this.instantiationService.createInstance(AiSearchProvider);
 		this._aiSearchProvider.setFilter(filter);
 		return this._aiSearchProvider;
