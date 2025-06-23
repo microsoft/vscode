@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .mcp-welcome-container {
-	height: 50%;
+	height: 100%;
 	width: 100%;
 
 	&.hide {
@@ -15,11 +15,10 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		justify-content: center;
 		height: 100%;
 		padding: 0px 40px;
 		text-align: center;
-		margin: 0 auto;
+		margin: 20px auto;
 
 		.mcp-welcome-icon {
 			.codicon {
