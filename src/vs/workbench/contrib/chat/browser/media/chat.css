@@ -1879,7 +1879,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		margin-left: auto;
 	}
 
-		.interactive-item-container.interactive-request .value .rendered-markdown:hover{
+		.interactive-item-container.interactive-request .value .rendered-markdown.clickable:hover{
 			cursor: text;
 			background-color: var(--vscode-list-hoverBackground);
 		}
@@ -1957,13 +1957,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			outline: 1px solid var(--vscode-focusBorder);
 		}
 
-		/* .request-hover {
+		.request-hover {
 			display: block !important;
-		} */
+		}
 	}
 
-	.interactive-request.clicked .rendered-markdown,
-	.interactive-request.clicked .value {
+	.interactive-request.editing .rendered-markdown,
+	.interactive-request.editing .value {
 		display: none;
 	}
 }
@@ -1994,16 +1994,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-right: -15px;
 }
 
-/* do not show editing session when editing request */
+.chat-row-disabled-overlay,
 .interactive-item-container .chat-edit-input-container .chat-editing-session {
 	display: none;
 }
 
-.disabled-overlay {
-	display: none;
-}
-
-.disabled-overlay.disabled,
+.chat-row-disabled-overlay.disabled,
 .chat-input-overlay.disabled {
 	position: absolute;
 	width: 100%;

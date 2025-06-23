@@ -302,7 +302,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	renderTemplate(container: HTMLElement): IChatListItemTemplate {
 		const templateDisposables = new DisposableStore();
-		const disabledOverlay = dom.append(container, $('.disabled-overlay'));
+		const disabledOverlay = dom.append(container, $('.chat-row-disabled-overlay'));
 		const rowContainer = dom.append(container, $('.interactive-item-container'));
 		if (this.rendererOptions.renderStyle === 'compact') {
 			rowContainer.classList.add('interactive-item-compact');
@@ -327,6 +327,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			detailContainerParent = rhsContainer;
 			valueParent = rhsContainer;
 		}
+
+		templateDisposables.add(dom.addDisposableListener(rowContainer, dom.EventType.MOUSE_ENTER, () => {
+			if (isRequestVM(template.currentElement) && !this.viewModel?.editing) {
+				dom.show(requestHover);
+			}
+		}));
+
+		templateDisposables.add(dom.addDisposableListener(rowContainer, dom.EventType.MOUSE_LEAVE, () => {
+			if (isRequestVM(template.currentElement)) {
+				dom.hide(requestHover);
+			}
+		}));
 
 		const header = dom.append(headerParent, $('.header'));
 		const contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(rowContainer));
@@ -462,13 +474,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		templateData.disabledOverlay.classList.toggle('disabled', element.shouldBeBlocked);
-		templateData.rowContainer.classList.toggle('clicked', element.id === this.viewModel?.editing?.id);
+		templateData.rowContainer.classList.toggle('editing', element.id === this.viewModel?.editing?.id);
 		templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.CLICK, () => {
-			if (!this.viewModel?.editing) {
-				return;
-			}
-
-			if (element.id !== this.viewModel?.editing?.id) {
+			if (this.viewModel?.editing && element.id !== this.viewModel.editing.id) {
 				this._onDidFocusOutside.fire();
 			}
 		}));
@@ -1185,12 +1193,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.renderer, this._currentLayoutWidth, this.codeBlockModelCollection, {});
 		if (isRequestVM(element)) {
 			markdownPart.domNode.tabIndex = 0;
-			templateData.elementDisposables.add(dom.addDisposableListener(markdownPart.domNode, dom.EventType.CLICK, (e: MouseEvent) => {
-				if (this.viewModel?.editing?.id !== element.id && !this.viewModel?.requestInProgress) {
-					this._onDidClickRequest.fire(templateData);
-				}
-			}));
-			this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), markdownPart.domNode, localize('requestMarkdownPartTitle', "Click to edit"), { trapFocus: true }));
+			if (this.configService.getValue<boolean>('chat.editRequests')) {
+				markdownPart.domNode.classList.add('clickable');
+				templateData.elementDisposables.add(dom.addDisposableListener(markdownPart.domNode, dom.EventType.CLICK, (e: MouseEvent) => {
+					if (this.viewModel?.editing?.id !== element.id && !this.viewModel?.requestInProgress) {
+						this._onDidClickRequest.fire(templateData);
+					}
+				}));
+				this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), markdownPart.domNode, localize('requestMarkdownPartTitle', "Click to edit"), { trapFocus: true }));
+			}
 		}
 
 		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => {

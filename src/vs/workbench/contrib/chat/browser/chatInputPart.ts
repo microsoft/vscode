@@ -1265,10 +1265,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 	}
 
-	public toggleChatInputOverlay(editing: boolean | undefined): void {
-		if (this.chatInputOverlay) {
-			this.chatInputOverlay.classList.toggle('disabled', editing ?? false);
-		}
+	public toggleChatInputOverlay(editing: boolean): void {
+		this.chatInputOverlay.classList.toggle('disabled', editing);
+
 	}
 
 	public renderAttachedContext() {

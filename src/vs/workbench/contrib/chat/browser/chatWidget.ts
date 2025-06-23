@@ -157,10 +157,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private inputPart!: ChatInputPart;
 	private inlineInputPart!: ChatInputPart;
 	private templateData: IChatListItemTemplate | undefined;
-	private editorOptions!: ChatEditorOptions;
 	private inputContainer!: HTMLElement;
-
 	private _focusedInputDOM!: HTMLElement;
+	private editorOptions!: ChatEditorOptions;
+
 	private listContainer!: HTMLElement;
 	private container!: HTMLElement;
 	get domNode() {
@@ -924,22 +924,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private clickedRequest(item: IChatListItemTemplate) {
 		this.templateData = item;
-		const curr = this.templateData.currentElement;
-		if (isRequestVM(curr) && !this.viewModel?.editing) {
+		const currentElement = this.templateData.currentElement;
+		if (isRequestVM(currentElement) && !this.viewModel?.editing) {
 
 			const requests = this.viewModel?.model.getRequests();
 			if (!requests) {
 				return;
 			}
 
-			this.viewModel?.model.setCheckpoint(curr.id);
+			this.viewModel?.model.setCheckpoint(currentElement.id);
 			this.onDidChangeItems();
 
 			// set contexts and request to false
 			const currentContext: IChatRequestVariableEntry[] = [];
 			for (let i = requests.length - 1; i >= 0; i -= 1) {
 				const request = requests[i];
-				if (request.id === curr.id) {
+				if (request.id === currentElement.id) {
 					request.shouldBeBlocked = false; // unblocking just this request.
 					if (request.attachedContext) {
 						currentContext.push(...request.attachedContext);
@@ -947,15 +947,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}
 
-			// add input to the row
 			item.disabledOverlay.classList.remove('disabled');
 			const rowContainer = item.rowContainer;
 			this.inputContainer = dom.$('.chat-edit-input-container');
 			rowContainer.appendChild(this.inputContainer);
 
 			// set states
-			this.viewModel?.setEditing(curr);
-
+			this.viewModel?.setEditing(currentElement);
 			this.createInput(this.inputContainer);
 			this.inputPart.toggleChatInputOverlay(true);
 			if (currentContext.length > 0) {
@@ -965,8 +963,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// rerenders
 			this.inputPart.dnd.setDisabledOverlay(true);
 			this.input.renderAttachedContext();
-			this.renderer.updateItemHeightOnRender(curr, item);
-			this.input.setValue(curr.messageText, false);
+			this.input.setValue(currentElement.messageText, false);
+			this.renderer.updateItemHeightOnRender(currentElement, item);
 			this.input.inputEditor.focus();
 
 			// listeners
@@ -997,7 +995,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModel?.model.setCheckpoint(undefined);
 		this.inputPart.dnd.setDisabledOverlay(false);
 		inputPart.toggleChatInputOverlay(false);
-		this.templateData?.rowContainer.classList.remove('clicked');
 
 		// try to remove input container from the row
 		try {
@@ -1177,20 +1174,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			});
 		}));
 		this._register(this.input.onDidChangeHeight(() => {
-
-			if (this.viewModel?.editing) {
-				return;
-			}
-
-			if (this.templateData?.currentElement && isRequestVM(this.templateData.currentElement) && this.viewModel?.editing) {
-				// If we are currently editing, we need to update the height of the input part
-				this.renderer.updateItemHeightOnRender(this.templateData?.currentElement!, this.templateData!);
-				if (this.bodyDimension) {
-					this.layout(this.bodyDimension.height, this.bodyDimension.width);
-				}
-
-				this._onDidChangeContentHeight.fire();
-				return;
+			if (isRequestVM(this.templateData?.currentElement) && this.viewModel?.editing) {
+				this.renderer.updateItemHeightOnRender(this.templateData?.currentElement, this.templateData);
 			}
 
 			if (this.bodyDimension) {
@@ -1211,7 +1196,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => {
 			this.parsedChatRequest = undefined;
-
 			// Tools agent loads -> welcome content changes
 			this.renderWelcomeViewContentIfNeeded();
 		}));
@@ -1526,7 +1510,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
-		if (this.templateData?.currentElement && isRequestVM(this.templateData.currentElement) && this.templateData.currentElement.id === this.viewModel?.editing?.id) {
+		if (isRequestVM(this.templateData?.currentElement) && this.templateData.currentElement.id === this.viewModel?.editing?.id) {
 			await this.restoreSnapshot();
 		}
 
@@ -1701,12 +1685,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const layoutHeight = this._dynamicMessageLayoutData?.enabled ? this._dynamicMessageLayoutData.maxHeight : height;
 		if (this.viewModel?.editing) {
-			// Layout both input parts if currently editing
 			this.inlineInputPart?.layout(layoutHeight, width);
-			this.inputPart.layout(layoutHeight, width);
-		} else {
-			this.input.layout(layoutHeight, width);
 		}
+		this.inputPart.layout(layoutHeight, width);
 		const inputHeight = this.input.inputPartHeight;
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight - 2;
 

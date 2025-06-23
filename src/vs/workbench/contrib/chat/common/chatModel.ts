@@ -1438,7 +1438,6 @@ export class ChatModel extends Disposable implements IChatModel {
 	resetCheckpoint(): void {
 		for (const request of this._requests) {
 			request.shouldBeBlocked = false;
-			// request.response?.shouldBeBlocked = false;
 		}
 	}
 
@@ -1464,7 +1463,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		for (let i = this._requests.length - 1; i >= 0; i -= 1) {
 			const request = this._requests[i];
 			if (this._checkpoint && !checkpoint) {
-				// The user removed the checkpoint
 				request.shouldBeBlocked = false;
 			} else if (checkpoint && i >= checkpointIndex) {
 				request.shouldBeBlocked = true;
