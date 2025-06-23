@@ -153,6 +153,12 @@ export interface IAuthenticationService {
 	isAuthenticationProviderRegistered(id: string): boolean;
 
 	/**
+	 * Checks if an authentication provider is dynamic
+	 * @param id The id of the provider to check
+	 */
+	isDynamicAuthenticationProvider(id: string): boolean;
+
+	/**
 	 * Registers an authentication provider
 	 * @param id The id of the provider
 	 * @param provider The implementation of the provider
@@ -360,6 +366,15 @@ export interface IAuthenticationProvider {
 	 * Indicates whether the authentication provider supports multiple accounts.
 	 */
 	readonly supportsMultipleAccounts: boolean;
+
+	/**
+	 * Optional function to provide a custom confirmation message for authentication prompts.
+	 * If not implemented, the default confirmation messages will be used.
+	 * @param extensionName - The name of the extension requesting authentication.
+	 * @param recreatingSession - Whether this is recreating an existing session.
+	 * @returns A custom confirmation message or undefined to use the default message.
+	 */
+	readonly confirmation?: (extensionName: string, recreatingSession: boolean) => string | undefined;
 
 	/**
 	 * An {@link Event} which fires when the array of sessions has changed, or data

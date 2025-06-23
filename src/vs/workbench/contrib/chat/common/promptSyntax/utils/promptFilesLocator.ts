@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { assert } from '../../../../../../base/common/assert.js';
 import { isAbsolute } from '../../../../../../base/common/path.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -23,6 +22,7 @@ import { TPromptsStorage } from '../service/promptsService.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 
 /**
  * Utility class to locate prompt files.
@@ -36,6 +36,7 @@ export class PromptFilesLocator extends Disposable {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ISearchService private readonly searchService: ISearchService,
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 	}
@@ -56,6 +57,20 @@ export class PromptFilesLocator extends Disposable {
 	private async listFilesInUserData(type: PromptsType, token: CancellationToken): Promise<readonly URI[]> {
 		const files = await this.resolveFilesAtLocation(this.userDataService.currentProfile.promptsHome, token);
 		return files.filter(file => getPromptFileType(file) === type);
+	}
+
+	public async getCopilotInstructionsFiles(instructionFilePaths: Iterable<string>): Promise<URI[]> {
+		const { folders } = this.workspaceService.getWorkspace();
+		const result: URI[] = [];
+		for (const folder of folders) {
+			for (const instructionFilePath of instructionFilePaths) {
+				const file = joinPath(folder.uri, instructionFilePath);
+				if (await this.fileService.exists(file)) {
+					result.push(file);
+				}
+			}
+		}
+		return result;
 	}
 
 	public createFilesUpdatedEvent(type: PromptsType): { readonly event: Event<void>; dispose: () => void } {
@@ -195,25 +210,24 @@ export class PromptFilesLocator extends Disposable {
 		const { folders } = this.workspaceService.getWorkspace();
 
 		for (const configuredLocation of configuredLocations) {
-			if (isAbsolute(configuredLocation)) {
-				const remoteAuthority = this.environmentService.remoteAuthority;
-				if (remoteAuthority) {
-					// if the location is absolute and we are in a remote environment,
-					// we need to convert it to a file URI with the remote authority
-					result.add(URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuthority, path: configuredLocation }));
+			try {
+				if (isAbsolute(configuredLocation)) {
+					let uri = URI.file(configuredLocation);
+					const remoteAuthority = this.environmentService.remoteAuthority;
+					if (remoteAuthority) {
+						// if the location is absolute and we are in a remote environment,
+						// we need to convert it to a file URI with the remote authority
+						uri = uri.with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
+					}
+					result.add(uri);
 				} else {
-					result.add(URI.file(configuredLocation));
+					for (const workspaceFolder of folders) {
+						const absolutePath = joinPath(workspaceFolder.uri, configuredLocation);
+						result.add(absolutePath);
+					}
 				}
-			} else {
-				for (const workspaceFolder of folders) {
-					const absolutePath = joinPath(workspaceFolder.uri, configuredLocation);
-					// a sanity check on the expected outcome of the `joinPath()` call
-					assert(
-						isAbsolute(absolutePath.path),
-						`Provided location must be an absolute path, got '${absolutePath.path}'.`,
-					);
-					result.add(absolutePath);
-				}
+			} catch (error) {
+				this.logService.error(`Failed to resolve prompt file location: ${configuredLocation}`, error);
 			}
 		}
 

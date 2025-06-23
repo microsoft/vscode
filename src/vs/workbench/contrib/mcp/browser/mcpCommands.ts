@@ -25,12 +25,17 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ExtensionsLocalizedLabel } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IMcpGalleryService } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { ActiveEditorContext, ResourceContextKey } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IAuthenticationAccessService } from '../../../services/authentication/browser/authenticationAccessService.js';
+import { IAuthenticationMcpAccessService } from '../../../services/authentication/browser/authenticationMcpAccessService.js';
+import { IAuthenticationMcpService } from '../../../services/authentication/browser/authenticationMcpService.js';
+import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
@@ -142,6 +147,9 @@ export class ListMcpServerCommand extends Action2 {
 	}
 }
 
+interface ActionItem extends IQuickPickItem {
+	action: 'start' | 'stop' | 'restart' | 'disconnect' | 'signout' | 'showOutput' | 'config' | 'configSampling' | 'samplingLog' | 'resources';
+}
 
 export class McpServerOptionsCommand extends Action2 {
 	constructor() {
@@ -160,6 +168,11 @@ export class McpServerOptionsCommand extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const commandService = accessor.get(ICommandService);
 		const samplingService = accessor.get(IMcpSamplingService);
+		const authenticationMcpService = accessor.get(IAuthenticationMcpService);
+		const authenticationMcpAccessService = accessor.get(IAuthenticationMcpAccessService);
+		const authenticationExtensionAccessService = accessor.get(IAuthenticationAccessService);
+		const authenticationService = accessor.get(IAuthenticationService);
+		const productService = accessor.get(IProductService);
 		const server = mcpService.servers.get().find(s => s.definition.id === id);
 		if (!server) {
 			return;
@@ -167,10 +180,6 @@ export class McpServerOptionsCommand extends Action2 {
 
 		const collection = mcpRegistry.collections.get().find(c => c.id === server.collection.id);
 		const serverDefinition = collection?.serverDefinitions.get().find(s => s.id === server.definition.id);
-
-		interface ActionItem extends IQuickPickItem {
-			action: 'start' | 'stop' | 'restart' | 'showOutput' | 'config' | 'configSampling' | 'samplingLog' | 'resources';
-		}
 
 		const items: (ActionItem | IQuickPickSeparator)[] = [];
 		const serverState = server.connectionState.get();
@@ -192,6 +201,18 @@ export class McpServerOptionsCommand extends Action2 {
 				label: localize('mcp.restart', 'Restart Server'),
 				action: 'restart'
 			});
+		}
+
+		const item = this._getAuthAction(
+			mcpRegistry,
+			authenticationMcpService,
+			authenticationMcpAccessService,
+			authenticationExtensionAccessService,
+			productService,
+			server.definition.id
+		);
+		if (item) {
+			items.push(item);
 		}
 
 		const configTarget = serverDefinition?.presentation?.origin || collection?.presentation?.origin;
@@ -254,6 +275,26 @@ export class McpServerOptionsCommand extends Action2 {
 				await server.stop();
 				await server.start({ isFromInteraction: true });
 				break;
+			case 'disconnect':
+				await this._handleAuth(
+					mcpRegistry,
+					authenticationMcpService,
+					authenticationMcpAccessService,
+					authenticationService,
+					server,
+					false
+				);
+				break;
+			case 'signout':
+				await this._handleAuth(
+					mcpRegistry,
+					authenticationMcpService,
+					authenticationMcpAccessService,
+					authenticationService,
+					server,
+					true
+				);
+				break;
 			case 'showOutput':
 				server.showOutput();
 				break;
@@ -276,6 +317,107 @@ export class McpServerOptionsCommand extends Action2 {
 				break;
 			default:
 				assertNever(pick.action);
+		}
+	}
+
+	private _getAuthAction(
+		mcpRegistry: IMcpRegistry,
+		authenticationMcpService: IAuthenticationMcpService,
+		authenticationMcpAccessService: IAuthenticationMcpAccessService,
+		authenticationAccessService: IAuthenticationAccessService,
+		productService: IProductService,
+		serverId: string
+	): ActionItem | undefined {
+		const providerId = mcpRegistry.getAuthenticationUsage(serverId);
+		if (!providerId) {
+			return undefined;
+		}
+		const preference = authenticationMcpService.getAccountPreference(serverId, providerId);
+		if (!preference) {
+			return undefined;
+		}
+		if (!authenticationMcpAccessService.isAccessAllowed(providerId, preference, serverId)) {
+			return undefined;
+		}
+		const allowedServers = this._getAllAllowedItems(
+			authenticationMcpAccessService,
+			authenticationAccessService,
+			productService,
+			providerId,
+			preference
+		);
+
+		// If there are multiple allowed servers/extensions, other things are using this provider
+		// so we show a disconnect action, otherwise we show a sign out action.
+		if (allowedServers.length > 1) {
+			return {
+				action: 'disconnect',
+				label: localize('mcp.disconnect', 'Disconnect Account'),
+				description: `(${preference})`,
+			};
+		}
+		return {
+			action: 'signout',
+			label: localize('mcp.signOut', 'Sign Out'),
+			description: `(${preference})`
+		};
+	}
+
+	// TODO@TylerLeonhardt: The fact that this function exists means that these classes could really use some refactoring...
+	private _getAllAllowedItems(
+		authenticationMcpAccessService: IAuthenticationMcpAccessService,
+		authenticationAccessService: IAuthenticationAccessService,
+		productService: IProductService,
+		providerId: string,
+		preference: string
+	) {
+		const trustedExtensionAuth = Array.isArray(productService.trustedExtensionAuthAccess) || !productService.trustedExtensionAuthAccess
+			? []
+			: productService.trustedExtensionAuthAccess[providerId] ?? [];
+		const trustedMcpAuth = Array.isArray(productService.trustedMcpAuthAccess) || !productService.trustedMcpAuthAccess
+			? []
+			: productService.trustedMcpAuthAccess[providerId] ?? [];
+
+		return [
+			...authenticationMcpAccessService.readAllowedMcpServers(providerId, preference).filter(s => !s.trusted),
+			...authenticationAccessService.readAllowedExtensions(providerId, preference).filter(e => !e.trusted),
+			...trustedExtensionAuth,
+			...trustedMcpAuth
+		];
+	}
+
+	private async _handleAuth(
+		mcpRegistry: IMcpRegistry,
+		authenticationMcpService: IAuthenticationMcpService,
+		authenticationMcpAccessService: IAuthenticationMcpAccessService,
+		authenticationService: IAuthenticationService,
+		server: IMcpServer,
+		signOut: boolean
+	) {
+		const providerId = mcpRegistry.getAuthenticationUsage(server.definition.id);
+		if (!providerId) {
+			return;
+		}
+		const preference = authenticationMcpService.getAccountPreference(server.definition.id, providerId);
+		if (!preference) {
+			return;
+		}
+		authenticationMcpAccessService.updateAllowedMcpServers(providerId, preference, [
+			{
+				id: server.definition.id,
+				name: server.definition.label,
+				allowed: false
+			}
+		]);
+		if (signOut) {
+			const accounts = await authenticationService.getAccounts(providerId);
+			const account = accounts.find(a => a.label === preference);
+			if (account) {
+				const sessions = await authenticationService.getSessions(providerId, undefined, { account });
+				for (const session of sessions) {
+					await authenticationService.removeSession(providerId, session.id);
+				}
+			}
 		}
 	}
 }

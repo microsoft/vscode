@@ -106,11 +106,12 @@ import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesCon
 import { LanguageModelToolsService } from './languageModelToolsService.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
-import product from '../../../../platform/product/common/product.js';
 import { ChatModeService, IChatModeService } from '../common/chatModes.js';
 import { ChatResponseResourceFileSystemProvider } from '../common/chatResponseResourceFileSystemProvider.js';
 import { runSaveToPromptAction, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './promptSyntax/saveToPromptAction.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
+import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './chatAttachmentResolveService.js';
+import { registerLanguageModelActions } from './actions/chatLanguageModelActions.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -466,16 +467,17 @@ configurationRegistry.registerConfiguration({
 			],
 		},
 		'chat.setup.signInWithAlternateProvider': { // TODO@bpasero remove me eventually
-			type: 'boolean',
+			type: 'string',
+			enum: ['off', 'monochrome', 'colorful', 'first'],
 			description: nls.localize('chat.signInWithAlternateProvider', "Enable alternative sign-in provider."),
-			default: false,
+			default: 'off',
 			tags: ['onExp', 'experimental'],
 		},
 		'chat.setup.signInDialogVariant': { // TODO@bpasero remove me eventually
 			type: 'string',
-			enum: ['default', 'modern', 'brand-gh', 'brand-vsc', 'style-glow', 'alt-first', 'input-email', 'account-create'],
+			enum: ['default', 'brand-gh', 'brand-vsc', 'style-glow', 'account-create'],
 			description: nls.localize('chat.signInDialogVariant', "Control variations of the sign-in dialog."),
-			default: product.quality !== 'stable' ? 'modern' : 'default',
+			default: 'default',
 			tags: ['onExp', 'experimental']
 		},
 		'chat.setup.continueLaterIndicator': { // TODO@bpasero remove me eventually
@@ -735,6 +737,7 @@ registerChatContextActions();
 registerChatDeveloperActions();
 registerChatEditorActions();
 registerChatToolActions();
+registerLanguageModelActions();
 
 registerEditorFeature(ChatPasteProvidersFeature);
 
@@ -762,6 +765,7 @@ registerSingleton(IChatEntitlementService, ChatEntitlementService, Instantiation
 registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
 registerSingleton(IChatContextPickService, ChatContextPickService, InstantiationType.Delayed);
 registerSingleton(IChatModeService, ChatModeService, InstantiationType.Delayed);
+registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);
 
