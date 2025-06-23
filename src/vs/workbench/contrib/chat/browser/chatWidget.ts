@@ -67,7 +67,7 @@ import './media/chatAgentHover.css';
 import './media/chatViewWelcome.css';
 import { ChatViewWelcomePart } from './viewsWelcome/chatViewWelcomeController.js';
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
-import { IChatRequestVariableEntry, ChatRequestVariableSet as ChatRequestVariableSet, isPromptFileVariableEntry, toPromptFileVariableEntry } from '../common/chatVariableEntries.js';
+import { IChatRequestVariableEntry, ChatRequestVariableSet as ChatRequestVariableSet, isPromptFileVariableEntry, toPromptFileVariableEntry, PromptFileVariableKind } from '../common/chatVariableEntries.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
@@ -1231,7 +1231,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			parseResult = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.slashPromptCommand, CancellationToken.None);
 			if (parseResult) {
 				// add the prompt file to the context, but not sticky
-				requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, true));
+				requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile));
 
 				// remove the slash command from the input
 				requestInput.input = this.parsedInput.parts.filter(part => !(part instanceof ChatRequestSlashPromptPart)).map(part => part.text).join('').trim();
@@ -1252,9 +1252,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return undefined;
 		}
 
-		if (!requestInput.input.trim()) {
-			// NOTE this is a prompt and therefore not localized
-			requestInput.input = `Follow instructions in [${basename(parseResult.uri)}](${parseResult.uri.toString()} )`;
+		const input = requestInput.input.trim();
+		requestInput.input = `Follow instructions in [${basename(parseResult.uri)}](${parseResult.uri.toString()}).`;
+		if (input) {
+			// if the input is not empty, append it to the prompt
+			requestInput.input += `\n${input}`;
 		}
 
 		await this._applyPromptMetadata(meta, requestInput);

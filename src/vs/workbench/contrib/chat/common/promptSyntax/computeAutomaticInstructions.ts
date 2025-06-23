@@ -15,7 +15,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { ChatRequestVariableSet, IChatRequestVariableEntry, IPromptFileVariableEntry, isPromptFileVariableEntry, toPromptFileVariableEntry, toPromptTextVariableEntry } from '../chatVariableEntries.js';
+import { ChatRequestVariableSet, IChatRequestVariableEntry, IPromptFileVariableEntry, isPromptFileVariableEntry, toPromptFileVariableEntry, toPromptTextVariableEntry, PromptFileVariableKind } from '../chatVariableEntries.js';
 import { IToolData } from '../languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
 import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME } from './config/promptFileLocations.js';
@@ -114,7 +114,7 @@ export class ComputeAutomaticInstructions {
 					localize('instruction.file.reason.specificFile', 'Automatically attached as pattern {0} matches {1}', applyTo, this._labelService.getUriLabel(match.file, { relative: true }));
 
 
-				autoAddedInstructions.push(toPromptFileVariableEntry(uri, true, reason));
+				autoAddedInstructions.push(toPromptFileVariableEntry(uri, PromptFileVariableKind.Instruction, reason));
 			} else {
 				this._logService.trace(`[InstructionsContextComputer] No match for ${uri} with ${applyTo}`);
 			}
@@ -153,7 +153,7 @@ export class ComputeAutomaticInstructions {
 			for (const instructionFilePath of instructionFiles) {
 				const file = joinPath(folder.uri, instructionFilePath);
 				if (await this._fileService.exists(file)) {
-					entries.push(toPromptFileVariableEntry(file, true, localize('instruction.file.reason.copilot', 'Automatically attached as setting {0} is enabled', PromptsConfig.USE_COPILOT_INSTRUCTION_FILES)));
+					entries.push(toPromptFileVariableEntry(file, PromptFileVariableKind.Instruction, localize('instruction.file.reason.copilot', 'Automatically attached as setting {0} is enabled', PromptsConfig.USE_COPILOT_INSTRUCTION_FILES)));
 				}
 			}
 		}
@@ -238,7 +238,7 @@ export class ComputeAutomaticInstructions {
 				for (const ref of result.allValidReferences) {
 					if (await this._fileService.exists(ref)) {
 						const reason = localize('instruction.file.reason.referenced', 'Referenced by {0}', basename(variable.value));
-						attachedContext.add(toPromptFileVariableEntry(ref, true, reason));
+						attachedContext.add(toPromptFileVariableEntry(ref, PromptFileVariableKind.InstructionReference, reason));
 					}
 				}
 			}
