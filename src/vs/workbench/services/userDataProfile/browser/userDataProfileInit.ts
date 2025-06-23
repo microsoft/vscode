@@ -16,7 +16,7 @@ import { GlobalStateResourceInitializer } from './globalStateResource.js';
 import { KeybindingsResourceInitializer } from './keybindingsResource.js';
 import { TasksResourceInitializer } from './tasksResource.js';
 import { SnippetsResourceInitializer } from './snippetsResource.js';
-import { McpResourceInitializer } from './mcpResource.js';
+import { McpResourceInitializer } from './mcpProfileResource.js';
 import { ExtensionsResourceInitializer } from './extensionsResource.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { isString } from '../../../../base/common/types.js';
