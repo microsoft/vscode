@@ -248,12 +248,12 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Maximizes the auxiliary sidebar by hiding the editor and panel areas.
 	 * Restores the previous layout if the auxiliary sidebar is already maximized.
 	 */
-	toggleMaximizeAuxiliarySidebar(): void;
+	toggleMaximizedAuxiliaryBar(): void;
 
 	/**
 	 * Returns true if the auxiliary sidebar is maximized.
 	 */
-	isAuxiliaryMaximized(): boolean;
+	isAuxiliaryBarMaximized(): boolean;
 
 	/**
 	 * Returns true if the main window has a border.

@@ -1761,7 +1761,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid.setViewVisible(this.editorPartView, !hidden);
 
 		// The editor and panel cannot be hidden at the same time unless auxiliary bar is maximized
-		if (hidden && !this.isVisible(Parts.PANEL_PART) && !this.isAuxiliaryMaximized()) {
+		if (hidden && !this.isVisible(Parts.PANEL_PART) && !this.isAuxiliaryBarMaximized()) {
 			// this.setPanelHidden(false, true);
 		}
 	}
@@ -1945,7 +1945,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// If maximized and in process of hiding, unmaximize before hiding to allow caching of non-maximized size
-		if (hidden && isPanelMaximized && !this.isAuxiliaryMaximized()) {
+		if (hidden && isPanelMaximized && !this.isAuxiliaryBarMaximized()) {
 			// this.toggleMaximizedPanel();
 		}
 
@@ -1967,7 +1967,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED, isPanelMaximized);
 		}
 
-		if (focusEditor && !this.isAuxiliaryMaximized()) {
+		if (focusEditor && !this.isAuxiliaryBarMaximized()) {
 			this.editorGroupService.mainPart.activeGroup.focus(); // Pass focus to editor group if panel part is now hidden
 		}
 	}
@@ -2004,7 +2004,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		) && this.isVisible(Parts.PANEL_PART, mainWindow) && !this.isVisible(Parts.EDITOR_PART, mainWindow);
 	}
 
-	toggleMaximizeAuxiliarySidebar(): void {
+	toggleMaximizedAuxiliaryBar(): void {
 		if (this.workbenchGrid.isViewMaximized(this.auxiliaryBarPartView)) {
 			this.workbenchGrid.exitMaximizedView();
 		} else {
@@ -2012,7 +2012,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	isAuxiliaryMaximized(): boolean {
+	isAuxiliaryBarMaximized(): boolean {
 		return this.workbenchGrid.isViewMaximized(this.auxiliaryBarPartView);
 	}
 

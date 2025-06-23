@@ -661,8 +661,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	async setPanelHidden(_hidden: boolean): Promise<void> { }
 	toggleMaximizedPanel(): void { }
 	isPanelMaximized(): boolean { return false; }
-	toggleMaximizeAuxiliarySidebar(): void { }
-	isAuxiliaryMaximized(): boolean { return false; }
+	toggleMaximizedAuxiliaryBar(): void { }
+	isAuxiliaryBarMaximized(): boolean { return false; }
 	getMenubarVisibility(): MenuBarVisibility { throw new Error('not implemented'); }
 	toggleMenuBar(): void { }
 	getSideBarPosition() { return 0; }

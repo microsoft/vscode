@@ -390,7 +390,7 @@ class NewWindowAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 
-		return layoutService.toggleMaximizeAuxiliarySidebar();
+		return layoutService.toggleMaximizedAuxiliaryBar();
 	}
 }
 
