@@ -340,7 +340,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 
 	setEditing(editing: IChatRequestViewModel | undefined): void {
-		if (this._editing && editing && this._editing.id === editing.id) {
+		if (this.editing && editing && this.editing.id === editing.id) {
 			return; // already editing this request
 		}
 
