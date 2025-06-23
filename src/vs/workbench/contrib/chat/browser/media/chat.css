@@ -1879,10 +1879,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		margin-left: auto;
 	}
 
-		.interactive-item-container.interactive-request .value .rendered-markdown.clickable:hover{
-			cursor: text;
-			background-color: var(--vscode-list-hoverBackground);
-		}
+	.interactive-item-container.interactive-request .value .rendered-markdown.clickable:hover {
+		cursor: text;
+		background-color: var(--vscode-chat-requestBubbleHoverBackground);
+	}
+
+	.hc-black .interactive-item-container.interactive-request .value .rendered-markdown,
+	.hc-light .interactive-item-container.interactive-request .value .rendered-markdown {
+		border: 1px dotted var(--vscode-focusBorder);
+	}
 
 	.interactive-item-container.interactive-request .value .rendered-markdown > :last-child {
 		margin-bottom: 0px;
@@ -1897,12 +1902,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		width: fit-content;
 		justify-content: flex-end;
 		margin-left: auto;
-	}
-
-	.hc-black .interactive-item-container.interactive-request .value,
-	.hc-light .interactive-item-container.interactive-request .value {
-		outline: 1px solid var(--vscode-chat-requestBorder);
-		box-shadow: none;
 	}
 
 	.interactive-request .header.header-disabled,
