@@ -99,6 +99,11 @@ export interface IChatWidgetContrib extends IDisposable {
 	setInputState?(s: any): void;
 }
 
+interface IChatRequestInputOptions {
+	input: string;
+	attachedContext: ChatRequestVariableSet;
+}
+
 export interface IChatWidgetLocationOptions {
 	location: ChatAgentLocation;
 	resolveData?(): IChatLocationData | undefined;
@@ -1380,7 +1385,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return undefined;
 	}
 
-	private async _applyPromptFileIfSet(requestInput: { input: string; attachedContext: ChatRequestVariableSet }): Promise<IPromptParserResult | undefined> {
+	private async _applyPromptFileIfSet(requestInput: IChatRequestInputOptions): Promise<IPromptParserResult | undefined> {
 
 		let parseResult: IPromptParserResult | undefined;
 
@@ -1406,16 +1411,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!parseResult) {
 			return undefined;
 		}
+		const meta = parseResult.metadata;
+		if (meta?.promptType !== PromptsType.prompt) {
+			return undefined;
+		}
 
 		if (!requestInput.input.trim()) {
 			// NOTE this is a prompt and therefore not localized
 			requestInput.input = `Follow instructions in [${basename(parseResult.uri)}](${parseResult.uri.toString()} )`;
 		}
 
-		const meta = parseResult.metadata;
-		if (meta?.promptType === PromptsType.prompt) {
-			await this._applyPromptMetadata(meta);
-		}
+		await this._applyPromptMetadata(meta, requestInput);
 
 		return parseResult;
 	}
@@ -1518,7 +1524,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			const editorValue = this.getInput();
 			const requestId = this.chatAccessibilityService.acceptRequest();
-			const requestInputs = {
+			const requestInputs: IChatRequestInputOptions = {
 				input: !query ? editorValue : query.query,
 				attachedContext: this.input.getAttachedAndImplicitContext(this.viewModel.sessionId),
 			};
@@ -1529,7 +1535,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (instructionsEnabled) {
 				// process the prompt command
 				await this._applyPromptFileIfSet(requestInputs);
-				await this._autoAttachInstructions(requestInputs.attachedContext);
+				await this._autoAttachInstructions(requestInputs);
 			}
 
 			if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentMode === ChatMode.Edit && !this.chatService.edits2Enabled) {
@@ -1833,7 +1839,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.agentInInput.set(!!currentAgent);
 	}
 
-	private async _applyPromptMetadata(metadata: TPromptMetadata): Promise<void> {
+	private async _applyPromptMetadata(metadata: TPromptMetadata, requestInput: IChatRequestInputOptions): Promise<void> {
 
 		const { mode, tools } = metadata;
 
@@ -1883,9 +1889,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * - instructions referenced in the copilot settings 'copilot-instructions*
 	 * - instructions referenced in an already included instruction file
 	 */
-	private async _autoAttachInstructions(attachedContext: ChatRequestVariableSet): Promise<void> {
-		const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions);
-		await computer.collect(attachedContext, true, CancellationToken.None);
+	private async _autoAttachInstructions({ attachedContext }: IChatRequestInputOptions): Promise<void> {
+		let readFileTool = this.toolsService.getToolByName('readFile');
+		if (readFileTool && this.getUserSelectedTools()?.[readFileTool.id] === false) {
+			readFileTool = undefined;
+		}
+
+		const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, readFileTool);
+		await computer.collect(attachedContext, CancellationToken.None);
 
 		// add to attached list to make the instructions sticky
 		//this.inputPart.attachmentModel.addContext(...computer.autoAddedInstructions);
