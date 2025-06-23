@@ -1,0 +1,45 @@
+$date
+	Mon Dec 25 10:00:00 2023
+$end
+$version
+	Test VCD Generator
+$end
+$timescale
+	1ns
+$end
+$scope module testbench $end
+$var wire 1 ! clk $end
+$var wire 1 " reset $end
+$var wire 8 # data [7:0] $end
+$upscope $end
+$enddefinitions $end
+$dumpvars
+0!
+1"
+b00000000 #
+$end
+#0
+#10
+1!
+#20
+0!
+#30
+1!
+0"
+#40
+0!
+b00000001 #
+#50
+1!
+#60
+0!
+b00000010 #
+#70
+1!
+#80
+0!
+b00000011 #
+#90
+1!
+#100
+0!
