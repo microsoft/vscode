@@ -709,7 +709,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private getWelcomeViewContent(): IChatWelcomeMessageContent {
-		const baseMessage = localize('chatMessage', "Ask questions about your codebase, coding, and general technology concepts \n\n AI responses may be inaccurate. Review output carefully before use.");
+		const baseMessage = localize('chatMessage', "Ask questions about your codebase, coding, and general technology concepts. \n\n AI responses may be inaccurate. Review output carefully before use.");
 		if (this.input.currentMode === ChatMode.Ask) {
 			return {
 				title: localize('chatDescription', "Ask about your code."),
