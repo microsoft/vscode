@@ -65,10 +65,9 @@ export class RunTaskTool implements IToolImpl {
 			// Get all available tasks
 			const allTasks = await this.taskService.tasks();
 			
-			// Find the task by name or label
+			// Find the task by label or identifier
 			const taskToRun = allTasks.find(task => 
-				task.name === taskName || 
-				task._label === taskName ||
+				task._label === taskName || 
 				task.configurationProperties.identifier === taskName
 			);
 
@@ -76,7 +75,7 @@ export class RunTaskTool implements IToolImpl {
 				return {
 					content: [{
 						kind: 'text',
-						value: localize('runTaskTool.taskNotFound', 'Task "{0}" not found. Available tasks: {1}', taskName, allTasks.map(t => t.name).join(', '))
+						value: localize('runTaskTool.taskNotFound', 'Task "{0}" not found. Available tasks: {1}', taskName, allTasks.map(t => t._label).join(', '))
 					}]
 				};
 			}
@@ -139,15 +138,20 @@ export class RunTaskTool implements IToolImpl {
 			// Try to find common npm scripts in priority order
 			const commonScripts = ['start', 'build', 'test', 'dev', 'serve'];
 			for (const scriptName of commonScripts) {
-				const task = npmTasks.find(t => t.name === scriptName);
+				// Check for exact match or "scriptName - path" pattern
+				const task = npmTasks.find(t => 
+					t._label === scriptName || 
+					t._label.startsWith(`${scriptName} - `) ||
+					t.configurationProperties.identifier === scriptName
+				);
 				if (task) {
-					return { task: task.name };
+					return { task: task._label };
 				}
 			}
 
 			// If no common npm scripts, try first npm task
 			if (npmTasks.length > 0) {
-				return { task: npmTasks[0].name };
+				return { task: npmTasks[0]._label };
 			}
 
 			// Try to find default task in any group
@@ -158,11 +162,11 @@ export class RunTaskTool implements IToolImpl {
 			);
 			
 			if (defaultTask) {
-				return { task: defaultTask.name };
+				return { task: defaultTask._label };
 			}
 
 			// Fall back to first available task
-			return { task: allTasks[0].name };
+			return { task: allTasks[0]._label };
 
 		} catch (error) {
 			// If there's an error resolving, return the original input
