@@ -50,7 +50,7 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 	}
 
 	async scanMcpServers(mcpResource: URI): Promise<IScannedMcpServers> {
-		return this.withProfileMcpServers(mcpResource, scannedMcpServers => scannedMcpServers);
+		return this.withProfileMcpServers(mcpResource);
 	}
 
 	async addMcpServers(servers: { server: IScannedMcpServer; inputs?: IMcpServerVariable[] }[], mcpResource: URI): Promise<IScannedMcpServer[]> {
@@ -101,7 +101,11 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 				}
 				if (updateFn) {
 					scannedMcpServers = updateFn(scannedMcpServers ?? {});
-					await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(scannedMcpServers, null, '\t')));
+					if (scannedMcpServers.servers && Object.keys(scannedMcpServers.servers).length > 0) {
+						await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(scannedMcpServers, null, '\t')));
+					} else {
+						await this.fileService.del(file);
+					}
 				}
 				return scannedMcpServers;
 			});
