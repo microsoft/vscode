@@ -81,6 +81,7 @@ import { ChatCodeBlockContentProvider, CodeBlockPart } from './codeBlockPart.js'
 import { canceledName } from '../../../../base/common/errors.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatElicitationContentPart } from './chatContentParts/chatElicitationContentPart.js';
+import { alert } from '../../../../base/browser/ui/aria/aria.js';
 
 const $ = dom.$;
 
@@ -964,6 +965,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			return this.renderNoContent(other => content.kind === other.kind);
 		} catch (err) {
+			alert(`Chat error: ${toErrorMessage(err, false)}`);
 			this.logService.error('ChatListItemRenderer#renderChatContentPart: error rendering content', toErrorMessage(err, true));
 			const errorPart = this.instantiationService.createInstance(ChatErrorContentPart, ChatErrorLevel.Error, new MarkdownString(localize('renderFailMsg', "Failed to render content") + `: ${toErrorMessage(err, false)}`), content, this.renderer);
 			return {
