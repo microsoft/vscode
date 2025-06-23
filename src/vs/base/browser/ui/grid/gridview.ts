@@ -350,7 +350,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
 
 	private readonly _onDidVisibilityChange = new Emitter<boolean>();
-	private readonly onDidVisibilityChange: Event<boolean> = this._onDidVisibilityChange.event;
+	readonly onDidVisibilityChange: Event<boolean> = this._onDidVisibilityChange.event;
 	private readonly childrenVisibilityChangeDisposable: DisposableStore = new DisposableStore();
 
 	private _onDidScroll = new Emitter<void>();
@@ -1584,7 +1584,7 @@ export class GridView implements IDisposable {
 		if (!this.maximizedState) {
 			return;
 		}
-		const previouslyMaximizedNode = this.maximizedState;
+		const previouslyMaximizedState = this.maximizedState;
 		this.maximizedState = undefined;
 
 		// When hiding a view, it's previous size is cached.
@@ -1593,7 +1593,7 @@ export class GridView implements IDisposable {
 			for (let index = parent.children.length - 1; index >= 0; index--) {
 				const child = parent.children[index];
 				if (child instanceof LeafNode) {
-					if (child.affinity === previouslyMaximizedNode.node!.affinity && previouslyMaximizedNode.visibleNodes.has(child)) {
+					if (previouslyMaximizedState.visibleNodes.has(child)) {
 						parent.setChildVisible(index, true);
 					}
 				} else {
