@@ -194,11 +194,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private getContainerFromDocument(targetDocument: Document): HTMLElement {
 		if (targetDocument === this.mainContainer.ownerDocument) {
-			// main window
-			return this.mainContainer;
+			return this.mainContainer; // main window
 		} else {
-			// auxiliary window
-			return targetDocument.body.getElementsByClassName('monaco-workbench')[0] as HTMLElement;
+			return targetDocument.body.getElementsByClassName('monaco-workbench')[0] as HTMLElement; // auxiliary window
 		}
 	}
 
@@ -1399,6 +1397,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			// Zen Mode Configuration Changes
 			this.state.runtime.zenMode.transitionDisposables.set('configurationChange', this.configurationService.onDidChangeConfiguration(e => {
+
 				// Activity Bar
 				if (e.affectsConfiguration(ZenModeSettings.HIDE_ACTIVITYBAR) || e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
 					const zenModeHideActivityBar = this.configurationService.getValue<boolean>(ZenModeSettings.HIDE_ACTIVITYBAR);
@@ -1567,6 +1566,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				} else if (part === editorPart) {
 					this.setEditorHidden(!visible);
 				}
+
 				this._onDidChangePartVisibility.fire();
 				this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension);
 			}));
@@ -1683,41 +1683,37 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		switch (part) {
 			case Parts.SIDEBAR_PART:
 				viewSize = this.workbenchGrid.getViewSize(this.sideBarPartView);
-				this.workbenchGrid.resizeView(this.sideBarPartView,
-					{
-						width: viewSize.width + sizeChangePxWidth,
-						height: viewSize.height
-					});
+				this.workbenchGrid.resizeView(this.sideBarPartView, {
+					width: viewSize.width + sizeChangePxWidth,
+					height: viewSize.height
+				});
 
 				break;
 			case Parts.PANEL_PART:
 				viewSize = this.workbenchGrid.getViewSize(this.panelPartView);
 
-				this.workbenchGrid.resizeView(this.panelPartView,
-					{
-						width: viewSize.width + (isHorizontal(this.getPanelPosition()) ? 0 : sizeChangePxWidth),
-						height: viewSize.height + (isHorizontal(this.getPanelPosition()) ? sizeChangePxHeight : 0)
-					});
+				this.workbenchGrid.resizeView(this.panelPartView, {
+					width: viewSize.width + (isHorizontal(this.getPanelPosition()) ? 0 : sizeChangePxWidth),
+					height: viewSize.height + (isHorizontal(this.getPanelPosition()) ? sizeChangePxHeight : 0)
+				});
 
 				break;
 			case Parts.AUXILIARYBAR_PART:
 				viewSize = this.workbenchGrid.getViewSize(this.auxiliaryBarPartView);
-				this.workbenchGrid.resizeView(this.auxiliaryBarPartView,
-					{
-						width: viewSize.width + sizeChangePxWidth,
-						height: viewSize.height
-					});
+				this.workbenchGrid.resizeView(this.auxiliaryBarPartView, {
+					width: viewSize.width + sizeChangePxWidth,
+					height: viewSize.height
+				});
 				break;
 			case Parts.EDITOR_PART:
 				viewSize = this.workbenchGrid.getViewSize(this.editorPartView);
 
 				// Single Editor Group
 				if (this.editorGroupService.mainPart.count === 1) {
-					this.workbenchGrid.resizeView(this.editorPartView,
-						{
-							width: viewSize.width + sizeChangePxWidth,
-							height: viewSize.height + sizeChangePxHeight
-						});
+					this.workbenchGrid.resizeView(this.editorPartView, {
+						width: viewSize.width + sizeChangePxWidth,
+						height: viewSize.height + sizeChangePxHeight
+					});
 				} else {
 					const activeGroup = this.editorGroupService.mainPart.activeGroup;
 
@@ -1729,11 +1725,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					// try resizing the full editor part
 					const { width: newWidth, height: newHeight } = this.editorGroupService.mainPart.getSize(activeGroup);
 					if ((sizeChangePxHeight && height === newHeight) || (sizeChangePxWidth && width === newWidth)) {
-						this.workbenchGrid.resizeView(this.editorPartView,
-							{
-								width: viewSize.width + (sizeChangePxWidth && width === newWidth ? sizeChangePxWidth : 0),
-								height: viewSize.height + (sizeChangePxHeight && height === newHeight ? sizeChangePxHeight : 0)
-							});
+						this.workbenchGrid.resizeView(this.editorPartView, {
+							width: viewSize.width + (sizeChangePxWidth && width === newWidth ? sizeChangePxWidth : 0),
+							height: viewSize.height + (sizeChangePxHeight && height === newHeight ? sizeChangePxHeight : 0)
+						});
 					}
 				}
 
@@ -1907,10 +1902,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private setPanelHidden(hidden: boolean, skipLayout?: boolean): void {
-
-		// Return if not initialized fully #105480
 		if (!this.workbenchGrid) {
-			return;
+			return; // Return if not initialized fully #105480
 		}
 
 		const wasHidden = !this.isVisible(Parts.PANEL_PART);
