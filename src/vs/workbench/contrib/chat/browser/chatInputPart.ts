@@ -607,26 +607,30 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _getAriaLabel(): string {
 		const verbose = this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Chat);
+		let kbLabel;
 		if (verbose) {
-			const kbLabel = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
-			let modeLabel = '';
-			switch (this.currentMode) {
-				case ChatMode.Agent:
-					modeLabel = localize('chatInput.mode.agent', "(Agent Mode), edit files in your workspace.");
-					break;
-				case ChatMode.Edit:
-					modeLabel = localize('chatInput.mode.edit', "(Edit Mode), edit files in your workspace.");
-					break;
-				case ChatMode.Ask:
-				default:
-					modeLabel = localize('chatInput.mode.ask', "(Ask Mode), ask questions or type / for topics.");
-					break;
-			}
+			kbLabel = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
+		}
+		let modeLabel = '';
+		switch (this.currentMode) {
+			case ChatMode.Agent:
+				modeLabel = localize('chatInput.mode.agent', "(Agent Mode), edit files in your workspace.");
+				break;
+			case ChatMode.Edit:
+				modeLabel = localize('chatInput.mode.edit', "(Edit Mode), edit files in your workspace.");
+				break;
+			case ChatMode.Ask:
+			default:
+				modeLabel = localize('chatInput.mode.ask', "(Ask Mode), ask questions or type / for topics.");
+				break;
+		}
+		if (verbose) {
 			return kbLabel
 				? localize('actions.chat.accessibiltyHelp', "Chat Input {0} Press Enter to send out the request. Use {1} for Chat Accessibility Help.", modeLabel, kbLabel)
 				: localize('chatInput.accessibilityHelpNoKb', "Chat Input {0} Press Enter to send out the request. Use the Chat Accessibility Help command for more information.", modeLabel);
+		} else {
+			return localize('chatInput.accessibilityHelp', "Chat Input {0}.", modeLabel);
 		}
-		return localize('chatInput', "Chat Input");
 	}
 
 	private async validateCurrentChatMode() {

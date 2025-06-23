@@ -350,6 +350,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 			&& !(verificationStatus === ExtensionSignatureVerificationCode.NotSigned && !shouldRequireSignature)
 			&& verifySignature
 			&& this.environmentService.isBuilt
+			&& (await this.getTargetPlatform()) !== TargetPlatform.LINUX_ARMHF
 		) {
 			try {
 				await this.extensionsDownloader.delete(location);

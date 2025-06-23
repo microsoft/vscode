@@ -17,6 +17,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, IPromptFileVariableEntry, isPromptFileVariableEntry, toPromptFileVariableEntry, toPromptTextVariableEntry } from '../chatVariableEntries.js';
+import { IToolData } from '../languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
 import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME } from './config/promptFileLocations.js';
 import { PromptsType } from './promptTypes.js';
@@ -29,6 +30,7 @@ export class ComputeAutomaticInstructions {
 	private _autoAddedInstructions: IPromptFileVariableEntry[] = [];
 
 	constructor(
+		private readonly _readFileTool: IToolData | undefined,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@ILogService public readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -51,7 +53,7 @@ export class ComputeAutomaticInstructions {
 		return result;
 	}
 
-	public async collect(variables: ChatRequestVariableSet, addInstructionsSummary: boolean, token: CancellationToken): Promise<void> {
+	public async collect(variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
 		const instructionFiles = await this._promptsService.listPromptFiles(PromptsType.instructions, token);
 
 		this._logService.trace(`[InstructionsContextComputer] ${instructionFiles.length} instruction files available.`);
@@ -72,7 +74,7 @@ export class ComputeAutomaticInstructions {
 		this._logService.trace(`[InstructionsContextComputer]  ${copilotInstructions.files.size} Copilot instructions files added.`);
 
 		const copilotInstructionsFromSettings = this._getCopilotTextInstructions(copilotInstructions.instructionMessages);
-		const instructionsWithPatternsList = addInstructionsSummary ? await this._getInstructionsWithPatternsList(instructionFiles, variables, token) : [];
+		const instructionsWithPatternsList = await this._getInstructionsWithPatternsList(instructionFiles, variables, token);
 
 		if (copilotInstructionsFromSettings.length + instructionsWithPatternsList.length > 0) {
 			const text = `${copilotInstructionsFromSettings.join('\n')}\n\n${instructionsWithPatternsList.join('\n')}`;
@@ -220,6 +222,11 @@ export class ComputeAutomaticInstructions {
 	}
 
 	private async _getInstructionsWithPatternsList(instructionFiles: readonly IPromptPath[], _existingVariables: ChatRequestVariableSet, token: CancellationToken): Promise<string[]> {
+		if (!this._readFileTool) {
+			this._logService.trace('[InstructionsContextComputer] No readFile tool available, skipping instructions with patterns list.');
+			return [];
+		}
+
 		const entries: string[] = [];
 		for (const instructionFile of instructionFiles) {
 			const { metadata, uri } = await this._parsePromptFile(instructionFile.uri, token);
@@ -235,11 +242,13 @@ export class ComputeAutomaticInstructions {
 		if (entries.length === 0) {
 			return entries;
 		}
+
+		const toolName = 'read_file'; // workaround https://github.com/microsoft/vscode/issues/252167
 		return [
 			'Here is a list of instruction files that contain rules for modifying or creating new code.',
 			'These files are important for ensuring that the code is modified or created correctly.',
 			'Please make sure to follow the rules specified in these files when working with the codebase.',
-			'If the file is not already available as attachment, use the `read_file` tool to acquire it.',
+			`If the file is not already available as attachment, use the \`${toolName}\` tool to acquire it.`,
 			'Make sure to acquire the instructions before making any changes to the code.',
 			'| Pattern | File Path | Description |',
 			'| ------- | --------- | ----------- |',
