@@ -179,6 +179,12 @@ export interface IAccountMcpServerQuery extends IBaseQuery {
 	 * Check if this account is the preferred account for this MCP server
 	 */
 	isPreferred(): boolean;
+
+	/**
+	 * Check if this MCP server is trusted (defined in product.json)
+	 * @returns True if the MCP server is trusted, false otherwise
+	 */
+	isTrusted(): boolean;
 }
 
 /**
@@ -219,10 +225,10 @@ export interface IAccountMcpServersQuery extends IBaseQuery {
 	readonly accountName: string;
 
 	/**
-	 * Get all MCP server IDs that have access to this account
-	 * @returns Array of MCP server IDs
+	 * Get all MCP servers that have access to this account with their trusted state
+	 * @returns Array of objects containing MCP server data including trusted state
 	 */
-	getAllowedMcpServerIds(): string[];
+	getAllowedMcpServers(): { id: string; name: string; allowed?: boolean; lastUsed?: number; trusted?: boolean }[];
 
 	/**
 	 * Grant access to this account for all specified MCP servers
@@ -286,25 +292,25 @@ export interface IProviderMcpServerQuery extends IBaseQuery {
 	readonly mcpServerId: string;
 
 	/**
-	 * Get the last used account for this MCP server within this provider
+	 * Get the last used account for this MCP server within a provider
 	 * @returns The account name, or undefined if no preference is set
 	 */
 	getLastUsedAccount(): Promise<string | undefined>;
 
 	/**
-	 * Get the preferred account for this MCP server within this provider
+	 * Get the preferred account for this MCP server within a provider
 	 * @returns The account name, or undefined if no preference is set
 	 */
 	getPreferredAccount(): string | undefined;
 
 	/**
-	 * Set the preferred account for this MCP server within this provider
+	 * Set the preferred account for this MCP server within a provider
 	 * @param account The account to set as preferred
 	 */
 	setPreferredAccount(account: AuthenticationSessionAccount): void;
 
 	/**
-	 * Remove the account preference for this MCP server within this provider
+	 * Remove the account preference for this MCP server within a provider
 	 */
 	removeAccountPreference(): void;
 
