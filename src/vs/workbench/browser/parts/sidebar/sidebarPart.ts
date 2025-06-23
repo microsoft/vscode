@@ -5,7 +5,7 @@
 
 import './media/sidebarpart.css';
 import './sidebarActions.js';
-import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position as SideBarPosition } from '../../../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, PartsAffinity, Position as SideBarPosition } from '../../../services/layout/browser/layoutService.js';
 import { SidebarFocusContext, ActiveViewletContext } from '../../../common/contextkeys.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -46,8 +46,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	override get snap(): boolean { return true; }
 
 	readonly priority: LayoutPriority = LayoutPriority.Low;
-
-	readonly affinity = 7;
+	readonly affinity = PartsAffinity[Parts.SIDEBAR_PART];
 
 	get preferredWidth(): number | undefined {
 		const viewlet = this.getActivePaneComposite();

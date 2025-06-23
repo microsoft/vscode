@@ -29,6 +29,14 @@ export const enum Parts {
 	STATUSBAR_PART = 'workbench.parts.statusbar'
 }
 
+const MAIN_AREA_PARTS_AFFINITY = 3;
+export const PartsAffinity = {
+	[Parts.SIDEBAR_PART]: MAIN_AREA_PARTS_AFFINITY,
+	[Parts.AUXILIARYBAR_PART]: MAIN_AREA_PARTS_AFFINITY,
+	[Parts.EDITOR_PART]: MAIN_AREA_PARTS_AFFINITY,
+	[Parts.PANEL_PART]: MAIN_AREA_PARTS_AFFINITY
+};
+
 export const enum ZenModeSettings {
 	SHOW_TABS = 'zenMode.showTabs',
 	HIDE_LINENUMBERS = 'zenMode.hideLineNumbers',

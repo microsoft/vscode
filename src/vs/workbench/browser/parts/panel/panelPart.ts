@@ -8,7 +8,7 @@ import { localize } from '../../../../nls.js';
 import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { ActivePanelContext, PanelFocusContext } from '../../../common/contextkeys.js';
-import { IWorkbenchLayoutService, Parts, Position } from '../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts, PartsAffinity, Position } from '../../../services/layout/browser/layoutService.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -41,8 +41,6 @@ export class PanelPart extends AbstractPaneCompositePart {
 	readonly minimumHeight: number = 77;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
-	readonly affinity = 7;
-
 	get preferredHeight(): number | undefined {
 		// Don't worry about titlebar or statusbar visibility
 		// The difference is minimal and keeps this function clean
@@ -63,6 +61,8 @@ export class PanelPart extends AbstractPaneCompositePart {
 
 		return Math.max(width, 300);
 	}
+
+	readonly affinity = PartsAffinity[Parts.PANEL_PART];
 
 	//#endregion
 
