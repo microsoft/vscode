@@ -107,6 +107,14 @@ export function getExactExpressionStartAndEnd(lineContent: string, looseStart: n
 		while (subExpressionResult = subExpression.exec(matchingExpression)) {
 			const subEnd = subExpressionResult.index + 1 + startOffset + subExpressionResult[0].length;
 			if (subEnd >= looseEnd) {
+				// Check if the word is immediately followed by '!' (non-null assertion)
+				// If so, don't truncate here as the '!' is part of the expression
+				const wordEndInExpression = subExpressionResult.index + subExpressionResult[0].length;
+				if (wordEndInExpression < matchingExpression.length && 
+					matchingExpression[wordEndInExpression] === '!') {
+					// Continue to next word instead of truncating
+					continue;
+				}
 				break;
 			}
 		}
