@@ -197,7 +197,7 @@ export class CoverageAction extends RunVisibleAction {
 	constructor() {
 		super(TestRunProfileBitset.Coverage, {
 			id: TestCommandId.RunWithCoverageAction,
-			title: localize2('run with cover test', 'Run Test with Coverage'),
+			title: localize2('testing.coverageAction', 'Run Test with Coverage'),
 			icon: icons.testingCoverageIcon,
 			menu: testItemInlineAndInContext(ActionOrder.Coverage, TestingContextKeys.hasCoverableTests.isEqualTo(true)),
 		});
@@ -214,6 +214,8 @@ export class RunUsingProfileAction extends Action2 {
 				id: MenuId.TestItem,
 				order: ActionOrder.RunUsing,
 				group: 'builtin@2',
+				// Only show when there are non-default profiles (multiple of same type)
+				// that would benefit from the profile picker beyond the dedicated menu items
 				when: TestingContextKeys.hasNonDefaultProfile.isEqualTo(true),
 			},
 		});
