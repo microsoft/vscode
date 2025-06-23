@@ -32,6 +32,7 @@ import { NativeEditContextRegistry } from './nativeEditContextRegistry.js';
 import { IEditorAriaOptions } from '../../../editorBrowser.js';
 import { isHighSurrogate, isLowSurrogate } from '../../../../../base/common/strings.js';
 import { IME } from '../../../../../base/common/ime.js';
+import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -55,13 +56,14 @@ export class NativeEditContext extends AbstractEditContext {
 	private readonly _imeTextArea: FastDomNode<HTMLTextAreaElement>;
 	private readonly _editContext: EditContext;
 	private readonly _screenReaderSupport: ScreenReaderSupport;
+	private _previousEditContextSelection: OffsetRange = new OffsetRange(0, 0);
 	private _editContextPrimarySelection: Selection = new Selection(1, 1, 1, 1);
 
 	// Overflow guard container
 	private _parent: HTMLElement | undefined;
 	private _decorations: string[] = [];
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
-
+	private _isComposing: boolean = false;
 
 	private _targetWindowId: number = -1;
 	private _scrollTop: number = 0;
@@ -185,6 +187,8 @@ export class NativeEditContext extends AbstractEditContext {
 			this._emitTypeEvent(this._viewController, e);
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
+			console.log('compositionstart', e);
+			this._isComposing = true;
 			// Utlimately fires onDidCompositionStart() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			this._viewController.compositionStart();
@@ -192,6 +196,8 @@ export class NativeEditContext extends AbstractEditContext {
 			this._context.viewModel.onCompositionStart();
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionend', (e) => {
+			console.log('compositionend', e);
+			this._isComposing = false;
 			// Utlimately fires compositionEnd() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			this._viewController.compositionEnd();
@@ -347,29 +353,45 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _updateEditContext(): void {
+		if (this._isComposing) {
+			// need to also update the offset range
+			return;
+		}
 		const editContextState = this._getNewEditContextState();
 		if (!editContextState) {
 			return;
 		}
+		console.log('updateEditContext', editContextState);
 		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextState.text ?? ' ');
 		this._editContext.updateSelection(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
 		this._editContextPrimarySelection = editContextState.editContextPrimarySelection;
+		this._previousEditContextSelection = new OffsetRange(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
 	}
 
 	private _emitTypeEvent(viewController: ViewController, e: ITextUpdateEvent): void {
+		console.log('emitTypeEvent', e);
+		console.log('this._editContext.text : ', this._editContext.text);
+		console.log('this._editContext.selectionStart : ', this._editContext.selectionStart);
+		console.log('this._editContext.selectionEnd : ', this._editContext.selectionEnd);
 		if (!this._editContext) {
 			return;
 		}
-		if (!this._editContextPrimarySelection.equalsSelection(this._primarySelection)) {
-			return;
-		}
-		const model = this._context.viewModel.model;
-		const startPositionOfEditContext = this._editContextStartPosition();
-		const offsetOfStartOfText = model.getOffsetAt(startPositionOfEditContext);
-		const offsetOfSelectionEnd = model.getOffsetAt(this._primarySelection.getEndPosition());
-		const offsetOfSelectionStart = model.getOffsetAt(this._primarySelection.getStartPosition());
-		const selectionEndOffset = offsetOfSelectionEnd - offsetOfStartOfText;
-		const selectionStartOffset = offsetOfSelectionStart - offsetOfStartOfText;
+		// if (!this._editContextPrimarySelection.equalsSelection(this._primarySelection)) {
+		// 	return;
+		// }
+		// const model = this._context.viewModel.model;
+		// const startPositionOfEditContext = this._editContextStartPosition();
+		// const offsetOfStartOfText = model.getOffsetAt(startPositionOfEditContext);
+		// const offsetOfSelectionEnd = model.getOffsetAt(this._primarySelection.getEndPosition());
+		// const offsetOfSelectionStart = model.getOffsetAt(this._primarySelection.getStartPosition());
+		// const selectionEndOffset = offsetOfSelectionEnd - offsetOfStartOfText;
+		// const selectionStartOffset = offsetOfSelectionStart - offsetOfStartOfText;
+		const selectionEndOffset = this._previousEditContextSelection.endExclusive;
+		const selectionStartOffset = this._previousEditContextSelection.start;
+		console.log('selectionStartOffset', selectionStartOffset);
+		console.log('selectionEndOffset', selectionEndOffset);
+		console.log('e.updateRangeStart', e.updateRangeStart);
+		console.log('e.updateRangeEnd', e.updateRangeEnd);
 
 		let replaceNextCharCnt = 0;
 		let replacePrevCharCnt = 0;
@@ -399,13 +421,22 @@ export class NativeEditContext extends AbstractEditContext {
 		};
 		this._onType(viewController, typeInput);
 
-		// It could be that the typed letter does not produce a change in the editor text,
-		// for example if an extension registers a custom typing command, and the typing operation does something else like scrolling
-		// Need to update the edit context to reflect this
-		this._updateEditContext();
+		if (this._isComposing) {
+			this._previousEditContextSelection = new OffsetRange(e.selectionStart, e.selectionEnd);
+		} else {
+			// It could be that the typed letter does not produce a change in the editor text,
+			// for example if an extension registers a custom typing command, and the typing operation does something else like scrolling
+			// Need to update the edit context to reflect this
+			this._updateEditContext();
+		}
 	}
 
 	private _onType(viewController: ViewController, typeInput: ITypeData): void {
+		console.log('typeInput', typeInput);
+		console.log('typeInput.replacePrevCharCnt', typeInput.replacePrevCharCnt);
+		console.log('typeInput.replaceNextCharCnt', typeInput.replaceNextCharCnt);
+		console.log('typeInput.positionDelta', typeInput.positionDelta);
+		console.log('this._primarySelection : ', this._primarySelection);
 		if (typeInput.replacePrevCharCnt || typeInput.replaceNextCharCnt || typeInput.positionDelta) {
 			viewController.compositionType(typeInput.text, typeInput.replacePrevCharCnt, typeInput.replaceNextCharCnt, typeInput.positionDelta);
 		} else {

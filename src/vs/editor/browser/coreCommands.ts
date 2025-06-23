@@ -2141,6 +2141,7 @@ class EditorHandlerCommand extends Command {
 			return;
 		}
 
+		console.log('Running command ', this.id, ' on editor ', editor.getId(), ' with args ', args);
 		editor.trigger('keyboard', this._handlerId, args);
 	}
 }

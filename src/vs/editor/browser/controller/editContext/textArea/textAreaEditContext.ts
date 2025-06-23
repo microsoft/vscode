@@ -322,6 +322,11 @@ export class TextAreaEditContext extends AbstractEditContext {
 		}));
 
 		this._register(this._textAreaInput.onType((e: ITypeData) => {
+			console.log('e : ', e);
+			console.log('e.replacePrevCharCnt : ', e.replacePrevCharCnt);
+			console.log('e.replaceNextCharCnt : ', e.replaceNextCharCnt);
+			console.log('e.positionDelta : ', e.positionDelta);
+			console.log('this._primaryCursorPosition : ', this._primaryCursorPosition);
 			if (e.replacePrevCharCnt || e.replaceNextCharCnt || e.positionDelta) {
 				// must be handled through the new command
 				if (_debugComposition) {
@@ -426,6 +431,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 
 			this._viewController.compositionStart();
 			this._context.viewModel.onCompositionStart();
+			console.log('on composition start');
 		}));
 
 		this._register(this._textAreaInput.onCompositionUpdate((e: ICompositionData) => {
@@ -435,6 +441,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 
 			this._visibleTextArea.prepareRender(this._visibleRangeProvider);
 			this._render();
+			console.log('on composition update');
 		}));
 
 		this._register(this._textAreaInput.onCompositionEnd(() => {
@@ -449,6 +456,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 			this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
 			this._viewController.compositionEnd();
 			this._context.viewModel.onCompositionEnd();
+			console.log('on composition end');
 		}));
 
 		this._register(this._textAreaInput.onFocus(() => {
