@@ -437,25 +437,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			});
 		}
 
-		/**
-		 * Escapes special characters in a file/folder label for shell completion.
-		 * This ensures that characters like [, ], etc. are properly escaped.
-		 */
-		function escapeTerminalCompletionLabel(label: string, shellType: TerminalShellType, pathSeparator: string): string {
-			// Only escape for bash/zsh/fish; PowerShell and cmd have different rules
-			if (shellType === GeneralShellType.PowerShell || shellType === WindowsShellType.CommandPrompt) {
-				// TODO: Implement escaping for PowerShell/cmd if needed
-				return label;
-			}
-
-			const specialCharsSet = new Set(['[', ']', '(', ')', '{', '}', `'`, '"', '\\', '$', '`', ';', '&', '|', '<', '>', '*', '?', '~', '#', '=', '%', '!']);
-			const specialCharsRegex = /[\[\]\(\)\{\}'"\\$\`;&|<>\*?~#=%!]/;
-			if (!specialCharsRegex.test(label)) {
-				return label;
-			}
-			return label.split('').map(c => specialCharsSet.has(c) ? '\\' + c : c).join('');
-		}
-
 		// Support $CDPATH specially for the `cd` command only
 		//
 		// - (relative) `|` -> `/foo/vscode` (CDPATH has /foo which contains vscode folder)
@@ -582,4 +563,23 @@ function addPathRelativePrefix(text: string, resourceRequestConfig: Pick<Termina
 		return `.${resourceRequestConfig.pathSeparator}${text}`;
 	}
 	return text;
+}
+
+/**
+ * Escapes special characters in a file/folder label for shell completion.
+ * This ensures that characters like [, ], etc. are properly escaped.
+ */
+export function escapeTerminalCompletionLabel(label: string, shellType: TerminalShellType, pathSeparator: string): string {
+	// Only escape for bash/zsh/fish; PowerShell and cmd have different rules
+	if (shellType === GeneralShellType.PowerShell || shellType === WindowsShellType.CommandPrompt) {
+		// TODO: Implement escaping for PowerShell/cmd if needed
+		return label;
+	}
+
+	const specialCharsSet = new Set(['[', ']', '(', ')', '{', '}', '\'', '"', '\\', '$', '`', '*', '?', ';', '&', '|', '<', '>']);
+	const specialCharsRegex = /[\[\]\(\)\{\}'"\\$\`\*\?;|&<>]/;
+	if (!specialCharsRegex.test(label)) {
+		return label;
+	}
+	return label.split('').map(c => specialCharsSet.has(c) ? '\\' + c : c).join('');
 }

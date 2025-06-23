@@ -742,5 +742,6 @@ suite('TerminalCompletionService', () => {
 				standardTidleItem,
 			], { replacementIndex: 0, replacementLength: 0 });
 		});
+
 	});
 });
