@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ExecOptionsWithStringEncoding } from 'child_process';
-import * as fs from 'fs/promises';
-import * as path from 'path';
 import * as vscode from 'vscode';
 import cdSpec from './completions/cd';
 import codeCompletionSpec from './completions/code';
@@ -45,8 +43,8 @@ type ShellGlobalsCacheEntry = {
 };
 const cachedGlobals: Map<TerminalShellType, ShellGlobalsCacheEntry> = new Map();
 let pathExecutableCache: PathExecutableCache;
-const CACHE_FILE_NAME = 'terminalSuggestGlobalsCache.json';
-let cacheFilePath: string | undefined;
+const CACHE_KEY = 'terminalSuggestGlobalsCache';
+let workspaceState: vscode.Memento;
 
 export const availableSpecs: Fig.Spec[] = [
 	cdSpec,
@@ -109,7 +107,7 @@ async function getShellGlobals(shellType: TerminalShellType, existingCommands?: 
 }
 
 async function writeGlobalsCache(): Promise<void> {
-	if (!cacheFilePath) {
+	if (!workspaceState) {
 		return;
 	}
 	const obj: Record<string, ShellGlobalsCacheEntry> = {};
@@ -117,21 +115,22 @@ async function writeGlobalsCache(): Promise<void> {
 		obj[key] = value;
 	}
 	try {
-		await fs.writeFile(cacheFilePath, JSON.stringify(obj), { encoding: 'utf-8' });
+		await workspaceState.update(CACHE_KEY, obj);
 	} catch (err) {
 		console.error('Failed to write terminal suggest globals cache:', err);
 	}
 }
 
 async function readGlobalsCache(): Promise<void> {
-	if (!cacheFilePath) {
+	if (!workspaceState) {
 		return;
 	}
 	try {
-		const data = await fs.readFile(cacheFilePath, { encoding: 'utf-8' });
-		const obj = JSON.parse(data);
-		for (const key of Object.keys(obj)) {
-			cachedGlobals.set(key as TerminalShellType, obj[key]);
+		const obj = workspaceState.get<Record<string, ShellGlobalsCacheEntry>>(CACHE_KEY);
+		if (obj) {
+			for (const key of Object.keys(obj)) {
+				cachedGlobals.set(key as TerminalShellType, obj[key]);
+			}
 		}
 	} catch { }
 }
@@ -142,11 +141,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(pathExecutableCache);
 	let currentTerminalEnv: ITerminalEnvironment = process.env;
 
-	// Set cache file path in extension global storage
-	cacheFilePath = path.join(context.globalStorageUri.fsPath, CACHE_FILE_NAME);
-	try {
-		await fs.mkdir(context.globalStorageUri.fsPath, { recursive: true });
-	} catch { }
+	workspaceState = context.workspaceState;
 	await readGlobalsCache();
 
 	context.subscriptions.push(vscode.window.registerTerminalCompletionProvider({
@@ -246,14 +241,12 @@ export async function resolveCwdFromCurrentCommandString(currentCommandString: s
 		}
 		const relativeFolder = lastSlashIndex === -1 ? '' : prefix.slice(0, lastSlashIndex);
 
-		// Resolve the absolute path of the prefix
-		const resolvedPath = path.resolve(currentCwd?.fsPath, relativeFolder);
+		// Use vscode.Uri.joinPath for path resolution
+		const resolvedUri = vscode.Uri.joinPath(currentCwd, relativeFolder);
 
-		const stat = await fs.stat(resolvedPath);
-
-		// Check if the resolved path exists and is a directory
-		if (stat.isDirectory()) {
-			return currentCwd.with({ path: resolvedPath });
+		const stat = await vscode.workspace.fs.stat(resolvedUri);
+		if (stat.type & vscode.FileType.Directory) {
+			return resolvedUri;
 		}
 	} catch {
 		// Ignore errors
