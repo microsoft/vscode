@@ -45,6 +45,9 @@ export interface ISuggestController {
 	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion<TerminalCompletionItem>, 'item' | 'model'>): void;
 	hideSuggestWidget(cancelAnyRequests: boolean, wasClosedByUser?: boolean): void;
 }
+
+
+let firstShownTracker: { shell: Set<TerminalShellType>; window: boolean } | undefined = undefined;
 export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggestController {
 	private _terminal?: Terminal;
 
@@ -135,6 +138,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _shouldSyncWhenReady: boolean = false;
 	private _suggestTelemetry: TerminalSuggestTelemetry | undefined;
 
+	private _completionRequestTimestamp: number | undefined;
+
 	constructor(
 		private readonly _sessionId: string,
 		shellType: TerminalShellType | undefined,
@@ -214,6 +219,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				this._model?.forceRefilterAll();
 			}
 		}));
+		this._register(this._extensionService.onWillStop(() => firstShownTracker = undefined));
 	}
 
 	activate(xterm: Terminal): void {
@@ -333,8 +339,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			lineContext
 		);
 		if (token.isCancellationRequested) {
+			this._completionRequestTimestamp = undefined;
 			return;
 		}
+
 		this._showCompletions(model, explicitlyInvoked);
 	}
 
@@ -377,7 +385,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		this._cancellationTokenSource = new CancellationTokenSource();
 		const token = this._cancellationTokenSource.token;
+
+		// Track the time when completions are requested
+		this._completionRequestTimestamp = Date.now();
+
 		await this._handleCompletionProviders(this._terminal, token, explicitlyInvoked);
+
+		// If completions are not shown (widget not visible), reset the tracker
+		if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
+			this._completionRequestTimestamp = undefined;
+		}
 	}
 
 	private _addPropertiesToInlineCompletionItem(completions: ITerminalCompletion[]): void {
@@ -679,6 +696,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!cursorPosition) {
 			return;
 		}
+		// Track the time when completions are shown for the first time
+		if (this._completionRequestTimestamp !== undefined) {
+			const completionLatency = Date.now() - this._completionRequestTimestamp;
+			if (this._suggestTelemetry && this.shellType) {
+				const firstShown = this.getFirstShown(this.shellType);
+				this.updateShown();
+				this._suggestTelemetry.logCompletionLatency(this._sessionId, completionLatency, firstShown);
+			}
+			this._completionRequestTimestamp = undefined;
+		}
 		suggestWidget.showSuggestions(0, false, !explicitlyInvoked, cursorPosition);
 	}
 
@@ -852,6 +879,37 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._currentPromptInputState = undefined;
 		this._leadingLineContent = undefined;
 		this._suggestWidget?.hide();
+	}
+
+	getFirstShown(shellType: TerminalShellType): { window: boolean; shell: boolean } {
+		if (!firstShownTracker) {
+			firstShownTracker = {
+				window: true,
+				shell: new Set([shellType])
+			};
+			return { window: true, shell: true };
+		}
+
+		const isFirstForWindow = firstShownTracker.window;
+		const isFirstForShell = !firstShownTracker.shell.has(shellType);
+
+		if (isFirstForWindow || isFirstForShell) {
+			this.updateShown();
+		}
+
+		return {
+			window: isFirstForWindow,
+			shell: isFirstForShell
+		};
+	}
+
+	updateShown(): void {
+		if (!this.shellType || !firstShownTracker) {
+			return;
+		}
+
+		firstShownTracker.window = false;
+		firstShownTracker.shell.add(this.shellType);
 	}
 }
 

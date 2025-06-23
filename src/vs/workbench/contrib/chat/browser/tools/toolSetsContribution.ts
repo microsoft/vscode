@@ -237,7 +237,6 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 			const entries = await getFilesInFolder(uri);
 
 			if (cts.token.isCancellationRequested) {
-				store.clear();
 				return;
 			}
 
@@ -263,8 +262,7 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 				}
 
 				if (cts.token.isCancellationRequested) {
-					store.dispose();
-					break;
+					return;
 				}
 
 				for (const [name, value] of data.entries) {
