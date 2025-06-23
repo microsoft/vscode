@@ -533,6 +533,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		});
 
+		CommandsRegistry.registerCommand('workbench.action.tasks.rerunAllRunningTasks', async (accessor, arg) => {
+			if (await this._trust()) {
+				this._runRerunAllRunningTasksCommand();
+			}
+		});
+
 		CommandsRegistry.registerCommand('workbench.action.tasks.terminate', async (accessor, arg) => {
 			if (await this._trust()) {
 				this._runTerminateCommand(arg);
@@ -3362,6 +3368,19 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this._restart(activeTasks[0]);
 			}
 		}
+	}
+
+	private async _runRerunAllRunningTasksCommand(): Promise<void> {
+		const activeTasks = await this.getActiveTasks();
+		
+		if (activeTasks.length === 0) {
+			this._notificationService.info(nls.localize('TaskService.noRunningTasks', 'No running tasks to restart'));
+			return;
+		}
+
+		// Restart all active tasks
+		const restartPromises = activeTasks.map(task => this._restart(task));
+		await Promise.allSettled(restartPromises);
 	}
 
 	private _getTaskIdentifier(filter?: string | ITaskIdentifier): string | KeyedTaskIdentifier | undefined {

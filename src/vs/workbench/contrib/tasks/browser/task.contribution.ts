@@ -209,10 +209,21 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 	group: TerminalMenuBarGroup.Manage,
 	command: {
 		precondition: TASK_RUNNING_STATE,
+		id: 'workbench.action.tasks.rerunAllRunningTasks',
+		title: nls.localize({ key: 'miRerunAllRunningTasks', comment: ['&& denotes a mnemonic'] }, "Rerun &&All Running Tasks...")
+	},
+	order: 3,
+	when: TaskExecutionSupportedContext
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+	group: TerminalMenuBarGroup.Manage,
+	command: {
+		precondition: TASK_RUNNING_STATE,
 		id: 'workbench.action.tasks.terminate',
 		title: nls.localize({ key: 'miTerminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task...")
 	},
-	order: 3,
+	order: 4,
 	when: TaskExecutionSupportedContext
 });
 
@@ -282,6 +293,14 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'workbench.action.tasks.restartTask',
 		title: nls.localize2('RestartTaskAction.label', "Restart Running Task"),
+		category: TASKS_CATEGORY
+	},
+	when: TaskExecutionSupportedContext
+});
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: 'workbench.action.tasks.rerunAllRunningTasks',
+		title: nls.localize2('RerunAllRunningTasksAction.label', "Rerun All Running Tasks"),
 		category: TASKS_CATEGORY
 	},
 	when: TaskExecutionSupportedContext
