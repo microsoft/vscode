@@ -8,7 +8,6 @@ import { match, splitGlobAware } from '../../../../../base/common/glob.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, joinPath } from '../../../../../base/common/resources.js';
-import { isObject, isString } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -68,18 +67,14 @@ export class ComputeAutomaticInstructions {
 
 		// get copilot instructions
 		const copilotInstructions = await this._getCopilotInstructions();
-		for (const file of copilotInstructions.files) {
-			variables.add(toPromptFileVariableEntry(file, true));
+		for (const entry of copilotInstructions) {
+			variables.add(entry);
 		}
-		this._logService.trace(`[InstructionsContextComputer]  ${copilotInstructions.files.size} Copilot instructions files added.`);
-
-		const copilotInstructionsFromSettings = this._getCopilotTextInstructions(copilotInstructions.instructionMessages);
+		this._logService.trace(`[InstructionsContextComputer]  ${copilotInstructions.length} Copilot instructions files added.`);
 		const instructionsWithPatternsList = await this._getInstructionsWithPatternsList(instructionFiles, variables, token);
-
-		if (copilotInstructionsFromSettings.length + instructionsWithPatternsList.length > 0) {
-			const text = `${copilotInstructionsFromSettings.join('\n')}\n\n${instructionsWithPatternsList.join('\n')}`;
-			const settingId = copilotInstructionsFromSettings.length > 0 ? PromptsConfig.COPILOT_INSTRUCTIONS : undefined;
-			variables.add(toPromptTextVariableEntry(text, settingId));
+		if (instructionsWithPatternsList.length > 0) {
+			const text = instructionsWithPatternsList.join('\n');
+			variables.add(toPromptTextVariableEntry(text, PromptsConfig.COPILOT_INSTRUCTIONS));
 		}
 		// add all instructions for all instruction files that are in the context
 		this._addReferencedInstructions(variables, token);
@@ -144,44 +139,25 @@ export class ComputeAutomaticInstructions {
 		return { files, instructions };
 	}
 
-	private async _getCopilotInstructions(): Promise<{ files: ResourceSet; instructionMessages: Set<string> }> {
-		const instructionMessages = new Set<string>();
-		const instructionFiles = new Set<string>();
-
+	private async _getCopilotInstructions(): Promise<IPromptFileVariableEntry[]> {
 		const useCopilotInstructionsFiles = this._configurationService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES);
-		if (useCopilotInstructionsFiles) {
-			instructionFiles.add(`.github/` + COPILOT_CUSTOM_INSTRUCTIONS_FILENAME);
+		if (!useCopilotInstructionsFiles) {
+			return [];
 		}
-
-		const config = this._configurationService.inspect(PromptsConfig.COPILOT_INSTRUCTIONS);
-
-		[config.workspaceFolderValue, config.workspaceValue, config.userValue].forEach((value: any) => {
-			if (Array.isArray(value)) {
-				for (const item of value) {
-					if (isString(item)) {
-						instructionMessages.add(item);
-					} else if (item && isObject(item)) {
-						if (isString(item.text)) {
-							instructionMessages.add(item.text);
-						} else if (isString(item.file)) {
-							instructionFiles.add(item.file);
-						}
-					}
-				}
-			}
-		});
+		const instructionFiles: string[] = [];
+		instructionFiles.push(`.github/` + COPILOT_CUSTOM_INSTRUCTIONS_FILENAME);
 
 		const { folders } = this._workspaceService.getWorkspace();
-		const files = new ResourceSet();
+		const entries: IPromptFileVariableEntry[] = [];
 		for (const folder of folders) {
 			for (const instructionFilePath of instructionFiles) {
 				const file = joinPath(folder.uri, instructionFilePath);
 				if (await this._fileService.exists(file)) {
-					files.add(file);
+					entries.push(toPromptFileVariableEntry(file, true, localize('instruction.file.reason.copilot', 'Automatically attached as setting {0} is enabled', PromptsConfig.USE_COPILOT_INSTRUCTION_FILES)));
 				}
 			}
 		}
-		return { files, instructionMessages };
+		return entries;
 	}
 
 	private _matches(files: ResourceSet, applyToPattern: string): { pattern: string; file?: URI } | undefined {
@@ -253,21 +229,6 @@ export class ComputeAutomaticInstructions {
 			'| Pattern | File Path | Description |',
 			'| ------- | --------- | ----------- |',
 		].concat(entries);
-	}
-
-	private _getCopilotTextInstructions(iterable: Iterable<string>): string[] {
-		const entries: string[] = [];
-		for (const result of iterable) {
-			const message = result.trim();
-			if (message.length !== 0) {
-				entries.push(result);
-				entries.push();
-			}
-		}
-		if (entries.length === 0) {
-			return [];
-		}
-		return ['The user has provided the following instructions that you want to follow.'].concat(entries);
 	}
 
 	private async _addReferencedInstructions(attachedContext: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
