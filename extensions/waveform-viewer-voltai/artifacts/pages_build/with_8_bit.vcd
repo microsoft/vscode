@@ -1,0 +1,25 @@
+$version Generated manually $end
+$timescale 1s $end
+
+ $scope module logic $end
+  $var wire  8 # data [7:0] $end
+  $var wire  1 $ data_valid $end
+  $var wire  1 / not_always $end
+ $upscope $end
+$enddefinitions $end
+
+
+#0
+b00000000 #
+0$
+0/
+#10
+b11000000 #
+#20
+0$
+0/
+#30
+b11111111 #
+1$
+1/
+#40

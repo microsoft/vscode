@@ -1,0 +1,70 @@
+$timescale 244 ns $end
+$scope module gameroy $end
+$scope module cpu $end
+$var wire 8 ! f $end
+$var wire 8 " a $end
+$var wire 8 # c $end
+$var wire 8 $ b $end
+$var wire 8 % e $end
+$var wire 8 & d $end
+$var wire 8 ' l $end
+$var wire 8 ( h $end
+$var wire 16 ) sp $end
+$var wire 16 * pc $end
+$var wire 2 + ime $end
+$var wire 2 , state $end
+$var wire 1 - halt_bug $end
+$upscope $end
+$scope module ppu $end
+$var wire 8 . LCDC_ff40 $end
+$var wire 8 / STAT_ff41 $end
+$var wire 8 0 SCY_ff42 $end
+$var wire 8 1 SCX_ff43 $end
+$var wire 8 2 LY_ff44 $end
+$var wire 8 3 LYC_ff45 $end
+$upscope $end
+$upscope $end
+$enddefinitions $end
+$dumpvars
+#4
+b0000000000000001 *
+b10000000 /
+#16
+b1111111111111110 )
+b0000000000000100 *
+#20
+b10000000 !
+b0000000000000101 *
+#32
+b11111111 '
+b10011111 (
+b0000000000001000 *
+#40
+b11111110 '
+b0000000000001001 *
+#48
+b00100000 !
+b0000000000001011 *
+#60
+b0000000000001000 *
+#68
+b11111101 '
+b0000000000001001 *
+#76
+b0000000000001011 *
+#88
+b0000000000001000 *
+#96
+b11111100 '
+b0000000000001001 *
+#104
+b0000000000001011 *
+#116
+b0000000000001000 *
+#124
+b11111011 '
+b0000000000001001 *
+#132
+b0000000000001011 *
+#144
+b0000000000001000 *

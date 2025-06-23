@@ -1,0 +1,46 @@
+$date
+	Tue Nov 28 12:05:19 2023
+
+$end
+$version
+	nvc 1.9.2
+$end
+$timescale
+	1fs
+$end
+$attrbegin misc 03 /home/oscar/test.vhdl 1 $end
+$attrbegin misc 04 1 7 $end
+$scope vhdl_architecture test $end
+$attrbegin misc 02 E 1024 $end
+$var string 0 ! ee $end
+$scope vhdl_record rr $end
+$attrbegin misc 02 STD_LOGIC 1028 $end
+$var logic 1 " a $end
+$attrbegin misc 02 STD_LOGIC_VECTOR 1031 $end
+$var logic 4 # b[5:2] $end
+$attrbegin misc 02 STD_LOGIC_VECTOR 1031 $end
+$var logic 4 $ c[1:4] $end
+$attrbegin misc 02 E 1024 $end
+$var string 0 % d $end
+$upscope $end
+$upscope $end
+$enddefinitions $end
+#0
+$dumpvars
+sfoo %
+bUUUU $
+bUUUU #
+u"
+sfoo !
+$end
+#50000000
+sbar !
+bHLZ- #
+bWX10 $
+#100000000
+b0101 $
+b1010 #
+sfoo !
+1"
+sbar %
+#150000000

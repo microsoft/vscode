@@ -1,0 +1,14 @@
+$timescale
+	1ps
+$end
+$scope module logic $end
+$var wire 1 ! data $end
+$upscope $end
+$enddefinitions $end
+$dumpvars
+#0
+0!
+#1
+0!
+#2
+0!

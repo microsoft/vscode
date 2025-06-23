@@ -1,0 +1,73 @@
+#waveform-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    padding: 10px;
+}
+
+#toolbar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    padding: 10px;
+    background-color: var(--vscode-panel-background);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 4px;
+}
+
+#toolbar button {
+    background-color: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border: 1px solid var(--vscode-button-border);
+    padding: 6px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+#toolbar button:hover {
+    background-color: var(--vscode-button-hoverBackground);
+}
+
+#waveform-display {
+    flex: 1;
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 4px;
+    padding: 20px;
+    background-color: var(--vscode-editor-background);
+    overflow: auto;
+}
+
+#file-content {
+    font-family: var(--vscode-editor-font-family);
+    font-size: var(--vscode-editor-font-size);
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    background-color: var(--vscode-textCodeBlock-background);
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 10px;
+}
+
+.waveform-signal {
+    display: flex;
+    align-items: center;
+    margin: 5px 0;
+    padding: 5px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.signal-name {
+    min-width: 150px;
+    font-weight: bold;
+    color: var(--vscode-symbolIcon-variableForeground);
+}
+
+.signal-waveform {
+    flex: 1;
+    height: 30px;
+    background-color: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-panel-border);
+    margin-left: 10px;
+}

@@ -1,0 +1,10 @@
+{
+  "background_color": "white",
+  "display": "standalone",
+  "id": "/index.html",
+  "lang": "en-US",
+  "name": "Surfer",
+  "short_name": "surfer",
+  "start_url": "./index.html",
+  "theme_color": "white"
+}
