@@ -48,7 +48,7 @@ import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, 
 import { ChatRequestParser } from '../common/chatRequestParser.js';
 import { IChatLocationData, IChatSendRequestOptions, IChatService } from '../common/chatService.js';
 import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
-import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
+import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { IChatInputState } from '../common/chatWidgetHistoryService.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatMode } from '../common/constants.js';
@@ -976,11 +976,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}));
 
 			this._register(this.inlineInputPart.inputEditor.onDidChangeModelContent(() => {
-				this.scrollToCurrentItem();
+				this.scrollToCurrentItem(currentElement);
 			}));
 
 			this._register(this.inlineInputPart.inputEditor.onDidChangeCursorSelection((e) => {
-				this.scrollToCurrentItem();
+				this.scrollToCurrentItem(currentElement);
 			}));
 		}
 	}
@@ -1009,9 +1009,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModel?.setEditing(undefined);
 	}
 
-	private scrollToCurrentItem(): void {
-		if (this.viewModel?.editing && this.templateData?.currentElement) {
-			const element = this.templateData.currentElement;
+	private scrollToCurrentItem(currentElement: IChatRequestViewModel): void {
+		if (this.viewModel?.editing && currentElement) {
+			const element = currentElement;
 			if (!this.tree.hasElement(element)) {
 				return;
 			}
@@ -1077,42 +1077,34 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private createInput(container: HTMLElement, options?: { renderFollowups: boolean; renderStyle?: 'compact' | 'minimal' }): void {
-		if (this.viewModel?.editing) {
-			this.inlineInputPart = this._register(this.instantiationService.createInstance(ChatInputPart,
-				this.location,
-				{
-					renderFollowups: options?.renderFollowups ?? true,
-					renderStyle: options?.renderStyle === 'minimal' ? 'compact' : options?.renderStyle,
-					menus: { executeToolbar: MenuId.ChatExecuteInline, ...this.viewOptions.menus },
-					editorOverflowWidgetsDomNode: this.viewOptions.editorOverflowWidgetsDomNode,
-					enableImplicitContext: this.viewOptions.enableImplicitContext,
-					renderWorkingSet: this.viewOptions.enableWorkingSet === 'explicit',
-					supportsChangingModes: this.viewOptions.supportsChangingModes,
-					dndContainer: this.viewOptions.dndContainer,
-					widgetViewKindTag: this.getWidgetViewKindTag()
-				},
-				this.styles,
-				() => this.collectInputState(),
-				true
-			));
+		const isEditing = this.viewModel?.editing;
+		const commonConfig = {
+			renderFollowups: options?.renderFollowups ?? true,
+			renderStyle: options?.renderStyle === 'minimal' ? 'compact' : options?.renderStyle,
+			menus: {
+				executeToolbar: isEditing ? MenuId.ChatExecuteInline : MenuId.ChatExecute,
+				...this.viewOptions.menus
+			},
+			editorOverflowWidgetsDomNode: this.viewOptions.editorOverflowWidgetsDomNode,
+			enableImplicitContext: this.viewOptions.enableImplicitContext,
+			renderWorkingSet: this.viewOptions.enableWorkingSet === 'explicit',
+			supportsChangingModes: this.viewOptions.supportsChangingModes,
+			dndContainer: this.viewOptions.dndContainer,
+			widgetViewKindTag: this.getWidgetViewKindTag()
+		};
+
+		const inputPart = this._register(this.instantiationService.createInstance(ChatInputPart,
+			this.location,
+			commonConfig,
+			this.styles,
+			() => this.collectInputState(),
+			isEditing ? true : false
+		));
+
+		if (isEditing) {
+			this.inlineInputPart = inputPart;
 		} else {
-			this.inputPart = this._register(this.instantiationService.createInstance(ChatInputPart,
-				this.location,
-				{
-					renderFollowups: options?.renderFollowups ?? true,
-					renderStyle: options?.renderStyle === 'minimal' ? 'compact' : options?.renderStyle,
-					menus: { executeToolbar: MenuId.ChatExecute, ...this.viewOptions.menus },
-					editorOverflowWidgetsDomNode: this.viewOptions.editorOverflowWidgetsDomNode,
-					enableImplicitContext: this.viewOptions.enableImplicitContext,
-					renderWorkingSet: this.viewOptions.enableWorkingSet === 'explicit',
-					supportsChangingModes: this.viewOptions.supportsChangingModes,
-					dndContainer: this.viewOptions.dndContainer,
-					widgetViewKindTag: this.getWidgetViewKindTag()
-				},
-				this.styles,
-				() => this.collectInputState(),
-				false
-			));
+			this.inputPart = inputPart;
 		}
 
 		this.input.render(container, '', this);
