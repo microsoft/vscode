@@ -1094,33 +1094,4 @@ suite('AuthenticationQueryService Integration Tests', () => {
 		assert.strictEqual(userServer.trusted, undefined);
 		assert.strictEqual(userServer.allowed, true);
 	});
-
-	test('getAllowedExtensions returns extension data with trusted state', () => {
-		// Set up some extension access data
-		const accountQuery = queryService.provider('github').account('user@example.com');
-		accountQuery.extension('ext1').setAccessAllowed(true, 'Extension One');
-		accountQuery.extension('ext2').setAccessAllowed(true, 'Extension Two');
-		accountQuery.extension('ext1').addUsage(['read'], 'Extension One');
-
-		const allowedExtensions = accountQuery.extensions().getAllowedExtensions();
-
-		// Should have both extensions
-		assert.strictEqual(allowedExtensions.length, 2);
-
-		// Find the first extension
-		const ext1 = allowedExtensions.find(e => e.id === 'ext1');
-		assert.ok(ext1);
-		assert.strictEqual(ext1.name, 'Extension One');
-		assert.strictEqual(ext1.allowed, true);
-		assert.strictEqual(ext1.trusted, false); // Not in trusted list
-		assert.ok(typeof ext1.lastUsed === 'number');
-
-		// Find the second extension
-		const ext2 = allowedExtensions.find(e => e.id === 'ext2');
-		assert.ok(ext2);
-		assert.strictEqual(ext2.name, 'Extension Two');
-		assert.strictEqual(ext2.allowed, true);
-		assert.strictEqual(ext2.trusted, false); // Not in trusted list
-		assert.strictEqual(ext2.lastUsed, undefined); // No usage
-	});
 });

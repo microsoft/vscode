@@ -122,12 +122,6 @@ class AccountExtensionQuery extends BaseQuery implements IAccountExtensionQuery 
 		const preferredAccount = this.queryService.authenticationExtensionsService.getAccountPreference(this.extensionId, this.providerId);
 		return preferredAccount === this.accountName;
 	}
-
-	isTrusted(): boolean {
-		const allowedExtensions = this.queryService.authenticationAccessService.readAllowedExtensions(this.providerId, this.accountName);
-		const extension = allowedExtensions.find(ext => ext.id === this.extensionId);
-		return extension?.trusted === true;
-	}
 }
 
 /**
@@ -232,29 +226,9 @@ class AccountExtensionsQuery extends BaseQuery implements IAccountExtensionsQuer
 		super(providerId, queryService);
 	}
 
-	getAllowedExtensions(): { id: string; name: string; allowed?: boolean; lastUsed?: number; trusted?: boolean }[] {
+	getAllowedExtensionIds(): string[] {
 		const allowedExtensions = this.queryService.authenticationAccessService.readAllowedExtensions(this.providerId, this.accountName);
-		const usages = this.queryService.authenticationUsageService.readAccountUsages(this.providerId, this.accountName);
-
-		return allowedExtensions
-			.filter(ext => ext.allowed !== false)
-			.map(ext => {
-				// Find the most recent usage for this extension
-				const extensionUsages = usages.filter(usage => usage.extensionId === ext.id);
-				const lastUsed = extensionUsages.length > 0 ? Math.max(...extensionUsages.map(u => u.lastUsed)) : undefined;
-
-				// Check if trusted through the extension query
-				const extensionQuery = new AccountExtensionQuery(this.providerId, this.accountName, ext.id, this.queryService);
-				const trusted = extensionQuery.isTrusted();
-
-				return {
-					id: ext.id,
-					name: ext.name,
-					allowed: ext.allowed,
-					lastUsed,
-					trusted
-				};
-			});
+		return allowedExtensions.filter(ext => ext.allowed !== false).map(ext => ext.id);
 	}
 
 	allowAccess(extensionIds: string[]): void {
