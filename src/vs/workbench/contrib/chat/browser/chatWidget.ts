@@ -1426,86 +1426,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return parseResult;
 	}
 
-	private async restoreSnapshot() {
-		const element = this.templateData?.currentElement;
-		if (isRequestVM(element)) {
-
-			if (!element) {
-				return;
-			}
-
-			const chatModel = this.chatService.getSession(element.sessionId);
-			if (!chatModel) {
-				return;
-			}
-
-			const session = chatModel.editingSession;
-			if (!session) {
-				return;
-			}
-
-			const requestId = isRequestVM(element) ? element.id : undefined;
-
-
-			if (requestId) {
-				const chatRequests = chatModel.getRequests();
-				const itemIndex = chatRequests.findIndex(request => request.id === requestId);
-				const editsToUndo = chatRequests.length - itemIndex;
-
-				const requestsToRemove = chatRequests.slice(itemIndex);
-				const requestIdsToRemove = new Set(requestsToRemove.map(request => request.id));
-				const entriesModifiedInRequestsToRemove = session.entries.get().filter((entry) => requestIdsToRemove.has(entry.lastModifyingRequestId)) ?? [];
-				const shouldPrompt = entriesModifiedInRequestsToRemove.length > 0 && this.configurationService.getValue('chat.editing.confirmEditRequestRemoval') === true;
-
-				let message: string;
-				if (editsToUndo === 1) {
-					if (entriesModifiedInRequestsToRemove.length === 1) {
-						message = localize('chat.removeLast.confirmation.message2', "This will remove your last request and undo the edits made to {0}. Do you want to proceed?", basename(entriesModifiedInRequestsToRemove[0].modifiedURI));
-					} else {
-						message = localize('chat.removeLast.confirmation.multipleEdits.message', "This will remove your last request and undo edits made to {0} files in your working set. Do you want to proceed?", entriesModifiedInRequestsToRemove.length);
-					}
-				} else {
-					if (entriesModifiedInRequestsToRemove.length === 1) {
-						message = localize('chat.remove.confirmation.message2', "This will remove all subsequent requests and undo edits made to {0}. Do you want to proceed?", basename(entriesModifiedInRequestsToRemove[0].modifiedURI));
-					} else {
-						message = localize('chat.remove.confirmation.multipleEdits.message', "This will remove all subsequent requests and undo edits made to {0} files in your working set. Do you want to proceed?", entriesModifiedInRequestsToRemove.length);
-					}
-				}
-
-				const confirmation = shouldPrompt
-					? await this.dialogService.confirm({
-						title: editsToUndo === 1
-							? localize('chat.removeLast.confirmation.title', "Do you want to undo your last edit?")
-							: localize('chat.remove.confirmation.title', "Do you want to undo {0} edits?", editsToUndo),
-						message: message,
-						primaryButton: localize('chat.remove.confirmation.primaryButton', "Yes"),
-						checkbox: { label: localize('chat.remove.confirmation.checkbox', "Don't ask again"), checked: false },
-						type: 'info'
-					})
-					: { confirmed: true };
-
-				if (!confirmation.confirmed) {
-					return;
-				}
-
-				if (confirmation.checkboxChecked) {
-					await this.configurationService.updateValue('chat.editing.confirmEditRequestRemoval', false);
-				}
-
-				// Restore the snapshot to what it was before the request(s) that we deleted
-				const snapshotRequestId = chatRequests[itemIndex].id;
-				await session.restoreSnapshot(snapshotRequestId, undefined);
-			}
-		}
-	}
-
 	private async _acceptInput(query: { query: string } | undefined, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
 		if (this.viewModel?.requestInProgress && this.viewModel.requestPausibility !== ChatPauseState.Paused) {
 			return;
-		}
-
-		if (isRequestVM(this.templateData?.currentElement) && this.templateData.currentElement.id === this.viewModel?.editing?.id) {
-			await this.restoreSnapshot();
 		}
 
 		if (!query && this.input.generating) {

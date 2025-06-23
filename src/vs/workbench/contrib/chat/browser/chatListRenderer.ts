@@ -347,18 +347,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				},
 			}));
 		}
-
-		templateDisposables.add(dom.addDisposableListener(rowContainer, dom.EventType.MOUSE_ENTER, () => {
-			if (isRequestVM(template.currentElement)) {
-				this.hoverVisible(requestHover);
-			}
-		}));
-
-		templateDisposables.add(dom.addDisposableListener(rowContainer, dom.EventType.MOUSE_LEAVE, () => {
-			if (isRequestVM(template.currentElement)) {
-				this.hoverHidden(requestHover);
-			}
-		}));
 		this.hoverHidden(requestHover);
 		const user = dom.append(header, $('.user'));
 		const avatarContainer = dom.append(user, $('.avatar-container'));
@@ -613,6 +601,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('chat-response-loading', false);
 		if (element.id === this.viewModel?.editing?.id) {
 			this._onDidRerender.fire(templateData);
+		}
+
+		if (this.configService.getValue<boolean>('chat.editRequests')) {
+			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.KEY_DOWN, e => {
+				const ev = new StandardKeyboardEvent(e);
+				if (ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) {
+					if (this.viewModel?.editing?.id !== element.id && !this.viewModel?.requestInProgress) {
+						this._onDidClickRequest.fire(templateData);
+					}
+				}
+			}));
 		}
 
 		let content: IChatRendererContent[] = [];
@@ -1196,7 +1195,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			markdownPart.domNode.tabIndex = 0;
 			if (this.configService.getValue<boolean>('chat.editRequests')) {
 				markdownPart.domNode.classList.add('clickable');
-				templateData.elementDisposables.add(dom.addDisposableListener(markdownPart.domNode, dom.EventType.CLICK, (e: MouseEvent) => {
+				markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.CLICK, (e: MouseEvent) => {
 					if (this.viewModel?.editing?.id !== element.id && !this.viewModel?.requestInProgress) {
 						this._onDidClickRequest.fire(templateData);
 					}
@@ -1221,11 +1220,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return markdownPart;
 	}
 
-	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, _details?: IListElementRenderDetails, onScroll?: boolean): void {
+	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, details?: IListElementRenderDetails): void {
 		this.traceLayout('disposeElement', `Disposing element, index=${index}`);
 		templateData.elementDisposables.clear();
 
-		if (isRequestVM(node.element) && node.element.id === this.viewModel?.editing?.id && onScroll) {
+		if (isRequestVM(node.element) && node.element.id === this.viewModel?.editing?.id && details?.onScroll) {
 			this._onDidDispose.fire(templateData);
 		}
 

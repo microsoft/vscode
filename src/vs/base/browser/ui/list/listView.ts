@@ -1050,7 +1050,7 @@ export class ListView<T> implements IListView<T> {
 			const renderer = this.renderers.get(item.templateId);
 
 			if (renderer && renderer.disposeElement) {
-				renderer.disposeElement(item.element, index, item.row.templateData, { height: item.size }, onScroll);
+				renderer.disposeElement(item.element, index, item.row.templateData, { height: item.size, onScroll });
 			}
 
 			this.cache.release(item.row);

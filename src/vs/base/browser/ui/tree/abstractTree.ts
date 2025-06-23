@@ -423,10 +423,10 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 		this.renderer.renderElement(node, index, templateData.templateData, { ...details, indent: templateData.indentSize });
 	}
 
-	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, details?: IListElementRenderDetails, onScroll?: boolean): void {
+	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, details?: IListElementRenderDetails): void {
 		templateData.indentGuidesDisposable.dispose();
 
-		this.renderer.disposeElement?.(node, index, templateData.templateData, { ...details, indent: templateData.indentSize }, onScroll);
+		this.renderer.disposeElement?.(node, index, templateData.templateData, { ...details, indent: templateData.indentSize });
 
 		if (typeof details?.height === 'number') {
 			this.renderedNodes.delete(node);
