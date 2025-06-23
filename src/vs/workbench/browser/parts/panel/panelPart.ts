@@ -41,6 +41,8 @@ export class PanelPart extends AbstractPaneCompositePart {
 	readonly minimumHeight: number = 77;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
+	readonly affinity = 7;
+
 	get preferredHeight(): number | undefined {
 		// Don't worry about titlebar or statusbar visibility
 		// The difference is minimal and keeps this function clean

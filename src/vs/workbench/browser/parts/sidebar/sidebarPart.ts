@@ -47,6 +47,8 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 	readonly priority: LayoutPriority = LayoutPriority.Low;
 
+	readonly affinity = 7;
+
 	get preferredWidth(): number | undefined {
 		const viewlet = this.getActivePaneComposite();
 

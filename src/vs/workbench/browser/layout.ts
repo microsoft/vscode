@@ -1765,9 +1765,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Propagate to grid
 		this.workbenchGrid.setViewVisible(this.editorPartView, !hidden);
 
-		// The editor and panel cannot be hidden at the same time
-		if (hidden && !this.isVisible(Parts.PANEL_PART)) {
-			this.setPanelHidden(false, true);
+		// The editor and panel cannot be hidden at the same time unless auxiliary bar is maximized
+		if (hidden && !this.isVisible(Parts.PANEL_PART) && !this.isAuxiliaryMaximized()) {
+			// this.setPanelHidden(false, true);
 		}
 	}
 
@@ -1952,8 +1952,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// If maximized and in process of hiding, unmaximize before hiding to allow caching of non-maximized size
-		if (hidden && isPanelMaximized) {
-			this.toggleMaximizedPanel();
+		if (hidden && isPanelMaximized && !this.isAuxiliaryMaximized()) {
+			// this.toggleMaximizedPanel();
 		}
 
 		// Don't proceed if we have already done this before
@@ -1974,7 +1974,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED, isPanelMaximized);
 		}
 
-		if (focusEditor) {
+		if (focusEditor && !this.isAuxiliaryMaximized()) {
 			this.editorGroupService.mainPart.activeGroup.focus(); // Pass focus to editor group if panel part is now hidden
 		}
 	}
@@ -2004,11 +2004,28 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED, !isMaximized);
 	}
 
-	private panelOpensMaximized(): boolean {
+	isPanelMaximized(): boolean {
+		return (
+			this.getPanelAlignment() === 'center' || 	// the workbench grid currently prevents us from supporting panel
+			!isHorizontal(this.getPanelPosition())		// maximization with non-center panel alignment
+		) && this.isVisible(Parts.PANEL_PART, mainWindow) && !this.isVisible(Parts.EDITOR_PART, mainWindow);
+	}
 
-		// The workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
+	toggleMaximizeAuxiliarySidebar(): void {
+		if (this.workbenchGrid.isViewMaximized(this.auxiliaryBarPartView)) {
+			this.workbenchGrid.exitMaximizedView();
+		} else {
+			this.workbenchGrid.maximizeView(this.auxiliaryBarPartView);
+		}
+	}
+
+	isAuxiliaryMaximized(): boolean {
+		return this.workbenchGrid.isViewMaximized(this.auxiliaryBarPartView);
+	}
+
+	private panelOpensMaximized(): boolean {
 		if (this.getPanelAlignment() !== 'center' && isHorizontal(this.getPanelPosition())) {
-			return false;
+			return false; // The workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
 		}
 
 		const panelOpensMaximized = panelOpensMaximizedFromString(this.configurationService.getValue<string>(WorkbenchLayoutSettings.PANEL_OPENS_MAXIMIZED));
@@ -2077,11 +2094,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	getMainWindowBorderRadius(): string | undefined {
 		return this.state.runtime.mainWindowBorder && isMacintosh ? '10px' : undefined;
-	}
-
-	isPanelMaximized(): boolean {
-		// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
-		return (this.getPanelAlignment() === 'center' || !isHorizontal(this.getPanelPosition())) && !this.isVisible(Parts.EDITOR_PART, mainWindow);
 	}
 
 	getSideBarPosition(): Position {

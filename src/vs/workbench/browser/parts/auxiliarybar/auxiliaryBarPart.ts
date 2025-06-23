@@ -76,6 +76,8 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 	readonly priority = LayoutPriority.Low;
 
+	readonly affinity = 7;
+
 	private configuration: IAuxiliaryBarPartConfiguration;
 
 	constructor(

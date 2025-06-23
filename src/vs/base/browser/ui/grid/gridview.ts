@@ -81,6 +81,8 @@ export interface IView {
 	 */
 	readonly priority?: LayoutPriority;
 
+	readonly affinity?: number;
+
 	/**
 	 * If the {@link GridView} supports proportional layout,
 	 * this property allows for finer control over the proportional layout algorithm, per view.
@@ -346,7 +348,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
 
 	private readonly _onDidVisibilityChange = new Emitter<boolean>();
-	readonly onDidVisibilityChange: Event<boolean> = this._onDidVisibilityChange.event;
+	private readonly onDidVisibilityChange: Event<boolean> = this._onDidVisibilityChange.event;
 	private readonly childrenVisibilityChangeDisposable: DisposableStore = new DisposableStore();
 
 	private _onDidScroll = new Emitter<void>();
@@ -614,11 +616,11 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		return this.splitview.isViewVisible(index);
 	}
 
-	setChildVisible(index: number, visible: boolean): void {
+	setChildVisible(index: number, visible: boolean): boolean {
 		index = validateIndex(index, this.children.length);
 
 		if (this.splitview.isViewVisible(index) === visible) {
-			return;
+			return false;
 		}
 
 		const wereAllChildrenHidden = this.splitview.contentSize === 0;
@@ -630,6 +632,8 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		if ((visible && wereAllChildrenHidden) || (!visible && areAllChildrenHidden)) {
 			this._onDidVisibilityChange.fire(visible);
 		}
+
+		return true;
 	}
 
 	getChildCachedVisibleSize(index: number): number | undefined {
@@ -867,6 +871,10 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 
 	get priority(): LayoutPriority | undefined {
 		return this.view.priority;
+	}
+
+	get affinity(): number | undefined {
+		return this.view.affinity;
 	}
 
 	get proportionalLayout(): boolean {
@@ -1155,6 +1163,7 @@ export class GridView implements IDisposable {
 	}
 
 	private maximizedNode: LeafNode | undefined = undefined;
+	private maximizedHiddenLeafNodes: Set<LeafNode> | undefined = undefined;
 
 	private readonly _onDidChangeViewMaximized = new Emitter<boolean>();
 	readonly onDidChangeViewMaximized = this._onDidChangeViewMaximized.event;
@@ -1550,12 +1559,18 @@ export class GridView implements IDisposable {
 			this.exitMaximizedView();
 		}
 
+		const that = this;
 		function hideAllViewsBut(parent: BranchNode, exclude: LeafNode): void {
 			for (let i = 0; i < parent.children.length; i++) {
 				const child = parent.children[i];
 				if (child instanceof LeafNode) {
-					if (child !== exclude) {
-						parent.setChildVisible(i, false);
+					if (child !== exclude && child.affinity === exclude.affinity) {
+						if (parent.setChildVisible(i, false)) {
+							if (!that.maximizedHiddenLeafNodes) {
+								that.maximizedHiddenLeafNodes = new Set<LeafNode>();
+							}
+							that.maximizedHiddenLeafNodes.add(child);
+						}
 					}
 				} else {
 					hideAllViewsBut(child, exclude);
@@ -1573,7 +1588,11 @@ export class GridView implements IDisposable {
 		if (!this.maximizedNode) {
 			return;
 		}
+		const maximizedNode = this.maximizedNode;
 		this.maximizedNode = undefined;
+
+		const maximizedHiddenLeafNodes = this.maximizedHiddenLeafNodes;
+		this.maximizedHiddenLeafNodes = undefined;
 
 		// When hiding a view, it's previous size is cached.
 		// To restore the sizes of all views, they need to be made visible in reverse order.
@@ -1581,13 +1600,20 @@ export class GridView implements IDisposable {
 			for (let index = parent.children.length - 1; index >= 0; index--) {
 				const child = parent.children[index];
 				if (child instanceof LeafNode) {
-					parent.setChildVisible(index, true);
+					if (child.affinity === maximizedNode.affinity) {
+						parent.setChildVisible(index, Boolean(maximizedHiddenLeafNodes?.has(child) || child === maximizedNode));
+					}
 				} else {
 					showViewsInReverseOrder(child);
 				}
 			}
 		}
 
+		showViewsInReverseOrder(this.root);
+
+		// TODO this is needed to prevent views getting visible that were not:
+		// When a branch node becomes visible it makes all children visible.
+		// As such we run a second pass to ensure visibility is proper.
 		showViewsInReverseOrder(this.root);
 
 		this._onDidChangeViewMaximized.fire(false);

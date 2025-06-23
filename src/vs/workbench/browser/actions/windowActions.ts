@@ -35,6 +35,7 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { isFolderBackupInfo, isWorkspaceBackupInfo } from '../../../platform/backup/common/backup.js';
 import { getActiveElement, getActiveWindow, isHTMLElement } from '../../../base/browser/dom.js';
+import { IWorkbenchLayoutService } from '../../services/layout/browser/layoutService.js';
 
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
@@ -386,10 +387,10 @@ class NewWindowAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor): Promise<void> {
-		const hostService = accessor.get(IHostService);
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
 
-		return hostService.openWindow({ remoteAuthority: null });
+		return layoutService.toggleMaximizeAuxiliarySidebar();
 	}
 }
 

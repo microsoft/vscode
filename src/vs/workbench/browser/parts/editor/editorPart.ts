@@ -984,6 +984,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	override get onDidChange(): Event<IViewSize | undefined> { return Event.any(this.centeredLayoutWidget.onDidChange, this.onDidSetGridWidget.event); }
 	readonly priority: LayoutPriority = LayoutPriority.High;
 
+	readonly affinity = 7;
+
 	private get gridSeparatorBorder(): Color {
 		return this.theme.getColor(EDITOR_GROUP_BORDER) || this.theme.getColor(contrastBorder) || Color.transparent;
 	}
