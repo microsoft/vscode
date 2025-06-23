@@ -1084,7 +1084,7 @@ export class GridView implements IDisposable {
 		this._root = root;
 		this.element.appendChild(root.element);
 		this.onDidSashResetRelay.input = root.onDidSashReset;
-		this._onDidChange.input = Event.map(root.onDidChange, () => undefined); // TODO
+		this._onDidChange.input = Event.map(root.onDidChange, () => undefined);
 		this._onDidScroll.input = root.onDidScroll;
 	}
 
@@ -1168,8 +1168,7 @@ export class GridView implements IDisposable {
 		this.root.edgeSnapping = edgeSnapping;
 	}
 
-	// TODO: node should not be optional
-	private maximizedState: { node?: LeafNode; visibleNodes: Set<LeafNode> } | undefined = undefined;
+	private maximizedState: { node: LeafNode | undefined; visibleNodes: Set<LeafNode> } | undefined = undefined;
 
 	private readonly _onDidChangeViewMaximized = new Emitter<boolean>();
 	readonly onDidChangeViewMaximized = this._onDidChangeViewMaximized.event;
