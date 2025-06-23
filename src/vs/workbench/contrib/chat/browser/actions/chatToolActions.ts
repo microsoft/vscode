@@ -90,8 +90,7 @@ class ConfigureToolsAction extends Action2 {
 				id: MenuId.ChatExecuteInline,
 				group: 'navigation',
 				order: 1,
-			}
-			]
+			}]
 		});
 	}
 

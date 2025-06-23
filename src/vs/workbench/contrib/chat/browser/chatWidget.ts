@@ -954,9 +954,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			rowContainer.appendChild(this.inputContainer);
 
 			// set states
-			// const currentInput = this.input;
 			this.viewModel?.setEditing(curr);
-			ChatContextKeys.currentlyEditing.bindTo(this.contextKeyService).set(true);
 
 			this.createInput(this.inputContainer);
 			this.inputPart.toggleChatInputOverlay(true);
@@ -998,7 +996,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// reset states
 		this.viewModel?.model.setCheckpoint(undefined);
 		this.inputPart.dnd.setDisabledOverlay(false);
-		ChatContextKeys.currentlyEditing.bindTo(this.contextKeyService).set(false);
 		inputPart.toggleChatInputOverlay(false);
 		this.templateData?.rowContainer.classList.remove('clicked');
 
@@ -1022,6 +1019,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private scrollToCurrentItem(): void {
 		if (this.viewModel?.editing && this.templateData?.currentElement) {
 			const element = this.templateData.currentElement;
+			if (!this.tree.hasElement(element)) {
+				return;
+			}
 			const relativeTop = this.tree.getRelativeTop(element);
 			if (relativeTop === null || relativeTop < 0 || relativeTop > 1) {
 				this.tree.reveal(element, 0);
@@ -1918,7 +1918,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions);
 		await computer.collect(attachedContext, true, CancellationToken.None);
 
-		this.input.attachmentModel.addContext(...promptVariableEntries);
 		// add to attached list to make the instructions sticky
 		//this.inputPart.attachmentModel.addContext(...computer.autoAddedInstructions);
 	}

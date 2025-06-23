@@ -1990,14 +1990,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 4px 8px;
 }
 
-.interactive-item-container.interactive-request.chat-request-clickable {
-	cursor: pointer;
-}
-
-.interactive-item-container.interactive-request.chat-request-clickable:hover {
-	background-color: var(--vscode-list-hoverBackground);
-}
-
 .interactive-item-container .chat-edit-input-container {
 	margin-right: -15px;
 }
@@ -2012,8 +2004,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .disabled-overlay.disabled,
-.chat-input-overlay.disabled,
-.disabled-overlay.not-editing {
+.chat-input-overlay.disabled {
 	position: absolute;
 	width: 100%;
 	height: 100%;

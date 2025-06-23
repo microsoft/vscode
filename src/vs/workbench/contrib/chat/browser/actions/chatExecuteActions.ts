@@ -588,7 +588,7 @@ export class CancelEdit extends Action2 {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.enabled,
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
-					ChatContextKeys.inQuickChat.negate(), ChatContextKeys.currentlyEditing),
+					ChatContextKeys.inQuickChat.negate()),
 				order: 3,
 				group: 'navigation',
 			},
@@ -607,19 +607,6 @@ export class CancelEdit extends Action2 {
 		if (!widget) {
 			return;
 		}
-		// const requests = widget.viewModel?.model.getRequests();
-		// for (const request of requests ?? []) {
-		// 	request.shouldBeBlocked = false;
-		// 	// if (request.response) {
-		// 	// 	request.response.shouldBeBlocked = false;
-		// 	// }
-		// }
-
-		// Unset the existing checkpoint
-		// widget.viewModel?.model.setCheckpoint(undefined);
-		// } else {
-		// 	this.viewModel?.model.setCheckpoint(curr.id);
-		// }
 		widget.input.dispose();
 	}
 }

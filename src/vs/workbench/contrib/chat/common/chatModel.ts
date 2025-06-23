@@ -159,7 +159,7 @@ export interface IChatResponseModel {
 	readonly slashCommand?: IChatAgentCommand;
 	readonly agentOrSlashCommandDetected: boolean;
 	/** View of the response shown to the user, may have parts omitted from undo stops. */
-	response: IResponse;
+	readonly response: IResponse;
 	/** Entire response from the model. */
 	readonly entireResponse: IResponse;
 	readonly isComplete: boolean;
@@ -284,8 +284,6 @@ export class ChatRequestModel implements IChatRequestModel {
 		this.id = params.restoredId ?? 'request_' + generateUuid();
 		this._editedFileEvents = params.editedFileEvents;
 	}
-
-
 
 	adoptTo(session: ChatModel) {
 		this._session = session;

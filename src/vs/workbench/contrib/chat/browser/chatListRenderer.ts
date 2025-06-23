@@ -154,9 +154,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly _onDidRerender = this._register(new Emitter<IChatListItemTemplate>());
 	readonly onDidRerender: Event<IChatListItemTemplate> = this._onDidRerender.event;
 
-	private readonly _onDidNotEditing = this._register(new Emitter<IChatListItemTemplate>());
-	readonly onDidNotEditing: Event<IChatListItemTemplate> = this._onDidNotEditing.event;
-
 	private readonly _onDidDispose = this._register(new Emitter<IChatListItemTemplate>());
 	readonly onDidDispose: Event<IChatListItemTemplate> = this._onDidDispose.event;
 
@@ -349,17 +346,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				},
 			}));
 		}
-		// templateDisposables.add(dom.addDisposableListener(rowContainer, 'mouseenter', () => {
-		// 	if (isRequestVM(template.currentElement)) {
-		// 		dom.show(requestHover);
-		// 	}
-		// }));
 
-		// templateDisposables.add(dom.addDisposableListener(rowContainer, 'mouseleave', () => {
-		// 	if (isRequestVM(template.currentElement)) {
-		// 		dom.hide(requestHover);
-		// 	}
-		// }));
 		dom.hide(requestHover);
 		const user = dom.append(header, $('.user'));
 		const avatarContainer = dom.append(user, $('.avatar-container'));
