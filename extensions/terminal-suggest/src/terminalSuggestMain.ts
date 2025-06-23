@@ -160,14 +160,20 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			const commandsInPath = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType);
-			const shellGlobals = await getShellGlobals(terminalShellType, commandsInPath?.labels) ?? [];
+			const [commandsInPath, shellGlobals] = await Promise.all([
+				pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType),
+				(async () => {
+					const executables = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType);
+					return getShellGlobals(terminalShellType, executables?.labels);
+				})()
+			]);
+			const shellGlobalsArr = shellGlobals ?? [];
 			if (!commandsInPath?.completionResources) {
 				console.debug('#terminalCompletions No commands found in path');
 				return;
 			}
 			// Order is important here, add shell globals first so they are prioritized over path commands
-			const commands = [...shellGlobals, ...commandsInPath.completionResources];
+			const commands = [...shellGlobalsArr, ...commandsInPath.completionResources];
 			const currentCommandString = getCurrentCommandAndArgs(terminalContext.commandLine, terminalContext.cursorPosition, terminalShellType);
 			const pathSeparator = isWindows ? '\\' : '/';
 			const tokenType = getTokenType(terminalContext, terminalShellType);
