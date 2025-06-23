@@ -40,7 +40,7 @@ export class ChatErrorWidget extends Disposable {
 	constructor(
 		kind: ChatErrorLevel,
 		content: IMarkdownString,
-		renderer: MarkdownRenderer
+		renderer: MarkdownRenderer,
 	) {
 		super();
 
