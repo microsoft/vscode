@@ -576,8 +576,8 @@ export function escapeTerminalCompletionLabel(label: string, shellType: Terminal
 		return label;
 	}
 
-	const specialCharsSet = new Set(['[', ']', '(', ')', '{', '}', '\'', '"', '\\', '$', '`', '*', '?', ';', '&', '|', '<', '>']);
-	const specialCharsRegex = /[\[\]\(\)\{\}'"\\$\`\*\?;|&<>]/;
+	const specialCharsSet = new Set(['[', ']', '(', ')', '\'', '"', '\\', '`', '*', '?', ';', '&', '|', '<', '>']);
+	const specialCharsRegex = /[\[\]\(\)'"\\\`\*\?;|&<>]/;
 	if (!specialCharsRegex.test(label)) {
 		return label;
 	}
