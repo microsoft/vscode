@@ -15,30 +15,33 @@
 import init, * as bindings from './surfer-c30d64afea7dd363.js';
 const wasm = await init('./surfer-c30d64afea7dd363_bg.wasm');
 
-
 window.wasmBindings = bindings;
 
-
 dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+// Notify parent frame that Surfer is ready
+if (window.parent !== window) {
+    console.log('Surfer WASM initialized, notifying parent');
+    window.parent.postMessage({type: 'surferReady'}, '*');
+}
 
 </script>
     <!-- this is the base url relative to which other urls will be constructed. trunk will insert this from the public-url option -->
     <base href="./" />
-
 
     <script>
         function on_surfer_error(msg) {
             console.log("Setting error message")
             document.getElementById("error_message").innerHTML = msg
             document.getElementById("error_container").style.display = "block"
+
+            // Notify parent of error
+            if (window.parent !== window) {
+                window.parent.postMessage({type: 'surferError', message: msg}, '*');
+            }
         }
         window.on_surfer_error = on_surfer_error;
     </script>
-
-
-
-
-
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="white">
@@ -187,15 +190,18 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
         register_message_listener()
     </script>
 
-    <!--Register Service Worker. this will cache the wasm / js scripts for offline use (for PWA functionality). -->
-    <!-- Force refresh (Ctrl + F5) to load the latest files instead of cached files  -->
+    <!-- VSCode Integration - Disable Service Worker in iframe -->
     <script>
-        // We disable caching during development so that we always view the latest version.
-        if ('serviceWorker' in navigator && window.location.hash !== "#dev") {
-            window.addEventListener('load', function () {
-                navigator.serviceWorker.register('sw.js');
-            });
-        }
+        // Disable service worker registration when running in VSCode iframe
+        console.log('Surfer loaded in VSCode iframe - service worker disabled');
+
+        // Additional VSCode integration
+        window.addEventListener('load', function() {
+            console.log('Surfer iframe fully loaded');
+            if (window.parent !== window) {
+                window.parent.postMessage({type: 'surferLoaded'}, '*');
+            }
+        });
     </script>
 </body>
 

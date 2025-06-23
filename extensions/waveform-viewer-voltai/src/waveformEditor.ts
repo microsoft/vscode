@@ -69,6 +69,9 @@ export class WaveformEditorProvider implements vscode.CustomTextEditorProvider {
                     // Load the current document in Surfer
                     updateWebview();
                     return;
+                case 'surferError':
+                    vscode.window.showErrorMessage(`Surfer Error: ${e.message}`);
+                    return;
                 case 'error':
                     vscode.window.showErrorMessage(`Waveform Viewer Error: ${e.message}`);
                     return;
@@ -81,34 +84,34 @@ export class WaveformEditorProvider implements vscode.CustomTextEditorProvider {
         updateWebview();
     }
 
-    /**
- * Get the static html used for the editor webviews.
- */
+        /**
+     * Get the static html used for the editor webviews.
+     */
     private getHtmlForWebview(webview: vscode.Webview, document: vscode.TextDocument): string {
-        // Get the direct URI to the Surfer index.html
+        // Get the URI to the VSCode-specific Surfer HTML for iframe
         const surferIndexUri = webview.asWebviewUri(
-            vscode.Uri.joinPath(this.context.extensionUri, 'artifacts', 'pages_build', 'index.html')
+            vscode.Uri.joinPath(this.context.extensionUri, 'artifacts', 'pages_build', 'index_vscode.html')
         );
 
         // Verify the Surfer HTML exists
-        const surferHtmlPath = vscode.Uri.joinPath(this.context.extensionUri, 'artifacts', 'pages_build', 'index.html');
+        const surferHtmlPath = vscode.Uri.joinPath(this.context.extensionUri, 'artifacts', 'pages_build', 'index_vscode.html');
         try {
             if (!fs.existsSync(surferHtmlPath.fsPath)) {
-                return this.getErrorHtml('Surfer HTML not found. Please ensure artifacts are installed.');
+                return this.getErrorHtml(`Surfer HTML not found at: ${surferHtmlPath.fsPath}`);
             }
         } catch (error) {
             console.error('Failed to check Surfer HTML:', error);
             return this.getErrorHtml('Failed to access Surfer HTML');
         }
 
-        // Create wrapper HTML that contains the Surfer iframe
+        // Create wrapper HTML with iframe
         const nonce = getNonce();
 
         return `<!DOCTYPE html>
             <html lang="en">
             <head>
                 <meta charset="UTF-8">
-                                 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src ${webview.cspSource} 'self' data: blob: https:; iframe-src ${webview.cspSource} 'self' data: blob: https:; img-src ${webview.cspSource} data: blob:; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${webview.cspSource} 'unsafe-inline' 'wasm-unsafe-eval'; connect-src blob: data: https:; worker-src blob:;">
+                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src ${webview.cspSource} 'self' data: blob:; script-src 'nonce-${nonce}' ${webview.cspSource} 'unsafe-inline' 'wasm-unsafe-eval'; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} data: blob:; connect-src blob: data: ${webview.cspSource}; worker-src blob: ${webview.cspSource}; child-src ${webview.cspSource};">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>Waveform Viewer</title>
                 <style>
@@ -156,6 +159,7 @@ export class WaveformEditorProvider implements vscode.CustomTextEditorProvider {
                         padding: 4px 8px;
                         font-size: 11px;
                         color: var(--vscode-descriptionForeground);
+                        flex: 1;
                     }
                 </style>
             </head>
@@ -166,26 +170,37 @@ export class WaveformEditorProvider implements vscode.CustomTextEditorProvider {
                     <div id="status">Loading waveform viewer...</div>
                 </div>
 
-                                <iframe id="surfer-iframe" src="${surferIndexUri}"
-                        sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads"
+                <iframe id="surfer-iframe"
+                        src="${surferIndexUri}"
+                        sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups-to-escape-sandbox"
                         allow="wasm-unsafe-eval">
                 </iframe>
 
                 <script nonce="${nonce}">
                     const vscode = acquireVsCodeApi();
                     let surferFrame = null;
+                    let surferReady = false;
 
                     document.addEventListener('DOMContentLoaded', function() {
                         surferFrame = document.getElementById('surfer-iframe');
 
                         // Update status when iframe loads
                         surferFrame.onload = function() {
-                            document.getElementById('status').textContent = 'Waveform viewer ready';
+                            document.getElementById('status').textContent = 'Waveform viewer loading...';
+
+                            // Wait a bit for Surfer to initialize
+                            setTimeout(() => {
+                                if (surferReady) {
+                                    document.getElementById('status').textContent = 'Waveform viewer ready';
+                                } else {
+                                    document.getElementById('status').textContent = 'Waiting for Surfer to initialize...';
+                                }
+                            }, 2000);
                         };
                     });
 
                     function toggleMenu() {
-                        if (surferFrame && surferFrame.contentWindow) {
+                        if (surferFrame && surferFrame.contentWindow && surferReady) {
                             surferFrame.contentWindow.postMessage({
                                 command: 'ToggleMenu'
                             }, '*');
@@ -195,49 +210,80 @@ export class WaveformEditorProvider implements vscode.CustomTextEditorProvider {
                     function reloadWaveform() {
                         vscode.postMessage({
                             type: 'info',
-                            message: 'Reloading waveform...'
+                            message: 'Reloading waveform viewer...'
                         });
 
                         // Reload the iframe
                         surferFrame.src = surferFrame.src;
+                        surferReady = false;
                     }
 
-                    // Listen for messages from the iframe
+                                        // Listen for messages from the iframe (Surfer)
                     window.addEventListener('message', function(event) {
                         if (event.source === surferFrame.contentWindow) {
-                            // Handle messages from Surfer if needed
-                            console.log('Message from Surfer:', event.data);
+                            console.log('Message from Surfer iframe:', event.data);
+
+                            // Check if Surfer is signaling it's ready
+                            if (event.data.type === 'surferReady') {
+                                surferReady = true;
+                                document.getElementById('status').textContent = 'Waveform viewer ready';
+                            } else if (event.data.type === 'surferError') {
+                                document.getElementById('status').textContent = 'Surfer error: ' + event.data.message;
+                                vscode.postMessage({
+                                    type: 'surferError',
+                                    message: event.data.message
+                                });
+                            } else if (event.data.type === 'surferLoaded') {
+                                document.getElementById('status').textContent = 'Surfer loaded, initializing...';
+                            }
                         }
                     });
 
-                                         // Listen for messages from VSCode
-                     window.addEventListener('message', function(event) {
-                         const message = event.data;
-                         if (message.type === 'update' && message.filename) {
-                             document.getElementById('status').textContent = 'Loading: ' + message.filename;
+                    // Listen for messages from VSCode
+                    window.addEventListener('message', function(event) {
+                        const message = event.data;
+                        if (message.type === 'update' && message.filename) {
+                            document.getElementById('status').textContent = 'Loading: ' + message.filename;
 
-                             // Wait a bit for Surfer to be ready, then load the waveform
-                             setTimeout(() => {
-                                 // Convert file content to blob URL for Surfer
-                                 const blob = new Blob([message.text], { type: 'text/plain' });
-                                 const url = URL.createObjectURL(blob);
+                            if (surferFrame && surferFrame.contentWindow && surferReady) {
+                                // Convert file content to blob URL for Surfer
+                                const blob = new Blob([message.text], { type: 'text/plain' });
+                                const url = URL.createObjectURL(blob);
 
-                                 // Tell Surfer to load the waveform
-                                 if (surferFrame && surferFrame.contentWindow) {
-                                     try {
-                                         surferFrame.contentWindow.postMessage({
-                                             command: 'LoadUrl',
-                                             url: url
-                                         }, '*');
-                                         document.getElementById('status').textContent = 'Loaded: ' + message.filename;
-                                     } catch (error) {
-                                         console.error('Error loading waveform:', error);
-                                         document.getElementById('status').textContent = 'Error loading: ' + message.filename;
-                                     }
-                                 }
-                             }, 2000); // Wait 2 seconds for Surfer to initialize
-                         }
-                     });
+                                // Tell Surfer to load the waveform
+                                try {
+                                    surferFrame.contentWindow.postMessage({
+                                        command: 'LoadUrl',
+                                        url: url
+                                    }, '*');
+                                    document.getElementById('status').textContent = 'Loaded: ' + message.filename;
+                                } catch (error) {
+                                    console.error('Error loading waveform:', error);
+                                    document.getElementById('status').textContent = 'Error loading: ' + message.filename;
+                                }
+                            } else {
+                                document.getElementById('status').textContent = 'Waiting for Surfer to be ready...';
+
+                                // Retry when Surfer is ready
+                                const retryInterval = setInterval(() => {
+                                    if (surferReady && surferFrame.contentWindow) {
+                                        clearInterval(retryInterval);
+                                        const blob = new Blob([message.text], { type: 'text/plain' });
+                                        const url = URL.createObjectURL(blob);
+
+                                        surferFrame.contentWindow.postMessage({
+                                            command: 'LoadUrl',
+                                            url: url
+                                        }, '*');
+                                        document.getElementById('status').textContent = 'Loaded: ' + message.filename;
+                                    }
+                                }, 500);
+
+                                // Stop retrying after 10 seconds
+                                setTimeout(() => clearInterval(retryInterval), 10000);
+                            }
+                        }
+                    });
                 </script>
             </body>
             </html>`;
