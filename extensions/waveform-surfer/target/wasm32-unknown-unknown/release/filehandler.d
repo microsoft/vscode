@@ -1,1 +1,0 @@
-/Users/johan/Documents/VoltaiCode/extensions/waveform-surfer/target/wasm32-unknown-unknown/release/filehandler.wasm: /Users/johan/Documents/VoltaiCode/extensions/waveform-surfer/src/lib.rs /Users/johan/Documents/VoltaiCode/extensions/waveform-surfer/wit/filehandler.wit

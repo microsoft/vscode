@@ -1,0 +1,106 @@
+package waveform-surfer:surfer;
+
+interface types {
+    // Basic data types
+    record timerange {
+        start: u64,
+        end: u64,
+        timescale: string,
+    }
+
+    record signal-info {
+        id: u32,
+        name: string,
+        width: u32,
+        signal-type: string,
+        encoding: string,
+        msb: s32,
+        lsb: s32,
+    }
+
+    record scope-info {
+        id: u32,
+        name: string,
+        scope-type: string,
+        parent-id: option<u32>,
+    }
+
+    record transition {
+        time: u64,
+        value: string,
+    }
+
+    record signal-data {
+        signal-id: u32,
+        transitions: list<transition>,
+        min-time: u64,
+        max-time: u64,
+    }
+
+    record hierarchy-node {
+        id: u32,
+        name: string,
+        node-type: string, // "scope" or "signal"
+        parent-id: option<u32>,
+        children: list<u32>,
+        signal-info: option<signal-info>,
+    }
+
+    record file-metadata {
+        format: string,        // "vcd", "fst", "ghw", "fsdb"
+        version: string,
+        date: string,
+        timescale: string,
+        total-signals: u32,
+        total-scopes: u32,
+        time-range: timerange,
+    }
+
+    enum parse-error {
+        invalid-format,
+        file-not-found,
+        permission-denied,
+        corrupted-data,
+        unsupported-version,
+        memory-error,
+        unknown-error,
+    }
+
+    variant parse-result {
+        ok(file-metadata),
+        err(parse-error),
+    }
+}
+
+world surfer-parser {
+    use types.{
+        file-metadata,
+        hierarchy-node,
+        signal-data,
+        signal-info,
+        scope-info,
+        parse-error,
+        parse-result,
+        timerange,
+    };
+
+    // File system interface - called by WASM to read file data
+    import fs-read: func(offset: u64, length: u32) -> list<u8>;
+    import log-message: func(level: string, message: string);
+    import progress-update: func(percent: f32, message: string);
+
+    // Hierarchy callbacks - called by WASM to send hierarchy data
+    import hierarchy-node-discovered: func(node: hierarchy-node);
+    import metadata-ready: func(metadata: file-metadata);
+
+    // Signal data callbacks - called by WASM to send waveform data
+    import signal-data-chunk: func(data: signal-data, chunk-index: u32, total-chunks: u32);
+
+    // Main API - called by TypeScript to control WASM
+    export parse-file: func(file-size: u64, format-hint: option<string>) -> parse-result;
+    export get-hierarchy-children: func(parent-id: option<u32>) -> list<hierarchy-node>;
+    export get-signal-data: func(signal-ids: list<u32>, time-start: option<u64>, time-end: option<u64>);
+    export get-signal-value-at-time: func(signal-id: u32, time: u64) -> option<string>;
+    export get-time-range: func() -> option<timerange>;
+    export cleanup: func();
+}

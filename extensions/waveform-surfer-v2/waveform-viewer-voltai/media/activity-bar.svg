@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Waveform visualization icon -->
+  <path d="M2 12 L4 12 L6 8 L8 16 L10 4 L12 20 L14 6 L16 14 L18 10 L20 12 L22 12"/>
+  <circle cx="8" cy="16" r="1.5" fill="currentColor"/>
+  <circle cx="16" cy="14" r="1.5" fill="currentColor"/>
+</svg>

@@ -1,2 +1,0 @@
-cargo:rustc-link-lib=wit_bindgen_cabi_realloc0_36_0
-cargo:rustc-link-search=native=/Users/johan/Documents/VoltaiCode/extensions/waveform-surfer/target/wasm32-unknown-unknown/release/build/wit-bindgen-rt-5c8838b9801bd5f2/out
