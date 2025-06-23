@@ -196,6 +196,7 @@ export interface IPreparedToolInvocation {
 export interface IToolImpl {
 	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult>;
 	prepareToolInvocation?(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
+	resolveToolInput?(input: any): Promise<any>;
 }
 
 export class ToolSet {
