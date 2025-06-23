@@ -11,7 +11,7 @@ import { ExtHostExtensionService } from './extHostExtensionService.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService, LogLevel as LogServiceLevel } from '../../../platform/log/common/log.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch, loadSystemCertificates, ResolveProxyWithRequest } from '@vscode/proxy-agent';
+import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch, ResolveProxyWithRequest } from '@vscode/proxy-agent';
 import { AuthInfo } from '../../../platform/request/common/request.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { createRequire } from 'node:module';
@@ -42,7 +42,7 @@ export function connectProxyResolver(
 	const isRemote = initData.remote.isRemote;
 	const useHostProxyDefault = initData.environment.useHostProxy ?? !isRemote;
 	const fallbackToLocalKerberos = useHostProxyDefault;
-	const loadLocalCertificates = useHostProxyDefault;
+	const loadCertificatesFromMainProcess = initData.environment.useHostProxy ?? false;
 	const isUseHostProxyEnabled = () => !isRemote || configProvider.getConfiguration('http').get<boolean>('useLocalProxyConfiguration', useHostProxyDefault);
 	const params: ProxyAgentParams = {
 		resolveProxy: url => extHostWorkspace.resolveProxy(url),
@@ -74,10 +74,8 @@ export function connectProxyResolver(
 		isUseHostProxyEnabled,
 		loadAdditionalCertificates: async () => {
 			const promises: Promise<string[]>[] = [];
-			if (initData.remote.isRemote) {
-				promises.push(loadSystemCertificates({ log: extHostLogService }));
-			}
-			if (loadLocalCertificates) {
+			// TODO: In remote `fetch` misses the `--use-system-ca` certs because setting `ca` overwrites them.
+			if (loadCertificatesFromMainProcess) {
 				extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loading certificates from main process');
 				const certs = extHostWorkspace.loadCertificates(); // Loading from main process to share cache.
 				certs.then(certs => extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loaded certificates from main process', certs.length));
