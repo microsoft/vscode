@@ -39,8 +39,14 @@ export const enum TerminalShellType {
 }
 
 const isWindows = osIsWindows();
-const cachedGlobals: Map<TerminalShellType, ICompletionResource[] | undefined> = new Map();
+type ShellGlobalsCacheEntry = {
+	commands: ICompletionResource[] | undefined;
+	existingCommands?: string[];
+};
+const cachedGlobals: Map<TerminalShellType, ShellGlobalsCacheEntry> = new Map();
 let pathExecutableCache: PathExecutableCache;
+const CACHE_FILE_NAME = 'terminalSuggestGlobalsCache.json';
+let cacheFilePath: string | undefined;
 
 export const availableSpecs: Fig.Spec[] = [
 	cdSpec,
@@ -66,9 +72,22 @@ const getShellSpecificGlobals: Map<TerminalShellType, (options: ExecOptionsWithS
 
 async function getShellGlobals(shellType: TerminalShellType, existingCommands?: Set<string>): Promise<ICompletionResource[] | undefined> {
 	try {
-		const cachedCommands = cachedGlobals.get(shellType);
-		if (cachedCommands) {
-			return cachedCommands;
+		const cached = cachedGlobals.get(shellType);
+		const existingCommandsArr = existingCommands ? Array.from(existingCommands) : undefined;
+		let shouldRefresh = false;
+		if (cached) {
+			if (existingCommandsArr && cached.existingCommands) {
+				// Only compare length
+				if (existingCommandsArr.length !== cached.existingCommands.length) {
+					shouldRefresh = true;
+				}
+			} else if (existingCommandsArr || cached.existingCommands) {
+				// One is undefined, the other is not
+				shouldRefresh = true;
+			}
+			if (!shouldRefresh && cached.commands) {
+				return cached.commands;
+			}
 		}
 		if (!shellType) {
 			return;
@@ -80,13 +99,41 @@ async function getShellGlobals(shellType: TerminalShellType, existingCommands?: 
 		const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell: execShellType, windowsHide: true };
 		const mixedCommands: (string | ICompletionResource)[] | undefined = await getShellSpecificGlobals.get(shellType)?.(options, existingCommands);
 		const normalizedCommands = mixedCommands?.map(command => typeof command === 'string' ? ({ label: command }) : command);
-		cachedGlobals.set(shellType, normalizedCommands);
+		cachedGlobals.set(shellType, { commands: normalizedCommands, existingCommands: existingCommandsArr });
+		await writeGlobalsCache();
 		return normalizedCommands;
-
 	} catch (error) {
 		console.error('Error fetching builtin commands:', error);
 		return;
 	}
+}
+
+async function writeGlobalsCache(): Promise<void> {
+	if (!cacheFilePath) {
+		return;
+	}
+	const obj: Record<string, ShellGlobalsCacheEntry> = {};
+	for (const [key, value] of cachedGlobals.entries()) {
+		obj[key] = value;
+	}
+	try {
+		await fs.writeFile(cacheFilePath, JSON.stringify(obj), { encoding: 'utf-8' });
+	} catch (err) {
+		console.error('Failed to write terminal suggest globals cache:', err);
+	}
+}
+
+async function readGlobalsCache(): Promise<void> {
+	if (!cacheFilePath) {
+		return;
+	}
+	try {
+		const data = await fs.readFile(cacheFilePath, { encoding: 'utf-8' });
+		const obj = JSON.parse(data);
+		for (const key of Object.keys(obj)) {
+			cachedGlobals.set(key as TerminalShellType, obj[key]);
+		}
+	} catch { }
 }
 
 
@@ -94,6 +141,14 @@ export async function activate(context: vscode.ExtensionContext) {
 	pathExecutableCache = new PathExecutableCache();
 	context.subscriptions.push(pathExecutableCache);
 	let currentTerminalEnv: ITerminalEnvironment = process.env;
+
+	// Set cache file path in extension global storage
+	cacheFilePath = path.join(context.globalStorageUri.fsPath, CACHE_FILE_NAME);
+	try {
+		await fs.mkdir(context.globalStorageUri.fsPath, { recursive: true });
+	} catch { }
+	await readGlobalsCache();
+
 	context.subscriptions.push(vscode.window.registerTerminalCompletionProvider({
 		id: 'terminal-suggest',
 		async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: vscode.TerminalCompletionContext, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | vscode.TerminalCompletionList | undefined> {
