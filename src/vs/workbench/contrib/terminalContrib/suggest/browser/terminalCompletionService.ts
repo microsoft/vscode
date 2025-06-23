@@ -277,7 +277,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			case 'tilde': {
 				const home = this._getHomeDir(useWindowsStylePath, capabilities);
 				if (home) {
-					lastWordFolderResource = URI.joinPath(URI.file(home), lastWordFolder.slice(1).replaceAll('\\ ', ' '));
+					// Use the same scheme as cwd for remote contexts
+					const homeUri = cwd.scheme !== 'file' ? cwd.with({ path: home }) : URI.file(home);
+					lastWordFolderResource = URI.joinPath(homeUri, lastWordFolder.slice(1).replaceAll('\\ ', ' '));
 				}
 				if (!lastWordFolderResource) {
 					// Use less strong wording here as it's not as strong of a concept on Windows
@@ -289,11 +291,14 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				break;
 			}
 			case 'absolute': {
-				if (shellType === WindowsShellType.GitBash) {
-					lastWordFolderResource = URI.file(gitBashToWindowsPath(lastWordFolder, this._processEnv.SystemDrive));
-				} else {
-					lastWordFolderResource = URI.file(lastWordFolder.replaceAll('\\ ', ' '));
-				}
+				const absolutePath = shellType === WindowsShellType.GitBash
+					? gitBashToWindowsPath(lastWordFolder, this._processEnv.SystemDrive)
+					: lastWordFolder.replaceAll('\\ ', ' ');
+				
+				// Use the same scheme as cwd for remote contexts
+				lastWordFolderResource = cwd.scheme !== 'file' 
+					? cwd.with({ path: absolutePath })
+					: URI.file(absolutePath);
 				break;
 			}
 			case 'relative': {
