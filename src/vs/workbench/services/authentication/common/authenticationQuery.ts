@@ -125,6 +125,12 @@ export interface IAccountExtensionQuery extends IBaseQuery {
 	 * Check if this account is the preferred account for this extension
 	 */
 	isPreferred(): boolean;
+
+	/**
+	 * Check if this extension is trusted (defined in product.json)
+	 * @returns True if the extension is trusted, false otherwise
+	 */
+	isTrusted(): boolean;
 }
 
 /**
@@ -194,10 +200,10 @@ export interface IAccountExtensionsQuery extends IBaseQuery {
 	readonly accountName: string;
 
 	/**
-	 * Get all extension IDs that have access to this account
-	 * @returns Array of extension IDs
+	 * Get all extensions that have access to this account with their trusted state
+	 * @returns Array of objects containing extension data including trusted state
 	 */
-	getAllowedExtensionIds(): string[];
+	getAllowedExtensions(): { id: string; name: string; allowed?: boolean; lastUsed?: number; trusted?: boolean }[];
 
 	/**
 	 * Grant access to this account for all specified extensions
