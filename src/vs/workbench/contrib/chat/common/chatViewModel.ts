@@ -312,7 +312,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 				e.kind === 'addRequest' ? { kind: 'addRequest' }
 					: e.kind === 'initialize' ? { kind: 'initialize' }
 						: e.kind === 'setHidden' ? { kind: 'setHidden' }
-							: e.kind === 'setCheckpoint' ? { kind: 'setCheckpoint' } : null;
+							: null;
 			this._onDidChange.fire(modelEventToVmEvent);
 		}));
 	}

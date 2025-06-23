@@ -949,6 +949,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			item.disabledOverlay.classList.remove('disabled');
+			item.rowContainer.classList.add('editing');
 			const rowContainer = item.rowContainer;
 			this.inputContainer = dom.$('.chat-edit-input-container');
 			rowContainer.appendChild(this.inputContainer);
