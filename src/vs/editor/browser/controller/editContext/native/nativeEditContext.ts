@@ -283,7 +283,6 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _updateEditContextOnLineChange(fromLineNumber: number, toLineNumber: number): void {
-		console.log('_updateEditContextOnLineChange', fromLineNumber, toLineNumber);
 		if (this._editContextPrimarySelection.endLineNumber < fromLineNumber || this._editContextPrimarySelection.startLineNumber > toLineNumber) {
 			return;
 		}
@@ -363,7 +362,6 @@ export class NativeEditContext extends AbstractEditContext {
 		if (!editContextState) {
 			return;
 		}
-		console.log('_updateEditContext', editContextState);
 		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextState.text ?? ' ');
 		this._editContext.updateSelection(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
 		this._editContextPrimarySelection = editContextState.editContextPrimarySelection;
@@ -372,9 +370,6 @@ export class NativeEditContext extends AbstractEditContext {
 
 	private _emitTypeEvent(viewController: ViewController, e: ITextUpdateEvent): void {
 		if (!this._editContext) {
-			return;
-		}
-		if (!this._editContextPrimarySelection.equalsSelection(this._primarySelection)) {
 			return;
 		}
 		const selectionEndOffset = this._previousEditContextSelection.endExclusive;
@@ -407,7 +402,6 @@ export class NativeEditContext extends AbstractEditContext {
 			replaceNextCharCnt,
 			positionDelta
 		};
-		console.log('typeInput : ', typeInput);
 		this._onType(viewController, typeInput);
 	}
 
