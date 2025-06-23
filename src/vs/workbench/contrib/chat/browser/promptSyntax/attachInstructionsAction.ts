@@ -24,7 +24,7 @@ import { INSTRUCTIONS_LANGUAGE_ID, PromptsType } from '../../common/promptSyntax
 import { compare } from '../../../../../base/common/strings.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { dirname } from '../../../../../base/common/resources.js';
-import { IPromptFileVariableEntry, toPromptFileVariableEntry } from '../../common/chatVariableEntries.js';
+import { IPromptFileVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/chatVariableEntries.js';
 import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
@@ -118,7 +118,7 @@ class AttachInstructionsAction extends Action2 {
 		}
 
 		if (skipSelectionDialog && resource) {
-			widget.attachmentModel.addContext(toPromptFileVariableEntry(resource, true));
+			widget.attachmentModel.addContext(toPromptFileVariableEntry(resource, PromptFileVariableKind.Instruction));
 			widget.focusInput();
 			return;
 		}
@@ -131,7 +131,7 @@ class AttachInstructionsAction extends Action2 {
 		const result = await pickers.selectPromptFile({ resource, placeholder, type: PromptsType.instructions });
 
 		if (result !== undefined) {
-			widget.attachmentModel.addContext(toPromptFileVariableEntry(result.promptFile, true));
+			widget.attachmentModel.addContext(toPromptFileVariableEntry(result.promptFile, PromptFileVariableKind.Instruction));
 			widget.focusInput();
 		}
 	}
@@ -257,7 +257,7 @@ export class ChatInstructionsPickerPick implements IChatContextPickerItem {
 				result.push({
 					label: getCleanPromptName(uri),
 					asAttachment: (): IPromptFileVariableEntry => {
-						return toPromptFileVariableEntry(uri, true);
+						return toPromptFileVariableEntry(uri, PromptFileVariableKind.Instruction);
 					}
 				});
 			}
