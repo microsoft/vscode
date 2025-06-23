@@ -147,7 +147,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				}
 			}
 
-			if (terminal.shellIntegration?.cwd && (result.filesRequested || result.foldersRequested) && !vscode.env.remoteName) {
+			if (terminal.shellIntegration?.cwd && (result.filesRequested || result.foldersRequested)) {
 				return new vscode.TerminalCompletionList(result.items, {
 					filesRequested: result.filesRequested,
 					foldersRequested: result.foldersRequested,
