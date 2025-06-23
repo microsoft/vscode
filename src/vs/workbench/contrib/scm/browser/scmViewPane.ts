@@ -1335,7 +1335,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: SCMInputWidgetCommandId.SetupAction,
-			title: localize('scmInputGenerateCommitMessage', "Generate Commit Message with Copilot"),
+			title: localize('scmInputGenerateCommitMessage', "Summarize Changes as Commit Message"),
 			icon: Codicon.sparkle,
 			f1: false,
 			menu: {

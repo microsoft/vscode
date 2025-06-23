@@ -689,9 +689,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!numItems) {
 			const welcomeContent = this.getWelcomeViewContent();
 			dom.clearNode(this.welcomeMessageContainer);
-			const tips = undefined;
 			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentMode);
-			const additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage; this.welcomePart.value = this.instantiationService.createInstance(
+			const additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
+			this.welcomePart.value = this.instantiationService.createInstance(
 				ChatViewWelcomePart,
 				{ ...welcomeContent, additionalMessage },
 				{
@@ -715,21 +715,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				title: localize('chatDescription', "Ask about your code."),
 				message: new MarkdownString(baseMessage),
 				icon: Codicon.vscode,
-				tips: new MarkdownString('<span class="codicon codicon-attach"></span> or type # to attach context\n\n<span class="codicon codicon-mention"></span> to chat with extensions\n\nType / to use commands', { supportHtml: true })
+				tips: new MarkdownString('$(attach) or type # to attach context\n\n$(mention) to chat with extensions\n\nType / to use commands', { supportThemeIcons: true })
 			};
 		} else if (this.input.currentMode === ChatMode.Edit) {
 			return {
 				title: localize('editsTitle', "Edit in context. "),
 				message: new MarkdownString(localize('editsMessage', "Start by defining a set of files that you want to work with. Then ask for the changes you want to make. \n\n AI responses may be inaccurate. Review output carefully before use.")),
 				icon: Codicon.vscode,
-				tips: new MarkdownString('<span class="codicon codicon-attach"></span> or type # to attach context', { supportHtml: true })
+				tips: new MarkdownString('$(attach) or type # to attach context', { supportThemeIcons: true })
 			};
 		} else {
 			return {
 				title: localize('agentTitle', "Build with agent mode. "),
 				message: new MarkdownString(localize('agentMessage', "Let AI autonomously reason about the request, plan the work needed, and apply the changes to your codebase. \n\n AI responses may be inaccurate. Review output carefully before use.")),
 				icon: Codicon.vscode,
-				tips: new MarkdownString('<span class="codicon codicon-attach"></span> or type # to attach context', { supportHtml: true })
+				tips: new MarkdownString('$(attach) or type # to attach context', { supportThemeIcons: true })
 			};
 		}
 	}
