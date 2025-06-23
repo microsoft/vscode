@@ -325,59 +325,30 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			newLine = sb.build();
 		}
 
-		const lineHTMLNode = document.createElement('span');
-		lineHTMLNode.setAttribute(STICKY_INDEX_ATTR, String(index));
-		lineHTMLNode.setAttribute(STICKY_IS_LINE_ATTR, '');
-		lineHTMLNode.setAttribute('role', 'listitem');
-		lineHTMLNode.tabIndex = 0;
-		lineHTMLNode.className = 'sticky-line-content';
-		lineHTMLNode.classList.add(`stickyLine${line}`);
-		lineHTMLNode.style.lineHeight = `${lineHeight}px`;
-		lineHTMLNode.innerHTML = newLine as string;
-
-		const lineNumberHTMLNode = document.createElement('span');
-		lineNumberHTMLNode.setAttribute(STICKY_INDEX_ATTR, String(index));
-		lineNumberHTMLNode.setAttribute(STICKY_IS_LINE_NUMBER_ATTR, '');
-		lineNumberHTMLNode.className = 'sticky-line-number';
-		lineNumberHTMLNode.style.lineHeight = `${lineHeight}px`;
-		const lineNumbersWidth = layoutInfo.contentLeft;
-		lineNumberHTMLNode.style.width = `${lineNumbersWidth}px`;
-
-		const innerLineNumberHTML = document.createElement('span');
-		if (lineNumberOption.renderType === RenderLineNumbersType.On || lineNumberOption.renderType === RenderLineNumbersType.Interval && line % 10 === 0) {
-			innerLineNumberHTML.innerText = line.toString();
-		} else if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
-			innerLineNumberHTML.innerText = Math.abs(line - this._editor.getPosition()!.lineNumber).toString();
-		}
-		innerLineNumberHTML.className = 'sticky-line-number-inner';
-		innerLineNumberHTML.style.width = `${layoutInfo.lineNumbersWidth}px`;
-		innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft}px`;
-
-		lineNumberHTMLNode.appendChild(innerLineNumberHTML);
 		const foldingIcon = this._renderFoldingIconForLine(foldingModel, line);
 		if (foldingIcon) {
-			lineNumberHTMLNode.appendChild(foldingIcon.domNode);
 			foldingIcon.domNode.style.left = `${layoutInfo.lineNumbersWidth + layoutInfo.lineNumbersLeft}px`;
 			foldingIcon.domNode.style.lineHeight = `${lineHeight}px`;
 		}
 
-		this._editor.applyFontInfo(lineHTMLNode);
-		this._editor.applyFontInfo(lineNumberHTMLNode);
-
-		lineNumberHTMLNode.style.lineHeight = `${lineHeight}px`;
-		lineHTMLNode.style.lineHeight = `${lineHeight}px`;
-		lineNumberHTMLNode.style.height = `${lineHeight}px`;
-		lineHTMLNode.style.height = `${lineHeight}px`;
+		const lineNumbersWidth = layoutInfo.contentLeft;
 
 		const renderedLine = new RenderedStickyLine(
 			index,
 			line,
-			lineHTMLNode,
-			lineNumberHTMLNode,
 			foldingIcon,
 			renderOutput.characterMapping,
-			lineHTMLNode.scrollWidth,
-			lineHeight
+			lineHeight,
+			newLine as string,
+			lineNumberOption.renderType === RenderLineNumbersType.On || lineNumberOption.renderType === RenderLineNumbersType.Interval && line % 10 === 0
+				? line.toString()
+				: lineNumberOption.renderType === RenderLineNumbersType.Relative
+					? Math.abs(line - this._editor.getPosition()!.lineNumber).toString()
+					: '',
+			lineNumbersWidth,
+			layoutInfo.lineNumbersWidth,
+			layoutInfo.lineNumbersLeft,
+			this._editor
 		);
 		return this._updatePosition(renderedLine, top, isLastLine);
 	}
@@ -518,16 +489,58 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 }
 
 class RenderedStickyLine {
+	public readonly lineDomNode: HTMLElement;
+	public readonly lineNumberDomNode: HTMLElement;
+	public readonly scrollWidth: number;
+
 	constructor(
 		public readonly index: number,
 		public readonly lineNumber: number,
-		public readonly lineDomNode: HTMLElement,
-		public readonly lineNumberDomNode: HTMLElement,
 		public readonly foldingIcon: StickyFoldingIcon | undefined,
 		public readonly characterMapping: CharacterMapping,
-		public readonly scrollWidth: number,
-		public readonly height: number
-	) { }
+		public readonly height: number,
+		lineContent: string,
+		lineNumberContent: string,
+		lineNumbersWidth: number,
+		lineNumbersInnerWidth: number,
+		lineNumbersLeft: number,
+		editor: ICodeEditor
+	) {
+		this.lineDomNode = document.createElement('span');
+		this.lineDomNode.setAttribute(STICKY_INDEX_ATTR, String(index));
+		this.lineDomNode.setAttribute(STICKY_IS_LINE_ATTR, '');
+		this.lineDomNode.setAttribute('role', 'listitem');
+		this.lineDomNode.tabIndex = 0;
+		this.lineDomNode.className = 'sticky-line-content';
+		this.lineDomNode.classList.add(`stickyLine${lineNumber}`);
+		this.lineDomNode.style.lineHeight = `${height}px`;
+		this.lineDomNode.style.height = `${height}px`;
+		this.lineDomNode.innerHTML = lineContent;
+
+		this.lineNumberDomNode = document.createElement('span');
+		this.lineNumberDomNode.setAttribute(STICKY_INDEX_ATTR, String(index));
+		this.lineNumberDomNode.setAttribute(STICKY_IS_LINE_NUMBER_ATTR, '');
+		this.lineNumberDomNode.className = 'sticky-line-number';
+		this.lineNumberDomNode.style.lineHeight = `${height}px`;
+		this.lineNumberDomNode.style.height = `${height}px`;
+		this.lineNumberDomNode.style.width = `${lineNumbersWidth}px`;
+
+		const innerLineNumberHTML = document.createElement('span');
+		innerLineNumberHTML.className = 'sticky-line-number-inner';
+		innerLineNumberHTML.style.width = `${lineNumbersInnerWidth}px`;
+		innerLineNumberHTML.style.paddingLeft = `${lineNumbersLeft}px`;
+		innerLineNumberHTML.innerHTML = lineNumberContent;
+		this.lineNumberDomNode.appendChild(innerLineNumberHTML);
+
+		if (foldingIcon) {
+			this.lineNumberDomNode.appendChild(foldingIcon.domNode);
+		}
+
+		editor.applyFontInfo(this.lineDomNode);
+		editor.applyFontInfo(this.lineNumberDomNode);
+
+		this.scrollWidth = this.lineDomNode.scrollWidth;
+	}
 }
 
 class StickyFoldingIcon {
