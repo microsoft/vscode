@@ -852,7 +852,7 @@ export interface InlineCompletions<TItem extends InlineCompletion = InlineComple
 	/**
 	 * A list of commands associated with the inline completions of this list.
 	 */
-	readonly commands?: Command[];
+	readonly commands?: InlineCompletionCommand[];
 
 	readonly suppressSuggestions?: boolean | undefined;
 
@@ -862,16 +862,12 @@ export interface InlineCompletions<TItem extends InlineCompletion = InlineComple
 	readonly enableForwardStability?: boolean | undefined;
 }
 
+export type InlineCompletionCommand = { command: Command; icon?: ThemeIcon };
+
 export type InlineCompletionProviderGroupId = string;
 
 export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {
 	provideInlineCompletions(model: model.ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
-
-	/**
-	 * @experimental
-	 * @internal
-	*/
-	provideInlineEditsForRange?(model: model.ITextModel, range: Range, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
 
 	/**
 	 * Will be called when an item is shown.
@@ -894,12 +890,12 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 * Is called when an inline completion item is no longer being used.
 	 * Provides a reason of why it is not used anymore.
 	*/
-	handleEndOfLifetime?(completions: T, item: T['items'][number], reason: InlineCompletionEndOfLifeReason<T['items'][number]>): void;
+	handleEndOfLifetime?(completions: T, item: T['items'][number], reason: InlineCompletionEndOfLifeReason<T['items'][number]>, lifetimeSummary: LifetimeSummary): void;
 
 	/**
 	 * Will be called when a completions list is no longer in use and can be garbage-collected.
 	*/
-	freeInlineCompletions(completions: T): void;
+	disposeInlineCompletions(completions: T, reason: InlineCompletionsDisposeReason): void;
 
 	onDidChangeInlineCompletions?: Event<void>;
 
@@ -922,6 +918,8 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	toString?(): string;
 }
 
+export type InlineCompletionsDisposeReason = { kind: 'lostRace' | 'tokenCancellation' | 'other' | 'empty' | 'notTaken' };
+
 export enum InlineCompletionEndOfLifeReasonKind {
 	Accepted = 0,
 	Rejected = 1,
@@ -936,6 +934,16 @@ export type InlineCompletionEndOfLifeReason<TInlineCompletion = InlineCompletion
 	kind: InlineCompletionEndOfLifeReasonKind.Ignored;
 	supersededBy?: TInlineCompletion;
 	userTypingDisagreed: boolean;
+};
+
+export type LifetimeSummary = {
+	requestUuid: string;
+	shown: boolean;
+	shownDuration: number;
+	shownDurationUncollapsed: number;
+	editorType: string;
+	viewKind: string | undefined;
+	error: string | undefined;
 };
 
 export interface CodeAction {
@@ -2440,36 +2448,4 @@ export interface DocumentDropEditProvider {
 
 	provideDocumentDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentDropEditsSession>;
 	resolveDocumentDropEdit?(edit: DocumentDropEdit, token: CancellationToken): Promise<DocumentDropEdit>;
-}
-
-export interface IInlineEdit {
-	text: string;
-	range: IRange;
-	showRange?: IRange;
-	accepted?: Command;
-	rejected?: Command;
-	shown?: Command;
-	commands?: Command[];
-	action?: Command;
-}
-
-export interface IInlineEditContext {
-	triggerKind: InlineEditTriggerKind;
-
-	/**
-	 * @experimental
-	 * @internal
-	 */
-	requestUuid: string;
-}
-
-export enum InlineEditTriggerKind {
-	Invoke = 0,
-	Automatic = 1,
-}
-
-export interface InlineEditProvider<T extends IInlineEdit = IInlineEdit> {
-	displayName?: string;
-	provideInlineEdit(model: model.ITextModel, context: IInlineEditContext, token: CancellationToken): ProviderResult<T>;
-	freeInlineEdit(edit: T): void;
 }

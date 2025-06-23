@@ -49,7 +49,7 @@ export function traceRpc(_target: any, key: string, descriptor: any) {
 		if (this.traceRpcArgs.simulatedLatency) {
 			await timeout(this.traceRpcArgs.simulatedLatency);
 		}
-		let result: any;
+		let result: unknown;
 		try {
 			result = await fn.apply(this, args);
 		} catch (e) {
@@ -1015,7 +1015,7 @@ class XtermSerializer implements ITerminalSerializer {
 			this._xterm.writeln(reviveBufferWithRestoreMessage);
 		}
 		this.setUnicodeVersion(unicodeVersion);
-		this._shellIntegrationAddon = new ShellIntegrationAddon(shellIntegrationNonce, true, undefined, logService);
+		this._shellIntegrationAddon = new ShellIntegrationAddon(shellIntegrationNonce, true, undefined, undefined, logService);
 		this._xterm.loadAddon(this._shellIntegrationAddon);
 	}
 

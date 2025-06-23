@@ -57,11 +57,11 @@ const vscodeResourceIncludes = [
 	'out-build/nls.keys.json',
 
 	// Workbench
-	'out-build/vs/code/electron-sandbox/workbench/workbench.html',
+	'out-build/vs/code/electron-browser/workbench/workbench.html',
 
 	// Electron Preload
-	'out-build/vs/base/parts/sandbox/electron-sandbox/preload.js',
-	'out-build/vs/base/parts/sandbox/electron-sandbox/preload-aux.js',
+	'out-build/vs/base/parts/sandbox/electron-browser/preload.js',
+	'out-build/vs/base/parts/sandbox/electron-browser/preload-aux.js',
 
 	// Node Scripts
 	'out-build/vs/base/node/{terminateProcess.sh,cpuUsage.sh,ps.sh}',
@@ -138,7 +138,7 @@ const bundleVSCodeTask = task.define('bundle-vscode', task.series(
 					...bootstrapEntryPoints
 				],
 				resources: vscodeResources,
-				skipTSBoilerplateRemoval: entryPoint => entryPoint === 'vs/code/electron-sandbox/workbench/workbench'
+				skipTSBoilerplateRemoval: entryPoint => entryPoint === 'vs/code/electron-browser/workbench/workbench'
 			}
 		}
 	)
@@ -220,12 +220,12 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const out = sourceFolderName;
 
 		const checksums = computeChecksums(out, [
-			'vs/base/parts/sandbox/electron-sandbox/preload.js',
+			'vs/base/parts/sandbox/electron-browser/preload.js',
 			'vs/workbench/workbench.desktop.main.js',
 			'vs/workbench/workbench.desktop.main.css',
 			'vs/workbench/api/node/extensionHostProcess.js',
-			'vs/code/electron-sandbox/workbench/workbench.html',
-			'vs/code/electron-sandbox/workbench/workbench.js'
+			'vs/code/electron-browser/workbench/workbench.html',
+			'vs/code/electron-browser/workbench/workbench.js'
 		]);
 
 		const src = gulp.src(out + '/**', { base: '.' })

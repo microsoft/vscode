@@ -212,6 +212,12 @@ export class TestMcpRegistry implements IMcpRegistry {
 	getTrust(collection: McpCollectionReference): IObservable<boolean | undefined> {
 		throw new Error('Method not implemented.');
 	}
+	getAuthenticationUsage(mcpServerId: string): string | undefined {
+		throw new Error('Method not implemented.');
+	}
+	setAuthenticationUsage(mcpServerId: string, providerId: string): void {
+		throw new Error('Method not implemented.');
+	}
 	clearSavedInputs(scope: StorageScope, inputId?: string): Promise<void> {
 		throw new Error('Method not implemented.');
 	}

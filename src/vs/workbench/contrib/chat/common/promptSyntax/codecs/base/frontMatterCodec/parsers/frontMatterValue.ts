@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BaseToken } from '../../baseToken.js';
-import { PartialFrontMatterArray } from './frontMatterArray.js';
-import { PartialFrontMatterString } from './frontMatterString.js';
+import { type PartialFrontMatterArray } from './frontMatterArray.js';
+import { type PartialFrontMatterString } from './frontMatterString.js';
 import { asBoolean, FrontMatterBoolean } from '../tokens/frontMatterBoolean.js';
 import { FrontMatterValueToken } from '../tokens/frontMatterToken.js';
 import { PartialFrontMatterSequence } from './frontMatterSequence.js';
@@ -13,6 +13,7 @@ import { FrontMatterSequence } from '../tokens/frontMatterSequence.js';
 import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { Word, Quote, DoubleQuote, LeftBracket } from '../../simpleCodec/tokens/tokens.js';
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
+import { type FrontMatterParserFactory } from './frontMatterParserFactory.js';
 
 /**
  * List of tokens that can start a "value" sequence.
@@ -54,6 +55,7 @@ export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, Par
 	}
 
 	constructor(
+		private readonly factory: FrontMatterParserFactory,
 		/**
 		 * Callback function to pass to the {@link PartialFrontMatterSequence}
 		 * if the current "value" sequence is not of a specific type.
@@ -99,7 +101,7 @@ export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, Par
 
 		// if the first token represents a `quote` character, try to parse a string value
 		if ((token instanceof Quote) || (token instanceof DoubleQuote)) {
-			this.currentValueParser = new PartialFrontMatterString(token);
+			this.currentValueParser = this.factory.createString(token);
 
 			return {
 				result: 'success',
@@ -110,7 +112,7 @@ export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, Par
 
 		// if the first token represents a `[` character, try to parse an array value
 		if (token instanceof LeftBracket) {
-			this.currentValueParser = new PartialFrontMatterArray(token);
+			this.currentValueParser = this.factory.createArray(token);
 
 			return {
 				result: 'success',
@@ -134,9 +136,7 @@ export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, Par
 		// in all other cases, collect all the subsequent tokens into
 		// a generic sequence of tokens until stopped by the `this.shouldStop`
 		// callback or the call to the 'this.asSequenceToken' method
-		this.currentValueParser = new PartialFrontMatterSequence(
-			this.shouldStop,
-		);
+		this.currentValueParser = this.factory.createSequence(this.shouldStop);
 
 		return this.accept(token);
 	}

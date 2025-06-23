@@ -591,8 +591,8 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		return '';
 	}
 
-	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): void {
-		// noop
+	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): IDisposable {
+		return Disposable.None;
 	}
 
 	/**

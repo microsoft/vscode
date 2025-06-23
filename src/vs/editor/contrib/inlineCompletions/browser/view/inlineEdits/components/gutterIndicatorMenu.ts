@@ -78,7 +78,13 @@ export class GutterIndicatorMenuContent {
 			commandId: hideInlineCompletionId
 		}));
 
-		const extensionCommands = this._model.extensionCommands.map((c, idx) => option(createOptionArgs({ id: c.id + '_' + idx, title: c.title, icon: Codicon.symbolEvent, commandId: c.id, commandArgs: c.arguments })));
+		const extensionCommands = this._model.extensionCommands.map((c, idx) => option(createOptionArgs({
+			id: c.command.id + '_' + idx,
+			title: c.command.title,
+			icon: c.icon ?? Codicon.symbolEvent,
+			commandId: c.command.id,
+			commandArgs: c.command.arguments
+		})));
 
 		const toggleCollapsedMode = this._inlineEditsShowCollapsed.map(showCollapsed => showCollapsed ?
 			option(createOptionArgs({

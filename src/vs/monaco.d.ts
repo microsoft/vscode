@@ -3356,6 +3356,10 @@ declare namespace monaco.editor {
 		 */
 		scrollBeyondLastLine?: boolean;
 		/**
+		 * Scroll editor on middle click
+		 */
+		scrollOnMiddleClick?: boolean;
+		/**
 		 * Enable that scrolling can go beyond the last column by a number of columns.
 		 * Defaults to 5.
 		 */
@@ -3833,7 +3837,7 @@ declare namespace monaco.editor {
 		/**
 		 * Sets whether the new experimental edit context should be used instead of the text area.
 		 */
-		experimentalEditContextEnabled?: boolean;
+		editContext?: boolean;
 		/**
 		 * Controls support for changing how content is pasted into the editor.
 		 */
@@ -4959,7 +4963,7 @@ declare namespace monaco.editor {
 		domReadOnly = 37,
 		dragAndDrop = 38,
 		dropIntoEditor = 39,
-		experimentalEditContextEnabled = 40,
+		editContext = 40,
 		emptySelectionClipboard = 41,
 		experimentalGpuAcceleration = 42,
 		experimentalWhitespaceRendering = 43,
@@ -5078,7 +5082,8 @@ declare namespace monaco.editor {
 		defaultColorDecorators = 156,
 		colorDecoratorsActivatedOn = 157,
 		inlineCompletionsAccessibilityVerbose = 158,
-		effectiveExperimentalEditContextEnabled = 159
+		effectiveEditContext = 159,
+		scrollOnMiddleClick = 160
 	}
 
 	export const EditorOptions: {
@@ -5126,7 +5131,7 @@ declare namespace monaco.editor {
 		dragAndDrop: IEditorOption<EditorOption.dragAndDrop, boolean>;
 		emptySelectionClipboard: IEditorOption<EditorOption.emptySelectionClipboard, boolean>;
 		dropIntoEditor: IEditorOption<EditorOption.dropIntoEditor, Readonly<Required<IDropIntoEditorOptions>>>;
-		experimentalEditContextEnabled: IEditorOption<EditorOption.experimentalEditContextEnabled, boolean>;
+		editContext: IEditorOption<EditorOption.editContext, boolean>;
 		stickyScroll: IEditorOption<EditorOption.stickyScroll, Readonly<Required<IEditorStickyScrollOptions>>>;
 		experimentalGpuAcceleration: IEditorOption<EditorOption.experimentalGpuAcceleration, 'on' | 'off'>;
 		experimentalWhitespaceRendering: IEditorOption<EditorOption.experimentalWhitespaceRendering, 'off' | 'svg' | 'font'>;
@@ -5198,6 +5203,7 @@ declare namespace monaco.editor {
 		scrollbar: IEditorOption<EditorOption.scrollbar, InternalEditorScrollbarOptions>;
 		scrollBeyondLastColumn: IEditorOption<EditorOption.scrollBeyondLastColumn, number>;
 		scrollBeyondLastLine: IEditorOption<EditorOption.scrollBeyondLastLine, boolean>;
+		scrollOnMiddleClick: IEditorOption<EditorOption.scrollOnMiddleClick, boolean>;
 		scrollPredominantAxis: IEditorOption<EditorOption.scrollPredominantAxis, boolean>;
 		selectionClipboard: IEditorOption<EditorOption.selectionClipboard, boolean>;
 		selectionHighlight: IEditorOption<EditorOption.selectionHighlight, boolean>;
@@ -5241,7 +5247,7 @@ declare namespace monaco.editor {
 		wrappingInfo: IEditorOption<EditorOption.wrappingInfo, EditorWrappingInfo>;
 		wrappingIndent: IEditorOption<EditorOption.wrappingIndent, WrappingIndent>;
 		wrappingStrategy: IEditorOption<EditorOption.wrappingStrategy, 'simple' | 'advanced'>;
-		effectiveExperimentalEditContextEnabled: IEditorOption<EditorOption.effectiveExperimentalEditContextEnabled, boolean>;
+		effectiveEditContextEnabled: IEditorOption<EditorOption.effectiveEditContext, boolean>;
 	};
 
 	type EditorOptionsType = typeof EditorOptions;
@@ -6661,8 +6667,6 @@ declare namespace monaco.languages {
 	 */
 	export function registerInlineCompletionsProvider(languageSelector: LanguageSelector, provider: InlineCompletionsProvider): IDisposable;
 
-	export function registerInlineEditProvider(languageSelector: LanguageSelector, provider: InlineEditProvider): IDisposable;
-
 	/**
 	 * Register an inlay hints provider.
 	 */
@@ -7383,13 +7387,18 @@ declare namespace monaco.languages {
 		/**
 		 * A list of commands associated with the inline completions of this list.
 		 */
-		readonly commands?: Command[];
+		readonly commands?: InlineCompletionCommand[];
 		readonly suppressSuggestions?: boolean | undefined;
 		/**
 		 * When set and the user types a suggestion without derivating from it, the inline suggestion is not updated.
 		 */
 		readonly enableForwardStability?: boolean | undefined;
 	}
+
+	export type InlineCompletionCommand = {
+		command: Command;
+		icon?: editor.ThemeIcon;
+	};
 
 	export type InlineCompletionProviderGroupId = string;
 
@@ -7413,11 +7422,11 @@ declare namespace monaco.languages {
 		 * Is called when an inline completion item is no longer being used.
 		 * Provides a reason of why it is not used anymore.
 		*/
-		handleEndOfLifetime?(completions: T, item: T['items'][number], reason: InlineCompletionEndOfLifeReason<T['items'][number]>): void;
+		handleEndOfLifetime?(completions: T, item: T['items'][number], reason: InlineCompletionEndOfLifeReason<T['items'][number]>, lifetimeSummary: LifetimeSummary): void;
 		/**
 		 * Will be called when a completions list is no longer in use and can be garbage-collected.
 		*/
-		freeInlineCompletions(completions: T): void;
+		disposeInlineCompletions(completions: T, reason: InlineCompletionsDisposeReason): void;
 		onDidChangeInlineCompletions?: IEvent<void>;
 		/**
 		 * Only used for {@link yieldsToGroupIds}.
@@ -7434,6 +7443,10 @@ declare namespace monaco.languages {
 		toString?(): string;
 	}
 
+	export type InlineCompletionsDisposeReason = {
+		kind: 'lostRace' | 'tokenCancellation' | 'other' | 'empty' | 'notTaken';
+	};
+
 	export enum InlineCompletionEndOfLifeReasonKind {
 		Accepted = 0,
 		Rejected = 1,
@@ -7448,6 +7461,16 @@ declare namespace monaco.languages {
 		kind: InlineCompletionEndOfLifeReasonKind.Ignored;
 		supersededBy?: TInlineCompletion;
 		userTypingDisagreed: boolean;
+	};
+
+	export type LifetimeSummary = {
+		requestUuid: string;
+		shown: boolean;
+		shownDuration: number;
+		shownDurationUncollapsed: number;
+		editorType: string;
+		viewKind: string | undefined;
+		error: string | undefined;
 	};
 
 	export interface CodeAction {
@@ -8262,32 +8285,6 @@ declare namespace monaco.languages {
 	export interface DocumentRangeSemanticTokensProvider {
 		getLegend(): SemanticTokensLegend;
 		provideDocumentRangeSemanticTokens(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
-	}
-
-	export interface IInlineEdit {
-		text: string;
-		range: IRange;
-		showRange?: IRange;
-		accepted?: Command;
-		rejected?: Command;
-		shown?: Command;
-		commands?: Command[];
-		action?: Command;
-	}
-
-	export interface IInlineEditContext {
-		triggerKind: InlineEditTriggerKind;
-	}
-
-	export enum InlineEditTriggerKind {
-		Invoke = 0,
-		Automatic = 1
-	}
-
-	export interface InlineEditProvider<T extends IInlineEdit = IInlineEdit> {
-		displayName?: string;
-		provideInlineEdit(model: editor.ITextModel, context: IInlineEditContext, token: CancellationToken): ProviderResult<T>;
-		freeInlineEdit(edit: T): void;
 	}
 
 	export interface ILanguageExtensionPoint {

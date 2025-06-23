@@ -34,8 +34,8 @@ suite('getFlows', () => {
 				target: GitHubTarget.DotCom
 			},
 			expectedFlows: [
-				Flows.UrlHandlerFlow,
 				Flows.LocalServerFlow,
+				Flows.UrlHandlerFlow,
 				Flows.DeviceCodeFlow
 			]
 		},
@@ -47,8 +47,8 @@ suite('getFlows', () => {
 				target: GitHubTarget.HostedEnterprise
 			},
 			expectedFlows: [
-				Flows.UrlHandlerFlow,
 				Flows.LocalServerFlow,
+				Flows.UrlHandlerFlow,
 				Flows.DeviceCodeFlow,
 				Flows.PatFlow
 			]

@@ -85,7 +85,7 @@ suite('Suggest Inline Completions', function () {
 			// (1,3), end of word -> suggestions
 			const result = await completions.provideInlineCompletions(model, new Position(1, 3), context, CancellationToken.None);
 			assert.strictEqual(result?.items.length, 3);
-			completions.freeInlineCompletions(result);
+			completions.disposeInlineCompletions(result);
 		}
 		{
 			// (1,2), middle of word -> NO suggestions
@@ -101,7 +101,7 @@ suite('Suggest Inline Completions', function () {
 			// unfiltered
 			const result = await completions.provideInlineCompletions(model, new Position(1, 3), context, CancellationToken.None);
 			assert.strictEqual(result?.items.length, 3);
-			completions.freeInlineCompletions(result);
+			completions.disposeInlineCompletions(result);
 		}
 
 		{
@@ -109,7 +109,7 @@ suite('Suggest Inline Completions', function () {
 			editor.updateOptions({ suggest: { showSnippets: false } });
 			const result = await completions.provideInlineCompletions(model, new Position(1, 3), context, CancellationToken.None);
 			assert.strictEqual(result?.items.length, 2);
-			completions.freeInlineCompletions(result);
+			completions.disposeInlineCompletions(result);
 		}
 
 	});

@@ -10,7 +10,7 @@ import { Log } from './common/logger';
 import { isSupportedClient, isSupportedTarget } from './common/env';
 import { crypto } from './node/crypto';
 import { fetching } from './node/fetch';
-import { ExtensionHost, GitHubTarget, getFlows } from './flows';
+import { ExtensionHost, GitHubSocialSignInProvider, GitHubTarget, getFlows } from './flows';
 import { CANCELLATION_ERROR, NETWORK_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
 import { Config } from './config';
 import { base64Encode } from './node/buffer';
@@ -19,7 +19,7 @@ const REDIRECT_URL_STABLE = 'https://vscode.dev/redirect';
 const REDIRECT_URL_INSIDERS = 'https://insiders.vscode.dev/redirect';
 
 export interface IGitHubServer {
-	login(scopes: string, existingLogin?: string): Promise<string>;
+	login(scopes: string, signInProvider?: GitHubSocialSignInProvider, existingLogin?: string): Promise<string>;
 	logout(session: vscode.AuthenticationSession): Promise<void>;
 	getUserInfo(token: string): Promise<{ id: string; accountName: string }>;
 	sendAdditionalTelemetryInfo(session: vscode.AuthenticationSession): Promise<void>;
@@ -87,7 +87,7 @@ export class GitHubServer implements IGitHubServer {
 		return this._isNoCorsEnvironment;
 	}
 
-	public async login(scopes: string, existingLogin?: string): Promise<string> {
+	public async login(scopes: string, signInProvider?: GitHubSocialSignInProvider, existingLogin?: string): Promise<string> {
 		this._logger.info(`Logging in for the following scopes: ${scopes}`);
 
 		// Used for showing a friendlier message to the user when the explicitly cancel a flow.
@@ -135,6 +135,7 @@ export class GitHubServer implements IGitHubServer {
 					scopes,
 					callbackUri,
 					nonce,
+					signInProvider,
 					baseUri: this.baseUri,
 					logger: this._logger,
 					uriHandler: this._uriHandler,

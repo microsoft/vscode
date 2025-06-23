@@ -327,7 +327,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 
 		if (document.versionId !== versionId) {
-			throw new Error('Document version mismatch');
+			throw new Error('Document version mismatch, expected: ' + versionId + ', actual: ' + document.versionId);
 		}
 
 		if (!this._extHostFileSystem.value.isWritableFileSystem(uri.scheme)) {

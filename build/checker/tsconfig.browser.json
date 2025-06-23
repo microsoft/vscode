@@ -11,6 +11,7 @@
 		"skipLibCheck": true
 	},
 	"include": [
+		"../../src/*.ts",
 		"../../src/**/common/**/*.ts",
 		"../../src/**/browser/**/*.ts",
 		"../../src/typings/*.d.ts",

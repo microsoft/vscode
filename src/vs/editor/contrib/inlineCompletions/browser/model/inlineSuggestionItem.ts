@@ -24,6 +24,7 @@ import { TextModelText } from '../../../../common/model/textModelText.js';
 import { IDisplayLocation, InlineSuggestData, InlineSuggestionList, SnippetInfo } from './provideInlineCompletions.js';
 import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 import { getPositionOffsetTransformerFromTextModel } from '../../../../common/core/text/getPositionOffsetTransformerFromTextModel.js';
+import { InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
 
 export type InlineSuggestionItem = InlineEditItem | InlineCompletionItem;
 
@@ -99,8 +100,8 @@ abstract class InlineSuggestionItemBase {
 		this.source.removeRef();
 	}
 
-	public reportInlineEditShown(commandService: ICommandService) {
-		this._data.reportInlineEditShown(commandService, this.insertText);
+	public reportInlineEditShown(commandService: ICommandService, viewKind: InlineCompletionViewKind) {
+		this._data.reportInlineEditShown(commandService, this.insertText, viewKind);
 	}
 
 	public reportPartialAccept(acceptedCharacters: number, info: PartialAcceptInfo) {
@@ -113,6 +114,10 @@ abstract class InlineSuggestionItemBase {
 
 	public setEndOfLifeReason(reason: InlineCompletionEndOfLifeReason): void {
 		this._data.setEndOfLifeReason(reason);
+	}
+
+	public reportInlineEditError(reason: string): void {
+		this._data.reportInlineEditError(reason);
 	}
 
 	/**

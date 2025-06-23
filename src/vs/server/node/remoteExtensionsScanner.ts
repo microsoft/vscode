@@ -11,7 +11,7 @@ import * as performance from '../../base/common/performance.js';
 import { Event } from '../../base/common/event.js';
 import { IURITransformer, transformOutgoingURIs } from '../../base/common/uriIpc.js';
 import { IServerChannel } from '../../base/parts/ipc/common/ipc.js';
-import { ContextKeyDefinedExpr, ContextKeyEqualsExpr, ContextKeyExpr, ContextKeyExpression, ContextKeyGreaterEqualsExpr, ContextKeyGreaterExpr, ContextKeyInExpr, ContextKeyNotEqualsExpr, ContextKeyNotExpr, ContextKeyNotInExpr, ContextKeyRegexExpr, ContextKeySmallerEqualsExpr, ContextKeySmallerExpr, IContextKeyExprMapper } from '../../platform/contextkey/common/contextkey.js';
+import { ContextKeyDefinedExpr, ContextKeyEqualsExpr, ContextKeyExpr, ContextKeyExpression, ContextKeyGreaterEqualsExpr, ContextKeyGreaterExpr, ContextKeyInExpr, ContextKeyNotEqualsExpr, ContextKeyNotExpr, ContextKeyNotInExpr, ContextKeyRegexExpr, ContextKeySmallerEqualsExpr, ContextKeySmallerExpr, ContextKeyValue, IContextKeyExprMapper } from '../../platform/contextkey/common/contextkey.js';
 import { IExtensionGalleryService, IExtensionManagementService, InstallExtensionSummary, InstallOptions } from '../../platform/extensionManagement/common/extensionManagement.js';
 import { ExtensionManagementCLI } from '../../platform/extensionManagement/common/extensionManagementCLI.js';
 import { IExtensionsScannerService, toExtensionDescription } from '../../platform/extensionManagement/common/extensionsScannerService.js';
@@ -238,30 +238,30 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 			mapNot(key: string): ContextKeyExpression {
 				return ContextKeyNotExpr.create(key);
 			}
-			mapEquals(key: string, value: any): ContextKeyExpression {
+			mapEquals(key: string, value: ContextKeyValue): ContextKeyExpression {
 				if (key === 'resourceScheme' && typeof value === 'string') {
 					return ContextKeyEqualsExpr.create(key, _mapResourceSchemeValue(value, false));
 				} else {
 					return ContextKeyEqualsExpr.create(key, value);
 				}
 			}
-			mapNotEquals(key: string, value: any): ContextKeyExpression {
+			mapNotEquals(key: string, value: ContextKeyValue): ContextKeyExpression {
 				if (key === 'resourceScheme' && typeof value === 'string') {
 					return ContextKeyNotEqualsExpr.create(key, _mapResourceSchemeValue(value, false));
 				} else {
 					return ContextKeyNotEqualsExpr.create(key, value);
 				}
 			}
-			mapGreater(key: string, value: any): ContextKeyExpression {
+			mapGreater(key: string, value: ContextKeyValue): ContextKeyExpression {
 				return ContextKeyGreaterExpr.create(key, value);
 			}
-			mapGreaterEquals(key: string, value: any): ContextKeyExpression {
+			mapGreaterEquals(key: string, value: ContextKeyValue): ContextKeyExpression {
 				return ContextKeyGreaterEqualsExpr.create(key, value);
 			}
-			mapSmaller(key: string, value: any): ContextKeyExpression {
+			mapSmaller(key: string, value: ContextKeyValue): ContextKeyExpression {
 				return ContextKeySmallerExpr.create(key, value);
 			}
-			mapSmallerEquals(key: string, value: any): ContextKeyExpression {
+			mapSmallerEquals(key: string, value: ContextKeyValue): ContextKeyExpression {
 				return ContextKeySmallerEqualsExpr.create(key, value);
 			}
 			mapRegex(key: string, regexp: RegExp | null): ContextKeyRegexExpr {
