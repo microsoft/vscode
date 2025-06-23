@@ -81,6 +81,7 @@ import { ChatCodeBlockContentProvider, CodeBlockPart } from './codeBlockPart.js'
 import { canceledName } from '../../../../base/common/errors.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatElicitationContentPart } from './chatContentParts/chatElicitationContentPart.js';
+import { alert } from '../../../../base/browser/ui/aria/aria.js';
 
 const $ = dom.$;
 
@@ -326,18 +327,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				},
 			}));
 		}
-		templateDisposables.add(dom.addDisposableListener(rowContainer, 'mouseenter', () => {
+		templateDisposables.add(dom.addDisposableListener(rowContainer, dom.EventType.MOUSE_ENTER, () => {
 			if (isRequestVM(template.currentElement)) {
-				dom.show(requestHover);
+				this.hoverVisible(requestHover);
 			}
 		}));
 
-		templateDisposables.add(dom.addDisposableListener(rowContainer, 'mouseleave', () => {
+		templateDisposables.add(dom.addDisposableListener(rowContainer, dom.EventType.MOUSE_LEAVE, () => {
 			if (isRequestVM(template.currentElement)) {
-				dom.hide(requestHover);
+				this.hoverHidden(requestHover);
 			}
 		}));
-		dom.hide(requestHover);
+		this.hoverHidden(requestHover);
 		const user = dom.append(header, $('.user'));
 		const avatarContainer = dom.append(user, $('.avatar-container'));
 		const username = dom.append(user, $('h3.username'));
@@ -446,7 +447,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.username.classList.toggle('hidden', element.username === COPILOT_USERNAME);
 		templateData.avatarContainer.classList.toggle('hidden', element.username === COPILOT_USERNAME);
 
-		dom.hide(templateData.requestHover);
+		this.hoverHidden(templateData.requestHover);
 		dom.clearNode(templateData.detail);
 		if (isResponseVM(element)) {
 			this.renderDetail(element, templateData);
@@ -559,29 +560,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('chat-response-loading', (isResponseVM(element) && !element.isComplete));
 
 		const content: IChatRendererContent[] = [];
-		// Always add the references to avoid shifting the content parts when a reference is added, and having to re-diff all the content.
-		// The part will hide itself if the list is empty.
-		content.push({ kind: 'references', references: element.contentReferences });
-		content.push(...annotateSpecialMarkdownContent(element.response.value));
-		if (element.codeCitations.length) {
-			content.push({ kind: 'codeCitations', citations: element.codeCitations });
+		const isFiltered = !!element.errorDetails?.responseIsFiltered;
+		if (!isFiltered) {
+			// Always add the references to avoid shifting the content parts when a reference is added, and having to re-diff all the content.
+			// The part will hide itself if the list is empty.
+			content.push({ kind: 'references', references: element.contentReferences });
+			content.push(...annotateSpecialMarkdownContent(element.response.value));
+			if (element.codeCitations.length) {
+				content.push({ kind: 'codeCitations', citations: element.codeCitations });
+			}
 		}
 
 		if (element.errorDetails?.message && element.errorDetails.message !== canceledName) {
 			content.push({ kind: 'errorDetails', errorDetails: element.errorDetails, isLast: index === this.delegate.getListLength() - 1 });
 		}
 
-		const isFiltered = !!element.errorDetails?.responseIsFiltered;
-		if (!isFiltered) {
-			const diff = this.diff(templateData.renderedParts ?? [], content, element);
-			this.renderChatContentDiff(diff, content, element, index, templateData);
-		} else {
-			dom.clearNode(templateData.value);
-			if (templateData.renderedParts) {
-				dispose(templateData.renderedParts);
-			}
-			templateData.renderedParts = [];
-		}
+		const diff = this.diff(templateData.renderedParts ?? [], content, element);
+		this.renderChatContentDiff(diff, content, element, index, templateData);
 
 		this.updateItemHeightOnRender(element, templateData);
 	}
@@ -970,6 +965,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			return this.renderNoContent(other => content.kind === other.kind);
 		} catch (err) {
+			alert(`Chat error: ${toErrorMessage(err, false)}`);
 			this.logService.error('ChatListItemRenderer#renderChatContentPart: error rendering content', toErrorMessage(err, true));
 			const errorPart = this.instantiationService.createInstance(ChatErrorContentPart, ChatErrorLevel.Error, new MarkdownString(localize('renderFailMsg', "Failed to render content") + `: ${toErrorMessage(err, false)}`), content, this.renderer);
 			return {
@@ -991,11 +987,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			renderedError.addDisposable(renderedError.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 			return renderedError;
 		} else if (content.errorDetails.confirmationButtons && isLast) {
-			const errorConfirmation = this.instantiationService.createInstance(ChatErrorConfirmationContentPart, ChatErrorLevel.Error, new MarkdownString(content.errorDetails.message), content, content.errorDetails.confirmationButtons, this.renderer, context);
+			const level = content.errorDetails.level ?? ChatErrorLevel.Error;
+			const errorConfirmation = this.instantiationService.createInstance(ChatErrorConfirmationContentPart, level, new MarkdownString(content.errorDetails.message), content, content.errorDetails.confirmationButtons, this.renderer, context);
 			errorConfirmation.addDisposable(errorConfirmation.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 			return errorConfirmation;
 		} else {
-			const level = content.errorDetails.level ?? (content.errorDetails.responseIsFiltered ? ChatErrorLevel.Info : ChatErrorLevel.Error);
+			const level = content.errorDetails.level ?? ChatErrorLevel.Error;
 			return this.instantiationService.createInstance(ChatErrorContentPart, level, new MarkdownString(content.errorDetails.message), content, this.renderer);
 		}
 	}
@@ -1165,12 +1162,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const codeBlockStartIndex = this.getCodeBlockStartIndex(context);
 		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.renderer, this._currentLayoutWidth, this.codeBlockModelCollection, {});
 		if (isRequestVM(element)) {
-			markdownPart.domNode.tabIndex = 0;
-			markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, 'focus', () => {
-				dom.show(templateData.requestHover);
+			markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.FOCUS, () => {
+				this.hoverVisible(templateData.requestHover);
 			}));
-			markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, 'blur', () => {
-				dom.hide(templateData.requestHover);
+			markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.BLUR, () => {
+				this.hoverHidden(templateData.requestHover);
 			}));
 		}
 
@@ -1197,6 +1193,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	disposeTemplate(templateData: IChatListItemTemplate): void {
 		templateData.templateDisposables.dispose();
+	}
+
+	private hoverVisible(requestHover: HTMLElement) {
+		requestHover.style.opacity = '1';
+	}
+
+	private hoverHidden(requestHover: HTMLElement) {
+		requestHover.style.opacity = '0';
 	}
 }
 

@@ -2703,6 +2703,8 @@ class LayoutStateModel extends Disposable {
 					return false;
 				case 'visibleInWorkspace':
 					return workbenchState === WorkbenchState.EMPTY;
+				case 'visibleInNewWorkspace':
+					return workbenchState === WorkbenchState.EMPTY || !this.storageService.isNew(StorageScope.WORKSPACE);
 				default:
 					return true;
 			}

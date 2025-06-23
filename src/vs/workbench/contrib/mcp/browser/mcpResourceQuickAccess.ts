@@ -40,7 +40,7 @@ export class McpResourcePickHelper {
 		if (isMcpResourceTemplate(resource)) {
 			return {
 				id: resource.template.template,
-				label: resource.name,
+				label: resource.title || resource.name,
 				description: resource.description,
 				detail: localize('mcp.resource.template', 'Resource template: {0}', resource.template.template),
 			};
@@ -48,7 +48,7 @@ export class McpResourcePickHelper {
 
 		return {
 			id: resource.uri.toString(),
-			label: resource.name,
+			label: resource.title || resource.name,
 			description: resource.description,
 			detail: resource.mcpUri + (resource.sizeInBytes !== undefined ? ' (' + ByteSize.formatSize(resource.sizeInBytes) + ')' : ''),
 		};

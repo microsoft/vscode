@@ -70,7 +70,7 @@ class SlashCommandCompletions extends Disposable {
 
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'globalSlashCommands',
-			triggerCharacters: ['/'],
+			triggerCharacters: [chatSubcommandLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.viewModel) {
@@ -158,7 +158,7 @@ class SlashCommandCompletions extends Disposable {
 		}));
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'promptSlashCommands',
-			triggerCharacters: ['/'],
+			triggerCharacters: [chatSubcommandLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.viewModel) {
@@ -206,7 +206,7 @@ class SlashCommandCompletions extends Disposable {
 
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'mcpPromptSlashCommands',
-			triggerCharacters: ['/'],
+			triggerCharacters: [chatSubcommandLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.viewModel) {
@@ -259,7 +259,7 @@ class AgentCompletions extends Disposable {
 
 		const subCommandProvider: CompletionItemProvider = {
 			_debugDisplayName: 'chatAgentSubcommand',
-			triggerCharacters: ['/'],
+			triggerCharacters: [chatSubcommandLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.viewModel) {
@@ -329,7 +329,7 @@ class AgentCompletions extends Disposable {
 				}
 
 				const agents = this.chatAgentService.getAgents()
-					.filter(a => a.locations.includes(widget.location) && a.modes.includes(widget.input.currentMode));
+					.filter(a => a.locations.includes(widget.location));
 
 				// When the input is only `/`, items are sorted by sortText.
 				// When typing, filterText is used to score and sort.
@@ -525,6 +525,10 @@ class AssignSelectedAgentAction extends Action2 {
 		const arg: AssignSelectedAgentActionArgs = args[0];
 		if (!arg || !arg.widget || !arg.agent) {
 			return;
+		}
+
+		if (!arg.agent.modes.includes(arg.widget.input.currentMode)) {
+			arg.widget.input.setChatMode(arg.agent.modes[0]);
 		}
 
 		arg.widget.lastSelectedAgent = arg.agent;
