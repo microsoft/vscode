@@ -33,7 +33,7 @@ import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { McpResourceFilesystem } from '../common/mcpResourceFilesystem.js';
 import { McpSamplingService } from '../common/mcpSamplingService.js';
 import { McpService } from '../common/mcpService.js';
-import { HasInstalledMcpServersContext, IMcpElicitationService, IMcpSamplingService, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
+import { HasInstalledMcpServersContext, IMcpElicitationService, IMcpSamplingService, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId } from '../common/mcpTypes.js';
 import { McpAddContextContribution } from './mcpAddContextContribution.js';
 import { AddConfigurationAction, EditStoredInput, InstallFromActivation, ListMcpServerCommand, McpBrowseCommand, McpBrowseResourcesCommand, McpConfigureSamplingModels, MCPServerActionRendering, McpServerOptionsCommand, McpStartPromptingServerCommand, RemoveStoredInput, ResetMcpCachedTools, ResetMcpTrustCommand, RestartServer, ShowConfiguration, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
 import { McpDiscovery } from './mcpDiscovery.js';
@@ -106,7 +106,7 @@ Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([
 		id: 'workbench.views.mcp.marketplace',
 		name: localize2('mcp', "MCP Servers"),
 		ctorDescriptor: new SyncDescriptor(McpServersListView),
-		when: ContextKeyExpr.and(SearchMcpServersContext, McpServersGalleryEnabledContext),
+		when: ContextKeyExpr.and(SearchMcpServersContext),
 	}
 ], VIEW_CONTAINER);
 

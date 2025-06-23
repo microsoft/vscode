@@ -18,7 +18,6 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { IMcpGalleryService } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
@@ -112,7 +111,6 @@ export class McpAddConfigurationCommand {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IMcpService private readonly _mcpService: IMcpService,
-		@IMcpGalleryService private readonly _mcpGalleryService: IMcpGalleryService,
 		@ILabelService private readonly _label: ILabelService,
 	) { }
 
@@ -141,15 +139,13 @@ export class McpAddConfigurationCommand {
 			);
 		}
 
-		if (this._mcpGalleryService.isEnabled()) {
-			items.push(
-				{ type: 'separator' },
-				{
-					kind: 'browse',
-					label: localize('mcp.servers.browse', "Browse MCP Servers..."),
-				}
-			);
-		}
+		items.push(
+			{ type: 'separator' },
+			{
+				kind: 'browse',
+				label: localize('mcp.servers.browse', "Browse MCP Servers..."),
+			}
+		);
 
 		const result = await this._quickInputService.pick<{ kind: AddConfigurationType | 'browse' } & IQuickPickItem>(items, {
 			placeHolder: localize('mcp.serverType.placeholder', "Choose the type of MCP server to add"),

@@ -6,9 +6,8 @@
 import { h } from '../../../../base/browser/dom.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { groupBy } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isDefined } from '../../../../base/common/types.js';
@@ -24,7 +23,6 @@ import { ConfigurationTarget } from '../../../../platform/configuration/common/c
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionsLocalizedLabel } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IMcpGalleryService } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
@@ -80,69 +78,13 @@ export class ListMcpServerCommand extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor) {
-		const mcpService = accessor.get(IMcpService);
-		const commandService = accessor.get(ICommandService);
-		const quickInput = accessor.get(IQuickInputService);
 		const mcpWorkbenchService = accessor.get(IMcpWorkbenchService);
 		const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const viewsService = accessor.get(IViewsService);
-		const mcpGalleryService = accessor.get(IMcpGalleryService);
-
-		if (mcpGalleryService.isEnabled()) {
-			if (mcpWorkbenchService.local.length) {
-				return viewsService.openView(InstalledMcpServersViewId, true);
-			} else {
-				return extensionWorkbenchService.openSearch('@mcp');
-			}
-		}
-
-		type ItemType = { id: string } & IQuickPickItem;
-
-		const store = new DisposableStore();
-		const pick = quickInput.createQuickPick<ItemType>({ useSeparators: true });
-		pick.placeholder = localize('mcp.selectServer', 'Select an MCP Server');
-
-		store.add(pick);
-
-		store.add(autorun(reader => {
-			const servers = groupBy(mcpService.servers.read(reader).slice().sort((a, b) => (a.collection.presentation?.order || 0) - (b.collection.presentation?.order || 0)), s => s.collection.id);
-			const firstRun = pick.items.length === 0;
-			pick.items = [
-				{ id: '$add', label: localize('mcp.addServer', 'Add Server'), description: localize('mcp.addServer.description', 'Add a new server configuration'), alwaysShow: true, iconClass: ThemeIcon.asClassName(Codicon.add) },
-				...Object.values(servers).filter(s => s.length).flatMap((servers): (ItemType | IQuickPickSeparator)[] => [
-					{ type: 'separator', label: servers[0].collection.label, id: servers[0].collection.id },
-					...servers.map(server => ({
-						id: server.definition.id,
-						label: server.definition.label,
-						description: McpConnectionState.toString(server.connectionState.read(reader)),
-					})),
-				]),
-			];
-
-			if (firstRun && pick.items.length > 3) {
-				pick.activeItems = pick.items.slice(2, 3) as ItemType[]; // select the first server by default
-			}
-		}));
-
-
-		const picked = await new Promise<ItemType | undefined>(resolve => {
-			store.add(pick.onDidAccept(() => {
-				resolve(pick.activeItems[0]);
-			}));
-			store.add(pick.onDidHide(() => {
-				resolve(undefined);
-			}));
-			pick.show();
-		});
-
-		store.dispose();
-
-		if (!picked) {
-			// no-op
-		} else if (picked.id === '$add') {
-			commandService.executeCommand(McpCommandIds.AddConfiguration);
+		if (mcpWorkbenchService.local.length) {
+			return viewsService.openView(InstalledMcpServersViewId, true);
 		} else {
-			commandService.executeCommand(McpCommandIds.ServerOptions, picked.id);
+			return extensionWorkbenchService.openSearch('@mcp');
 		}
 	}
 }
@@ -782,7 +724,6 @@ export class McpBrowseCommand extends Action2 {
 				when: McpServersGalleryEnabledContext,
 			}, {
 				id: extensionsFilterSubMenu,
-				when: McpServersGalleryEnabledContext,
 				group: '1_predefined',
 				order: 1,
 			}],
