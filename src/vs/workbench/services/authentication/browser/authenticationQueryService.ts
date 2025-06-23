@@ -206,6 +206,12 @@ class AccountMcpServerQuery extends BaseQuery implements IAccountMcpServerQuery 
 		const preferredAccount = this.queryService.authenticationMcpService.getAccountPreference(this.mcpServerId, this.providerId);
 		return preferredAccount === this.accountName;
 	}
+
+	isTrusted(): boolean {
+		const allowedMcpServers = this.queryService.authenticationMcpAccessService.readAllowedMcpServers(this.providerId, this.accountName);
+		const mcpServer = allowedMcpServers.find(server => server.id === this.mcpServerId);
+		return mcpServer?.trusted === true;
+	}
 }
 
 /**
@@ -263,9 +269,9 @@ class AccountMcpServersQuery extends BaseQuery implements IAccountMcpServersQuer
 		super(providerId, queryService);
 	}
 
-	getAllowedMcpServerIds(): string[] {
-		const allowedMcpServers = this.queryService.authenticationMcpAccessService.readAllowedMcpServers(this.providerId, this.accountName);
-		return allowedMcpServers.filter(server => server.allowed !== false).map(server => server.id);
+	getAllowedMcpServers(): { id: string; name: string; allowed?: boolean; lastUsed?: number; trusted?: boolean }[] {
+		return this.queryService.authenticationMcpAccessService.readAllowedMcpServers(this.providerId, this.accountName)
+			.filter(server => server.allowed !== false);
 	}
 
 	allowAccess(mcpServerIds: string[]): void {

@@ -1026,4 +1026,72 @@ suite('AuthenticationQueryService Integration Tests', () => {
 		assert.strictEqual(queryService.provider('github').account('user@github.com').extension('my-extension').isAccessAllowed(), undefined);
 		assert.strictEqual(queryService.provider('__internal').account('internal@example.com').extension('my-extension').isAccessAllowed(), true);
 	});
+
+	test('isTrusted method works with mock service', () => {
+		// Register provider and add account
+		authService.registerAuthenticationProvider('github', createProvider({ id: 'github', label: 'GitHub' }));
+		authService.addAccounts('github', [{ id: 'user1', label: 'user@github.com' }]);
+
+		// Add a server with trusted state manually to the mock
+		mcpAccessService.updateAllowedMcpServers('github', 'user@github.com', [{
+			id: 'trusted-server',
+			name: 'Trusted Server',
+			allowed: true,
+			trusted: true
+		}]);
+
+		// Add a non-trusted server
+		mcpAccessService.updateAllowedMcpServers('github', 'user@github.com', [{
+			id: 'non-trusted-server',
+			name: 'Non-Trusted Server',
+			allowed: true
+		}]);
+
+		// Test trusted server
+		const trustedQuery = queryService.provider('github').account('user@github.com').mcpServer('trusted-server');
+		assert.strictEqual(trustedQuery.isTrusted(), true);
+
+		// Test non-trusted server
+		const nonTrustedQuery = queryService.provider('github').account('user@github.com').mcpServer('non-trusted-server');
+		assert.strictEqual(nonTrustedQuery.isTrusted(), false);
+	});
+
+	test('getAllowedMcpServers method returns servers with trusted state', () => {
+		// Register provider and add account
+		authService.registerAuthenticationProvider('github', createProvider({ id: 'github', label: 'GitHub' }));
+		authService.addAccounts('github', [{ id: 'user1', label: 'user@github.com' }]);
+
+		// Add servers manually to the mock
+		mcpAccessService.updateAllowedMcpServers('github', 'user@github.com', [
+			{
+				id: 'trusted-server',
+				name: 'Trusted Server',
+				allowed: true,
+				trusted: true
+			},
+			{
+				id: 'user-server',
+				name: 'User Server',
+				allowed: true
+			}
+		]);
+
+		// Get all allowed servers
+		const allowedServers = queryService.provider('github').account('user@github.com').mcpServers().getAllowedMcpServers();
+
+		// Should have both servers
+		assert.strictEqual(allowedServers.length, 2);
+
+		// Find the trusted server
+		const trustedServer = allowedServers.find(s => s.id === 'trusted-server');
+		assert.ok(trustedServer);
+		assert.strictEqual(trustedServer.trusted, true);
+		assert.strictEqual(trustedServer.allowed, true);
+
+		// Find the user-allowed server
+		const userServer = allowedServers.find(s => s.id === 'user-server');
+		assert.ok(userServer);
+		assert.strictEqual(userServer.trusted, undefined);
+		assert.strictEqual(userServer.allowed, true);
+	});
 });
