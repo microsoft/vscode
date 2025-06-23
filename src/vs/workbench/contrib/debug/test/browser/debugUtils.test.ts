@@ -39,6 +39,9 @@ suite('Debug - Utils', () => {
 		assert.deepStrictEqual(getExactExpressionStartAndEnd('largeNumber = myVar!.prop', 21, 25), { start: 15, end: 25 });
 		assert.deepStrictEqual(getExactExpressionStartAndEnd('a!.length', 1, 2), { start: 1, end: 9 });
 		assert.deepStrictEqual(getExactExpressionStartAndEnd('a!.length', 4, 9), { start: 1, end: 9 });
+		// Test negation operator - hovering over variable in !foo should resolve to just foo
+		assert.deepStrictEqual(getExactExpressionStartAndEnd('!foo', 2, 4), { start: 2, end: 4 });
+		assert.deepStrictEqual(getExactExpressionStartAndEnd('!myVariable', 2, 5), { start: 2, end: 11 });
 
 		// For example in expression 'a.b.c.d', hover was under 'b', 'a.b' should be the exact range
 		assert.deepStrictEqual(getExactExpressionStartAndEnd('var t = a.b.c.d.name', 11, 12), { start: 9, end: 11 });

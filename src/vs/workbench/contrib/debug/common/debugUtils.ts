@@ -99,6 +99,14 @@ export function getExactExpressionStartAndEnd(lineContent: string, looseStart: n
 		}
 	}
 
+	// Handle negation operator at the beginning of expression
+	// If expression starts with '!' and cursor is not on the '!', exclude the '!' (negation operator)
+	if (matchingExpression && matchingExpression.startsWith('!') && looseStart > startOffset) {
+		// This is a negation operator (!foo), adjust to exclude the '!' 
+		matchingExpression = matchingExpression.substring(1);
+		startOffset = startOffset + 1;
+	}
+
 	// If there are non-word characters after the cursor, we want to truncate the expression then.
 	// For example in expression 'a.b.c.d', if the focus was under 'b', 'a.b' would be evaluated.
 	if (matchingExpression) {
