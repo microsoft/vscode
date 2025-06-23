@@ -35,6 +35,10 @@ suite('Debug - Utils', () => {
 		assert.deepStrictEqual(getExactExpressionStartAndEnd('var t = a.b.c.d.name', 16, 20), { start: 9, end: 20 });
 		assert.deepStrictEqual(getExactExpressionStartAndEnd('MyClass::StaticProp', 10, 20), { start: 1, end: 19 });
 		assert.deepStrictEqual(getExactExpressionStartAndEnd('largeNumber = myVar?.prop', 21, 25), { start: 15, end: 25 });
+		// Test non-null assertion operator - this should work like optional chaining
+		assert.deepStrictEqual(getExactExpressionStartAndEnd('largeNumber = myVar!.prop', 21, 25), { start: 15, end: 25 });
+		assert.deepStrictEqual(getExactExpressionStartAndEnd('a!.length', 1, 2), { start: 1, end: 9 });
+		assert.deepStrictEqual(getExactExpressionStartAndEnd('a!.length', 4, 9), { start: 1, end: 9 });
 
 		// For example in expression 'a.b.c.d', hover was under 'b', 'a.b' should be the exact range
 		assert.deepStrictEqual(getExactExpressionStartAndEnd('var t = a.b.c.d.name', 11, 12), { start: 9, end: 11 });

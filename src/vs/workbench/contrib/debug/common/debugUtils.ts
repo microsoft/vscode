@@ -82,9 +82,9 @@ export function getExactExpressionStartAndEnd(lineContent: string, looseStart: n
 	let matchingExpression: string | undefined = undefined;
 	let startOffset = 0;
 
-	// Some example supported expressions: myVar.prop, a.b.c.d, myVar?.prop, myVar->prop, MyClass::StaticProp, *myVar
+	// Some example supported expressions: myVar.prop, a.b.c.d, myVar?.prop, myVar!.prop, myVar->prop, MyClass::StaticProp, *myVar
 	// Match any character except a set of characters which often break interesting sub-expressions
-	const expression: RegExp = /([^()\[\]{}<>\s+\-/%~#^;=|,`!]|\->)+/g;
+	const expression: RegExp = /([^()\[\]{}<>\s+\-/%~#^;=|,`]|\->)+/g;
 	let result: RegExpExecArray | null = null;
 
 	// First find the full expression under the cursor
