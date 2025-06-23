@@ -34,7 +34,7 @@ export class ChatErrorConfirmationContentPart extends Disposable implements ICha
 		context: IChatContentPartRenderContext,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
-		@IChatService chatService: IChatService
+		@IChatService chatService: IChatService,
 	) {
 		super();
 
