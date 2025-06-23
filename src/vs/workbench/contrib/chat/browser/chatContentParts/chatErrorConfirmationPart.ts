@@ -9,7 +9,6 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
-import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatErrorLevel, IChatResponseErrorDetailsConfirmationButton, IChatSendRequestOptions, IChatService } from '../../common/chatService.js';
@@ -35,8 +34,7 @@ export class ChatErrorConfirmationContentPart extends Disposable implements ICha
 		context: IChatContentPartRenderContext,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
-		@IChatService chatService: IChatService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IChatService chatService: IChatService
 	) {
 		super();
 
@@ -44,7 +42,7 @@ export class ChatErrorConfirmationContentPart extends Disposable implements ICha
 		assertIsResponseVM(element);
 
 		this.domNode = $('.chat-error-confirmation');
-		this.domNode.append(this._register(new ChatErrorWidget(kind, content, renderer, this._accessibilityService)).domNode);
+		this.domNode.append(this._register(new ChatErrorWidget(kind, content, renderer)).domNode);
 
 		const buttonOptions: IButtonOptions = { ...defaultButtonStyles };
 

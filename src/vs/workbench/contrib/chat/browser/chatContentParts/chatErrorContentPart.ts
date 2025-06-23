@@ -12,7 +12,6 @@ import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownR
 import { ChatErrorLevel } from '../../common/chatService.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { IChatContentPart } from './chatContentParts.js';
-import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 
 const $ = dom.$;
 
@@ -24,11 +23,10 @@ export class ChatErrorContentPart extends Disposable implements IChatContentPart
 		content: IMarkdownString,
 		private readonly errorDetails: IChatRendererContent,
 		renderer: MarkdownRenderer,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super();
 
-		this.domNode = this._register(new ChatErrorWidget(kind, content, renderer, this._accessibilityService)).domNode;
+		this.domNode = this._register(new ChatErrorWidget(kind, content, renderer)).domNode;
 	}
 
 	hasSameContent(other: IChatRendererContent): boolean {
@@ -42,14 +40,12 @@ export class ChatErrorWidget extends Disposable {
 	constructor(
 		kind: ChatErrorLevel,
 		content: IMarkdownString,
-		renderer: MarkdownRenderer,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		renderer: MarkdownRenderer
 	) {
 		super();
 
 		this.domNode = $('.chat-notification-widget');
 		this.domNode.tabIndex = 0;
-		this._accessibilityService.alert(`Chat error: ${content.value}`);
 		let icon;
 		let iconClass;
 		switch (kind) {
