@@ -269,9 +269,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		let lastWordFolderResource: URI | string | undefined;
 		const lastWordFolderHasDotPrefix = !!lastWordFolder.match(/^\.\.?[\\\/]/);
 		const lastWordFolderHasTildePrefix = !!lastWordFolder.match(/^~[\\\/]?/);
-		const isAbsolutePath = useWindowsStylePath
-			? /^[a-zA-Z]:[\\\/]/.test(lastWord)
-			: lastWord.startsWith(resourceRequestConfig.pathSeparator);
+		const isAbsolutePath = getIsAbsolutePath(shellType, resourceRequestConfig.pathSeparator, lastWordFolder, useWindowsStylePath);
 		const type = lastWordFolderHasTildePrefix ? 'tilde' : isAbsolutePath ? 'absolute' : 'relative';
 		switch (type) {
 			case 'tilde': {
@@ -582,4 +580,11 @@ export function escapeTerminalCompletionLabel(label: string, shellType: Terminal
 		return label;
 	}
 	return label.split('').map(c => specialCharsSet.has(c) ? '\\' + c : c).join('');
+}
+
+function getIsAbsolutePath(shellType: TerminalShellType | undefined, pathSeparator: string, lastWord: string, useWindowsStylePath: boolean): boolean {
+	if (shellType === WindowsShellType.GitBash) {
+		return lastWord.startsWith(pathSeparator) || /^[a-zA-Z]:\//.test(lastWord);
+	}
+	return useWindowsStylePath ? /^[a-zA-Z]:[\\\/]/.test(lastWord) : lastWord.startsWith(pathSeparator);
 }
