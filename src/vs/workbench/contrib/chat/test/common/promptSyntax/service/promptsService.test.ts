@@ -875,7 +875,7 @@ suite('PromptsService', () => {
 			])).mock();
 
 			const instructionFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, undefined);
 			const context = {
 				files: new ResourceSet([
 					URI.joinPath(rootFolderUri, 'folder1/main.tsx'),
@@ -1060,7 +1060,7 @@ suite('PromptsService', () => {
 			])).mock();
 
 			const instructionFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, undefined);
 			const context = {
 				files: new ResourceSet([
 					URI.joinPath(rootFolderUri, 'folder1/main.tsx'),
