@@ -8,8 +8,8 @@ import { computeDiff } from '../../../../notebook/common/notebookDiff.js';
 import { INotebookEditorModelResolverService } from '../../../../notebook/common/notebookEditorModelResolverService.js';
 import { INotebookLoggingService } from '../../../../notebook/common/notebookLoggingService.js';
 import { INotebookEditorWorkerService } from '../../../../notebook/common/services/notebookWorkerService.js';
-import { IEditSessionEntryDiff } from '../../../common/chatEditingService.js';
-import { ISnapshotEntry } from '../chatEditingModifiedFileEntry.js';
+import { IEditSessionEntryDiff, ISnapshotEntry } from '../../../common/chatEditingService.js';
+
 
 export class ChatEditingModifiedNotebookDiff {
 	static NewModelCounter: number = 0;

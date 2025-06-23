@@ -8,10 +8,12 @@ import { Stats, promises } from 'fs';
 import { getCaseInsensitive } from '../common/objects.js';
 import * as path from '../common/path.js';
 import * as Platform from '../common/platform.js';
-import * as process from '../common/process.js';
+import * as processCommon from '../common/process.js';
 import { CommandOptions, ForkOptions, Source, SuccessData, TerminateResponse, TerminateResponseCode } from '../common/processes.js';
 import * as Types from '../common/types.js';
 import * as pfs from './pfs.js';
+import { FileAccess } from '../common/network.js';
+import Stream from 'stream';
 export { Source, TerminateResponseCode, type CommandOptions, type ForkOptions, type SuccessData, type TerminateResponse };
 
 export type ValueCallback<T> = (value: T | Promise<T>) => void;
@@ -19,7 +21,7 @@ export type ErrorCallback = (error?: any) => void;
 export type ProgressCallback<T> = (progress: T) => void;
 
 
-export function getWindowsShell(env = process.env as Platform.IProcessEnvironment): string {
+export function getWindowsShell(env = processCommon.env as Platform.IProcessEnvironment): string {
 	return env['comspec'] || 'cmd.exe';
 }
 
@@ -81,17 +83,17 @@ async function fileExistsDefault(path: string): Promise<boolean> {
 	return false;
 }
 
-export function getWindowPathExtensions(env = process.env) {
+export function getWindowPathExtensions(env = processCommon.env) {
 	return (getCaseInsensitive(env, 'PATHEXT') as string || '.COM;.EXE;.BAT;.CMD').split(';');
 }
 
-export async function findExecutable(command: string, cwd?: string, paths?: string[], env: Platform.IProcessEnvironment = process.env as Platform.IProcessEnvironment, fileExists: (path: string) => Promise<boolean> = fileExistsDefault): Promise<string | undefined> {
+export async function findExecutable(command: string, cwd?: string, paths?: string[], env: Platform.IProcessEnvironment = processCommon.env as Platform.IProcessEnvironment, fileExists: (path: string) => Promise<boolean> = fileExistsDefault): Promise<string | undefined> {
 	// If we have an absolute path then we take it.
 	if (path.isAbsolute(command)) {
 		return await fileExists(command) ? command : undefined;
 	}
 	if (cwd === undefined) {
-		cwd = process.cwd();
+		cwd = processCommon.cwd();
 	}
 	const dir = path.dirname(command);
 	if (dir !== '.') {
@@ -139,4 +141,43 @@ export async function findExecutable(command: string, cwd?: string, paths?: stri
 	}
 	const fullPath = path.join(cwd, command);
 	return await fileExists(fullPath) ? fullPath : undefined;
+}
+
+/**
+ * Kills a process and all its children.
+ * @param pid the process id to kill
+ * @param forceful whether to forcefully kill the process (default: false). Note
+ * that on Windows, terminal processes can _only_ be killed forcefully and this
+ * will throw when not forceful.
+ */
+export async function killTree(pid: number, forceful = false) {
+	let child: cp.ChildProcessByStdio<null, Stream.Readable, Stream.Readable>;
+	if (Platform.isWindows) {
+		const windir = process.env['WINDIR'] || 'C:\\Windows';
+		const taskKill = path.join(windir, 'System32', 'taskkill.exe');
+
+		const args = ['/T'];
+		if (forceful) {
+			args.push('/F');
+		}
+		args.push('/PID', String(pid));
+		child = cp.spawn(taskKill, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+	} else {
+		const killScript = FileAccess.asFileUri('vs/base/node/terminateProcess.sh').fsPath;
+		child = cp.spawn('/bin/sh', [killScript, String(pid), forceful ? '9' : '15'], { stdio: ['ignore', 'pipe', 'pipe'] });
+	}
+
+	return new Promise<void>((resolve, reject) => {
+		const stdout: Buffer[] = [];
+		child.stdout.on('data', (data) => stdout.push(data));
+		child.stderr.on('data', (data) => stdout.push(data));
+		child.on('error', reject);
+		child.on('exit', (code) => {
+			if (code === 0) {
+				resolve();
+			} else {
+				reject(new Error(`taskkill exited with code ${code}: ${Buffer.concat(stdout).toString()}`));
+			}
+		});
+	});
 }

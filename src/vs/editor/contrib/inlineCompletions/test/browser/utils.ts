@@ -83,7 +83,7 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 
 		return { items: result };
 	}
-	freeInlineCompletions() { }
+	disposeInlineCompletions() { }
 	handleItemDidShow() { }
 }
 
@@ -110,7 +110,7 @@ export class MockSearchReplaceCompletionsProvider implements InlineCompletionsPr
 		}
 		return { items: [] };
 	}
-	freeInlineCompletions() { }
+	disposeInlineCompletions() { }
 	handleItemDidShow() { }
 }
 

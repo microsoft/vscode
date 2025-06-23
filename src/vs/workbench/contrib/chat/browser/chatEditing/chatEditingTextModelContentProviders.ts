@@ -8,7 +8,6 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelContentProvider } from '../../../../../editor/common/services/resolverService.js';
 import { chatEditingSnapshotScheme, IChatEditingService } from '../../common/chatEditingService.js';
-import { ChatEditingSession } from './chatEditingSession.js';
 
 type ChatEditingTextModelContentQueryData = { kind: 'doc'; documentId: string; chatSessionId: string };
 
@@ -72,7 +71,7 @@ export class ChatEditingSnapshotTextModelContentProvider implements ITextModelCo
 		const data: ChatEditingSnapshotTextModelContentQueryData = JSON.parse(resource.query);
 
 		const session = this._chatEditingService.getEditingSession(data.sessionId);
-		if (!(session instanceof ChatEditingSession) || !data.requestId) {
+		if (!session || !data.requestId) {
 			return null;
 		}
 

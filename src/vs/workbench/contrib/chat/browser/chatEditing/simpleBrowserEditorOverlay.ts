@@ -31,7 +31,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IChatRequestVariableEntry } from '../../common/chatModel.js';
+import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { IBrowserElementsService } from '../../../../services/browserElements/browser/browserElementsService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';

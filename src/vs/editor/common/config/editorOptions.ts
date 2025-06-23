@@ -295,6 +295,10 @@ export interface IEditorOptions {
 	 */
 	scrollBeyondLastLine?: boolean;
 	/**
+	 * Scroll editor on middle click
+	 */
+	scrollOnMiddleClick?: boolean;
+	/**
 	 * Enable that scrolling can go beyond the last column by a number of columns.
 	 * Defaults to 5.
 	 */
@@ -778,7 +782,7 @@ export interface IEditorOptions {
 	/**
 	 * Sets whether the new experimental edit context should be used instead of the text area.
 	 */
-	experimentalEditContextEnabled?: boolean;
+	editContext?: boolean;
 
 	/**
 	 * Controls support for changing how content is pasted into the editor.
@@ -1966,14 +1970,14 @@ class EffectiveCursorStyle extends ComputedEditorOption<EditorOption.effectiveCu
 
 //#region effectiveExperimentalEditContext
 
-class EffectiveExperimentalEditContextEnabled extends ComputedEditorOption<EditorOption.effectiveExperimentalEditContextEnabled, boolean> {
+class EffectiveEditContextEnabled extends ComputedEditorOption<EditorOption.effectiveEditContext, boolean> {
 
 	constructor() {
-		super(EditorOption.effectiveExperimentalEditContextEnabled);
+		super(EditorOption.effectiveEditContext);
 	}
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions): boolean {
-		return env.editContextSupported && options.get(EditorOption.experimentalEditContextEnabled);
+		return env.editContextSupported && options.get(EditorOption.editContext);
 	}
 }
 
@@ -4295,10 +4299,6 @@ export interface IInlineSuggestOptions {
 		* @internal
 		*/
 		enabled?: boolean;
-		/**
-		* @internal
-		*/
-		useMultiLineGhostText?: boolean;
 	};
 
 	/**
@@ -4339,7 +4339,6 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				showCollapsed: false,
 				renderSideBySide: 'auto',
 				allowCodeShifting: 'always',
-				useMultiLineGhostText: true
 			},
 			experimental: {
 				suppressInlineSuggestions: [],
@@ -4432,7 +4431,6 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				showCollapsed: boolean(input.edits?.showCollapsed, this.defaultValue.edits.showCollapsed),
 				allowCodeShifting: stringSet(input.edits?.allowCodeShifting, this.defaultValue.edits.allowCodeShifting, ['always', 'horizontal', 'never']),
 				renderSideBySide: stringSet(input.edits?.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto']),
-				useMultiLineGhostText: boolean(input.edits?.useMultiLineGhostText, this.defaultValue.edits.useMultiLineGhostText),
 			},
 			experimental: {
 				suppressInlineSuggestions: stringArray(input.experimental?.suppressInlineSuggestions, this.defaultValue.experimental.suppressInlineSuggestions),
@@ -5537,7 +5535,7 @@ export const enum EditorOption {
 	domReadOnly,
 	dragAndDrop,
 	dropIntoEditor,
-	experimentalEditContextEnabled,
+	editContext,
 	emptySelectionClipboard,
 	experimentalGpuAcceleration,
 	experimentalWhitespaceRendering,
@@ -5657,7 +5655,8 @@ export const enum EditorOption {
 	defaultColorDecorators,
 	colorDecoratorsActivatedOn,
 	inlineCompletionsAccessibilityVerbose,
-	effectiveExperimentalEditContextEnabled
+	effectiveEditContext,
+	scrollOnMiddleClick,
 }
 
 export const EditorOptions = {
@@ -5931,10 +5930,10 @@ export const EditorOptions = {
 	)),
 	emptySelectionClipboard: register(new EditorEmptySelectionClipboard()),
 	dropIntoEditor: register(new EditorDropIntoEditor()),
-	experimentalEditContextEnabled: register(new EditorBooleanOption(
-		EditorOption.experimentalEditContextEnabled, 'experimentalEditContextEnabled', true,
+	editContext: register(new EditorBooleanOption(
+		EditorOption.editContext, 'editContext', true,
 		{
-			description: nls.localize('experimentalEditContextEnabled', "Sets whether the new experimental edit context should be used instead of the text area."),
+			description: nls.localize('editContext', "Sets whether the EditContext API should be used instead of the text area to power input in the editor."),
 			included: platform.isChrome || platform.isEdge || platform.isNative
 		}
 	)),
@@ -6184,7 +6183,10 @@ export const EditorOptions = {
 	quickSuggestionsDelay: register(new EditorIntOption(
 		EditorOption.quickSuggestionsDelay, 'quickSuggestionsDelay',
 		10, 0, Constants.MAX_SAFE_SMALL_INTEGER,
-		{ description: nls.localize('quickSuggestionsDelay', "Controls the delay in milliseconds after which quick suggestions will show up.") }
+		{
+			description: nls.localize('quickSuggestionsDelay', "Controls the delay in milliseconds after which quick suggestions will show up."),
+			tags: ['onExP']
+		}
 	)),
 	readOnly: register(new EditorBooleanOption(
 		EditorOption.readOnly, 'readOnly', false,
@@ -6260,6 +6262,10 @@ export const EditorOptions = {
 	scrollBeyondLastLine: register(new EditorBooleanOption(
 		EditorOption.scrollBeyondLastLine, 'scrollBeyondLastLine', true,
 		{ description: nls.localize('scrollBeyondLastLine', "Controls whether the editor will scroll beyond the last line.") }
+	)),
+	scrollOnMiddleClick: register(new EditorBooleanOption(
+		EditorOption.scrollOnMiddleClick, 'scrollOnMiddleClick', false,
+		{ description: nls.localize('scrollOnMiddleClick', "Controls whether the editor will scroll when the middle button is pressed.") }
 	)),
 	scrollPredominantAxis: register(new EditorBooleanOption(
 		EditorOption.scrollPredominantAxis, 'scrollPredominantAxis', true,
@@ -6498,7 +6504,7 @@ export const EditorOptions = {
 	wrappingInfo: register(new EditorWrappingInfoComputer()),
 	wrappingIndent: register(new WrappingIndentOption()),
 	wrappingStrategy: register(new WrappingStrategy()),
-	effectiveExperimentalEditContextEnabled: register(new EffectiveExperimentalEditContextEnabled())
+	effectiveEditContextEnabled: register(new EffectiveEditContextEnabled())
 };
 
 type EditorOptionsType = typeof EditorOptions;

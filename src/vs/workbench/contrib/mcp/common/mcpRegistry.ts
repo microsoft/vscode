@@ -50,6 +50,9 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		return this._collections.read(reader);
 	});
 
+	// We don't need anything fancy here since the callers are all on-demand (not wanting to listen to changes)
+	private readonly _serverIdAuthUsage = new Map<string, string>();
+
 	private readonly _workspaceStorage = new Lazy(() => this._register(this._instantiationService.createInstance(McpRegistryInputStorage, StorageScope.WORKSPACE, StorageTarget.USER)));
 	private readonly _profileStorage = new Lazy(() => this._register(this._instantiationService.createInstance(McpRegistryInputStorage, StorageScope.PROFILE, StorageTarget.USER)));
 
@@ -121,6 +124,14 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 				this._collections.set(currentCollections.filter(c => c !== collection), undefined);
 			}
 		};
+	}
+
+	public getAuthenticationUsage(mcpServerId: string): string | undefined {
+		return this._serverIdAuthUsage.get(mcpServerId);
+	}
+
+	public setAuthenticationUsage(mcpServerId: string, providerId: string): void {
+		this._serverIdAuthUsage.set(mcpServerId, providerId);
 	}
 
 	public getServerDefinition(collectionRef: McpDefinitionReference, definitionRef: McpDefinitionReference): IObservable<{ server: McpServerDefinition | undefined; collection: McpCollectionDefinition | undefined }> {

@@ -237,7 +237,6 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 			const entries = await getFilesInFolder(uri);
 
 			if (cts.token.isCancellationRequested) {
-				store.clear();
 				return;
 			}
 
@@ -263,8 +262,7 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 				}
 
 				if (cts.token.isCancellationRequested) {
-					store.dispose();
-					break;
+					return;
 				}
 
 				for (const [name, value] of data.entries) {
@@ -320,7 +318,7 @@ export class ConfigureToolSets extends Action2 {
 	constructor() {
 		super({
 			id: ConfigureToolSets.ID,
-			title: localize2('chat.configureToolSets', 'Configure Tool Sets'),
+			title: localize2('chat.configureToolSets', 'Configure Tool Sets...'),
 			category: CHAT_CATEGORY,
 			f1: true,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Tools.toolsCount.greater(0)),

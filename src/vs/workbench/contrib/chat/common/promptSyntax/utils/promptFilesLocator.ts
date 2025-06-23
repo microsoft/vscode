@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { assert } from '../../../../../../base/common/assert.js';
 import { isAbsolute } from '../../../../../../base/common/path.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -23,6 +22,7 @@ import { TPromptsStorage } from '../service/promptsService.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 
 /**
  * Utility class to locate prompt files.
@@ -36,6 +36,7 @@ export class PromptFilesLocator extends Disposable {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ISearchService private readonly searchService: ISearchService,
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 	}
@@ -58,31 +59,61 @@ export class PromptFilesLocator extends Disposable {
 		return files.filter(file => getPromptFileType(file) === type);
 	}
 
+	public async getCopilotInstructionsFiles(instructionFilePaths: Iterable<string>): Promise<URI[]> {
+		const { folders } = this.workspaceService.getWorkspace();
+		const result: URI[] = [];
+		for (const folder of folders) {
+			for (const instructionFilePath of instructionFilePaths) {
+				const file = joinPath(folder.uri, instructionFilePath);
+				if (await this.fileService.exists(file)) {
+					result.push(file);
+				}
+			}
+		}
+		return result;
+	}
+
 	public createFilesUpdatedEvent(type: PromptsType): { readonly event: Event<void>; dispose: () => void } {
-		const disoposables = new DisposableStore();
-		const eventEmitter = disoposables.add(new Emitter<void>());
-		const key = getPromptFileLocationsConfigKey(type);
+		const disposables = new DisposableStore();
+		const eventEmitter = disposables.add(new Emitter<void>());
+
 		const userDataFolder = this.userDataService.currentProfile.promptsHome;
 
-		let parentFolders = this.getLocalParentFolders(type).map(folder => folder.parent);
-		disoposables.add(this.configService.onDidChangeConfiguration(e => {
+		const key = getPromptFileLocationsConfigKey(type);
+		let parentFolders = this.getLocalParentFolders(type);
+
+		const externalFolderWatchers = disposables.add(new DisposableStore());
+		const updateExternalFolderWatchers = () => {
+			externalFolderWatchers.clear();
+			for (const folder of parentFolders) {
+				if (!this.workspaceService.getWorkspaceFolder(folder.parent)) {
+					// if the folder is not part of the workspace, we need to watch it
+					const recursive = folder.filePattern !== undefined;
+					externalFolderWatchers.add(this.fileService.watch(folder.parent, { recursive, excludes: [] }));
+				}
+			}
+		};
+		updateExternalFolderWatchers();
+		disposables.add(this.configService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(key)) {
-				parentFolders = this.getLocalParentFolders(type).map(folder => folder.parent);
+				parentFolders = this.getLocalParentFolders(type);
+				updateExternalFolderWatchers();
 				eventEmitter.fire();
 			}
 		}));
-		disoposables.add(this.fileService.onDidFilesChange(e => {
+		disposables.add(this.fileService.onDidFilesChange(e => {
 			if (e.contains(userDataFolder)) {
 				eventEmitter.fire();
 				return;
 			}
-			if (parentFolders.some(folder => e.affects(folder))) {
+			if (parentFolders.some(folder => folder.filePattern !== undefined ? e.affects(folder.parent) : e.contains(folder.parent))) {
 				eventEmitter.fire();
 				return;
 			}
 		}));
-		disoposables.add(this.fileService.watch(userDataFolder));
-		return { event: eventEmitter.event, dispose: () => disoposables.dispose() };
+		disposables.add(this.fileService.watch(userDataFolder));
+
+		return { event: eventEmitter.event, dispose: () => disposables.dispose() };
 	}
 
 	/**
@@ -179,25 +210,24 @@ export class PromptFilesLocator extends Disposable {
 		const { folders } = this.workspaceService.getWorkspace();
 
 		for (const configuredLocation of configuredLocations) {
-			if (isAbsolute(configuredLocation)) {
-				const remoteAuthority = this.environmentService.remoteAuthority;
-				if (remoteAuthority) {
-					// if the location is absolute and we are in a remote environment,
-					// we need to convert it to a file URI with the remote authority
-					result.add(URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuthority, path: configuredLocation }));
+			try {
+				if (isAbsolute(configuredLocation)) {
+					let uri = URI.file(configuredLocation);
+					const remoteAuthority = this.environmentService.remoteAuthority;
+					if (remoteAuthority) {
+						// if the location is absolute and we are in a remote environment,
+						// we need to convert it to a file URI with the remote authority
+						uri = uri.with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
+					}
+					result.add(uri);
 				} else {
-					result.add(URI.file(configuredLocation));
+					for (const workspaceFolder of folders) {
+						const absolutePath = joinPath(workspaceFolder.uri, configuredLocation);
+						result.add(absolutePath);
+					}
 				}
-			} else {
-				for (const workspaceFolder of folders) {
-					const absolutePath = joinPath(workspaceFolder.uri, configuredLocation);
-					// a sanity check on the expected outcome of the `joinPath()` call
-					assert(
-						isAbsolute(absolutePath.path),
-						`Provided location must be an absolute path, got '${absolutePath.path}'.`,
-					);
-					result.add(absolutePath);
-				}
+			} catch (error) {
+				this.logService.error(`Failed to resolve prompt file location: ${configuredLocation}`, error);
 			}
 		}
 

@@ -30,7 +30,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
 	security?: { workspace?: { trust?: { enabled?: boolean } }; restrictUNCAccess?: boolean };
 	window: IWindowSettings;
-	workbench?: { enableExperiments?: boolean; settings?: { showSuggestions?: boolean } };
+	workbench?: { enableExperiments?: boolean };
 	telemetry?: { feedback?: { enabled?: boolean } };
 	_extensionsGallery?: { enablePPE?: boolean };
 	accessibility?: { verbosity?: { debug?: boolean } };
@@ -50,7 +50,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'editor.accessibilitySupport',
 		'security.workspace.trust.enabled',
 		'workbench.enableExperiments',
-		'workbench.settings.showAISearchToggle',
 		'_extensionsGallery.enablePPE',
 		'security.restrictUNCAccess',
 		'accessibility.verbosity.debug',
@@ -73,7 +72,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly accessibilityVerbosityDebug = new ChangeObserver('boolean');
 	private readonly useFileStorage = new ChangeObserver('boolean');
 	private readonly telemetryFeedbackEnabled = new ChangeObserver('boolean');
-	private readonly showSuggestions = new ChangeObserver('boolean');
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -167,9 +165,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 		// Enable Feedback
 		processChanged(this.telemetryFeedbackEnabled.handleChange(config.telemetry?.feedback?.enabled));
-
-		// Settings editor suggestions
-		processChanged(this.showSuggestions.handleChange(config.workbench?.settings?.showSuggestions));
 
 		if (askToRelaunch && changed && this.hostService.hasFocus) {
 			this.doConfirm(

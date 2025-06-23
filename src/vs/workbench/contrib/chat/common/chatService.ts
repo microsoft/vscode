@@ -18,9 +18,10 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult } from './chatAgents.js';
-import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
+import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
+import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
 import { ChatAgentLocation, ChatMode } from './constants.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult } from './languageModelToolsService.js';
@@ -226,6 +227,17 @@ export interface IChatConfirmation {
 	kind: 'confirmation';
 }
 
+export interface IChatElicitationRequest {
+	kind: 'elicitation';
+	title: string | IMarkdownString;
+	message: string | IMarkdownString;
+	originMessage?: string | IMarkdownString;
+	state: 'pending' | 'accepted' | 'rejected';
+	acceptedResult?: Record<string, unknown>;
+	accept(): Promise<void>;
+	reject(): Promise<void>;
+}
+
 export interface IChatTerminalToolInvocationData {
 	kind: 'terminal';
 	command: string;
@@ -309,7 +321,8 @@ export type IChatProgress =
 	| IChatExtensionsContent
 	| IChatUndoStop
 	| IChatPrepareToolInvocationPart
-	| IChatTaskSerialized;
+	| IChatTaskSerialized
+	| IChatElicitationRequest;
 
 export interface IChatFollowup {
 	kind: 'reply';

@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assertNever } from '../../../../../base/common/assert.js';
-import { AsyncIterableObject, DeferredPromise } from '../../../../../base/common/async.js';
+import { AsyncIterableObject } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../../base/common/errors.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { SetMap } from '../../../../../base/common/map.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
@@ -17,144 +16,112 @@ import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
-import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionContext, InlineCompletionProviderGroupId, InlineCompletions, InlineCompletionsProvider, InlineCompletionTriggerKind, PartialAcceptInfo } from '../../../../common/languages.js';
+import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, PartialAcceptInfo, InlineCompletionsDisposeReason, LifetimeSummary } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { fixBracketsInLine } from '../../../../common/model/bracketPairsTextModelPart/fixBrackets.js';
-import { TextModelText } from '../../../../common/model/textModelText.js';
 import { SnippetParser, Text } from '../../../snippet/browser/snippetParser.js';
 import { getReadonlyEmptyArray } from '../utils.js';
+import { groupByMap } from '../../../../../base/common/collections.js';
+import { DirectedGraph } from './graph.js';
+import { CachedFunction } from '../../../../../base/common/cache.js';
+import { InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
+import { isDefined } from '../../../../../base/common/types.js';
 
 export type InlineCompletionContextWithoutUuid = Omit<InlineCompletionContext, 'requestUuid'>;
 
-export async function provideInlineCompletions(
+export function provideInlineCompletions(
 	providers: InlineCompletionsProvider[],
-	positionOrRange: Position | Range,
+	position: Position,
 	model: ITextModel,
 	context: InlineCompletionContextWithoutUuid,
-	baseToken: CancellationToken = CancellationToken.None,
+	editorType: InlineCompletionEditorType,
 	languageConfigurationService?: ILanguageConfigurationService,
-): Promise<InlineCompletionProviderResult> {
+): IInlineCompletionProviderResult {
 	const requestUuid = generateUuid();
-	const tokenSource = new CancellationTokenSource(baseToken);
-	const token = tokenSource.token;
+
+	const cancellationTokenSource = new CancellationTokenSource();
+	let cancelReason: InlineCompletionsDisposeReason | undefined = undefined;
+
 	const contextWithUuid: InlineCompletionContext = { ...context, requestUuid: requestUuid };
 
-	const defaultReplaceRange = positionOrRange instanceof Position ? getDefaultRange(positionOrRange, model) : positionOrRange;
+	const defaultReplaceRange = getDefaultRange(position, model);
 
-	const multiMap = new SetMap<InlineCompletionProviderGroupId, InlineCompletionsProvider<any>>();
-	for (const provider of providers) {
-		if (provider.groupId) {
-			multiMap.add(provider.groupId, provider);
-		}
+	const providersByGroupId = groupByMap(providers, p => p.groupId);
+	const yieldsToGraph = DirectedGraph.from(providers, p => {
+		return p.yieldsToGroupIds?.flatMap(groupId => providersByGroupId.get(groupId) ?? []) ?? [];
+	});
+	const { foundCycles } = yieldsToGraph.removeCycles();
+	if (foundCycles.length > 0) {
+		onUnexpectedExternalError(new Error(`Inline completions: cyclic yield-to dependency detected.`
+			+ ` Path: ${foundCycles.map(s => s.toString ? s.toString() : ('' + s)).join(' -> ')}`));
 	}
 
-	function getPreferredProviders(provider: InlineCompletionsProvider<any>): InlineCompletionsProvider<any>[] {
-		if (!provider.yieldsToGroupIds) { return []; }
-		const result: InlineCompletionsProvider<any>[] = [];
-		for (const groupId of provider.yieldsToGroupIds || []) {
-			const providers = multiMap.get(groupId);
-			for (const p of providers) {
-				result.push(p);
-			}
-		}
-		return result;
-	}
+	let runningCount = 0;
 
-	type Result = Promise<InlineSuggestionList | undefined>;
-
-	function findPreferredProviderCircle(
-		provider: InlineCompletionsProvider<any>,
-		stack: InlineCompletionsProvider[],
-		seen: Set<InlineCompletionsProvider>,
-	): InlineCompletionsProvider[] | undefined {
-		stack = [...stack, provider];
-		if (seen.has(provider)) { return stack; }
-
-		seen.add(provider);
+	const queryProvider = new CachedFunction(async (provider: InlineCompletionsProvider<InlineCompletions>): Promise<InlineSuggestionList | undefined> => {
 		try {
-			const preferred = getPreferredProviders(provider);
-			for (const p of preferred) {
-				const c = findPreferredProviderCircle(p, stack, seen);
-				if (c) { return c; }
+			runningCount++;
+			if (cancellationTokenSource.token.isCancellationRequested) {
+				return undefined;
 			}
-		} finally {
-			seen.delete(provider);
-		}
-		return undefined;
-	}
 
-	function queryProviderOrPreferredProvider(provider: InlineCompletionsProvider<InlineCompletions>, states: Map<InlineCompletionsProvider, Result>): Result {
-		const state = states.get(provider);
-		if (state) { return state; }
-
-		const circle = findPreferredProviderCircle(provider, [], new Set());
-		if (circle) {
-			onUnexpectedExternalError(new Error(`Inline completions: cyclic yield-to dependency detected.`
-				+ ` Path: ${circle.map(s => s.toString ? s.toString() : ('' + s)).join(' -> ')}`));
-		}
-
-		const deferredPromise = new DeferredPromise<InlineSuggestionList | undefined>();
-		states.set(provider, deferredPromise.p);
-
-		(async () => {
-			if (!circle) {
-				const preferred = getPreferredProviders(provider);
-				for (const p of preferred) {
-					const result = await queryProviderOrPreferredProvider(p, states);
-					if (result && result.inlineSuggestions.items.length > 0) {
-						// Skip provider
-						return undefined;
-					}
+			const yieldsTo = yieldsToGraph.getOutgoing(provider);
+			for (const p of yieldsTo) {
+				// We know there is no cycle, so no recursion here
+				const result = await queryProvider.get(p);
+				if (result && result.inlineSuggestions.items.length > 0) {
+					// Skip provider
+					return undefined;
 				}
 			}
 
-			return query(provider);
-		})().then(c => deferredPromise.complete(c), e => deferredPromise.error(e));
-
-		return deferredPromise.p;
-	}
-
-	async function query(provider: InlineCompletionsProvider): Promise<InlineSuggestionList | undefined> {
-		let result: InlineCompletions | null | undefined;
-		try {
-			if (positionOrRange instanceof Position) {
-				result = await provider.provideInlineCompletions(model, positionOrRange, contextWithUuid, token);
-			} else {
-				result = await provider.provideInlineEditsForRange?.(model, positionOrRange, contextWithUuid, token);
+			let result: InlineCompletions | null | undefined;
+			try {
+				result = await provider.provideInlineCompletions(model, position, contextWithUuid, cancellationTokenSource.token);
+			} catch (e) {
+				onUnexpectedExternalError(e);
+				return undefined;
 			}
-		} catch (e) {
-			onUnexpectedExternalError(e);
-			return undefined;
+
+			if (!result) {
+				return undefined;
+			}
+
+			const data: InlineSuggestData[] = [];
+			const list = new InlineSuggestionList(result, data, provider);
+			list.addRef();
+			runWhenCancelled(cancellationTokenSource.token, () => {
+				return list.removeRef(cancelReason);
+			});
+
+			for (const item of result.items) {
+				data.push(createInlineCompletionItem(item, list, defaultReplaceRange, model, languageConfigurationService, contextWithUuid, editorType));
+			}
+
+			return list;
+		} finally {
+			runningCount--;
 		}
+	});
 
-		if (!result) { return undefined; }
-		const data: InlineSuggestData[] = [];
-		const list = new InlineSuggestionList(result, data, provider);
-		for (const item of result.items) {
-			data.push(createInlineCompletionItem(item, list, defaultReplaceRange, model, languageConfigurationService, contextWithUuid));
+	const inlineCompletionLists = AsyncIterableObject.fromPromisesResolveOrder(providers.map(p => queryProvider.get(p))).filter(isDefined);
+
+	return {
+		get didAllProvidersReturn() { return runningCount === 0; },
+		lists: inlineCompletionLists,
+		cancelAndDispose: reason => {
+			if (cancelReason !== undefined) {
+				return;
+			}
+			cancelReason = reason;
+			cancellationTokenSource.dispose(true);
 		}
-
-		runWhenCancelled(token, () => list.removeRef());
-		return list;
-	}
-
-	const states = new Map<InlineCompletionsProvider, Result>();
-	const inlineCompletionLists = AsyncIterableObject.fromPromisesResolveOrder(providers.map(p => queryProviderOrPreferredProvider(p, states)));
-
-	if (token.isCancellationRequested) {
-		tokenSource.dispose(true);
-		// result has been disposed before we could call addRef! So we have to discard everything.
-		return new InlineCompletionProviderResult([], new Set(), []);
-	}
-
-	const result = await addRefAndCreateResult(contextWithUuid, inlineCompletionLists, model);
-	tokenSource.dispose(true); // This disposes results that are not referenced by now.
-	return result;
+	};
 }
 
-/** If the token does not leak, this will not leak either. */
-function runWhenCancelled(token: CancellationToken, callback: () => void): IDisposable {
+/** If the token is eventually cancelled, this will not leak either. */
+export function runWhenCancelled(token: CancellationToken, callback: () => void): IDisposable {
 	if (token.isCancellationRequested) {
 		callback();
 		return Disposable.None;
@@ -167,77 +134,12 @@ function runWhenCancelled(token: CancellationToken, callback: () => void): IDisp
 	}
 }
 
-async function addRefAndCreateResult(
-	context: InlineCompletionContext,
-	inlineCompletionLists: AsyncIterable<(InlineSuggestionList | undefined)>,
-	model: ITextModel,
-): Promise<InlineCompletionProviderResult> {
-	// for deduplication
-	const itemsByHash = new Map<string, InlineSuggestData>();
+export interface IInlineCompletionProviderResult {
+	get didAllProvidersReturn(): boolean;
 
-	let shouldStop = false;
-	const lists: InlineSuggestionList[] = [];
-	for await (const completions of inlineCompletionLists) {
-		if (!completions) { continue; }
-		completions.addRef();
-		lists.push(completions);
-		for (const item of completions.inlineSuggestionsData) {
-			if (!context.includeInlineEdits && (item.isInlineEdit || item.showInlineEditMenu)) {
-				continue;
-			}
-			if (!context.includeInlineCompletions && !(item.isInlineEdit || item.showInlineEditMenu)) {
-				continue;
-			}
+	cancelAndDispose(reason: InlineCompletionsDisposeReason): void;
 
-			itemsByHash.set(createHashFromSingleTextEdit(item.getSingleTextEdit()), item);
-
-			// Stop after first visible inline completion
-			if (!(item.isInlineEdit || item.showInlineEditMenu) && context.triggerKind === InlineCompletionTriggerKind.Automatic) {
-				const minifiedEdit = item.getSingleTextEdit().removeCommonPrefix(new TextModelText(model));
-				if (!minifiedEdit.isEmpty) {
-					shouldStop = true;
-				}
-			}
-		}
-
-		if (shouldStop) {
-			break;
-		}
-	}
-
-	return new InlineCompletionProviderResult(Array.from(itemsByHash.values()), new Set(itemsByHash.keys()), lists);
-}
-
-export class InlineCompletionProviderResult implements IDisposable {
-
-	constructor(
-		/**
-		 * Free of duplicates.
-		 */
-		public readonly completions: readonly InlineSuggestData[],
-		private readonly hashs: Set<string>,
-		private readonly providerResults: readonly InlineSuggestionList[],
-	) { }
-
-	public has(edit: TextReplacement): boolean {
-		return this.hashs.has(createHashFromSingleTextEdit(edit));
-	}
-
-	// TODO: This is not complete as it does not take the textmodel into account
-	isEmpty(): boolean {
-		return this.completions.length === 0
-			|| this.completions.every(c => c.range.isEmpty() && c.insertText.length === 0);
-	}
-
-	dispose(): void {
-		for (const result of this.providerResults) {
-			result.removeRef();
-		}
-	}
-}
-
-function createHashFromSingleTextEdit(edit: TextReplacement): string {
-	return JSON.stringify([edit.text, edit.range.getStartPosition().toString()]);
+	lists: AsyncIterableObject<InlineSuggestionList>;
 }
 
 function createInlineCompletionItem(
@@ -247,6 +149,7 @@ function createInlineCompletionItem(
 	textModel: ITextModel,
 	languageConfigurationService: ILanguageConfigurationService | undefined,
 	context: InlineCompletionContext,
+	editorType: InlineCompletionEditorType,
 ): InlineSuggestData {
 	let insertText: string;
 	let snippetInfo: SnippetInfo | undefined;
@@ -320,11 +223,24 @@ function createInlineCompletionItem(
 		source,
 		context,
 		inlineCompletion.isInlineEdit ?? false,
+		editorType
 	);
 }
 
+export type InlineSuggestViewData = {
+	editorType: InlineCompletionEditorType;
+	viewKind?: InlineCompletionViewKind;
+	error?: string;
+};
+
 export class InlineSuggestData {
 	private _didShow = false;
+	private _showStartTime: number | undefined = undefined;
+	private _shownDuration: number = 0;
+	private _showUncollapsedStartTime: number | undefined = undefined;
+	private _showUncollapsedDuration: number = 0;
+
+	private _viewData: InlineSuggestViewData;
 	private _didReportEndOfLife = false;
 	private _lastSetEndOfLifeReason: InlineCompletionEndOfLifeReason | undefined = undefined;
 
@@ -339,7 +255,11 @@ export class InlineSuggestData {
 		public readonly source: InlineSuggestionList,
 		public readonly context: InlineCompletionContext,
 		public readonly isInlineEdit: boolean,
-	) { }
+
+		editorType: InlineCompletionEditorType,
+	) {
+		this._viewData = { editorType };
+	}
 
 	public get showInlineEditMenu() { return this.sourceInlineCompletion.showInlineEditMenu ?? false; }
 
@@ -347,11 +267,14 @@ export class InlineSuggestData {
 		return new TextReplacement(this.range, this.insertText);
 	}
 
-	public async reportInlineEditShown(commandService: ICommandService, updatedInsertText: string): Promise<void> {
+	public async reportInlineEditShown(commandService: ICommandService, updatedInsertText: string, viewKind: InlineCompletionViewKind): Promise<void> {
+		this.updateShownDuration(viewKind);
+
 		if (this._didShow) {
 			return;
 		}
 		this._didShow = true;
+		this._viewData.viewKind = viewKind;
 
 		this.source.provider.handleItemDidShow?.(this.source.inlineSuggestions, this.sourceInlineCompletion, updatedInsertText);
 
@@ -379,6 +302,7 @@ export class InlineSuggestData {
 			return;
 		}
 		this._didReportEndOfLife = true;
+		this.reportInlineEditHidden();
 
 		if (!reason) {
 			reason = this._lastSetEndOfLifeReason ?? { kind: InlineCompletionEndOfLifeReasonKind.Ignored, userTypingDisagreed: false, supersededBy: undefined };
@@ -389,7 +313,24 @@ export class InlineSuggestData {
 		}
 
 		if (this.source.provider.handleEndOfLifetime) {
-			this.source.provider.handleEndOfLifetime(this.source.inlineSuggestions, this.sourceInlineCompletion, reason);
+			const summary: LifetimeSummary = {
+				requestUuid: this.context.requestUuid,
+				shown: this._didShow,
+				shownDuration: this._shownDuration,
+				shownDurationUncollapsed: this._showUncollapsedDuration,
+				editorType: this._viewData.editorType,
+				viewKind: this._viewData.viewKind,
+				error: this._viewData.error,
+			};
+			this.source.provider.handleEndOfLifetime(this.source.inlineSuggestions, this.sourceInlineCompletion, reason, summary);
+		}
+	}
+
+	public reportInlineEditError(message: string): void {
+		if (this._viewData.error) {
+			this._viewData.error += `; ${message}`;
+		} else {
+			this._viewData.error = message;
 		}
 	}
 
@@ -397,7 +338,39 @@ export class InlineSuggestData {
 	 * Sets the end of life reason, but does not send the event to the provider yet.
 	*/
 	public setEndOfLifeReason(reason: InlineCompletionEndOfLifeReason): void {
+		this.reportInlineEditHidden();
 		this._lastSetEndOfLifeReason = reason;
+	}
+
+	private updateShownDuration(viewKind: InlineCompletionViewKind) {
+		const timeNow = Date.now();
+		if (!this._showStartTime) {
+			this._showStartTime = timeNow;
+		}
+
+		const isCollapsed = viewKind === InlineCompletionViewKind.Collapsed;
+		if (!isCollapsed && this._showUncollapsedStartTime === undefined) {
+			this._showUncollapsedStartTime = timeNow;
+		}
+
+		if (isCollapsed && this._showUncollapsedStartTime !== undefined) {
+			this._showUncollapsedDuration += timeNow - this._showUncollapsedStartTime;
+		}
+	}
+
+	private reportInlineEditHidden() {
+		if (this._showStartTime === undefined) {
+			return;
+		}
+		const timeNow = Date.now();
+		this._shownDuration += timeNow - this._showStartTime;
+		this._showStartTime = undefined;
+
+		if (this._showUncollapsedStartTime === undefined) {
+			return;
+		}
+		this._showUncollapsedDuration += timeNow - this._showUncollapsedStartTime;
+		this._showUncollapsedStartTime = undefined;
 	}
 }
 
@@ -412,12 +385,17 @@ export interface IDisplayLocation {
 	label: string;
 }
 
+export enum InlineCompletionEditorType {
+	TextEditor = 'textEditor',
+	DiffEditor = 'diffEditor'
+}
+
 /**
  * A ref counted pointer to the computed `InlineCompletions` and the `InlineCompletionsProvider` that
  * computed them.
  */
 export class InlineSuggestionList {
-	private refCount = 1;
+	private refCount = 0;
 	constructor(
 		public readonly inlineSuggestions: InlineCompletions,
 		public readonly inlineSuggestionsData: readonly InlineSuggestData[],
@@ -428,14 +406,14 @@ export class InlineSuggestionList {
 		this.refCount++;
 	}
 
-	removeRef(): void {
+	removeRef(reason: InlineCompletionsDisposeReason = { kind: 'other' }): void {
 		this.refCount--;
 		if (this.refCount === 0) {
 			for (const item of this.inlineSuggestionsData) {
 				// Fallback if it has not been called before
 				item.reportEndOfLife();
 			}
-			this.provider.freeInlineCompletions(this.inlineSuggestions);
+			this.provider.disposeInlineCompletions(this.inlineSuggestions, reason);
 		}
 	}
 }
