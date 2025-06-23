@@ -75,34 +75,6 @@ export class AuthenticationAccessService extends Disposable implements IAuthenti
 			}
 		} catch (err) { }
 
-		// Add trusted extensions from product.json if they're not already in the list
-		const trustedExtensionAuthAccess = this._productService.trustedExtensionAuthAccess;
-		const trustedExtensionIds =
-			// Case 1: trustedExtensionAuthAccess is an array
-			Array.isArray(trustedExtensionAuthAccess)
-				? trustedExtensionAuthAccess
-				// Case 2: trustedExtensionAuthAccess is an object
-				: typeof trustedExtensionAuthAccess === 'object'
-					? trustedExtensionAuthAccess[providerId] ?? []
-					: [];
-
-		for (const extensionId of trustedExtensionIds) {
-			const existingExtension = trustedExtensions.find(extension => extension.id === extensionId);
-			if (!existingExtension) {
-				// Add new trusted extension (name will be set by caller if they have extension info)
-				trustedExtensions.push({
-					id: extensionId,
-					name: extensionId, // Default to ID, caller can update with proper name
-					allowed: true,
-					trusted: true
-				});
-			} else {
-				// Update existing extension to be trusted
-				existingExtension.allowed = true;
-				existingExtension.trusted = true;
-			}
-		}
-
 		return trustedExtensions;
 	}
 
@@ -114,16 +86,9 @@ export class AuthenticationAccessService extends Disposable implements IAuthenti
 				allowList.push(extension);
 			} else {
 				allowList[index].allowed = extension.allowed;
-				// Update name if provided and not already set to a proper name
-				if (extension.name && extension.name !== extension.id && allowList[index].name !== extension.name) {
-					allowList[index].name = extension.name;
-				}
 			}
 		}
-
-		// Filter out trusted extensions before storing - they should only come from product.json, not user storage
-		const userManagedExtensions = allowList.filter(extension => !extension.trusted);
-		this._storageService.store(`${providerId}-${accountName}`, JSON.stringify(userManagedExtensions), StorageScope.APPLICATION, StorageTarget.USER);
+		this._storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.APPLICATION, StorageTarget.USER);
 		this._onDidChangeExtensionSessionAccess.fire({ providerId, accountName });
 	}
 
