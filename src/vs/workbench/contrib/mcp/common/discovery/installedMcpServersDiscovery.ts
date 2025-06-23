@@ -12,13 +12,15 @@ import { IMcpRegistry } from '../mcpRegistryTypes.js';
 import { McpServerDefinition, McpServerTransportType, IMcpWorkbenchService, IMcpConfigPath } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
 import { mcpConfigurationSection } from '../mcpConfiguration.js';
-import { isAbsolute, join } from '../../../../../base/common/path.js';
+import { posix as pathPosix, win32 as pathWin32, sep as pathSep } from '../../../../../base/common/path.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { getMcpServerMapping } from '../mcpConfigFileUtils.js';
 import { Location } from '../../../../../editor/common/languages.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ILocalMcpServer } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { observableValue } from '../../../../../base/common/observable.js';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { isWindows, OperatingSystem } from '../../../../../base/common/platform.js';
 
 export class InstalledMcpServersDiscovery extends Disposable implements IMcpDiscovery {
 
@@ -27,6 +29,7 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 	constructor(
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@IMcpRegistry private readonly mcpRegistry: IMcpRegistry,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 	) {
 		super();
@@ -54,6 +57,7 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 
 	private async sync(): Promise<void> {
 		try {
+			const remoteEnv = await this.remoteAgentService.getEnvironment();
 			const collections = new Map<string, [IMcpConfigPath | undefined, McpServerDefinition[]]>();
 			const mcpConfigPathInfos = new ResourceMap<Promise<IMcpConfigPath & { locations: Map<string, Location> } | undefined>>();
 			for (const server of this.mcpWorkbenchService.local) {
@@ -80,6 +84,14 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 					definitions = [mcpConfigPath, []];
 					collections.set(collectionId, definitions);
 				}
+
+				const { isAbsolute, join, sep } = mcpConfigPath?.remoteAuthority && remoteEnv
+					? (remoteEnv.os === OperatingSystem.Windows ? pathWin32 : pathPosix)
+					: (isWindows ? pathWin32 : pathPosix);
+				const fsPathForRemote = (uri: URI) => {
+					const fsPathLocal = uri.fsPath;
+					return fsPathLocal.replaceAll(pathSep, sep);
+				};
 
 				definitions[1].push({
 					id: `${collectionId}.${server.local.name}`,
@@ -147,7 +159,3 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 		}
 	}
 }
-function fsPathForRemote(uri: any): string {
-	throw new Error('Function not implemented.');
-}
-
