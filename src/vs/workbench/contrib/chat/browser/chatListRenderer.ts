@@ -326,18 +326,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				},
 			}));
 		}
-		templateDisposables.add(dom.addDisposableListener(rowContainer, 'mouseenter', () => {
+		templateDisposables.add(dom.addDisposableListener(rowContainer, dom.EventType.MOUSE_ENTER, () => {
 			if (isRequestVM(template.currentElement)) {
-				dom.show(requestHover);
+				this.hoverVisible(requestHover);
 			}
 		}));
 
-		templateDisposables.add(dom.addDisposableListener(rowContainer, 'mouseleave', () => {
+		templateDisposables.add(dom.addDisposableListener(rowContainer, dom.EventType.MOUSE_LEAVE, () => {
 			if (isRequestVM(template.currentElement)) {
-				dom.hide(requestHover);
+				this.hoverHidden(requestHover);
 			}
 		}));
-		dom.hide(requestHover);
+		this.hoverHidden(requestHover);
 		const user = dom.append(header, $('.user'));
 		const avatarContainer = dom.append(user, $('.avatar-container'));
 		const username = dom.append(user, $('h3.username'));
@@ -446,7 +446,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.username.classList.toggle('hidden', element.username === COPILOT_USERNAME);
 		templateData.avatarContainer.classList.toggle('hidden', element.username === COPILOT_USERNAME);
 
-		dom.hide(templateData.requestHover);
+		this.hoverHidden(templateData.requestHover);
 		dom.clearNode(templateData.detail);
 		if (isResponseVM(element)) {
 			this.renderDetail(element, templateData);
@@ -1160,12 +1160,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const codeBlockStartIndex = this.getCodeBlockStartIndex(context);
 		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.renderer, this._currentLayoutWidth, this.codeBlockModelCollection, {});
 		if (isRequestVM(element)) {
-			markdownPart.domNode.tabIndex = 0;
-			markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, 'focus', () => {
-				dom.show(templateData.requestHover);
+			markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.FOCUS, () => {
+				this.hoverVisible(templateData.requestHover);
 			}));
-			markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, 'blur', () => {
-				dom.hide(templateData.requestHover);
+			markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.BLUR, () => {
+				this.hoverHidden(templateData.requestHover);
 			}));
 		}
 
@@ -1192,6 +1191,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	disposeTemplate(templateData: IChatListItemTemplate): void {
 		templateData.templateDisposables.dispose();
+	}
+
+	private hoverVisible(requestHover: HTMLElement) {
+		requestHover.style.opacity = '1';
+	}
+
+	private hoverHidden(requestHover: HTMLElement) {
+		requestHover.style.opacity = '0';
 	}
 }
 

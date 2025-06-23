@@ -1924,6 +1924,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		padding: 3px 3px;
 	}
 
+	.request-hover:focus-within {
+		opacity: 1 !important;
+	}
+
 	.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
 		overflow: visible !important;
 	}
