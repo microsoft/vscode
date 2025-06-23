@@ -81,6 +81,12 @@ export interface IView {
 	 */
 	readonly priority?: LayoutPriority;
 
+	/**
+	 * The affinity of the view applies when the {@link GridView} enters
+	 * or exits maximized mode for a view. Only views that have the same
+	 * affinity are participating when a view enters or exits maximized
+	 * mode.
+	 */
 	readonly affinity?: number;
 
 	/**
