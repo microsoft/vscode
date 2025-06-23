@@ -664,6 +664,44 @@ suite('Grid', function () {
 		assert.deepStrictEqual(grid.isViewVisible(view3), true);
 		assert.deepStrictEqual(grid.isViewVisible(view4), true);
 	});
+
+	test('maximizing with view with affinity', function () {
+		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE, 1));
+		const grid = store.add(new Grid(view1));
+		container.appendChild(grid.element);
+
+		grid.layout(800, 600);
+
+		const view2 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE, 1));
+		grid.addView(view2, Sizing.Distribute, view1, Direction.Right);
+
+		const view3 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE, 2));
+		grid.addView(view3, Sizing.Distribute, view2, Direction.Down);
+
+		const view4 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE, undefined));
+		grid.addView(view4, Sizing.Distribute, view2, Direction.Right);
+
+		const view5 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE, 1));
+		grid.addView(view5, Sizing.Distribute, view4, Direction.Right);
+
+		grid.maximizeView(view1);
+
+		assert.deepStrictEqual(grid.hasMaximizedView(), true);
+		assert.deepStrictEqual(grid.isViewVisible(view1), true);
+		assert.deepStrictEqual(grid.isViewVisible(view2), false);
+		assert.deepStrictEqual(grid.isViewVisible(view3), true);
+		assert.deepStrictEqual(grid.isViewVisible(view4), true);
+		assert.deepStrictEqual(grid.isViewVisible(view5), false);
+
+		grid.exitMaximizedView();
+
+		assert.deepStrictEqual(grid.hasMaximizedView(), false);
+		assert.deepStrictEqual(grid.isViewVisible(view1), true);
+		assert.deepStrictEqual(grid.isViewVisible(view2), true);
+		assert.deepStrictEqual(grid.isViewVisible(view3), true);
+		assert.deepStrictEqual(grid.isViewVisible(view4), true);
+		assert.deepStrictEqual(grid.isViewVisible(view5), true);
+	});
 });
 
 class TestSerializableView extends TestView implements ISerializableView {
@@ -1306,6 +1344,55 @@ suite('SerializableGrid', function () {
 		assert.deepStrictEqual(grid2.isViewVisible(view2Copy), true);
 		assert.deepStrictEqual(grid2.isViewVisible(view3Copy), true);
 		assert.deepStrictEqual(grid2.isViewVisible(view4Copy), true);
+		assert.deepStrictEqual(grid2.isViewVisible(view5Copy), true);
+	});
+
+	test('GridView serialization and deserialization when maximized', () => {
+		const view1 = store.add(new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		const grid = store.add(new SerializableGrid(view1));
+		container.appendChild(grid.element);
+
+		grid.layout(800, 600);
+
+		const view2 = store.add(new TestSerializableView('view2', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(view2, 200, view1, Direction.Up);
+
+		const view3 = store.add(new TestSerializableView('view3', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(view3, 200, view1, Direction.Right);
+
+		const view4 = store.add(new TestSerializableView('view4', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(view4, 200, view2, Direction.Left);
+
+		const view5 = store.add(new TestSerializableView('view5', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(view5, 100, view1, Direction.Down);
+
+		grid.setViewVisible(view4, false);
+		grid.maximizeView(view3);
+
+		const json = grid.serialize();
+		grid.dispose();
+
+		const deserializer = new TestViewDeserializer(store);
+		const grid2 = store.add(SerializableGrid.deserialize(json, deserializer));
+
+		const view1Copy = deserializer.getView('view1');
+		const view2Copy = deserializer.getView('view2');
+		const view3Copy = deserializer.getView('view3');
+		const view4Copy = deserializer.getView('view4');
+		const view5Copy = deserializer.getView('view5');
+
+		assert.deepStrictEqual(grid2.isViewVisible(view1Copy), false);
+		assert.deepStrictEqual(grid2.isViewVisible(view2Copy), false);
+		assert.deepStrictEqual(grid2.isViewVisible(view3Copy), true);
+		assert.deepStrictEqual(grid2.isViewVisible(view4Copy), false);
+		assert.deepStrictEqual(grid2.isViewVisible(view5Copy), false);
+
+		grid2.exitMaximizedView();
+
+		assert.deepStrictEqual(grid2.isViewVisible(view1Copy), true);
+		assert.deepStrictEqual(grid2.isViewVisible(view2Copy), true);
+		assert.deepStrictEqual(grid2.isViewVisible(view3Copy), true);
+		assert.deepStrictEqual(grid2.isViewVisible(view4Copy), false);
 		assert.deepStrictEqual(grid2.isViewVisible(view5Copy), true);
 	});
 });

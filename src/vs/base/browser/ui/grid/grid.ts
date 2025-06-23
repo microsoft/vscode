@@ -53,6 +53,7 @@ export interface GridLeafNode<T extends IView> {
 	readonly box: Box;
 	readonly cachedVisibleSize: number | undefined;
 	readonly maximized: boolean;
+	readonly hiddenByMaximized: boolean;
 }
 
 export interface GridBranchNode<T extends IView> {
@@ -753,6 +754,7 @@ export interface ISerializedLeafNode {
 	size: number;
 	visible?: boolean;
 	maximized?: boolean;
+	hiddenByMaximized?: boolean;
 }
 
 export interface ISerializedBranchNode {
@@ -787,6 +789,10 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 				serializedLeafNode.visible = false;
 			} else if (node.maximized) {
 				serializedLeafNode.maximized = true;
+			}
+
+			if (node.hiddenByMaximized) {
+				serializedLeafNode.hiddenByMaximized = true;
 			}
 
 			return serializedLeafNode;

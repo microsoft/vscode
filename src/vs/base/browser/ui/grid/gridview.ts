@@ -151,6 +151,7 @@ export interface ISerializedLeafNode {
 	size: number;
 	visible?: boolean;
 	maximized?: boolean;
+	hiddenByMaximized?: boolean; // TODO: should maximized and hiddenByMaximized be combined into one property?
 }
 
 export interface ISerializedBranchNode {
@@ -185,6 +186,7 @@ export interface GridLeafNode {
 	readonly box: Box;
 	readonly cachedVisibleSize: number | undefined;
 	readonly maximized: boolean;
+	readonly hiddenByMaximized: boolean;
 }
 
 export interface GridBranchNode {
@@ -616,11 +618,11 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		return this.splitview.isViewVisible(index);
 	}
 
-	setChildVisible(index: number, visible: boolean): boolean {
+	setChildVisible(index: number, visible: boolean): void {
 		index = validateIndex(index, this.children.length);
 
 		if (this.splitview.isViewVisible(index) === visible) {
-			return false;
+			return;
 		}
 
 		const wereAllChildrenHidden = this.splitview.contentSize === 0;
@@ -632,8 +634,6 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		if ((visible && wereAllChildrenHidden) || (!visible && areAllChildrenHidden)) {
 			this._onDidVisibilityChange.fire(visible);
 		}
-
-		return true;
 	}
 
 	getChildCachedVisibleSize(index: number): number | undefined {
@@ -1162,8 +1162,8 @@ export class GridView implements IDisposable {
 		this.root.edgeSnapping = edgeSnapping;
 	}
 
-	private maximizedNode: LeafNode | undefined = undefined;
-	private maximizedHiddenLeafNodes: Set<LeafNode> | undefined = undefined;
+	// TODO: node should not be optional
+	private maximizedState: { node?: LeafNode; visibleNodes: Set<LeafNode> } | undefined = undefined;
 
 	private readonly _onDidChangeViewMaximized = new Emitter<boolean>();
 	readonly onDidChangeViewMaximized = this._onDidChangeViewMaximized.event;
@@ -1551,7 +1551,7 @@ export class GridView implements IDisposable {
 			throw new Error('Location is not a LeafNode');
 		}
 
-		if (this.maximizedNode === nodeToMaximize) {
+		if (this.maximizedState?.node === nodeToMaximize) {
 			return;
 		}
 
@@ -1559,18 +1559,14 @@ export class GridView implements IDisposable {
 			this.exitMaximizedView();
 		}
 
-		const that = this;
+		const visibleNodes = new Set<LeafNode>();
 		function hideAllViewsBut(parent: BranchNode, exclude: LeafNode): void {
 			for (let i = 0; i < parent.children.length; i++) {
 				const child = parent.children[i];
 				if (child instanceof LeafNode) {
-					if (child !== exclude && child.affinity === exclude.affinity) {
-						if (parent.setChildVisible(i, false)) {
-							if (!that.maximizedHiddenLeafNodes) {
-								that.maximizedHiddenLeafNodes = new Set<LeafNode>();
-							}
-							that.maximizedHiddenLeafNodes.add(child);
-						}
+					if (child !== exclude && child.affinity === exclude.affinity && parent.isChildVisible(i)) {
+						parent.setChildVisible(i, false);
+						visibleNodes.add(child);
 					}
 				} else {
 					hideAllViewsBut(child, exclude);
@@ -1580,19 +1576,16 @@ export class GridView implements IDisposable {
 
 		hideAllViewsBut(this.root, nodeToMaximize);
 
-		this.maximizedNode = nodeToMaximize;
+		this.maximizedState = { node: nodeToMaximize, visibleNodes };
 		this._onDidChangeViewMaximized.fire(true);
 	}
 
 	exitMaximizedView(): void {
-		if (!this.maximizedNode) {
+		if (!this.maximizedState) {
 			return;
 		}
-		const maximizedNode = this.maximizedNode;
-		this.maximizedNode = undefined;
-
-		const maximizedHiddenLeafNodes = this.maximizedHiddenLeafNodes;
-		this.maximizedHiddenLeafNodes = undefined;
+		const previouslyMaximizedNode = this.maximizedState;
+		this.maximizedState = undefined;
 
 		// When hiding a view, it's previous size is cached.
 		// To restore the sizes of all views, they need to be made visible in reverse order.
@@ -1600,8 +1593,8 @@ export class GridView implements IDisposable {
 			for (let index = parent.children.length - 1; index >= 0; index--) {
 				const child = parent.children[index];
 				if (child instanceof LeafNode) {
-					if (child.affinity === maximizedNode.affinity) {
-						parent.setChildVisible(index, Boolean(maximizedHiddenLeafNodes?.has(child) || child === maximizedNode));
+					if (child.affinity === previouslyMaximizedNode.node!.affinity && previouslyMaximizedNode.visibleNodes.has(child)) {
+						parent.setChildVisible(index, true);
 					}
 				} else {
 					showViewsInReverseOrder(child);
@@ -1611,16 +1604,11 @@ export class GridView implements IDisposable {
 
 		showViewsInReverseOrder(this.root);
 
-		// TODO this is needed to prevent views getting visible that were not:
-		// When a branch node becomes visible it makes all children visible.
-		// As such we run a second pass to ensure visibility is proper.
-		showViewsInReverseOrder(this.root);
-
 		this._onDidChangeViewMaximized.fire(false);
 	}
 
 	hasMaximizedView(): boolean {
-		return this.maximizedNode !== undefined;
+		return this.maximizedState !== undefined;
 	}
 
 	/**
@@ -1633,7 +1621,7 @@ export class GridView implements IDisposable {
 		if (!(node instanceof LeafNode)) {
 			throw new Error('Location is not a LeafNode');
 		}
-		return node === this.maximizedNode;
+		return node === this.maximizedState?.node;
 	}
 
 	/**
@@ -1765,9 +1753,16 @@ export class GridView implements IDisposable {
 			result = new BranchNode(orientation, this.layoutController, this.styles, this.proportionalLayout, node.size, orthogonalSize, undefined, children);
 		} else {
 			result = new LeafNode(deserializer.fromJSON(node.data), orientation, this.layoutController, orthogonalSize, node.size);
-			if (node.maximized && !this.maximizedNode) {
-				this.maximizedNode = result;
-				this._onDidChangeViewMaximized.fire(true);
+			if (node.maximized || node.hiddenByMaximized) {
+				if (!this.maximizedState) {
+					this.maximizedState = { node: undefined, visibleNodes: new Set() };
+				}
+				if (node.hiddenByMaximized) {
+					this.maximizedState.visibleNodes.add(result);
+				} else if (node.maximized) {
+					this.maximizedState.node = result;
+					this._onDidChangeViewMaximized.fire(true); // TODO: should this be fired after deserialization to ensure the maximized state is complete?
+				}
 			}
 		}
 
@@ -1778,7 +1773,7 @@ export class GridView implements IDisposable {
 		const box = { top: node.top, left: node.left, width: node.width, height: node.height };
 
 		if (node instanceof LeafNode) {
-			return { view: node.view, box, cachedVisibleSize, maximized: this.maximizedNode === node };
+			return { view: node.view, box, cachedVisibleSize, maximized: this.maximizedState?.node === node, hiddenByMaximized: this.maximizedState?.visibleNodes.has(node) ?? false };
 		}
 
 		const children: GridNode[] = [];
