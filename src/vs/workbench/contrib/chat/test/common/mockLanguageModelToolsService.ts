@@ -68,7 +68,7 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		throw new Error('Method not implemented.');
 	}
 
-	toEnablementMap(toolOrToolSetNames: Iterable<string>): Record<string, boolean> {
+	toToolEnablementMap(toolOrToolSetNames: Set<string>): Record<string, boolean> {
 		throw new Error('Method not implemented.');
 	}
 }
