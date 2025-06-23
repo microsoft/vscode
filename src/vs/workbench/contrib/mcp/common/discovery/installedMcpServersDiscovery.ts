@@ -97,12 +97,14 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 						cwd: config.cwd
 							// if the cwd is defined in a workspace folder but not absolute (and not
 							// a variable or tilde-expansion) then resolve it in the workspace folder
+							// if the cwd is defined in a workspace folder but not absolute (and not
+							// a variable or tilde-expansion) then resolve it in the workspace folder
 							? (!isAbsolute(config.cwd) && !config.cwd.startsWith('~') && !config.cwd.startsWith('${') && mcpConfigPath?.workspaceFolder
 								? join(fsPathForRemote(mcpConfigPath.workspaceFolder.uri), config.cwd)
 								: config.cwd)
 							: mcpConfigPath?.workspaceFolder
 								? fsPathForRemote(mcpConfigPath.workspaceFolder.uri)
-								: undefined, // User servers don't have specific cwd
+								: undefined,
 					},
 					roots: mcpConfigPath?.workspaceFolder ? [mcpConfigPath.workspaceFolder.uri] : undefined,
 					variableReplacement: {

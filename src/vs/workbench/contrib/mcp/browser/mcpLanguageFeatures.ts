@@ -20,10 +20,9 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression, IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
-import { IMcpConfigPath } from '../common/mcpConfigPathsService.js';
 import { mcpConfigurationSection } from '../common/mcpConfiguration.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { IMcpService, IMcpWorkbenchService, McpConnectionState } from '../common/mcpTypes.js';
+import { IMcpConfigPath, IMcpService, IMcpWorkbenchService, McpConnectionState } from '../common/mcpTypes.js';
 
 const diagnosticOwner = 'vscode.mcp';
 

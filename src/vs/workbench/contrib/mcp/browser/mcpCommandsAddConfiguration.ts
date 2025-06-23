@@ -22,7 +22,7 @@ import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVaria
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { isWorkspaceFolder, IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { isWorkspaceFolder, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IWorkbenchMcpManagementService } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
@@ -223,11 +223,13 @@ export class McpAddConfigurationCommand {
 			options.push({ target: ConfigurationTarget.USER_REMOTE, label: localize('mcp.target.remote', "Remote"), description: localize('mcp.target..remote.description', "Available on this remote machine, runs on {0}", raLabel) });
 		}
 
-		if (this._workspaceService.getWorkspace().folders.length > 0) {
+		const workbenchState = this._workspaceService.getWorkbenchState();
+		if (workbenchState !== WorkbenchState.EMPTY) {
+			const target = workbenchState === WorkbenchState.FOLDER ? this._workspaceService.getWorkspace().folders[0] : ConfigurationTarget.WORKSPACE;
 			if (this._environmentService.remoteAuthority) {
-				options.push({ target: this._workspaceService.getWorkspace().folders[0], label: localize('mcp.target.workspace', "Workspace"), description: localize('mcp.target.workspace.description.remote', "Available in this workspace, runs on {0}", raLabel) });
+				options.push({ target, label: localize('mcp.target.workspace', "Workspace"), description: localize('mcp.target.workspace.description.remote', "Available in this workspace, runs on {0}", raLabel) });
 			} else {
-				options.push({ target: this._workspaceService.getWorkspace().folders[0], label: localize('mcp.target.workspace', "Workspace"), description: localize('mcp.target.workspace.description', "Available in this workspace, runs locally") });
+				options.push({ target, label: localize('mcp.target.workspace', "Workspace"), description: localize('mcp.target.workspace.description', "Available in this workspace, runs locally") });
 			}
 		}
 

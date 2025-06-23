@@ -37,7 +37,7 @@ export class McpResourceInitializer implements IProfileResourceInitializer {
 	}
 }
 
-export class McpResource implements IProfileResource {
+export class McpProfileResource implements IProfileResource {
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -111,12 +111,12 @@ export class McpResourceTreeItem implements IProfileResourceTreeItem {
 	}
 
 	async hasContent(): Promise<boolean> {
-		const mcpContent = await this.instantiationService.createInstance(McpResource).getMcpResourceContent(this.profile);
+		const mcpContent = await this.instantiationService.createInstance(McpProfileResource).getMcpResourceContent(this.profile);
 		return mcpContent.mcp !== null;
 	}
 
 	async getContent(): Promise<string> {
-		return this.instantiationService.createInstance(McpResource).getContent(this.profile);
+		return this.instantiationService.createInstance(McpProfileResource).getContent(this.profile);
 	}
 
 	isFromDefaultProfile(): boolean {

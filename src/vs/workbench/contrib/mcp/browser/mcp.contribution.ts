@@ -24,7 +24,6 @@ import { mcpDiscoveryRegistry } from '../common/discovery/mcpDiscovery.js';
 import { RemoteNativeMpcDiscovery } from '../common/discovery/nativeMcpRemoteDiscovery.js';
 import { CursorWorkspaceMcpDiscoveryAdapter } from '../common/discovery/workspaceMcpDiscoveryAdapter.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
-import { IMcpConfigPathsService, McpConfigPathsService } from '../common/mcpConfigPathsService.js';
 import { mcpServerSchema } from '../common/mcpConfiguration.js';
 import { McpContextKeysController } from '../common/mcpContextKeys.js';
 import { IMcpDevModeDebugging, McpDevModeDebugging } from '../common/mcpDevMode.js';
@@ -50,7 +49,6 @@ import { MCPContextsInitialisation, McpWorkbenchService } from './mcpWorkbenchSe
 registerSingleton(IMcpRegistry, McpRegistry, InstantiationType.Delayed);
 registerSingleton(IMcpService, McpService, InstantiationType.Delayed);
 registerSingleton(IMcpWorkbenchService, McpWorkbenchService, InstantiationType.Eager);
-registerSingleton(IMcpConfigPathsService, McpConfigPathsService, InstantiationType.Delayed);
 registerSingleton(IMcpDevModeDebugging, McpDevModeDebugging, InstantiationType.Delayed);
 registerSingleton(IMcpSamplingService, McpSamplingService, InstantiationType.Delayed);
 registerSingleton(IMcpElicitationService, McpElicitationService, InstantiationType.Delayed);
