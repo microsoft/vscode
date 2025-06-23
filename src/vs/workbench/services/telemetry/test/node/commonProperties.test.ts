@@ -40,7 +40,7 @@ suite('Telemetry - common properties', function () {
 		// assert.ok('common.version.renderer' in first.data);
 		assert.ok('common.platformVersion' in props, 'platformVersion');
 		assert.ok('version' in props);
-		assert.ok('releaseDate' in props);
+		assert.ok('common.releaseDate' in props);
 		assert.ok('common.firstSessionDate' in props, 'firstSessionDate');
 		assert.ok('common.lastSessionDate' in props, 'lastSessionDate'); // conditional, see below, 'lastSessionDate'ow
 		assert.ok('common.isNewSession' in props, 'isNewSession');
