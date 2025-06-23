@@ -3372,7 +3372,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private async _runRerunAllRunningTasksCommand(): Promise<void> {
 		const activeTasks = await this.getActiveTasks();
-		
+
 		if (activeTasks.length === 0) {
 			this._notificationService.info(nls.localize('TaskService.noRunningTasks', 'No running tasks to restart'));
 			return;
@@ -3381,8 +3381,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		// Restart all active tasks
 		const restartPromises = activeTasks.map(task => this._restart(task));
 		await Promise.allSettled(restartPromises);
-		
-		this._notificationService.info(nls.localize('TaskService.rerunAllTasksCompleted', 'Restarted {0} running task(s)', activeTasks.length));
 	}
 
 	private _getTaskIdentifier(filter?: string | ITaskIdentifier): string | KeyedTaskIdentifier | undefined {
