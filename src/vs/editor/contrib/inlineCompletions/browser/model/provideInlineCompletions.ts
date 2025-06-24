@@ -39,7 +39,7 @@ export function provideInlineCompletions(
 	editorType: InlineCompletionEditorType,
 	languageConfigurationService?: ILanguageConfigurationService,
 ): IInlineCompletionProviderResult {
-	const requestUuid = generateUuid();
+	const requestUuid = 'icr-' + generateUuid();
 
 	const cancellationTokenSource = new CancellationTokenSource();
 	let cancelReason: InlineCompletionsDisposeReason | undefined = undefined;
