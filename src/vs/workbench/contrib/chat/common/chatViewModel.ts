@@ -93,6 +93,7 @@ export interface IChatRequestViewModel {
 	readonly slashCommand: IChatAgentCommand | undefined;
 	readonly agentOrSlashCommandDetected: boolean;
 	readonly shouldBeBlocked?: boolean;
+	readonly modelId?: string;
 }
 
 export interface IChatResponseMarkdownRenderData {
@@ -185,6 +186,7 @@ export interface IChatLiveUpdateData {
 export interface IChatResponseViewModel {
 	readonly model: IChatResponseModel;
 	readonly id: string;
+	readonly session: IChatViewModel;
 	readonly sessionId: string;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
@@ -442,6 +444,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	currentRenderedHeight: number | undefined;
 
+	get modelId() {
+		return this._model.modelId;
+	}
+
 	constructor(
 		private readonly _model: IChatRequestModel,
 	) { }
@@ -569,7 +575,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	}
 
 	get isLast(): boolean {
-		return this._chatViewModel.getItems().at(-1) === this;
+		return this.session.getItems().at(-1) === this;
 	}
 
 	renderData: IChatResponseRenderData | undefined = undefined;
@@ -608,7 +614,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	constructor(
 		private readonly _model: IChatResponseModel,
-		private readonly _chatViewModel: IChatViewModel,
+		public readonly session: IChatViewModel,
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentNameService private readonly chatAgentNameService: IChatAgentNameService,
 	) {
