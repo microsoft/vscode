@@ -41,14 +41,7 @@ export async function migrateUnsupportedExtensions(extensionManagementService: I
 
 			// Check if this is a version-specific deprecation
 			if (deprecated.deprecatedVersion) {
-				const currentVersion = unsupportedExtension.manifest.version;
-				let isVersionDeprecated = false;
-
-				// Check if current version is less than or equal to deprecated version
-				isVersionDeprecated = semver.lte(currentVersion, deprecated.deprecatedVersion);
-
-				// Skip if the installed version is not deprecated
-				if (!isVersionDeprecated) {
+				if (!semver.lte(unsupportedExtension.manifest.version, deprecated.deprecatedVersion)) {
 					continue;
 				}
 			}
