@@ -820,7 +820,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		const mightContainRTL = this.model.mightContainRTL();
 		const mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
 		const tabSize = this.getTabSize();
-		// TODO: Maybe should also consider whether the below has variable fonts
 		const lineData = this._lines.getViewLineData(lineNumber);
 
 		if (lineData.inlineDecorations) {
@@ -856,7 +855,7 @@ export class ViewModel extends Disposable implements IViewModel {
 				return this.model.getLineTokens(lineNumber, this._editorId);
 			},
 			getLineInlineDecorationsData: (lineNumber: number): IModelInlineDecorationData => {
-				return this.model.getLineInlineDecorations(lineNumber, this._editorId);
+				return this.model.getLineInlineDecorationData(lineNumber, this._editorId);
 			},
 			getLineInjectedText: (lineNumber: number): LineInjectedText[] => {
 				return this.model.getLineInjectedText(lineNumber, this._editorId);

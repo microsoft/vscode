@@ -1829,6 +1829,10 @@ declare namespace monaco.editor {
 		 */
 		readonly inlineClassNameAffectsLetterSpacing?: boolean;
 		/**
+		 * Whether this decoration affects the font.
+		 */
+		readonly affectsFont?: boolean;
+		/**
 		 * This field allows to attach data to this injected text.
 		 * The data can be read when injected texts at a given position are queried.
 		 */

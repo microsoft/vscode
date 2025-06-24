@@ -398,7 +398,6 @@ export class ViewLineRenderingData {
 }
 
 export class InlineDecoration {
-
 	constructor(
 		public readonly range: Range,
 		public readonly inlineClassName: string,
@@ -417,8 +416,7 @@ export class SingleLineInlineDecoration {
 		public readonly startOffset: number,
 		public readonly endOffset: number,
 		public readonly inlineClassName: string,
-		public readonly inlineClassNameAffectsLetterSpacing: boolean,
-		public readonly affectsFont: boolean
+		public readonly inlineClassNameAffectsLetterSpacing: boolean
 	) {
 	}
 
@@ -428,14 +426,6 @@ export class SingleLineInlineDecoration {
 			this.inlineClassName,
 			this.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular
 		);
-	}
-
-	toModelInlineDecoration(modelLineNumber: number): IModelInlineDecoration {
-		return {
-			range: new Range(modelLineNumber, this.startOffset + 1, modelLineNumber, this.endOffset + 1),
-			inlineClassName: this.inlineClassName,
-			type: this.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular
-		};
 	}
 }
 

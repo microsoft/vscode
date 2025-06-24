@@ -1031,7 +1031,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 				return this.model.getLineInjectedText(lineNumber, this._editorId);
 			},
 			getLineInlineDecorationsData: (lineNumber: number): IModelInlineDecorationData => {
-				return this.model.getLineInlineDecorations(lineNumber, this._editorId);
+				return this.model.getLineInlineDecorationData(lineNumber, this._editorId);
 			}
 		};
 	}

@@ -331,6 +331,11 @@ export interface InjectedTextOptions {
 	readonly inlineClassNameAffectsLetterSpacing?: boolean;
 
 	/**
+	 * Whether this decoration affects the font.
+	 */
+	readonly affectsFont?: boolean;
+
+	/**
 	 * This field allows to attach data to this injected text.
 	 * The data can be read when injected texts at a given position are queried.
 	 */
@@ -916,7 +921,7 @@ export interface ITextModel {
 	 * Get the inline decorations for a certain line.
 	 * @internal
 	 */
-	getLineInlineDecorations(lineNumber: number, ownerId?: number): IModelInlineDecorationData;
+	getLineInlineDecorationData(lineNumber: number, ownerId?: number): IModelInlineDecorationData;
 
 	/**
 	 * Get the text length for a certain line.

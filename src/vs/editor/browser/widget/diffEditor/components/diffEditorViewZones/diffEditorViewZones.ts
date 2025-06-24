@@ -180,7 +180,7 @@ export class DiffEditorViewZones extends Disposable {
 							return originalModel.getLineTokens(lineNumber, originalEditor.getNumberId());
 						},
 						getLineInlineDecorationsData: (lineNumber: number): IModelInlineDecorationData => {
-							return originalModel.getLineInlineDecorations(lineNumber, originalEditor.getNumberId());
+							return originalModel.getLineInlineDecorationData(lineNumber, originalEditor.getNumberId());
 						},
 						getLineInjectedText: (lineNumber: number) => {
 							return originalModel.getLineInjectedText(lineNumber, originalEditor.getNumberId());

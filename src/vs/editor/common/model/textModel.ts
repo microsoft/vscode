@@ -51,7 +51,6 @@ import { SetWithKey } from '../../../base/common/collections.js';
 import { TextModelEditReason } from '../textModelEditReason.js';
 import { InjectedTextOptions, InlineDecorationType } from '../model.js';
 import { isModelDecorationVisible } from '../viewModel/viewModelDecorations.js';
-import { SingleLineInlineDecoration } from '../viewModel.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -831,7 +830,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this._buffer.getLineContent(lineNumber);
 	}
 
-	public getLineTokens(lineNumber: number, ownerId: number = 0): LineTokens {
+	public getLineTokens(lineNumber: number): LineTokens {
 		let injectionOptions: InjectedTextOptions[] | null;
 		let injectionOffsets: number[] | null;
 		const lineInjectedText = this.getLineInjectedText(lineNumber);
@@ -843,10 +842,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			injectionOffsets = null;
 		}
 		const lineTokens = this.tokenization.getLineTokens(lineNumber);
-		return getLineTokensWithInjections(lineTokens, injectionOptions, injectionOffsets);
+		return getModelLineTokensWithInjections(lineTokens, injectionOptions, injectionOffsets);
 	}
 
-	public getLineInlineDecorations(lineNumber: number, ownerId?: number): model.IModelInlineDecorationData {
+	public getLineInlineDecorationData(lineNumber: number, ownerId?: number): model.IModelInlineDecorationData {
 		const range = new Range(lineNumber, 1, lineNumber, this.getLineMaxColumn(lineNumber));
 		const modelInlineDecorations = this.getRenderedDecorationsInRange(range, ownerId);
 		const inlineDecorations: model.IModelInlineDecoration[] = [];
@@ -873,12 +872,34 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			injectionOptions = null;
 			injectionOffsets = null;
 		}
-		let injectedInlineDecorations: model.IModelInlineDecoration[] = [];
-		const injectedDecorations = getInjectedTextInlineDecorations(injectionOptions, injectionOffsets, null, null);
-		if (injectedDecorations) {
-			injectedInlineDecorations = injectedDecorations[0].map(decoration => decoration.toModelInlineDecoration(lineNumber));
+		const injectedTextInlineModelDecorations: model.IModelInlineDecoration[] = [];
+		if (injectionOffsets) {
+			let totalInjectedTextLengthBefore = 0;
+			let currentInjectedOffset = 0;
+			while (currentInjectedOffset < injectionOffsets.length) {
+				const length = injectionOptions![currentInjectedOffset].content.length;
+				const injectedTextStartOffsetInInputWithInjections = injectionOffsets[currentInjectedOffset] + totalInjectedTextLengthBefore;
+				const injectedTextEndOffsetInInputWithInjections = injectedTextStartOffsetInInputWithInjections + length;
+				const options = injectionOptions![currentInjectedOffset];
+				if (options.inlineClassName) {
+					const start = injectedTextStartOffsetInInputWithInjections;
+					const end = injectedTextEndOffsetInInputWithInjections;
+					if (start !== end) {
+						inlineDecorations.push({
+							range: new Range(lineNumber, start + 1, lineNumber, end + 1),
+							inlineClassName: options.inlineClassName,
+							type: options.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular
+						});
+					}
+				}
+				totalInjectedTextLengthBefore += length;
+				currentInjectedOffset++;
+			}
 		}
-		const decorations = inlineDecorations.concat(injectedInlineDecorations);
+		let decorations = inlineDecorations;
+		if (injectedTextInlineModelDecorations) {
+			decorations = inlineDecorations.concat(injectedTextInlineModelDecorations);
+		}
 		return { decorations, affectsFont };
 	}
 
@@ -1799,16 +1820,12 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public getRenderedDecorationsInRange(range: IRange, ownerId: number = 0, filterOutValidation: boolean = false, filterFontDecorations: boolean = false, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): model.IModelDecorationViewportData[] {
 		const modelDecorations = this.getDecorationsInRange(range, ownerId, filterOutValidation, filterFontDecorations, onlyMinimapDecorations, onlyMarginDecorations);
-
 		const renderedDecorations: model.IModelDecorationViewportData[] = [];
-
 		for (let i = 0, len = modelDecorations.length; i < len; i++) {
 			const modelDecoration = modelDecorations[i];
-
 			if (!isModelDecorationVisible(this, modelDecoration)) {
 				continue;
 			}
-
 			const decorationOptions = modelDecoration.options;
 			const decorationRange = modelDecoration.range;
 
@@ -1853,7 +1870,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					affectsFont = true;
 				}
 			}
-
 			renderedDecorations.push({
 				modelDecoration,
 				modelInlineDecoration,
@@ -1880,6 +1896,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public getLineInjectedText(lineNumber: number): LineInjectedText[] {
 		const startOffset = this._buffer.getOffsetAt(lineNumber, 1);
 		const endOffset = startOffset + this._buffer.getLineLength(lineNumber);
+
 		const result = this._decorationsTree.getInjectedTextInInterval(this, startOffset, endOffset, 0);
 		return LineInjectedText.fromDecorations(result).filter(t => t.lineNumber === lineNumber);
 	}
@@ -2159,63 +2176,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 }
 
-export function getInjectedTextInlineDecorations(injectionOptions: InjectedTextOptions[] | null, injectionOffsets: number[] | null, breakOffsets: number[] | null, wrappedTextIndentLength: number | null): SingleLineInlineDecoration[][] | null {
-
-	let inlineDecorationsPerOutputLine: SingleLineInlineDecoration[][] | null = null;
-
-	if (injectionOffsets) {
-		inlineDecorationsPerOutputLine = [];
-		let totalInjectedTextLengthBefore = 0;
-		let currentInjectedOffset = 0;
-
-		const outputLineCount = breakOffsets ? breakOffsets.length : 1;
-
-		for (let outputLineIndex = 0; outputLineIndex < outputLineCount; outputLineIndex++) {
-			const inlineDecorations = new Array<SingleLineInlineDecoration>();
-			inlineDecorationsPerOutputLine[outputLineIndex] = inlineDecorations;
-
-			const lineStartOffsetInInputWithInjections = breakOffsets && outputLineIndex > 0 ? breakOffsets[outputLineIndex - 1] : 0;
-			const lineEndOffsetInInputWithInjections = breakOffsets ? breakOffsets[outputLineIndex] : 0;
-
-			while (currentInjectedOffset < injectionOffsets.length) {
-				const length = injectionOptions![currentInjectedOffset].content.length;
-				const injectedTextStartOffsetInInputWithInjections = injectionOffsets[currentInjectedOffset] + totalInjectedTextLengthBefore;
-				const injectedTextEndOffsetInInputWithInjections = injectedTextStartOffsetInInputWithInjections + length;
-
-				if (injectedTextStartOffsetInInputWithInjections > lineEndOffsetInInputWithInjections) {
-					// Injected text only starts in later wrapped lines.
-					break;
-				}
-				if (lineStartOffsetInInputWithInjections < injectedTextEndOffsetInInputWithInjections) {
-					// Injected text ends after or in this line (but also starts in or before this line).
-					const options = injectionOptions![currentInjectedOffset];
-					if (options.inlineClassName) {
-						const offset = (outputLineIndex > 0 && wrappedTextIndentLength !== null ? wrappedTextIndentLength : 0);
-						const start = offset + Math.max(injectedTextStartOffsetInInputWithInjections - lineStartOffsetInInputWithInjections, 0);
-						const end = offset + Math.min(injectedTextEndOffsetInInputWithInjections - lineStartOffsetInInputWithInjections, lineEndOffsetInInputWithInjections - lineStartOffsetInInputWithInjections);
-						if (start !== end) {
-							inlineDecorations.push(new SingleLineInlineDecoration(start, end, options.inlineClassName, options.inlineClassNameAffectsLetterSpacing!, false));
-						}
-					}
-				}
-				if (injectedTextEndOffsetInInputWithInjections <= lineEndOffsetInInputWithInjections) {
-					totalInjectedTextLengthBefore += length;
-					currentInjectedOffset++;
-				} else {
-					// injected text breaks into next line, process it again
-					break;
-				}
-			}
-		}
-	}
-	return inlineDecorationsPerOutputLine;
-}
-
-export function getLineTokensWithInjections(tokens: LineTokens, injectionOptions: InjectedTextOptions[] | null, injectionOffsets: number[] | null): LineTokens {
+export function getModelLineTokensWithInjections(tokens: LineTokens, injectionOptions: InjectedTextOptions[] | null, injectionOffsets: number[] | null): LineTokens {
 	let lineWithInjections: LineTokens;
 	if (injectionOffsets) {
 		const tokensToInsert: { offset: number; text: string; tokenMetadata: number }[] = [];
-
 		for (let idx = 0; idx < injectionOffsets.length; idx++) {
 			const offset = injectionOffsets[idx];
 			const tokens = injectionOptions![idx].tokens;
@@ -2235,7 +2199,6 @@ export function getLineTokensWithInjections(tokens: LineTokens, injectionOptions
 				});
 			}
 		}
-
 		lineWithInjections = tokens.withInserted(tokensToInsert);
 	} else {
 		lineWithInjections = tokens;
