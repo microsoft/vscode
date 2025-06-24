@@ -341,6 +341,7 @@ export interface IDeprecationInfo {
 	};
 	readonly settings?: readonly string[];
 	readonly additionalInfo?: string;
+	readonly deprecatedVersion?: string;
 }
 
 export interface ISearchPrefferedResults {

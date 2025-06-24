@@ -9,6 +9,7 @@ import { areSameExtensions, getExtensionId } from './extensionManagementUtil.js'
 import { IExtensionStorageService } from './extensionStorage.js';
 import { ExtensionType } from '../../extensions/common/extensions.js';
 import { ILogService } from '../../log/common/log.js';
+import * as semver from '../../../base/common/semver/semver.js';
 
 /**
  * Migrates the installed unsupported nightly extension to a supported pre-release extension. It includes following:
@@ -36,6 +37,20 @@ export async function migrateUnsupportedExtensions(extensionManagementService: I
 			// Unsupported Extension is not installed
 			if (!unsupportedExtension) {
 				continue;
+			}
+
+			// Check if this is a version-specific deprecation
+			if (deprecated.deprecatedVersion) {
+				const currentVersion = unsupportedExtension.manifest.version;
+				let isVersionDeprecated = false;
+
+				// Check if current version is less than or equal to deprecated version
+				isVersionDeprecated = semver.lte(currentVersion, deprecated.deprecatedVersion);
+
+				// Skip if the installed version is not deprecated
+				if (!isVersionDeprecated) {
+					continue;
+				}
 			}
 
 			const gallery = (await galleryService.getExtensions([{ id: preReleaseExtensionId, preRelease }], { targetPlatform: await extensionManagementService.getTargetPlatform(), compatible: true }, CancellationToken.None))[0];
