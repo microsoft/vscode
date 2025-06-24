@@ -9,6 +9,7 @@ import { IStringDictionary } from '../../../base/common/collections.js';
 import { parse, ParseError } from '../../../base/common/json.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
+import { Mutable } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { ConfigurationTarget, ConfigurationTargetToString } from '../../configuration/common/configuration.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
@@ -16,7 +17,7 @@ import { InstantiationType, registerSingleton } from '../../instantiation/common
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IScannedMcpServers, IScannedMcpServer } from './mcpManagement.js';
-import { IMcpServerConfiguration, IMcpServerVariable } from './mcpPlatformTypes.js';
+import { IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration } from './mcpPlatformTypes.js';
 
 interface IScannedWorkspaceFolderMcpServers {
 	servers?: IStringDictionary<IMcpServerConfiguration>;
@@ -188,6 +189,9 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 		if (servers.length > 0) {
 			scannedMcpServers.servers = {};
 			for (const [serverName, config] of servers) {
+				if (config.type === undefined) {
+					(<Mutable<IMcpServerConfiguration>>config).type = (<IMcpStdioServerConfiguration>config).command ? 'stdio' : 'http';
+				}
 				scannedMcpServers.servers[serverName] = {
 					id: serverName,
 					name: serverName,
