@@ -99,4 +99,51 @@ suite('Default Document Colors Computer', () => {
 		assert.strictEqual(colors[0].color.blue, 0, 'Blue component should be 0');
 		assert.strictEqual(colors[0].color.alpha, 1, 'Alpha should be 1 (ff/255)');
 	});
+
+	test('HSL colors with different valid syntaxes should be detected', () => {
+		// Test case from the original issue: https://github.com/microsoft/vscode/issues/193512
+		const model = new TestDocumentModel("const blues = ['hsl(192, 87%, 49%)', 'hsl(192 87% 49%)', 'hsl(192.5, 87.5%, 49.5%)'];");
+		const colors = computeDefaultDocumentColors(model);
+
+		assert.strictEqual(colors.length, 3, 'Should detect all three HSL colors');
+
+		// All should be similar blue colors (we're not testing exact color conversion here, just detection)
+		colors.forEach((color, index) => {
+			assert.strictEqual(typeof color.color.red, 'number', `Color ${index + 1} should have numeric red component`);
+			assert.strictEqual(typeof color.color.green, 'number', `Color ${index + 1} should have numeric green component`);
+			assert.strictEqual(typeof color.color.blue, 'number', `Color ${index + 1} should have numeric blue component`);
+			assert.strictEqual(color.color.alpha, 1, `Color ${index + 1} should have alpha of 1`);
+		});
+	});
+
+	test('Individual HSL syntax variants should be detected', () => {
+		const testCases = [
+			{ syntax: 'hsl(192, 87%, 49%)', name: 'comma-separated with integer hue' },
+			{ syntax: 'hsl(192 87% 49%)', name: 'space-separated (CSS Level 4)' },
+			{ syntax: 'hsl(192.5, 87.5%, 49.5%)', name: 'comma-separated with decimal values' },
+			{ syntax: 'hsl(192.5 87.5% 49.5%)', name: 'space-separated with decimal values' }
+		];
+
+		testCases.forEach(testCase => {
+			const model = new TestDocumentModel(`const color = '${testCase.syntax}';`);
+			const colors = computeDefaultDocumentColors(model);
+			assert.strictEqual(colors.length, 1, `Should detect ${testCase.name}: ${testCase.syntax}`);
+		});
+	});
+
+	test('Individual HSLA syntax variants should be detected', () => {
+		const testCases = [
+			{ syntax: 'hsla(192, 87%, 49%, 0.8)', name: 'comma-separated with integer hue' },
+			{ syntax: 'hsla(192 87% 49% 0.8)', name: 'space-separated (CSS Level 4)' },
+			{ syntax: 'hsla(192.5, 87.5%, 49.5%, 0.5)', name: 'comma-separated with decimal values' },
+			{ syntax: 'hsla(192.5 87.5% 49.5% 0.5)', name: 'space-separated with decimal values' },
+			{ syntax: 'hsla(180, 50%, 50%, .5)', name: 'alpha without leading zero' }
+		];
+
+		testCases.forEach(testCase => {
+			const model = new TestDocumentModel(`const color = '${testCase.syntax}';`);
+			const colors = computeDefaultDocumentColors(model);
+			assert.strictEqual(colors.length, 1, `Should detect ${testCase.name}: ${testCase.syntax}`);
+		});
+	});
 });
