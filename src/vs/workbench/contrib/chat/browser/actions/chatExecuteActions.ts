@@ -224,6 +224,9 @@ class ToggleChatModeAction extends Action2 {
 		context.chatWidget.input.setChatMode2(switchToMode);
 
 		if (chatModeCheck.needToClearSession) {
+			if (context.chatWidget.viewModel?.editing) {
+				context.chatWidget.input.dispose();
+			}
 			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}
 	}
