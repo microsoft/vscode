@@ -14,6 +14,7 @@ import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging.js';
 import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService, IExtensionsViewState } from '../common/extensions.js';
 import { ManageExtensionAction, ExtensionRuntimeStateAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ButtonWithDropDownExtensionAction, InstallDropdownAction, InstallingLabelAction, ButtonWithDropdownExtensionActionViewItem, DropDownExtensionAction, WebInstallAction, MigrateDeprecatedExtensionAction, SetLanguageAction, ClearLanguageAction, UpdateAction } from './extensionsActions.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { IExtensionDeprecationService } from '../common/extensionDeprecation.js';
 import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionRuntimeStatusWidget, PreReleaseBookmarkWidget, PublisherWidget, ExtensionKindIndicatorWidget, ExtensionIconWidget } from './extensionsWidgets.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
@@ -52,6 +53,7 @@ export type ExtensionListRendererOptions = {
 	};
 };
 
+
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	constructor(
@@ -63,6 +65,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IExtensionDeprecationService private readonly deprecationService: IExtensionDeprecationService,
 	) { }
 
 	get templateId() { return 'extension'; }
@@ -183,12 +186,20 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		const updateEnablement = () => {
 			const disabled = extension.state === ExtensionState.Installed && !!extension.local && !this.extensionEnablementService.isEnabled(extension.local);
-			const deprecated = !!extension.deprecationInfo;
+			const deprecated = this.deprecationService.isExtensionDeprecated(extension);
+			console.log(`[DEPRECATION UI DEBUG] Extension: ${extension.identifier.id}, Deprecated: ${deprecated}, Version: ${extension.local?.manifest.version || extension.version}, Has deprecationInfo: ${!!extension.deprecationInfo}`);
 			data.element.classList.toggle('deprecated', deprecated);
 			data.root.classList.toggle('disabled', disabled);
 		};
 		updateEnablement();
 		this.extensionService.onDidChangeExtensions(() => updateEnablement(), this, data.extensionDisposables);
+		// Also update when extensions are installed/uninstalled/updated
+		this.extensionsWorkbenchService.onChange(() => {
+			// Only update if this is still the same extension
+			if (data.extension?.identifier.id === extension.identifier.id) {
+				updateEnablement();
+			}
+		}, this, data.extensionDisposables);
 
 		data.name.textContent = extension.displayName;
 		data.description.textContent = extension.description;

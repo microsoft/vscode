@@ -13,6 +13,7 @@ import * as json from '../../../../base/common/json.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { disposeIfDisposable } from '../../../../base/common/lifecycle.js';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, ExtensionEditorTab, ExtensionRuntimeActionType, IExtensionArg, AutoUpdateConfigurationKey } from '../common/extensions.js';
+import { IExtensionDeprecationService } from '../common/extensionDeprecation.js';
 import { ExtensionsConfigurationInitialContent } from '../common/extensionsFileTemplate.js';
 import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, ExtensionManagementErrorCode, IAllowedExtensionsService, shouldRequireRepositorySignatureFor } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
@@ -452,6 +453,7 @@ export class InstallAction extends ExtensionAction {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
 		@IExtensionGalleryManifestService private readonly extensionGalleryManifestService: IExtensionGalleryManifestService,
+		@IExtensionDeprecationService private readonly deprecationService: IExtensionDeprecationService,
 	) {
 		super('extensions.install', localize('install', "Install"), InstallAction.CLASS, false);
 		this.hideOnDisabled = false;
@@ -523,7 +525,7 @@ export class InstallAction extends ExtensionAction {
 			}
 		}
 
-		if (this.extension.deprecationInfo) {
+		if (this.extension.deprecationInfo && this.deprecationService.isExtensionDeprecated(this.extension)) {
 			let detail: string | MarkdownString = localize('deprecated message', "This extension is deprecated as it is no longer being maintained.");
 			enum DeprecationChoice {
 				InstallAnyway = 0,
@@ -538,12 +540,13 @@ export class InstallAction extends ExtensionAction {
 				}
 			];
 
-			if (this.extension.deprecationInfo.extension) {
-				detail = localize('deprecated with alternate extension message', "This extension is deprecated. Use the {0} extension instead.", this.extension.deprecationInfo.extension.displayName);
+			const deprecationInfo = this.extension.deprecationInfo;
+			if (deprecationInfo.extension) {
+				detail = localize('deprecated with alternate extension message', "This extension is deprecated. Use the {0} extension instead.", deprecationInfo.extension.displayName);
 
-				const alternateExtension = this.extension.deprecationInfo.extension;
+				const alternateExtension = deprecationInfo.extension;
 				buttons.push({
-					label: localize({ key: 'Show alternate extension', comment: ['&& denotes a mnemonic'] }, "&&Open {0}", this.extension.deprecationInfo.extension.displayName),
+					label: localize({ key: 'Show alternate extension', comment: ['&& denotes a mnemonic'] }, "&&Open {0}", deprecationInfo.extension.displayName),
 					run: async () => {
 						const [extension] = await this.extensionsWorkbenchService.getExtensions([{ id: alternateExtension.id, preRelease: alternateExtension.preRelease }], CancellationToken.None);
 						await this.extensionsWorkbenchService.open(extension);
@@ -551,10 +554,10 @@ export class InstallAction extends ExtensionAction {
 						return DeprecationChoice.ShowAlternateExtension;
 					}
 				});
-			} else if (this.extension.deprecationInfo.settings) {
+			} else if (deprecationInfo.settings) {
 				detail = localize('deprecated with alternate settings message', "This extension is deprecated as this functionality is now built-in to VS Code.");
 
-				const settings = this.extension.deprecationInfo.settings;
+				const settings = deprecationInfo.settings;
 				buttons.push({
 					label: localize({ key: 'configure in settings', comment: ['&& denotes a mnemonic'] }, "&&Configure Settings"),
 					run: async () => {
@@ -563,8 +566,8 @@ export class InstallAction extends ExtensionAction {
 						return DeprecationChoice.ConfigureSettings;
 					}
 				});
-			} else if (this.extension.deprecationInfo.additionalInfo) {
-				detail = new MarkdownString(`${detail} ${this.extension.deprecationInfo.additionalInfo}`);
+			} else if (deprecationInfo.additionalInfo) {
+				detail = new MarkdownString(`${detail} ${deprecationInfo.additionalInfo}`);
 			}
 
 			const { result } = await this.dialogService.prompt({
@@ -1176,12 +1179,15 @@ export class MigrateDeprecatedExtensionAction extends ExtensionAction {
 	}
 
 	override async run(): Promise<any> {
-		if (!this.extension?.deprecationInfo?.extension) {
+		if (!this.extension) {
+			return;
+		}
+		if (!this.extension.deprecationInfo?.extension) {
 			return;
 		}
 		const local = this.extension.local;
 		await this.extensionsWorkbenchService.uninstall(this.extension);
-		const [extension] = await this.extensionsWorkbenchService.getExtensions([{ id: this.extension.deprecationInfo.extension.id, preRelease: this.extension.deprecationInfo?.extension?.preRelease }], CancellationToken.None);
+		const [extension] = await this.extensionsWorkbenchService.getExtensions([{ id: this.extension.deprecationInfo.extension.id, preRelease: this.extension.deprecationInfo.extension.preRelease }], CancellationToken.None);
 		await this.extensionsWorkbenchService.install(extension, { isMachineScoped: local?.isMachineScoped });
 	}
 }
@@ -1293,7 +1299,8 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 			cksOverlay.push(['galleryExtensionHasPreReleaseVersion', extension.gallery?.hasPreReleaseVersion]);
 			cksOverlay.push(['extensionHasPreReleaseVersion', extension.hasPreReleaseVersion]);
 			cksOverlay.push(['extensionHasReleaseVersion', extension.hasReleaseVersion]);
-			cksOverlay.push(['extensionDisallowInstall', extension.isMalicious || extension.deprecationInfo?.disallowInstall]);
+			const deprecationService = accessor.get(IExtensionDeprecationService);
+			cksOverlay.push(['extensionDisallowInstall', extension.isMalicious || (extension.deprecationInfo?.disallowInstall && deprecationService.isExtensionDeprecated(extension))]);
 			cksOverlay.push(['isExtensionAllowed', allowedExtensionsService.isAllowed({ id: extension.identifier.id, publisherDisplayName: extension.publisherDisplayName }) === true]);
 			cksOverlay.push(['isPreReleaseExtensionAllowed', allowedExtensionsService.isAllowed({ id: extension.identifier.id, publisherDisplayName: extension.publisherDisplayName, prerelease: true }) === true]);
 			cksOverlay.push(['extensionIsUnsigned', extension.gallery && !extension.gallery.isSigned]);
@@ -2560,6 +2567,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 		@IWorkbenchExtensionEnablementService private readonly workbenchExtensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IExtensionFeaturesManagementService private readonly extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 		@IExtensionGalleryManifestService private readonly extensionGalleryManifestService: IExtensionGalleryManifestService,
+		@IExtensionDeprecationService private readonly deprecationService: IExtensionDeprecationService,
 	) {
 		super('extensions.status', '', `${ExtensionStatusAction.CLASS} hide`, false);
 		this._register(this.labelService.onDidChangeFormatters(() => this.update(), this));
@@ -2591,17 +2599,18 @@ export class ExtensionStatusAction extends ExtensionAction {
 			return;
 		}
 
-		if (this.extension.deprecationInfo) {
-			if (this.extension.deprecationInfo.extension) {
-				const link = `[${this.extension.deprecationInfo.extension.displayName}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.deprecationInfo.extension.id]))}`)})`;
+		if (this.extension.deprecationInfo && this.deprecationService.isExtensionDeprecated(this.extension)) {
+			const deprecationInfo = this.extension.deprecationInfo;
+			if (deprecationInfo.extension) {
+				const link = `[${deprecationInfo.extension.displayName}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([deprecationInfo.extension.id]))}`)})`;
 				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated with alternate extension tooltip', "This extension is deprecated. Use the {0} extension instead.", link)) }, true);
-			} else if (this.extension.deprecationInfo.settings) {
-				const link = `[${localize('settings', "settings")}](${URI.parse(`command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify([this.extension.deprecationInfo.settings.map(setting => `@id:${setting}`).join(' ')]))}`)})`;
+			} else if (deprecationInfo.settings) {
+				const link = `[${localize('settings', "settings")}](${URI.parse(`command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify([deprecationInfo.settings.map((setting: string) => `@id:${setting}`).join(' ')]))}`)})`;
 				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated with alternate settings tooltip', "This extension is deprecated as this functionality is now built-in to VS Code. Configure these {0} to use this functionality.", link)) }, true);
 			} else {
 				const message = new MarkdownString(localize('deprecated tooltip', "This extension is deprecated as it is no longer being maintained."));
-				if (this.extension.deprecationInfo.additionalInfo) {
-					message.appendMarkdown(` ${this.extension.deprecationInfo.additionalInfo}`);
+				if (deprecationInfo.additionalInfo) {
+					message.appendMarkdown(` ${deprecationInfo.additionalInfo}`);
 				}
 				this.updateStatus({ icon: warningIcon, message }, true);
 			}

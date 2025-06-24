@@ -34,6 +34,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IHostService } from '../../../services/host/browser/host.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigurationValue, InstallExtensionOptions, ExtensionRuntimeState, ExtensionRuntimeActionType, AutoRestartConfigurationKey, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionsNotification } from '../common/extensions.js';
+import { IExtensionDeprecationService } from '../common/extensionDeprecation.js';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IURLService, IURLHandler, IOpenURLOptions } from '../../../../platform/url/common/url.js';
 import { ExtensionsInput, IExtensionEditorOptions } from '../common/extensionsInput.js';
@@ -571,6 +572,7 @@ ${this.description}
 	setExtensionsControlManifest(extensionsControlManifest: IExtensionsControlManifest): void {
 		this.malicious = findMatchingMaliciousEntry(this.identifier, extensionsControlManifest.malicious);
 		this.deprecationInfo = extensionsControlManifest.deprecated ? extensionsControlManifest.deprecated[this.identifier.id.toLowerCase()] : undefined;
+		console.log(`[DEPRECATION] setExtensionsControlManifest for ${this.identifier.id}: deprecationInfo =`, this.deprecationInfo);
 	}
 
 	private getManifestFromLocalOrResource(): IExtensionManifest | null {
@@ -810,6 +812,7 @@ class Extensions extends Disposable {
 
 	private async fetchInstalledExtensions(productVersion?: IProductVersion): Promise<void> {
 		const extensionsControlManifest = await this.server.extensionManagementService.getExtensionsControlManifest();
+		console.log(`[DEPRECATION] fetchInstalledExtensions: Got manifest with deprecated extensions:`, Object.keys(extensionsControlManifest.deprecated || {}));
 		const all = await this.server.extensionManagementService.getInstalled(undefined, undefined, productVersion);
 		if (this.isWorkspaceServer) {
 			all.push(...await this.workbenchExtensionManagementService.getInstalledWorkspaceExtensions(true));
@@ -891,6 +894,7 @@ class Extensions extends Disposable {
 
 		if (extensions.length) {
 			const manifest = await this.server.extensionManagementService.getExtensionsControlManifest();
+			console.log(`[DEPRECATION] onDidInstallExtensions: Got manifest with deprecated extensions:`, Object.keys(manifest.deprecated || {}));
 			for (const extension of extensions) {
 				extension.setExtensionsControlManifest(manifest);
 			}
@@ -1031,6 +1035,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IExtensionDeprecationService private readonly deprecationService: IExtensionDeprecationService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
@@ -1485,7 +1490,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			}
 		}
 
-		const deprecatedExtensions = this.local.filter(e => !!e.deprecationInfo && e.local && this.extensionEnablementService.isEnabled(e.local));
+		const deprecatedExtensions = this.local.filter(e => this.deprecationService.isExtensionDeprecated(e) && e.local && this.extensionEnablementService.isEnabled(e.local));
 		if (deprecatedExtensions.length) {
 			computedNotificiations.push({
 				message: nls.localize('deprecated extensions', "Deprecated extensions detected. Review them and migrate to alternatives."),
@@ -2187,6 +2192,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (extension.pinned) {
+			// Allow auto-update for pinned extensions if they're deprecated (special case)
+			if (extension.deprecationInfo) {
+				return true;
+			}
 			return false;
 		}
 

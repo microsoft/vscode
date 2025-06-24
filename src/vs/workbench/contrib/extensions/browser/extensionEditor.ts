@@ -87,6 +87,7 @@ import { ByteSize, IFileService } from '../../../../platform/files/common/files.
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { IExtensionDeprecationService } from '../common/extensionDeprecation.js';
 
 function toDateString(date: Date) {
 	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}, ${date.toLocaleTimeString(language, { hourCycle: 'h23' })}`;
@@ -248,6 +249,7 @@ export class ExtensionEditor extends EditorPane {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IExtensionDeprecationService private readonly deprecationService: IExtensionDeprecationService,
 	) {
 		super(ExtensionEditor.ID, group, telemetryService, themeService, storageService);
 		this.extensionReadme = null;
@@ -544,7 +546,7 @@ export class ExtensionEditor extends EditorPane {
 
 		template.name.textContent = extension.displayName;
 		template.name.classList.toggle('clickable', !!extension.url);
-		template.name.classList.toggle('deprecated', !!extension.deprecationInfo);
+		template.name.classList.toggle('deprecated', this.deprecationService.isExtensionDeprecated(extension));
 		template.preview.style.display = extension.preview ? 'inherit' : 'none';
 		template.builtin.style.display = extension.isBuiltin ? 'inherit' : 'none';
 

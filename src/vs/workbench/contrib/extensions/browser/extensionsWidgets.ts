@@ -12,6 +12,7 @@ import * as platform from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IExtensionManagementServerService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
+import { IExtensionDeprecationService } from '../common/extensionDeprecation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { extensionButtonProminentBackground, ExtensionStatusAction } from './extensionsActions.js';
 import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
@@ -417,12 +418,15 @@ export class RecommendationWidget extends ExtensionWidget {
 
 	constructor(
 		private parent: HTMLElement,
-		@IExtensionRecommendationsService private readonly extensionRecommendationsService: IExtensionRecommendationsService
+		@IExtensionRecommendationsService private readonly extensionRecommendationsService: IExtensionRecommendationsService,
+		@IExtensionDeprecationService private readonly deprecationService: IExtensionDeprecationService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super();
 		this.render();
 		this._register(toDisposable(() => this.clear()));
 		this._register(this.extensionRecommendationsService.onDidChangeRecommendations(() => this.render()));
+		this._register(this.extensionsWorkbenchService.onChange(() => this.render()));
 	}
 
 	private clear(): void {
@@ -433,7 +437,7 @@ export class RecommendationWidget extends ExtensionWidget {
 
 	render(): void {
 		this.clear();
-		if (!this.extension || this.extension.state === ExtensionState.Installed || this.extension.deprecationInfo) {
+		if (!this.extension || this.extension.state === ExtensionState.Installed || this.deprecationService.isExtensionDeprecated(this.extension)) {
 			return;
 		}
 		const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
@@ -762,6 +766,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		@IExtensionRecommendationsService private readonly extensionRecommendationsService: IExtensionRecommendationsService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IExtensionDeprecationService private readonly deprecationService: IExtensionDeprecationService,
 	) {
 		super();
 	}
@@ -954,7 +959,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		if (extension.state === ExtensionState.Installed) {
 			return undefined;
 		}
-		if (extension.deprecationInfo) {
+		if (this.deprecationService.isExtensionDeprecated(extension)) {
 			return undefined;
 		}
 		const recommendation = this.extensionRecommendationsService.getAllRecommendationsWithReason()[extension.identifier.id.toLowerCase()];
@@ -1042,10 +1047,13 @@ export class ExtensionRecommendationWidget extends ExtensionWidget {
 		private readonly container: HTMLElement,
 		@IExtensionRecommendationsService private readonly extensionRecommendationsService: IExtensionRecommendationsService,
 		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
+		@IExtensionDeprecationService private readonly deprecationService: IExtensionDeprecationService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super();
 		this.render();
 		this._register(this.extensionRecommendationsService.onDidChangeRecommendations(() => this.render()));
+		this._register(this.extensionsWorkbenchService.onChange(() => this.render()));
 	}
 
 	render(): void {
@@ -1062,7 +1070,7 @@ export class ExtensionRecommendationWidget extends ExtensionWidget {
 
 	private getRecommendationStatus(): { icon: ThemeIcon | undefined; message: string } | undefined {
 		if (!this.extension
-			|| this.extension.deprecationInfo
+			|| this.deprecationService.isExtensionDeprecated(this.extension)
 			|| this.extension.state === ExtensionState.Installed
 		) {
 			return undefined;
