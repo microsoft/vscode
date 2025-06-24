@@ -23,6 +23,21 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 // OAuth2 spec prohibits space in a scope, so use that to join them.
 const SCOPESLIST_SEPARATOR = ' ';
 
+/**
+ * Checks if two scope lists are equivalent, regardless of order
+ */
+function scopesMatch(scopes1: string[], scopes2: string[]): boolean {
+	if (scopes1.length !== scopes2.length) {
+		return false;
+	}
+	
+	// Sort both arrays for comparison to handle different orderings
+	const sortedScopes1 = [...scopes1].sort();
+	const sortedScopes2 = [...scopes2].sort();
+	
+	return sortedScopes1.every((scope, index) => scope === sortedScopes2[index]);
+}
+
 interface SessionRequest {
 	disposables: IDisposable[];
 	requestingMcpServerIds: string[];
@@ -150,7 +165,11 @@ export class AuthenticationMcpService extends Disposable implements IAuthenticat
 		}
 
 		Object.keys(existingRequestsForProvider).forEach(requestedScopes => {
-			if (addedSessions.some(session => session.scopes.slice().join(SCOPESLIST_SEPARATOR) === requestedScopes)) {
+			// Parse the requested scopes from the stored key
+			const requestedScopesArray = requestedScopes.split(SCOPESLIST_SEPARATOR);
+			
+			// Check if any added session has matching scopes (order-independent)
+			if (addedSessions.some(session => scopesMatch(session.scopes, requestedScopesArray))) {
 				const sessionRequest = existingRequestsForProvider[requestedScopes];
 				sessionRequest?.disposables.forEach(item => item.dispose());
 
