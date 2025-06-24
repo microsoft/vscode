@@ -238,10 +238,9 @@ function readLineBreaks(range: Range, lineDomNode: HTMLDivElement, lineContent: 
 		return null;
 	}
 
-	// if (breakOffsets.length === 0) {
-	// 	console.log('return 3');
-	// 	return null;
-	// }
+	if (breakOffsets.length === 0) {
+		return null;
+	}
 
 	breakOffsets.push(lineContent.length);
 	return breakOffsets;
