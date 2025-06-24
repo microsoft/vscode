@@ -376,16 +376,18 @@ class InlineCompletionsState extends Disposable {
 		return new InlineCompletionsState(newInlineCompletions, this.request);
 	}
 
-	public createStateWithAppliedResults(updatedSuggestions: InlineSuggestionItem[], request: UpdateRequest, textModel: ITextModel, cursorPosition: Position, itemIdToPreserve: InlineSuggestionIdentity | undefined): InlineCompletionsState {
-		let updatedItems: InlineSuggestionItem[] = [];
-
+	public createStateWithAppliedResults(updatedSuggestions: InlineSuggestionItem[], request: UpdateRequest, textModel: ITextModel, cursorPosition: Position, itemIdToPreserveAtTop: InlineSuggestionIdentity | undefined): InlineCompletionsState {
 		let itemToPreserve: InlineSuggestionItem | undefined = undefined;
-		if (itemIdToPreserve) {
-			const preserveCandidate = this._findById(itemIdToPreserve);
-			if (preserveCandidate) {
-				const updatedSuggestionsHasItemToPreserve = updatedSuggestions.some(i => i.hash === preserveCandidate.hash);
-				if (!updatedSuggestionsHasItemToPreserve && preserveCandidate.canBeReused(textModel, request.position)) {
-					itemToPreserve = preserveCandidate;
+		if (itemIdToPreserveAtTop) {
+			const itemToPreserveCandidate = this._findById(itemIdToPreserveAtTop);
+			if (itemToPreserveCandidate && itemToPreserveCandidate.canBeReused(textModel, request.position)) {
+				itemToPreserve = itemToPreserveCandidate;
+
+				const updatedItemToPreserve = updatedSuggestions.find(i => i.hash === itemToPreserveCandidate.hash);
+				if (updatedItemToPreserve) {
+					updatedSuggestions = moveToFront(updatedItemToPreserve, updatedSuggestions);
+				} else {
+					updatedSuggestions = [itemToPreserveCandidate, ...updatedSuggestions];
 				}
 			}
 		}
@@ -396,26 +398,32 @@ class InlineCompletionsState extends Disposable {
 			// Otherwise: prefer inline completion if there is a visible one
 			: updatedSuggestions.some(i => !i.isInlineEdit && i.isVisible(textModel, cursorPosition));
 
+		const updatedItems: InlineSuggestionItem[] = [];
 		for (const i of updatedSuggestions) {
 			const oldItem = this._findByHash(i.hash);
-			if (oldItem) {
-				updatedItems.push(i.withIdentity(oldItem.identity));
+			let item;
+			if (oldItem && oldItem !== i) {
+				item = i.withIdentity(oldItem.identity);
 				oldItem.setEndOfLifeReason({ kind: InlineCompletionEndOfLifeReasonKind.Ignored, userTypingDisagreed: false, supersededBy: i.getSourceCompletion() });
 			} else {
-				updatedItems.push(i);
+				item = i;
+			}
+			if (preferInlineCompletions !== item.isInlineEdit) {
+				updatedItems.push(item);
 			}
 		}
-
-		if (itemToPreserve) {
-			updatedItems.unshift(itemToPreserve);
-		}
-
-		updatedItems = preferInlineCompletions ? updatedItems.filter(i => !i.isInlineEdit) : updatedItems.filter(i => i.isInlineEdit);
-
 		return new InlineCompletionsState(updatedItems, request);
 	}
 
 	public clone(): InlineCompletionsState {
 		return new InlineCompletionsState(this.inlineCompletions, this.request);
 	}
+}
+
+function moveToFront<T>(item: T, items: T[]): T[] {
+	const index = items.indexOf(item);
+	if (index > -1) {
+		return [item, ...items.slice(0, index), ...items.slice(index + 1)];
+	}
+	return items;
 }
