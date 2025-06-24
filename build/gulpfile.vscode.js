@@ -36,6 +36,8 @@ const { promisify } = require('util');
 const glob = promisify(require('glob'));
 const rcedit = promisify(require('rcedit'));
 
+const versionedResourcesFolder = `${packageJson.version}-${commit}`;
+
 // Build
 const vscodeEntryPoints = [
 	buildfile.workerEditor,
@@ -321,6 +323,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			deps
 		);
 
+		let customElectronConfig = {};
 		if (platform === 'win32') {
 			all = es.merge(all, gulp.src([
 				'resources/win32/bower.ico',
@@ -353,6 +356,14 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				'resources/win32/code_70x70.png',
 				'resources/win32/code_150x150.png'
 			], { base: '.' }));
+			customElectronConfig = {
+				createVersionedResources: true,
+				productVersionString: `${versionedResourcesFolder}`,
+				repo: 'deepak1556/electron-debug-version',
+				validateChecksum: false,
+				version: '35.5.1',
+				tag: 'v35.5.1-0002'
+			};
 		} else if (platform === 'linux') {
 			all = es.merge(all, gulp.src('resources/linux/code.png', { base: '.' }));
 		} else if (platform === 'darwin') {
@@ -368,7 +379,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			.pipe(util.skipDirectories())
 			.pipe(util.fixWin32DirectoryPermissions())
 			.pipe(filter(['**', '!**/.github/**'], { dot: true })) // https://github.com/microsoft/vscode/issues/116523
-			.pipe(electron({ ...config, platform, arch: arch === 'armhf' ? 'arm' : arch, ffmpegChromium: false }))
+			.pipe(electron({ ...config, platform, arch: arch === 'armhf' ? 'arm' : arch, ffmpegChromium: false, ...customElectronConfig }))
 			.pipe(filter(['**', '!LICENSE', '!version'], { dot: true }));
 
 		if (platform === 'linux') {
@@ -429,8 +440,8 @@ function patchWin32DependenciesTask(destinationFolderName) {
 
 	return async () => {
 		const deps = await glob('**/*.node', { cwd, ignore: 'extensions/node_modules/@parcel/watcher/**' });
-		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, 'resources', 'app', 'package.json'), 'utf8'));
-		const product = JSON.parse(await fs.promises.readFile(path.join(cwd, 'resources', 'app', 'product.json'), 'utf8'));
+		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'package.json'), 'utf8'));
+		const product = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'product.json'), 'utf8'));
 		const baseVersion = packageJson.version.replace(/-.*$/, '');
 
 		await Promise.all(deps.map(async dep => {
