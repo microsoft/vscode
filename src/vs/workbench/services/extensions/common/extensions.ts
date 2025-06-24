@@ -326,6 +326,7 @@ export function checkProposedApiEnabled(extension: IExtensionDescription, propos
 	}
 }
 
+
 /**
  * Extension id or one of the four known program states.
  */
