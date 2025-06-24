@@ -112,6 +112,10 @@ export function isQuickChat(widget: IChatWidget): boolean {
 	return 'viewContext' in widget && 'isQuickChat' in widget.viewContext && Boolean(widget.viewContext.isQuickChat);
 }
 
+export function isInlineChat(widget: IChatWidget): boolean {
+	return 'viewContext' in widget && 'isInlineChat' in widget.viewContext && Boolean(widget.viewContext.isInlineChat);
+}
+
 export class ChatWidget extends Disposable implements IChatWidget {
 	public static readonly CONTRIBS: { new(...args: [IChatWidget, ...any]): IChatWidgetContrib }[] = [];
 
@@ -820,6 +824,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._codeBlockModelCollection,
 			overflowWidgetsContainer,
 			this.viewModel,
+			isInlineChat(this) || isQuickChat(this),
 		));
 
 		this._register(this.renderer.onDidClickRequest(async item => {

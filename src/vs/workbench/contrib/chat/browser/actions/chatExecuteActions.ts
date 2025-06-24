@@ -611,16 +611,6 @@ export class CancelEdit extends Action2 {
 			title: localize2('interactive.cancelEdit.label', "Cancel Edit"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			icon: Codicon.x,
-			menu: {
-				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(
-					ChatContextKeys.enabled,
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
-					ChatContextKeys.inQuickChat.negate(), ChatContextKeys.currentlyEditing),
-				order: 3,
-				group: 'navigation',
-			},
 			keybinding: {
 				primary: KeyCode.Escape,
 				when: ContextKeyExpr.and(ChatContextKeys.inChatInput,
