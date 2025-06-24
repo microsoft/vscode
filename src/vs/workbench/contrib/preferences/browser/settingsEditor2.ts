@@ -773,6 +773,7 @@ export class SettingsEditor2 extends EditorPane {
 	private async onDidToggleAiSearch(): Promise<void> {
 		if (this.searchResultModel && this.showAiResultsAction) {
 			this.searchResultModel.showAiResults = this.showAiResultsAction.checked ?? false;
+			this.renderResultCountMessages(false);
 			this.onDidFinishSearch(true, undefined);
 		}
 	}
@@ -1596,7 +1597,7 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		}
 
-		this.renderResultCountMessages();
+		this.renderResultCountMessages(false);
 
 		if (key) {
 			const elements = this.currentSettingsModel?.getElementsByName(key);
@@ -1735,14 +1736,14 @@ export class SettingsEditor2 extends EditorPane {
 					this.tocTree.expandAll();
 				}
 				this.refreshTOCTree();
-				this.renderResultCountMessages();
+				this.renderResultCountMessages(false);
 				this.refreshTree();
 				this.toggleTocBySearchBehaviorType();
 			} else if (!this.tocTreeDisposed) {
 				// Leaving search mode
 				this.tocTree.collapseAll();
 				this.refreshTOCTree();
-				this.renderResultCountMessages();
+				this.renderResultCountMessages(false);
 				this.refreshTree();
 				this.layoutSplitView(this.dimension);
 			}
@@ -1819,6 +1820,7 @@ export class SettingsEditor2 extends EditorPane {
 				return this.doAiSearch(query, token).then((results) => {
 					if (results && this.showAiResultsAction) {
 						this.showAiResultsAction.enabled = true;
+						this.renderResultCountMessages(true);
 					}
 				}).catch(e => {
 					if (!isCancellationError(e)) {
@@ -1905,7 +1907,7 @@ export class SettingsEditor2 extends EditorPane {
 		return result;
 	}
 
-	private renderResultCountMessages() {
+	private renderResultCountMessages(showAiResultsMessage: boolean) {
 		if (!this.currentSettingsModel) {
 			return;
 		}
@@ -1933,6 +1935,13 @@ export class SettingsEditor2 extends EditorPane {
 				case 0: resultString = localize('noResults', "No Settings Found"); break;
 				case 1: resultString = localize('oneResult', "1 Setting Found"); break;
 				default: resultString = localize('moreThanOneResult', "{0} Settings Found", count);
+			}
+
+			if (showAiResultsMessage) {
+				resultString += localize({
+					key: 'aiSearchResults',
+					comment: ['This string is appended after noResults, oneResult, or moreThanOneResult']
+				}, ". AI Results Available");
 			}
 
 			this.searchResultLabel = resultString;
