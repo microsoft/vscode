@@ -216,9 +216,11 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 		}
 		const actionLabel = labelForHoverVerbosityAction(this._keybindingService, action);
 		const actionEnabled = this._hoverController.doesHoverAtIndexSupportVerbosityAction(this._focusedHoverPartIndex, action);
-		return new Action(accessibleActionId, actionLabel, ThemeIcon.asClassName(actionCodicon), actionEnabled, () => {
+		const actionInstance = new Action(accessibleActionId, actionLabel, ThemeIcon.asClassName(actionCodicon), actionEnabled, () => {
 			editor.getAction(actionId)?.run({ index: this._focusedHoverPartIndex, focus: false });
 		});
+		actionInstance.tooltip = actionLabel;
+		return actionInstance;
 	}
 
 	private _initializeOptions(editor: ICodeEditor, hoverController: ContentHoverController): void {
