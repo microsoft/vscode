@@ -425,7 +425,6 @@ export class RecommendationWidget extends ExtensionWidget {
 		this.render();
 		this._register(toDisposable(() => this.clear()));
 		this._register(this.extensionRecommendationsService.onDidChangeRecommendations(() => this.render()));
-		this._register(this.extensionsWorkbenchService.onChange(() => this.render()));
 	}
 
 	private clear(): void {
@@ -1050,7 +1049,6 @@ export class ExtensionRecommendationWidget extends ExtensionWidget {
 		super();
 		this.render();
 		this._register(this.extensionRecommendationsService.onDidChangeRecommendations(() => this.render()));
-		this._register(this.extensionsWorkbenchService.onChange(() => this.render()));
 	}
 
 	render(): void {
