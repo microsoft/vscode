@@ -61,7 +61,7 @@ import { IChatContentInlineReference, IChatFollowup, IChatNotebookEdit, IChatPro
 import { IChatRequestVariableValue } from '../../contrib/chat/common/chatVariables.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsChangeEvent } from '../../contrib/chat/common/languageModels.js';
-import { IPreparedToolInvocation, IToolInvocation, IToolProgressStep, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IPreparedToolInvocation, IToolInvocation, IToolInvocationPreparationContext, IToolProgressStep, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from '../../contrib/debug/common/debug.js';
 import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from '../../contrib/mcp/common/mcpTypes.js';
 import * as notebookCommon from '../../contrib/notebook/common/notebookCommon.js';
@@ -1405,7 +1405,7 @@ export interface ExtHostLanguageModelToolsShape {
 	$invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>>;
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
 
-	$prepareToolInvocation(toolId: string, parameters: unknown, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
+	$prepareToolInvocation(toolId: string, context: IToolInvocationPreparationContext, token?: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
