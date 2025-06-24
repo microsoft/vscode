@@ -34,8 +34,8 @@ import { ViewLayout } from '../viewLayout/viewLayout.js';
 import { MinimapTokensColorTracker } from './minimapTokensColorTracker.js';
 import { ILineBreaksComputer, ILineBreaksComputerContext, ILineBreaksComputerFactory, InjectedText } from '../modelLineProjectionData.js';
 import { ViewEventHandler } from '../viewEventHandler.js';
-import { ICoordinatesConverter, ILineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
-import { InlineDecorations, ViewModelDecorations } from './viewModelDecorations.js';
+import { ICoordinatesConverter, ILineHeightChangeAccessor, InlineDecoration, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
+import { ViewModelDecorations } from './viewModelDecorations.js';
 import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelLineHeightChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
@@ -804,14 +804,47 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
-		const allInlineDecorations = this._decorations.getDecorationsViewportData(visibleRange).inlineDecorations;
+		const decorationViewportData = this._decorations.getDecorationsViewportData(visibleRange);
+		const allInlineDecorations = decorationViewportData.inlineDecorations;
 		const inlineDecorations = allInlineDecorations[lineNumber - visibleRange.startLineNumber];
-		return this._getViewLineRenderingData(lineNumber, inlineDecorations);
+		const hasVariableFonts = decorationViewportData.hasVariableFonts;
+		return this._getViewLineRenderingData(lineNumber, inlineDecorations, hasVariableFonts);
 	}
 
 	public getViewLineRenderingData(lineNumber: number): ViewLineRenderingData {
-		const inlineDecorations = this._decorations.getInlineDecorationsOnLine(lineNumber);
-		return this._getViewLineRenderingData(lineNumber, inlineDecorations);
+		const decorations = this._decorations.getInlineDecorationsOnLine(lineNumber);
+		return this._getViewLineRenderingData(lineNumber, decorations.inlineDecorations, decorations.hasVariableFonts);
+	}
+
+	private _getViewLineRenderingData(lineNumber: number, inlineDecorations: InlineDecoration[], hasVariableFonts: boolean): ViewLineRenderingData {
+		const mightContainRTL = this.model.mightContainRTL();
+		const mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
+		const tabSize = this.getTabSize();
+		// TODO: Maybe should also consider whether the below has variable fonts
+		const lineData = this._lines.getViewLineData(lineNumber);
+
+		if (lineData.inlineDecorations) {
+			inlineDecorations = [
+				...inlineDecorations,
+				...lineData.inlineDecorations.map(d =>
+					d.toInlineDecoration(lineNumber)
+				)
+			];
+		}
+
+		return new ViewLineRenderingData(
+			lineData.minColumn,
+			lineData.maxColumn,
+			lineData.content,
+			lineData.continuesWithWrappedLine,
+			mightContainRTL,
+			mightContainNonBasicASCII,
+			lineData.tokens,
+			inlineDecorations,
+			tabSize,
+			lineData.startVisibleColumn,
+			hasVariableFonts
+		);
 	}
 
 	private _getLineBreaksComputerContext(): ILineBreaksComputerContext {
@@ -829,32 +862,6 @@ export class ViewModel extends Disposable implements IViewModel {
 				return this.model.getLineInjectedText(lineNumber, this._editorId);
 			}
 		};
-	}
-
-	private _getViewLineRenderingData(lineNumber: number, inlineDecorations: InlineDecorations): ViewLineRenderingData {
-		const mightContainRTL = this.model.mightContainRTL();
-		const mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
-		const tabSize = this.getTabSize();
-		const lineData = this._lines.getViewLineData(lineNumber);
-
-		if (lineData.inlineDecorations) {
-			for (const inlineDecoration of lineData.inlineDecorations) {
-				inlineDecorations.push(inlineDecoration.toInlineDecoration(lineNumber), inlineDecoration.affectsFont);
-			}
-		}
-
-		return new ViewLineRenderingData(
-			lineData.minColumn,
-			lineData.maxColumn,
-			lineData.content,
-			lineData.continuesWithWrappedLine,
-			mightContainRTL,
-			mightContainNonBasicASCII,
-			lineData.tokens,
-			inlineDecorations,
-			tabSize,
-			lineData.startVisibleColumn
-		);
 	}
 
 	public getViewLineData(lineNumber: number): ViewLineData {

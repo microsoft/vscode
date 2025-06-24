@@ -166,7 +166,7 @@ class ModelLineProjection implements IModelLineProjection {
 
 		const lineTokens = model.tokenization.getLineTokens(modelLineNumber);
 		const inlineDecorationsPerOutputLine = getInjectedTextInlineDecorations(injectionOptions, injectionOffsets, lineBreakData.breakOffsets, lineBreakData.wrappedTextIndentLength);
-		const lineTokensWithInjections = getLineTokensWithInjections(lineTokens, injectionOptions, injectionOffsets);
+		const lineWithInjections = getLineTokensWithInjections(lineTokens, injectionOptions, injectionOffsets);
 
 		for (let outputLineIndex = outputLineIdx; outputLineIndex < outputLineIdx + lineCount; outputLineIndex++) {
 			const globalIndex = globalStartIndex + outputLineIndex - outputLineIdx;
@@ -174,7 +174,7 @@ class ModelLineProjection implements IModelLineProjection {
 				result[globalIndex] = null;
 				continue;
 			}
-			result[globalIndex] = this._getViewLineData(lineTokensWithInjections, inlineDecorationsPerOutputLine ? inlineDecorationsPerOutputLine[outputLineIndex] : null, outputLineIndex);
+			result[globalIndex] = this._getViewLineData(lineWithInjections, inlineDecorationsPerOutputLine ? inlineDecorationsPerOutputLine[outputLineIndex] : null, outputLineIndex);
 		}
 	}
 

@@ -848,9 +848,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public getLineInlineDecorations(lineNumber: number, ownerId?: number): LineInlineDecoration[] {
 		const range = new Range(lineNumber, 1, lineNumber, this.getLineMaxColumn(lineNumber));
-		const inlineDecorationsFromModel = this.getViewportDecorationsInRange(range, ownerId).map(decoration => LineInlineDecoration.fromModelDecorations(decoration.modelInlineDecorations)).flat();
-		const injectedTextDecorations = this._getInjectedInlineDecorations(lineNumber) || [];
-		return inlineDecorationsFromModel.concat(injectedTextDecorations);
+		const inlineDecorations = this.getViewportDecorationsInRange(range, ownerId).map(decoration => LineInlineDecoration.fromModelDecorations(decoration.modelInlineDecorations)).flat();
+		const injectedTextInlineDecorations = this._getInjectedInlineDecorations(lineNumber) || [];
+		return inlineDecorations.concat(injectedTextInlineDecorations);
 	}
 
 	private _getInjectedInlineDecorations(lineNumber: number, ownerId?: number): LineInlineDecoration[] | null {
@@ -1835,7 +1835,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			decorationsInViewport.push({
 				modelInlineDecorations,
 				modelDecoration,
-			})
+			});
 		}
 		return decorationsInViewport;
 	}

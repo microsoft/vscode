@@ -1317,8 +1317,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return null;
 		}
-		const options = this._configuration.options.get(EditorOption.effectiveAllowVariableFonts);
-		if (!options) {
+		const allowVariableFonts = this._configuration.options.get(EditorOption.effectiveAllowVariableFonts);
+		if (!allowVariableFonts) {
 			return [];
 		}
 		return this._modelData.model.getFontDecorationsInRange(range, this._id);

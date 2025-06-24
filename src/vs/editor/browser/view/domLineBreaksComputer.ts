@@ -183,7 +183,6 @@ function renderLine(context: ILineBreaksComputerContext, lineNumber: number, tab
 	const tokens = context.getLineTokens(lineNumber);
 	const lineContent = LineInjectedText.applyInjectedText(context.getLineContent(lineNumber), context.getLineInjectedText(lineNumber));
 	const isBasicASCII = strings.isBasicASCII(lineContent);
-	// TODO
 	const lineHasVariableFonts = inlineDecorations.affectsFonts;
 	let renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
 	if (lineHasVariableFonts || options.get(EditorOption.experimentalWhitespaceRendering) === 'off') {

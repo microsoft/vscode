@@ -65,7 +65,7 @@ export class DiffEditorViewZones extends Disposable {
 		private readonly _origViewZonesToIgnore: Set<string>,
 		private readonly _modViewZonesToIgnore: Set<string>,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 	) {
 		super();
 		this._originalTopPadding = observableValue(this, 0);
