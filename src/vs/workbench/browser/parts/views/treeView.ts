@@ -27,7 +27,7 @@ import { Mimes } from '../../../../base/common/mime.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename, dirname } from '../../../../base/common/resources.js';
 import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
-import { isString } from '../../../../base/common/types.js';
+import { isNumber, isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import './media/views.css';
@@ -59,7 +59,7 @@ import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from '../
 import { getLocationBasedViewColors, IViewPaneOptions, ViewPane } from './viewPane.js';
 import { IViewletViewOptions } from './viewsViewlet.js';
 import { Extensions, ITreeItem, ITreeItemLabel, ITreeView, ITreeViewDataProvider, ITreeViewDescriptor, ITreeViewDragAndDropController, IViewBadge, IViewDescriptorService, IViewsRegistry, ResolvableTreeItem, TreeCommand, TreeItemCollapsibleState, TreeViewItemHandleArg, TreeViewPaneHandleArg, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
-import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
+import { IActivityService, IconBadge, NumberBadge } from '../../../services/activity/common/activity.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { CodeDataTransfers, LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
@@ -493,7 +493,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		this._badge = badge;
 		if (badge) {
 			const activity = {
-				badge: new NumberBadge(badge.value, () => badge.tooltip),
+				badge: isNumber(badge.value) ? new NumberBadge(badge.value, () => badge.tooltip) : new IconBadge(badge.value, () => badge.tooltip),
 				priority: 50
 			};
 			this._activity.value = this.activityService.showViewActivity(this.id, activity);

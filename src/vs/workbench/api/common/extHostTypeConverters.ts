@@ -2172,7 +2172,7 @@ export namespace TypeHierarchyItem {
 }
 
 export namespace ViewBadge {
-	export function from(badge: vscode.ViewBadge | undefined): IViewBadge | undefined {
+	export function from(badge: vscode.ViewBadge2 | undefined): IViewBadge | undefined {
 		if (!badge) {
 			return undefined;
 		}

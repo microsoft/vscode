@@ -2810,7 +2810,7 @@ export namespace ViewBadge {
 	export function isViewBadge(thing: any): thing is vscode.ViewBadge {
 		const viewBadgeThing = thing as vscode.ViewBadge;
 
-		if (!isNumber(viewBadgeThing.value)) {
+		if (!isNumber(viewBadgeThing.value) && !((viewBadgeThing.value as any) instanceof ThemeIcon)) {
 			console.log('INVALID view badge, invalid value', viewBadgeThing.value);
 			return false;
 		}

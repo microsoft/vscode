@@ -881,5 +881,5 @@ export interface IViewPaneContainer {
 
 export interface IViewBadge {
 	readonly tooltip: string;
-	readonly value: number;
+	readonly value: number | ThemeIcon;
 }

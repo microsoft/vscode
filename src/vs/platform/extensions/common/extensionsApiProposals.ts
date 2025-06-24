@@ -398,6 +398,9 @@ const _allApiProposals = {
 	toolProgress: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.toolProgress.d.ts',
 	},
+	treeIconBadge: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.treeIconBadge.d.ts',
+	},
 	treeViewActiveItem: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.treeViewActiveItem.d.ts',
 	},

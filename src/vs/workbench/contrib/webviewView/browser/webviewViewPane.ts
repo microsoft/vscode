@@ -26,9 +26,10 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ExtensionKeyedWebviewOriginStore, IOverlayWebview, IWebviewService, WebviewContentPurpose } from '../../webview/browser/webview.js';
 import { WebviewWindowDragMonitor } from '../../webview/browser/webviewWindowDragMonitor.js';
 import { IWebviewViewService, WebviewView } from './webviewViewService.js';
-import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
+import { IActivityService, IconBadge, NumberBadge } from '../../../services/activity/common/activity.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { isNumber } from '../../../../base/common/types.js';
 
 const storageKeys = {
 	webviewState: 'webviewState',
@@ -257,7 +258,7 @@ export class WebviewViewPane extends ViewPane {
 		this.badge = badge;
 		if (badge) {
 			const activity = {
-				badge: new NumberBadge(badge.value, () => badge.tooltip),
+				badge: isNumber(badge.value) ? new NumberBadge(badge.value, () => badge.tooltip) : new IconBadge(badge.value, () => badge.tooltip),
 				priority: 150
 			};
 			this.activity.value = this.activityService.showViewActivity(this.id, activity);
