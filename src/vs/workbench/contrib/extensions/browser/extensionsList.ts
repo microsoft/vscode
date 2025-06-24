@@ -62,6 +62,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) { }
