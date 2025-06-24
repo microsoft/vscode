@@ -119,7 +119,7 @@ export class InlineCompletionsSource extends Disposable {
 
 	public fetch(providers: InlineCompletionsProvider[], context: InlineCompletionContextWithoutUuid, activeInlineCompletion: InlineSuggestionIdentity | undefined, withDebounce: boolean, userJumpedToActiveCompletion: IObservable<boolean>, providerhasChangedCompletion: boolean, editorType: InlineCompletionEditorType): Promise<boolean> {
 		const position = this._cursorPosition.get();
-		const request = new UpdateRequest(position, context, this._textModel.getVersionId());
+		const request = new UpdateRequest(position, context, this._textModel.getVersionId(), new Set(providers));
 
 		const target = context.selectedSuggestionInfo ? this.suggestWidgetInlineCompletions.get() : this.inlineCompletions.get();
 
@@ -307,6 +307,7 @@ class UpdateRequest {
 		public readonly position: Position,
 		public readonly context: InlineCompletionContextWithoutUuid,
 		public readonly versionId: number,
+		public readonly providers: Set<InlineCompletionsProvider>,
 	) {
 	}
 
@@ -315,12 +316,17 @@ class UpdateRequest {
 			&& equalsIfDefined(this.context.selectedSuggestionInfo, other.context.selectedSuggestionInfo, itemEquals())
 			&& (other.context.triggerKind === InlineCompletionTriggerKind.Automatic
 				|| this.context.triggerKind === InlineCompletionTriggerKind.Explicit)
-			&& this.versionId === other.versionId;
+			&& this.versionId === other.versionId
+			&& isSubset(other.providers, this.providers);
 	}
 
 	public get isExplicitRequest() {
 		return this.context.triggerKind === InlineCompletionTriggerKind.Explicit;
 	}
+}
+
+function isSubset<T>(set1: Set<T>, set2: Set<T>): boolean {
+	return [...set1].every(item => set2.has(item));
 }
 
 class UpdateOperation implements IDisposable {
