@@ -63,19 +63,6 @@ export class WaveformEditorProvider implements vscode.CustomReadonlyEditorProvid
 
         const documentUri = webviewPanel.webview.asWebviewUri(document.uri).toString()
 
-        webviewPanel.webview.onDidReceiveMessage((message) => {
-            switch (message.command) {
-                case 'loaded': {
-                    console.log("Surfer got the loaded message from the web view")
-                    webviewPanel.webview.postMessage({command: "LoadUrl", url: documentUri})
-                    break;
-                }
-
-                default: {
-                    console.log(`Got unexpected command (${message.command}) from surfer web view`)
-                }
-            }
-        })
     }
 
     /**
@@ -102,15 +89,6 @@ export class WaveformEditorProvider implements vscode.CustomReadonlyEditorProvid
         //replace all the instances of integration.js with suferloc + /integration.js
         html = this.replaceAll(html, "/integration.js", surferWebviewUri + "/integration.js")
 
-        const load_notifier = `
-            (function() {
-                const vscode = acquireVsCodeApi();
-
-                vscode.postMessage({
-                    command: 'loaded',
-                })
-            }())`
-        html = html.replaceAll("/*SURFER_SETUP_HOOKS*/", `${load_notifier}`)
 
         return html
     }
