@@ -42,6 +42,7 @@ async function createStorageService(): Promise<[DisposableStore, BrowserStorageS
 		settingsResource: joinPath(inMemoryExtraProfileRoot, 'settingsResource'),
 		keybindingsResource: joinPath(inMemoryExtraProfileRoot, 'keybindingsResource'),
 		tasksResource: joinPath(inMemoryExtraProfileRoot, 'tasksResource'),
+		mcpResource: joinPath(inMemoryExtraProfileRoot, 'mcp.json'),
 		snippetsHome: joinPath(inMemoryExtraProfileRoot, 'snippetsHome'),
 		promptsHome: joinPath(inMemoryExtraProfileRoot, 'promptsHome'),
 		extensionsResource: joinPath(inMemoryExtraProfileRoot, 'extensionsResource'),
