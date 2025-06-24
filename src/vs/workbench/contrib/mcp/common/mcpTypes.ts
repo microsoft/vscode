@@ -20,8 +20,8 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IMcpServer as IInstallableMcpServer, IGalleryMcpServer, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
-import { IMcpDevModeConfig } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IInstallableMcpServer as IInstallableMcpServer, IGalleryMcpServer, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IMcpDevModeConfig, IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkspaceFolder, IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
@@ -572,6 +572,7 @@ export interface IMcpServerContainer extends IDisposable {
 export interface IWorkbenchMcpServer {
 	readonly gallery: IGalleryMcpServer | undefined;
 	readonly local: IWorkbenchLocalMcpServer | undefined;
+	readonly installable: IInstallableMcpServer | undefined;
 	readonly id: string;
 	readonly name: string;
 	readonly label: string;
@@ -584,6 +585,8 @@ export interface IWorkbenchMcpServer {
 	readonly rating?: number;
 	readonly url?: string;
 	readonly repository?: string;
+	readonly config?: IMcpServerConfiguration | undefined;
+	hasReadme(): boolean;
 	getReadme(token: CancellationToken): Promise<string>;
 }
 
@@ -594,8 +597,7 @@ export interface IMcpWorkbenchService {
 	readonly local: readonly IWorkbenchMcpServer[];
 	queryLocal(): Promise<IWorkbenchMcpServer[]>;
 	queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IWorkbenchMcpServer[]>;
-	install(server: IInstallableMcpServer, installOptions?: IWorkbencMcpServerInstallOptions): Promise<void>;
-	installFromGallery(mcpServer: IWorkbenchMcpServer): Promise<void>;
+	install(server: IWorkbenchMcpServer, installOptions?: IWorkbencMcpServerInstallOptions): Promise<void>;
 	uninstall(mcpServer: IWorkbenchMcpServer): Promise<void>;
 	getMcpConfigPath(arg: IWorkbenchLocalMcpServer): IMcpConfigPath | undefined;
 	getMcpConfigPath(arg: URI): Promise<IMcpConfigPath | undefined>;

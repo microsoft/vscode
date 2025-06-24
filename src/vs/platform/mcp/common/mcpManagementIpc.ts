@@ -9,7 +9,7 @@ import { cloneAndChange } from '../../../base/common/objects.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { DefaultURITransformer, IURITransformer, transformAndReviveIncomingURIs } from '../../../base/common/uriIpc.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpManagementService, IMcpServer, InstallMcpServerEvent, InstallMcpServerResult, InstallOptions, UninstallMcpServerEvent, UninstallOptions } from './mcpManagement.js';
+import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpManagementService, IInstallableMcpServer, InstallMcpServerEvent, InstallMcpServerResult, InstallOptions, UninstallMcpServerEvent, UninstallOptions } from './mcpManagement.js';
 
 function transformIncomingURI(uri: UriComponents, transformer: IURITransformer | null): URI;
 function transformIncomingURI(uri: UriComponents | undefined, transformer: IURITransformer | null): URI | undefined;
@@ -126,7 +126,7 @@ export class McpManagementChannelClient extends Disposable implements IMcpManage
 		this._register(this.channel.listen<DidUninstallMcpServerEvent>('onDidUninstallMcpServer')(e => this._onDidUninstallMcpServer.fire(({ ...e, mcpResource: transformIncomingURI(e.mcpResource, null) }))));
 	}
 
-	install(server: IMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
+	install(server: IInstallableMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
 		return Promise.resolve(this.channel.call<ILocalMcpServer>('install', [server, options])).then(local => transformIncomingServer(local, null));
 	}
 
