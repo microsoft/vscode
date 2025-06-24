@@ -91,6 +91,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { TerminalContribCommandId } from '../terminalContribExports.js';
 import type { IProgressState } from '@xterm/addon-progress';
 import { refreshShellIntegrationInfoStatus } from './terminalTooltip.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 
 const enum Constants {
 	/**
@@ -360,6 +361,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		onDidAddFirstListener: async () => (this.xterm ?? await this._xtermReadyPromise)?.raw.loadAddon(this._lineDataEventAddon!)
 	}));
 	readonly onLineData = this._onLineData.event;
+
+	readonly sessionId = generateUuid();
 
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,

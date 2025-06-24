@@ -67,7 +67,7 @@ export class ListMcpServerCommand extends Action2 {
 			icon: Codicon.server,
 			category,
 			f1: true,
-			menu: {
+			menu: [{
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.or(McpContextKeys.hasUnknownTools, McpContextKeys.hasServersWithErrors),
 					ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
@@ -75,7 +75,7 @@ export class ListMcpServerCommand extends Action2 {
 				id: MenuId.ChatExecute,
 				group: 'navigation',
 				order: 2,
-			},
+			}],
 		});
 	}
 

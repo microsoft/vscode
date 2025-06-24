@@ -675,6 +675,11 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	readonly hasFocus: boolean;
 
 	/**
+	 * The ID of the session that this terminal is connected to
+	 */
+	readonly sessionId: string;
+
+	/**
 	 * Get or set the behavior of the terminal when it closes. This was indented only to be called
 	 * after reconnecting to a terminal.
 	 */

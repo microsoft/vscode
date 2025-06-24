@@ -460,11 +460,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
-	toEnablementMap(toolOrToolsetNames: Iterable<string>): Record<string, boolean> {
-		const toolOrToolset = new Set<string>(toolOrToolsetNames);
+	toToolEnablementMap(toolOrToolsetNames: Set<string>): Record<string, boolean> {
 		const result: Record<string, boolean> = {};
 		for (const tool of this._tools.values()) {
-			if (tool.data.toolReferenceName && toolOrToolset.has(tool.data.toolReferenceName) || toolOrToolset.has(tool.data.id)) {
+			if (tool.data.toolReferenceName && toolOrToolsetNames.has(tool.data.toolReferenceName)) {
 				result[tool.data.id] = true;
 			} else {
 				result[tool.data.id] = false;
@@ -472,11 +471,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		for (const toolSet of this._toolSets) {
-			if (toolOrToolset.has(toolSet.referenceName)) {
-				result[toolSet.referenceName] = true;
-			}
-			for (const tool of toolSet.getTools()) {
-				if (toolOrToolset.has(tool.id)) {
+			if (toolOrToolsetNames.has(toolSet.referenceName)) {
+				for (const tool of toolSet.getTools()) {
 					result[tool.id] = true;
 				}
 			}

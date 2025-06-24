@@ -106,7 +106,6 @@ import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesCon
 import { LanguageModelToolsService } from './languageModelToolsService.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
-import product from '../../../../platform/product/common/product.js';
 import { ChatModeService, IChatModeService } from '../common/chatModes.js';
 import { ChatResponseResourceFileSystemProvider } from '../common/chatResponseResourceFileSystemProvider.js';
 import { runSaveToPromptAction, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './promptSyntax/saveToPromptAction.js';
@@ -244,6 +243,12 @@ configurationRegistry.registerConfiguration({
 		'chat.undoRequests.restoreInput': {
 			default: true,
 			markdownDescription: nls.localize('chat.undoRequests.restoreInput', "Controls whether the input of the chat should be restored when an undo request is made. The input will be filled with the text of the request that was restored."),
+			type: 'boolean',
+			tags: ['experimental']
+		},
+		'chat.editRequests': {
+			default: true,
+			markdownDescription: nls.localize('chat.editRequests', "Enables editing of requests in the chat. This allows you to change the request content and resubmit it to the model."),
 			type: 'boolean',
 			tags: ['experimental']
 		},
@@ -468,16 +473,17 @@ configurationRegistry.registerConfiguration({
 			],
 		},
 		'chat.setup.signInWithAlternateProvider': { // TODO@bpasero remove me eventually
-			type: 'boolean',
+			type: 'string',
+			enum: ['off', 'monochrome', 'colorful', 'first'],
 			description: nls.localize('chat.signInWithAlternateProvider', "Enable alternative sign-in provider."),
-			default: false,
+			default: 'off',
 			tags: ['onExp', 'experimental'],
 		},
 		'chat.setup.signInDialogVariant': { // TODO@bpasero remove me eventually
 			type: 'string',
-			enum: ['default', 'modern', 'brand-gh', 'brand-vsc', 'style-glow', 'alt-first', 'input-email', 'account-create'],
+			enum: ['default', 'brand-gh', 'brand-vsc', 'style-glow', 'account-create'],
 			description: nls.localize('chat.signInDialogVariant', "Control variations of the sign-in dialog."),
-			default: product.quality !== 'stable' ? 'modern' : 'default',
+			default: 'default',
 			tags: ['onExp', 'experimental']
 		},
 		'chat.setup.continueLaterIndicator': { // TODO@bpasero remove me eventually

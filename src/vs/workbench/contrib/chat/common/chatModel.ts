@@ -62,6 +62,7 @@ export interface IChatRequestModel {
 	readonly response?: IChatResponseModel;
 	readonly editedFileEvents?: IChatAgentEditedFileEvent[];
 	shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
+	shouldBeBlocked: boolean;
 }
 
 export interface IChatTextEditGroupState {
@@ -167,6 +168,7 @@ export interface IChatResponseModel {
 	readonly isPendingConfirmation: IObservable<boolean>;
 	readonly isInProgress: IObservable<boolean>;
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
+	shouldBeBlocked: boolean;
 	readonly isCompleteAddedRequest: boolean;
 	/** A stale response is one that has been persisted and rehydrated, so e.g. Commands that have their arguments stored in the EH are gone. */
 	readonly isStale: boolean;
@@ -217,6 +219,8 @@ export class ChatRequestModel implements IChatRequestModel {
 	public readonly message: IParsedChatRequest;
 	public readonly isCompleteAddedRequest: boolean;
 	public readonly modelId?: string;
+
+	public shouldBeBlocked: boolean = false;
 
 	private _session: ChatModel;
 	private readonly _attempt: number;
@@ -566,6 +570,7 @@ export interface IChatResponseModelParameters {
 	followups?: ReadonlyArray<IChatFollowup>;
 	isCompleteAddedRequest?: boolean;
 	shouldBeRemovedOnSend?: IChatRequestDisablement;
+	shouldBeBlocked?: boolean;
 	restoredId?: string;
 }
 
@@ -585,6 +590,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	private _result?: IChatAgentResult;
 	private _shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	public readonly isCompleteAddedRequest: boolean;
+	private _shouldBeBlocked: boolean = false;
+
+	public get shouldBeBlocked() {
+		return this._shouldBeBlocked;
+	}
 
 	public get session() {
 		return this._session;
@@ -718,6 +728,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._followups = params.followups ? [...params.followups] : undefined;
 		this.isCompleteAddedRequest = params.isCompleteAddedRequest ?? false;
 		this._shouldBeRemovedOnSend = params.shouldBeRemovedOnSend;
+		this._shouldBeBlocked = params.shouldBeBlocked ?? false;
 
 		// If we are creating a response with some existing content, consider it stale
 		this._isStale = Array.isArray(params.responseContent) && (params.responseContent.length !== 0 || isMarkdownString(params.responseContent) && params.responseContent.value.length !== 0);
@@ -747,6 +758,17 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire(defaultChatResponseModelChangeReason)));
 		this.id = params.restoredId ?? 'response_' + generateUuid();
+
+		this._register(this._session.onDidChange((e) => {
+			if (e.kind === 'setCheckpoint') {
+				const isDisabled = e.disabledResponseIds.has(this.id);
+				const didChange = this._shouldBeBlocked === isDisabled;
+				this._shouldBeBlocked = isDisabled;
+				if (didChange) {
+					this._onDidChange.fire(defaultChatResponseModelChangeReason);
+				}
+			}
+		}));
 	}
 
 	/**
@@ -898,6 +920,8 @@ export interface IChatModel {
 	 */
 	setDisabledRequests(requestIds: IChatRequestDisablement[]): void;
 	getRequests(): IChatRequestModel[];
+	setCheckpoint(requestId: string | undefined): void;
+	readonly checkpoint: IChatRequestModel | undefined;
 	toExport(): IExportableChatData;
 	toJSON(): ISerializableChatData;
 }
@@ -1059,11 +1083,18 @@ export type IChatChangeEvent =
 	| IChatMoveEvent
 	| IChatSetHiddenEvent
 	| IChatCompletedRequestEvent
+	| IChatSetCheckpointEvent
 	;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
 	request: IChatRequestModel;
+}
+
+export interface IChatSetCheckpointEvent {
+	kind: 'setCheckpoint';
+	disabledRequestIds: Set<string>;
+	disabledResponseIds: Set<string>;
 }
 
 export interface IChatChangedRequestEvent {
@@ -1338,7 +1369,8 @@ export class ChatModel extends Disposable implements IChatModel {
 						voteDownReason: raw.voteDownReason,
 						result,
 						followups: raw.followups,
-						restoredId: raw.responseId
+						restoredId: raw.responseId,
+						shouldBeBlocked: request.shouldBeBlocked,
 					});
 					request.response.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
 					if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
@@ -1401,6 +1433,54 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	getRequests(): ChatRequestModel[] {
 		return this._requests;
+	}
+
+	resetCheckpoint(): void {
+		for (const request of this._requests) {
+			request.shouldBeBlocked = false;
+		}
+	}
+
+	setCheckpoint(requestId: string | undefined) {
+		let checkpoint: ChatRequestModel | undefined;
+		let checkpointIndex = -1;
+		if (requestId !== undefined) {
+			this._requests.forEach((request, index) => {
+				if (request.id === requestId) {
+					checkpointIndex = index;
+					checkpoint = request;
+					request.shouldBeBlocked = true;
+				}
+			});
+
+			if (!checkpoint) {
+				return; // Invalid request ID
+			}
+		}
+
+		const disabledRequestIds = new Set<string>();
+		const disabledResponseIds = new Set<string>();
+		for (let i = this._requests.length - 1; i >= 0; i -= 1) {
+			const request = this._requests[i];
+			if (this._checkpoint && !checkpoint) {
+				request.shouldBeBlocked = false;
+			} else if (checkpoint && i >= checkpointIndex) {
+				request.shouldBeBlocked = true;
+				disabledRequestIds.add(request.id);
+				if (request.response) {
+					disabledResponseIds.add(request.response.id);
+				}
+			} else if (checkpoint && i < checkpointIndex) {
+				request.shouldBeBlocked = false;
+			}
+		}
+
+		this._checkpoint = checkpoint;
+		this._onDidChange.fire({
+			kind: 'setCheckpoint',
+			disabledRequestIds,
+			disabledResponseIds
+		});
 	}
 
 	private _checkpoint: ChatRequestModel | undefined = undefined;
