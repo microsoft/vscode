@@ -209,21 +209,10 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 	group: TerminalMenuBarGroup.Manage,
 	command: {
 		precondition: TASK_RUNNING_STATE,
-		id: RerunAllRunningTasksCommandId,
-		title: nls.localize({ key: 'miRerunAllRunningTasks', comment: ['&& denotes a mnemonic'] }, "Rerun &&All Running Tasks...")
-	},
-	order: 3,
-	when: TaskExecutionSupportedContext
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-	group: TerminalMenuBarGroup.Manage,
-	command: {
-		precondition: TASK_RUNNING_STATE,
 		id: 'workbench.action.tasks.terminate',
 		title: nls.localize({ key: 'miTerminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task...")
 	},
-	order: 4,
+	order: 3,
 	when: TaskExecutionSupportedContext
 });
 
