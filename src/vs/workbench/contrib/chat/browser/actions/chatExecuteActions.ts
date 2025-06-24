@@ -475,8 +475,8 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			menu: {
 				id: MenuId.ChatExecute,
 				group: 'navigation',
-				order: 4,
-				// when: // TODO: When there is at least one remote coding agent available
+				order: 0,
+				when: ChatContextKeys.hasRemoteCodingAgent
 			}
 		});
 	}
@@ -501,7 +501,9 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			if (!session) {
 				return;
 			}
-			// const chatSession = chatService.getSession(session);
+
+			const userPrompt = widget.getInput();
+			widget.setInput();
 
 			const chatModel = widget.viewModel?.model;
 			const chatRequests = chatModel.getRequests(); // Array of IChatRequestModel
@@ -513,14 +515,14 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				chatHistory.push({
 					req: userMessage.text,
 					res: response?.response.toString() ?? '',
-				});
+				}); // TODO - There is definitely new nuance here.
 			}
 
 			const agents = remoteCodingAgent.getRegisteredAgents();
 
 			const agent = agents[0]; // TODO: We just pick the first one for testing
 			if (agent) {
-				await commandService.executeCommand(agent.command, { chatHistory });
+				await commandService.executeCommand(agent.command, { chatHistory, userPrompt });
 			}
 		} finally {
 			remoteJobCreatingKey.set(false);
