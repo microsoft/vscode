@@ -7,7 +7,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { SnippetController2 } from '../../../../../editor/contrib/snippet/browser/snippetController2.js';
-import { localize } from '../../../../../nls.js';
+import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -172,28 +172,13 @@ class NewUntitledPromptFileAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.command.new.untitled.prompt',
-			title: {
-				original: 'New Untitled Prompt File',
-				value: localize('commands.new.untitled.prompt.title', "New Untitled Prompt File")
-			},
-			shortTitle: {
-				original: 'Untitled Prompt File',
-				value: localize('commands.new.untitled.prompt.shortTitle', "Untitled Prompt File")
-			},
+			title: localize2('commands.new.untitled.prompt.title', "New Untitled Prompt File"),
 			f1: true,
 			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			menu: [
-				{
-					id: MenuId.NewFile,
-					group: 'file',
-					order: 20,
-					when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled)
-				}
-			]
 		});
 	}
 
