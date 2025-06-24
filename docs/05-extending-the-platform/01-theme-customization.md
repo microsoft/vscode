@@ -1,239 +1,266 @@
 # Theme Customization
 
-This guide explains how to customize the visual appearance of the platform's front-end, including layouts, color schemes (supporting light/dark modes), component styling, and creating custom themes.
-
-[**Note:** The specifics of theme customization heavily depend on the front-end framework (e.g., React, Angular, Vue.js) and styling solution (e.g., CSS-in-JS, Tailwind CSS, SASS, CSS Variables) used by your platform. The following is a general template; you'll need to replace bracketed placeholders with actual implementation details.]
+This guide explains how to customize the visual appearance of the Autonomous Coding Agent platform's React frontend, which uses Tailwind CSS. Customization includes layouts, color schemes (supporting light/dark modes), component styling, and creating custom themes.
 
 ## Overview
 
-The platform's front-end is designed to be themable, allowing you to tailor its look and feel to match your branding or user preferences. The theming system typically involves:
+The platform's frontend is designed to be themable using a combination of CSS Custom Properties (Variables) and Tailwind CSS's configuration capabilities. This allows for:
+*   Dynamic changes to colors, fonts, and spacing.
+*   Support for light, dark, and potentially other custom themes.
+*   Consistent styling across UI components built with Tailwind CSS and headless UI primitives (like Headless UI or Radix UI).
 
-*   **CSS Variables:** For dynamic and easily overridable style properties like colors, fonts, and spacing.
-*   **Component Styling:** How individual UI components are styled and how these styles can be overridden or extended.
-*   **Layout System:** How page structures are defined and can be modified.
-*   **Theme Provider/Context:** (Common in React/Vue) A mechanism to inject theme information throughout the component tree.
+## Key Theming Concepts with Tailwind CSS
 
-## Key Theming Concepts
+### 1. CSS Custom Properties for Dynamic Theming
+While Tailwind CSS primarily uses utility classes, CSS Custom Properties (variables) are invaluable for dynamic theming, especially for colors that change with light/dark mode.
 
-### 1. CSS Variables
-The core of the theming system relies on CSS Custom Properties (Variables). These variables define the foundational style values.
+**a. Defining Theme Variables:**
+   Define your core theme variables in your global CSS file (e.g., `src/index.css` or `src/styles/globals.css`).
+   ```css
+   /* src/index.css or src/styles/globals.css */
+   @tailwind base;
+   @tailwind components;
+   @tailwind utilities;
 
-**Example: Defining base color variables (e.g., in `src/styles/theme-variables.css` or a similar global stylesheet):**
-```css
-:root {
-  /* Default (Light) Theme Variables */
-  --color-primary: #007bff;
-  --color-secondary: #6c757d;
-  --color-background: #ffffff;
-  --color-surface: #f8f9fa;
-  --color-text-primary: #212529;
-  --color-text-secondary: #495057;
-  --font-family-base: 'Arial', sans-serif;
-  --spacing-unit: 8px;
-  /* ... other variables for borders, shadows, etc. */
-}
+   @layer base {
+     :root {
+       /* Light Theme (Default) */
+       --color-primary: 259 94% 51%; /* HSL format for Tailwind opacity modifiers: oklch(59% 0.22 277) */
+       --color-secondary: 220 88% 47%;
+       --color-accent: 30 95% 52%;
 
-[data-theme="dark"] {
-  /* Dark Theme Overrides */
-  --color-primary: #0d6efd; /* Slightly different primary for dark if needed */
-  --color-secondary: #adb5bd;
-  --color-background: #121212;
-  --color-surface: #1e1e1e;
-  --color-text-primary: #e0e0e0;
-  --color-text-secondary: #a0a0a0;
-  /* ... other dark theme overrides */
-}
-```
+       --color-background: 0 0% 100%;       /* e.g., white */
+       --color-foreground: 222 47% 11%;    /* e.g., near black for text */
+       --color-surface: 0 0% 96%;          /* e.g., light gray for cards/surfaces */
+       --color-surface-foreground: 222 47% 11%;
+       --color-border: 214 32% 91%;
 
-**Usage in components:**
-```css
-.my-component {
-  background-color: var(--color-surface);
-  color: var(--color-text-primary);
-  padding: calc(var(--spacing-unit) * 2); /* 16px */
-  border: 1px solid var(--color-primary);
-}
-```
+       --font-family-sans: 'Inter', sans-serif; /* Example font */
+       --font-family-mono: 'JetBrains Mono', monospace;
 
-### 2. Color Schemes (Light/Dark Mode)
+       --radius: 0.5rem; /* Example border radius */
+     }
 
-The platform supports light and dark color schemes. This is typically managed by:
-*   Applying a specific attribute (e.g., `data-theme="dark"`) to the `<html>` or `<body>` tag.
-*   Using CSS variables that are redefined within the scope of that attribute (as shown above).
-*   A JavaScript function to toggle the theme and persist the user's preference (e.g., in `localStorage`).
+     .dark {
+       /* Dark Theme Overrides */
+       --color-primary: 259 90% 60%;
+       --color-secondary: 220 80% 55%;
+       --color-accent: 30 90% 60%;
 
-**Example JavaScript for theme toggling:**
-```javascript
-// src/theme-switcher.js (Simplified example)
-function setTheme(themeName) {
-  localStorage.setItem('theme', themeName);
-  document.documentElement.setAttribute('data-theme', themeName);
-}
+       --color-background: 222 47% 11%;    /* e.g., near black */
+       --color-foreground: 0 0% 98%;       /* e.g., near white for text */
+       --color-surface: 222 47% 18%;       /* e.g., dark gray for cards/surfaces */
+       --color-surface-foreground: 0 0% 98%;
+       --color-border: 214 20% 25%;
+     }
+   }
+   ```
+   *Tip: Using HSL or OKLCH values for colors allows Tailwind's opacity modifiers (e.g., `bg-primary/50`) to work correctly with CSS variables.*
 
-function toggleTheme() {
-  if (localStorage.getItem('theme') === 'dark') {
-    setTheme('light');
-  } else {
-    setTheme('dark');
-  }
-}
+**b. Integrating CSS Variables with Tailwind CSS:**
+   Extend Tailwind's theme in `tailwind.config.js` to use these CSS variables.
+   ```javascript
+   // tailwind.config.js
+   /** @type {import('tailwindcss').Config} */
+   module.exports = {
+     darkMode: 'class', // Enable class-based dark mode
+     content: [
+       "./src/**/*.{js,jsx,ts,tsx}",
+     ],
+     theme: {
+       extend: {
+         colors: {
+           primary: 'hsl(var(--color-primary) / <alpha-value>)',
+           secondary: 'hsl(var(--color-secondary) / <alpha-value>)',
+           accent: 'hsl(var(--color-accent) / <alpha-value>)',
+           background: 'hsl(var(--color-background) / <alpha-value>)',
+           foreground: 'hsl(var(--color-foreground) / <alpha-value>)',
+           surface: { // For cards, sidebars etc.
+             DEFAULT: 'hsl(var(--color-surface) / <alpha-value>)',
+             foreground: 'hsl(var(--color-surface-foreground) / <alpha-value>)',
+           },
+           border: 'hsl(var(--color-border) / <alpha-value>)',
+           // ... add more semantic color names as needed
+         },
+         fontFamily: {
+           sans: ['var(--font-family-sans)', 'sans-serif'],
+           mono: ['var(--font-family-mono)', 'monospace'],
+         },
+         borderRadius: {
+           DEFAULT: 'var(--radius)',
+           lg: `calc(var(--radius) * 1.5)`,
+           sm: `calc(var(--radius) * 0.75)`,
+         }
+       },
+     },
+     plugins: [],
+   };
+   ```
+   Now you can use classes like `bg-primary`, `text-foreground`, `border-border`, `font-sans`, `rounded-lg` in your React components, and they will respect the CSS variables.
 
-// Initialize theme based on saved preference or system preference
-const savedTheme = localStorage.getItem('theme');
-const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+### 2. Color Schemes (Light/Dark Mode Switching)
+Tailwind's class-based dark mode (`darkMode: 'class'`) means adding a `.dark` class to a parent element (usually `<html>` or `<body>`) will apply the dark theme styles.
 
-if (savedTheme) {
-  setTheme(savedTheme);
-} else if (prefersDark) {
-  setTheme('dark');
-} else {
-  setTheme('light'); // Default to light
-}
+**a. Theme Toggling Logic (React Example using Zustand or Context):**
+   You'll need a way to toggle the `.dark` class on the `<html>` element and persist the user's preference.
 
-// Attach toggleTheme to a button or UI element
-// document.getElementById('theme-toggle-button').addEventListener('click', toggleTheme);
-```
-[**Provide the actual path and code for your theme switching logic.**]
+   **Example using a simple React Context and `localStorage`:**
+   ```jsx
+   // src/contexts/ThemeContext.js
+   import React, { createContext, useContext, useEffect, useState } from 'react';
+
+   const ThemeContext = createContext();
+
+   export const ThemeProvider = ({ children }) => {
+     const [theme, setTheme] = useState(() => {
+       if (typeof window !== 'undefined') {
+         const savedTheme = localStorage.getItem('theme');
+         if (savedTheme) return savedTheme;
+         return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+       }
+       return 'light'; // Default for SSR or non-browser env
+     });
+
+     useEffect(() => {
+       const root = window.document.documentElement;
+       root.classList.remove(theme === 'dark' ? 'light' : 'dark');
+       root.classList.add(theme);
+       localStorage.setItem('theme', theme);
+     }, [theme]);
+
+     const toggleTheme = () => {
+       setTheme((prevTheme) => (prevTheme === 'light' ? 'dark' : 'light'));
+     };
+
+     return (
+       <ThemeContext.Provider value={{ theme, toggleTheme }}>
+         {children}
+       </ThemeContext.Provider>
+     );
+   };
+
+   export const useTheme = () => useContext(ThemeContext);
+   ```
+   Wrap your application with `ThemeProvider` in `src/App.js` or `src/index.js`:
+   ```jsx
+   // src/App.js
+   // import { ThemeProvider } from './contexts/ThemeContext';
+   // function App() { return <ThemeProvider> {/* ... your app ... */} </ThemeProvider>; }
+   ```
+   Use `useTheme` in a component to create a theme toggle button:
+   ```jsx
+   // src/components/ThemeToggleButton.js
+   // import { useTheme } from '../contexts/ThemeContext';
+   // const ThemeToggleButton = () => {
+   //   const { theme, toggleTheme } = useTheme();
+   //   return <button onClick={toggleTheme}>Switch to {theme === 'light' ? 'Dark' : 'Light'} Mode</button>;
+   // };
+   ```
 
 ### 3. Layouts
-
-Page layouts (e.g., main content area, sidebar, header, footer) can be customized by:
-*   **Modifying Existing Layout Components:** [**Point to the directory where layout components are stored, e.g., `src/layouts/`. Explain their structure and props.**]
-    *   For example, `src/layouts/MainLayout.vue` or `src/layouts/AppLayout.tsx`.
-*   **Creating New Layout Components:** You can create entirely new layout components and apply them to specific routes or sections of the application.
-    [**Explain how new layouts are registered or used, e.g., via the router configuration.**]
-
-**Example (Conceptual):**
-```javascript
-// router.js (Vue Router example)
-// import DefaultLayout from '@/layouts/DefaultLayout.vue';
-// import MinimalLayout from '@/layouts/MinimalLayout.vue';
-
-// const routes = [
-//   { path: '/', component: HomePage, meta: { layout: DefaultLayout } },
-//   { path: '/login', component: LoginPage, meta: { layout: MinimalLayout } },
-// ];
-```
+Page layouts (e.g., main content area, sidebar, header, footer) are typically React components.
+*   **Modifying Existing Layouts:** Locate layout components (e.g., in `src/layouts/` or `src/components/layout/`). You can modify their structure and styling using Tailwind utility classes.
+    *   Example: `src/components/layout/AppLayout.jsx` might define a sidebar and main content area using Flexbox or Grid utilities from Tailwind.
+*   **Creating New Layouts:** Create new React components for different page structures and apply them conditionally via your routing setup (e.g., React Router).
 
 ### 4. Component Styling
-
-Individual UI components are styled using [**Specify styling solution: e.g., CSS Modules, Styled Components, Tailwind CSS utility classes, SASS mixins/variables**].
-
-*   **Overriding Styles:**
-    *   **CSS Variables:** The easiest way to change component appearance globally is by overriding the CSS variables they consume.
-    *   **CSS Specificity:** You can override component styles with more specific CSS selectors, but this should be done cautiously to avoid maintainability issues. [**Provide guidance or a utility class system if available.**]
-    *   **Component Props:** Many components may accept style-related props (e.g., `variant`, `color`, `size`, `className`, `style`). [**Refer to component documentation or Storybook.**]
-    *   **[Styling Solution Specifics]:**
-        *   **Styled Components/Emotion:** Use `styled(ExistingComponent)` or the `css` prop.
-        *   **Tailwind CSS:** Apply or override utility classes.
-        *   **SASS/LESS:** Override SASS/LESS variables if the component library uses them.
-
-**Example: Customizing a Button component**
-
-If a button uses `var(--color-primary)` for its background:
-```css
-/* To change all primary buttons */
-:root { /* or within a specific theme scope */
-  --color-primary: #ff6347; /* Change to tomato red */
-}
-```
-
-If the component allows passing a custom class:
-```jsx
-// <Button className="my-custom-button-style">Click Me</Button>
-```
-```css
-/* And in your CSS: */
-.my-custom-button-style {
-  background-color: #ff6347 !important; /* Use !important sparingly */
-  border-radius: 8px;
-}
-```
-
-[**Provide specific examples for your platform's components and styling methods.**]
-
-## Creating a Custom Theme
-
-To create a completely new theme (e.g., "corporate-blue" or "forest-green"):
-
-1.  **Define New CSS Variables:**
-    Create a new CSS scope with your theme name, typically by defining styles for a `data-theme="your-theme-name"` attribute.
-
-    **Example: `src/styles/themes/corporate-blue.css`**
+Individual UI components (often built using Headless UI or Radix UI and styled with Tailwind CSS) will automatically adapt to theme changes if they use the theme-aware utility classes (e.g., `bg-surface`, `text-foreground`).
+*   **Customizing Base Component Styles:** You can define base styles for elements like buttons or inputs in your global CSS file within the `@layer components` directive if needed, using Tailwind's `@apply` or by styling HTML elements directly.
     ```css
-    [data-theme="corporate-blue"] {
-      --color-primary: #00529b;
-      --color-secondary: #0077cc;
-      --color-background: #f0f4f8;
-      --color-surface: #ffffff;
-      --color-text-primary: #102a43;
-      --color-text-secondary: #334e68;
-      --font-family-base: 'Roboto', sans-serif; /* Example: different font */
-      /* ... all other necessary theme variables ... */
+    /* src/index.css or src/styles/globals.css */
+    @layer components {
+      .btn-primary {
+        @apply bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-DEFAULT;
+      }
+      /* ... other custom component base styles ... */
+    }
+    ```
+*   **Overriding Specific Instances:** Use Tailwind's utility classes directly on component instances for one-off style changes.
 
-      /* You might also need to override specific component styles here */
-      /* if CSS variables are not sufficient. */
-      /* .button-primary { ... } */
+## Creating a New Custom Theme (e.g., "Oceanic Blue")
+
+If you want to introduce an entirely new theme beyond just light/dark variations of the default, you can define another set of CSS variables.
+
+1.  **Define New Theme CSS Variables:**
+    In your global CSS file (e.g., `src/index.css`), add another class scope:
+    ```css
+    /* src/index.css */
+    /* ... existing :root and .dark styles ... */
+
+    .theme-oceanic { /* Or use data-theme="oceanic" attribute */
+      --color-primary: 198 80% 50%; /* Example: Oceanic Blue Primary */
+      --color-secondary: 180 60% 45%;
+      --color-accent: 45 85% 55%;
+
+      --color-background: 200 50% 95%;    /* Light blueish background */
+      --color-foreground: 210 30% 20%;    /* Dark blue text */
+      --color-surface: 200 50% 100%;      /* White surface */
+      --color-surface-foreground: 210 30% 20%;
+      --color-border: 198 40% 80%;
+
+      /* You might also change font or radius for this theme */
+      /* --font-family-sans: 'Georgia', serif; */
+      /* --radius: 0.25rem; */
     }
     ```
 
-2.  **Import the Theme Stylesheet:**
-    Ensure this new CSS file is imported into your application's global styles.
-    [**Specify how: e.g., in `main.js`, `App.vue`, `_app.tsx`, or a central CSS import file.**]
+2.  **Update Theme Switching Logic:**
+    Modify your theme context/store (e.g., `ThemeContext.js`) to support more themes:
+    ```jsx
+    // src/contexts/ThemeContext.js (modified example)
+    // ...
+    // const [theme, setTheme] = useState('light'); // Default or from localStorage
+    // const availableThemes = ['light', 'dark', 'oceanic'];
 
-    ```css
-    /* In your global styles aggregator, e.g., styles.css */
-    @import './theme-variables.css'; /* Base and dark theme */
-    @import './themes/corporate-blue.css'; /* Your new theme */
-    /* ... other theme imports ... */
+    // const cycleTheme = () => {
+    //   const currentIndex = availableThemes.indexOf(theme);
+    //   const nextIndex = (currentIndex + 1) % availableThemes.length;
+    //   setTheme(availableThemes[nextIndex]);
+    // };
+
+    // useEffect(() => {
+    //   const root = window.document.documentElement;
+    //   availableThemes.forEach(t => root.classList.remove(t === 'dark' ? t : `theme-${t}`)); // Clear previous theme classes
+    //   if (theme === 'dark') {
+    //     root.classList.add('dark');
+    //   } else if (theme !== 'light') { // For custom themes like 'oceanic'
+    //     root.classList.add(`theme-${theme}`);
+    //   }
+    //   localStorage.setItem('theme', theme);
+    // }, [theme, availableThemes]);
+    // ...
     ```
+    *Note: The class application logic needs to be robust. Tailwind's `darkMode: 'class'` handles `.dark` specifically. For other themes, you'd apply a class like `.theme-oceanic` to the `<html>` tag.*
+    *If you use a `data-theme` attribute selector like `[data-theme="oceanic"]` in CSS, then your JS would do `document.documentElement.setAttribute('data-theme', 'oceanic')`.*
 
-3.  **Update Theme Switching Logic:**
-    Modify your JavaScript theme switcher to include the new theme name and allow users to select it.
+3.  **Tailwind Configuration:** Your `tailwind.config.js` already uses CSS variables, so it should automatically pick up the new values when the `.theme-oceanic` class (or `data-theme` attribute) is active on the `html` tag.
 
-    **Example (extending the previous `theme-switcher.js`):**
-    ```javascript
-    // ... (setTheme function remains the same) ...
+## Best Practices for Theming with Tailwind CSS
 
-    // In your UI, provide a way to select 'corporate-blue'
-    // e.g., a dropdown that calls setTheme('corporate-blue')
-    ```
+*   **Leverage CSS Variables:** For properties that need to change dynamically (especially colors for light/dark/custom themes), define them as CSS variables and reference them in `tailwind.config.js`.
+*   **Use Semantic Color Names in Tailwind Config:** Define colors like `primary`, `secondary`, `surface`, `foreground` in `tailwind.config.js` that map to your CSS variables. This makes your utility classes more meaningful (e.g., `bg-primary` instead of `bg-blue-500`).
+*   **Keep `tailwind.config.js` as the Single Source of Truth for Static Theme Values:** For fonts, spacing, breakpoints, etc., that don't change per theme, define them directly in `tailwind.config.js`.
+*   **Minimize Custom CSS:** Stick to utility classes as much as possible. Use `@apply` or custom components in global CSS sparingly for complex, reusable component patterns.
+*   **Accessibility:** Always check color contrast ratios for your themes to ensure readability (WCAG guidelines). Tools like the "Accessibility Insights for Web" browser extension can help.
+*   **Purging:** Ensure Tailwind CSS's JIT compiler and purging are correctly configured to only include used styles in the production build, keeping file sizes small. Your `content` array in `tailwind.config.js` is key for this.
 
-4.  **(Optional) Override Component-Specific Styles:**
-    If CSS variables are not enough, you might need to add more specific CSS rules within your theme's scope (`[data-theme="corporate-blue"] .some-component { ... }`) to adjust individual components that don't fully adapt through variables alone.
-
-## Best Practices for Theming
-
-*   **Prioritize CSS Variables:** Make as much of the theme configurable via CSS variables as possible. This provides the most straightforward way for users to customize.
-*   **Maintain Consistency:** Ensure that theme changes are applied consistently across all components and parts of the application.
-*   **Accessibility:** Pay attention to color contrast ratios and font choices to ensure your themes are accessible (WCAG guidelines). Test your themes with accessibility tools.
-*   **Performance:** Avoid overly complex CSS selectors or excessive style overrides that could impact rendering performance.
-*   **Documentation:** If you provide multiple pre-built themes or a complex theming API, document it clearly.
-*   **Test Thoroughly:** Test all themes, including light/dark modes and custom themes, across different browsers and devices.
-
-## File Structure for Theming (Example)
+## File Structure Example (React + Tailwind)
 
 ```
 src/
+├── components/
+│   ├── ui/                     # Reusable UI components (buttons, cards, etc.)
+│   │   └── Button.jsx
+│   └── layout/
+│       └── AppLayout.jsx
+├── contexts/                   # React Contexts
+│   └── ThemeContext.js
 ├── styles/
-│   ├── base.css                # Base styles, resets
-│   ├── theme-variables.css     # Core CSS variables (light/dark)
-│   ├── components/             # Component-specific base styles (if any)
-│   │   ├── _button.css
-│   │   └── _card.css
-│   ├── themes/                 # Custom theme files
-│   │   ├── corporate-blue.css
-│   │   └── forest-green.css
-│   └── index.css               # Main CSS entry point, imports all others
-├── layouts/
-│   ├── MainLayout.vue
-│   └── MinimalLayout.vue
-├── components/                 # UI Components
-│   ├── Button.vue
-│   └── Card.vue
-├── theme-switcher.js           # JavaScript for managing theme state
-└── main.js                     # Or App.vue, _app.tsx - where styles are imported
+│   └── globals.css             # Main CSS file with @tailwind directives and CSS variables
+├── pages/ or views/            # Page components
+├── App.js                      # Main application component (where ThemeProvider wraps)
+├── index.js                    # Entry point
+└── tailwind.config.js          # Tailwind CSS configuration
 ```
-[**Adjust this file structure to match your project's conventions.**]
 
-By following this guide and adapting the examples to your specific front-end stack, you should be able to effectively customize the platform's theme. Remember to consult the documentation of your chosen front-end framework and styling libraries for more detailed information.
+By using CSS variables in conjunction with Tailwind CSS's configuration, you can create a powerful and flexible theming system for your React-based Autonomous Coding Agent platform.

@@ -9,7 +9,7 @@ import { IAction, toAction } from '../../../base/common/actions.js';
 import { MainThreadMessageServiceShape, MainContext, MainThreadMessageOptions } from '../common/extHost.protocol.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
-import { INotificationService, INotificationSource, NotificationPriority } from '../../../platform/notification/common/notification.js';
+import { INotificationService, INotificationSource } from '../../../platform/notification/common/notification.js';
 import { Event } from '../../../base/common/event.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
@@ -19,11 +19,6 @@ import { IDisposable } from '../../../base/common/lifecycle.js';
 export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 	private extensionsListener: IDisposable;
-
-	private static readonly URGENT_NOTIFICATION_SOURCES = [
-		'vscode.github-authentication',
-		'vscode.microsoft-authentication'
-	];
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -66,13 +61,11 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			}));
 
 			let source: string | INotificationSource | undefined;
-			let sourceIsUrgent = false;
 			if (options.source) {
 				source = {
 					label: options.source.label,
 					id: options.source.identifier.value
 				};
-				sourceIsUrgent = MainThreadMessageService.URGENT_NOTIFICATION_SOURCES.includes(source.id);
 			}
 
 			if (!source) {
@@ -94,9 +87,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 				severity,
 				message,
 				actions: { primary: primaryActions, secondary: secondaryActions },
-				source,
-				priority: sourceIsUrgent ? NotificationPriority.URGENT : NotificationPriority.DEFAULT,
-				sticky: sourceIsUrgent
+				source
 			});
 
 			// if promise has not been resolved yet, now is the time to ensure a return value

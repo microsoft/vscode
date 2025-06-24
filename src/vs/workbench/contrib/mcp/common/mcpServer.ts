@@ -55,18 +55,6 @@ type ServerBootClassification = {
 	serverVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the MCP server' };
 };
 
-type ElicitationTelemetryData = {
-	serverName: string;
-	serverVersion: string;
-};
-
-type ElicitationTelemetryClassification = {
-	owner: 'connor4312';
-	comment: 'Triggered when elictation is requested';
-	serverName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the MCP server' };
-	serverVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the MCP server' };
-};
-
 type ServerBootState = {
 	state: string;
 	time: number;
@@ -489,17 +477,8 @@ export class McpServer extends Disposable implements IMcpServer {
 					server: this,
 					params,
 				}).then(r => r.sample),
-				elicitationRequestHandler: req => {
-					const serverInfo = connection.handler.get()?.serverInfo;
-					if (serverInfo) {
-						this._telemetryService.publicLog2<ElicitationTelemetryData, ElicitationTelemetryClassification>('mcp.elicitationRequested', {
-							serverName: serverInfo.name,
-							serverVersion: serverInfo.version,
-						});
-					}
-
-					return this._elicitationService.elicit(this, Iterable.first(this.runningToolCalls), req, CancellationToken.None);
-				}
+				elicitationRequestHandler: req => this._elicitationService.elicit(
+					this, Iterable.first(this.runningToolCalls), req, CancellationToken.None),
 			});
 
 			this._telemetryService.publicLog2<ServerBootState, ServerBootStateClassification>('mcp/serverBootState', {
@@ -691,7 +670,6 @@ class McpPrompt implements IMcpPrompt {
 	readonly id: string;
 	readonly name: string;
 	readonly description?: string;
-	readonly title?: string;
 	readonly arguments: readonly MCP.PromptArgument[];
 
 	constructor(
@@ -700,7 +678,6 @@ class McpPrompt implements IMcpPrompt {
 	) {
 		this.id = mcpPromptReplaceSpecialChars(this._server.definition.label + '.' + _definition.name);
 		this.name = _definition.name;
-		this.title = _definition.title;
 		this.description = _definition.description;
 		this.arguments = _definition.arguments || [];
 	}
@@ -847,20 +824,18 @@ function warnInvalidTools(instaService: IInstantiationService, serverName: strin
 }
 
 class McpResource implements IMcpResource {
-	readonly uri: URI;
-	readonly mcpUri: string;
-	readonly name: string;
-	readonly description: string | undefined;
-	readonly mimeType: string | undefined;
-	readonly sizeInBytes: number | undefined;
-	readonly title: string | undefined;
+	uri: URI;
+	mcpUri: string;
+	name: string;
+	description: string | undefined;
+	mimeType: string | undefined;
+	sizeInBytes: number | undefined;
 
 	constructor(
 		server: McpServer,
 		original: MCP.Resource,
 	) {
 		this.mcpUri = original.uri;
-		this.title = original.title;
 		this.uri = McpResourceURI.fromServer(server.definition, original.uri);
 		this.name = original.name;
 		this.description = original.description;
@@ -871,7 +846,6 @@ class McpResource implements IMcpResource {
 
 class McpResourceTemplate implements IMcpResourceTemplate {
 	readonly name: string;
-	readonly title?: string | undefined;
 	readonly description?: string;
 	readonly mimeType?: string;
 	readonly template: UriTemplate;
@@ -883,7 +857,6 @@ class McpResourceTemplate implements IMcpResourceTemplate {
 		this.name = _definition.name;
 		this.description = _definition.description;
 		this.mimeType = _definition.mimeType;
-		this.title = _definition.title;
 		this.template = UriTemplate.parse(_definition.uriTemplate);
 	}
 

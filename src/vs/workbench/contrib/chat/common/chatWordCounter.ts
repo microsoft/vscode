@@ -46,8 +46,7 @@ export function getNWords(str: string, numWordsToCount: number): IWordCountResul
 	// One chinese character
 	// One or more + - =, handled so that code like "a=1+2-3" is broken up better
 	// One or more characters that aren't whitepace or any of the above
-	const backtick = '`';
-	const allWordMatches = Array.from(str.matchAll(new RegExp(linkPattern + r`|\p{sc=Han}|=+|\++|-+|[^\s\|\p{sc=Han}|=|\+|\-|${backtick}]+`, 'gu')));
+	const allWordMatches = Array.from(str.matchAll(new RegExp(linkPattern + r`|\p{sc=Han}|=+|\++|-+|[^\s\|\p{sc=Han}|=|\+|\-]+`, 'gu')));
 
 	const targetWords = allWordMatches.slice(0, numWordsToCount);
 

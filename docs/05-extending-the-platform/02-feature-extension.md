@@ -1,301 +1,234 @@
-# Feature Extension (Plug-in/Module Architecture)
+# Feature Extension (Backend Modules & Potential Frontend Plugins)
 
-The platform is designed with a modular architecture that allows developers to extend its functionality by creating and integrating new features as plug-ins or modules. This guide outlines the principles of the extension system, how to develop new modules, and how they integrate with the core platform.
-
-[**Note:** The specific implementation of a plug-in or module system can vary greatly. This document provides a general template. You will need to fill in details specific to your platform's architecture, such as naming conventions, registration mechanisms, hooks, and APIs available to modules.]
+The Autonomous Coding Agent platform is designed with a modular Node.js/Express.js backend, allowing developers to extend its functionality by creating and integrating new features primarily as backend modules. Frontend extensions in the React SPA are also possible, though they require careful consideration for integration.
 
 ## Overview of the Extension Architecture
 
-The platform's extensibility is achieved through [**Describe the core mechanism: e.g., a microkernel architecture, an event-driven system with hooks, a service discovery mechanism, OSGi-like bundles, a simple directory-based loading system, etc.**].
+The platform's backend extensibility is achieved through a **directory-based module loading system** combined with a **centralized registration mechanism** for routes, services, and potentially event listeners. Each major domain (Auth, AI Workflow, Projects, etc.) is already structured as an internal module, and new features can follow this pattern.
 
 Key goals of this architecture:
-*   **Isolation:** Modules should operate with a degree of isolation to prevent unintended side effects on the core system or other modules.
-*   **Interoperability:** Modules should be able to interact with the core platform and potentially other modules through well-defined APIs and contracts.
-*   **Discoverability:** The platform should be able to discover and load available modules.
-*   **Lifecycle Management:** The platform may provide mechanisms to install, uninstall, enable, and disable modules.
+*   **Isolation (Logical):** Backend modules are logically separated, often in their own directories, promoting organized code. True runtime isolation is typical of microservices, which this can evolve towards.
+*   **Interoperability:** Modules interact with the core platform and other modules through well-defined service interfaces or an event bus.
+*   **Discoverability & Loading:** The core application discovers and loads modules from a designated directory at startup.
+*   **Lifecycle Management (Basic):** Modules are typically loaded at startup. More advanced lifecycle (install, uninstall, enable/disable at runtime) would require a more sophisticated plugin management system.
 
 ## What Can Be Extended?
 
-Modules can typically extend the platform in various ways:
-*   **Adding New UI Components/Views:** Introducing new pages, sections, or widgets to the user interface.
-*   **Defining New API Endpoints:** Exposing new functionalities through the backend API.
-*   **Introducing New Services:** Adding backend logic, business rules, or integrations.
-*   **Modifying Existing Behavior:** Using hooks, events, or strategy patterns to alter or augment core functionalities.
-*   **Adding New Data Models:** Extending the database schema with new entities related to the module's functionality.
-*   **Integrating with External Systems:** Providing connectors or adaptors for third-party services.
+Primarily focused on backend extensions, but with considerations for frontend:
 
-## Developing a New Module/Plug-in
+*   **Adding New API Endpoints:** Backend modules can define new Express routers and controllers to expose new functionalities.
+*   **Introducing New Backend Services:** Add new business logic, data processing capabilities, or integrations with external systems (e.g., a new AI model connector).
+*   **Modifying Existing Backend Behavior:** Through an event system or strategy patterns if implemented in the core.
+*   **Adding New Data Models & Database Interactions:** Modules can define new Prisma schema parts (though managing migrations across modules needs a strategy) or extend existing models.
+*   **Frontend Components/Views (Advanced):**
+    *   **Dynamic Loading:** For a React SPA, dynamically loading entire feature sets as plugins is complex. It might involve techniques like:
+        *   **Micro-frontends:** (e.g., using Webpack Module Federation). This is a significant architectural decision.
+        *   **Dynamic `import()`:** For loading components or route configurations lazily.
+        *   **Component Registration:** A core system where plugins can register their React components, which are then rendered in predefined extension points in the UI.
+    *   For simplicity, initial "frontend extensions" might involve backend modules providing data that the existing frontend can be configured to display, or contributing very isolated components if a dynamic loading system is in place.
 
-[**This section needs to be heavily customized based on your platform's specific module development process.**]
+## Developing a New Backend Module
 
 ### 1. Module Structure (Example)
 
-A typical module might have the following directory structure:
-
+New backend modules are typically placed in a `src/modules/` directory in the Node.js backend application.
 ```
-modules/
-└── my-new-feature/
-    ├── manifest.json                # Module metadata (name, version, dependencies)
-    ├── backend/                     # Backend code (if applicable)
-    │   ├── index.js                 # Entry point for backend part of the module
-    │   ├── services/
-    │   │   └── new-data-service.js
-    │   ├── controllers/
-    │   │   └── new-api-controller.js
-    │   └── models/
-    │       └── new-schema.js
-    ├── frontend/                    # Frontend code (if applicable)
-    │   ├── index.js                 # Entry point for frontend part of the module
-    │   ├── components/
-    │   │   └── NewWidget.vue        # Or .tsx, .jsx
-    │   ├── views/
-    │   │   └── NewFeaturePage.vue
-    │   └── routes.js                # Routes provided by this module
-    ├── public/                      # Static assets for the module
-    │   └── images/
-    │       └── icon.png
-    └── README.md                    # Module-specific documentation
+src/
+├── modules/
+│   └── my-new-feature/
+│       ├── index.js                 # Main entry point for the module (registers routes, services)
+│       ├── manifest.json            # (Optional) Module metadata
+│       ├── feature.routes.js        # Express router for this module's API endpoints
+│       ├── feature.controller.js    # Request handlers
+│       ├── feature.service.js       # Business logic
+│       ├── feature.validation.js    # (Optional) Input validation schemas (e.g., using Zod or Joi)
+│       └── prisma/                  # (Optional) If module defines its own Prisma schema extensions
+│           └── schema.prisma        # Partial schema specific to this module
+│       └── README.md                # Module-specific documentation
+└── core/                            # Core platform services (app, db, logger, etc.)
+└── main.js                          # Main application startup
 ```
-[**Adapt this structure to your platform. Specify mandatory files and conventions.**]
 
-### 2. Module Manifest (`manifest.json`)
-
-Each module should include a manifest file that describes its metadata.
-
-**Example `manifest.json`:**
+### 2. Module Manifest (`manifest.json` - Optional)
+While not strictly enforced by a simple directory loader, a `manifest.json` can be useful for metadata.
 ```json
 {
   "id": "my-new-feature",
-  "name": "My New Feature",
+  "name": "My New Feature Module",
   "version": "1.0.0",
-  "description": "Adds a new feature X to the platform.",
-  "author": "Your Name",
-  "platformVersion": "^2.1.0", // Compatible platform version range
-  "dependencies": [ // Optional: other modules this module depends on
-    // "core-analytics-module@^1.2.0"
-  ],
-  "entryPoints": { // How the platform loads/integrates the module
-    "backend": "backend/index.js",
-    "frontend": "frontend/index.js"
-  },
-  "permissions": [ // Optional: permissions this module requires or defines
-    // "read:new_data",
-    // "write:new_data"
-  ],
-  "settingsSchema": { // Optional: schema for module-specific settings
-    // "apiKey": { "type": "string", "label": "API Key for New Feature" }
-  }
+  "description": "Adds feature X and Y to the platform.",
+  "author": "Developer Name",
+  "dependencies": [], // IDs of other platform modules it depends on
+  "permissions": [    // Permissions this module introduces (see Permission Management guide)
+    "my_feature:read_data",
+    "my_feature:write_data"
+  ]
 }
 ```
-[**Define the fields required/supported in your manifest file.**]
 
-### 3. Backend Development (Example: Node.js/Express-like)
+### 3. Backend Module Development (Node.js/Express.js)
 
-*   **Entry Point (`backend/index.js`):**
-    This file is typically responsible for registering backend components (routes, services, event listeners) with the core platform.
+*   **Entry Point (`my-new-feature/index.js`):**
+    This file exports a function that the core application calls to initialize the module, passing any necessary core services or the main Express app instance.
 
     ```javascript
-    // modules/my-new-feature/backend/index.js
-    // const NewApiController = require('./controllers/new-api-controller');
-    // const NewDataService = require('./services/new-data-service');
+    // src/modules/my-new-feature/index.js
+    const featureRoutes = require('./feature.routes');
+    // const FeatureService = require('./feature.service'); // If service needs init
 
-    module.exports = {
-      // Called by the platform when the module is loaded
-      initialize: (platformApi) => {
-        // platformApi provides access to core functionalities, e.g., router, event emitter, db connection
-        console.log('Initializing My New Feature - Backend');
+    module.exports = function initializeMyNewFeatureModule(app, platformServices) {
+      // platformServices could contain { prisma, logger, eventEmitter, config, etc. }
+      console.log('Initializing "My New Feature" module...');
 
-        // const newDataService = new NewDataService(platformApi.getDatabase());
-        // const newApiController = new NewApiController(newDataService);
+      // const featureServiceInstance = new FeatureService(platformServices.prisma, platformServices.logger);
+      // platformServices.registerService('myFeatureService', featureServiceInstance); // Conceptual service registration
 
-        // Register API routes
-        // platformApi.getRouter().use('/my-new-feature', newApiController.getRouter());
+      // Register API routes for this module, typically namespaced
+      app.use('/api/v1/my-feature', featureRoutes(platformServices)); // Pass services to routes if needed
 
-        // Register services or event listeners
-        // platformApi.registerService('newFeatureService', newDataService);
-        // platformApi.getEventEmitter().on('core.user.created', (userData) => {
-        //   newDataService.handleNewUser(userData);
-        // });
-      },
+      // Register event listeners
+      // platformServices.eventEmitter.on('core:user.created', (userData) => {
+      //   console.log('My New Feature module reacting to new user:', userData.id);
+      // });
 
-      // Optional: Called when the module is unloaded
-      shutdown: (platformApi) => {
-        console.log('Shutting down My New Feature - Backend');
-        // Perform cleanup, e.g., unregister listeners
-      }
+      console.log('"My New Feature" module initialized.');
     };
     ```
-    [**Detail the `platformApi` object and what core functionalities it exposes to modules.**]
 
-*   **Defining API Endpoints:**
-    Modules can add new API endpoints. These are typically registered with the main application router.
-    [**Explain how routing is handled, namespacing, authentication/authorization for module APIs.**]
-
-*   **Accessing Core Services & Database:**
-    Modules should be able to interact with core platform services and the database through a well-defined API or dependency injection mechanism.
-    [**Explain how database connections, ORM/ODM models, or core services are accessed.**]
-
-### 4. Frontend Development (Example: Vue.js/React-like)
-
-*   **Entry Point (`frontend/index.js`):**
-    This file registers frontend components, routes, and potentially store modules.
-
+*   **Defining API Endpoints (`feature.routes.js`):**
+    Modules define their own Express routers.
     ```javascript
-    // modules/my-new-feature/frontend/index.js
-    // import NewWidget from './components/NewWidget.vue';
-    // import NewFeaturePage from './views/NewFeaturePage.vue';
-    // import moduleRoutes from './routes';
+    // src/modules/my-new-feature/feature.routes.js
+    const express = require('express');
+    const { getData, createData } = require('./feature.controller');
+    // const { validateCreateData } = require('./feature.validation'); // Example validation middleware
+    // const { isAuthenticated, hasPermission } = require('../../core/middleware/auth.middleware'); // Core auth middleware
 
-    export default {
-      // Called by the platform when the module's frontend assets are loaded
-      initialize: (platformFrontendApi) => {
-        // platformFrontendApi provides access to frontend core functionalities
-        // e.g., router instance, state management store, component registry
-        console.log('Initializing My New Feature - Frontend');
+    module.exports = function (platformServices) {
+      const router = express.Router();
 
-        // Register components globally or provide them for dynamic loading
-        // platformFrontendApi.registerComponent('NewWidget', NewWidget);
+      // Example: GET /api/v1/my-feature/data
+      // router.get('/data', isAuthenticated, hasPermission('my_feature:read_data'), (req, res, next) => getData(req, res, next, platformServices));
+      router.get('/data', (req, res, next) => getData(req, res, next, platformServices)); // Simplified for example
 
-        // Add routes to the main router
-        // platformFrontendApi.getRouter().addRoutes(moduleRoutes);
+      // Example: POST /api/v1/my-feature/data
+      // router.post('/data', isAuthenticated, hasPermission('my_feature:write_data'), validateCreateData, (req, res, next) => createData(req, res, next, platformServices));
+      router.post('/data', (req, res, next) => createData(req, res, next, platformServices)); // Simplified
 
-        // Register a Vuex/Redux store module
-        // platformFrontendApi.getStore().registerModule('myNewFeature', newFeatureStoreModule);
-
-        // Add items to navigation menus
-        // platformFrontendApi.addNavigationItem({
-        //   path: '/my-new-feature',
-        //   label: 'My New Feature',
-        //   icon: 'path/to/icon.svg' // or an icon component
-        // });
-      }
+      return router;
     };
     ```
-    [**Detail the `platformFrontendApi` object and its capabilities.**]
+    *   **Controllers (`feature.controller.js`)** would handle request/response logic, calling services.
+    *   **Services (`feature.service.js`)** would contain business logic and database interactions (using Prisma client passed via `platformServices`).
 
-*   **Adding UI Components and Views:**
-    Modules can contribute new UI elements.
-    [**Explain how components are built, styled (refer to Theme Customization), and integrated.**]
-
-*   **Client-Side Routing:**
-    New pages or views provided by a module need to be added to the application's routing system.
-    [**Show an example of how module routes are defined and registered.**]
-
-*   **State Management:**
-    If the module has complex client-side state, it might need to integrate with the platform's state management solution (e.g., Vuex, Redux, Zustand).
-    [**Explain how module-specific stores are created and registered.**]
-
-### 5. Hooks and Events
-
-The platform may provide a system of hooks or events that modules can subscribe to or emit. This allows for less coupled interaction between modules and the core system.
-
-*   **Subscribing to Core Events:**
+*   **Loading Modules in Core Application (`main.js` or `app.js`):**
+    The main application would have logic to scan the `src/modules/` directory and initialize each module.
     ```javascript
-    // platformApi.getEventEmitter().on('core.someEvent', (payload) => {
-    //   // Handle the event
-    // });
-    ```
-*   **Emitting Module-Specific Events:**
-    ```javascript
-    // platformApi.getEventEmitter().emit('my-new-feature.someEvent', { data: '...' });
-    ```
-*   **Using Hooks/Filters (WordPress-like example):**
-    ```javascript
-    // // To modify data
-    // platformApi.addFilter('core.data.transform', 'my-new-feature-modifier', (data) => {
-    //   data.newDataField = 'added by module';
-    //   return data;
-    // });
-    //
-    // // To perform an action
-    // platformApi.addAction('core.ui.renderFooter', 'my-new-feature-footer-content', () => {
-    //   console.log('<div>Content from My New Feature</div>');
-    // });
-    ```
-[**Document the available core events, hooks, and how modules can define their own.**]
+    // src/main.js (Simplified conceptual loading)
+    // const express = require('express');
+    // const fs = require('fs');
+    // const path = require('path');
+    // const prisma = require('./core/db/prisma.client'); // Prisma client instance
+    // const logger = require('./core/logger');
+    // // const eventEmitter = require('./core/events'); // Platform's event emitter
+    // // const config = require('./core/config');
 
-### 6. Data Persistence / Database Schema Extensions
+    // const app = express();
+    // app.use(express.json());
+    // // ... other core middleware ...
 
-If a module requires its own data storage:
-*   **Using Core Database:** Modules might be allowed to create their own tables/collections within the main platform database, possibly prefixed with the module ID to avoid conflicts. [**Specify conventions and tools for schema migrations if modules manage their own tables.**]
-*   **Separate Database:** For larger, more isolated modules, they might manage their own database instance (though this adds complexity).
+    // const platformServices = { prisma, logger /*, eventEmitter, config */ };
 
-[**Provide clear guidelines on database interaction, schema management, and data isolation for modules.**]
+    // const modulesDir = path.join(__dirname, 'modules');
+    // fs.readdirSync(modulesDir).forEach(moduleName => {
+    //   const modulePath = path.join(modulesDir, moduleName);
+    //   if (fs.statSync(modulePath).isDirectory()) {
+    //     const moduleInitializerPath = path.join(modulePath, 'index.js');
+    //     if (fs.existsSync(moduleInitializerPath)) {
+    //       try {
+    //         const initializeModule = require(moduleInitializerPath);
+    //         if (typeof initializeModule === 'function') {
+    //           initializeModule(app, platformServices);
+    //         }
+    //       } catch (error) {
+    //         logger.error(`Failed to initialize module ${moduleName}:`, error);
+    //       }
+    //     }
+    //   }
+    // });
+    // // ... start server ...
+    ```
+
+### 4. Data Persistence / Database Schema Extensions (Prisma)
+Modules can extend the Prisma schema.
+*   **Modular Schema Files:** Prisma supports defining schema parts in multiple `.prisma` files that can be imported. A module could have its own `my-new-feature/prisma/schema.prisma`.
+    ```prisma
+    // src/modules/my-new-feature/prisma/schema.prisma
+    // model MyFeatureItem {
+    //   id        String   @id @default(cuid())
+    //   name      String
+    //   value     Int
+    //   createdAt DateTime @default(now())
+    //   updatedAt DateTime @updatedAt
+    //   // Relations to core models or other module models
+    //   // owner     User?    @relation(fields: [ownerId], references: [id])
+    //   // ownerId   String?
+    // }
+    ```
+*   **Main Schema Import:** The main `prisma/schema.prisma` file would need to be structured to allow for these imports or the module's schema parts would need to be manually added/merged. Managing migrations (`prisma migrate dev`, `prisma migrate deploy`) across many dynamically loaded schema parts requires a well-thought-out strategy, often involving a central "source of truth" schema that incorporates all module schemas before migrations are generated.
+*   **Alternative:** Modules use the Prisma client provided by `platformServices` to interact with tables defined in the core schema or tables specifically created for them (namespaced if necessary, e.g., `module_myfeature_items`).
+
+### 5. Frontend Extensions (Considerations)
+If a backend module needs to surface new UI elements in the React SPA:
+*   **API-Driven UI:** The simplest way is for the backend module to provide new API endpoints. The existing frontend application is then updated to call these endpoints and render the data using existing or new generic UI components.
+*   **Dynamic Component Injection (Advanced):**
+    *   The core React app could define "extension points" (e.g., specific areas in the dashboard, new menu items).
+    *   Backend modules could provide metadata about frontend components they offer (e.g., bundle URL, component name).
+    *   The frontend would need a system to dynamically load and render these components, potentially using:
+        *   `React.lazy()` with dynamic `import()` if components are part of the main bundle or can be code-split.
+        *   Webpack Module Federation for true micro-frontend architecture where modules are independently built and deployed frontend bundles. This is complex.
+*   **Styling:** Frontend components from modules should adhere to the platform's theming system (Tailwind CSS, CSS variables).
 
 ## Managing Modules
 
-[**Describe how administrators or users manage modules.**]
-
-*   **Installation:**
-    *   [**e.g., Placing the module directory in a specific `modules/` folder.**]
-    *   [**e.g., Using a command-line tool: `platform-cli module install <module-name-or-path>`**]
-    *   [**e.g., Through an admin UI.**]
+*   **Installation:** Primarily involves adding the module's directory to the `src/modules/` folder and ensuring any necessary dependencies are installed (likely at the root `package.json` if in a monorepo, or the module has its own `package.json` if not a monorepo).
 *   **Enabling/Disabling:**
-    The platform should allow modules to be enabled or disabled without uninstalling them.
-    [**How is this state managed? e.g., a setting in a database, a configuration file.**]
-*   **Updating:**
-    [**How are modules updated? Manual replacement, CLI command?**]
-*   **Uninstallation:**
-    *   [**e.g., Removing the module directory.**]
-    *   [**e.g., `platform-cli module uninstall <module-id>`**]
-    *   [**What happens to the module's data upon uninstallation? Is there a cleanup process?**]
+    *   **Simple:** Controlled by the presence of the module directory (loader skips if not found).
+    *   **Advanced:** A configuration setting (e.g., in database or env var) could list enabled modules. The module loader would check this list.
+*   **Updating:** Replace the module's code. Restart the application.
+*   **Uninstallation:** Remove the module's directory. Restart. Consider database cleanup if the module created its own tables (manual or scripted).
 
 ## Best Practices for Module Development
 
-*   **Namespace Everything:** Prefix API endpoints, CSS classes, event names, database tables, etc., with the module ID or a unique identifier to prevent collisions.
-*   **Minimize Core Modifications:** Prefer using defined extension points (APIs, hooks, events) over directly modifying core platform code.
-*   **Handle Dependencies Gracefully:** If your module depends on other modules or specific platform versions, declare them in the manifest and handle cases where dependencies are not met.
-*   **Write Clear Documentation:** Each module should have its own `README.md` explaining its purpose, setup, configuration, and usage.
-*   **Security:**
-    *   Sanitize all inputs.
-    *   Adhere to platform security guidelines.
-    *   If defining new permissions, integrate them with the platform's authorization system.
-*   **Performance:** Be mindful of the performance impact of your module. Optimize database queries, avoid blocking operations in critical paths, and efficiently manage resources.
-*   **Error Handling:** Implement robust error handling and logging within your module.
+*   **Namespacing:** API routes (`/api/v1/my-feature/...`), event names (`my-feature:event_name`), database tables (if not using separate Prisma schemas per module), and CSS classes (if contributing frontend CSS) should be namespaced to avoid collisions.
+*   **Clear Interfaces:** If modules provide services for other modules to use, define clear JavaScript class/object interfaces.
+*   **Dependency Management:** If modules have unique external dependencies, manage them carefully (e.g., via the module's own `package.json` if not in a strict monorepo, or ensure compatibility with root dependencies).
+*   **Documentation:** Each module should have a `README.md`.
+*   **Permissions:** New permissions introduced by a module must be defined and integrated with the platform's [Permission & Role Management](./09-permission-role-management/README.md) system. The module's routes should use the core authentication and authorization middleware.
+*   **Error Handling & Logging:** Use the platform's core logger and follow consistent error handling patterns.
 
-## Example: Creating a Simple "Hello World" Module
+## Example: "External Link Checker" Module (Conceptual Backend)
 
-[**Provide a step-by-step tutorial for creating a very basic module that demonstrates key concepts like registering a simple UI component or a basic API endpoint. This will be highly specific to your platform.**]
+A module that periodically checks external links found in platform content and reports broken links.
 
-### 1. Create Module Directory and Manifest
-   ```
-   modules/hello-world/manifest.json
-   ```
-   `manifest.json`:
-   ```json
-   {
-     "id": "hello-world",
-     "name": "Hello World Module",
-     "version": "0.1.0",
-     "description": "A simple module that adds a hello world message.",
-     "entryPoints": {
-       "frontend": "frontend/index.js"
-     }
-   }
-   ```
+1.  **Directory:** `src/modules/link-checker/`
+2.  **`manifest.json`:**
+    ```json
+    { "id": "link-checker", "name": "External Link Checker", "version": "1.0.0" }
+    ```
+3.  **`index.js`:**
+    ```javascript
+    // const LinkCheckerService = require('./link-checker.service');
+    // module.exports = (app, { prisma, logger, config }) => {
+    //   const service = new LinkCheckerService(prisma, logger, config.LINK_CHECKER_API_KEY);
+    //   // Could expose an API to trigger checks or view status
+    //   // app.use('/api/v1/link-checker', require('./link-checker.routes')(service));
+    //   // Or just run a background job
+    //   // setInterval(() => service.checkLinks(), config.LINK_CHECK_INTERVAL_MS);
+    //   logger.info('Link Checker module initialized.');
+    // };
+    ```
+4.  **`link-checker.service.js`:** Contains logic to find links in platform data (via Prisma) and check their status.
+5.  **Configuration:** `LINK_CHECKER_API_KEY` (for a hypothetical link checking service) and `LINK_CHECK_INTERVAL_MS` would be added to `.env.example` and `.env`.
 
-### 2. Create Frontend Entry Point
-   ```
-   modules/hello-world/frontend/index.js
-   ```
-   `frontend/index.js`:
-   ```javascript
-   // import HelloWorldComponent from './components/HelloWorldComponent.vue'; // Assuming Vue
-
-   export default {
-     initialize: (platformFrontendApi) => {
-       // platformFrontendApi.registerComponent('HelloWorld', HelloWorldComponent);
-       // platformFrontendApi.addNavigationItem({ label: 'Hello', action: () => alert('Hello World from Module!') });
-       console.log("Hello World Module Loaded!");
-       // For a very simple demo, just an alert or console log might suffice
-       // Or, if the platform has a way to inject simple HTML:
-       // platformFrontendApi.injectContent('dashboard.top', '<div>Hello World from Module!</div>');
-     }
-   };
-   ```
-   [**Adapt this example to show a minimal, working integration.**]
-
-### 3. (Optional) Create a Simple Component
-   [**If `registerComponent` was used, show the component code.**]
-
-By following these guidelines and the specific APIs provided by the platform, developers can create powerful extensions that enhance its capabilities. Ensure to consult the detailed API documentation for modules and the core platform.
+This modular approach allows the Autonomous Coding Agent platform to be extended with new backend capabilities in an organized manner. True frontend plugin systems in SPAs add significant complexity but can be layered on top if required.

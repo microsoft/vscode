@@ -1,217 +1,154 @@
-# CI/CD and DevOps
+# CI/CD and DevOps for Autonomous Coding Agent
 
-This guide describes the Continuous Integration/Continuous Deployment (CI/CD) pipeline, versioning system, environment variable management, containerization strategies (Docker, Kubernetes if used), and how to manage staging versus production environments for the platform.
+This guide describes the Continuous Integration/Continuous Deployment (CI/CD) pipeline, versioning system, environment variable management, containerization strategies (Docker), and management of staging versus production environments for the Autonomous Coding Agent platform (Node.js/Express backend, React frontend, PostgreSQL).
 
 ## Overview
 
-A robust DevOps culture and CI/CD pipeline are essential for delivering high-quality software reliably and efficiently. This involves:
-*   **Continuous Integration (CI):** Automatically building, testing, and integrating code changes frequently.
-*   **Continuous Deployment/Delivery (CD):** Automatically deploying validated changes to staging and production environments.
-*   **Infrastructure as Code (IaC):** Managing infrastructure (servers, databases, networks) through code.
-*   **Monitoring and Logging:** Continuously monitoring application performance and health, and collecting logs for troubleshooting.
-*   **Collaboration and Communication:** Strong collaboration between development, operations, and QA teams.
+A robust DevOps culture and CI/CD pipeline are essential for delivering the Autonomous Coding Agent platform reliably and efficiently. This involves:
+*   **Continuous Integration (CI):** Automatically building, testing (unit, integration), and linting code changes frequently upon commits and pull requests.
+*   **Continuous Deployment/Delivery (CD):** Automatically deploying validated changes to staging and (with potential manual approval) production environments.
+*   **Infrastructure as Code (IaC):** Where applicable (e.g., if managing cloud resources beyond simple PaaS deployments), defining infrastructure through code.
+*   **Monitoring and Logging:** Continuously monitoring application performance, errors, and health, and collecting structured logs for troubleshooting and auditing (leveraging the `TelemetryLogger` module and external tools).
 
-## Version Control System
+## Version Control System (Git)
 
 *   **Primary VCS:** Git.
-*   **Repository Hosting:** [**Specify: e.g., GitHub, GitLab, Bitbucket, Azure Repos**]
-*   **Branching Strategy:**
-    *   [**Describe your branching model. Examples:**]
-    *   **GitFlow (Common for released software):**
-        *   `main` (or `master`): Represents production-ready code. Only receives merges from `release` branches or hotfix branches. Tagged for releases.
-        *   `develop`: Integration branch for features. All feature branches are merged into `develop`.
-        *   `feature/*`: Individual feature branches, branched from `develop`.
-        *   `release/*`: Branched from `develop` when preparing for a release. Bug fixes and stabilization happen here. Merged into `main` and back into `develop`.
-        *   `hotfix/*`: Branched from `main` to fix critical production bugs. Merged into `main` and back into `develop`.
-    *   **GitHub Flow (Simpler, good for continuous deployment):**
-        *   `main`: Always deployable.
-        *   `feature/*` (or descriptive names): Branched from `main`. Code is tested here. Merged back into `main` via Pull/Merge Request after review and passing tests, then deployed.
-    *   **Trunk-Based Development:** All developers commit to a single `main` (trunk) branch. Features might be developed in short-lived feature branches or directly on trunk using feature flags. Requires strong automated testing.
-*   **Commit Messages:** [**Specify conventions, e.g., Conventional Commits (https://www.conventionalcommits.org/)**]
-    *   Example: `feat: add user profile page`
-    *   Example: `fix: resolve issue with login form validation`
-*   **Pull/Merge Requests (PRs/MRs):**
-    *   All code changes to protected branches (`main`, `develop`) must go through PRs/MRs.
-    *   Require code reviews (e.g., at least one approval).
-    *   Require CI checks (build, tests, linting) to pass before merging.
+*   **Repository Hosting:** GitHub (assumed for GitHub Actions examples).
+*   **Branching Strategy:** A variation of **GitHub Flow** is recommended for its simplicity and suitability for continuous deployment:
+    *   `main`: This branch always reflects production-ready code. Deployments to production are made from this branch (often via tagged releases).
+    *   `feature/<descriptive-name>` (e.g., `feature/new-ai-model-connector`): Developers create feature branches from `main`. All work happens here.
+    *   `fix/<issue-number-or-description>`: For bug fixes.
+    *   **Pull Requests (PRs):** All changes to `main` must go through a PR from a feature or fix branch. PRs require:
+        *   Code review(s) from other team members.
+        *   All CI checks (linting, tests, build) to pass.
+    *   **Releases:** Create Git tags (e.g., `v1.0.0`, `v1.0.1`) on the `main` branch to signify a release. CI/CD can be configured to deploy tagged commits to production.
+*   **Commit Messages:** Adhere to **Conventional Commits** ([https://www.conventionalcommits.org/](https://www.conventionalcommits.org/)) for clear, automated changelog generation and semantic versioning.
+    *   Examples: `feat(api): add endpoint for workflow creation`, `fix(agent): resolve issue with prompt templating`, `docs: update deployment guide`.
 
-## CI/CD Pipeline
+## CI/CD Pipeline (Using GitHub Actions as Example)
 
-[**Describe the CI/CD tool(s) used: e.g., GitHub Actions, GitLab CI/CD, Jenkins, CircleCI, Azure DevOps Pipelines, AWS CodePipeline.**]
+The CI/CD pipeline automates the build, test, and deployment process. We'll use GitHub Actions as the example CI/CD tool. Workflows are defined in YAML files in the `.github/workflows/` directory.
 
 ### Pipeline Stages (Typical Flow):
 
 1.  **Trigger:**
-    *   Push to a feature branch.
-    *   Creation of a Pull/Merge Request.
-    *   Merge to `develop` or `main`.
-    *   Scheduled trigger (e.g., nightly builds).
+    *   On push to any `feature/*` or `fix/*` branch.
+    *   On Pull Request creation/update targeting `main`.
+    *   On push to `main` (e.g., after merging a PR, or for direct hotfixes - though PRs are preferred).
+    *   On creation of a Git tag matching `v*.*.*`.
 
-2.  **Checkout Code:**
-    *   Pipeline checks out the relevant branch/commit.
+2.  **CI Workflow (runs on PRs and pushes to feature/fix branches):**
+    *   **Checkout Code:** `actions/checkout@v3`
+    *   **Setup Node.js:** `actions/setup-node@v3` (with specified Node.js version, e.g., 18.x or 20.x, and caching for `npm` dependencies).
+    *   **Install Dependencies:**
+        *   `npm ci` (for both `/server` and `/client` if they have separate `package-lock.json`, or at root if monorepo).
+    *   **Lint & Format Check:**
+        *   Run ESLint: `npm run lint` (in `/server` and `/client`).
+        *   Run Prettier check: `npm run format:check`.
+    *   **Run Tests:**
+        *   Backend (Node.js/Express - `/server`): `npm test` (executes unit and integration tests using Jest or similar). Requires a test database if integration tests hit it (can be spun up using services in GitHub Actions).
+        *   Frontend (React - `/client`): `npm test` (executes unit/component tests using Jest/React Testing Library).
+    *   **Build Application (Check):**
+        *   Backend: `npm run build` (if using TypeScript or a build step).
+        *   Frontend: `npm run build` (creates static assets).
+    *   **(Optional) Security Scans:**
+        *   Dependency vulnerability scan: `npm audit --audit-level=high`.
+        *   Static Application Security Testing (SAST) tools (e.g., CodeQL integrated with GitHub).
 
-3.  **Setup Environment:**
-    *   Install necessary tools, runtimes (Node.js, Python, Java, Docker), and dependencies (e.g., `npm install`, `pip install`, `mvn install`).
-    *   Cache dependencies to speed up subsequent runs.
+3.  **CD Workflow - Build & Push Docker Images (runs on merge to `main` or tag creation):**
+    *   All CI steps above are repeated or artifacts are passed.
+    *   **Login to Container Registry:** (e.g., GitHub Container Registry (GHCR), Docker Hub, AWS ECR).
+        ```yaml
+        - name: Log in to GitHub Container Registry
+          uses: docker/login-action@v2
+          with:
+            registry: ghcr.io
+            username: ${{ github.actor }}
+            password: ${{ secrets.GITHUB_TOKEN }}
+        ```
+    *   **Build and Push Backend Docker Image:** (using `server/Dockerfile`)
+        ```yaml
+        - name: Build and push backend image
+          uses: docker/build-push-action@v4
+          with:
+            context: ./server # Path to backend Dockerfile directory
+            file: ./server/Dockerfile
+            push: true
+            tags: ghcr.io/${{ github.repository_owner }}/agent-backend:${{ github.sha }} # Example tag
+            # For releases: ghcr.io/${{ github.repository_owner }}/agent-backend:${{ github.ref_name }} (tag name)
+        ```
+    *   **Build and Push Frontend Docker Image:** (using `client/Dockerfile`, potentially serving static assets with Nginx)
+        ```yaml
+        - name: Build and push frontend image
+          uses: docker/build-push-action@v4
+          with:
+            context: ./client # Path to client Dockerfile directory
+            file: ./client/Dockerfile
+            build-args: | # Pass build-time env vars for React app
+              REACT_APP_API_BASE_URL=${{ secrets.PROD_API_BASE_URL }} # Example
+            push: true
+            tags: ghcr.io/${{ github.repository_owner }}/agent-frontend:${{ github.sha }}
+        ```
 
-4.  **Linting & Static Analysis:**
-    *   Run code linters (e.g., ESLint, Pylint, Checkstyle).
-    *   Perform static code analysis (e.g., SonarQube, CodeQL).
-    *   Fail the build if issues are found.
+4.  **CD Workflow - Deploy to Staging (runs on merge to `main` or a `staging` branch):**
+    *   Uses deployment tools/scripts specific to the staging hosting environment (e.g., Railway, Render, Heroku CLI, `kubectl` for K8s, AWS Copilot/CDK/SAM).
+    *   Injects staging-specific environment variables (from GitHub Secrets or environment secrets).
+    *   **Run Database Migrations:** `npx prisma migrate deploy` (executed in the context of the deployed backend service or as a pre-deployment step).
+    *   **(Optional) Run E2E Tests:** Against the staging environment.
 
-5.  **Unit & Integration Tests:**
-    *   Execute automated unit tests.
-    *   Execute automated integration tests (may require setting up test databases or mock services).
-    *   Collect test coverage reports.
-    *   Fail the build if tests fail or coverage drops below a threshold.
-
-6.  **Build Application:**
-    *   Compile code (if necessary, e.g., TypeScript, Java, Go).
-    *   Build frontend assets (e.g., `npm run build`).
-    *   Package the application (e.g., create JAR/WAR files, executables).
-
-7.  **Build Docker Image (If using containers):**
-    *   Build Docker images using the `Dockerfile` for each service/application component.
-    *   Tag images appropriately (e.g., with commit SHA, branch name, version number).
-    *   Push images to a container registry (e.g., Docker Hub, AWS ECR, Google GCR, Azure ACR).
-
-8.  **Security Scans:**
-    *   Scan dependencies for known vulnerabilities (e.g., `npm audit`, Snyk, Dependabot).
-    *   Scan Docker images for vulnerabilities (e.g., Trivy, Clair, Aqua Security).
-    *   Perform Dynamic Application Security Testing (DAST) if applicable.
-
-9.  **Deploy to Staging Environment:**
-    *   Triggered automatically on merge to `develop` or manually for a release candidate.
-    *   Deploy the built application/containers to the staging environment.
-    *   Run database migrations.
-    *   Perform configuration management (apply environment-specific settings).
-
-10. **End-to-End (E2E) & Smoke Tests on Staging:**
-    *   Run automated E2E tests against the deployed staging environment (e.g., using Cypress, Selenium, Playwright).
-    *   Perform basic smoke tests to ensure critical functionalities are working.
-
-11. **Manual QA/Approval (Optional):**
-    *   Notify QA team or stakeholders for manual testing and approval on the staging environment.
-    *   May involve a manual gate in the pipeline.
-
-12. **Deploy to Production Environment:**
-    *   Triggered automatically on merge to `main` (for continuous deployment) or manually after staging approval (for continuous delivery).
-    *   **Deployment Strategy:** (e.g., Blue/Green, Canary, Rolling Update). See [Deployment Guide](./04-deployment-guide.md).
-    *   Run database migrations (carefully, with rollback plans).
-    *   Apply production configurations.
-
-13. **Post-Deployment Health Checks & Monitoring:**
-    *   Verify application health after deployment.
-    *   Monitor logs and performance metrics.
-
-14. **Notifications:**
-    *   Notify team members (e.g., via Slack, email) about build status, deployment success/failure.
-
-[**Include a simplified diagram of your pipeline if possible.**]
-[**Provide links to pipeline configuration files if they are in the repository (e.g., `.github/workflows/main.yml`, `.gitlab-ci.yml`, `Jenkinsfile`).**]
+5.  **CD Workflow - Deploy to Production (runs on Git tag `v*.*.*` or manual trigger/approval):**
+    *   Similar to staging deployment but targets the production environment.
+    *   Injects production environment variables.
+    *   **Run Database Migrations:** `npx prisma migrate deploy`.
+    *   Uses deployment strategies like Blue/Green or Rolling Updates if supported by the hosting platform to minimize downtime.
+    *   **Post-Deployment:** Health checks, smoke tests.
 
 ## Environment Variables Management
 
-Proper management of environment variables is crucial for security and configuration flexibility.
+Refer to the [Configuration Guide](./03-configuration-guide/README.md) for a detailed list of environment variables.
+*   **Local Development:** `.env` files at the project root (and potentially within `/server` or `/client` if they have separate concerns, though a root `.env` is common with Docker Compose). Loaded by `dotenv` in Node.js.
+*   **CI/CD (GitHub Actions):**
+    *   Store secrets (API keys, `DATABASE_URL` for test DBs, registry passwords) in GitHub Repository Secrets (`Settings > Secrets and variables > Actions`).
+    *   Store non-secret, environment-specific variables (like `STAGING_API_BASE_URL`) as GitHub Environment Variables or directly in workflow files if not sensitive.
+*   **Staging/Production Hosting:**
+    *   Use the hosting platform's environment variable/secret management system (e.g., Railway Environment Variables, Render Environment Groups, Heroku Config Vars, AWS Parameter Store/Secrets Manager, Kubernetes Secrets).
+    *   **Never commit `.env` files with actual secrets to Git.**
 
-*   **Storage:**
-    *   **Local Development:** `.env` files (gitignored). Loaded by tools like `dotenv`.
-    *   **CI/CD System:** Securely store environment variables within the CI/CD tool's secrets management system (e.g., GitHub Secrets, GitLab CI Variables, Jenkins Credentials). These are injected into the pipeline at runtime.
-    *   **Hosting Environment (Staging/Production):**
-        *   **Cloud Providers:** Use built-in mechanisms (e.g., AWS Parameter Store/Secrets Manager, Google Secret Manager, Azure Key Vault, environment settings in App Service/Beanstalk/Lambda).
-        *   **Kubernetes:** `ConfigMaps` (for non-sensitive data) and `Secrets` (for sensitive data).
-        *   **Server Configuration Tools:** Ansible Vault, Chef Vault.
-*   **Naming Conventions:**
-    *   Use consistent naming (e.g., `DATABASE_URL`, `API_KEY_SERVICE_X`).
-    *   Prefix with service name if ambiguous (e.g., `PAYMENT_API_KEY`, `NOTIFICATION_API_KEY`).
-*   **`.env.example` File:**
-    *   Maintain an `.env.example` file in the repository that lists all required environment variables with placeholder or default values. This serves as a template.
-*   **Access in Application:**
-    *   Application code reads variables from `process.env` (Node.js), `os.environ` (Python), etc.
-    *   Configuration libraries can help manage and validate these.
-*   **Security:**
-    *   **Never commit actual secrets or `.env` files containing secrets to version control.**
-    *   Limit access to production secrets.
-    *   Rotate secrets periodically.
+## Containerization (Docker)
 
-## Containerization (Docker, Kubernetes)
-
-[**Specify if and how containerization is used.**]
-
-### Docker:
-*   **`Dockerfile`:**
-    *   Maintain optimized and secure `Dockerfile`s for each application component/service.
-    *   Use multi-stage builds to keep production images small and clean.
-    *   Scan images for vulnerabilities.
-    *   [**Link to example Dockerfiles in the repository if available.**]
-*   **`docker-compose.yml`:**
-    *   Used for local development to easily spin up the application and its dependencies (databases, caches).
-    *   May also be used for simpler single-server deployments.
-    *   [**Link to `docker-compose.yml` if available.**]
-*   **Container Registry:**
-    *   [**Specify registry used: e.g., Docker Hub, AWS ECR, Google GCR, Azure ACR, GitLab Container Registry.**]
-    *   CI/CD pipeline pushes tagged images to this registry.
-
-### Kubernetes (K8s) (If used for orchestration):
-*   **Manifest Files (YAML):**
-    *   Define Kubernetes resources (Deployments, Services, Ingress, ConfigMaps, Secrets, PersistentVolumeClaims, etc.) in YAML files.
-    *   Store these manifests in version control.
-    *   [**Link to K8s manifest directory if available.**]
-*   **Deployment Tools:**
-    *   `kubectl apply -f <directory_or_file>`
-    *   Helm charts for packaging and managing K8s applications.
-    *   Kustomize for template-free customization of K8s manifests.
-    *   GitOps tools (e.g., Argo CD, Flux) for continuous deployment to Kubernetes based on changes in a Git repository.
-*   **Cluster Management:**
-    *   [**Briefly mention how K8s clusters are provisioned and managed: e.g., Managed Kubernetes services (EKS, GKE, AKS), self-hosted.**]
-*   **Key K8s Concepts Used:**
-    *   **Deployments:** For declarative updates to Pods.
-    *   **Services:** To expose applications running in Pods (ClusterIP, NodePort, LoadBalancer).
-    *   **Ingress:** To manage external access to services, typically HTTP/HTTPS routing.
-    *   **ConfigMaps & Secrets:** For managing configuration and sensitive data.
-    *   **Horizontal Pod Autoscaler (HPA):** For automatic scaling based on metrics.
-    *   **Liveness & Readiness Probes:** To ensure Pod health.
+The platform uses Docker for consistent development and deployment environments.
+*   **Backend Dockerfile (`server/Dockerfile`):** Optimized for Node.js/Express and Prisma. Uses multi-stage builds. (See [Deployment Guide](./04-deployment-guide/README.md) for an example).
+*   **Frontend Dockerfile (`client/Dockerfile`):** Builds the React static assets and serves them using Nginx or a similar lightweight server. (See [Deployment Guide](./04-deployment-guide/README.md) for an example).
+*   **`docker-compose.yml` (Project Root):** Defines services for local development (`server`, `client`, `db` for PostgreSQL). See [Getting Started Guide](./01-getting-started/README.md).
+*   **Container Registry:** GitHub Container Registry (GHCR) is assumed in examples, but any major registry (Docker Hub, AWS ECR, Google GCR) can be used.
 
 ## Managing Staging vs. Production Environments
 
-*   **Isolation:** Staging and production environments must be completely isolated (networks, databases, other backing services).
-*   **Parity (as much as possible):** Staging should mirror production in terms of infrastructure, software versions, and configurations to ensure accurate testing.
-    *   This can be challenging for data, where staging might use sanitized or smaller datasets.
-*   **Configuration Differences:** Managed via environment variables or environment-specific configuration files loaded at runtime/deploy time.
-    *   Example: `DATABASE_URL` will be different for staging and production.
-    *   Feature flags might be enabled differently.
-*   **Deployment Process:**
-    *   **Staging:** Typically deployed automatically from a `develop` or `release` branch. More frequent deployments.
-    *   **Production:** Deployed from `main` or a tagged release. Deployments are more controlled, often requiring approval, and may use strategies like blue/green or canary to minimize risk.
-*   **Data Management:**
-    *   **Staging Database:** Can be a periodically restored (and sanitized) copy of production, or seeded with realistic test data.
-    *   **Production Database:** Backed up regularly. Migrations applied carefully.
-*   **Access Control:** Stricter access controls for production environments.
-*   **Monitoring & Alerting:**
-    *   Both environments should be monitored, but alerting thresholds and urgency will be higher for production.
-*   **Third-Party Services:** Use sandbox/test accounts for third-party services in staging, and production accounts in production.
+*   **Isolation:** Staging and production environments are completely separate (different databases, API keys for third-party services, potentially different cloud accounts or projects).
+*   **Configuration:** Differences are managed entirely by environment variables injected at deployment time.
+*   **Deployment Triggers:**
+    *   **Staging:** Deployed automatically on merges to `main` (if `main` is treated as a staging/integration branch before tagging for production) or a dedicated `staging` branch.
+    *   **Production:** Deployed from Git tags (`v*.*.*`) on the `main` branch, often with a manual approval step in the CI/CD workflow for critical releases.
+*   **Data:** Staging PostgreSQL database uses seeded or sanitized data. Production PostgreSQL is regularly backed up.
+*   **Third-Party Services:** Use sandbox/test accounts and API keys for third-party services (OpenAI, Anthropic, etc.) in staging.
 
-## Infrastructure as Code (IaC)
+## Infrastructure as Code (IaC) - (Optional/Future Consideration)
 
-*   **Tools:** [**Specify tools used, e.g., Terraform, AWS CloudFormation, Azure Resource Manager (ARM) templates, Google Cloud Deployment Manager, Ansible, Pulumi.**]
-*   **Benefits:**
-    *   Version control for infrastructure.
-    *   Repeatable and consistent environment provisioning.
-    *   Automation of infrastructure changes.
-    *   Disaster recovery.
-*   **Process:** IaC scripts define the desired state of the infrastructure. The IaC tool then provisions or updates resources to match this state.
-*   [**Link to IaC code/repository if applicable.**]
+If the platform's infrastructure becomes more complex than what PaaS providers offer out-of-the-box (e.g., custom VPCs, multiple managed services on AWS/GCP/Azure, Kubernetes clusters):
+*   **Tools:** Terraform, Pulumi, AWS CloudFormation, Google Cloud Deployment Manager.
+*   **Benefits:** Infrastructure is version-controlled, repeatable, and changes can be automated and reviewed.
+*   For the current hypothetical stack deploying to PaaS like Railway or Render, explicit IaC might be minimal as the platform handles much of the infrastructure.
 
 ## Monitoring, Logging, and Alerting
 
-*   **Logging:**
-    *   Applications should produce structured logs (e.g., JSON).
-    *   Centralized logging system (e.g., ELK Stack - Elasticsearch, Logstash, Kibana; Grafana Loki; Splunk; AWS CloudWatch Logs; Google Cloud Logging; Azure Monitor Logs).
-*   **Monitoring:**
-    *   Application Performance Monitoring (APM) tools (e.g., Prometheus/Grafana, Datadog, New Relic, Dynatrace, Sentry for error tracking).
-    *   Infrastructure monitoring (CPU, memory, disk, network).
+*   **Logging (Node.js Backend):**
+    *   The `TelemetryLogger` module should output structured logs (JSON).
+    *   In production, logs are typically ingested by the hosting provider's logging solution (e.g., Railway Log Explorer, Render Logs, CloudWatch Logs) or a dedicated logging service (e.g., Logtail, Datadog Logs).
+*   **Monitoring (APM & Metrics):**
+    *   Application Performance Monitoring (APM): Tools like Sentry (for error tracking and performance), Datadog APM, New Relic.
+    *   Metrics: Track API endpoint latency, error rates, request volume, AI task processing times, database performance. Hosting platforms often provide basic metrics. Prometheus/Grafana can be used for more custom setups.
 *   **Alerting:**
-    *   Set up alerts for critical errors, performance degradation, security events, and resource exhaustion.
-    *   Tools: Prometheus Alertmanager, Grafana Alerting, PagerDuty, Opsgenie, cloud provider alerting services.
+    *   Set up alerts for critical errors (e.g., via Sentry), high resource usage, API downtime, or significant spikes in AI task failures.
+    *   Integrate alerts with Slack or PagerDuty.
 
-By implementing these DevOps practices and CI/CD pipelines, the platform can achieve faster release cycles, higher quality, improved stability, and better collaboration across teams. This document should be updated as practices evolve.
+This DevOps and CI/CD setup aims for developer efficiency, release reliability, and operational stability for the Autonomous Coding Agent platform.

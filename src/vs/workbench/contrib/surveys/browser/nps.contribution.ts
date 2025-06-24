@@ -87,7 +87,7 @@ class NPSContribution implements IWorkbenchContribution {
 					storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.APPLICATION, StorageTarget.USER);
 				}
 			}],
-			{ priority: NotificationPriority.URGENT }
+			{ sticky: true, priority: NotificationPriority.URGENT }
 		);
 	}
 }

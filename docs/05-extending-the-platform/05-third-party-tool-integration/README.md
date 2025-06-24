@@ -1,79 +1,78 @@
 # Third-Party Tool Integration
 
-This section provides step-by-step guides and best practices for integrating various third-party tools and services with the platform. Effective integration can significantly enhance the platform's capabilities, automate workflows, and improve user productivity.
+This section provides step-by-step guides and best practices for integrating various third-party tools and services with the Autonomous Coding Agent platform. Effective integration can significantly enhance the platform's capabilities, automate workflows (e.g., linking AI coding tasks to project management tools), and improve developer productivity.
 
 ## General Principles for Integration
 
-Before diving into specific tools, consider these general principles:
+Before diving into specific tools, consider these general principles applicable to our Node.js backend and React frontend:
 
 1.  **Authentication:**
-    *   **OAuth 2.0:** Preferred for services that support it, allowing users to grant your platform permission to access their data without sharing credentials.
-    *   **API Keys/Tokens:** For services that use them, ensure keys are stored securely (e.g., encrypted in the database, environment variables, secret management services) and have the minimum necessary permissions.
-    *   **Service Accounts:** For server-to-server integrations where no user is directly involved.
+    *   **OAuth 2.0 (Authorization Code Grant):** Preferred for services that support it (e.g., Google, Slack, GitHub, Jira Cloud). Your Node.js backend will handle the OAuth flow, storing tokens securely (refresh tokens encrypted in PostgreSQL). The React frontend will initiate the flow and handle callbacks.
+    *   **API Keys/Tokens:** For services using simpler token-based auth. Keys should be configurable by users/admins in your platform and stored encrypted in the backend. The Node.js backend will make API calls using these keys.
+    *   **Service Accounts (for Google Cloud, AWS, etc.):** If your platform needs to interact with cloud services programmatically as itself (not on behalf of a user), use service accounts with securely managed credentials.
 
-2.  **Configuration:**
-    *   Provide a clear UI or configuration mechanism within your platform for administrators or users to input API keys, OAuth credentials, and other settings required for the integration.
-    *   Store these configurations securely.
+2.  **Configuration (Platform Side):**
+    *   The React frontend should provide a settings UI for users/admins to initiate OAuth connections or input API keys/tokens and other integration-specific settings.
+    *   These configurations are sent to the Node.js backend and stored securely in the PostgreSQL database (e.g., in a dedicated `integrations_config` table or associated with user/project settings).
 
-3.  **Data Handling:**
-    *   Understand the data being exchanged (schemas, formats).
-    *   Implement proper error handling and retry mechanisms for API calls.
-    *   Be mindful of rate limits imposed by third-party APIs.
-    *   Consider data privacy and compliance (e.g., GDPR) when handling data from external services.
+3.  **Data Handling & Security:**
+    *   Clearly define data schemas for exchange.
+    *   The Node.js backend should implement robust error handling, retry mechanisms (e.g., with exponential backoff for API calls), and respect rate limits of third-party APIs.
+    *   Adhere to data privacy regulations (e.g., GDPR, CCPA). Be transparent about what data is shared with third-party services.
+    *   Validate and sanitize any data coming from third-party systems.
 
-4.  **User Experience:**
-    *   Make the integration seamless and intuitive for the user.
-    *   Provide feedback on the status of the integration (e.g., connected, disconnected, errors).
-    *   Clearly indicate which data or features are coming from an integrated service.
+4.  **User Experience (Frontend):**
+    *   Make the connection process intuitive (e.g., "Connect to Slack" button).
+    *   Provide clear feedback on integration status (connected, disconnected, errors) in the React UI.
+    *   Visually distinguish features or data that originate from integrated services.
 
-5.  **Modularity:**
-    *   Design integrations as modules or plugins if possible, so they can be enabled/disabled as needed. (Refer to [Feature Extension Guide](./02-feature-extension.md)).
+5.  **Modularity (Backend):**
+    *   Each third-party integration should ideally be a distinct module within the Node.js backend (see [Feature Extension Guide](../02-feature-extension.md)). This includes its own services, routes (if needed for callbacks), and configuration logic.
 
 6.  **Webhooks:**
-    *   Many services use webhooks to send real-time notifications to your platform when events occur.
-    *   Ensure your platform can securely receive and process these webhooks. Validate webhook signatures if provided by the third-party service.
+    *   If your platform needs to receive real-time notifications from third-party services (e.g., Jira issue update, Slack message), the Node.js backend will expose secure HTTPS endpoints.
+    *   Implement signature verification for webhooks if the third-party service provides it (e.g., Slack, GitHub). Store webhook secrets securely.
 
 7.  **Logging and Monitoring:**
-    *   Log key integration events, API calls, successes, and failures to help with troubleshooting.
+    *   The Node.js backend should log key integration events: successful connections, API calls made, data synced, errors encountered. This aids in troubleshooting and monitoring integration health.
 
 ## Specific Tool Integration Guides
 
-The following sub-sections (which will be separate files) will detail the integration process for commonly used third-party services. Each guide will typically cover:
+The following sub-sections provide detailed integration instructions for various tools relevant to an autonomous coding agent platform. Each guide typically covers:
 
-*   **Overview of the Service and Integration Benefits.**
-*   **Prerequisites:** (e.g., accounts needed, developer console setup).
-*   **Authentication Method(s).**
-*   **Key API Endpoints and SDKs (if any).**
-*   **Step-by-Step Integration Process:**
-    *   Setting up the third-party application/credentials.
-    *   Configuring the integration within your platform.
-    *   Example workflows and use cases.
-*   **Handling Webhooks (if applicable).**
-*   **Best Practices and Security Considerations.**
-*   **Troubleshooting Common Issues.**
+*   Overview of the service and how it can benefit the platform.
+*   Prerequisites (developer accounts, application setup on the third-party service).
+*   Authentication method(s) with examples for the Node.js backend.
+*   Key API endpoints or SDK usage.
+*   Step-by-step integration process, including frontend (React) considerations for initiating connections and backend (Node.js) logic for handling API calls and data.
+*   Webhook handling (if applicable).
+*   Security best practices and troubleshooting tips.
 
 ### Available Integration Guides:
 
 1.  **[Google Services](./05-a-google-services.md)**
-    *   Gmail API (reading/sending emails)
-    *   Google Calendar API (managing events)
-    *   Google Drive API (accessing/managing files)
+    *   **Gmail API:** (e.g., for sending notifications about coding tasks, reading email instructions if permitted).
+    *   **Google Calendar API:** (e.g., scheduling coding tasks, syncing deadlines).
+    *   **Google Drive API:** (e.g., accessing code files or project documents stored in Drive).
 2.  **[Slack](./05-b-slack.md)**
-    *   Sending notifications to Slack channels.
-    *   Building Slack bots that interact with your platform.
-    *   Handling Slack slash commands and webhooks.
+    *   Sending notifications about AI task progress or completion to Slack channels.
+    *   Building a Slack bot for users to trigger coding tasks or query status from Slack.
+    *   Handling Slack slash commands.
 3.  **[Discord](./05-c-discord.md)**
-    *   Sending notifications to Discord channels/users.
-    *   Building Discord bots.
-    *   Discord authentication.
+    *   Similar to Slack: notifications, bot commands for interacting with the coding agent.
 4.  **[Jira and Atlassian Suite](./05-d-jira-atlassian.md)**
-    *   Creating and updating Jira issues from your platform.
-    *   Linking platform items to Jira issues.
-    *   Automating workflows based on Jira events.
+    *   Creating Jira issues automatically from AI-identified bugs or new feature suggestions.
+    *   Updating Jira issues with progress from coding tasks.
+    *   Linking platform tasks/workflows to Jira issues.
 5.  **[Custom Enterprise Tools / Proprietary AI Modules](./05-e-custom-enterprise-tools.md)**
-    *   General guidelines for integrating with internal or specialized third-party systems.
-    *   Focus on API contracts, authentication patterns, and data mapping.
+    *   General guidelines for integrating with internal systems or specialized third-party AI modules that might have custom APIs.
+    *   Focus on API contract definition, authentication patterns (e.g., internal token systems), and data mapping.
+6.  **(Coming Soon) Git Providers (GitHub, GitLab, Bitbucket):**
+    *   Authenticating users via their Git provider accounts.
+    *   Accessing repositories to read code for analysis or modification by the AI agent.
+    *   Committing AI-generated code changes back to repositories (requires careful permission handling).
+    *   Handling webhooks for repository events (e.g., new commit, PR created).
 
 ---
 
-*This `README.md` serves as an index for the detailed integration guides that follow. Each linked page will provide the specific instructions for that tool or service category.*
+*This `README.md` serves as an index for the detailed integration guides that follow. Each linked page will provide specific instructions for that tool or service category, tailored to the platform's Node.js backend and React frontend.*

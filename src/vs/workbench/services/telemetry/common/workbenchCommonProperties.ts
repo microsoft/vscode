@@ -20,10 +20,9 @@ export function resolveWorkbenchCommonProperties(
 	devDeviceId: string,
 	isInternalTelemetry: boolean,
 	process: INodeProcess,
-	releaseDate: string | undefined,
-	remoteAuthority?: string,
+	remoteAuthority?: string
 ): ICommonProperties {
-	const result = resolveCommonProperties(release, hostname, process.arch, commit, version, machineId, sqmId, devDeviceId, isInternalTelemetry, releaseDate);
+	const result = resolveCommonProperties(release, hostname, process.arch, commit, version, machineId, sqmId, devDeviceId, isInternalTelemetry);
 	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION)!;
 	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.APPLICATION)!;
 

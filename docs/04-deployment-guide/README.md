@@ -1,226 +1,194 @@
 # Deployment Guide
 
-This guide provides instructions and best practices for deploying the platform to various environments. It covers general deployment strategies, containerization with Docker, and considerations for cloud deployments.
+This guide provides instructions and best practices for deploying the Autonomous Coding Agent platform to various environments. It focuses on container-based deployments using Docker, managed by CI/CD pipelines, and considerations for cloud hosting.
 
 ## Prerequisites
 
 Before deploying the platform, ensure you have:
-*   A stable, tested version of the application from your version control system (e.g., a release branch or tag).
-*   Access to the target deployment environment (server, cloud account, Kubernetes cluster).
-*   All necessary configuration values (environment variables, secrets) for the target environment. See the [Configuration Guide](./03-configuration-guide/README.md).
-*   Build artifacts prepared, if your application requires a build step (e.g., compiled frontend assets, compiled backend code).
+*   A stable, tested version of the application from your Git repository (e.g., a release branch or tag like `v1.0.0`).
+*   Access to the target deployment environment (e.g., cloud provider account, Kubernetes cluster, PaaS).
+*   All necessary configuration values (environment variables, secrets) for the target environment. Refer to the [Configuration Guide](./03-configuration-guide/README.md).
+*   Docker images for the frontend and backend services built and pushed to a container registry (this is typically handled by the CI/CD pipeline).
 
-## General Deployment Strategies
+## General Deployment Strategy: Automated with CI/CD
 
-### 1. Manual Deployment (Not Recommended for Production)
-Suitable for initial testing or very small setups.
-*   **Steps:**
-    1.  SSH into the target server.
-    2.  Clone or pull the latest code from the repository.
-    3.  Install dependencies.
-    4.  Configure environment variables (e.g., in `.bashrc`, systemd unit file, or by exporting them before running).
-    5.  Build the application (if necessary).
-    6.  Run database migrations.
-    7.  Start the application using a process manager (e.g., PM2, systemd, Supervisor).
-*   **Pros:** Simple for one-off deployments.
-*   **Cons:** Error-prone, not scalable, difficult to roll back, lacks automation.
+The recommended approach for deploying to staging and production environments is through an automated CI/CD pipeline (e.g., using GitHub Actions). Manual deployments are error-prone and not suitable for production.
 
-### 2. Automated Deployment with CI/CD
-This is the recommended approach for staging and production environments.
-*   **Tools:** GitHub Actions, GitLab CI/CD, Jenkins, CircleCI, AWS CodeDeploy, Google Cloud Build.
-*   **General Workflow:**
-    1.  **Commit/Push:** Developer pushes code to a specific branch (e.g., `main`, `release/*`).
-    2.  **CI Server Trigger:** The CI server detects the change and triggers a pipeline.
-    3.  **Build:** The pipeline checks out the code, installs dependencies, runs linters and tests. If a build step is required, it generates build artifacts.
-    4.  **Package (Optional):** The application (and its dependencies) might be packaged into a container image (e.g., Docker).
-    5.  **Deploy:** The CI/CD pipeline deploys the new version to the target environment. This might involve:
-        *   Copying files to servers.
-        *   Updating container images in a registry and rolling out updates (e.g., in Kubernetes).
-        *   Running database migrations.
-        *   Restarting application services.
-    6.  **Post-Deployment:** Run health checks, smoke tests. Notify stakeholders.
-*   **Pros:** Consistent, reliable, automated, enables rollbacks, integrates testing.
-*   **Cons:** Requires initial setup and maintenance of the CI/CD pipeline.
+**Typical CI/CD Deployment Workflow (after build & test stages):**
+1.  **Tag Release:** A Git tag (e.g., `v1.2.0`) is pushed, or code is merged to a deployment branch (e.g., `main` for production, `staging` for staging).
+2.  **Build Docker Images:** The CI pipeline builds production-ready Docker images for the backend (Node.js/Express) and frontend (React app, often served by Nginx or a simple static server). (This step might have already occurred in an earlier CI stage).
+3.  **Push Images to Registry:** Tagged Docker images are pushed to a container registry (e.g., Docker Hub, AWS ECR, Google GCR, GitHub Container Registry).
+4.  **Prepare Environment Configuration:** Ensure all required environment variables and secrets are securely available to the target deployment environment.
+5.  **Deploy to Target Environment:**
+    *   The CI/CD pipeline triggers a deployment job.
+    *   This job instructs the hosting environment (PaaS, Kubernetes, etc.) to pull the new Docker images and update the running services.
+    *   Common deployment strategies like Rolling Updates, Blue/Green, or Canary might be used (see below).
+6.  **Run Database Migrations:**
+    *   Crucially, database migrations (e.g., using Prisma Migrate for our hypothetical stack) must be run *before* the new application code that depends on schema changes is fully live, or in a way that maintains compatibility.
+    *   This is often a separate step in the deployment script or pipeline, executed against the target database.
+    *   Example: `npx prisma migrate deploy` (run in the context of the backend service).
+7.  **Health Checks & Smoke Tests:** After deployment, automated health checks and smoke tests verify that the application is running correctly.
+8.  **Rollback Plan:** Have a documented (and preferably automated) way to roll back to the previous stable version if the deployment fails or introduces critical issues.
 
 ### Deployment Checklist
-*   [ ] Backup database before deploying schema changes.
-*   [ ] Ensure all environment variables and secrets are correctly configured for the target environment.
-*   [ ] Run database migrations.
-*   [ ] Deploy application code/binaries/containers.
-*   [ ] Restart application services gracefully (zero-downtime deployment if possible).
-*   [ ] Perform health checks and monitor logs immediately after deployment.
-*   [ ] Have a rollback plan in case of issues.
+*   [ ] **Backup Database:** Crucial before deploying significant schema changes or data migrations, especially in production.
+*   [ ] **Environment Variables:** Verify all required environment variables and secrets are correctly set in the target environment.
+*   [ ] **Build & Push Images:** Ensure correctly tagged Docker images are available in the registry.
+*   [ ] **Run Database Migrations:** Execute `npx prisma migrate deploy` (or equivalent) against the target database.
+*   [ ] **Deploy Application Containers:** Update services to use the new Docker images.
+*   [ ] **Service Restart/Rollout:** Ensure services restart gracefully (zero-downtime deployment strategies are preferred).
+*   [ ] **Health Checks:** Perform automated health checks on critical endpoints.
+*   [ ] **Monitor:** Closely monitor application logs, error rates, and performance metrics immediately after deployment.
+*   [ ] **Rollback Readiness:** Be prepared to execute the rollback plan if needed.
 
 ## Containerization with Docker
 
-Docker allows you to package the application and its dependencies into a portable container image. This ensures consistency across different environments.
+Our hypothetical platform uses Docker for packaging the Node.js backend and React frontend.
 
-### `Dockerfile`
-A `Dockerfile` defines the steps to build your application image. There might be separate Dockerfiles for the frontend and backend if they are distinct applications.
+### `Dockerfile` Examples
 
-**Example `Dockerfile` (Node.js Backend):**
-```dockerfile
-# Stage 1: Build stage (if using TypeScript or a build step)
-FROM node:18-alpine AS builder
-WORKDIR /usr/src/app
-COPY package*.json ./
-RUN npm install --only=production --ignore-scripts # Or yarn install --production --frozen-lockfile
-COPY . .
-# RUN npm run build # If you have a build script (e.g., tsc)
+**1. Backend Dockerfile (Node.js/Express with Prisma):**
+   Located at `server/Dockerfile` (assuming backend code is in a `/server` directory).
+   ```dockerfile
+   # Stage 1: Build dependencies and Prisma client
+   FROM node:18-alpine AS builder
+   WORKDIR /usr/src/app
+   COPY server/package*.json ./
+   # Install all dependencies including devDependencies for Prisma client generation
+   RUN npm install
+   COPY server/. ./
+   # Generate Prisma Client based on your schema
+   RUN npx prisma generate
+   # Optional: If you have a build step for TypeScript -> JavaScript
+   # RUN npm run build # This would output to a 'dist' folder
 
-# Stage 2: Production stage
-FROM node:18-alpine
-WORKDIR /usr/src/app
+   # Stage 2: Production image
+   FROM node:18-alpine
+   WORKDIR /usr/src/app
 
-# Set NODE_ENV to production
-ENV NODE_ENV=production
+   ENV NODE_ENV=production
+   # Set PORT if your app listens to it, otherwise it's often set by the hosting platform
+   # ENV PORT=8080
 
-# Copy dependencies from builder stage
-COPY --from=builder /usr/src/app/node_modules ./node_modules
-COPY --from=builder /usr/src/app/package*.json ./
-# Copy built application code from builder stage
-COPY --from=builder /usr/src/app/dist ./dist # Assuming build output is in 'dist'
-# Or if no build step, copy source code
-# COPY --from=builder /usr/src/app/src ./src
+   # Copy only necessary production dependencies from builder stage
+   COPY --from=builder /usr/src/app/node_modules ./node_modules
+   # Copy Prisma client, schema, and migrations
+   COPY --from=builder /usr/src/app/prisma ./prisma
+   # Copy application code (e.g., built JS files or source if running directly)
+   COPY --from=builder /usr/src/app/src ./src # If source is in src
+   # Or if you have a build step:
+   # COPY --from=builder /usr/src/app/dist ./dist
+   COPY server/package.json . # For runtime reference if needed, or to run npm start
 
-# Expose the port the app runs on
-EXPOSE 8080
+   EXPOSE 8080 # Expose the port the app runs on (should match SERVER_PORT env var)
 
-# Command to run the application
-CMD [ "node", "dist/main.js" ] # Or your app's entry point
-```
-[**Provide example Dockerfiles relevant to your platform's tech stack, e.g., for frontend, Python, Java, Go applications.**]
+   # Command to run the application
+   # Ensure this script handles `prisma migrate deploy` or it's done before starting
+   CMD [ "npm", "start" ] # Assuming 'start' script in package.json runs 'node src/index.js' or 'node dist/index.js'
+   ```
 
-### `docker-compose.yml` (for Development and Multi-Container Setups)
-While primarily for development, `docker-compose` can also be used for simpler single-server deployments, though tools like Kubernetes are preferred for production orchestration.
+**2. Frontend Dockerfile (React App served by Nginx):**
+   Located at `client/Dockerfile` (assuming frontend code is in a `/client` directory).
+   ```dockerfile
+   # Stage 1: Build the React application
+   FROM node:18-alpine AS builder
+   WORKDIR /usr/src/app
+   COPY client/package*.json ./
+   RUN npm install
+   COPY client/. ./
+   # Pass API URL during build time (can also be configured at runtime via JS config file)
+   ARG REACT_APP_API_BASE_URL
+   ENV REACT_APP_API_BASE_URL=${REACT_APP_API_BASE_URL}
+   RUN npm run build # Outputs to /build folder by default for Create React App
 
-**Example `docker-compose.yml`:**
-```yaml
-version: '3.8'
+   # Stage 2: Serve static files with Nginx
+   FROM nginx:1.25-alpine
+   # Copy built static files from the builder stage
+   COPY --from=builder /usr/src/app/build /usr/share/nginx/html
+   # Optional: Copy a custom Nginx configuration if needed (e.g., for client-side routing)
+   # COPY client/nginx.conf /etc/nginx/conf.d/default.conf
+   EXPOSE 80
+   CMD ["nginx", "-g", "daemon off;"]
+   ```
+   *Note: For `client/nginx.conf`, you'd typically configure it to serve `index.html` for any path to support client-side routing.*
 
-services:
-  app_backend:
-    build:
-      context: ./backend # Path to backend Dockerfile
-      dockerfile: Dockerfile
-    image: your-repo/platform-backend:${TAG:-latest} # Use a tag for versioning
-    ports:
-      - "8080:8080"
-    environment:
-      - NODE_ENV=production
-      - PORT=8080
-      - DATABASE_URL=${DATABASE_URL} # Pass through from .env file or environment
-      - JWT_SECRET=${JWT_SECRET}
-      # ... other environment variables
-    depends_on:
-      - db
-    restart: unless-stopped
+### `docker-compose.yml` (Primarily for Local Development)
+The `docker-compose.yml` in the project root is mainly for local development. For deployments, you typically deploy individual service images to a PaaS or container orchestrator, not the entire Compose stack directly (though some simpler setups might).
 
-  app_frontend: # If frontend is also containerized
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    image: your-repo/platform-frontend:${TAG:-latest}
-    ports:
-      - "3000:80" # Assuming frontend serves on port 80 in container
-    restart: unless-stopped
-
-  db:
-    image: postgres:14-alpine
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
-    ports:
-      - "5432:5432"
-    restart: unless-stopped
-
-volumes:
-  postgres_data:
-```
-[**Adjust this example to match your platform's services.**]
-
-### Building and Pushing Docker Images
-1.  **Build the image:**
+### Building and Pushing Docker Images (CI/CD Responsibility)
+1.  **Build:** The CI/CD pipeline will run `docker build` for each service.
     ```bash
-    docker build -t your-registry/your-app-name:tag ./path-to-dockerfile-dir
-    # Example:
-    # docker build -t myorg/platform-api:v1.2.0 ./backend
+    # In CI/CD pipeline script
+    docker build -t your-registry/agent-backend:v1.2.0 -f server/Dockerfile .
+    docker build --build-arg REACT_APP_API_BASE_URL=${STAGING_OR_PROD_API_URL} \
+                 -t your-registry/agent-frontend:v1.2.0 -f client/Dockerfile .
     ```
-2.  **Tag the image (if needed for different registries/names):**
+2.  **Login to Registry:**
     ```bash
-    docker tag source-image:tag target-image:tag
+    echo "$REGISTRY_PASSWORD" | docker login your-registry.com -u "$REGISTRY_USERNAME" --password-stdin
     ```
-3.  **Push to a container registry (e.g., Docker Hub, AWS ECR, Google GCR, Azure ACR):**
+3.  **Push:**
     ```bash
-    docker login your-registry.com # Login if necessary
-    docker push your-registry/your-app-name:tag
+    docker push your-registry/agent-backend:v1.2.0
+    docker push your-registry/agent-frontend:v1.2.0
     ```
-    This is typically done by the CI/CD pipeline.
+    (Replace `your-registry`, image names, and tags as appropriate).
 
-## Cloud Deployment
+## Cloud Deployment Options
 
-Deploying to cloud providers (AWS, GCP, Azure, etc.) offers scalability, managed services, and robustness.
+Our hypothetical stack is well-suited for various cloud deployment models:
 
-### Common Cloud Deployment Models:
-1.  **Virtual Machines (IaaS - Infrastructure as a Service):**
-    *   **Services:** AWS EC2, Google Compute Engine, Azure Virtual Machines.
-    *   **Process:** Provision VMs, install dependencies, configure networking and security groups, deploy your application (manually or via CI/CD, potentially using Docker containers on the VMs).
-    *   **Pros:** Full control over the environment.
-    *   **Cons:** More management overhead (OS patching, scaling).
+1.  **Platform as a Service (PaaS) - Simplified Deployments:**
+    *   **Services:** Railway, Render, Heroku (Docker deploys), AWS Elastic Beanstalk, Google App Engine (Flexible Environment).
+    *   **Process:** Connect your Git repository or point to your Docker images in a registry. The PaaS handles infrastructure, scaling (often auto-scaling), load balancing, and deployments.
+    *   **Pros:** Easiest to manage, fast time-to-market.
+    *   **Considerations:** Configure environment variables, database connection strings (often uses managed DB services from the PaaS), and run migration commands as part of deployment scripts/hooks.
 
-2.  **Container Orchestration (PaaS/CaaS - Platform/Containers as a Service):**
-    *   **Services:** AWS EKS/ECS, Google GKE, Azure AKS, Managed Kubernetes services.
-    *   **Process:** Package your application into Docker containers, push to a container registry, define your deployment configuration (e.g., Kubernetes YAML files for Deployments, Services, Ingress), and apply it to the cluster.
-    *   **Pros:** Automated scaling, self-healing, rolling updates, efficient resource utilization.
-    *   **Cons:** Steeper learning curve for Kubernetes.
+2.  **Containers as a Service (CaaS) / Orchestration - More Control & Scalability:**
+    *   **Services:** AWS ECS (Elastic Container Service), Google Cloud Run, Azure Container Apps, or managed Kubernetes (AWS EKS, Google GKE, Azure AKS).
+    *   **Process:**
+        *   Define task/service definitions (for ECS, Cloud Run) or Kubernetes manifests (Deployments, Services, Ingress).
+        *   Store these configurations in Git.
+        *   CI/CD updates these definitions to point to new image versions and applies them to the cluster/service.
+    *   **Pros:** Greater control over scaling, networking, and resource allocation. Kubernetes offers powerful orchestration.
+    *   **Considerations:** Steeper learning curve, especially for Kubernetes. Requires managing cluster configurations or relying on managed services.
 
-3.  **Platform as a Service (PaaS):**
-    *   **Services:** AWS Elastic Beanstalk, Google App Engine, Azure App Service, Heroku.
-    *   **Process:** Push your code (or a Docker container) and the PaaS handles the underlying infrastructure, scaling, load balancing, and deployment.
-    *   **Pros:** Simplified deployment and management, faster time to market.
-    *   **Cons:** Less control over the underlying infrastructure, potential vendor lock-in.
-
-4.  **Serverless Functions (FaaS - Functions as a Service):**
-    *   **Services:** AWS Lambda, Google Cloud Functions, Azure Functions.
-    *   **Process:** Deploy individual functions or small services. Suitable for event-driven parts of your application or APIs.
-    *   **Pros:** Pay-per-use, automatic scaling, no server management.
-    *   **Cons:** Limitations on execution time, state management can be complex, best for specific use cases rather than entire monolithic apps.
+3.  **Managed Database:**
+    *   Regardless of compute choice, use a managed PostgreSQL service (e.g., AWS RDS for PostgreSQL, Google Cloud SQL for PostgreSQL, Azure Database for PostgreSQL, or services provided by Railway/Render/Heroku). This handles backups, patching, and scaling for your database.
 
 ### General Cloud Deployment Considerations:
-*   **Identity and Access Management (IAM):** Configure appropriate roles and permissions for your deployed services to access other cloud resources (e.g., databases, storage) securely.
-*   **Networking:** Set up VPCs/VNETs, subnets, security groups/firewall rules, load balancers, and DNS.
-*   **Databases:** Use managed database services (e.g., AWS RDS, Google Cloud SQL, Azure Database) for reliability, backups, and scaling.
-*   **Storage:** Utilize object storage (AWS S3, GCS, Azure Blob Storage) for static assets, user uploads, and backups.
-*   **Logging and Monitoring:** Integrate with cloud-native monitoring and logging services (e.g., AWS CloudWatch, Google Cloud Operations, Azure Monitor).
-*   **Cost Management:** Monitor and optimize cloud resource usage to control costs.
-*   **Infrastructure as Code (IaC):** Use tools like Terraform, AWS CloudFormation, or Azure Resource Manager to define and manage your cloud infrastructure programmatically. This enables versioning, repeatability, and automation.
+*   **IAM/Permissions:** Ensure your deployed services have the correct IAM roles/permissions to access other cloud resources (like managed databases, secret managers, AI service APIs if proxied through cloud infra).
+*   **Networking:** Configure VPCs, subnets, security groups/firewalls, load balancers, and DNS correctly.
+*   **Secrets Management:** Use dedicated secrets management services (AWS Secrets Manager, Google Secret Manager, Azure Key Vault) to store sensitive environment variables like database credentials and API keys, and inject them securely into your application containers.
+*   **Logging & Monitoring:** Integrate with cloud-native logging (CloudWatch, Google Cloud Logging) and monitoring (CloudWatch Metrics, Google Cloud Monitoring, Prometheus/Grafana if self-managed) services.
 
 ## Zero-Downtime Deployments
-Achieving zero-downtime (or near-zero-downtime) deployments is crucial for production systems. Strategies include:
-*   **Rolling Updates:** Gradually replace old instances/pods with new ones. Load balancers direct traffic to healthy instances. (Common in Kubernetes, PaaS).
-*   **Blue/Green Deployment:** Deploy the new version to a separate identical environment ("green"). Once tested, switch traffic from the old environment ("blue") to the new one. Easy rollback by switching traffic back.
-*   **Canary Releases:** Release the new version to a small subset of users/servers first. Monitor closely. If successful, gradually roll out to everyone.
 
-## Database Migrations
-*   Database schema changes must be managed carefully.
-*   Use a migration tool (e.g., Flyway, Liquibase, Alembic, Django migrations, Knex migrations).
-*   Migrations should be:
-    *   **Versioned:** Tracked in version control.
-    *   **Repeatable:** Can be run multiple times without issues.
-    *   **Reversible (if possible):** Have corresponding rollback scripts for critical changes.
-*   **Process:**
-    1.  Apply backward-compatible schema changes first (e.g., adding nullable columns, new tables).
-    2.  Deploy application code that can work with both old and new schemas.
-    3.  Apply breaking schema changes (e.g., dropping columns, renaming tables) and deploy code that relies solely on the new schema.
-    *   Alternatively, for some changes, put the application in maintenance mode briefly.
+Strategies to minimize or eliminate downtime during deployments:
+*   **Rolling Updates:** (Default in Kubernetes, common in PaaS) Gradually replace old application instances/pods with new ones. The load balancer directs traffic only to healthy instances.
+*   **Blue/Green Deployment:** Deploy the new version ("green") alongside the old version ("blue"). Once the green environment is tested and healthy, switch traffic (e.g., DNS or load balancer update) from blue to green. Easy rollback by switching back. Requires more infrastructure temporarily.
+*   **Canary Releases:** Route a small percentage of traffic to the new version. Monitor closely. If stable, gradually increase traffic to the new version and phase out the old.
+
+## Database Migrations (`prisma migrate deploy`)
+
+*   **Critical Step:** Database schema changes using Prisma Migrate must be applied carefully.
+*   **Timing:**
+    *   For non-breaking changes (e.g., adding nullable columns, new tables): Can often be applied just before or during application deployment.
+    *   For breaking changes (e.g., renaming/dropping columns, changing data types): Requires careful planning.
+        1.  Make schema change backward compatible (e.g., add new column, keep old).
+        2.  Deploy code that can work with both old and new schema (writes to both, reads from new preferring old if new is null).
+        3.  Run data migration script to move data from old column to new.
+        4.  Deploy code that only uses the new schema.
+        5.  Run migration to drop the old column.
+*   **Execution:**
+    *   The `npx prisma migrate deploy` command is non-interactive and designed for production.
+    *   Run this from a job in your CI/CD pipeline that has secure access to the target database, or from an init container/task in your deployment environment before the main application starts.
+*   **Rollback:** Prisma Migrate does not automatically generate rollback scripts for `migrate deploy`. Database backups are your primary rollback mechanism for schema changes. Test migrations thoroughly in staging.
 
 ## Post-Deployment
-*   **Health Checks:** Implement `/health` or similar endpoints that your load balancer or orchestration system can use to verify application health.
-*   **Smoke Testing:** Automated or manual tests to verify critical functionalities immediately after deployment.
-*   **Monitoring:** Closely monitor application logs, error rates, performance metrics (CPU, memory, response times) after deployment.
-*   **Alerting:** Set up alerts for critical errors or performance degradation.
+*   **Health Checks:** Implement `/health` or similar HTTP endpoints in your backend service. Load balancers and orchestration systems use these to verify application health. A basic health check might just return `200 OK`. A deeper one might check database connectivity.
+*   **Automated Smoke Tests:** After a deployment, run a small suite of automated tests that verify critical end-to-end functionalities.
+*   **Monitoring:** Closely monitor application logs (for errors), error rates (e.g., Sentry, APM tools), performance metrics (CPU, memory, response times), and key business metrics.
+*   **Alerting:** Set up alerts for critical errors, performance degradation, or security events.
 
-This deployment guide provides a starting point. The specific steps and tools will depend on your platform's technology stack and the target environment. Always prioritize automation, consistency, and safety in your deployment processes.
+This deployment guide provides a robust foundation for deploying the Autonomous Coding Agent. The specifics will depend on your chosen cloud provider and tools, but the principles of containerization, CI/CD automation, and careful migration management remain key.

@@ -1,188 +1,180 @@
 # Configuration Guide
 
-Proper configuration is essential for running the platform effectively in different environments. This guide details the configuration files, environment variables, and setup procedures for development, staging, and production environments.
+Proper configuration is essential for running the Autonomous Coding Agent platform effectively in different environments. This guide details the primary method of configuration using environment variables and outlines setup considerations for development, staging, and production.
 
 ## Overview
 
-The platform's configuration is primarily managed through:
-1.  **Environment Variables:** For sensitive data, environment-specific settings, and to comply with Twelve-Factor App principles.
-2.  **Configuration Files:** For more complex or structured configuration that is less likely to change between deployment environments or contains non-sensitive defaults. [**Specify file formats, e.g., YAML, JSON, TOML, .js files**]
+The platform's configuration is primarily managed through **Environment Variables**. This approach aligns with Twelve-Factor App principles, enhancing portability and security by keeping configuration separate from code. Sensitive data (like API keys and database credentials) and environment-specific settings are all handled this way.
 
-**Priority of Configuration Sources:**
-1.  Environment Variables (highest priority, override file settings).
-2.  Environment-Specific Configuration Files (e.g., `config.staging.json`).
-3.  Default Configuration File (e.g., `config.default.json`).
+While some complex, non-sensitive default configurations *could* be managed by configuration files (e.g., JSON, YAML), for a Node.js application like our hypothetical platform, environment variables loaded at runtime are the standard and preferred method.
+
+**Priority of Configuration:**
+1.  Environment Variables set in the deployment environment (highest priority).
+2.  Values from a `.env` file (typically used for local development, loaded by tools like `dotenv`).
 
 ## Environment Variables
 
-Environment variables are the primary way to configure the application, especially for settings that vary across environments or are sensitive.
+Environment variables are the sole source of truth for application configuration once deployed.
 
 ### Setting Up Environment Variables
-*   **Local Development:** Typically managed via a `.env` file in the project root, loaded by a library like `dotenv` (for Node.js) or similar mechanisms in other languages. **This file should NOT be committed to version control.**
-*   **Staging/Production:** Set directly in the deployment environment (e.g., through cloud provider dashboards, CI/CD pipeline variables, Docker environment flags, Kubernetes ConfigMaps/Secrets).
+*   **Local Development:**
+    *   A `.env` file is used in the project root, created by copying `.env.example`.
+    *   The Node.js backend (Express.js) will use a library like `dotenv` to load these variables into `process.env` when the application starts in development mode.
+    *   **The `.env` file itself MUST NOT be committed to version control.** It should be listed in `.gitignore`.
+*   **Staging & Production Environments:**
+    *   Environment variables are set directly in the deployment environment. This method depends on the hosting provider or orchestration tool:
+        *   **Cloud Platforms (e.g., Railway, Vercel, Render, AWS ECS/Beanstalk, Google Cloud Run):** Variables are set through the provider's dashboard or CLI tools.
+        *   **Docker Containers:** Variables can be passed using the `-e` flag with `docker run`, or in the `environment` section of a `docker-compose.yml` file (though for production, it's better if the orchestration system injects them).
+        *   **Kubernetes:** Variables are managed using `ConfigMaps` (for non-sensitive data) and `Secrets` (for sensitive data), which are then exposed to pods.
+        *   **CI/CD Pipelines (e.g., GitHub Actions):** Secrets and environment-specific variables are stored in the CI/CD system and injected during the build or deployment process.
 
-### Common Environment Variables
+### `.env.example` File (Template for Local Development)
 
-Below is a list of common environment variables used by the platform. Refer to the `.env.example` file in the root of the repository for a comprehensive template.
+A `.env.example` file should be maintained in the root of the project. This file serves as a template, listing all necessary environment variables with placeholders or non-sensitive default values.
 
-| Variable Name                  | Description                                                                 | Example (Local Dev)                 | Required (Dev/Stage/Prod) | Sensitive |
-|--------------------------------|-----------------------------------------------------------------------------|-------------------------------------|---------------------------|-----------|
-| `NODE_ENV`                     | Specifies the environment (development, test, production).                  | `development`                       | Yes                       | No        |
-| `PORT`                         | The port on which the application server will listen.                       | `3000` (Frontend), `8080` (Backend) | Yes                       | No        |
-| `API_BASE_URL`                 | Base URL for the backend API.                                               | `http://localhost:8080/api`         | Yes                       | No        |
-| `FRONTEND_URL`                 | Base URL for the frontend application.                                      | `http://localhost:3000`             | Yes                       | No        |
-| `DATABASE_URL`                 | Connection string for the primary database.                                 | `postgresql://user:pass@host:port/db` | Yes                       | Yes       |
-| `REDIS_URL`                    | Connection string for Redis (if used for caching/sessions/queues).          | `redis://localhost:6379`            | If used                   | Yes       |
-| `JWT_SECRET`                   | Secret key for signing and verifying JSON Web Tokens.                       | `a_very_strong_random_secret_key`   | Yes                       | Yes       |
-| `JWT_EXPIRATION_TIME`          | Token expiration time (e.g., `1h`, `7d`).                                   | `1h`                                | Yes                       | No        |
-| `LOG_LEVEL`                    | Logging verbosity (e.g., `debug`, `info`, `warn`, `error`).                 | `debug`                             | Yes                       | No        |
-| `MAIL_HOST`                    | SMTP server host for sending emails.                                        | `smtp.example.com`                  | If email feature is used  | No        |
-| `MAIL_PORT`                    | SMTP server port.                                                           | `587`                               | If email feature is used  | No        |
-| `MAIL_USER`                    | SMTP username.                                                              | `user@example.com`                  | If email feature is used  | Yes       |
-| `MAIL_PASSWORD`                | SMTP password.                                                              | `your_mail_password`                | If email feature is used  | Yes       |
-| `MAIL_FROM_ADDRESS`            | Default "from" address for emails.                                          | `noreply@platform.com`              | If email feature is used  | No        |
-| `S3_BUCKET_NAME`               | AWS S3 bucket name for file storage.                                        | `my-platform-uploads-dev`           | If S3 is used             | No        |
-| `AWS_ACCESS_KEY_ID`            | AWS Access Key ID for S3 or other AWS services.                             | `YOUR_AWS_ACCESS_KEY`               | If AWS services are used  | Yes       |
-| `AWS_SECRET_ACCESS_KEY`        | AWS Secret Access Key.                                                      | `YOUR_AWS_SECRET_KEY`               | If AWS services are used  | Yes       |
-| `AWS_REGION`                   | AWS region for services.                                                    | `us-east-1`                         | If AWS services are used  | No        |
-| `GOOGLE_CLIENT_ID`             | Google OAuth Client ID.                                                     | `your-google-client-id.apps.googleusercontent.com` | If Google OAuth is used | Yes       |
-| `GOOGLE_CLIENT_SECRET`         | Google OAuth Client Secret.                                                 | `YOUR_GOOGLE_CLIENT_SECRET`         | If Google OAuth is used | Yes       |
-| `OPENAI_API_KEY`               | API Key for OpenAI services.                                                | `sk-YOUR_OPENAI_KEY`                | If OpenAI is used         | Yes       |
-| `MAPBOX_ACCESS_TOKEN`          | Access token for Mapbox services.                                           | `pk.YOUR_MAPBOX_TOKEN`              | If Mapbox is used         | Yes       |
-| `[OTHER_SERVICE_API_KEY]`    | [API key for another integrated service]                                    |                                     | If service is used        | Yes       |
-
-**Note:** Always generate strong, unique secrets for sensitive variables like `JWT_SECRET`, API keys, and passwords for staging and production environments.
-
-### `.env.example` File
-A `.env.example` file should be present in the root of your project. This file serves as a template for the actual `.env` file.
 ```plaintext
-# .env.example
+# .env.example - Autonomous Coding Agent Platform
 
-# Application Configuration
-NODE_ENV=development
-PORT=8080
-API_BASE_URL=http://localhost:8080/api
-FRONTEND_URL=http://localhost:3000
-LOG_LEVEL=debug
+# Application Environment
+NODE_ENV=development # Typically 'development', 'staging', or 'production'
+SERVER_PORT=8080     # Port for the backend Node.js/Express server
+CLIENT_PORT=3000     # Port for the React frontend development server (if run separately)
 
-# Database
-DATABASE_URL=postgresql://user:password@localhost:5432/mydb_dev
+# Frontend Configuration (passed during build or via runtime config endpoint)
+# Example: If React app needs to know the API URL
+# REACT_APP_API_BASE_URL=http://localhost:8080/api
+
+# Database (PostgreSQL)
+# For local Docker Compose setup (server connects to 'db' service on internal Docker network):
+DATABASE_URL=postgresql://agent_user:your_strong_password@db:5432/agent_db
+# For running server natively and connecting to local PostgreSQL:
+# DATABASE_URL=postgresql://your_local_pg_user:your_local_pg_pass@localhost:5432/your_local_pg_db
+
+# These are for Docker Compose's postgres service to initialize the DB
+POSTGRES_USER=agent_user
+POSTGRES_PASSWORD=your_strong_password # Ensure this matches DATABASE_URL password for Docker
+POSTGRES_DB=agent_db
 
 # JWT Authentication
-JWT_SECRET=your_jwt_secret_key_here # Change this in your .env file!
-JWT_EXPIRATION_TIME=1h
+JWT_SECRET=a_very_secure_random_string_for_jwt_please_change_me # IMPORTANT: Use a strong, unique key
+JWT_REFRESH_SECRET=another_very_secure_random_string_for_refresh_tokens # IMPORTANT: Use a different strong key
+JWT_ACCESS_TOKEN_EXPIRES_IN=15m # e.g., 15 minutes
+JWT_REFRESH_TOKEN_EXPIRES_IN=7d  # e.g., 7 days
 
-# Redis (Optional)
-# REDIS_URL=redis://localhost:6379
+# Logging Configuration
+LOG_LEVEL=debug # 'debug', 'info', 'warn', 'error'
 
-# Email Service (Example)
-# MAIL_HOST=smtp.mailtrap.io
-# MAIL_PORT=2525
-# MAIL_USER=your_mailtrap_user
-# MAIL_PASSWORD=your_mailtrap_password
-# MAIL_FROM_ADDRESS=noreply@example.com
+# API Keys for AI Services (Provide your actual keys)
+OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# HUGGINGFACE_API_TOKEN=hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
-# Cloud Storage (Example AWS S3)
-# S3_BUCKET_NAME=
-# AWS_ACCESS_KEY_ID=
-# AWS_SECRET_ACCESS_KEY=
-# AWS_REGION=
+# Optional: Redis (for caching or message queue if BullMQ/Redis Streams are used)
+# REDIS_HOST=redis
+# REDIS_PORT=6379
+# REDIS_PASSWORD=your_redis_password (if any)
+# REDIS_URL=redis://:your_redis_password@redis:6379/0 # If using URL format
 
-# Third-Party Services
-# GOOGLE_CLIENT_ID=
-# GOOGLE_CLIENT_SECRET=
-# OPENAI_API_KEY=
-# MAPBOX_ACCESS_TOKEN=
+# Optional: OAuth2 Integration (e.g., for GitHub login)
+# GITHUB_CLIENT_ID=
+# GITHUB_CLIENT_SECRET=
+# GITHUB_CALLBACK_URL=http://localhost:8080/api/auth/github/callback
+
+# CORS Configuration (Backend)
+# Example: Allow frontend running on localhost:3000
+CORS_ORIGIN=http://localhost:3000
 ```
-To use it, copy this file to `.env` (`cp .env.example .env`) and then fill in the actual values. **Ensure `.env` is listed in your `.gitignore` file.**
+**To use:** Copy `.env.example` to `.env` (`cp .env.example .env`) and populate it with actual values, especially secrets.
 
-## Configuration Files (Optional)
+### Key Environment Variables Table
 
-[**If your platform uses configuration files (e.g., for logging setup, feature flags, default settings not suitable for env vars), describe them here. If not, this section can be minimal or removed.**]
+| Variable Name                   | Description                                                                    | Example (Local Dev)                                  | Scope (Backend/Frontend) | Sensitive |
+|---------------------------------|--------------------------------------------------------------------------------|------------------------------------------------------|--------------------------|-----------|
+| `NODE_ENV`                      | Application environment.                                                       | `development`                                        | Backend, Frontend (Build) | No        |
+| `SERVER_PORT`                   | Port for the backend server.                                                   | `8080`                                               | Backend                  | No        |
+| `CLIENT_PORT`                   | Port for the frontend dev server.                                              | `3000`                                               | Frontend (Dev)           | No        |
+| `DATABASE_URL`                  | Connection string for PostgreSQL (Prisma uses this).                           | `postgresql://agent_user:pass@db:5432/agent_db`      | Backend                  | Yes       |
+| `POSTGRES_USER`                 | Username for PostgreSQL Docker service initialization.                         | `agent_user`                                         | Docker (DB Init)         | No        |
+| `POSTGRES_PASSWORD`             | Password for PostgreSQL Docker service initialization.                         | `your_strong_password`                               | Docker (DB Init)         | Yes       |
+| `POSTGRES_DB`                   | Database name for PostgreSQL Docker service initialization.                    | `agent_db`                                           | Docker (DB Init)         | No        |
+| `JWT_SECRET`                    | Secret key for signing JWT access tokens.                                      | `(generate_strong_random_string)`                    | Backend                  | Yes       |
+| `JWT_REFRESH_SECRET`            | Secret key for signing JWT refresh tokens.                                     | `(generate_different_strong_random_string)`          | Backend                  | Yes       |
+| `JWT_ACCESS_TOKEN_EXPIRES_IN`   | Expiration time for access tokens (e.g., `15m`, `1h`).                         | `15m`                                                | Backend                  | No        |
+| `JWT_REFRESH_TOKEN_EXPIRES_IN`  | Expiration time for refresh tokens (e.g., `7d`, `30d`).                        | `7d`                                                 | Backend                  | No        |
+| `LOG_LEVEL`                     | Logging verbosity (e.g., `debug`, `info`, `warn`, `error`).                    | `debug`                                              | Backend                  | No        |
+| `CORS_ORIGIN`                   | Allowed origins for CORS (e.g., frontend URL).                                 | `http://localhost:3000`                              | Backend                  | No        |
+| `OPENAI_API_KEY`                | API Key for OpenAI services.                                                   | `sk-xxxxxxxx`                                        | Backend                  | Yes       |
+| `ANTHROPIC_API_KEY`             | API Key for Anthropic (Claude) services.                                       | `sk-ant-xxxxxxxx`                                    | Backend                  | Yes       |
+| `HUGGINGFACE_API_TOKEN`         | API Token for Hugging Face services.                                           | `hf_xxxxxxxx`                                        | Backend                  | Yes       |
+| `REDIS_URL`                     | Connection string for Redis (if used).                                         | `redis://redis:6379`                                 | Backend                  | Yes (if pass) |
+| `GITHUB_CLIENT_ID`              | Client ID for GitHub OAuth integration (if used).                              | `(your_github_client_id)`                            | Backend                  | No        |
+| `GITHUB_CLIENT_SECRET`          | Client Secret for GitHub OAuth integration (if used).                          | `(your_github_client_secret)`                        | Backend                  | Yes       |
+| `GITHUB_CALLBACK_URL`           | Callback URL for GitHub OAuth integration.                                     | `http://localhost:8080/api/auth/github/callback`     | Backend                  | No        |
+| `REACT_APP_API_BASE_URL`        | (Example for React) Base URL for the backend API, used by the frontend.        | `http://localhost:8080/api`                          | Frontend (Build/Runtime) | No        |
 
-The platform may use configuration files for settings that are more complex or less likely to change between environments.
+**Note:** For production, always use strong, unique, and randomly generated secrets. `JWT_SECRET` and `JWT_REFRESH_SECRET` must be different and kept highly confidential.
 
-**Example: `config/app-config.json`**
-```json
-{
-  "appName": "My Platform",
-  "featureFlags": {
-    "newDashboard": true,
-    "betaAnalytics": false
-  },
-  "pagination": {
-    "defaultPageSize": 20,
-    "maxPageSize": 100
-  },
-  "logging": {
-    "format": "json", // "text" or "json"
-    "destinations": ["console", "file"],
-    "filePath": "/var/log/app.log" // Note: Ensure write permissions
-  }
-}
-```
+## Configuration Files (Minimal Use)
 
-*   **Location:** Typically in a `config/` directory.
-*   **Loading:** The application loads these files at startup. Environment variables can override values from these files if the application logic supports it.
-*   **Structure:** [**Describe the structure and purpose of each configuration file.**]
+For this Node.js/Express.js and React based platform, explicit configuration files (e.g., `config.json`, `config.yaml`) are generally avoided in favor of environment variables for Twelve-Factor App compliance.
 
-**Environment-Specific Configuration Files:**
-You might have files like `config/app-config.development.json`, `config/app-config.staging.json`, and `config/app-config.production.json` that override or extend a base `config/app-config.default.json`. The application would load the appropriate file based on the `NODE_ENV` or a similar environment variable.
+However, some tools used within the project might have their own configuration files that are version controlled:
+*   **`package.json`:** Manages Node.js project dependencies and scripts.
+*   **`babel.config.js`, `postcss.config.js`, `tailwind.config.js`:** Build-time configuration for JavaScript transpilation and CSS processing for the React frontend.
+*   **`tsconfig.json`:** TypeScript compiler options (if using TypeScript).
+*   **`eslintrc.js`, `.prettierrc.js`:** Configuration for linters and code formatters.
+*   **`prisma/schema.prisma`:** Prisma ORM schema definition, which dictates database structure.
+*   **`docker-compose.yml`:** Defines services, networks, and volumes for local Docker development.
+*   **CI/CD configuration files:** (e.g., `.github/workflows/main.yml`).
+
+These files define the *structure* and *build process* of the application rather than runtime environment-specific values.
 
 ## Environment-Specific Setup
 
-### 1. Development Environment
-*   **Purpose:** Local development and testing by developers.
+### 1. Development Environment (`NODE_ENV=development`)
+*   **Purpose:** Local development and testing by individual developers.
 *   **Configuration:**
-    *   Uses a `.env` file for environment variables.
-    *   `NODE_ENV` set to `development`.
+    *   Uses a `.env` file loaded by `dotenv` in the Node.js backend.
     *   `LOG_LEVEL` often set to `debug` for verbose output.
-    *   Database typically a local instance or Docker container.
-    *   Third-party services might use sandbox/test accounts or local mocks.
-    *   Features like hot-reloading, detailed error messages are often enabled.
-*   **Setup:**
-    1.  Clone the repository.
-    2.  Install dependencies (e.g., `npm install`).
-    3.  Copy `.env.example` to `.env` and configure local settings (database, API keys for test accounts).
-    4.  Set up the local database (run migrations, seed data).
-    5.  Start the development server (e.g., `npm run dev`).
+    *   Database typically runs in a Docker container managed by `docker-compose.yml`, with data persisted in Docker volumes.
+    *   Third-party AI service API keys are real (developer keys or from a shared pool with low limits if possible), but usage should be mindful of costs. Mock servers for AI services can be considered for extensive testing without API costs.
+    *   Frontend (React) usually runs with a hot-reloading development server (e.g., Vite or Create React App's dev server).
+    *   Backend (Node.js/Express) might use tools like `nodemon` for automatic restarts on code changes.
+*   **Key Settings:** More verbose logging, relaxed security settings (e.g., broader CORS for local dev tools), detailed error messages.
 
-### 2. Staging Environment
-*   **Purpose:** Pre-production testing, QA, demos. Should closely mirror production.
+### 2. Staging Environment (`NODE_ENV=staging` or `production` with staging flags)
+*   **Purpose:** Pre-production testing, QA, demos. Should mirror production as closely as possible.
 *   **Configuration:**
-    *   `NODE_ENV` set to `staging` or `production` (depending on how staging is treated, often `production` for parity).
-    *   Environment variables set directly in the hosting environment or CI/CD.
-    *   Connects to a dedicated staging database (often a restored sanitized copy of production).
-    *   Uses staging/sandbox accounts for third-party services.
+    *   Environment variables are injected by the deployment system (e.g., CI/CD pipeline, cloud provider settings). **No `.env` files are deployed.**
     *   `LOG_LEVEL` typically `info` or `warn`.
-    *   May have debugging tools or flags enabled that are off in production.
-*   **Setup:**
-    *   Typically deployed via a CI/CD pipeline.
-    *   Environment variables are injected during deployment.
-    *   Database migrations are run as part of the deployment process.
+    *   Connects to a dedicated staging database (e.g., a separate PostgreSQL instance, possibly a restored and sanitized copy of production data).
+    *   Uses dedicated API keys for third-party AI services, separate from production keys (often with sandbox features or lower rate limits/costs if available from the provider).
+*   **Key Settings:** Production-like optimizations, but might have some debugging tools or feature flags enabled that are off in production. Data is expendable.
 
-### 3. Production Environment
+### 3. Production Environment (`NODE_ENV=production`)
 *   **Purpose:** Live application serving end-users.
 *   **Configuration:**
-    *   `NODE_ENV` set to `production`.
-    *   All environment variables must be securely set in the hosting environment.
-    *   Connects to the production database.
-    *   Uses production accounts for all third-party services.
-    *   `LOG_LEVEL` typically `warn` or `error` to reduce noise, with critical info logs.
-    *   Performance optimizations enabled (e.g., code minification, caching, disabled verbose errors).
-    *   Security hardening is critical (e.g., HTTPS enforcement, rate limiting, WAF).
-*   **Setup:**
-    *   Deployed via a well-tested CI/CD pipeline with approval gates.
-    *   Robust monitoring, logging, and alerting are in place.
-    *   Backup and disaster recovery plans are active.
+    *   All environment variables are securely managed and injected by the deployment infrastructure.
+    *   `LOG_LEVEL` typically `warn` or `error` to reduce noise, with critical info logs. Important transaction/audit logs should still be `info`.
+    *   Connects to the production PostgreSQL database.
+    *   Uses production API keys for all third-party AI services.
+*   **Key Settings:** Full performance optimizations (e.g., code minification, compression, aggressive caching where appropriate), hardened security (strict CORS, rate limiting, HTTPS enforcement), less verbose error messages to clients (detailed errors logged internally).
 
 ## Validating Configuration
-It's good practice to have a mechanism at application startup to validate critical configurations. This might involve:
-*   Checking for the presence of essential environment variables.
-*   Validating the format or type of certain variables (e.g., ensuring `PORT` is a number).
-*   Attempting to connect to essential services like the database.
-If validation fails, the application should log a clear error message and exit gracefully.
 
-[**If your application has a specific script or command for validating configuration, mention it here.**]
+It's good practice for the backend application to validate critical configurations at startup.
+*   **Prisma Client Generation:** Prisma generates its client based on `DATABASE_URL`. If incorrect, client generation or connection will fail early.
+*   **Essential Variables Check:** The Node.js application can have a small startup script that checks for the presence and basic format of critical environment variables (e.g., `JWT_SECRET`, `OPENAI_API_KEY` if OpenAI is a core feature).
+    ```javascript
+    // Example in server startup (conceptual)
+    // const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET', 'OPENAI_API_KEY'];
+    // for (const envVar of requiredEnvVars) {
+    //   if (!process.env[envVar]) {
+    //     console.error(`FATAL ERROR: Environment variable ${envVar} is not set.`);
+    //     process.exit(1); // Exit if critical config is missing
+    //   }
+    // }
+    ```
+*   If validation fails, the application should log a clear error message and exit gracefully to prevent running in an unstable or insecure state.
 
-This guide provides a comprehensive overview of configuring the platform. Always ensure that sensitive information is handled securely and never committed to version control. Refer to specific service integration guides for details on configuring API keys and other credentials for third-party tools.
+This guide provides a comprehensive overview of configuring the Autonomous Coding Agent platform. Always prioritize security when managing sensitive information like API keys and database credentials.

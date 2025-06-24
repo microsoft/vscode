@@ -114,8 +114,7 @@ export class McpService extends Disposable implements IMcpService {
 					id: tool.id,
 					source,
 					icon: Codicon.tools,
-					// duplicative: https://github.com/modelcontextprotocol/modelcontextprotocol/pull/813
-					displayName: tool.definition.annotations?.title || tool.definition.title || tool.definition.name,
+					displayName: tool.definition.annotations?.title || tool.definition.name,
 					toolReferenceName: tool.referenceName,
 					modelDescription: tool.definition.description ?? '',
 					userDescription: tool.definition.description ?? '',
@@ -257,8 +256,7 @@ class McpToolImplementation implements IToolImpl {
 		);
 
 		const needsConfirmation = !tool.definition.annotations?.readOnlyHint;
-		// duplicative: https://github.com/modelcontextprotocol/modelcontextprotocol/pull/813
-		const title = tool.definition.annotations?.title || tool.definition.title || ('`' + tool.definition.name + '`');
+		const title = tool.definition.annotations?.title || ('`' + tool.definition.name + '`');
 		const subtitle = localize('msg.subtitle', "{0} (MCP Server)", server.definition.label);
 
 		return {
@@ -326,8 +324,6 @@ class McpToolImplementation implements IToolImpl {
 			} else if (item.type === 'image' || item.type === 'audio') {
 				// default to some image type if not given to hint
 				addAsInlineData(item.mimeType || 'image/png', item.data);
-			} else if (item.type === 'resource_link') {
-				// todo@connor4312 look at what we did before #250329 and use that here
 			} else if (item.type === 'resource') {
 				const uri = McpResourceURI.fromServer(this._server.definition, item.resource.uri);
 				if (item.resource.mimeType && getAttachableImageExtension(item.resource.mimeType) && 'blob' in item.resource) {

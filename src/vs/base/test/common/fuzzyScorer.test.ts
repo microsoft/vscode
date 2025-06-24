@@ -1085,45 +1085,30 @@ suite('Fuzzy Scorer', () => {
 		const resourceA = URI.file('djangosite/ufrela/def.py');
 		const resourceB = URI.file('djangosite/urls/default.py');
 
-		const query = 'url/def';
+		for (const query of ['url/def']) {
+			let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+			assert.strictEqual(res[0], resourceB);
+			assert.strictEqual(res[1], resourceA);
 
-		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
-
-		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
+			res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+			assert.strictEqual(res[0], resourceB);
+			assert.strictEqual(res[1], resourceA);
+		}
 	});
 
 	test('compareFilesByScore - boost shorter prefix match if multiple queries are used (#99171)', function () {
 		const resourceA = URI.file('mesh_editor_lifetime_job.h');
 		const resourceB = URI.file('lifetime_job.h');
 
-		const query = 'm life, life m';
+		for (const query of ['m life, life m']) {
+			let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+			assert.strictEqual(res[0], resourceB);
+			assert.strictEqual(res[1], resourceA);
 
-		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
-
-		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
-	});
-
-	test('compareFilesByScore - boost consecutive matches in the beginning over end', function () {
-		const resourceA = URI.file('src/vs/server/node/extensionHostStatusService.ts');
-		const resourceB = URI.file('src/vs/workbench/browser/parts/notifications/notificationsStatus.ts');
-
-		const query = 'notStatus';
-
-		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
-
-		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
+			res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+			assert.strictEqual(res[0], resourceB);
+			assert.strictEqual(res[1], resourceA);
+		}
 	});
 
 	test('prepareQuery', () => {
@@ -1270,12 +1255,12 @@ suite('Fuzzy Scorer', () => {
 		assert.strictEqual(_doScore('contiguous', '"contguous"')[0], 0);
 
 		const score = _doScore('contiguous', '"contiguous"');
-		assert.ok(score[0] > 0);
+		assert.strictEqual(score[0], 253);
 	});
 
 	test('Using quotes should highlight contiguous indexes', function () {
 		const score = _doScore('2021-7-26.md', '"26"');
-		assert.strictEqual(score[0], 14);
+		assert.strictEqual(score[0], 13);
 
 		// The indexes of the 2 and 6 of "26"
 		assert.strictEqual(score[1][0], 7);

@@ -45,7 +45,6 @@ export class ChatErrorWidget extends Disposable {
 		super();
 
 		this.domNode = $('.chat-notification-widget');
-		this.domNode.tabIndex = 0;
 		let icon;
 		let iconClass;
 		switch (kind) {

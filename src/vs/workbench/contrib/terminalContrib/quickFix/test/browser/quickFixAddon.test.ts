@@ -29,7 +29,6 @@ import { ITerminalQuickFixService } from '../../browser/quickFix.js';
 import { getQuickFixesForCommand, TerminalQuickFixAddon } from '../../browser/quickFixAddon.js';
 import { freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, gitFastForwardPull, GitFastForwardPullOutputRegex, GitPushOutputRegex, gitPushSetUpstream, gitSimilar, GitSimilarOutputRegex, gitTwoDashes, GitTwoDashesRegex, pwshGeneralError, PwshGeneralErrorOutputRegex, pwshUnixCommandNotFoundError, PwshUnixCommandNotFoundErrorOutputRegex } from '../../browser/terminalQuickFixBuiltinActions.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
-import { generateUuid } from '../../../../../../base/common/uuid.js';
 
 suite('QuickFixAddon', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -67,7 +66,7 @@ suite('QuickFixAddon', () => {
 		openerService = instantiationService.stub(IOpenerService, {} as Partial<IOpenerService>);
 		commandService = new TestCommandService(instantiationService);
 
-		quickFixAddon = instantiationService.createInstance(TerminalQuickFixAddon, generateUuid(), [], capabilities);
+		quickFixAddon = instantiationService.createInstance(TerminalQuickFixAddon, [], capabilities);
 		terminal.loadAddon(quickFixAddon);
 	});
 

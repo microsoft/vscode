@@ -187,7 +187,6 @@ export interface IPromptFileVariableEntry extends IBaseChatRequestVariableEntry 
 	readonly isRoot: boolean;
 	readonly originLabel?: string;
 	readonly modelDescription: string;
-	readonly isHidden: boolean;
 }
 
 export interface IPromptTextVariableEntry extends IBaseChatRequestVariableEntry {
@@ -195,7 +194,6 @@ export interface IPromptTextVariableEntry extends IBaseChatRequestVariableEntry 
 	readonly value: string;
 	readonly settingId?: string;
 	readonly modelDescription: string;
-	readonly isHidden: boolean;
 }
 
 export interface ISCMHistoryItemVariableEntry extends IBaseChatRequestVariableEntry {
@@ -274,34 +272,28 @@ export function isSCMHistoryItemVariableEntry(obj: IChatRequestVariableEntry): o
 	return obj.kind === 'scmHistoryItem';
 }
 
-export enum PromptFileVariableKind {
-	Instruction = 'vscode.prompt.instructions.root',
-	InstructionReference = `vscode.prompt.instructions`,
-	PromptFile = 'vscode.prompt.file'
-}
-
 /**
  * Utility to convert a {@link uri} to a chat variable entry.
  * The `id` of the chat variable can be one of the following:
  *
- * - `vscode.prompt.instructions__<URI>`: for all non-root prompt instructions references
- * - `vscode.prompt.instructions.root__<URI>`: for *root* prompt instructions references
- * - `vscode.prompt.file__<URI>`: for prompt file references
+ * - `vscode.prompt.instructions__<URI>`: for all non-root prompt file references
+ * - `vscode.prompt.instructions.root__<URI>`: for *root* prompt file references
+ * - `<URI>`: for the rest of references(the ones that do not point to a prompt file)
  *
  * @param uri A resource URI that points to a prompt instructions file.
- * @param kind The kind of the prompt file variable entry.
+ * @param isRoot If the reference is the root reference in the references tree.
+ * 				 This object most likely was explicitly attached by the user.
  */
-export function toPromptFileVariableEntry(uri: URI, kind: PromptFileVariableKind, originLabel?: string): IPromptFileVariableEntry {
-	//  `id` for all `prompt files` starts with the well-defined part that the copilot extension(or other chatbot) can rely on
+export function toPromptFileVariableEntry(uri: URI, isRoot: boolean, originLabel?: string): IPromptFileVariableEntry {
 	return {
-		id: `${kind}__${uri.toString()}`,
+		//  `id` for all `prompt files` starts with the well-defined part that the copilot extension(or other chatbot) can rely on
+		id: `vscode.prompt.instructions${isRoot ? '.root' : ''}}__${uri.toString()}`,
 		name: `prompt:${basename(uri)}`,
 		value: uri,
 		kind: 'promptFile',
 		modelDescription: 'Prompt instructions file',
-		isRoot: kind !== PromptFileVariableKind.InstructionReference,
+		isRoot,
 		originLabel,
-		isHidden: kind === PromptFileVariableKind.PromptFile
 	};
 }
 
@@ -312,8 +304,7 @@ export function toPromptTextVariableEntry(content: string, settingId?: string): 
 		value: content,
 		settingId,
 		kind: 'promptText',
-		modelDescription: 'Prompt instructions text',
-		isHidden: true, // do not show in the UI
+		modelDescription: 'Prompt instructions text'
 	};
 }
 

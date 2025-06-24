@@ -338,7 +338,6 @@ export class ProgressService extends Disposable implements IProgressService {
 			// shows again.
 			let windowProgressDisposable: IDisposable | undefined = undefined;
 			const onVisibilityChange = (visible: boolean) => {
-
 				// Clear any previous running window progress
 				dispose(windowProgressDisposable);
 
