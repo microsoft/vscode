@@ -203,8 +203,8 @@ export class NativeEditContext extends AbstractEditContext {
 		let reenableTracking: boolean = false;
 		this._register(IME.onDidChange(() => {
 			if (IME.enabled && reenableTracking) {
-				this.domNode.focus();
 				this._focusTracker.resume();
+				this.domNode.focus();
 				reenableTracking = false;
 			}
 			if (!IME.enabled && this.isFocused()) {
@@ -593,7 +593,7 @@ export class NativeEditContext extends AbstractEditContext {
 			const delta2 = now - this._screenReaderSupport.getIgnoreSelectionChangeTime();
 			this._screenReaderSupport.resetSelectionChangeTime();
 			if (delta2 < 100) {
-				// received a `selectionchange` event within 100ms since we touched the textarea
+				// received a `selectionchange` event within 100ms since we touched the edit context
 				// => ignore it, since we caused it
 				return;
 			}
