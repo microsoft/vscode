@@ -18,7 +18,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { DidUninstallMcpServerEvent, IGalleryMcpServer, IMcpGalleryService, InstallMcpServerResult, IQueryOptions, IInstallableMcpServer } from '../../../../platform/mcp/common/mcpManagement.js';
-import { IMcpServerConfiguration, IMcpStdioServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -56,7 +56,7 @@ class McpWorkbenchServer implements IWorkbenchMcpServer {
 	}
 
 	get label(): string {
-		return this.gallery?.displayName ?? this.local?.displayName ?? this.installable?.name ?? '';
+		return this.gallery?.displayName ?? this.local?.displayName ?? this.local?.name ?? this.installable?.name ?? '';
 	}
 
 	get iconUrl(): string | undefined {
@@ -324,7 +324,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			return false;
 		}
 
-		let parsed: IMcpServerConfiguration & { name: string };
+		let parsed: IMcpServerConfiguration & { name: string; inputs?: IMcpServerVariable[] };
 		try {
 			parsed = JSON.parse(decodeURIComponent(uri.query));
 		} catch (e) {
@@ -335,10 +335,9 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			(<Mutable<IMcpServerConfiguration>>parsed).type = (<IMcpStdioServerConfiguration>parsed).command ? 'stdio' : 'http';
 		}
 
-		this.open(this.instantiationService.createInstance(McpWorkbenchServer, undefined, undefined, {
-			config: parsed,
-			name: parsed.name
-		}));
+		const { name, inputs, ...config } = parsed;
+
+		this.open(this.instantiationService.createInstance(McpWorkbenchServer, undefined, undefined, { config, name, inputs }));
 		return true;
 	}
 
@@ -347,7 +346,6 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	}
 
 }
-
 
 export class MCPContextsInitialisation extends Disposable implements IWorkbenchContribution {
 
@@ -361,6 +359,7 @@ export class MCPContextsInitialisation extends Disposable implements IWorkbenchC
 		super();
 		const hasInstalledMcpServersContextKey = HasInstalledMcpServersContext.bindTo(contextKeyService);
 		McpServersGalleryEnabledContext.bindTo(contextKeyService).set(mcpGalleryService.isEnabled());
+		hasInstalledMcpServersContextKey.set(mcpWorkbenchService.local.length > 0);
 		this._register(mcpWorkbenchService.onChange(() => hasInstalledMcpServersContextKey.set(mcpWorkbenchService.local.length > 0)));
 	}
 }
