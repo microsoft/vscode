@@ -65,11 +65,11 @@
 
 .interactive-session .interactive-request .interactive-result-code-block {
 	border: 1px solid var(--vscode-chat-requestCodeBorder);
-	background-color: var(--vscode-interactive-result-editor-background-color);
 }
 
 .interactive-session .interactive-response .interactive-result-code-block {
 	border: 1px solid var(--vscode-input-border, transparent);
+	background-color: var(--vscode-interactive-result-editor-background-color);
 }
 
 .interactive-result-code-block:has(.monaco-editor.focused) {
