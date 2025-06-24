@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AuthenticationExtensionsService } from '../../browser/authenticationExtensionsService.js';
 import { AuthenticationService } from '../../browser/authenticationService.js';
