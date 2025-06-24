@@ -13,7 +13,7 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -448,6 +448,49 @@ class SubmitWithoutDispatchingAction extends Action2 {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		widget?.acceptInput(context?.inputValue, { noCommandDetection: true });
+	}
+}
+
+export class CreateRemoteAgentJobAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.createRemoteAgentJob';
+
+	constructor() {
+		const precondition = ContextKeyExpr.and(
+			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
+			whenNotInProgressOrPaused,
+			ChatContextKeys.remoteJobCreating.negate(),
+		);
+
+		super({
+			id: CreateRemoteAgentJobAction.ID,
+			title: localize2('actions.chat.createRemoteJob', "Create Remote Job"),
+			icon: Codicon.cloudUpload,
+			precondition,
+			toggled: {
+				condition: ChatContextKeys.remoteJobCreating,
+				icon: Codicon.sync,
+				tooltip: localize('remoteJobCreating', "Remote job is being created"),
+			},
+			menu: {
+				id: MenuId.ChatExecute,
+				group: 'navigation',
+				order: 4,
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		const contextKeyService = accessor.get(IContextKeyService);
+		const remoteJobCreatingKey = ChatContextKeys.remoteJobCreating.bindTo(contextKeyService);
+
+		const context: IChatExecuteActionContext | undefined = args[0];
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+		if (!widget) {
+			return;
+		}
+		remoteJobCreatingKey.set(true);
+		remoteJobCreatingKey.set(false);
 	}
 }
 

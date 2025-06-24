@@ -1,0 +1,29 @@
+{
+	"name": "joshbot",
+	"displayName": "JoshBot Remote Coding Agent",
+	"description": "Sample implementation of remote coding agents",
+	"version": "1.0.0",
+	"publisher": "vscode",
+	"engines": {
+		"vscode": "^1.85.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"activationEvents": [
+		"onStartupFinished"
+	],
+	"enabledApiProposals": ["remoteCodingAgents"],
+	"main": "./out/extension.js",
+	"contributes": {},
+	"scripts": {
+		"vscode:prepublish": "npm run compile",
+		"compile": "tsc -p ./",
+		"watch": "tsc -watch -p ./"
+	},
+	"devDependencies": {
+		"@types/vscode": "^1.85.0",
+		"@types/node": "18.x",
+		"typescript": "^5.3.2"
+	}
+}
