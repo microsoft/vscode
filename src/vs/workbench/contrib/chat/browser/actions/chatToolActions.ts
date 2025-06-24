@@ -84,12 +84,6 @@ class ConfigureToolsAction extends Action2 {
 				id: MenuId.ChatExecute,
 				group: 'navigation',
 				order: 1,
-			},
-			{
-				when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
-				id: MenuId.ChatExecuteInline,
-				group: 'navigation',
-				order: 1,
 			}]
 		});
 	}

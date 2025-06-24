@@ -1856,7 +1856,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		padding-bottom: 0px;
 	}
 
-	.interactive-item-container.interactive-request:hover .request-hover {
+	.interactive-item-container.interactive-request:not(.editing):hover .request-hover {
 		opacity: 1 !important;
 	}
 

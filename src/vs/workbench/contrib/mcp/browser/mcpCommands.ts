@@ -75,15 +75,6 @@ export class ListMcpServerCommand extends Action2 {
 				id: MenuId.ChatExecute,
 				group: 'navigation',
 				order: 2,
-			},
-			{
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(McpContextKeys.hasUnknownTools, McpContextKeys.hasServersWithErrors),
-					ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
-				),
-				id: MenuId.ChatExecuteInline,
-				group: 'navigation',
-				order: 2,
 			}],
 		});
 	}

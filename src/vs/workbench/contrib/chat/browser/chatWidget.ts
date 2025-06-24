@@ -954,6 +954,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			// set states
 			this.viewModel?.setEditing(currentElement);
+			if (this.templateData?.contextKeyService) {
+				ChatContextKeys.currentlyEditing.bindTo(this.templateData.contextKeyService).set(true);
+			}
 			this.createInput(this.inputContainer);
 			this.inputPart.toggleChatInputOverlay(true);
 			if (currentContext.length > 0) {
@@ -995,6 +998,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModel?.model.setCheckpoint(undefined);
 		this.inputPart.dnd.setDisabledOverlay(false);
 		inputPart.toggleChatInputOverlay(false);
+		if (this.templateData?.contextKeyService) {
+			ChatContextKeys.currentlyEditing.bindTo(this.templateData.contextKeyService).set(false);
+		}
 
 		// try to remove input container from the row
 		try {
@@ -1006,11 +1012,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.inputContainer = null!;
 		}
 
+		this.templateData?.rowContainer.classList.remove('editing');
 		this.onDidChangeItems();
 		if (this.templateData && this.templateData.currentElement) {
 			this.renderer.updateItemHeightOnRender(this.templateData.currentElement, this.templateData);
 		}
 		this.viewModel?.setEditing(undefined);
+
+		this.inputPart.focus();
 	}
 
 	private scrollToCurrentItem(currentElement: IChatRequestViewModel): void {
@@ -1081,12 +1090,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private createInput(container: HTMLElement, options?: { renderFollowups: boolean; renderStyle?: 'compact' | 'minimal' }): void {
-		const isEditing = this.viewModel?.editing;
 		const commonConfig = {
 			renderFollowups: options?.renderFollowups ?? true,
 			renderStyle: options?.renderStyle === 'minimal' ? 'compact' : options?.renderStyle,
 			menus: {
-				executeToolbar: isEditing ? MenuId.ChatExecuteInline : MenuId.ChatExecute,
+				executeToolbar: MenuId.ChatExecute,
 				...this.viewOptions.menus
 			},
 			editorOverflowWidgetsDomNode: this.viewOptions.editorOverflowWidgetsDomNode,
@@ -1097,18 +1105,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			widgetViewKindTag: this.getWidgetViewKindTag()
 		};
 
-		const inputPart = this._register(this.instantiationService.createInstance(ChatInputPart,
-			this.location,
-			commonConfig,
-			this.styles,
-			() => this.collectInputState(),
-			isEditing ? true : false
-		));
-
-		if (isEditing) {
-			this.inlineInputPart = inputPart;
+		if (this.viewModel?.editing) {
+			const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.templateData?.contextKeyService])));
+			this.inlineInputPart = this._register(scopedInstantiationService.createInstance(ChatInputPart,
+				this.location,
+				commonConfig,
+				this.styles,
+				() => this.collectInputState(),
+				true
+			));
 		} else {
-			this.inputPart = inputPart;
+			this.inputPart = this._register(this.instantiationService.createInstance(ChatInputPart,
+				this.location,
+				commonConfig,
+				this.styles,
+				() => this.collectInputState(),
+				false
+			));
 		}
 
 		this.input.render(container, '', this);
@@ -1533,7 +1546,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						}
 					}
 				});
-				if (isRequestVM(this.templateData?.currentElement) && this.templateData.currentElement.id === this.viewModel?.editing?.id) {
+				if (this.viewModel?.editing) {
 					this.input.dispose();
 				}
 				return result.responseCreatedPromise;
@@ -1604,7 +1617,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.inlineInputPart?.layout(layoutHeight, width);
 		}
 		this.inputPart.layout(layoutHeight, width);
-		const inputHeight = this.input.inputPartHeight;
+		const inputHeight = this.inputPart.inputPartHeight;
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight - 2;
 
 		const contentHeight = Math.max(0, height - inputHeight);
@@ -1613,10 +1626,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		} else {
 			this.listContainer.style.setProperty('--chat-current-response-min-height', contentHeight * .75 + 'px');
 		}
-		if (!this.viewModel?.editing) {
-			this.tree.layout(contentHeight, width);
-			this.tree.getHTMLElement().style.height = `${contentHeight}px`;
-		}
+		this.tree.layout(contentHeight, width);
+		this.tree.getHTMLElement().style.height = `${contentHeight}px`;
 
 		// Push the welcome message down so it doesn't change position
 		// when followups, attachments or working set appear
@@ -1638,10 +1649,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (lastElementVisible && (!lastResponseIsRendering || checkModeOption(this.input.currentMode, this.viewOptions.autoScroll))) {
 			this.scrollToEnd();
 		}
-		if (!this.viewModel?.editing) {
-			this.listContainer.style.height = `${contentHeight}px`;
-		}
-
+		this.listContainer.style.height = `${contentHeight}px`;
 
 		this._onDidChangeHeight.fire(height);
 	}

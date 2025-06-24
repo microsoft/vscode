@@ -27,6 +27,7 @@ import { ILanguageModelToolsService } from '../../common/languageModelToolsServi
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -149,17 +150,7 @@ export class ChatSubmitAction extends SubmitAction {
 						precondition,
 					),
 					group: 'navigation',
-				},
-				{
-					id: MenuId.ChatExecuteInline,
-					order: 4,
-					when: ContextKeyExpr.and(
-						whenNotInProgressOrPaused,
-						precondition,
-					),
-					group: 'navigation',
-				},
-			]
+				}]
 		});
 	}
 }
@@ -277,19 +268,7 @@ export class ToggleRequestPausedAction extends Action2 {
 						ContextKeyExpr.or(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.inputHasText.negate()),
 					),
 					group: 'navigation',
-				},
-				{
-					id: MenuId.ChatExecuteInline,
-					order: 3.5,
-					when: ContextKeyExpr.and(
-						ChatContextKeys.canRequestBePaused,
-						ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
-						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
-						ContextKeyExpr.or(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.inputHasText.negate()),
-					),
-					group: 'navigation',
-				},
-			]
+				}]
 		});
 	}
 
@@ -424,19 +403,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 						),
 						precondition),
 					group: 'navigation',
-				},
-				{
-					id: MenuId.ChatExecuteInline,
-					order: 4,
-					when: ContextKeyExpr.and(
-						ContextKeyExpr.or(
-							ContextKeyExpr.and(ChatContextKeys.isRequestPaused, ChatContextKeys.inputHasText),
-							ChatContextKeys.requestInProgress.negate(),
-						),
-						precondition),
-					group: 'navigation',
-				},
-			]
+				}]
 		});
 	}
 }
@@ -608,12 +575,7 @@ export class CancelAction extends Action2 {
 				order: 4,
 				group: 'navigation',
 			},
-			{
-				id: MenuId.ChatExecuteInline,
-				when: ContextKeyExpr.and(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.requestInProgress),
-				order: 4,
-				group: 'navigation',
-			}],
+			],
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.Escape,
@@ -648,17 +610,21 @@ export class CancelEdit extends Action2 {
 			category: CHAT_CATEGORY,
 			icon: Codicon.x,
 			menu: {
-				id: MenuId.ChatExecuteInline,
+				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.enabled,
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
-					ChatContextKeys.inQuickChat.negate()),
+					ChatContextKeys.inQuickChat.negate(), ChatContextKeys.currentlyEditing),
 				order: 3,
 				group: 'navigation',
 			},
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyCode.Escape,
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput,
+					EditorContextKeys.hoverVisible.toNegated(),
+					EditorContextKeys.hasNonEmptySelection.toNegated(),
+					EditorContextKeys.hasMultipleSelections.toNegated()),
+				weight: KeybindingWeight.EditorContrib - 5
 			}
 		});
 	}

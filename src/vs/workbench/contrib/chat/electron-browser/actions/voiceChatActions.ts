@@ -553,18 +553,6 @@ const primaryVoiceActionMenu = (when: ContextKeyExpression | undefined) => {
 			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), when),
 			group: 'navigation',
 			order: 2
-		},
-		{
-			id: MenuId.ChatExecuteInline,
-			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), when),
-			group: 'navigation',
-			order: 3
-		},
-		{
-			id: MenuId.ChatExecuteInline,
-			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), when),
-			group: 'navigation',
-			order: 2
 		}
 	];
 };

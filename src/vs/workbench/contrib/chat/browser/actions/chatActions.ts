@@ -505,12 +505,6 @@ export function registerChatActions() {
 					when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
 					group: 'navigation',
 					order: 1
-				},
-				{
-					id: MenuId.ChatExecuteInline,
-					when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
-					group: 'navigation',
-					order: 1
 				}]
 			});
 		}
