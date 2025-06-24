@@ -28,6 +28,7 @@ import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -475,6 +476,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				id: MenuId.ChatExecute,
 				group: 'navigation',
 				order: 4,
+				// when: // TODO: When there is at least one remote coding agent available
 			}
 		});
 	}
@@ -483,14 +485,46 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const remoteJobCreatingKey = ChatContextKeys.remoteJobCreating.bindTo(contextKeyService);
 
-		const context: IChatExecuteActionContext | undefined = args[0];
-		const widgetService = accessor.get(IChatWidgetService);
-		const widget = context?.widget ?? widgetService.lastFocusedWidget;
-		if (!widget) {
-			return;
+		try {
+			remoteJobCreatingKey.set(true);
+
+			const remoteCodingAgent = accessor.get(IRemoteCodingAgentsService);
+			const commandService = accessor.get(ICommandService);
+			// const chatService = accessor.get(IChatService);
+			const widgetService = accessor.get(IChatWidgetService);
+
+			const widget = widgetService.lastFocusedWidget;
+			if (!widget) {
+				return;
+			}
+			const session = widget.viewModel?.sessionId;
+			if (!session) {
+				return;
+			}
+			// const chatSession = chatService.getSession(session);
+
+			const chatModel = widget.viewModel?.model;
+			const chatRequests = chatModel.getRequests(); // Array of IChatRequestModel
+
+			const chatHistory: { req: string; res: string }[] = [];
+			for (const request of chatRequests) {
+				const userMessage = request.message;
+				const response = request.response;
+				chatHistory.push({
+					req: userMessage.text,
+					res: response?.response.toString() ?? '',
+				});
+			}
+
+			const agents = remoteCodingAgent.getRegisteredAgents();
+
+			const agent = agents[0]; // TODO: We just pick the first one for testing
+			if (agent) {
+				await commandService.executeCommand(agent.command, { chatHistory });
+			}
+		} finally {
+			remoteJobCreatingKey.set(false);
 		}
-		remoteJobCreatingKey.set(true);
-		remoteJobCreatingKey.set(false);
 	}
 }
 
@@ -692,6 +726,7 @@ export function registerChatExecuteActions() {
 	registerAction2(CancelAction);
 	registerAction2(SendToNewChatAction);
 	registerAction2(ChatSubmitWithCodebaseAction);
+	registerAction2(CreateRemoteAgentJobAction);
 	registerAction2(ToggleChatModeAction);
 	registerAction2(ToggleRequestPausedAction);
 	registerAction2(SwitchToNextModelAction);

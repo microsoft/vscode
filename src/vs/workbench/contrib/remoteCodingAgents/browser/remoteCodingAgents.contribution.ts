@@ -6,52 +6,23 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
+import { IWorkbenchContribution, Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
 import { isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IRemoteCodingAgent, IRemoteCodingAgentsService } from '../common/remoteCodingAgentsService.js';
 
-interface IRemoteCodingAgentCommand {
+interface IRemoteCodingAgentExtensionPoint {
+	id: string;
 	command: string;
 	displayName: string;
 	description?: string;
 	when?: string;
 }
 
-class RemoteCodingAgentsContribution extends Disposable implements IWorkbenchContribution {
-	constructor() {
-		super();
-		this.registerContributedRemoteCodingAgents();
-	}
-
-	private registerContributedRemoteCodingAgents() {
-		extensionPoint.setHandler(extensions => {
-			for (const ext of extensions) {
-				if (!isProposedApiEnabled(ext.description, 'remoteCodingAgents')) {
-					continue;
-				}
-				if (!Array.isArray(ext.value)) {
-					continue;
-				}
-				for (const contribution of ext.value) {
-					const command = MenuRegistry.getCommand(contribution.command);
-					if (!command) {
-						continue;
-					}
-					// ...
-				}
-			}
-
-		});
-	}
-}
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(RemoteCodingAgentsContribution, LifecyclePhase.Restored);
-
-
-const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IRemoteCodingAgentCommand[]>({
+const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IRemoteCodingAgentExtensionPoint[]>({
 	extensionPoint: 'remoteCodingAgents',
 	jsonSchema: {
 		description: localize('remoteCodingAgentsExtPoint', 'Contributes remote coding agent integrations to the chat widget.'),
@@ -59,6 +30,10 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IRemoteCodingAg
 		items: {
 			type: 'object',
 			properties: {
+				id: {
+					description: localize('remoteCodingAgentsExtPoint.id', 'A unique identifier for this item.'),
+					type: 'string',
+				},
 				command: {
 					description: localize('remoteCodingAgentsExtPoint.command', 'Identifier of the command to execute. The command must be declared in the "commands" section.'),
 					type: 'string'
@@ -80,3 +55,42 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IRemoteCodingAg
 		}
 	}
 });
+
+export class RemoteCodingAgentsContribution extends Disposable implements IWorkbenchContribution {
+	constructor(
+		@ILogService private readonly logService: ILogService,
+		@IRemoteCodingAgentsService private readonly remoteCodingAgentsService: IRemoteCodingAgentsService
+	) {
+		super();
+		extensionPoint.setHandler(extensions => {
+			for (const ext of extensions) {
+				if (!isProposedApiEnabled(ext.description, 'remoteCodingAgents')) {
+					continue;
+				}
+				if (!Array.isArray(ext.value)) {
+					continue;
+				}
+				for (const contribution of ext.value) {
+					const command = MenuRegistry.getCommand(contribution.command);
+					if (!command) {
+						continue;
+					}
+
+					// TODO: Handle 'when' clause
+
+					const agent: IRemoteCodingAgent = {
+						id: contribution.id,
+						command: contribution.command,
+						displayName: contribution.displayName,
+						description: contribution.description
+					};
+					this.logService.info(`Registering remote coding agent: ${agent.displayName} (${agent.command})`);
+					this.remoteCodingAgentsService.registerAgent(agent);
+				}
+			}
+		});
+	}
+}
+
+const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchRegistry.registerWorkbenchContribution(RemoteCodingAgentsContribution, LifecyclePhase.Restored);
