@@ -395,11 +395,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public getId(): string {
-		return this.getEditorType() + ':' + this.getNumberId();
-	}
-
-	public getNumberId(): number {
-		return this._id;
+		return this.getEditorType() + ':' + this._id;
 	}
 
 	public getEditorType(): string {
@@ -1312,15 +1308,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.model.getDecorationsInRange(range, this._id, filterValidationDecorations(options), filterFontDecorations(options));
 	}
 
-	public getFontDecorationsInRange(range: Range): IModelDecoration[] | null {
+	public getFontSizeAtPosition(position: IPosition): number | null {
 		if (!this._modelData) {
 			return null;
 		}
-		const allowVariableFonts = this._configuration.options.get(EditorOption.effectiveAllowVariableFonts);
-		if (!allowVariableFonts) {
-			return [];
-		}
-		return this._modelData.model.getFontDecorationsInRange(range, this._id);
+		return this._modelData.viewModel.getFontSizeAtPosition(position);
 	}
 
 	/**
@@ -1919,7 +1911,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		const view = new View(
 			this._domElement,
-			this.getNumberId(),
+			this.getId(),
 			commandDelegate,
 			this._configuration,
 			this._themeService.getColorTheme(),

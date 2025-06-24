@@ -524,6 +524,18 @@ export class ViewModel extends Disposable implements IViewModel {
 	private readonly hiddenAreasModel = new HiddenAreasModel();
 	private previousHiddenAreas: readonly Range[] = [];
 
+	public getFontSizeAtPosition(position: IPosition): number {
+		const fontDecorations = this.model.getFontDecorationsInRange(Range.fromPositions(position), this._editorId);
+		let fontSize: number = this._configuration.options.get(EditorOption.fontInfo).fontSize;
+		for (const fontDecoration of fontDecorations) {
+			if (fontDecoration.options.fontSize) {
+				fontSize = fontDecoration.options.fontSize;
+				break;
+			}
+		}
+		return fontSize;
+	}
+
 	/**
 	 * @param forceUpdate If true, the hidden areas will be updated even if the new ranges are the same as the previous ranges.
 	 * This is because the model might have changed, which resets the hidden areas, but not the last cached value.

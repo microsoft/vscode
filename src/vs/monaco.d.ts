@@ -2646,10 +2646,6 @@ declare namespace monaco.editor {
 		 */
 		getId(): string;
 		/**
-		 * Get a unique numbered id for this editor instance.
-		 */
-		getNumberId(): number;
-		/**
 		 * Get the editor type. Please see `EditorType`.
 		 * This is to avoid an instanceof check
 		 */
@@ -6139,10 +6135,10 @@ declare namespace monaco.editor {
 		 */
 		getDecorationsInRange(range: Range): IModelDecoration[] | null;
 		/**
-		 * Get all the font decorations for a range (filtering out decorations from other editors).
-		 * @param range The range to get font decorations for.
+		 * Get the font size at a given position
+		 * @param position the position for which to fetch the font size
 		 */
-		getFontDecorationsInRange(range: Range): IModelDecoration[] | null;
+		getFontSizeAtPosition(position: IPosition): number | null;
 		/**
 		 * All decorations added through this call will get the ownerId of this editor.
 		 * @deprecated Use `createDecorationsCollection`

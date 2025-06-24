@@ -85,7 +85,6 @@ export class View extends ViewEventHandler {
 
 	private _widgetFocusTracker: CodeEditorWidgetFocusTracker;
 
-	private readonly _owner: number;
 	private readonly _scrollbar: EditorScrollbar;
 	private readonly _context: ViewContext;
 	private readonly _viewGpuContext?: ViewGpuContext;
@@ -117,10 +116,11 @@ export class View extends ViewEventHandler {
 	// Actual mutable state
 	private _shouldRecomputeGlyphMarginLanes: boolean = false;
 	private _renderAnimationFrame: IDisposable | null;
+	private _ownerID: string;
 
 	constructor(
 		editorContainer: HTMLElement,
-		owner: number,
+		ownerID: string,
 		commandDelegate: ICommandDelegate,
 		configuration: IEditorConfiguration,
 		colorTheme: IColorTheme,
@@ -130,7 +130,7 @@ export class View extends ViewEventHandler {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
-		this._owner = owner;
+		this._ownerID = ownerID;
 
 		this._widgetFocusTracker = this._register(
 			new CodeEditorWidgetFocusTracker(editorContainer, overflowWidgetsDomNode)
@@ -291,9 +291,9 @@ export class View extends ViewEventHandler {
 	private _instantiateEditContext(): AbstractEditContext {
 		const usingExperimentalEditContext = this._context.configuration.options.get(EditorOption.effectiveEditContext);
 		if (usingExperimentalEditContext) {
-			return this._instantiationService.createInstance(NativeEditContext, this._owner, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
+			return this._instantiationService.createInstance(NativeEditContext, this._ownerID, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
 		} else {
-			return this._instantiationService.createInstance(TextAreaEditContext, this._owner, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
+			return this._instantiationService.createInstance(TextAreaEditContext, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
 		}
 	}
 

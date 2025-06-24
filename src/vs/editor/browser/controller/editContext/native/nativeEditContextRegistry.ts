@@ -8,19 +8,19 @@ import { NativeEditContext } from './nativeEditContext.js';
 
 class NativeEditContextRegistryImpl {
 
-	private _nativeEditContextMapping: Map<number, NativeEditContext> = new Map();
+	private _nativeEditContextMapping: Map<string, NativeEditContext> = new Map();
 
-	register(owner: number, nativeEditContext: NativeEditContext): IDisposable {
-		this._nativeEditContextMapping.set(owner, nativeEditContext);
+	register(ownerID: string, nativeEditContext: NativeEditContext): IDisposable {
+		this._nativeEditContextMapping.set(ownerID, nativeEditContext);
 		return {
 			dispose: () => {
-				this._nativeEditContextMapping.delete(owner);
+				this._nativeEditContextMapping.delete(ownerID);
 			}
 		};
 	}
 
-	get(owner: number): NativeEditContext | undefined {
-		return this._nativeEditContextMapping.get(owner);
+	get(ownerID: string): NativeEditContext | undefined {
+		return this._nativeEditContextMapping.get(ownerID);
 	}
 }
 
