@@ -157,7 +157,7 @@
 	color: var(--vscode-editorSuggestWidget-highlightForeground);
 }
 
-.workbench-suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main .monaco-highlighted-label .highlight {
+.workbench-suggest-widget:not(.partial-selection) .monaco-list .monaco-list-row.focused > .contents > .main .monaco-highlighted-label .highlight {
 	color: var(--vscode-editorSuggestWidget-focusHighlightForeground);
 }
 

@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ExecOptionsWithStringEncoding } from 'child_process';
-import * as fs from 'fs/promises';
-import * as path from 'path';
 import * as vscode from 'vscode';
 import cdSpec from './completions/cd';
 import codeCompletionSpec from './completions/code';
@@ -39,8 +37,21 @@ export const enum TerminalShellType {
 }
 
 const isWindows = osIsWindows();
-const cachedGlobals: Map<TerminalShellType, ICompletionResource[] | undefined> = new Map();
+type ShellGlobalsCacheEntry = {
+	commands: ICompletionResource[] | undefined;
+	existingCommands?: string[];
+};
+
+type ShellGlobalsCacheEntryWithMeta = ShellGlobalsCacheEntry & { timestamp: number };
+const cachedGlobals: Map<string, ShellGlobalsCacheEntryWithMeta> = new Map();
 let pathExecutableCache: PathExecutableCache;
+const CACHE_KEY = 'terminalSuggestGlobalsCacheV2';
+let globalStorage: vscode.Memento;
+const CACHE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+
+function getCacheKey(machineId: string, remoteAuthority: string | undefined, shellType: TerminalShellType): string {
+	return `${machineId}:${remoteAuthority ?? 'local'}:${shellType}`;
+}
 
 export const availableSpecs: Fig.Spec[] = [
 	cdSpec,
@@ -64,15 +75,54 @@ const getShellSpecificGlobals: Map<TerminalShellType, (options: ExecOptionsWithS
 	[TerminalShellType.PowerShell, getPwshGlobals],
 ]);
 
-async function getShellGlobals(shellType: TerminalShellType, existingCommands?: Set<string>): Promise<ICompletionResource[] | undefined> {
+
+async function getShellGlobals(
+	shellType: TerminalShellType,
+	existingCommands?: Set<string>,
+	machineId?: string,
+	remoteAuthority?: string
+): Promise<ICompletionResource[] | undefined> {
+	if (!machineId) {
+		// fallback: don't cache
+		return await fetchAndCacheShellGlobals(shellType, existingCommands, undefined, undefined);
+	}
+	const cacheKey = getCacheKey(machineId, remoteAuthority, shellType);
+	const cached = cachedGlobals.get(cacheKey);
+	const now = Date.now();
+	const existingCommandsArr = existingCommands ? Array.from(existingCommands) : undefined;
+	let shouldRefresh = false;
+	if (cached) {
+		// Evict if too old
+		if (now - cached.timestamp > CACHE_MAX_AGE_MS) {
+			cachedGlobals.delete(cacheKey);
+			await writeGlobalsCache();
+		} else {
+			if (existingCommandsArr && cached.existingCommands) {
+				if (existingCommandsArr.length !== cached.existingCommands.length) {
+					shouldRefresh = true;
+				}
+			} else if (existingCommandsArr || cached.existingCommands) {
+				shouldRefresh = true;
+			}
+			if (!shouldRefresh && cached.commands) {
+				// Trigger background refresh
+				void fetchAndCacheShellGlobals(shellType, existingCommands, machineId, remoteAuthority, true);
+				return cached.commands;
+			}
+		}
+	}
+	// No cache or should refresh
+	return await fetchAndCacheShellGlobals(shellType, existingCommands, machineId, remoteAuthority);
+}
+
+async function fetchAndCacheShellGlobals(
+	shellType: TerminalShellType,
+	existingCommands?: Set<string>,
+	machineId?: string,
+	remoteAuthority?: string,
+	background?: boolean
+): Promise<ICompletionResource[] | undefined> {
 	try {
-		const cachedCommands = cachedGlobals.get(shellType);
-		if (cachedCommands) {
-			return cachedCommands;
-		}
-		if (!shellType) {
-			return;
-		}
 		let execShellType = shellType;
 		if (shellType === TerminalShellType.GitBash) {
 			execShellType = TerminalShellType.Bash; // Git Bash is a bash shell
@@ -80,20 +130,76 @@ async function getShellGlobals(shellType: TerminalShellType, existingCommands?: 
 		const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell: execShellType, windowsHide: true };
 		const mixedCommands: (string | ICompletionResource)[] | undefined = await getShellSpecificGlobals.get(shellType)?.(options, existingCommands);
 		const normalizedCommands = mixedCommands?.map(command => typeof command === 'string' ? ({ label: command }) : command);
-		cachedGlobals.set(shellType, normalizedCommands);
+		if (machineId) {
+			const cacheKey = getCacheKey(machineId, remoteAuthority, shellType);
+			cachedGlobals.set(cacheKey, {
+				commands: normalizedCommands,
+				existingCommands: existingCommands ? Array.from(existingCommands) : undefined,
+				timestamp: Date.now()
+			});
+			await writeGlobalsCache();
+		}
 		return normalizedCommands;
-
 	} catch (error) {
-		console.error('Error fetching builtin commands:', error);
+		if (!background) {
+			console.error('Error fetching builtin commands:', error);
+		}
 		return;
 	}
 }
+
+
+async function writeGlobalsCache(): Promise<void> {
+	if (!globalStorage) {
+		return;
+	}
+	// Remove old entries
+	const now = Date.now();
+	for (const [key, value] of cachedGlobals.entries()) {
+		if (now - value.timestamp > CACHE_MAX_AGE_MS) {
+			cachedGlobals.delete(key);
+		}
+	}
+	const obj: Record<string, ShellGlobalsCacheEntryWithMeta> = {};
+	for (const [key, value] of cachedGlobals.entries()) {
+		obj[key] = value;
+	}
+	try {
+		await globalStorage.update(CACHE_KEY, obj);
+	} catch (err) {
+		console.error('Failed to write terminal suggest globals cache:', err);
+	}
+}
+
+
+async function readGlobalsCache(): Promise<void> {
+	if (!globalStorage) {
+		return;
+	}
+	try {
+		const obj = globalStorage.get<Record<string, ShellGlobalsCacheEntryWithMeta>>(CACHE_KEY);
+		if (obj) {
+			for (const key of Object.keys(obj)) {
+				cachedGlobals.set(key, obj[key]);
+			}
+		}
+	} catch { }
+}
+
 
 
 export async function activate(context: vscode.ExtensionContext) {
 	pathExecutableCache = new PathExecutableCache();
 	context.subscriptions.push(pathExecutableCache);
 	let currentTerminalEnv: ITerminalEnvironment = process.env;
+
+	globalStorage = context.globalState;
+	await readGlobalsCache();
+
+	// Get a machineId for this install (persisted per machine, not synced)
+	const machineId = await vscode.env.machineId;
+	const remoteAuthority = vscode.env.remoteName;
+
 	context.subscriptions.push(vscode.window.registerTerminalCompletionProvider({
 		id: 'terminal-suggest',
 		async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: vscode.TerminalCompletionContext, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | vscode.TerminalCompletionList | undefined> {
@@ -110,14 +216,20 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			const commandsInPath = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType);
-			const shellGlobals = await getShellGlobals(terminalShellType, commandsInPath?.labels) ?? [];
+			const [commandsInPath, shellGlobals] = await Promise.all([
+				pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType),
+				(async () => {
+					const executables = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType);
+					return getShellGlobals(terminalShellType, executables?.labels, machineId, remoteAuthority);
+				})()
+			]);
+			const shellGlobalsArr = shellGlobals ?? [];
 			if (!commandsInPath?.completionResources) {
 				console.debug('#terminalCompletions No commands found in path');
 				return;
 			}
 			// Order is important here, add shell globals first so they are prioritized over path commands
-			const commands = [...shellGlobals, ...commandsInPath.completionResources];
+			const commands = [...shellGlobalsArr, ...commandsInPath.completionResources];
 			const currentCommandString = getCurrentCommandAndArgs(terminalContext.commandLine, terminalContext.cursorPosition, terminalShellType);
 			const pathSeparator = isWindows ? '\\' : '/';
 			const tokenType = getTokenType(terminalContext, terminalShellType);
@@ -191,14 +303,12 @@ export async function resolveCwdFromCurrentCommandString(currentCommandString: s
 		}
 		const relativeFolder = lastSlashIndex === -1 ? '' : prefix.slice(0, lastSlashIndex);
 
-		// Resolve the absolute path of the prefix
-		const resolvedPath = path.resolve(currentCwd?.fsPath, relativeFolder);
+		// Use vscode.Uri.joinPath for path resolution
+		const resolvedUri = vscode.Uri.joinPath(currentCwd, relativeFolder);
 
-		const stat = await fs.stat(resolvedPath);
-
-		// Check if the resolved path exists and is a directory
-		if (stat.isDirectory()) {
-			return currentCwd.with({ path: resolvedPath });
+		const stat = await vscode.workspace.fs.stat(resolvedUri);
+		if (stat.type & vscode.FileType.Directory) {
+			return resolvedUri;
 		}
 	} catch {
 		// Ignore errors

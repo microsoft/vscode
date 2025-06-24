@@ -105,6 +105,8 @@ export interface IChatViewOpenRequestEntry {
 	response: string;
 }
 
+export const CHAT_CONFIG_MENU_ID = new MenuId('workbench.chat.menu.config');
+
 const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
 
 abstract class OpenChatGlobalAction extends Action2 {
@@ -800,6 +802,15 @@ export function registerChatActions() {
 			accessor.get(ILanguageModelToolsService).resetToolAutoConfirmation();
 			accessor.get(INotificationService).info(localize('resetTrustedToolsSuccess', "Tool confirmation preferences have been reset."));
 		}
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+		submenu: CHAT_CONFIG_MENU_ID,
+		title: localize2('config.label', "Configure Chat..."),
+		group: 'navigation',
+		when: ContextKeyExpr.equals('view', ChatViewId),
+		icon: Codicon.gear,
+		order: 6
 	});
 }
 
