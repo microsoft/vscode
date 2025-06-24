@@ -8,7 +8,7 @@ import { ILocalMcpServer, IMcpManagementService, IGalleryMcpServer, InstallOptio
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMcpResourceScannerService } from '../../../../platform/mcp/common/mcpResourceScannerService.js';
 import { isWorkspaceFolder, IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -37,7 +37,19 @@ export interface IWorkbenchLocalMcpServer extends ILocalMcpServer {
 	readonly scope?: LocalMcpServerScope;
 }
 
+export interface IWorkbenchMcpServerInstallResult extends InstallMcpServerResult {
+	readonly local?: IWorkbenchLocalMcpServer;
+}
+
 export interface IWorkbenchMcpManagementService extends IMcpManagementService {
+
+	readonly onDidInstallMcpServers: Event<readonly IWorkbenchMcpServerInstallResult[]>;
+
+	readonly onInstallMcpServerInCurrentProfile: Event<InstallMcpServerEvent>;
+	readonly onDidInstallMcpServersInCurrentProfile: Event<readonly IWorkbenchMcpServerInstallResult[]>;
+	readonly onUninstallMcpServerInCurrentProfile: Event<UninstallMcpServerEvent>;
+	readonly onDidUninstallMcpServerInCurrentProfile: Event<DidUninstallMcpServerEvent>;
+
 	getInstalled(): Promise<IWorkbenchLocalMcpServer[]>;
 	install(server: IMcpServer, options?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchLocalMcpServer>;
 }
@@ -49,9 +61,23 @@ class WorkbenchMcpManagementService extends Disposable implements IWorkbenchMcpM
 	readonly _serviceBrand: undefined;
 
 	readonly onInstallMcpServer: Event<InstallMcpServerEvent>;
-	readonly onDidInstallMcpServers: Event<readonly InstallMcpServerResult[]>;
 	readonly onUninstallMcpServer: Event<UninstallMcpServerEvent>;
 	readonly onDidUninstallMcpServer: Event<DidUninstallMcpServerEvent>;
+
+	private _onDidInstallMcpServers = this._register(new Emitter<readonly IWorkbenchMcpServerInstallResult[]>());
+	readonly onDidInstallMcpServers = this._onDidInstallMcpServers.event;
+
+	private readonly _onInstallMcpServerInCurrentProfile = this._register(new Emitter<InstallMcpServerEvent>());
+	readonly onInstallMcpServerInCurrentProfile = this._onInstallMcpServerInCurrentProfile.event;
+
+	private readonly _onDidInstallMcpServersInCurrentProfile = this._register(new Emitter<readonly IWorkbenchMcpServerInstallResult[]>());
+	readonly onDidInstallMcpServersInCurrentProfile = this._onDidInstallMcpServersInCurrentProfile.event;
+
+	private readonly _onUninstallMcpServerInCurrentProfile = this._register(new Emitter<UninstallMcpServerEvent>());
+	readonly onUninstallMcpServerInCurrentProfile = this._onUninstallMcpServerInCurrentProfile.event;
+
+	private readonly _onDidUninstallMcpServerInCurrentProfile = this._register(new Emitter<DidUninstallMcpServerEvent>());
+	readonly onDidUninstallMcpServerInCurrentProfile = this._onDidUninstallMcpServerInCurrentProfile.event;
 
 	private readonly remoteMcpManagementService: IMcpManagementService | undefined;
 
@@ -76,9 +102,90 @@ class WorkbenchMcpManagementService extends Disposable implements IWorkbenchMcpM
 		}
 
 		this.onInstallMcpServer = this.remoteMcpManagementService ? Event.any(this.remoteMcpManagementService.onInstallMcpServer, this.mcpManagementService.onInstallMcpServer) : this.mcpManagementService.onInstallMcpServer;
-		this.onDidInstallMcpServers = this.remoteMcpManagementService ? Event.any(this.remoteMcpManagementService.onDidInstallMcpServers, this.mcpManagementService.onDidInstallMcpServers) : this.mcpManagementService.onDidInstallMcpServers;
 		this.onUninstallMcpServer = this.remoteMcpManagementService ? Event.any(this.remoteMcpManagementService.onUninstallMcpServer, this.mcpManagementService.onUninstallMcpServer) : this.mcpManagementService.onUninstallMcpServer;
 		this.onDidUninstallMcpServer = this.remoteMcpManagementService ? Event.any(this.remoteMcpManagementService.onDidUninstallMcpServer, this.mcpManagementService.onDidUninstallMcpServer) : this.mcpManagementService.onDidUninstallMcpServer;
+
+		this._register(this.mcpManagementService.onInstallMcpServer(e => {
+			if (uriIdentityService.extUri.isEqual(e.mcpResource, this.userDataProfileService.currentProfile.mcpResource)) {
+				this._onInstallMcpServerInCurrentProfile.fire(e);
+			}
+		}));
+
+		this._register(this.mcpManagementService.onDidInstallMcpServers(e => {
+			const mcpServerInstallResult: IWorkbenchMcpServerInstallResult[] = [];
+			const mcpServerInstallResultInCurrentProfile: IWorkbenchMcpServerInstallResult[] = [];
+			for (const result of e) {
+				const workbenchResult = {
+					...result,
+					local: result.local ? { ...result.local, scope: LocalMcpServerScope.User } : undefined
+				};
+				mcpServerInstallResult.push(workbenchResult);
+				if (uriIdentityService.extUri.isEqual(result.mcpResource, this.userDataProfileService.currentProfile.mcpResource)) {
+					mcpServerInstallResultInCurrentProfile.push(workbenchResult);
+				}
+			}
+
+			this._onDidInstallMcpServers.fire(mcpServerInstallResult);
+			if (mcpServerInstallResultInCurrentProfile.length) {
+				this._onDidInstallMcpServersInCurrentProfile.fire(mcpServerInstallResultInCurrentProfile);
+			}
+		}));
+
+		this._register(this.mcpManagementService.onUninstallMcpServer(e => {
+			if (uriIdentityService.extUri.isEqual(e.mcpResource, this.userDataProfileService.currentProfile.mcpResource)) {
+				this._onUninstallMcpServerInCurrentProfile.fire(e);
+			}
+		}));
+
+		this._register(this.mcpManagementService.onDidUninstallMcpServer(e => {
+			if (uriIdentityService.extUri.isEqual(e.mcpResource, this.userDataProfileService.currentProfile.mcpResource)) {
+				this._onDidUninstallMcpServerInCurrentProfile.fire(e);
+			}
+		}));
+
+		if (this.remoteMcpManagementService) {
+			this._register(this.remoteMcpManagementService.onInstallMcpServer(async e => {
+				const remoteMcpResource = await this.getRemoteMcpResource(this.userDataProfileService.currentProfile.mcpResource);
+				if (remoteMcpResource ? uriIdentityService.extUri.isEqual(e.mcpResource, remoteMcpResource) : this.userDataProfileService.currentProfile.isDefault) {
+					this._onInstallMcpServerInCurrentProfile.fire(e);
+				}
+			}));
+
+			this._register(this.remoteMcpManagementService.onDidInstallMcpServers(async e => {
+				const mcpServerInstallResult: IWorkbenchMcpServerInstallResult[] = [];
+				const mcpServerInstallResultInCurrentProfile: IWorkbenchMcpServerInstallResult[] = [];
+				const remoteMcpResource = await this.getRemoteMcpResource(this.userDataProfileService.currentProfile.mcpResource);
+				for (const result of e) {
+					const workbenchResult = {
+						...result,
+						local: result.local ? { ...result.local, scope: LocalMcpServerScope.RemoteUser } : undefined
+					};
+					mcpServerInstallResult.push(workbenchResult);
+					if (remoteMcpResource ? uriIdentityService.extUri.isEqual(result.mcpResource, remoteMcpResource) : this.userDataProfileService.currentProfile.isDefault) {
+						mcpServerInstallResultInCurrentProfile.push(workbenchResult);
+					}
+				}
+
+				this._onDidInstallMcpServersInCurrentProfile.fire(mcpServerInstallResult);
+				if (mcpServerInstallResultInCurrentProfile.length) {
+					this._onDidInstallMcpServersInCurrentProfile.fire(mcpServerInstallResultInCurrentProfile);
+				}
+			}));
+
+			this._register(this.remoteMcpManagementService.onUninstallMcpServer(async e => {
+				const remoteMcpResource = await this.getRemoteMcpResource(this.userDataProfileService.currentProfile.mcpResource);
+				if (remoteMcpResource ? uriIdentityService.extUri.isEqual(e.mcpResource, remoteMcpResource) : this.userDataProfileService.currentProfile.isDefault) {
+					this._onUninstallMcpServerInCurrentProfile.fire(e);
+				}
+			}));
+
+			this._register(this.remoteMcpManagementService.onDidUninstallMcpServer(async e => {
+				const remoteMcpResource = await this.getRemoteMcpResource(this.userDataProfileService.currentProfile.mcpResource);
+				if (remoteMcpResource ? uriIdentityService.extUri.isEqual(e.mcpResource, remoteMcpResource) : this.userDataProfileService.currentProfile.isDefault) {
+					this._onDidUninstallMcpServerInCurrentProfile.fire(e);
+				}
+			}));
+		}
 	}
 
 	async getInstalled(): Promise<IWorkbenchLocalMcpServer[]> {
@@ -214,7 +321,7 @@ class WorkbenchMcpManagementService extends Disposable implements IWorkbenchMcpM
 		return mcpServers;
 	}
 
-	protected async getRemoteMcpResource(mcpResource?: URI): Promise<URI | undefined> {
+	private async getRemoteMcpResource(mcpResource?: URI): Promise<URI | undefined> {
 		if (!mcpResource && this.userDataProfileService.currentProfile.isDefault) {
 			return undefined;
 		}

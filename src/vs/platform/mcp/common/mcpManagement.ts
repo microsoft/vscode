@@ -144,31 +144,27 @@ export interface IMcpGalleryService {
 
 export interface InstallMcpServerEvent {
 	readonly name: string;
+	readonly mcpResource: URI;
 	readonly source?: IGalleryMcpServer;
-	readonly applicationScoped?: boolean;
-	readonly workspaceScoped?: boolean;
 }
 
 export interface InstallMcpServerResult {
 	readonly name: string;
+	readonly mcpResource: URI;
 	readonly source?: IGalleryMcpServer;
 	readonly local?: ILocalMcpServer;
 	readonly error?: Error;
-	readonly applicationScoped?: boolean;
-	readonly workspaceScoped?: boolean;
 }
 
 export interface UninstallMcpServerEvent {
 	readonly name: string;
-	readonly applicationScoped?: boolean;
-	readonly workspaceScoped?: boolean;
+	readonly mcpResource: URI;
 }
 
 export interface DidUninstallMcpServerEvent {
 	readonly name: string;
+	readonly mcpResource: URI;
 	readonly error?: string;
-	readonly applicationScoped?: boolean;
-	readonly workspaceScoped?: boolean;
 }
 
 export type InstallOptions = {
