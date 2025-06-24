@@ -520,6 +520,8 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 			const agents = remoteCodingAgent.getRegisteredAgents();
 
+			// Summarize everything said (maybe like how we create titles)
+
 			const agent = agents[0]; // TODO: We just pick the first one for testing
 			if (agent) {
 				await commandService.executeCommand(agent.command, { chatHistory, userPrompt });
