@@ -150,6 +150,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidBlur: Emitter<void>;
 	readonly onDidBlur: Event<void>;
 
+	private _onDidDispose: Emitter<void>;
+	readonly onDidDispose: Event<void>;
+
 	private _onDidChangeContext: Emitter<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>;
 	readonly onDidChangeContext: Event<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>;
 
@@ -214,6 +217,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private attachmentsContainer!: HTMLElement;
 
+	private chatInputOverlay!: HTMLElement;
+
 	private attachedContextContainer!: HTMLElement;
 	private readonly attachedContextDisposables: MutableDisposable<DisposableStore>;
 
@@ -252,7 +257,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._inputEditor;
 	}
 
-	private readonly dnd: ChatDragAndDrop;
+	readonly dnd: ChatDragAndDrop;
 
 	private history: HistoryNavigator2<IChatHistoryEntry>;
 	private historyNavigationBackwardsEnablement!: IContextKey<boolean>;
@@ -338,6 +343,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		private readonly options: IChatInputPartOptions,
 		styles: IChatInputStyles,
 		getContribsInputState: () => any,
+		private readonly inline: boolean,
 		@IChatWidgetHistoryService private readonly historyService: IChatWidgetHistoryService,
 		@IModelService private readonly modelService: IModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -369,6 +375,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.onDidFocus = this._onDidFocus.event;
 		this._onDidBlur = this._register(new Emitter<void>());
 		this.onDidBlur = this._onDidBlur.event;
+		this._onDidDispose = this._register(new Emitter<void>());
+		this.onDidDispose = this._onDidDispose.event;
 		this._onDidChangeContext = this._register(new Emitter<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>());
 		this.onDidChangeContext = this._onDidChangeContext.event;
 		this._onDidAcceptFollowup = this._register(new Emitter<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>());
@@ -443,6 +451,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}));
 		this._register(this.chatModeService.onDidChangeChatModes(() => this.validateCurrentChatMode()));
+	}
+	public override dispose(): void {
+		this._onDidDispose.fire();
+		super.dispose();
 	}
 
 	private getSelectedModelStorageKey(): string {
@@ -984,6 +996,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			]);
 		}
 		this.container = elements.root;
+		this.chatInputOverlay = dom.$('.chat-input-overlay');
+		container.append(this.chatInputOverlay);
 		container.append(this.container);
 		this.container.classList.toggle('compact', this.options.renderStyle === 'compact');
 		this.followupsContainer = elements.followupsContainer;
@@ -1076,7 +1090,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		this._register(this._inputEditor.onDidContentSizeChange(e => {
 			if (e.contentHeightChanged) {
-				this.inputEditorHeight = e.contentHeight;
+				this.inputEditorHeight = !this.inline ? e.contentHeight : this.inputEditorHeight;
 				this._onDidChangeHeight.fire();
 			}
 		}));
@@ -1250,7 +1264,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 	}
 
-	private renderAttachedContext() {
+	public toggleChatInputOverlay(editing: boolean): void {
+		this.chatInputOverlay.classList.toggle('disabled', editing);
+	}
+
+	public renderAttachedContext() {
 		const container = this.attachedContextContainer;
 		// Note- can't measure attachedContextContainer, because it has `display: contents`, so measure the parent to check for height changes
 		const oldHeight = this.attachmentsContainer.offsetHeight;

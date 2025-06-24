@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { basename } from '../../../../../base/common/resources.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -26,6 +27,7 @@ import { ILanguageModelToolsService } from '../../common/languageModelToolsServi
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -38,11 +40,77 @@ export interface IChatExecuteActionContext {
 }
 
 abstract class SubmitAction extends Action2 {
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const context: IChatExecuteActionContext | undefined = args[0];
 
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+		if (widget?.viewModel?.editing) {
+			const configurationService = accessor.get(IConfigurationService);
+			const dialogService = accessor.get(IDialogService);
+			const chatService = accessor.get(IChatService);
+			const chatModel = chatService.getSession(widget.viewModel.sessionId);
+			if (!chatModel) {
+				return;
+			}
+
+			const session = chatModel.editingSession;
+			if (!session) {
+				return;
+			}
+
+			const requestId = widget.viewModel?.editing.id;
+
+			if (requestId) {
+				const chatRequests = chatModel.getRequests();
+				const itemIndex = chatRequests.findIndex(request => request.id === requestId);
+				const editsToUndo = chatRequests.length - itemIndex;
+
+				const requestsToRemove = chatRequests.slice(itemIndex);
+				const requestIdsToRemove = new Set(requestsToRemove.map(request => request.id));
+				const entriesModifiedInRequestsToRemove = session.entries.get().filter((entry) => requestIdsToRemove.has(entry.lastModifyingRequestId)) ?? [];
+				const shouldPrompt = entriesModifiedInRequestsToRemove.length > 0 && configurationService.getValue('chat.editing.confirmEditRequestRemoval') === true;
+
+				let message: string;
+				if (editsToUndo === 1) {
+					if (entriesModifiedInRequestsToRemove.length === 1) {
+						message = localize('chat.removeLast.confirmation.message2', "This will remove your last request and undo the edits made to {0}. Do you want to proceed?", basename(entriesModifiedInRequestsToRemove[0].modifiedURI));
+					} else {
+						message = localize('chat.removeLast.confirmation.multipleEdits.message', "This will remove your last request and undo edits made to {0} files in your working set. Do you want to proceed?", entriesModifiedInRequestsToRemove.length);
+					}
+				} else {
+					if (entriesModifiedInRequestsToRemove.length === 1) {
+						message = localize('chat.remove.confirmation.message2', "This will remove all subsequent requests and undo edits made to {0}. Do you want to proceed?", basename(entriesModifiedInRequestsToRemove[0].modifiedURI));
+					} else {
+						message = localize('chat.remove.confirmation.multipleEdits.message', "This will remove all subsequent requests and undo edits made to {0} files in your working set. Do you want to proceed?", entriesModifiedInRequestsToRemove.length);
+					}
+				}
+
+				const confirmation = shouldPrompt
+					? await dialogService.confirm({
+						title: editsToUndo === 1
+							? localize('chat.removeLast.confirmation.title', "Do you want to undo your last edit?")
+							: localize('chat.remove.confirmation.title', "Do you want to undo {0} edits?", editsToUndo),
+						message: message,
+						primaryButton: localize('chat.remove.confirmation.primaryButton', "Yes"),
+						checkbox: { label: localize('chat.remove.confirmation.checkbox', "Don't ask again"), checked: false },
+						type: 'info'
+					})
+					: { confirmed: true };
+
+				if (!confirmation.confirmed) {
+					return;
+				}
+
+				if (confirmation.checkboxChecked) {
+					await configurationService.updateValue('chat.editing.confirmEditRequestRemoval', false);
+				}
+
+				// Restore the snapshot to what it was before the request(s) that we deleted
+				const snapshotRequestId = chatRequests[itemIndex].id;
+				await session.restoreSnapshot(snapshotRequestId, undefined);
+			}
+		}
 		widget?.acceptInput(context?.inputValue);
 	}
 }
@@ -82,8 +150,7 @@ export class ChatSubmitAction extends SubmitAction {
 						precondition,
 					),
 					group: 'navigation',
-				},
-			]
+				}]
 		});
 	}
 }
@@ -201,8 +268,7 @@ export class ToggleRequestPausedAction extends Action2 {
 						ContextKeyExpr.or(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.inputHasText.negate()),
 					),
 					group: 'navigation',
-				},
-			]
+				}]
 		});
 	}
 
@@ -337,8 +403,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 						),
 						precondition),
 					group: 'navigation',
-				},
-			]
+				}]
 		});
 	}
 }
@@ -504,12 +569,13 @@ export class CancelAction extends Action2 {
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.stopCircle,
-			menu: {
+			menu: [{
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.requestInProgress),
 				order: 4,
 				group: 'navigation',
 			},
+			],
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.Escape,
@@ -520,7 +586,6 @@ export class CancelAction extends Action2 {
 
 	run(accessor: ServicesAccessor, ...args: any[]) {
 		const context: IChatExecuteActionContext | undefined = args[0];
-
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
@@ -534,6 +599,49 @@ export class CancelAction extends Action2 {
 	}
 }
 
+export const CancelChatEditId = 'workbench.edit.chat.cancel';
+export class CancelEdit extends Action2 {
+	static readonly ID = CancelChatEditId;
+	constructor() {
+		super({
+			id: CancelEdit.ID,
+			title: localize2('interactive.cancelEdit.label', "Cancel Edit"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			icon: Codicon.x,
+			menu: {
+				id: MenuId.ChatExecute,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+					ChatContextKeys.inQuickChat.negate(), ChatContextKeys.currentlyEditing),
+				order: 3,
+				group: 'navigation',
+			},
+			keybinding: {
+				primary: KeyCode.Escape,
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput,
+					EditorContextKeys.hoverVisible.toNegated(),
+					EditorContextKeys.hasNonEmptySelection.toNegated(),
+					EditorContextKeys.hasMultipleSelections.toNegated()),
+				weight: KeybindingWeight.EditorContrib - 5
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		const context: IChatExecuteActionContext | undefined = args[0];
+
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+		if (!widget) {
+			return;
+		}
+		widget.input.dispose();
+	}
+}
+
+
 export function registerChatExecuteActions() {
 	registerAction2(ChatSubmitAction);
 	registerAction2(ChatEditingSessionSubmitAction);
@@ -546,4 +654,5 @@ export function registerChatExecuteActions() {
 	registerAction2(SwitchToNextModelAction);
 	registerAction2(OpenModelPickerAction);
 	registerAction2(ChangeChatModelAction);
+	registerAction2(CancelEdit);
 }

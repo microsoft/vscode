@@ -1856,6 +1856,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		padding-bottom: 0px;
 	}
 
+	.interactive-item-container.interactive-request:not(.editing):hover .request-hover {
+		opacity: 1 !important;
+	}
+
 	.interactive-item-container.interactive-request.confirmation-message {
 		align-items: flex-start;
 	}
@@ -1875,6 +1879,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		margin-left: auto;
 	}
 
+	.interactive-item-container.interactive-request .value .rendered-markdown.clickable:hover {
+		cursor: text;
+		background-color: var(--vscode-chat-requestBubbleHoverBackground);
+	}
+
+	.hc-black .interactive-item-container.interactive-request .value .rendered-markdown,
+	.hc-light .interactive-item-container.interactive-request .value .rendered-markdown {
+		border: 1px dotted var(--vscode-focusBorder);
+	}
+
 	.interactive-item-container.interactive-request .value .rendered-markdown > :last-child {
 		margin-bottom: 0px;
 	}
@@ -1889,12 +1903,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		justify-content: flex-end;
 		margin-left: auto;
 		padding-bottom: 5px;
-	}
-
-	.hc-black .interactive-item-container.interactive-request .value,
-	.hc-light .interactive-item-container.interactive-request .value {
-		outline: 1px solid var(--vscode-chat-requestBorder);
-		box-shadow: none;
 	}
 
 	.interactive-request .header.header-disabled,
@@ -1956,9 +1964,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		.request-hover {
 			display: block !important;
 		}
+	}
 
+	.interactive-request.editing .rendered-markdown,
+	.interactive-request.editing .value {
+		display: none;
 	}
 }
+
 
 .chat-buttons-container {
 	display: flex;
@@ -1979,4 +1992,33 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	text-align: left;
 	width: initial;
 	padding: 4px 8px;
+}
+
+.interactive-item-container .chat-edit-input-container {
+	margin-right: -15px;
+}
+
+.chat-row-disabled-overlay,
+.interactive-item-container .chat-edit-input-container .chat-editing-session {
+	display: none;
+}
+
+.chat-row-disabled-overlay.disabled,
+.chat-input-overlay.disabled {
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	background-color: rgba(0, 0, 0, 0.4);
+	pointer-events: none;
+	display: flex;
+	cursor: default;
+	z-index: 100;
+	user-select: none;
+}
+
+.interactive-session .focused-input-dom {
+	position:absolute;
+	top: -50000px;
+	width: 1px;
+	height: 1px;
 }

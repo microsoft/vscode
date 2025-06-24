@@ -36,7 +36,7 @@ export function assertIsResponseVM(item: unknown): asserts item is IChatResponse
 	}
 }
 
-export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | IChatSetHiddenEvent | null;
+export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | IChatSetHiddenEvent | IChatSetCheckpointEvent | null;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
@@ -54,6 +54,10 @@ export interface IChatSetHiddenEvent {
 	kind: 'setHidden';
 }
 
+export interface IChatSetCheckpointEvent {
+	kind: 'setCheckpoint';
+}
+
 export interface IChatViewModel {
 	readonly model: IChatModel;
 	readonly sessionId: string;
@@ -65,6 +69,8 @@ export interface IChatViewModel {
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel)[];
 	setInputPlaceholder(text: string): void;
 	resetInputPlaceholder(): void;
+	editing?: IChatRequestViewModel;
+	setEditing(editing: IChatRequestViewModel): void;
 }
 
 export interface IChatRequestViewModel {
@@ -86,6 +92,7 @@ export interface IChatRequestViewModel {
 	readonly isCompleteAddedRequest: boolean;
 	readonly slashCommand: IChatAgentCommand | undefined;
 	readonly agentOrSlashCommandDetected: boolean;
+	readonly shouldBeBlocked?: boolean;
 }
 
 export interface IChatResponseMarkdownRenderData {
@@ -212,6 +219,7 @@ export interface IChatResponseViewModel {
 	usedReferencesExpanded?: boolean;
 	vulnerabilitiesListExpanded: boolean;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): void;
+	readonly shouldBeBlocked: boolean;
 }
 
 export class ChatViewModel extends Disposable implements IChatViewModel {
@@ -325,6 +333,20 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		return this._items.filter((item) => !item.shouldBeRemovedOnSend || item.shouldBeRemovedOnSend.afterUndoStop);
 	}
 
+
+	private _editing: IChatRequestViewModel | undefined = undefined;
+	get editing(): IChatRequestViewModel | undefined {
+		return this._editing;
+	}
+
+	setEditing(editing: IChatRequestViewModel | undefined): void {
+		if (this.editing && editing && this.editing.id === editing.id) {
+			return; // already editing this request
+		}
+
+		this._editing = editing;
+	}
+
 	override dispose() {
 		super.dispose();
 		dispose(this._items.filter((item): item is ChatResponseViewModel => item instanceof ChatResponseViewModel));
@@ -404,6 +426,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get shouldBeRemovedOnSend() {
 		return this._model.shouldBeRemovedOnSend;
+	}
+
+	get shouldBeBlocked() {
+		return this._model.shouldBeBlocked;
 	}
 
 	get slashCommand(): IChatAgentCommand | undefined {
@@ -500,6 +526,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get isCanceled() {
 		return this._model.isCanceled;
+	}
+
+	get shouldBeBlocked() {
+		return this._model.shouldBeBlocked;
 	}
 
 	get shouldBeRemovedOnSend() {
