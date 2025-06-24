@@ -9,6 +9,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { uppercaseFirstLetter } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
+import { ConfigurationTarget } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
@@ -16,29 +17,29 @@ import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, IMcpServerInput, IMcpServerManifest, InstallMcpServerEvent, InstallMcpServerResult, PackageType, UninstallMcpServerEvent, IScannedMcpServer, InstallOptions, UninstallOptions, IMcpServer } from './mcpManagement.js';
 import { IMcpServerVariable, McpServerVariableType, IMcpServerConfiguration } from './mcpPlatformTypes.js';
-import { IMcpResourceScannerService } from './mcpResourceScannerService.js';
+import { IMcpResourceScannerService, McpResourceTarget } from './mcpResourceScannerService.js';
 
-interface LocalMcpServer {
-	readonly name: string;
-	readonly version: string;
-	readonly id?: string;
-	readonly displayName?: string;
-	readonly url?: string;
-	readonly description?: string;
-	readonly repositoryUrl?: string;
-	readonly publisher?: string;
-	readonly publisherDisplayName?: string;
-	readonly iconUrl?: string;
-	readonly manifest?: IMcpServerManifest;
+export interface ILocalMcpServerInfo {
+	name: string;
+	version: string;
+	id?: string;
+	displayName?: string;
+	url?: string;
+	description?: string;
+	repositoryUrl?: string;
+	publisher?: string;
+	publisherDisplayName?: string;
+	iconUrl?: string;
+	manifest?: IMcpServerManifest;
+	readmeUrl?: URI;
+	location?: URI;
 }
 
-export class McpManagementService extends Disposable implements IMcpManagementService {
+export abstract class AbstractMcpManagementService extends Disposable implements IMcpManagementService {
 
 	_serviceBrand: undefined;
 
-	private readonly mcpLocation: URI;
-
-	private readonly _onInstallMcpServer = this._register(new Emitter<InstallMcpServerEvent>());
+	protected readonly _onInstallMcpServer = this._register(new Emitter<InstallMcpServerEvent>());
 	readonly onInstallMcpServer = this._onInstallMcpServer.event;
 
 	protected readonly _onDidInstallMcpServers = this._register(new Emitter<InstallMcpServerResult[]>());
@@ -51,24 +52,22 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 	get onDidUninstallMcpServer() { return this._onDidUninstallMcpServer.event; }
 
 	constructor(
-		@IMcpGalleryService private readonly mcpGalleryService: IMcpGalleryService,
-		@IFileService private readonly fileService: IFileService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@ILogService private readonly logService: ILogService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
-		@IMcpResourceScannerService private readonly mcpResourceScannerService: IMcpResourceScannerService,
+		protected readonly target: McpResourceTarget,
+		@IMcpGalleryService protected readonly mcpGalleryService: IMcpGalleryService,
+		@IFileService protected readonly fileService: IFileService,
+		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
+		@ILogService protected readonly logService: ILogService,
+		@IMcpResourceScannerService protected readonly mcpResourceScannerService: IMcpResourceScannerService,
 	) {
 		super();
-		this.mcpLocation = uriIdentityService.extUri.joinPath(environmentService.userRoamingDataHome, 'mcp');
 	}
 
 	async getInstalled(mcpResource?: URI): Promise<ILocalMcpServer[]> {
-		const mcpResourceUri = mcpResource || this.userDataProfilesService.defaultProfile.mcpResource;
+		const mcpResourceUri = mcpResource || this.getDefaultMcpResource();
 		this.logService.info('MCP Management Service: getInstalled', mcpResourceUri.toString());
 
 		try {
-			const scannedMcpServers = await this.mcpResourceScannerService.scanMcpServers(mcpResourceUri);
+			const scannedMcpServers = await this.mcpResourceScannerService.scanMcpServers(mcpResourceUri, this.target);
 
 			if (!scannedMcpServers.servers) {
 				return [];
@@ -81,26 +80,9 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 		}
 	}
 
-	private async scanServer(scannedMcpServer: IScannedMcpServer, mcpResource: URI): Promise<ILocalMcpServer> {
-		let scanned: LocalMcpServer | undefined;
-		let location: URI | undefined;
-		let readmeUrl: URI | undefined;
-		if (scannedMcpServer.gallery) {
-			location = this.getLocation(scannedMcpServer.name, scannedMcpServer.version);
-			const manifestLocation = this.uriIdentityService.extUri.joinPath(location, 'manifest.json');
-			try {
-				const content = await this.fileService.readFile(manifestLocation);
-				scanned = JSON.parse(content.value.toString());
-			} catch (e) {
-				this.logService.error('MCP Management Service: failed to read manifest', location.toString(), e);
-			}
-			readmeUrl = this.uriIdentityService.extUri.joinPath(location, 'README.md');
-			if (!await this.fileService.exists(readmeUrl)) {
-				readmeUrl = undefined;
-			}
-		}
-
-		if (!scanned) {
+	protected async scanServer(scannedMcpServer: IScannedMcpServer, mcpResource: URI): Promise<ILocalMcpServer> {
+		let mcpServerInfo = await this.getLocalMcpServerInfo(scannedMcpServer);
+		if (!mcpServerInfo) {
 			let publisher = '';
 			const nameParts = scannedMcpServer.name.split('/');
 			if (nameParts.length > 0) {
@@ -109,7 +91,7 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 					publisher = domainParts[domainParts.length - 1]; // Always take the last part as owner
 				}
 			}
-			scanned = {
+			mcpServerInfo = {
 				name: scannedMcpServer.name,
 				version: '1.0.0',
 				displayName: nameParts[nameParts.length - 1].split('-').map(s => uppercaseFirstLetter(s)).join(' '),
@@ -120,25 +102,25 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 		return {
 			name: scannedMcpServer.name,
 			config: scannedMcpServer.config,
-			version: scanned.version,
+			version: mcpServerInfo.version,
 			mcpResource,
-			location,
-			id: scanned.id,
-			displayName: scanned.displayName,
-			description: scanned.description,
-			publisher: scanned.publisher,
-			publisherDisplayName: scanned.publisherDisplayName,
-			repositoryUrl: scanned.repositoryUrl,
-			readmeUrl,
-			iconUrl: scanned.iconUrl,
-			manifest: scanned.manifest
+			location: mcpServerInfo.location,
+			id: mcpServerInfo.id,
+			displayName: mcpServerInfo.displayName,
+			description: mcpServerInfo.description,
+			publisher: mcpServerInfo.publisher,
+			publisherDisplayName: mcpServerInfo.publisherDisplayName,
+			repositoryUrl: mcpServerInfo.repositoryUrl,
+			readmeUrl: mcpServerInfo.readmeUrl,
+			iconUrl: mcpServerInfo.iconUrl,
+			manifest: mcpServerInfo.manifest
 		};
 	}
 
 	async install(server: IMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
 		this.logService.trace('MCP Management Service: install', server.name);
 
-		const mcpResource = options?.mcpResource ?? this.userDataProfilesService.defaultProfile.mcpResource;
+		const mcpResource = options?.mcpResource ?? this.getDefaultMcpResource();
 		this._onInstallMcpServer.fire({ name: server.name, mcpResource });
 		try {
 			const scannedServer: IScannedMcpServer = {
@@ -148,7 +130,7 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 				config: server.config
 			};
 
-			await this.mcpResourceScannerService.addMcpServers([{ server: scannedServer, inputs: server.inputs }], mcpResource);
+			await this.mcpResourceScannerService.addMcpServers([{ server: scannedServer, inputs: server.inputs }], mcpResource, this.target);
 
 			const local = await this.scanServer(scannedServer, mcpResource);
 			this._onDidInstallMcpServers.fire([{ name: server.name, local, mcpResource }]);
@@ -159,69 +141,17 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 		}
 	}
 
-	async installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
-		this.logService.trace('MCP Management Service: installGallery', server.url);
-
-		const mcpResource = options?.mcpResource ?? this.userDataProfilesService.defaultProfile.mcpResource;
-		this._onInstallMcpServer.fire({ name: server.name, mcpResource });
-
-		try {
-			const manifest = await this.mcpGalleryService.getManifest(server, CancellationToken.None);
-			const location = this.getLocation(server.name, server.version);
-			const manifestPath = this.uriIdentityService.extUri.joinPath(location, 'manifest.json');
-			await this.fileService.writeFile(manifestPath, VSBuffer.fromString(JSON.stringify({
-				id: server.id,
-				name: server.name,
-				displayName: server.displayName,
-				description: server.description,
-				version: server.version,
-				publisher: server.publisher,
-				publisherDisplayName: server.publisherDisplayName,
-				repository: server.repositoryUrl,
-				licenseUrl: server.licenseUrl,
-				...manifest,
-			})));
-
-			if (server.readmeUrl) {
-				const readme = await this.mcpGalleryService.getReadme(server, CancellationToken.None);
-				await this.fileService.writeFile(this.uriIdentityService.extUri.joinPath(location, 'README.md'), VSBuffer.fromString(readme));
-			}
-			const { config, inputs } = this.toScannedMcpServerAndInputs(manifest, options?.packageType);
-
-			const scannedServer: IScannedMcpServer = {
-				id: server.id,
-				name: server.name,
-				version: server.version,
-				gallery: true,
-				config
-			};
-
-			await this.mcpResourceScannerService.addMcpServers([{ server: scannedServer, inputs }], mcpResource);
-
-			const local = await this.scanServer(scannedServer, mcpResource);
-			this._onDidInstallMcpServers.fire([{ name: server.name, source: server, local, mcpResource }]);
-			return local;
-		} catch (e) {
-			this._onDidInstallMcpServers.fire([{ name: server.name, source: server, error: e, mcpResource }]);
-			throw e;
-		}
-	}
-
-	private getLocation(name: string, version: string): URI {
-		return this.uriIdentityService.extUri.joinPath(this.mcpLocation, `${name.replace('/', '.')}-${version}`);
-	}
-
 	async uninstall(server: ILocalMcpServer, options?: UninstallOptions): Promise<void> {
 		this.logService.trace('MCP Management Service: uninstall', server.name);
-		const mcpResource = options?.mcpResource ?? this.userDataProfilesService.defaultProfile.mcpResource;
+		const mcpResource = options?.mcpResource ?? this.getDefaultMcpResource();
 		this._onUninstallMcpServer.fire({ name: server.name, mcpResource });
 
 		try {
-			const currentServers = await this.mcpResourceScannerService.scanMcpServers(mcpResource);
+			const currentServers = await this.mcpResourceScannerService.scanMcpServers(mcpResource, this.target);
 			if (!currentServers.servers) {
 				return;
 			}
-			await this.mcpResourceScannerService.removeMcpServers([server.name], mcpResource);
+			await this.mcpResourceScannerService.removeMcpServers([server.name], mcpResource, this.target);
 			if (server.location) {
 				await this.fileService.del(URI.revive(server.location), { recursive: true });
 			}
@@ -232,7 +162,7 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 		}
 	}
 
-	private toScannedMcpServerAndInputs(manifest: IMcpServerManifest, packageType?: PackageType): { config: IMcpServerConfiguration; inputs?: IMcpServerVariable[] } {
+	protected toScannedMcpServerAndInputs(manifest: IMcpServerManifest, packageType?: PackageType): { config: IMcpServerConfiguration; inputs?: IMcpServerVariable[] } {
 		if (packageType === undefined) {
 			packageType = manifest.packages?.[0]?.registry_name ?? PackageType.REMOTE;
 		}
@@ -354,6 +284,108 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 			});
 		}
 		return variables;
+	}
+
+	abstract installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
+	protected abstract getDefaultMcpResource(): URI;
+	protected abstract getLocalMcpServerInfo(scannedMcpServer: IScannedMcpServer): Promise<ILocalMcpServerInfo | undefined>;
+
+}
+
+export class McpManagementService extends AbstractMcpManagementService implements IMcpManagementService {
+
+	private readonly mcpLocation: URI;
+
+	constructor(
+		@IMcpGalleryService mcpGalleryService: IMcpGalleryService,
+		@IFileService fileService: IFileService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@ILogService logService: ILogService,
+		@IMcpResourceScannerService mcpResourceScannerService: IMcpResourceScannerService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+	) {
+		super(ConfigurationTarget.USER, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService);
+		this.mcpLocation = uriIdentityService.extUri.joinPath(environmentService.userRoamingDataHome, 'mcp');
+	}
+
+	async installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
+		this.logService.trace('MCP Management Service: installGallery', server.url);
+
+		const mcpResource = options?.mcpResource ?? this.getDefaultMcpResource();
+		this._onInstallMcpServer.fire({ name: server.name, mcpResource });
+
+		try {
+			const manifest = await this.mcpGalleryService.getManifest(server, CancellationToken.None);
+			const location = this.getLocation(server.name, server.version);
+			const manifestPath = this.uriIdentityService.extUri.joinPath(location, 'manifest.json');
+			await this.fileService.writeFile(manifestPath, VSBuffer.fromString(JSON.stringify({
+				id: server.id,
+				name: server.name,
+				displayName: server.displayName,
+				description: server.description,
+				version: server.version,
+				publisher: server.publisher,
+				publisherDisplayName: server.publisherDisplayName,
+				repository: server.repositoryUrl,
+				licenseUrl: server.licenseUrl,
+				...manifest,
+			})));
+
+			if (server.readmeUrl) {
+				const readme = await this.mcpGalleryService.getReadme(server, CancellationToken.None);
+				await this.fileService.writeFile(this.uriIdentityService.extUri.joinPath(location, 'README.md'), VSBuffer.fromString(readme));
+			}
+			const { config, inputs } = this.toScannedMcpServerAndInputs(manifest, options?.packageType);
+
+			const scannedServer: IScannedMcpServer = {
+				id: server.id,
+				name: server.name,
+				version: server.version,
+				gallery: true,
+				config
+			};
+
+			await this.mcpResourceScannerService.addMcpServers([{ server: scannedServer, inputs }], mcpResource, this.target);
+
+			const local = await this.scanServer(scannedServer, mcpResource);
+			this._onDidInstallMcpServers.fire([{ name: server.name, source: server, local, mcpResource }]);
+			return local;
+		} catch (e) {
+			this._onDidInstallMcpServers.fire([{ name: server.name, source: server, error: e, mcpResource }]);
+			throw e;
+		}
+	}
+
+	protected async getLocalMcpServerInfo(scannedMcpServer: IScannedMcpServer): Promise<ILocalMcpServerInfo | undefined> {
+		let storedMcpServerInfo: ILocalMcpServerInfo | undefined;
+		let location: URI | undefined;
+		let readmeUrl: URI | undefined;
+		if (scannedMcpServer.gallery) {
+			location = this.getLocation(scannedMcpServer.name, scannedMcpServer.version);
+			const manifestLocation = this.uriIdentityService.extUri.joinPath(location, 'manifest.json');
+			try {
+				const content = await this.fileService.readFile(manifestLocation);
+				storedMcpServerInfo = JSON.parse(content.value.toString()) as ILocalMcpServerInfo;
+				storedMcpServerInfo.location = location;
+				readmeUrl = this.uriIdentityService.extUri.joinPath(location, 'README.md');
+				if (!await this.fileService.exists(readmeUrl)) {
+					readmeUrl = undefined;
+				}
+				storedMcpServerInfo.readmeUrl = readmeUrl;
+			} catch (e) {
+				this.logService.error('MCP Management Service: failed to read manifest', location.toString(), e);
+			}
+		}
+		return storedMcpServerInfo;
+	}
+
+	protected getDefaultMcpResource(): URI {
+		return this.userDataProfilesService.defaultProfile.mcpResource;
+	}
+
+	private getLocation(name: string, version: string): URI {
+		return this.uriIdentityService.extUri.joinPath(this.mcpLocation, `${name.replace('/', '.')}-${version}`);
 	}
 
 }
