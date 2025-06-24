@@ -52,12 +52,10 @@ export function updateEditorModel(editor: IActiveCodeEditor, range: Range, model
 		// Apply color insertion to all cursor positions
 		for (const selection of selections) {
 			const selectionRange = new Range(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn);
-			const editForSelection = model.presentation.textEdit ?? { range: selectionRange, text: colorText, forceMoveMarkers: false };
-			// Create edit with the selection's range but the same color text
 			textEdits.push({
 				range: selectionRange,
 				text: colorText,
-				forceMoveMarkers: editForSelection.forceMoveMarkers
+				forceMoveMarkers: false
 			});
 		}
 	} else {
