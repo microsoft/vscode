@@ -245,7 +245,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			this._setFoldingHoverListeners();
 			this._useFoldingOpacityTransition(!this._isOnGlyphMargin);
 		}
-		this._minContentWidthInPx = Math.max(...this._renderedStickyLines.map(l => l.scrollWidth)) + layoutInfo.verticalScrollbarWidth;
+		this._minContentWidthInPx = renderedStickyLines.length > 0 
+			? Math.max(...renderedStickyLines.map(l => l.scrollWidth)) + layoutInfo.verticalScrollbarWidth 
+			: 0;
 		this._renderedStickyLines = renderedStickyLines;
 		this._setHeight(top + lastLineRelativePosition);
 		this._editor.layoutOverlayWidget(this);
