@@ -359,10 +359,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._editor.applyFontInfo(lineHTMLNode);
 		this._editor.applyFontInfo(lineNumberHTMLNode);
 
-		lineNumberHTMLNode.style.lineHeight = `${lineHeight}px`;
-		lineHTMLNode.style.lineHeight = `${lineHeight}px`;
-		lineNumberHTMLNode.style.height = `${lineHeight}px`;
-		lineHTMLNode.style.height = `${lineHeight}px`;
+		this._setLineHeightAndHeight(lineHTMLNode, lineNumberHTMLNode, lineHeight);
 
 		const foldingIcon = this._renderFoldingIconForLine(foldingModel, line);
 		if (foldingIcon) {
@@ -453,6 +450,14 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 		lineNumberHTMLNode.appendChild(innerLineNumberHTML);
 		return lineNumberHTMLNode;
+	}
+
+	private _setLineHeightAndHeight(lineElement: HTMLElement, lineNumberElement: HTMLElement, height: number): void {
+		const heightPx = `${height}px`;
+		lineElement.style.lineHeight = heightPx;
+		lineElement.style.height = heightPx;
+		lineNumberElement.style.lineHeight = heightPx;
+		lineNumberElement.style.height = heightPx;
 	}
 
 	private _updatePosition(stickyLine: RenderedStickyLine, top: number, isLastLine: boolean): RenderedStickyLine {
