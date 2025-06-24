@@ -10,7 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { McpConfigurationServer } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IOpenURLOptions, IURLHandler, IURLService } from '../../../../platform/url/common/url.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
@@ -44,7 +44,7 @@ export class McpUrlHandler extends Disposable implements IWorkbenchContribution,
 			return false;
 		}
 
-		let parsed: McpConfigurationServer & { name: string };
+		let parsed: IMcpServerConfiguration & { name: string };
 		try {
 			parsed = JSON.parse(decodeURIComponent(uri.query));
 		} catch (e) {
