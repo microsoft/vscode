@@ -40,7 +40,7 @@ import { SearchParams, TextModelSearch } from './textModelSearch.js';
 import { TokenizationTextModelPart } from './tokens/tokenizationTextModelPart.js';
 import { AttachedViews } from './tokens/abstractSyntaxTokenBackend.js';
 import { IBracketPairsTextModelPart } from '../textModelBracketPairs.js';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted, ModelLineHeightChangedEvent, ModelLineHeightChanged, ModelFontChangedEvent, ModelFontChanged, LineInjectedText, LineInlineDecoration } from '../textModelEvents.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted, ModelLineHeightChangedEvent, ModelLineHeightChanged, ModelFontChangedEvent, ModelFontChanged, LineInjectedText } from '../textModelEvents.js';
 import { IGuidesTextModelPart } from '../textModelGuides.js';
 import { ITokenizationTextModelPart } from '../tokenizationTextModelPart.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
@@ -846,14 +846,23 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return getLineTokensWithInjections(lineTokens, injectionOptions, injectionOffsets);
 	}
 
-	public getLineInlineDecorations(lineNumber: number, ownerId?: number): LineInlineDecoration[] {
+	public getLineInlineDecorations(lineNumber: number, ownerId?: number): model.IModelInlineDecorationData {
 		const range = new Range(lineNumber, 1, lineNumber, this.getLineMaxColumn(lineNumber));
-		const inlineDecorations = this.getViewportDecorationsInRange(range, ownerId).map(decoration => LineInlineDecoration.fromModelDecorations(decoration.modelInlineDecorations)).flat();
-		const injectedTextInlineDecorations = this._getInjectedInlineDecorations(lineNumber) || [];
-		return inlineDecorations.concat(injectedTextInlineDecorations);
-	}
-
-	private _getInjectedInlineDecorations(lineNumber: number, ownerId?: number): LineInlineDecoration[] | null {
+		const modelInlineDecorations = this.getRenderedDecorationsInRange(range, ownerId);
+		const inlineDecorations: model.IModelInlineDecoration[] = [];
+		let affectsFont = false;
+		for (const renderedDecoration of modelInlineDecorations) {
+			if (renderedDecoration.modelInlineDecoration) {
+				inlineDecorations.push(renderedDecoration.modelInlineDecoration);
+			}
+			if (renderedDecoration.modelBeforeInlineDecoration) {
+				inlineDecorations.push(renderedDecoration.modelBeforeInlineDecoration);
+			}
+			if (renderedDecoration.modelAfterInlineDecoration) {
+				inlineDecorations.push(renderedDecoration.modelAfterInlineDecoration);
+			}
+			affectsFont = affectsFont || renderedDecoration.affectsFont;
+		}
 		let injectionOptions: InjectedTextOptions[] | null;
 		let injectionOffsets: number[] | null;
 		const curInjectedTexts = this.getLineInjectedText(lineNumber);
@@ -864,11 +873,13 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			injectionOptions = null;
 			injectionOffsets = null;
 		}
+		let injectedInlineDecorations: model.IModelInlineDecoration[] = [];
 		const injectedDecorations = getInjectedTextInlineDecorations(injectionOptions, injectionOffsets, null, null);
-		if (!injectedDecorations) {
-			return null;
+		if (injectedDecorations) {
+			injectedInlineDecorations = injectedDecorations[0].map(decoration => decoration.toModelInlineDecoration(lineNumber));
 		}
-		return LineInlineDecoration.fromSingleInlineDecorations(injectedDecorations[0], lineNumber);
+		const decorations = inlineDecorations.concat(injectedInlineDecorations);
+		return { decorations, affectsFont };
 	}
 
 	public getLineLength(lineNumber: number): number {
@@ -1786,58 +1797,72 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return decorations;
 	}
 
-	public getViewportDecorationsInRange(range: IRange, ownerId: number = 0, filterOutValidation: boolean = false, filterFontDecorations: boolean = false, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): model.IModelDecorationViewportData[] {
+	public getRenderedDecorationsInRange(range: IRange, ownerId: number = 0, filterOutValidation: boolean = false, filterFontDecorations: boolean = false, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): model.IModelDecorationViewportData[] {
 		const modelDecorations = this.getDecorationsInRange(range, ownerId, filterOutValidation, filterFontDecorations, onlyMinimapDecorations, onlyMarginDecorations);
-		const startLineNumber = range.startLineNumber;
-		const endLineNumber = range.endLineNumber;
 
-		const decorationsInViewport: model.IModelDecorationViewportData[] = [];
+		const renderedDecorations: model.IModelDecorationViewportData[] = [];
 
 		for (let i = 0, len = modelDecorations.length; i < len; i++) {
 			const modelDecoration = modelDecorations[i];
-			const decorationOptions = modelDecoration.options;
 
 			if (!isModelDecorationVisible(this, modelDecoration)) {
 				continue;
 			}
 
-			const modelInlineDecorations: model.IModelInlineDecoration[] = [];
+			const decorationOptions = modelDecoration.options;
+			const decorationRange = modelDecoration.range;
+
+			let affectsFont: boolean = false;
+			let modelInlineDecoration: model.IModelInlineDecoration | undefined;
+			let modelBeforeInlineDecoration: model.IModelInlineDecoration | undefined;
+			let modelAfterInlineDecoration: model.IModelInlineDecoration | undefined;
+
 			if (decorationOptions.inlineClassName) {
-				const modelInlineDecoration: model.IModelInlineDecoration = {
+				let range: Range;
+				if (modelDecoration.options.isWholeLine) {
+					range = new Range(decorationRange.startLineNumber, 1, decorationRange.endLineNumber, this.getLineMaxColumn(decorationRange.endLineNumber));
+				} else {
+					range = decorationRange;
+				}
+				modelInlineDecoration = {
 					range,
 					inlineClassName: decorationOptions.inlineClassName,
-					type: decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular,
-					affectsFont: decorationOptions.affectsFont ?? false
+					type: decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular
 				};
-				for (let j = startLineNumber; j <= endLineNumber; j++) {
-					modelInlineDecorations.push(modelInlineDecoration);
+				if (decorationOptions.affectsFont) {
+					affectsFont = true;
 				}
 			}
 			if (decorationOptions.beforeContentClassName) {
-				const modelInlineDecoration: model.IModelInlineDecoration = {
-					range: new Range(range.startLineNumber, range.startColumn, range.startLineNumber, range.startColumn),
+				modelBeforeInlineDecoration = {
+					range: new Range(decorationRange.startLineNumber, decorationRange.startColumn, decorationRange.startLineNumber, decorationRange.startColumn),
 					inlineClassName: decorationOptions.beforeContentClassName,
-					type: InlineDecorationType.Before,
-					affectsFont: decorationOptions.affectsFont ?? false
+					type: InlineDecorationType.Before
 				};
-				modelInlineDecorations.push(modelInlineDecoration);
+				if (decorationOptions.affectsFont) {
+					affectsFont = true;
+				}
 			}
 			if (decorationOptions.afterContentClassName) {
-				const modelInlineDecoration: model.IModelInlineDecoration = {
-					range: new Range(range.endLineNumber, range.endColumn, range.endLineNumber, range.endColumn),
+				modelAfterInlineDecoration = {
+					range: new Range(decorationRange.endLineNumber, decorationRange.endColumn, decorationRange.endLineNumber, decorationRange.endColumn),
 					inlineClassName: decorationOptions.afterContentClassName,
-					type: InlineDecorationType.After,
-					affectsFont: decorationOptions.affectsFont ?? false
+					type: InlineDecorationType.After
 				};
-				modelInlineDecorations.push(modelInlineDecoration);
+				if (decorationOptions.affectsFont) {
+					affectsFont = true;
+				}
 			}
 
-			decorationsInViewport.push({
-				modelInlineDecorations,
+			renderedDecorations.push({
 				modelDecoration,
+				modelInlineDecoration,
+				modelBeforeInlineDecoration,
+				modelAfterInlineDecoration,
+				affectsFont
 			});
 		}
-		return decorationsInViewport;
+		return renderedDecorations;
 	}
 
 	public getOverviewRulerDecorations(ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {

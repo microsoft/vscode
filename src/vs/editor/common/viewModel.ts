@@ -12,9 +12,8 @@ import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData,
 import { CursorChangeReason } from './cursorEvents.js';
 import { INewScrollPosition, ScrollType } from './editorCommon.js';
 import { EditorTheme } from './editorTheme.js';
-import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, InlineDecorationType, ITextModel, PositionAffinity } from './model.js';
+import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, IModelInlineDecoration, InlineDecorationType, ITextModel, PositionAffinity } from './model.js';
 import { ILineBreaksComputer, ILineBreaksComputerContext, InjectedText } from './modelLineProjectionData.js';
-import { LineInlineDecoration } from './textModelEvents.js';
 import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from './textModelGuides.js';
 import { IViewLineTokens } from './tokens/lineTokens.js';
 import { ViewEventHandler } from './viewEventHandler.js';
@@ -399,11 +398,17 @@ export class ViewLineRenderingData {
 }
 
 export class InlineDecoration {
+
 	constructor(
 		public readonly range: Range,
 		public readonly inlineClassName: string,
 		public readonly type: InlineDecorationType
 	) {
+	}
+
+	public static fromModelInlineDecoration(modelInlineDecoration: IModelInlineDecoration, coordinatesConverter: ICoordinatesConverter): InlineDecoration {
+		const range = coordinatesConverter.convertModelRangeToViewRange(modelInlineDecoration.range, PositionAffinity.Right);
+		return new InlineDecoration(range, modelInlineDecoration.inlineClassName, modelInlineDecoration.type);
 	}
 }
 
@@ -425,13 +430,12 @@ export class SingleLineInlineDecoration {
 		);
 	}
 
-	toLineInlineDecoration(lineNumber: number): LineInlineDecoration {
-		return new LineInlineDecoration(
-			new Range(lineNumber, this.startOffset + 1, lineNumber, this.endOffset + 1),
-			this.inlineClassName,
-			this.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular,
-			this.affectsFont
-		);
+	toModelInlineDecoration(modelLineNumber: number): IModelInlineDecoration {
+		return {
+			range: new Range(modelLineNumber, this.startOffset + 1, modelLineNumber, this.endOffset + 1),
+			inlineClassName: this.inlineClassName,
+			type: this.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular
+		};
 	}
 }
 

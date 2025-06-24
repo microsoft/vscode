@@ -6,8 +6,8 @@
 import { assertNever } from '../../base/common/assert.js';
 import { IEditorConfiguration } from './config/editorConfiguration.js';
 import { Position } from './core/position.js';
-import { InjectedTextCursorStops, InjectedTextOptions, PositionAffinity } from './model.js';
-import { LineInjectedText, LineInlineDecoration } from './textModelEvents.js';
+import { IModelInlineDecorationData, InjectedTextCursorStops, InjectedTextOptions, PositionAffinity } from './model.js';
+import { LineInjectedText } from './textModelEvents.js';
 import { LineTokens } from './tokens/lineTokens.js';
 
 /**
@@ -331,7 +331,7 @@ export class OutputPosition {
 export interface ILineBreaksComputerContext {
 	getLineContent(lineNumber: number): string;
 	getLineInjectedText(lineNumber: number): LineInjectedText[] | null;
-	getLineInlineDecorations(lineNumber: number): LineInlineDecoration[];
+	getLineInlineDecorationsData(lineNumber: number): IModelInlineDecorationData;
 	getLineTokens(lineNumber: number): LineTokens;
 }
 

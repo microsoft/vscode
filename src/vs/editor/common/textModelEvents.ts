@@ -6,8 +6,7 @@
 import { IPosition } from './core/position.js';
 import { IRange, Range } from './core/range.js';
 import { Selection } from './core/selection.js';
-import { IModelDecoration, IModelInlineDecoration, InjectedTextOptions, InlineDecorationType } from './model.js';
-import { SingleLineInlineDecoration } from './viewModel.js';
+import { IModelDecoration, InjectedTextOptions } from './model.js';
 
 /**
  * An event describing that the current language associated with a model has changed.
@@ -141,44 +140,6 @@ export const enum RawContentChangedType {
  */
 export class ModelRawFlush {
 	public readonly changeType = RawContentChangedType.Flush;
-}
-
-/**
- * Represents the line inline decorations on a model line.
- * @internal
- */
-export class LineInlineDecorations {
-
-	public static decorations: LineInlineDecoration[] = [];
-
-	constructor() { }
-}
-
-
-/**
- * Represents the line inline decorations on a model line.
- * @internal
- */
-export class LineInlineDecoration {
-
-	public static fromModelDecorations(decorations: IModelInlineDecoration[]): LineInlineDecoration[] {
-		return [];
-	}
-
-	public static fromSingleInlineDecorations(decorations: SingleLineInlineDecoration[], lineNumber: number): LineInlineDecoration[] {
-		const result: LineInlineDecoration[] = [];
-		for (const decoration of decorations) {
-			result.push(decoration.toLineInlineDecoration(lineNumber));
-		}
-		return result;
-	}
-
-	constructor(
-		public readonly range: Range,
-		public readonly inlineClassName: string,
-		public readonly type: InlineDecorationType,
-		public readonly affectsFont: boolean
-	) { }
 }
 
 /**

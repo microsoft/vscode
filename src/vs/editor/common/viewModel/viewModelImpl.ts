@@ -19,7 +19,7 @@ import { Range } from '../core/range.js';
 import { ISelection, Selection } from '../core/selection.js';
 import { ICommand, ICursorState, IViewState, ScrollType } from '../editorCommon.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
-import { EndOfLinePreference, IAttachedView, ICursorStateComputer, IGlyphMarginLanesModel, IIdentifiedSingleEditOperation, ITextModel, PositionAffinity, TrackedRangeStickiness } from '../model.js';
+import { EndOfLinePreference, IAttachedView, ICursorStateComputer, IGlyphMarginLanesModel, IIdentifiedSingleEditOperation, IModelInlineDecorationData, ITextModel, PositionAffinity, TrackedRangeStickiness } from '../model.js';
 import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide } from '../textModelGuides.js';
 import { ModelDecorationMinimapOptions, ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from '../model/textModel.js';
 import * as textModelEvents from '../textModelEvents.js';
@@ -41,7 +41,7 @@ import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProject
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
 import { ICustomLineHeightData } from '../viewLayout/lineHeights.js';
-import { LineInjectedText, LineInlineDecoration } from '../textModelEvents.js';
+import { LineInjectedText } from '../textModelEvents.js';
 import { LineTokens } from '../tokens/lineTokens.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
@@ -138,7 +138,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._eventDispatcher.emitOutgoingEvent(e);
 		}));
 
-		this._decorations = new ViewModelDecorations(this._editorId, this.model, this._configuration, this._lines, this.coordinatesConverter);
+		this._decorations = new ViewModelDecorations(this._editorId, this._configuration, this._lines, this.coordinatesConverter);
 
 		this._registerModelEvents();
 
@@ -855,7 +855,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			getLineTokens: (lineNumber: number): LineTokens => {
 				return this.model.getLineTokens(lineNumber, this._editorId);
 			},
-			getLineInlineDecorations: (lineNumber: number): LineInlineDecoration[] => {
+			getLineInlineDecorationsData: (lineNumber: number): IModelInlineDecorationData => {
 				return this.model.getLineInlineDecorations(lineNumber, this._editorId);
 			},
 			getLineInjectedText: (lineNumber: number): LineInjectedText[] => {

@@ -93,8 +93,8 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 		getLineContent(lineNumber: number) {
 			return text;
 		},
-		getLineInlineDecorations(lineNumber: number) {
-			return [];
+		getLineInlineDecorationsData(lineNumber: number) {
+			return { decorations: [], affectsFont: false };
 		},
 		getLineTokens(lineNumber: number) {
 			return new LineTokens(new Uint32Array(text.length), text, new LanguageIdCodec());

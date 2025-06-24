@@ -177,13 +177,13 @@ function renderLine(context: ILineBreaksComputerContext, lineNumber: number, tab
 	const renderControlCharacters = options.get(EditorOption.renderControlCharacters);
 	const fontInfo = options.get(EditorOption.fontInfo);
 	const fontLigatures = options.get(EditorOption.fontLigatures);
-	const inlineDecorations = context.getLineInlineDecorations(lineNumber);
-	const lineDecorations = LineDecoration.filter(inlineDecorations, lineNumber, 0, Infinity);
+	const inlineDecorationsData = context.getLineInlineDecorationsData(lineNumber);
+	const lineDecorations = LineDecoration.filter(inlineDecorationsData.decorations, lineNumber, 0, Infinity);
 	const useMonospaceOptimizations = fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations);
 	const tokens = context.getLineTokens(lineNumber);
 	const lineContent = LineInjectedText.applyInjectedText(context.getLineContent(lineNumber), context.getLineInjectedText(lineNumber));
 	const isBasicASCII = strings.isBasicASCII(lineContent);
-	const lineHasVariableFonts = inlineDecorations.affectsFonts;
+	const lineHasVariableFonts = inlineDecorationsData.affectsFont;
 	let renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
 	if (lineHasVariableFonts || options.get(EditorOption.experimentalWhitespaceRendering) === 'off') {
 		renderWhitespace = options.get(EditorOption.renderWhitespace);

@@ -32,8 +32,7 @@ import { IContextMenuService } from '../../../../../../platform/contextview/brow
 import { DiffEditorOptions } from '../../diffEditorOptions.js';
 import { Range } from '../../../../../common/core/range.js';
 import { ILineBreaksComputerContext, ModelLineProjectionData } from '../../../../../common/modelLineProjectionData.js';
-import { LineInlineDecoration } from '../../../../../common/textModelEvents.js';
-import { InlineDecorationType } from '../../../../../common/model.js';
+import { IModelInlineDecorationData, InlineDecorationType } from '../../../../../common/model.js';
 
 /**
  * Ensures both editors have the same height by aligning unchanged lines.
@@ -180,7 +179,7 @@ export class DiffEditorViewZones extends Disposable {
 						getLineTokens: (lineNumber: number) => {
 							return originalModel.getLineTokens(lineNumber, originalEditor.getNumberId());
 						},
-						getLineInlineDecorations: (lineNumber: number): LineInlineDecoration[] => {
+						getLineInlineDecorationsData: (lineNumber: number): IModelInlineDecorationData => {
 							return originalModel.getLineInlineDecorations(lineNumber, originalEditor.getNumberId());
 						},
 						getLineInjectedText: (lineNumber: number) => {

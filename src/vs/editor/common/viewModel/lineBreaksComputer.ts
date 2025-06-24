@@ -49,7 +49,7 @@ export class LineBreaksComputer implements ILineBreaksComputer {
 		const options = this._config.options;
 		const wrappingStrategy = options.get(EditorOption.wrappingStrategy);
 		const allowVariableFonts = options.get(EditorOption.effectiveAllowVariableFonts);
-		if (wrappingStrategy === 'advanced' || (allowVariableFonts && this._context.getLineInlineDecorations(lineNumber).affectsFonts)) {
+		if (wrappingStrategy === 'advanced' || (allowVariableFonts && this._context.getLineInlineDecorationsData(lineNumber).affectsFont)) {
 			this._domLineBreaksComputer.addRequest(lineNumber, previousLineBreakData);
 			this._lineBreaksComputationMapping.push(LineBreaksComputationType.Dom);
 		} else {

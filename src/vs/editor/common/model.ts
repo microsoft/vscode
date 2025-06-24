@@ -19,7 +19,7 @@ import { IWordAtPosition } from './core/wordHelper.js';
 import { FormattingOptions } from './languages.js';
 import { ILanguageSelection } from './languages/language.js';
 import { IBracketPairsTextModelPart } from './textModelBracketPairs.js';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, LineInjectedText, LineInlineDecoration as LineInlineDecoration, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
+import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
 import { IGuidesTextModelPart } from './textModelGuides.js';
 import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { UndoRedoGroup } from '../../platform/undoRedo/common/undoRedo.js';
@@ -387,7 +387,7 @@ export interface IModelDecoration {
 }
 
 /**
- * Type of the model inline decoration.
+ * Type of the inline decoration.
  * @internal
  */
 export const enum InlineDecorationType {
@@ -398,6 +398,21 @@ export const enum InlineDecorationType {
 }
 
 /**
+ * Data relative to the model inline decorations.
+ * @internal
+ */
+export interface IModelInlineDecorationData {
+	/**
+	 * Model inline decorations.
+	 */
+	decorations: IModelInlineDecoration[];
+	/**
+	 * Whether the inline decorations affect the font.
+	 */
+	affectsFont: boolean;
+}
+
+/**
  * An inline decoration in the model.
  * @internal
  */
@@ -405,7 +420,7 @@ export interface IModelInlineDecoration {
 	/**
 	 * Range that this decoration covers.
 	 */
-	readonly range: IRange;
+	readonly range: Range;
 	/**
 	 * The inline class name that will be applied to the text in the range.
 	 */
@@ -414,10 +429,6 @@ export interface IModelInlineDecoration {
 	 * The type of the decoration.
 	 */
 	readonly type: InlineDecorationType;
-	/**
-	 * Whether it affects the font
-	 */
-	readonly affectsFont: boolean;
 }
 
 /**
@@ -430,9 +441,21 @@ export interface IModelDecorationViewportData {
 	 */
 	modelDecoration: IModelDecoration;
 	/**
-	 * Model inline decorations that are in the viewport per line.
+	 * Model inline decorations corresponding to the model decoration.
 	 */
-	modelInlineDecorations: IModelInlineDecoration[];
+	modelInlineDecoration?: IModelInlineDecoration;
+	/**
+	 * Model before inline decoration corresponding to the model decoration.
+	 */
+	modelBeforeInlineDecoration?: IModelInlineDecoration;
+	/**
+	 * Model after inline decoration corresponding to the model decoration.
+	 */
+	modelAfterInlineDecoration?: IModelInlineDecoration;
+	/**
+	 * Whether the inline decorations affect the font.
+	 */
+	affectsFont: boolean;
 }
 
 
@@ -893,7 +916,7 @@ export interface ITextModel {
 	 * Get the inline decorations for a certain line.
 	 * @internal
 	 */
-	getLineInlineDecorations(lineNumber: number, ownerId?: number): LineInlineDecoration[];
+	getLineInlineDecorations(lineNumber: number, ownerId?: number): IModelInlineDecorationData;
 
 	/**
 	 * Get the text length for a certain line.
@@ -1195,7 +1218,7 @@ export interface ITextModel {
 	 * @return An object containing the model decorations and the model inline decorations.
 	 * @internal
 	 */
-	getViewportDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean, filterFontDecorations?: boolean, onlyMinimapDecoration?: boolean, onlyMarginDecorations?: boolean): IModelDecorationViewportData[];
+	getRenderedDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean, filterFontDecorations?: boolean, onlyMinimapDecoration?: boolean, onlyMarginDecorations?: boolean): IModelDecorationViewportData[];
 
 	/**
 	 * Gets all the decorations as an array.
