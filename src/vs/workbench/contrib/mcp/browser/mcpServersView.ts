@@ -6,7 +6,6 @@
 import './media/mcpServersView.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IListContextMenuEvent, IListRenderer } from '../../../../base/browser/ui/list/list.js';
 import { Event } from '../../../../base/common/event.js';
 import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, isDisposable } from '../../../../base/common/lifecycle.js';
@@ -21,7 +20,6 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { WorkbenchPagedList } from '../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { getLocationBasedViewColors, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
@@ -40,9 +38,16 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { DefaultViewsContext, SearchMcpServersContext } from '../../extensions/common/extensions.js';
 import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
+import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 
 export interface McpServerListViewOptions {
 	showWelcomeOnEmpty?: boolean;
+}
+
+interface IQueryResult {
+	showWelcomeContent: boolean;
+	model: IPagedModel<IWorkbenchMcpServer>;
 }
 
 export class McpServersListView extends ViewPane {
@@ -51,6 +56,7 @@ export class McpServersListView extends ViewPane {
 	private listContainer: HTMLElement | null = null;
 	private welcomeContainer: HTMLElement | null = null;
 	private readonly contextMenuActionRunner = this._register(new ActionRunner());
+	private input: IQueryResult | undefined;
 
 	constructor(
 		private readonly mpcViewOptions: McpServerListViewOptions,
@@ -106,6 +112,10 @@ export class McpServersListView extends ViewPane {
 			this.mcpWorkbenchService.open(options.element!, options.editorOptions);
 		}));
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e), this));
+
+		if (this.input) {
+			this.renderInput();
+		}
 	}
 
 	private async onContextMenu(e: IListContextMenuEvent<IWorkbenchMcpServer>): Promise<void> {
@@ -145,16 +155,29 @@ export class McpServersListView extends ViewPane {
 	}
 
 	async show(query: string): Promise<IPagedModel<IWorkbenchMcpServer>> {
-		if (!this.list) {
-			return new PagedModel([]);
+		if (this.input) {
+			this.input = undefined;
 		}
 
 		query = query.trim();
 		const servers = query ? await this.mcpWorkbenchService.queryGallery({ text: query.replace('@mcp', '') }) : await this.mcpWorkbenchService.queryLocal();
-		this.list.model = new DelayedPagedModel(new PagedModel(servers));
+		const showWelcomeContent = !this.mcpGalleryService.isEnabled() && servers.length === 0 && !!this.mpcViewOptions.showWelcomeOnEmpty;
 
-		this.showWelcomeContent(!this.mcpGalleryService.isEnabled() && servers.length === 0 && !!this.mpcViewOptions.showWelcomeOnEmpty);
-		return this.list.model;
+		const model = new PagedModel(servers);
+		this.input = { model, showWelcomeContent };
+		this.renderInput();
+
+		return model;
+	}
+
+	private renderInput() {
+		if (!this.input) {
+			return;
+		}
+		if (this.list) {
+			this.list.model = new DelayedPagedModel(this.input.model);
+		}
+		this.showWelcomeContent(this.input.showWelcomeContent);
 	}
 
 	private showWelcomeContent(show: boolean): void {
@@ -173,17 +196,19 @@ export class McpServersListView extends ViewPane {
 		title.textContent = localize('mcp.welcome.title', "MCP Servers");
 
 		const description = dom.append(welcomeContent, dom.$('.mcp-welcome-description'));
-		description.textContent = localize('mcp.welcome.description', "Extend agent mode by installing MCP servers to bring extra tools for connecting to databases, invoking APIs, performing specialized tasks, etc.");
-
-		// Browse button
-		const buttonContainer = dom.append(welcomeContent, dom.$('.mcp-welcome-button-container'));
-		const button = this._register(new Button(buttonContainer, {
-			title: localize('mcp.welcome.browseButton', "Browse MCP Servers"),
-			...defaultButtonStyles
+		const browseUrl = this.productService.quality === 'insider' ? 'https://code.visualstudio.com/insider/mcp' : 'https://code.visualstudio.com/mcp';
+		const markdownResult = this._register(renderMarkdown(new MarkdownString(
+			localize('mcp.welcome.descriptionWithLink', "Extend agent mode by installing MCP servers to bring extra tools for connecting to databases, invoking APIs, performing specialized tasks, etc. Get started with our curated list of [MCP servers]({0}).", browseUrl),
+			{ isTrusted: true }
+		), {
+			actionHandler: {
+				callback: (content: string) => {
+					this.openerService.open(URI.parse(content));
+				},
+				disposables: this._store
+			}
 		}));
-		button.label = localize('mcp.welcome.browseButton', "Browse MCP Servers");
-
-		this._register(button.onDidClick(() => this.openerService.open(URI.parse(this.productService.quality === 'insider' ? 'https://code.visualstudio.com/insider/mcp' : 'https://code.visualstudio.com/mcp'))));
+		description.appendChild(markdownResult.element);
 	}
 
 }
