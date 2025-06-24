@@ -572,7 +572,6 @@ ${this.description}
 	setExtensionsControlManifest(extensionsControlManifest: IExtensionsControlManifest): void {
 		this.malicious = findMatchingMaliciousEntry(this.identifier, extensionsControlManifest.malicious);
 		this.deprecationInfo = extensionsControlManifest.deprecated ? extensionsControlManifest.deprecated[this.identifier.id.toLowerCase()] : undefined;
-		console.log(`[DEPRECATION] setExtensionsControlManifest for ${this.identifier.id}: deprecationInfo =`, this.deprecationInfo);
 	}
 
 	private getManifestFromLocalOrResource(): IExtensionManifest | null {
@@ -812,7 +811,6 @@ class Extensions extends Disposable {
 
 	private async fetchInstalledExtensions(productVersion?: IProductVersion): Promise<void> {
 		const extensionsControlManifest = await this.server.extensionManagementService.getExtensionsControlManifest();
-		console.log(`[DEPRECATION] fetchInstalledExtensions: Got manifest with deprecated extensions:`, Object.keys(extensionsControlManifest.deprecated || {}));
 		const all = await this.server.extensionManagementService.getInstalled(undefined, undefined, productVersion);
 		if (this.isWorkspaceServer) {
 			all.push(...await this.workbenchExtensionManagementService.getInstalledWorkspaceExtensions(true));
@@ -894,7 +892,6 @@ class Extensions extends Disposable {
 
 		if (extensions.length) {
 			const manifest = await this.server.extensionManagementService.getExtensionsControlManifest();
-			console.log(`[DEPRECATION] onDidInstallExtensions: Got manifest with deprecated extensions:`, Object.keys(manifest.deprecated || {}));
 			for (const extension of extensions) {
 				extension.setExtensionsControlManifest(manifest);
 			}

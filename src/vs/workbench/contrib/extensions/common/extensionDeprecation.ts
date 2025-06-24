@@ -30,10 +30,8 @@ export class ExtensionDeprecationService implements IExtensionDeprecationService
 
 	isExtensionDeprecated(extension: IExtension): boolean {
 		if (!extension.deprecationInfo) {
-			console.log(`[DEPRECATION] isExtensionDeprecated(${extension.identifier.id}): No deprecationInfo`);
 			return false;
 		}
-		console.log(`[DEPRECATION] isExtensionDeprecated(${extension.identifier.id}): Has deprecationInfo:`, extension.deprecationInfo);
 
 		// If no version ranges specified, treat as deprecated (backward compatibility)
 		const versionRanges = extension.deprecationInfo.versionRanges;
