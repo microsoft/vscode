@@ -69,6 +69,3 @@ This documentation is organized into the following main sections, each correspon
 ## Getting Help
 
 [**Placeholder: Provide information on how users of this documentation can get help, e.g., link to an issue tracker for documentation bugs, a community forum, or a dedicated Slack/Discord channel.**]
-
----
-*This `README.md` serves as the main entry point and table of contents for the Autonomous Coding Agent platform documentation.*
