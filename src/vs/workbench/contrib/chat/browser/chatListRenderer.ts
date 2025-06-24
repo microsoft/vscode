@@ -187,6 +187,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		overflowWidgetsDomNode: HTMLElement | undefined,
 		private viewModel: IChatViewModel | undefined,
+		private disableEdits: boolean = false,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
@@ -603,7 +604,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this._onDidRerender.fire(templateData);
 		}
 
-		if (this.configService.getValue<boolean>('chat.editRequests')) {
+		if (this.configService.getValue<boolean>('chat.editRequests') && !this.disableEdits) {
 			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.KEY_DOWN, e => {
 				const ev = new StandardKeyboardEvent(e);
 				if (ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) {
@@ -1193,7 +1194,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.renderer, this._currentLayoutWidth, this.codeBlockModelCollection, {});
 		if (isRequestVM(element)) {
 			markdownPart.domNode.tabIndex = 0;
-			if (this.configService.getValue<boolean>('chat.editRequests')) {
+			if (this.configService.getValue<boolean>('chat.editRequests') && !this.disableEdits) {
 				markdownPart.domNode.classList.add('clickable');
 				markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.CLICK, (e: MouseEvent) => {
 					if (this.viewModel?.editing?.id !== element.id && !this.viewModel?.requestInProgress) {
