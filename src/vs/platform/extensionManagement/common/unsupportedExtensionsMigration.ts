@@ -61,7 +61,7 @@ export async function migrateUnsupportedExtensions(extensionManagementService: I
 
 				let preReleaseExtension = installed.find(i => areSameExtensions(i.identifier, { id: preReleaseExtensionId }));
 				if (!preReleaseExtension || (!preReleaseExtension.isPreReleaseVersion && isUnsupportedExtensionEnabled)) {
-					preReleaseExtension = await extensionManagementService.installFromGallery(gallery, { installPreReleaseVersion: true, isMachineScoped: unsupportedExtension.isMachineScoped, operation: InstallOperation.Migrate, context: { [EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT]: true } });
+					preReleaseExtension = await extensionManagementService.installFromGallery(gallery, { installPreReleaseVersion: preRelease, isMachineScoped: unsupportedExtension.isMachineScoped, operation: InstallOperation.Migrate, context: { [EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT]: true } });
 					logService.info(`Installed the pre-release extension '${preReleaseExtension.identifier.id}'`);
 					if (!isUnsupportedExtensionEnabled) {
 						await extensionEnablementService.disableExtension(preReleaseExtension.identifier);
