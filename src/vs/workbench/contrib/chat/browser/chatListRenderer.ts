@@ -46,6 +46,7 @@ import { IWorkbenchIssueService } from '../../issue/common/issue.js';
 import { annotateSpecialMarkdownContent } from '../common/annotations.js';
 import { checkModeOption } from '../common/chat.js';
 import { IChatAgentMetadata } from '../common/chatAgents.js';
+import { isChatRequestCheckpointed } from '../common/chatEditingService.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
@@ -108,6 +109,7 @@ interface IChatListItemTemplate {
 	readonly elementDisposables: DisposableStore;
 	readonly agentHover: ChatAgentHover;
 	readonly requestHover: HTMLElement;
+	readonly disabledOverlay: HTMLElement;
 }
 
 interface IItemHeightChangeParams {
@@ -285,6 +287,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	renderTemplate(container: HTMLElement): IChatListItemTemplate {
 		const templateDisposables = new DisposableStore();
 		const rowContainer = dom.append(container, $('.interactive-item-container'));
+		const disabledOverlay = dom.append(container, $('.disabled-overlay'));
 		if (this.rendererOptions.renderStyle === 'compact') {
 			rowContainer.classList.add('interactive-item-compact');
 		}
@@ -384,7 +387,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.hoverService.hideHover();
 			}
 		}));
-		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar };
+		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, disabledOverlay };
 		return template;
 	}
 
@@ -417,11 +420,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		ChatContextKeys.isRequest.bindTo(templateData.contextKeyService).set(isRequestVM(element));
 		ChatContextKeys.responseDetectedAgentCommand.bindTo(templateData.contextKeyService).set(isResponseVM(element) && element.agentOrSlashCommandDetected);
 		if (isResponseVM(element)) {
+			isChatRequestCheckpointed.bindTo(templateData.contextKeyService).set(element.model.session.checkpoint?.id === element.requestId);
 			ChatContextKeys.responseSupportsIssueReporting.bindTo(templateData.contextKeyService).set(!!element.agent?.metadata.supportIssueReporting);
 			ChatContextKeys.responseVote.bindTo(templateData.contextKeyService).set(element.vote === ChatAgentVoteDirection.Up ? 'up' : element.vote === ChatAgentVoteDirection.Down ? 'down' : '');
 		} else {
 			ChatContextKeys.responseVote.bindTo(templateData.contextKeyService).set('');
 		}
+
+		templateData.disabledOverlay.classList.toggle('disabled', element.isDisabled);
 
 		if (templateData.titleToolbar) {
 			templateData.titleToolbar.context = element;
