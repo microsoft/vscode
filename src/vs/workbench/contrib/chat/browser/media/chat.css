@@ -1297,10 +1297,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-wrap: wrap;
 }
 
-.interactive-session .interactive-item-container.interactive-item-compact.interactive-request .chat-attached-context {
-	margin-top: -4px;
-}
-
 .interactive-session .chat-attached-context .chat-attached-context-attachment.implicit {
 	display: flex;
 	gap: 4px;
@@ -1892,6 +1888,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		width: fit-content;
 		justify-content: flex-end;
 		margin-left: auto;
+		padding-bottom: 5px;
 	}
 
 	.hc-black .interactive-item-container.interactive-request .value,
@@ -1925,6 +1922,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.request-hover .actions-container .action-label.codicon-discard {
 		margin-top: 4px;
 		padding: 3px 3px;
+	}
+
+	.request-hover:focus-within {
+		opacity: 1 !important;
 	}
 
 	.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {

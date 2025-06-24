@@ -164,7 +164,12 @@ export class ChatSelectedTools extends Disposable {
 		for (const [item, enabled] of map) {
 			if (item instanceof ToolSet) {
 				for (const tool of item.getTools()) {
-					_set(tool, map.get(tool) ?? enabled); // tools from tool set can be explicitly set
+					// Tools from an mcp tool set are explicitly enabled/disabled under the tool set.
+					// Other toolsets don't show individual tools under the tool set and enablement just follows the toolset.
+					const toolEnabled = item.source.type === 'mcp' ?
+						map.get(tool) ?? enabled :
+						enabled;
+					_set(tool, toolEnabled);
 				}
 			} else {
 				if (item.canBeReferencedInPrompt) {

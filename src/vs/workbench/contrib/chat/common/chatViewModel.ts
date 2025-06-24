@@ -606,7 +606,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 						this._contentUpdateTimings.lastUpdateTime = now;
 					}
 
-					const timeDiff = Math.min(now - this._contentUpdateTimings.lastUpdateTime, 1000);
+					const timeDiff = Math.min(now - this._contentUpdateTimings.lastUpdateTime, 500);
 					const newTotalTime = Math.max(this._contentUpdateTimings.totalTime + timeDiff, 250);
 					const impliedWordLoadRate = wordCount / (newTotalTime / 1000);
 					this.trace('onDidChange', `Update- got ${wordCount} words over last ${newTotalTime}ms = ${impliedWordLoadRate} words/s`);
