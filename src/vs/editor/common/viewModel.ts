@@ -12,8 +12,8 @@ import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData,
 import { CursorChangeReason } from './cursorEvents.js';
 import { INewScrollPosition, ScrollType } from './editorCommon.js';
 import { EditorTheme } from './editorTheme.js';
-import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, IModelInlineDecoration, InlineDecorationType, ITextModel, PositionAffinity } from './model.js';
-import { ILineBreaksComputer, ILineBreaksComputerContext, InjectedText } from './modelLineProjectionData.js';
+import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel, PositionAffinity } from './model.js';
+import { ILineBreaksComputer, InjectedText } from './modelLineProjectionData.js';
 import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from './textModelGuides.js';
 import { IViewLineTokens } from './tokens/lineTokens.js';
 import { ViewEventHandler } from './viewEventHandler.js';
@@ -76,7 +76,7 @@ export interface IViewModel extends ICursorSimpleModel {
 	getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[];
 	getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string; mode: string } | null;
 
-	createLineBreaksComputer(context: ILineBreaksComputerContext): ILineBreaksComputer;
+	createLineBreaksComputer(): ILineBreaksComputer;
 
 	//#region cursor
 	getPrimaryCursorState(): CursorState;
@@ -397,17 +397,19 @@ export class ViewLineRenderingData {
 	}
 }
 
+export const enum InlineDecorationType {
+	Regular = 0,
+	Before = 1,
+	After = 2,
+	RegularAffectingLetterSpacing = 3
+}
+
 export class InlineDecoration {
 	constructor(
 		public readonly range: Range,
 		public readonly inlineClassName: string,
 		public readonly type: InlineDecorationType
 	) {
-	}
-
-	public static fromModelInlineDecoration(modelInlineDecoration: IModelInlineDecoration, coordinatesConverter: ICoordinatesConverter): InlineDecoration {
-		const range = coordinatesConverter.convertModelRangeToViewRange(modelInlineDecoration.range, PositionAffinity.Right);
-		return new InlineDecoration(range, modelInlineDecoration.inlineClassName, modelInlineDecoration.type);
 	}
 }
 

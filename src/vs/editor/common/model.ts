@@ -19,11 +19,11 @@ import { IWordAtPosition } from './core/wordHelper.js';
 import { FormattingOptions } from './languages.js';
 import { ILanguageSelection } from './languages/language.js';
 import { IBracketPairsTextModelPart } from './textModelBracketPairs.js';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
+import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
 import { IGuidesTextModelPart } from './textModelGuides.js';
 import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { UndoRedoGroup } from '../../platform/undoRedo/common/undoRedo.js';
-import { LineTokens, TokenArray } from './tokens/lineTokens.js';
+import { TokenArray } from './tokens/lineTokens.js';
 import { IEditorModel } from './editorCommon.js';
 import { TextModelEditReason } from './textModelEditReason.js';
 
@@ -390,79 +390,6 @@ export interface IModelDecoration {
 	 */
 	readonly options: IModelDecorationOptions;
 }
-
-/**
- * Type of the inline decoration.
- * @internal
- */
-export const enum InlineDecorationType {
-	Regular = 0,
-	Before = 1,
-	After = 2,
-	RegularAffectingLetterSpacing = 3
-}
-
-/**
- * Data relative to the model inline decorations.
- * @internal
- */
-export interface IModelInlineDecorationData {
-	/**
-	 * Model inline decorations.
-	 */
-	decorations: IModelInlineDecoration[];
-	/**
-	 * Whether the inline decorations affect the font.
-	 */
-	affectsFont: boolean;
-}
-
-/**
- * An inline decoration in the model.
- * @internal
- */
-export interface IModelInlineDecoration {
-	/**
-	 * Range that this decoration covers.
-	 */
-	readonly range: Range;
-	/**
-	 * The inline class name that will be applied to the text in the range.
-	 */
-	readonly inlineClassName: string;
-	/**
-	 * The type of the decoration.
-	 */
-	readonly type: InlineDecorationType;
-}
-
-/**
- * Decoration viewport data.
- * @internal
- */
-export interface IModelDecorationViewportData {
-	/**
-	 * Model decorations that are in the viewport.
-	 */
-	modelDecoration: IModelDecoration;
-	/**
-	 * Model inline decorations corresponding to the model decoration.
-	 */
-	modelInlineDecoration?: IModelInlineDecoration;
-	/**
-	 * Model before inline decoration corresponding to the model decoration.
-	 */
-	modelBeforeInlineDecoration?: IModelInlineDecoration;
-	/**
-	 * Model after inline decoration corresponding to the model decoration.
-	 */
-	modelAfterInlineDecoration?: IModelInlineDecoration;
-	/**
-	 * Whether the inline decorations affect the font.
-	 */
-	affectsFont: boolean;
-}
-
 
 /**
  * An accessor that can add, change or remove model decorations.
@@ -906,24 +833,6 @@ export interface ITextModel {
 	getLineContent(lineNumber: number): string;
 
 	/**
-	 * Get the line tokens for a certain line, including the injected text.
-	 * @internal
-	 */
-	getLineTokens(lineNumber: number, ownerId?: number): LineTokens;
-
-	/**
-	 * Get the line injected text for a certain line.
-	 * @internal
-	 */
-	getLineInjectedText(lineNumber: number, ownerId?: number): LineInjectedText[];
-
-	/**
-	 * Get the inline decorations for a certain line.
-	 * @internal
-	 */
-	getLineInlineDecorationData(lineNumber: number, ownerId?: number): IModelInlineDecorationData;
-
-	/**
 	 * Get the text length for a certain line.
 	 */
 	getLineLength(lineNumber: number): number;
@@ -1210,20 +1119,7 @@ export interface ITextModel {
 	 * @param onlyMarginDecorations If set, it will return only decorations that render in the glyph margin.
 	 * @return An array with the decorations
 	 */
-	getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean, filterFontDecorations?: boolean, onlyMinimapDecorations?: boolean, onlyMarginDecorations?: boolean): IModelDecoration[];
-
-	/**
-	 * Get viewport decorations in a range as an object containing the model decorations and the model inline decorations. Only `startLineNumber` and `endLineNumber` from `range` are used for filtering.
-	 * So for now it returns all the decorations on the same line as `range`.
-	 * @param range The range to search in
-	 * @param ownerId If set, it will ignore decorations belonging to other owners.
-	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
-	 * @param onlyMinimapDecorations If set, it will return only decorations that render in the minimap.
-	 * @param onlyMarginDecorations If set, it will return only decorations that render in the glyph margin.
-	 * @return An object containing the model decorations and the model inline decorations.
-	 * @internal
-	 */
-	getRenderedDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean, filterFontDecorations?: boolean, onlyMinimapDecoration?: boolean, onlyMarginDecorations?: boolean): IModelDecorationViewportData[];
+	getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean, onlyMarginDecorations?: boolean): IModelDecoration[];
 
 	/**
 	 * Gets all the decorations as an array.

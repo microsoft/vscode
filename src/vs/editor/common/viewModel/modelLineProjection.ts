@@ -10,7 +10,6 @@ import { EndOfLinePreference, ITextModel, PositionAffinity } from '../model.js';
 import { LineInjectedText } from '../textModelEvents.js';
 import { InjectedText, ModelLineProjectionData } from '../modelLineProjectionData.js';
 import { SingleLineInlineDecoration, ViewLineData } from '../viewModel.js';
-import { getModelLineTokensWithInjections } from '../model/textModel.js';
 
 export interface IModelLineProjection {
 	isVisible(): boolean;
@@ -212,8 +211,34 @@ class ModelLineProjection implements IModelLineProjection {
 			}
 		}
 
-		const lineTokens = model.tokenization.getLineTokens(modelLineNumber);
-		const lineWithInjections = getModelLineTokensWithInjections(lineTokens, injectionOptions, injectionOffsets);
+		let lineWithInjections: LineTokens;
+		if (injectionOffsets) {
+			const tokensToInsert: { offset: number; text: string; tokenMetadata: number }[] = [];
+
+			for (let idx = 0; idx < injectionOffsets.length; idx++) {
+				const offset = injectionOffsets[idx];
+				const tokens = injectionOptions![idx].tokens;
+				if (tokens) {
+					tokens.forEach((range, info) => {
+						tokensToInsert.push({
+							offset,
+							text: range.substring(injectionOptions![idx].content),
+							tokenMetadata: info.metadata,
+						});
+					});
+				} else {
+					tokensToInsert.push({
+						offset,
+						text: injectionOptions![idx].content,
+						tokenMetadata: LineTokens.defaultTokenMetadata,
+					});
+				}
+			}
+
+			lineWithInjections = model.tokenization.getLineTokens(modelLineNumber).withInserted(tokensToInsert);
+		} else {
+			lineWithInjections = model.tokenization.getLineTokens(modelLineNumber);
+		}
 
 		for (let outputLineIndex = outputLineIdx; outputLineIndex < outputLineIdx + lineCount; outputLineIndex++) {
 			const globalIndex = globalStartIndex + outputLineIndex - outputLineIdx;

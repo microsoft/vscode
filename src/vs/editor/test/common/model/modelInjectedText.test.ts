@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { EditOperation } from '../../../common/core/editOperation.js';
@@ -162,7 +161,7 @@ suite('Editor Model - Injected Text Events', () => {
 	});
 });
 
-function mapChange(model: TextModel, change: ModelRawChange): unknown {
+function mapChange(change: ModelRawChange): unknown {
 	if (change.changeType === RawContentChangedType.LineChanged) {
 		(change.injectedText || []).every(e => {
 			assert.deepStrictEqual(e.lineNumber, change.lineNumber);
@@ -198,4 +197,3 @@ function mapChange(model: TextModel, change: ModelRawChange): unknown {
 function getDetail(line: string, injectedTexts: LineInjectedText[] | null): string {
 	return LineInjectedText.applyInjectedText(line, (injectedTexts || []).map(t => t.withText(`[${t.options.content}]`)));
 }
-*/

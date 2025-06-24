@@ -6,8 +6,7 @@
 import * as strings from '../../../base/common/strings.js';
 import { Constants } from '../../../base/common/uint.js';
 import { LinePartMetadata } from './linePart.js';
-import { InlineDecoration } from '../viewModel.js';
-import { IModelInlineDecoration, InlineDecorationType } from '../model.js';
+import { InlineDecoration, InlineDecorationType } from '../viewModel.js';
 
 export class LineDecoration {
 	_lineDecorationBrand: void = undefined;
@@ -61,7 +60,7 @@ export class LineDecoration {
 		return r;
 	}
 
-	public static filter(lineDecorations: InlineDecoration[] | IModelInlineDecoration[], lineNumber: number, minLineColumn: number, maxLineColumn: number): LineDecoration[] {
+	public static filter(lineDecorations: InlineDecoration[], lineNumber: number, minLineColumn: number, maxLineColumn: number): LineDecoration[] {
 		if (lineDecorations.length === 0) {
 			return [];
 		}

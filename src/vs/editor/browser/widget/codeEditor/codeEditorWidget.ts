@@ -21,6 +21,7 @@ import * as editorBrowser from '../../editorBrowser.js';
 import { EditorExtensionsRegistry, IEditorContributionDescription } from '../../editorExtensions.js';
 import { ICodeEditorService } from '../../services/codeEditorService.js';
 import { IContentWidgetData, IGlyphMarginWidgetData, IOverlayWidgetData, View } from '../../view.js';
+import { DOMLineBreaksComputerFactory } from '../../view/domLineBreaksComputer.js';
 import { ICommandDelegate } from '../../view/viewController.js';
 import { ViewUserInputEvents } from '../../view/viewUserInputEvents.js';
 import { CodeEditorContributions } from './codeEditorContributions.js';
@@ -58,8 +59,6 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { editorErrorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { LineBreaksComputerFactory } from '../../../common/viewModel/lineBreaksComputer.js';
-import { DOMLineBreaksComputerFactory } from '../../view/domLineBreaksComputer.js';
 import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
@@ -1693,17 +1692,14 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._configuration.setIsDominatedByLongLines(model.isDominatedByLongLines());
 		this._configuration.setModelLineCount(model.getLineCount());
 
-		const domLineBreaksComputerFactory = DOMLineBreaksComputerFactory.create(dom.getWindow(this._domElement));
-		const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(this._configuration.options);
-		const lineBreaksComputerFactory = new LineBreaksComputerFactory(domLineBreaksComputerFactory, monospaceLineBreaksComputerFactory);
-
 		const attachedView = model.onBeforeAttached();
 
 		const viewModel = new ViewModel(
 			this._id,
 			this._configuration,
 			model,
-			lineBreaksComputerFactory,
+			DOMLineBreaksComputerFactory.create(dom.getWindow(this._domElement)),
+			MonospaceLineBreaksComputerFactory.create(this._configuration.options),
 			(callback) => dom.scheduleAtNextAnimationFrame(dom.getWindow(this._domElement), callback),
 			this.languageConfigurationService,
 			this._themeService,
