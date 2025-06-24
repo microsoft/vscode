@@ -958,6 +958,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				ChatContextKeys.currentlyEditing.bindTo(this.templateData.contextKeyService).set(true);
 			}
 			this.createInput(this.inputContainer);
+			this.input.setChatMode(this.inputPart.currentMode);
 			this.inputPart.toggleChatInputOverlay(true);
 			if (currentContext.length > 0) {
 				this.input.attachmentModel.addContext(...currentContext);
