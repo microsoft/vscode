@@ -885,6 +885,7 @@ export interface IChatEntitlementContextState extends IChatSentiment {
 export class ChatEntitlementContext extends Disposable {
 
 	private static readonly CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY = 'chat.setupContext';
+	private static readonly CHAT_HIDDEN_CONFIGURATION_KEY = 'chat.hideGettingStarted';
 
 	private readonly canSignUpContextKey: IContextKey<boolean>;
 	private readonly signedOutContextKey: IContextKey<boolean>;
@@ -915,6 +916,7 @@ export class ChatEntitlementContext extends Disposable {
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@ILogService private readonly logService: ILogService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -932,8 +934,38 @@ export class ChatEntitlementContext extends Disposable {
 
 		this._state = this.storageService.getObject<IChatEntitlementContextState>(ChatEntitlementContext.CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY, StorageScope.PROFILE) ?? { entitlement: ChatEntitlement.Unknown };
 
+		const configuredDisabled = this.isUserConfiguredDisabled();
+		if (typeof configuredDisabled === 'boolean') {
+			this._state.hidden = configuredDisabled; // user configuration always takes precedence
+		}
+
 		this.checkExtensionInstallation();
 		this.updateContextSync();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatEntitlementContext.CHAT_HIDDEN_CONFIGURATION_KEY)) {
+				this.update({ hidden: this.isUserConfiguredDisabled() === true }, true /* from event */);
+			}
+		}));
+	}
+
+	private isUserConfiguredDisabled(): boolean | undefined {
+		const configuration = this.configurationService.inspect(ChatEntitlementContext.CHAT_HIDDEN_CONFIGURATION_KEY);
+		if (
+			typeof configuration.applicationValue === 'boolean' ||
+			typeof configuration.userLocalValue === 'boolean' ||
+			typeof configuration.userRemoteValue === 'boolean' ||
+			typeof configuration.userValue === 'boolean' ||
+			typeof configuration.workspaceValue === 'boolean'
+		) {
+			return configuration.value === true;
+		}
+
+		return undefined;
 	}
 
 	private async checkExtensionInstallation(): Promise<void> {
@@ -956,23 +988,27 @@ export class ChatEntitlementContext extends Disposable {
 	}
 
 	update(context: { installed: boolean; disabled: boolean }): Promise<void>;
-	update(context: { hidden: boolean }): Promise<void>;
+	update(context: { hidden: boolean }, fromEvent?: boolean): Promise<void>;
 	update(context: { later: boolean }): Promise<void>;
 	update(context: { entitlement: ChatEntitlement }): Promise<void>;
-	update(context: { installed?: boolean; disabled?: boolean; hidden?: boolean; later?: boolean; entitlement?: ChatEntitlement }): Promise<void> {
+	update(context: { installed?: boolean; disabled?: boolean; hidden?: boolean; later?: boolean; entitlement?: ChatEntitlement }, fromEvent?: boolean): Promise<void> {
 		this.logService.trace(`[chat entitlement context] update(): ${JSON.stringify(context)}`);
 
 		if (typeof context.installed === 'boolean' && typeof context.disabled === 'boolean') {
 			this._state.installed = context.installed;
 			this._state.disabled = context.disabled;
 
-			if (context.installed && !context.disabled) {
+			if (context.installed && !context.disabled && !this.isUserConfiguredDisabled()) {
 				context.hidden = false; // treat this as a sign to make Chat visible again in case it is hidden
 			}
 		}
 
 		if (typeof context.hidden === 'boolean') {
 			this._state.hidden = context.hidden;
+
+			if (!fromEvent) {
+				this.configurationService.updateValue(ChatEntitlementContext.CHAT_HIDDEN_CONFIGURATION_KEY, context.hidden); // no need to await, will trigger change event that is handled
+			}
 		}
 
 		if (typeof context.later === 'boolean') {
