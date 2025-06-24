@@ -1042,7 +1042,7 @@ export class ExtensionRecommendationWidget extends ExtensionWidget {
 	constructor(
 		private readonly container: HTMLElement,
 		@IExtensionRecommendationsService private readonly extensionRecommendationsService: IExtensionRecommendationsService,
-		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService
+		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
 	) {
 		super();
 		this.render();
