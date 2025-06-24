@@ -53,7 +53,6 @@ export type ExtensionListRendererOptions = {
 	};
 };
 
-
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	constructor(
