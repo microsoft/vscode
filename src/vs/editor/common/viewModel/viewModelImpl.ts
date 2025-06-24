@@ -437,50 +437,6 @@ export class ViewModel extends Disposable implements IViewModel {
 
 			this._handleVisibleLinesChanged();
 		}));
-		this._register(this.model.onDidChangeFont((e) => {
-			try {
-				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-				const lineBreaksComputer = this._lines.createLineBreaksComputer();
-				for (const change of e.changes) {
-					lineBreaksComputer.addRequest(change.lineNumber, null);
-				}
-				const lineBreaks = lineBreaksComputer.finalize();
-				const lineBreakQueue = new ArrayQueue(lineBreaks);
-				let lineMappingHasChanged = false;
-				for (const change of e.changes) {
-					const changedLineBreakData = lineBreakQueue.dequeue()!;
-					const [lineMappingChanged, linesChangedEvent] = this._lines.onModelFontChanged(change.versionId, change.lineNumber, changedLineBreakData);
-					lineMappingHasChanged = lineMappingChanged;
-					if (linesChangedEvent) {
-						eventsCollector.emitViewEvent(linesChangedEvent);
-					}
-				}
-				this.viewLayout.onHeightMaybeChanged();
-				if (lineMappingHasChanged) {
-					eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
-					eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
-					this._cursor.onLineMappingChanged(eventsCollector);
-					this._decorations.onLineMappingChanged();
-					this.viewLayout.onFlushed(this.getLineCount(), this._getCustomLineHeights());
-				}
-			} finally {
-				this._eventDispatcher.endEmitViewEvents();
-			}
-			// Update the configuration and reset the centered view line
-			const viewportStartWasValid = this._viewportStart.isValid;
-			this._viewportStart.invalidate();
-			this._updateConfigurationViewLineCountNow();
-			// Recover viewport
-			if (!this._hasFocus && this.model.getAttachedEditorCount() >= 2 && viewportStartWasValid) {
-				const modelRange = this.model._getTrackedRange(this._viewportStart.modelTrackedRange);
-				if (modelRange) {
-					const viewPosition = this.coordinatesConverter.convertModelPositionToViewPosition(modelRange.getStartPosition());
-					const viewPositionTop = this.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
-					this.viewLayout.setScrollPosition({ scrollTop: viewPositionTop + this._viewportStart.startLineDelta }, ScrollType.Immediate);
-				}
-			}
-			this._handleVisibleLinesChanged();
-		}));
 
 		const allowVariableLineHeights = this._configuration.options.get(EditorOption.allowVariableLineHeights);
 		if (allowVariableLineHeights) {
