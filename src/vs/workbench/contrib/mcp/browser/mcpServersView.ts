@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/mcpServersView.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IListContextMenuEvent, IListRenderer } from '../../../../base/browser/ui/list/list.js';
 import { Event } from '../../../../base/common/event.js';
 import { combinedDisposable, DisposableStore, dispose, IDisposable, isDisposable } from '../../../../base/common/lifecycle.js';
@@ -21,26 +19,19 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { WorkbenchPagedList } from '../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { getLocationBasedViewColors, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IViewDescriptorService } from '../../../common/views.js';
-import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerContainers, mcpServerIcon } from '../common/mcpTypes.js';
+import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerContainers } from '../common/mcpTypes.js';
 import { DropDownAction, InstallAction, ManageMcpServerAction } from './mcpServerActions.js';
 import { PublisherWidget, InstallCountWidget, RatingsWidget, McpServerIconWidget } from './mcpServerWidgets.js';
 import { ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IMcpGalleryService } from '../../../../platform/mcp/common/mcpManagement.js';
-import { URI } from '../../../../base/common/uri.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 
 export class McpServersListView extends ViewPane {
 
 	private list: WorkbenchPagedList<IWorkbenchMcpServer> | null = null;
-	private listContainer: HTMLElement | null = null;
-	private welcomeContainer: HTMLElement | null = null;
 	private readonly contextMenuActionRunner = this._register(new ActionRunner());
 
 	constructor(
@@ -55,8 +46,6 @@ export class McpServersListView extends ViewPane {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IOpenerService openerService: IOpenerService,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
-		@IMcpGalleryService private readonly mcpGalleryService: IMcpGalleryService,
-		@IProductService private readonly productService: IProductService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 	}
@@ -64,14 +53,10 @@ export class McpServersListView extends ViewPane {
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		// Create welcome container
-		this.welcomeContainer = dom.append(container, dom.$('.mcp-welcome-container.hide'));
-		this.createWelcomeContent(this.welcomeContainer);
-
-		this.listContainer = dom.append(container, dom.$('.mcp-servers-list'));
+		const mcpServersList = dom.append(container, dom.$('.mcp-servers-list'));
 		this.list = this._register(this.instantiationService.createInstance(WorkbenchPagedList,
 			`${this.id}-MCP-Servers`,
-			this.listContainer,
+			mcpServersList,
 			{
 				getHeight() { return 72; },
 				getTemplateId: () => McpServerRenderer.templateId,
@@ -142,38 +127,7 @@ export class McpServersListView extends ViewPane {
 		query = query.trim();
 		const servers = query ? await this.mcpWorkbenchService.queryGallery({ text: query.replace('@mcp', '') }) : await this.mcpWorkbenchService.queryLocal();
 		this.list.model = new DelayedPagedModel(new PagedModel(servers));
-
-		this.showWelcomeContent(!this.mcpGalleryService.isEnabled() && servers.length === 0);
 		return this.list.model;
-	}
-
-	private showWelcomeContent(show: boolean): void {
-		this.welcomeContainer?.classList.toggle('hide', !show);
-		this.listContainer?.classList.toggle('hide', show);
-	}
-
-	private createWelcomeContent(welcomeContainer: HTMLElement): void {
-		const welcomeContent = dom.append(welcomeContainer, dom.$('.mcp-welcome-content'));
-
-		const iconContainer = dom.append(welcomeContent, dom.$('.mcp-welcome-icon'));
-		const iconElement = dom.append(iconContainer, dom.$('span'));
-		iconElement.className = ThemeIcon.asClassName(mcpServerIcon);
-
-		const title = dom.append(welcomeContent, dom.$('.mcp-welcome-title'));
-		title.textContent = localize('mcp.welcome.title', "MCP Servers");
-
-		const description = dom.append(welcomeContent, dom.$('.mcp-welcome-description'));
-		description.textContent = localize('mcp.welcome.description', "Extend agent mode by installing MCP servers to bring extra tools for connecting to databases, invoking APIs, performing specialized tasks, etc.");
-
-		// Browse button
-		const buttonContainer = dom.append(welcomeContent, dom.$('.mcp-welcome-button-container'));
-		const button = this._register(new Button(buttonContainer, {
-			title: localize('mcp.welcome.browseButton', "Browse MCP Servers"),
-			...defaultButtonStyles
-		}));
-		button.label = localize('mcp.welcome.browseButton', "Browse MCP Servers");
-
-		this._register(button.onDidClick(() => this.openerService.open(URI.parse(this.productService.quality === 'insider' ? 'https://code.visualstudio.com/insider/mcp' : 'https://code.visualstudio.com/mcp'))));
 	}
 
 }

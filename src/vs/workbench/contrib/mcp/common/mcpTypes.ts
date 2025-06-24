@@ -20,12 +20,11 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IMcpServer as IInstallableMcpServer, IGalleryMcpServer, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IGalleryMcpServer, ILocalMcpServer, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpDevModeConfig } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-import { IWorkspaceFolder, IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
-import { IWorkbenchLocalMcpServer, IWorkbencMcpServerInstallOptions } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { IMcpServerSamplingConfiguration } from './mcpConfiguration.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
@@ -551,19 +550,6 @@ export class MpcResponseError extends Error {
 
 export class McpConnectionFailedError extends Error { }
 
-export interface IMcpConfigPath {
-	id: string;
-	key: 'userLocalValue' | 'userRemoteValue' | 'workspaceValue' | 'workspaceFolderValue';
-	label: string;
-	scope: StorageScope;
-	target: ConfigurationTarget;
-	order: number;
-	remoteAuthority?: string;
-	uri: URI | undefined;
-	section?: string[];
-	workspaceFolder?: IWorkspaceFolder;
-}
-
 export interface IMcpServerContainer extends IDisposable {
 	mcpServer: IWorkbenchMcpServer | null;
 	update(): void;
@@ -571,7 +557,7 @@ export interface IMcpServerContainer extends IDisposable {
 
 export interface IWorkbenchMcpServer {
 	readonly gallery: IGalleryMcpServer | undefined;
-	readonly local: IWorkbenchLocalMcpServer | undefined;
+	readonly local: ILocalMcpServer | undefined;
 	readonly id: string;
 	readonly name: string;
 	readonly label: string;
@@ -594,11 +580,8 @@ export interface IMcpWorkbenchService {
 	readonly local: readonly IWorkbenchMcpServer[];
 	queryLocal(): Promise<IWorkbenchMcpServer[]>;
 	queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IWorkbenchMcpServer[]>;
-	install(server: IInstallableMcpServer, installOptions?: IWorkbencMcpServerInstallOptions): Promise<void>;
-	installFromGallery(mcpServer: IWorkbenchMcpServer): Promise<void>;
+	install(mcpServer: IWorkbenchMcpServer): Promise<void>;
 	uninstall(mcpServer: IWorkbenchMcpServer): Promise<void>;
-	getMcpConfigPath(arg: IWorkbenchLocalMcpServer): IMcpConfigPath | undefined;
-	getMcpConfigPath(arg: URI): Promise<IMcpConfigPath | undefined>;
 	open(extension: IWorkbenchMcpServer | string, options?: IEditorOptions): Promise<void>;
 }
 

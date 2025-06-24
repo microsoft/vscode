@@ -3,32 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ILogger } from '../../log/common/log.js';
-import { IMcpServerConfiguration } from './mcpPlatformTypes.js';
-import { IMcpManagementService } from './mcpManagement.js';
+import { IMcpConfiguration, IMcpConfigurationHTTP, IMcpConfigurationStdio, McpConfigurationServer } from './mcpPlatformTypes.js';
 
-type ValidatedConfig = { name: string; config: IMcpServerConfiguration };
+type ValidatedConfig = { name: string; config: IMcpConfigurationStdio | IMcpConfigurationHTTP };
 
 export class McpManagementCli {
 	constructor(
 		private readonly _logger: ILogger,
-		@IMcpManagementService private readonly _mcpManagementService: IMcpManagementService,
+		@IConfigurationService private readonly _userConfigurationService: IConfigurationService,
 	) { }
 
 	async addMcpDefinitions(
 		definitions: string[],
 	) {
 		const configs = definitions.map((config) => this.validateConfiguration(config));
-		await this.updateMcpInResource(configs);
+		await this.updateMcpInConfig(this._userConfigurationService, configs);
 		this._logger.info(`Added MCP servers: ${configs.map(c => c.name).join(', ')}`);
 	}
 
-	private async updateMcpInResource(configs: ValidatedConfig[]) {
-		await Promise.all(configs.map(({ name, config }) => this._mcpManagementService.install({ name, config })));
+	private async updateMcpInConfig(service: IConfigurationService, configs: ValidatedConfig[]) {
+		const mcp = service.getValue<IMcpConfiguration>('mcp') || { servers: {} };
+		mcp.servers ??= {};
+
+		for (const config of configs) {
+			mcp.servers[config.name] = config.config;
+		}
+
+		await service.updateValue('mcp', mcp);
 	}
 
 	private validateConfiguration(config: string): ValidatedConfig {
-		let parsed: IMcpServerConfiguration & { name: string };
+		let parsed: McpConfigurationServer & { name: string };
 		try {
 			parsed = JSON.parse(config);
 		} catch (e) {
@@ -44,7 +51,7 @@ export class McpManagementCli {
 		}
 
 		const { name, ...rest } = parsed;
-		return { name, config: rest as IMcpServerConfiguration };
+		return { name, config: rest as IMcpConfigurationStdio | IMcpConfigurationHTTP };
 	}
 }
 

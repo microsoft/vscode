@@ -29,7 +29,6 @@ export interface IRemoteAgentEnvironmentDTO {
 	connectionToken: string;
 	appRoot: UriComponents;
 	settingsPath: UriComponents;
-	mcpResource: UriComponents;
 	logsPath: UriComponents;
 	extensionHostLogsPath: UriComponents;
 	globalStorageHome: UriComponents;
@@ -62,7 +61,6 @@ export class RemoteExtensionEnvironmentChannelClient {
 			connectionToken: data.connectionToken,
 			appRoot: URI.revive(data.appRoot),
 			settingsPath: URI.revive(data.settingsPath),
-			mcpResource: URI.revive(data.mcpResource),
 			logsPath: URI.revive(data.logsPath),
 			extensionHostLogsPath: URI.revive(data.extensionHostLogsPath),
 			globalStorageHome: URI.revive(data.globalStorageHome),
