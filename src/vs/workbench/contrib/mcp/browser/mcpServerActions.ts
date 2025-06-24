@@ -107,10 +107,10 @@ export class InstallAction extends McpServerAction {
 	update(): void {
 		this.enabled = false;
 		this.class = InstallAction.HIDE;
-		if (!this.mcpServer?.gallery) {
+		if (this.mcpServer?.local) {
 			return;
 		}
-		if (this.mcpServer.local) {
+		if (!this.mcpServer?.gallery && !this.mcpServer?.installable) {
 			return;
 		}
 		this.class = InstallAction.CLASS;
@@ -122,7 +122,7 @@ export class InstallAction extends McpServerAction {
 		if (!this.mcpServer) {
 			return;
 		}
-		await this.mcpWorkbenchService.installFromGallery(this.mcpServer);
+		await this.mcpWorkbenchService.install(this.mcpServer);
 	}
 }
 

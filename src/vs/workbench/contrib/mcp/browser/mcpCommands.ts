@@ -48,7 +48,6 @@ import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpConnectionState, mcpPromptPrefix, McpServerCacheState } from '../common/mcpTypes.js';
 import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
 import { McpResourceQuickAccess, McpResourceQuickPick } from './mcpResourceQuickAccess.js';
-import { McpUrlHandler } from './mcpUrlHandler.js';
 import { openPanelChatAndGetWidget } from './openPanelChatAndGetWidget.js';
 
 // acroynms do not get localized
@@ -734,26 +733,6 @@ export class StopServer extends Action2 {
 	async run(accessor: ServicesAccessor, serverId: string) {
 		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
 		await s?.stop();
-	}
-}
-
-export class InstallFromActivation extends Action2 {
-	constructor() {
-		super({
-			id: McpCommandIds.InstallFromActivation,
-			title: localize2('mcp.command.installFromActivation', "Install..."),
-			category,
-			f1: false,
-			menu: {
-				id: MenuId.EditorContent,
-				when: ContextKeyExpr.equals('resourceScheme', McpUrlHandler.scheme)
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor, uri: URI) {
-		const addConfigHelper = accessor.get(IInstantiationService).createInstance(McpAddConfigurationCommand, undefined);
-		addConfigHelper.pickForUrlHandler(uri);
 	}
 }
 

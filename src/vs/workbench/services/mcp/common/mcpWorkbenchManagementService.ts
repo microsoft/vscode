@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { ILocalMcpServer, IMcpManagementService, IGalleryMcpServer, InstallOptions, InstallMcpServerEvent, UninstallMcpServerEvent, DidUninstallMcpServerEvent, InstallMcpServerResult, IMcpServer, IMcpGalleryService, UninstallOptions } from '../../../../platform/mcp/common/mcpManagement.js';
+import { ILocalMcpServer, IMcpManagementService, IGalleryMcpServer, InstallOptions, InstallMcpServerEvent, UninstallMcpServerEvent, DidUninstallMcpServerEvent, InstallMcpServerResult, IInstallableMcpServer, IMcpGalleryService, UninstallOptions } from '../../../../platform/mcp/common/mcpManagement.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -53,7 +53,7 @@ export interface IWorkbenchMcpManagementService extends IMcpManagementService {
 	readonly onDidUninstallMcpServerInCurrentProfile: Event<DidUninstallMcpServerEvent>;
 
 	getInstalled(): Promise<IWorkbenchLocalMcpServer[]>;
-	install(server: IMcpServer, options?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchLocalMcpServer>;
+	install(server: IInstallableMcpServer, options?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchLocalMcpServer>;
 }
 
 export const IWorkbenchMcpManagementService = createDecorator<IWorkbenchMcpManagementService>('workbenchMcpManagementService');
@@ -249,7 +249,7 @@ class WorkbenchMcpManagementService extends Disposable implements IWorkbenchMcpM
 		return { ...server, scope };
 	}
 
-	async install(server: IMcpServer, options?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchLocalMcpServer> {
+	async install(server: IInstallableMcpServer, options?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchLocalMcpServer> {
 		options = options ?? {};
 
 		if (options.target === ConfigurationTarget.WORKSPACE || isWorkspaceFolder(options.target)) {
@@ -475,7 +475,7 @@ class WorkspaceMcpManagementService extends Disposable implements IMcpManagement
 		return this.allMcpServers;
 	}
 
-	async install(server: IMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
+	async install(server: IInstallableMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
 		if (!options?.mcpResource) {
 			throw new Error('MCP resource is required');
 		}

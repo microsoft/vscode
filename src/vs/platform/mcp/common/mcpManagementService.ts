@@ -7,7 +7,6 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { uppercaseFirstLetter } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
@@ -15,7 +14,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
-import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, IMcpServerInput, IMcpServerManifest, InstallMcpServerEvent, InstallMcpServerResult, PackageType, UninstallMcpServerEvent, IScannedMcpServer, InstallOptions, UninstallOptions, IMcpServer } from './mcpManagement.js';
+import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, IMcpServerInput, IMcpServerManifest, InstallMcpServerEvent, InstallMcpServerResult, PackageType, UninstallMcpServerEvent, IScannedMcpServer, InstallOptions, UninstallOptions, IInstallableMcpServer } from './mcpManagement.js';
 import { IMcpServerVariable, McpServerVariableType, IMcpServerConfiguration } from './mcpPlatformTypes.js';
 import { IMcpResourceScannerService, McpResourceTarget } from './mcpResourceScannerService.js';
 
@@ -83,19 +82,9 @@ export abstract class AbstractMcpManagementService extends Disposable implements
 	protected async scanServer(scannedMcpServer: IScannedMcpServer, mcpResource: URI): Promise<ILocalMcpServer> {
 		let mcpServerInfo = await this.getLocalMcpServerInfo(scannedMcpServer);
 		if (!mcpServerInfo) {
-			let publisher = '';
-			const nameParts = scannedMcpServer.name.split('/');
-			if (nameParts.length > 0) {
-				const domainParts = nameParts[0].split('.');
-				if (domainParts.length > 0) {
-					publisher = domainParts[domainParts.length - 1]; // Always take the last part as owner
-				}
-			}
 			mcpServerInfo = {
 				name: scannedMcpServer.name,
 				version: '1.0.0',
-				displayName: nameParts[nameParts.length - 1].split('-').map(s => uppercaseFirstLetter(s)).join(' '),
-				publisher
 			};
 		}
 
@@ -117,7 +106,7 @@ export abstract class AbstractMcpManagementService extends Disposable implements
 		};
 	}
 
-	async install(server: IMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
+	async install(server: IInstallableMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
 		this.logService.trace('MCP Management Service: install', server.name);
 
 		const mcpResource = options?.mcpResource ?? this.getDefaultMcpResource();

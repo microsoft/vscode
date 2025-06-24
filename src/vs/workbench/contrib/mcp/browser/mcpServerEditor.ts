@@ -317,9 +317,11 @@ export class McpServerEditor extends EditorPane {
 			this.currentIdentifier = extension.id;
 		}
 
-		template.navbar.push(McpServerEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
+		if (extension.hasReadme()) {
+			template.navbar.push(McpServerEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
+		}
 
-		if (extension.local) {
+		if (extension.config) {
 			template.navbar.push(McpServerEditorTab.Configuration, localize('configuration', "Configuration"), localize('configurationtooltip', "Server configuration details"));
 		}
 
@@ -562,20 +564,20 @@ export class McpServerEditor extends EditorPane {
 	private renderConfigurationDetails(container: HTMLElement, mcpServer: IWorkbenchMcpServer): void {
 		container.remove();
 
-		if (!mcpServer.local) {
+		const config = mcpServer.config;
+
+		if (!config) {
 			const noConfigMessage = append(container, $('.no-config'));
 			noConfigMessage.textContent = localize('noConfig', "No configuration available for this MCP server.");
 			return;
 		}
-
-		const config = mcpServer.local.config;
 
 		// Server Name
 		const nameSection = append(container, $('.config-section'));
 		const nameLabel = append(nameSection, $('.config-label'));
 		nameLabel.textContent = localize('serverName', "Name:");
 		const nameValue = append(nameSection, $('.config-value'));
-		nameValue.textContent = mcpServer.local.name;
+		nameValue.textContent = mcpServer.name;
 
 		// Server Type
 		const typeSection = append(container, $('.config-section'));
