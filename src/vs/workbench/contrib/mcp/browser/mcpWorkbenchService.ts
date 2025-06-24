@@ -6,24 +6,41 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { basename } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, InstallMcpServerResult, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { DidUninstallMcpServerEvent, IGalleryMcpServer, IMcpGalleryService, InstallMcpServerResult, IQueryOptions, IMcpServer } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { StorageScope } from '../../../../platform/storage/common/storage.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { MCP_CONFIGURATION_KEY, WORKSPACE_STANDALONE_CONFIGURATIONS } from '../../../services/configuration/common/configuration.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
-import { HasInstalledMcpServersContext, IMcpWorkbenchService, IWorkbenchMcpServer, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IWorkbenchLocalMcpServer, IWorkbenchMcpManagementService, LocalMcpServerScope } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { mcpConfigurationSection } from '../common/mcpConfiguration.js';
+import { HasInstalledMcpServersContext, IMcpConfigPath, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionSortOrder, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
 
 class McpWorkbenchServer implements IWorkbenchMcpServer {
 
 	constructor(
-		public local: ILocalMcpServer | undefined,
+		public local: IWorkbenchLocalMcpServer | undefined,
 		public gallery: IGalleryMcpServer | undefined,
 		@IMcpGalleryService private readonly mcpGalleryService: IMcpGalleryService,
 		@IFileService private readonly fileService: IFileService,
 	) {
+		this.local = local;
 	}
 
 	get id(): string {
@@ -93,13 +110,20 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 
 	constructor(
 		@IMcpGalleryService private readonly mcpGalleryService: IMcpGalleryService,
-		@IMcpManagementService private readonly mcpManagementService: IMcpManagementService,
+		@IWorkbenchMcpManagementService private readonly mcpManagementService: IWorkbenchMcpManagementService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IProductService private readonly productService: IProductService,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
-		this._register(this.mcpManagementService.onDidInstallMcpServers(e => this.onDidInstallMcpServers(e)));
-		this._register(this.mcpManagementService.onDidUninstallMcpServer(e => this.onDidUninstallMcpServer(e)));
+		this._register(this.mcpManagementService.onDidInstallMcpServersInCurrentProfile(e => this.onDidInstallMcpServers(e)));
+		this._register(this.mcpManagementService.onDidUninstallMcpServerInCurrentProfile(e => this.onDidUninstallMcpServer(e)));
 		this.queryLocal().then(async () => {
 			await this.queryGallery();
 			this._onChange.fire(undefined);
@@ -162,11 +186,15 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		return this._local;
 	}
 
-	async install(server: IWorkbenchMcpServer): Promise<void> {
+	async install(server: IMcpServer): Promise<void> {
+		await this.mcpManagementService.install(server);
+	}
+
+	async installFromGallery(server: IWorkbenchMcpServer): Promise<void> {
 		if (!server.gallery) {
 			throw new Error('Gallery server is missing');
 		}
-		await this.mcpManagementService.installFromGallery(server.gallery, server.gallery.packageTypes[0]);
+		await this.mcpManagementService.installFromGallery(server.gallery, { packageType: server.gallery.packageTypes[0] });
 	}
 
 	async uninstall(server: IWorkbenchMcpServer): Promise<void> {
@@ -174,6 +202,104 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			throw new Error('Local server is missing');
 		}
 		await this.mcpManagementService.uninstall(server.local);
+	}
+
+	getMcpConfigPath(localMcpServer: IWorkbenchLocalMcpServer): IMcpConfigPath | undefined;
+	getMcpConfigPath(mcpResource: URI): Promise<IMcpConfigPath | undefined>;
+	getMcpConfigPath(arg: URI | IWorkbenchLocalMcpServer): Promise<IMcpConfigPath | undefined> | IMcpConfigPath | undefined {
+		if (arg instanceof URI) {
+			const mcpResource = arg;
+			for (const profile of this.userDataProfilesService.profiles) {
+				if (this.uriIdentityService.extUri.isEqual(profile.mcpResource, mcpResource)) {
+					return this.getUserMcpConfigPath(mcpResource);
+				}
+			}
+
+			return this.remoteAgentService.getEnvironment().then(remoteEnvironment => {
+				if (remoteEnvironment && this.uriIdentityService.extUri.isEqual(remoteEnvironment.mcpResource, mcpResource)) {
+					return this.getRemoteMcpConfigPath(mcpResource);
+				}
+				return this.getWorkspaceMcpConfigPath(mcpResource);
+			});
+		}
+
+		if (arg.scope === LocalMcpServerScope.User) {
+			return this.getUserMcpConfigPath(arg.mcpResource);
+		}
+
+		if (arg.scope === LocalMcpServerScope.Workspace) {
+			return this.getWorkspaceMcpConfigPath(arg.mcpResource);
+		}
+
+		if (arg.scope === LocalMcpServerScope.RemoteUser) {
+			return this.getRemoteMcpConfigPath(arg.mcpResource);
+		}
+
+		return undefined;
+	}
+
+	private getUserMcpConfigPath(mcpResource: URI): IMcpConfigPath {
+		return {
+			id: 'usrlocal',
+			key: 'userLocalValue',
+			target: ConfigurationTarget.USER_LOCAL,
+			label: localize('mcp.configuration.userLocalValue', 'Global in {0}', this.productService.nameShort),
+			scope: StorageScope.PROFILE,
+			order: McpCollectionSortOrder.User,
+			uri: mcpResource,
+			section: [],
+		};
+	}
+
+	private getRemoteMcpConfigPath(mcpResource: URI): IMcpConfigPath {
+		return {
+			id: 'usrremote',
+			key: 'userRemoteValue',
+			target: ConfigurationTarget.USER_REMOTE,
+			label: this.environmentService.remoteAuthority ? this.labelService.getHostLabel(Schemas.vscodeRemote, this.environmentService.remoteAuthority) : 'Remote',
+			scope: StorageScope.PROFILE,
+			order: McpCollectionSortOrder.User + McpCollectionSortOrder.RemoteBoost,
+			remoteAuthority: this.environmentService.remoteAuthority,
+			uri: mcpResource,
+			section: [],
+		};
+	}
+
+	private getWorkspaceMcpConfigPath(mcpResource: URI): IMcpConfigPath | undefined {
+		const workspace = this.workspaceService.getWorkspace();
+		if (workspace.configuration && this.uriIdentityService.extUri.isEqual(workspace.configuration, mcpResource)) {
+			return {
+				id: 'workspace',
+				key: 'workspaceValue',
+				target: ConfigurationTarget.WORKSPACE,
+				label: basename(mcpResource),
+				scope: StorageScope.WORKSPACE,
+				order: McpCollectionSortOrder.Workspace,
+				remoteAuthority: this.environmentService.remoteAuthority,
+				uri: mcpResource,
+				section: ['settings', mcpConfigurationSection],
+			};
+		}
+
+		const workspaceFolders = workspace.folders;
+		for (let index = 0; index < workspaceFolders.length; index++) {
+			const workspaceFolder = workspaceFolders[index];
+			if (this.uriIdentityService.extUri.isEqual(this.uriIdentityService.extUri.joinPath(workspaceFolder.uri, WORKSPACE_STANDALONE_CONFIGURATIONS[MCP_CONFIGURATION_KEY]), mcpResource)) {
+				return {
+					id: `wf${index}`,
+					key: 'workspaceFolderValue',
+					target: ConfigurationTarget.WORKSPACE_FOLDER,
+					label: `${workspaceFolder.name}/.vscode/mcp.json`,
+					scope: StorageScope.WORKSPACE,
+					remoteAuthority: this.environmentService.remoteAuthority,
+					order: McpCollectionSortOrder.WorkspaceFolder,
+					uri: mcpResource,
+					workspaceFolder,
+				};
+			}
+		}
+
+		return undefined;
 	}
 
 	async open(extension: IWorkbenchMcpServer, options?: IEditorOptions): Promise<void> {

@@ -4,16 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
 import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
 import { SortBy, SortOrder } from '../../extensionManagement/common/extensionManagement.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { IMcpServerConfiguration } from './mcpPlatformTypes.js';
+import { IMcpServerConfiguration, IMcpServerVariable } from './mcpPlatformTypes.js';
+
+export interface IScannedMcpServers {
+	servers?: IStringDictionary<IScannedMcpServer>;
+	inputs?: IMcpServerVariable[];
+}
+
+export interface IScannedMcpServer {
+	readonly id: string;
+	readonly name: string;
+	readonly version: string;
+	readonly gallery?: boolean;
+	readonly config: IMcpServerConfiguration;
+}
 
 export interface ILocalMcpServer {
 	readonly name: string;
 	readonly config: IMcpServerConfiguration;
 	readonly version: string;
+	readonly mcpResource: URI;
 	readonly location?: URI;
 	readonly id?: string;
 	readonly displayName?: string;
@@ -118,36 +133,6 @@ export interface IQueryOptions {
 	sortOrder?: SortOrder;
 }
 
-export interface InstallMcpServerEvent {
-	readonly name: string;
-	readonly source?: IGalleryMcpServer;
-	readonly applicationScoped?: boolean;
-	readonly workspaceScoped?: boolean;
-}
-
-export interface InstallMcpServerResult {
-	readonly name: string;
-	readonly source?: IGalleryMcpServer;
-	readonly local?: ILocalMcpServer;
-	readonly error?: Error;
-	readonly applicationScoped?: boolean;
-	readonly workspaceScoped?: boolean;
-}
-
-export interface UninstallMcpServerEvent {
-	readonly name: string;
-	readonly applicationScoped?: boolean;
-	readonly workspaceScoped?: boolean;
-}
-
-export interface DidUninstallMcpServerEvent {
-	readonly name: string;
-	readonly error?: string;
-	readonly applicationScoped?: boolean;
-	readonly workspaceScoped?: boolean;
-}
-
-
 export const IMcpGalleryService = createDecorator<IMcpGalleryService>('IMcpGalleryService');
 export interface IMcpGalleryService {
 	readonly _serviceBrand: undefined;
@@ -157,6 +142,46 @@ export interface IMcpGalleryService {
 	getReadme(extension: IGalleryMcpServer, token: CancellationToken): Promise<string>;
 }
 
+export interface InstallMcpServerEvent {
+	readonly name: string;
+	readonly mcpResource: URI;
+	readonly source?: IGalleryMcpServer;
+}
+
+export interface InstallMcpServerResult {
+	readonly name: string;
+	readonly mcpResource: URI;
+	readonly source?: IGalleryMcpServer;
+	readonly local?: ILocalMcpServer;
+	readonly error?: Error;
+}
+
+export interface UninstallMcpServerEvent {
+	readonly name: string;
+	readonly mcpResource: URI;
+}
+
+export interface DidUninstallMcpServerEvent {
+	readonly name: string;
+	readonly mcpResource: URI;
+	readonly error?: string;
+}
+
+export type InstallOptions = {
+	packageType?: PackageType;
+	mcpResource?: URI;
+};
+
+export type UninstallOptions = {
+	mcpResource?: URI;
+};
+
+export interface IMcpServer {
+	name: string;
+	config: IMcpServerConfiguration;
+	inputs?: IMcpServerVariable[];
+}
+
 export const IMcpManagementService = createDecorator<IMcpManagementService>('IMcpManagementService');
 export interface IMcpManagementService {
 	readonly _serviceBrand: undefined;
@@ -164,9 +189,10 @@ export interface IMcpManagementService {
 	readonly onDidInstallMcpServers: Event<readonly InstallMcpServerResult[]>;
 	readonly onUninstallMcpServer: Event<UninstallMcpServerEvent>;
 	readonly onDidUninstallMcpServer: Event<DidUninstallMcpServerEvent>;
-	getInstalled(): Promise<ILocalMcpServer[]>;
-	installFromGallery(server: IGalleryMcpServer, packageType: PackageType): Promise<void>;
-	uninstall(server: ILocalMcpServer): Promise<void>;
+	getInstalled(mcpResource?: URI): Promise<ILocalMcpServer[]>;
+	install(server: IMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
+	installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
+	uninstall(server: ILocalMcpServer, options?: UninstallOptions): Promise<void>;
 }
 
 export const mcpGalleryServiceUrlConfig = 'chat.mcp.gallery.serviceUrl';
