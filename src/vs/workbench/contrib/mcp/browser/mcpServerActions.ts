@@ -12,11 +12,13 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { manageExtensionIcon } from '../../extensions/browser/extensionsIcons.js';
 import { getDomNodePagePosition } from '../../../../base/browser/dom.js';
-import { IMcpServer, IMcpServerContainer, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState } from '../common/mcpTypes.js';
+import { IMcpSamplingService, IMcpServer, IMcpServerContainer, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCapability, McpConnectionState } from '../common/mcpTypes.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { McpCommandIds } from '../common/mcpCommandIds.js';
 
 export abstract class McpServerAction extends Action implements IMcpServerContainer {
 
@@ -187,6 +189,13 @@ export class ManageMcpServerAction extends DropDownAction {
 		groups.push([
 			this.instantiationService.createInstance(ShowServerOutputAction),
 			this.instantiationService.createInstance(ShowServerConfigurationAction),
+		]);
+		groups.push([
+			this.instantiationService.createInstance(ConfigureModelAccessAction),
+			this.instantiationService.createInstance(ShowSamplingRequestsAction),
+		]);
+		groups.push([
+			this.instantiationService.createInstance(BrowseResourcesAction),
 		]);
 		if (!this.isEditorAction) {
 			groups.push([
@@ -454,5 +463,154 @@ export class ShowServerConfigurationAction extends McpServerAction {
 		const collection = this.mcpRegistry.collections.get().find(c => c.id === server.collection.id);
 		const serverDefinition = collection?.serverDefinitions.get().find(s => s.id === server.definition.id);
 		return serverDefinition?.presentation?.origin || collection?.presentation?.origin;
+	}
+}
+
+export class ConfigureModelAccessAction extends McpServerAction {
+
+	static readonly CLASS = `${this.LABEL_ACTION_CLASS} prominent config`;
+	private static readonly HIDE = `${this.CLASS} hide`;
+
+	constructor(
+		@IMcpService private readonly mcpService: IMcpService,
+		@ICommandService private readonly commandService: ICommandService,
+	) {
+		super('extensions.config', localize('mcp.configAccess', 'Configure Model Access'), ConfigureModelAccessAction.CLASS, false);
+		this.update();
+	}
+
+	update(): void {
+		this.enabled = false;
+		this.class = ConfigureModelAccessAction.HIDE;
+		const server = this.getServer();
+		if (!server) {
+			return;
+		}
+		this.class = ConfigureModelAccessAction.CLASS;
+		this.enabled = true;
+		this.label = localize('mcp.configAccess', 'Configure Model Access');
+	}
+
+	override async run(): Promise<any> {
+		const server = this.getServer();
+		if (!server) {
+			return;
+		}
+		this.commandService.executeCommand(McpCommandIds.ConfigureSamplingModels, server);
+	}
+
+	private getServer(): IMcpServer | undefined {
+		if (!this.mcpServer) {
+			return;
+		}
+		if (!this.mcpServer.local) {
+			return;
+		}
+		return this.mcpService.servers.get().find(s => s.definition.label === this.mcpServer?.name);
+	}
+}
+
+export class ShowSamplingRequestsAction extends McpServerAction {
+
+	static readonly CLASS = `${this.LABEL_ACTION_CLASS} prominent config`;
+	private static readonly HIDE = `${this.CLASS} hide`;
+
+	constructor(
+		@IMcpService private readonly mcpService: IMcpService,
+		@IMcpSamplingService private readonly samplingService: IMcpSamplingService,
+		@IEditorService private readonly editorService: IEditorService,
+	) {
+		super('extensions.config', localize('mcp.samplingLog', 'Show Sampling Requests'), ShowSamplingRequestsAction.CLASS, false);
+		this.update();
+	}
+
+	update(): void {
+		this.enabled = false;
+		this.class = ShowSamplingRequestsAction.HIDE;
+		const server = this.getServer();
+		if (!server) {
+			return;
+		}
+		if (!this.samplingService.hasLogs(server)) {
+			return;
+		}
+		this.class = ShowSamplingRequestsAction.CLASS;
+		this.enabled = true;
+	}
+
+	override async run(): Promise<any> {
+		const server = this.getServer();
+		if (!server) {
+			return;
+		}
+		if (!this.samplingService.hasLogs(server)) {
+			return;
+		}
+		this.editorService.openEditor({
+			resource: undefined,
+			contents: this.samplingService.getLogText(server),
+			label: localize('mcp.samplingLog.title', 'MCP Sampling: {0}', server.definition.label),
+		});
+	}
+
+	private getServer(): IMcpServer | undefined {
+		if (!this.mcpServer) {
+			return;
+		}
+		if (!this.mcpServer.local) {
+			return;
+		}
+		return this.mcpService.servers.get().find(s => s.definition.label === this.mcpServer?.name);
+	}
+}
+
+export class BrowseResourcesAction extends McpServerAction {
+
+	static readonly CLASS = `${this.LABEL_ACTION_CLASS} prominent config`;
+	private static readonly HIDE = `${this.CLASS} hide`;
+
+	constructor(
+		@IMcpService private readonly mcpService: IMcpService,
+		@ICommandService private readonly commandService: ICommandService,
+	) {
+		super('extensions.config', localize('mcp.resources', 'Browse Resources'), BrowseResourcesAction.CLASS, false);
+		this.update();
+	}
+
+	update(): void {
+		this.enabled = false;
+		this.class = BrowseResourcesAction.HIDE;
+		const server = this.getServer();
+		if (!server) {
+			return;
+		}
+		const capabilities = server.capabilities.get();
+		if (capabilities !== undefined && !(capabilities & McpCapability.Resources)) {
+			return;
+		}
+		this.class = BrowseResourcesAction.CLASS;
+		this.enabled = true;
+	}
+
+	override async run(): Promise<any> {
+		const server = this.getServer();
+		if (!server) {
+			return;
+		}
+		const capabilities = server.capabilities.get();
+		if (capabilities !== undefined && !(capabilities & McpCapability.Resources)) {
+			return;
+		}
+		return this.commandService.executeCommand(McpCommandIds.BrowseResources, server);
+	}
+
+	private getServer(): IMcpServer | undefined {
+		if (!this.mcpServer) {
+			return;
+		}
+		if (!this.mcpServer.local) {
+			return;
+		}
+		return this.mcpService.servers.get().find(s => s.definition.label === this.mcpServer?.name);
 	}
 }
