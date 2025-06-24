@@ -120,7 +120,7 @@ export class InstallAction extends McpServerAction {
 		if (!this.mcpServer) {
 			return;
 		}
-		await this.mcpWorkbenchService.installFromGallery(this.mcpServer);
+		await this.mcpWorkbenchService.install(this.mcpServer);
 	}
 }
 
