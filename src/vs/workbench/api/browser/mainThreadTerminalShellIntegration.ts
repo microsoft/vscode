@@ -12,6 +12,7 @@ import { ITerminalService, type ITerminalInstance } from '../../contrib/terminal
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { extHostNamedCustomer, type IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { TerminalShellExecutionCommandLineConfidence } from '../common/extHostTypes.js';
+import { IExtensionService } from '../../services/extensions/common/extensions.js';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalShellIntegration)
 export class MainThreadTerminalShellIntegration extends Disposable implements MainThreadTerminalShellIntegrationShape {
@@ -20,7 +21,8 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 	constructor(
 		extHostContext: IExtHostContext,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		super();
 
@@ -116,6 +118,7 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 	}
 
 	private _enableShellIntegration(instance: ITerminalInstance): void {
+		this._extensionService.activateByEvent('onTerminalShellIntegration');
 		this._proxy.$shellIntegrationChange(instance.instanceId);
 		const cwdDetection = instance.capabilities.get(TerminalCapability.CwdDetection);
 		if (cwdDetection) {

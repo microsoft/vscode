@@ -404,6 +404,11 @@ export const schema: IJSONSchema = {
 						description: nls.localize('vscode.extension.activationEvents.onTerminalCompletionsRequested', 'An activation event emitted when terminal completions are requested.'),
 					},
 					{
+						label: 'onTerminalShellIntegration',
+						body: 'onTerminalShellIntegration',
+						description: nls.localize('vscode.extension.activationEvents.onTerminalShellIntegration', 'An activation event emitted when terminal shell integration is activated.'),
+					},
+					{
 						label: 'onMcpCollection',
 						description: nls.localize('vscode.extension.activationEvents.onMcpCollection', 'An activation event emitted whenver a tool from the MCP server is requested.'),
 						body: 'onMcpCollection:${2:collectionId}',
