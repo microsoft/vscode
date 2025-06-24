@@ -36,10 +36,8 @@ async function main() {
     await (0, zx_1.$) `New-Item -ItemType Directory -Path .build/win32-${arch} -Force`;
     // Package client
     if (process.env['BUILT_CLIENT']) {
-        // Product version
-        const version = await (0, zx_1.$) `node -p "require('../VSCode-win32-${arch}/resources/app/package.json').version"`;
         (0, codesign_1.printBanner)('Package client');
-        const clientArchivePath = `.build/win32-${arch}/VSCode-win32-${arch}-${version}.zip`;
+        const clientArchivePath = `.build/win32-${arch}/VSCode-win32-${arch}.zip`;
         await (0, zx_1.$) `7z.exe a -tzip ${clientArchivePath} ../VSCode-win32-${arch}/* "-xr!CodeSignSummary*.md"`.pipe(process.stdout);
         await (0, zx_1.$) `7z.exe l ${clientArchivePath}`.pipe(process.stdout);
     }
