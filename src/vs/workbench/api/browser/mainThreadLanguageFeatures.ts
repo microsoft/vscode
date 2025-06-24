@@ -680,13 +680,12 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				return `InlineCompletionsProvider(${extensionId})`;
 			},
 		};
-		this._registrations.set(handle, this._languageFeaturesService.inlineCompletionsProvider.register(selector, provider));
-
 		if (typeof eventHandle === 'number') {
 			const emitter = new Emitter<void>();
 			this._registrations.set(eventHandle, emitter);
 			provider.onDidChangeInlineCompletions = emitter.event;
 		}
+		this._registrations.set(handle, this._languageFeaturesService.inlineCompletionsProvider.register(selector, provider));
 	}
 
 	$emitInlineCompletionsChange(handle: number): void {
