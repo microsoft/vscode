@@ -3381,6 +3381,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		// Restart all active tasks
 		const restartPromises = activeTasks.map(task => this._restart(task));
 		await Promise.allSettled(restartPromises);
+		
+		// Provide feedback on completion
+		const taskCount = activeTasks.length;
+		this._notificationService.info(nls.localize('TaskService.restartedTasks', 'Restarted {0} task{1}', taskCount, taskCount === 1 ? '' : 's'));
 	}
 
 	private _getTaskIdentifier(filter?: string | ITaskIdentifier): string | KeyedTaskIdentifier | undefined {
