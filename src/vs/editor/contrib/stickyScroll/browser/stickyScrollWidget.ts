@@ -55,6 +55,12 @@ const Z_INDEX_LAST_LINE = '0';
 const Z_INDEX_REGULAR_LINE = '1';
 const FOLDING_OPACITY_TRANSITION_DURATION = 0.5;
 
+// Constants for CSS classes and attributes
+const STICKY_WIDGET_ID = 'editor.contrib.stickyScrollWidget';
+const STICKY_LINE_CONTENT_CLASS = 'sticky-line-content';
+const STICKY_LINE_NUMBER_CLASS = 'sticky-line-number';
+const STICKY_LINE_NUMBER_INNER_CLASS = 'sticky-line-number-inner';
+
 export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	private readonly _foldingIconStore = new DisposableStore();
@@ -149,6 +155,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		return this._lineNumbers;
 	}
 
+	/**
+	 * Sets the state of the sticky scroll widget, triggering a re-render if necessary.
+	 */
 	setState(state: StickyScrollWidgetState | undefined, foldingModel: FoldingModel | undefined, rebuildFromIndexCandidate?: number): void {
 		if (this._shouldSkipStateUpdate(state)) {
 			return;
@@ -414,7 +423,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		lineHTMLNode.setAttribute(STICKY_IS_LINE_ATTR, '');
 		lineHTMLNode.setAttribute('role', 'listitem');
 		lineHTMLNode.tabIndex = 0;
-		lineHTMLNode.className = 'sticky-line-content';
+		lineHTMLNode.className = STICKY_LINE_CONTENT_CLASS;
 		lineHTMLNode.classList.add(`stickyLine${line}`);
 		lineHTMLNode.style.lineHeight = `${lineHeight}px`;
 		lineHTMLNode.innerHTML = content;
@@ -428,7 +437,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const lineNumberHTMLNode = document.createElement('span');
 		lineNumberHTMLNode.setAttribute(STICKY_INDEX_ATTR, String(index));
 		lineNumberHTMLNode.setAttribute(STICKY_IS_LINE_NUMBER_ATTR, '');
-		lineNumberHTMLNode.className = 'sticky-line-number';
+		lineNumberHTMLNode.className = STICKY_LINE_NUMBER_CLASS;
 		lineNumberHTMLNode.style.lineHeight = `${lineHeight}px`;
 		lineNumberHTMLNode.style.width = `${lineNumbersWidth}px`;
 
@@ -438,7 +447,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		} else if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
 			innerLineNumberHTML.innerText = Math.abs(line - this._editor.getPosition()!.lineNumber).toString();
 		}
-		innerLineNumberHTML.className = 'sticky-line-number-inner';
+		innerLineNumberHTML.className = STICKY_LINE_NUMBER_INNER_CLASS;
 		innerLineNumberHTML.style.width = `${layoutInfo.lineNumbersWidth}px`;
 		innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft}px`;
 
@@ -449,44 +458,50 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _updatePosition(stickyLine: RenderedStickyLine, top: number, isLastLine: boolean): RenderedStickyLine {
 		const lineHTMLNode = stickyLine.lineDomNode;
 		const lineNumberHTMLNode = stickyLine.lineNumberDomNode;
+		
 		if (isLastLine) {
-			const zIndex = Z_INDEX_LAST_LINE;
-			lineHTMLNode.style.zIndex = zIndex;
-			lineNumberHTMLNode.style.zIndex = zIndex;
-			const updatedTop = `${top + this._lastLineRelativePosition + (stickyLine.foldingIcon?.isCollapsed ? 1 : 0)}px`;
-			lineHTMLNode.style.top = updatedTop;
-			lineNumberHTMLNode.style.top = updatedTop;
+			const updatedTop = top + this._lastLineRelativePosition + (stickyLine.foldingIcon?.isCollapsed ? 1 : 0);
+			this._setElementPosition(lineHTMLNode, lineNumberHTMLNode, Z_INDEX_LAST_LINE, updatedTop);
 		} else {
-			const zIndex = Z_INDEX_REGULAR_LINE;
-			lineHTMLNode.style.zIndex = zIndex;
-			lineNumberHTMLNode.style.zIndex = zIndex;
-			lineHTMLNode.style.top = `${top}px`;
-			lineNumberHTMLNode.style.top = `${top}px`;
+			this._setElementPosition(lineHTMLNode, lineNumberHTMLNode, Z_INDEX_REGULAR_LINE, top);
 		}
 		return stickyLine;
+	}
+
+	private _setElementPosition(lineElement: HTMLElement, lineNumberElement: HTMLElement, zIndex: string, top: number): void {
+		lineElement.style.zIndex = zIndex;
+		lineNumberElement.style.zIndex = zIndex;
+		const topPx = `${top}px`;
+		lineElement.style.top = topPx;
+		lineNumberElement.style.top = topPx;
 	}
 
 	private _renderFoldingIconForLine(foldingModel: FoldingModel | undefined, line: number): StickyFoldingIcon | undefined {
 		const showFoldingControls: 'mouseover' | 'always' | 'never' = this._editor.getOption(EditorOption.showFoldingControls);
 		if (!foldingModel || showFoldingControls === 'never') {
-			return;
+			return undefined;
 		}
+
 		const foldingRegions = foldingModel.regions;
 		const indexOfFoldingRegion = foldingRegions.findRange(line);
 		const startLineNumber = foldingRegions.getStartLineNumber(indexOfFoldingRegion);
 		const isFoldingScope = line === startLineNumber;
 		if (!isFoldingScope) {
-			return;
+			return undefined;
 		}
+
 		const isCollapsed = foldingRegions.isCollapsed(indexOfFoldingRegion);
-		const foldingIcon = new StickyFoldingIcon(isCollapsed, startLineNumber, foldingRegions.getEndLineNumber(indexOfFoldingRegion), this._lineHeight);
-		foldingIcon.setVisible(this._isOnGlyphMargin ? true : (isCollapsed || showFoldingControls === 'always'));
+		const endLineNumber = foldingRegions.getEndLineNumber(indexOfFoldingRegion);
+		const foldingIcon = new StickyFoldingIcon(isCollapsed, startLineNumber, endLineNumber, this._lineHeight);
+		
+		const shouldBeVisible = this._isOnGlyphMargin || isCollapsed || showFoldingControls === 'always';
+		foldingIcon.setVisible(shouldBeVisible);
 		foldingIcon.domNode.setAttribute(STICKY_IS_FOLDING_ICON_ATTR, '');
 		return foldingIcon;
 	}
 
 	getId(): string {
-		return 'editor.contrib.stickyScrollWidget';
+		return STICKY_WIDGET_ID;
 	}
 
 	getDomNode(): HTMLElement {
@@ -504,10 +519,17 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		return this._minContentWidthInPx;
 	}
 
+	/**
+	 * Focuses the sticky line at the given index.
+	 */
 	focusLineWithIndex(index: number) {
-		if (0 <= index && index < this._renderedStickyLines.length) {
+		if (this._isValidLineIndex(index)) {
 			this._renderedStickyLines[index].lineDomNode.focus();
 		}
+	}
+
+	private _isValidLineIndex(index: number): boolean {
+		return index >= 0 && index < this._renderedStickyLines.length;
 	}
 
 	/**
@@ -532,7 +554,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	private _getRenderedStickyLineFromChildDomNode(domNode: HTMLElement | null): RenderedStickyLine | null {
 		const index = this.getLineIndexFromChildDomNode(domNode);
-		if (index === null || index < 0 || index >= this._renderedStickyLines.length) {
+		if (index === null || !this._isValidLineIndex(index)) {
 			return null;
 		}
 		return this._renderedStickyLines[index];
