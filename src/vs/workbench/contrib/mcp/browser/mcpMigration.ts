@@ -6,7 +6,7 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IMcpServerConfiguration, IMcpServerVariable } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { mcpConfigurationSection } from '../../../contrib/mcp/common/mcpConfiguration.js';
 import { IWorkbenchMcpManagementService } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
@@ -15,7 +15,7 @@ import { IUserDataProfileService } from '../../../services/userDataProfile/commo
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { URI } from '../../../../base/common/uri.js';
 import { parse } from '../../../../base/common/jsonc.js';
-import { isObject } from '../../../../base/common/types.js';
+import { isObject, Mutable } from '../../../../base/common/types.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { IJSONEditingService } from '../../../services/configuration/common/jsonEditing.js';
 
@@ -73,7 +73,15 @@ export class McpConfigMigrationContribution extends Disposable implements IWorkb
 			if (!isObject(settingsObject)) {
 				return undefined;
 			}
-			return settingsObject[mcpConfigurationSection] as IMcpConfiguration;
+			const mcpConfiguration = settingsObject[mcpConfigurationSection] as IMcpConfiguration;
+			if (mcpConfiguration && mcpConfiguration.servers) {
+				for (const [, config] of Object.entries(mcpConfiguration.servers)) {
+					if (config.type === undefined) {
+						(<Mutable<IMcpServerConfiguration>>config).type = (<IMcpStdioServerConfiguration>config).command ? 'stdio' : 'http';
+					}
+				}
+			}
+			return mcpConfiguration;
 		} catch (error) {
 			this.logService.warn(`MCP migration: Failed to parse MCP config from ${settingsFile}:`, error);
 			return;

@@ -36,6 +36,10 @@ import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 
+export interface McpServerListViewOptions {
+	showWelcomeOnEmpty?: boolean;
+}
+
 export class McpServersListView extends ViewPane {
 
 	private list: WorkbenchPagedList<IWorkbenchMcpServer> | null = null;
@@ -44,6 +48,7 @@ export class McpServersListView extends ViewPane {
 	private readonly contextMenuActionRunner = this._register(new ActionRunner());
 
 	constructor(
+		private readonly mpcViewOptions: McpServerListViewOptions,
 		options: IViewletViewOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -143,7 +148,7 @@ export class McpServersListView extends ViewPane {
 		const servers = query ? await this.mcpWorkbenchService.queryGallery({ text: query.replace('@mcp', '') }) : await this.mcpWorkbenchService.queryLocal();
 		this.list.model = new DelayedPagedModel(new PagedModel(servers));
 
-		this.showWelcomeContent(!this.mcpGalleryService.isEnabled() && servers.length === 0);
+		this.showWelcomeContent(!this.mcpGalleryService.isEnabled() && servers.length === 0 && !!this.mpcViewOptions.showWelcomeOnEmpty);
 		return this.list.model;
 	}
 
@@ -271,5 +276,12 @@ class McpServerRenderer implements IListRenderer<IWorkbenchMcpServer, IMcpServer
 	disposeTemplate(data: IMcpServerTemplateData): void {
 		data.mcpServerDisposables = dispose(data.mcpServerDisposables);
 		data.disposables = dispose(data.disposables);
+	}
+}
+
+
+export class DefaultBrowseMcpServersView extends McpServersListView {
+	override async show(): Promise<IPagedModel<IWorkbenchMcpServer>> {
+		return super.show('@mcp');
 	}
 }

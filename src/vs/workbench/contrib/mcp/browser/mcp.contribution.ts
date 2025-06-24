@@ -34,7 +34,7 @@ import { McpSamplingService } from '../common/mcpSamplingService.js';
 import { McpService } from '../common/mcpService.js';
 import { HasInstalledMcpServersContext, IMcpElicitationService, IMcpSamplingService, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId } from '../common/mcpTypes.js';
 import { McpAddContextContribution } from './mcpAddContextContribution.js';
-import { AddConfigurationAction, EditStoredInput, InstallFromActivation, ListMcpServerCommand, McpBrowseCommand, McpBrowseResourcesCommand, McpConfigureSamplingModels, MCPServerActionRendering, McpServerOptionsCommand, McpStartPromptingServerCommand, RemoveStoredInput, ResetMcpCachedTools, ResetMcpTrustCommand, RestartServer, ShowConfiguration, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
+import { AddConfigurationAction, EditStoredInput, InstallFromActivation, ListMcpServerCommand, McpBrowseCommand, McpBrowseResourcesCommand, McpConfigureSamplingModels, MCPServerActionRendering, McpServerOptionsCommand, McpStartPromptingServerCommand, RemoveStoredInput, ResetMcpCachedTools, ResetMcpTrustCommand, RestartServer, ShowConfiguration, ShowInstalledMcpServersCommand, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
 import { McpDiscovery } from './mcpDiscovery.js';
 import { McpElicitationService } from './mcpElicitationService.js';
 import { McpLanguageFeatures } from './mcpLanguageFeatures.js';
@@ -42,7 +42,7 @@ import { McpConfigMigrationContribution } from './mcpMigration.js';
 import { McpResourceQuickAccess } from './mcpResourceQuickAccess.js';
 import { McpServerEditor } from './mcpServerEditor.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
-import { McpServersListView } from './mcpServersView.js';
+import { DefaultBrowseMcpServersView, McpServersListView } from './mcpServersView.js';
 import { McpUrlHandler } from './mcpUrlHandler.js';
 import { MCPContextsInitialisation, McpWorkbenchService } from './mcpWorkbenchService.js';
 
@@ -78,6 +78,7 @@ registerAction2(InstallFromActivation);
 registerAction2(RestartServer);
 registerAction2(ShowConfiguration);
 registerAction2(McpBrowseCommand);
+registerAction2(ShowInstalledMcpServersCommand);
 registerAction2(McpBrowseResourcesCommand);
 registerAction2(McpConfigureSamplingModels);
 registerAction2(McpStartPromptingServerCommand);
@@ -94,8 +95,17 @@ Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([
 	{
 		id: InstalledMcpServersViewId,
 		name: localize2('mcp-installed', "MCP Servers - Installed"),
-		ctorDescriptor: new SyncDescriptor(McpServersListView),
+		ctorDescriptor: new SyncDescriptor(McpServersListView, [{ showWelcomeOnEmpty: false }]),
 		when: ContextKeyExpr.and(DefaultViewsContext, HasInstalledMcpServersContext),
+		weight: 40,
+		order: 4,
+		canToggleVisibility: true
+	},
+	{
+		id: 'workbench.views.mcp.default.marketplace',
+		name: localize2('mcp', "MCP Servers"),
+		ctorDescriptor: new SyncDescriptor(DefaultBrowseMcpServersView, [{ showWelcomeOnEmpty: true }]),
+		when: ContextKeyExpr.and(DefaultViewsContext, HasInstalledMcpServersContext.toNegated()),
 		weight: 40,
 		order: 4,
 		canToggleVisibility: true
@@ -103,7 +113,7 @@ Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([
 	{
 		id: 'workbench.views.mcp.marketplace',
 		name: localize2('mcp', "MCP Servers"),
-		ctorDescriptor: new SyncDescriptor(McpServersListView),
+		ctorDescriptor: new SyncDescriptor(McpServersListView, [{ showWelcomeOnEmpty: true }]),
 		when: ContextKeyExpr.and(SearchMcpServersContext),
 	}
 ], VIEW_CONTAINER);

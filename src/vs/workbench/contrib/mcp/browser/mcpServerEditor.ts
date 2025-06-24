@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/mcpServerEditor.css';
 import { $, Dimension, append, setParentFlowTo } from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -46,6 +47,7 @@ import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/ac
 
 const enum McpServerEditorTab {
 	Readme = 'readme',
+	Configuration = 'configuration',
 }
 
 function toDateString(date: Date) {
@@ -172,7 +174,7 @@ export class McpServerEditor extends EditorPane {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		const root = append(parent, $('.extension-editor'));
+		const root = append(parent, $('.extension-editor.mcp-server-editor'));
 		this._scopedContextKeyService.value = this.contextKeyService.createScoped(root);
 		this._scopedContextKeyService.value.createKey('inExtensionEditor', true);
 
@@ -316,6 +318,11 @@ export class McpServerEditor extends EditorPane {
 		}
 
 		template.navbar.push(McpServerEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
+
+		if (extension.local) {
+			template.navbar.push(McpServerEditorTab.Configuration, localize('configuration', "Configuration"), localize('configurationtooltip', "Server configuration details"));
+		}
+
 		if (template.navbar.currentId) {
 			this.onNavbarChange(extension, { id: template.navbar.currentId, focus: !preserveFocus }, template);
 		}
@@ -371,6 +378,7 @@ export class McpServerEditor extends EditorPane {
 
 	private open(id: string, extension: IWorkbenchMcpServer, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		switch (id) {
+			case McpServerEditorTab.Configuration: return this.openConfiguration(extension, template, token);
 			case McpServerEditorTab.Readme: return this.openDetails(extension, template, token);
 		}
 		return Promise.resolve(null);
@@ -534,6 +542,73 @@ export class McpServerEditor extends EditorPane {
 		const activeElement = await this.openMarkdown(extension, this.mcpServerReadme!.get(), localize('noReadme', "No README available."), readmeContainer, WebviewIndex.Readme, localize('Readme title', "Readme"), token);
 		this.renderAdditionalDetails(additionalDetailsContainer, extension);
 		return activeElement;
+	}
+
+	private async openConfiguration(mcpServer: IWorkbenchMcpServer, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+		const configContainer = append(template.content, $('.configuration'));
+		const content = $('div', { class: 'configuration-content', tabindex: '0' });
+
+		this.renderConfigurationDetails(content, mcpServer);
+
+		const scrollableContent = new DomScrollableElement(content, {});
+		const layout = () => scrollableContent.scanDomNode();
+		this.contentDisposables.add(toDisposable(arrays.insert(this.layoutParticipants, { layout })));
+
+		append(configContainer, scrollableContent.getDomNode());
+
+		return { focus: () => content.focus() };
+	}
+
+	private renderConfigurationDetails(container: HTMLElement, mcpServer: IWorkbenchMcpServer): void {
+		container.remove();
+
+		if (!mcpServer.local) {
+			const noConfigMessage = append(container, $('.no-config'));
+			noConfigMessage.textContent = localize('noConfig', "No configuration available for this MCP server.");
+			return;
+		}
+
+		const config = mcpServer.local.config;
+
+		// Server Name
+		const nameSection = append(container, $('.config-section'));
+		const nameLabel = append(nameSection, $('.config-label'));
+		nameLabel.textContent = localize('serverName', "Name:");
+		const nameValue = append(nameSection, $('.config-value'));
+		nameValue.textContent = mcpServer.local.name;
+
+		// Server Type
+		const typeSection = append(container, $('.config-section'));
+		const typeLabel = append(typeSection, $('.config-label'));
+		typeLabel.textContent = localize('serverType', "Type:");
+		const typeValue = append(typeSection, $('.config-value'));
+		typeValue.textContent = config.type;
+
+		// Type-specific configuration
+		if (config.type === 'stdio') {
+			// Command
+			const commandSection = append(container, $('.config-section'));
+			const commandLabel = append(commandSection, $('.config-label'));
+			commandLabel.textContent = localize('command', "Command:");
+			const commandValue = append(commandSection, $('code.config-value'));
+			commandValue.textContent = config.command;
+
+			// Arguments (if present)
+			if (config.args && config.args.length > 0) {
+				const argsSection = append(container, $('.config-section'));
+				const argsLabel = append(argsSection, $('.config-label'));
+				argsLabel.textContent = localize('arguments', "Arguments:");
+				const argsValue = append(argsSection, $('code.config-value'));
+				argsValue.textContent = config.args.join(' ');
+			}
+		} else if (config.type === 'http') {
+			// URL
+			const urlSection = append(container, $('.config-section'));
+			const urlLabel = append(urlSection, $('.config-label'));
+			urlLabel.textContent = localize('url', "URL:");
+			const urlValue = append(urlSection, $('code.config-value'));
+			urlValue.textContent = config.url;
+		}
 	}
 
 	private renderAdditionalDetails(container: HTMLElement, extension: IWorkbenchMcpServer): void {
