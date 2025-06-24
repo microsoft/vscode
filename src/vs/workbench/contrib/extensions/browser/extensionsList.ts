@@ -62,7 +62,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) { }
@@ -191,13 +190,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		};
 		updateEnablement();
 		this.extensionService.onDidChangeExtensions(() => updateEnablement(), this, data.extensionDisposables);
-		// Also update when extensions are installed/uninstalled/updated
-		this.extensionsWorkbenchService.onChange(() => {
-			// Only update if this is still the same extension
-			if (data.extension?.identifier.id === extension.identifier.id) {
-				updateEnablement();
-			}
-		}, this, data.extensionDisposables);
 
 		data.name.textContent = extension.displayName;
 		data.description.textContent = extension.description;
