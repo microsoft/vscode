@@ -65,6 +65,7 @@
 
 .interactive-session .interactive-request .interactive-result-code-block {
 	border: 1px solid var(--vscode-chat-requestCodeBorder);
+	background-color: var(--vscode-interactive-result-editor-background-color);
 }
 
 .interactive-session .interactive-response .interactive-result-code-block {
