@@ -1177,15 +1177,12 @@ export class MigrateDeprecatedExtensionAction extends ExtensionAction {
 	}
 
 	override async run(): Promise<any> {
-		if (!this.extension) {
-			return;
-		}
-		if (!this.extension.deprecationInfo?.extension) {
+		if (!this.extension?.deprecationInfo?.extension) {
 			return;
 		}
 		const local = this.extension.local;
 		await this.extensionsWorkbenchService.uninstall(this.extension);
-		const [extension] = await this.extensionsWorkbenchService.getExtensions([{ id: this.extension.deprecationInfo.extension.id, preRelease: this.extension.deprecationInfo.extension.preRelease }], CancellationToken.None);
+		const [extension] = await this.extensionsWorkbenchService.getExtensions([{ id: this.extension.deprecationInfo.extension.id, preRelease: this.extension.deprecationInfo?.extension?.preRelease }], CancellationToken.None);
 		await this.extensionsWorkbenchService.install(extension, { isMachineScoped: local?.isMachineScoped });
 	}
 }
