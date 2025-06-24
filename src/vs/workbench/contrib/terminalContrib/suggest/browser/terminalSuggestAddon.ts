@@ -448,7 +448,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _wasLastInputTabKey(): boolean {
-		// Tab key for shell completion - should not trigger suggestions
 		return this._lastUserData === '\t';
 	}
 
