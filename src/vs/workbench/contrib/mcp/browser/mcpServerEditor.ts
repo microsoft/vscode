@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, Dimension, append, setParentFlowTo } from '../../../../base/browser/dom.js';
+import { $, Dimension, addDisposableListener, append, clearNode, setParentFlowTo } from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -36,13 +36,14 @@ import { IWebview, IWebviewService } from '../../webview/browser/webview.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IWorkbenchMcpServer, McpServerContainers } from '../common/mcpTypes.js';
-import { InstallCountWidget, McpServerIconWidget, McpServerWidget, onClick, PublisherWidget, RatingsWidget } from './mcpServerWidgets.js';
+import { IWorkbenchMcpServer, McpServerContainers, mcpServerIcon } from '../common/mcpTypes.js';
+import { InstallCountWidget, McpServerWidget, onClick, PublisherWidget, RatingsWidget } from './mcpServerWidgets.js';
 import { DropDownAction, InstallAction, ManageMcpServerAction, UninstallAction } from './mcpServerActions.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ILocalMcpServer } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 const enum McpServerEditorTab {
 	Readme = 'readme',
@@ -113,6 +114,7 @@ interface IActiveElement {
 }
 
 interface IExtensionEditorTemplate {
+	iconContainer: HTMLElement;
 	name: HTMLElement;
 	description: HTMLElement;
 	actionsAndStatusContainer: HTMLElement;
@@ -182,7 +184,6 @@ export class McpServerEditor extends EditorPane {
 		const header = append(root, $('.header'));
 
 		const iconContainer = append(header, $('.icon-container'));
-		const iconWidget = this.instantiationService.createInstance(McpServerIconWidget, iconContainer);
 
 		const details = append(header, $('.details'));
 		const title = append(details, $('.title'));
@@ -205,7 +206,6 @@ export class McpServerEditor extends EditorPane {
 		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, ratingsContainer, false);
 
 		const widgets: McpServerWidget[] = [
-			iconWidget,
 			publisherWidget,
 			installCountWidget,
 			ratingsWidget,
@@ -260,6 +260,7 @@ export class McpServerEditor extends EditorPane {
 			content,
 			description,
 			header,
+			iconContainer,
 			name,
 			navbar,
 			actionsAndStatusContainer,
@@ -295,6 +296,18 @@ export class McpServerEditor extends EditorPane {
 
 		this.mcpServerReadme = new Cache(() => mcpServer.getReadme(token));
 		template.mcpServer = mcpServer;
+
+		clearNode(template.iconContainer);
+		if (mcpServer.iconUrl) {
+			const icon = append(template.iconContainer, $<HTMLImageElement>('img.icon', { alt: '' }));
+			this.transientDisposables.add(addDisposableListener(icon, 'error', () => {
+				clearNode(template.iconContainer);
+				append(template.iconContainer, $(ThemeIcon.asCSSSelector(mcpServerIcon)));
+			}, { once: true }));
+			icon.src = mcpServer.iconUrl;
+		} else {
+			append(template.iconContainer, $(ThemeIcon.asCSSSelector(mcpServerIcon)));
+		}
 
 		template.name.textContent = mcpServer.label;
 		template.name.classList.toggle('clickable', !!mcpServer.url);
