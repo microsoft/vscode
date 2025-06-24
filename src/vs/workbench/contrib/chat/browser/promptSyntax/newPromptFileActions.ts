@@ -168,8 +168,67 @@ class NewModeFileAction extends AbstractNewPromptFileAction {
 	}
 }
 
+class NewUntitledPromptFileAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.command.new.untitled.prompt',
+			title: {
+				original: 'New Untitled Prompt File',
+				value: localize('commands.new.untitled.prompt.title', "New Untitled Prompt File")
+			},
+			shortTitle: {
+				original: 'Untitled Prompt File',
+				value: localize('commands.new.untitled.prompt.shortTitle', "Untitled Prompt File")
+			},
+			f1: true,
+			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+			category: CHAT_CATEGORY,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			menu: [
+				{
+					id: MenuId.NewFile,
+					group: 'file',
+					order: 20,
+					when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled)
+				}
+			]
+		});
+	}
+
+	public override async run(accessor: ServicesAccessor) {
+		const editorService = accessor.get(IEditorService);
+		const snippetService = accessor.get(ISnippetsService);
+
+		const languageId = getLanguageIdForPromptsType(PromptsType.prompt);
+
+		const input = await editorService.openEditor({
+			resource: undefined,
+			languageId,
+			options: {
+				pinned: true
+			}
+		});
+
+		const editor = getCodeEditor(editorService.activeTextEditorControl);
+		if (editor && editor.hasModel()) {
+			const snippets = await snippetService.getSnippets(languageId, { fileTemplateSnippets: true, noRecencySort: true, includeNoPrefixSnippets: true });
+			if (snippets.length > 0) {
+				SnippetController2.get(editor)?.apply([{
+					range: editor.getModel().getFullModelRange(),
+					template: snippets[0].body
+				}]);
+			}
+		}
+
+		return input;
+	}
+}
+
 export function registerNewPromptFileActions(): void {
 	registerAction2(NewPromptFileAction);
 	registerAction2(NewInstructionsFileAction);
 	registerAction2(NewModeFileAction);
+	registerAction2(NewUntitledPromptFileAction);
 }
