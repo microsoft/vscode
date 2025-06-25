@@ -5,7 +5,7 @@
 
 import { getAllCodicons } from '../../../base/common/codicons.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../base/common/jsonSchema.js';
-import { OperatingSystem, Platform, PlatformToString } from '../../../base/common/platform.js';
+import { isWindows, OperatingSystem, Platform, PlatformToString } from '../../../base/common/platform.js';
 import { localize } from '../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../registry/common/platform.js';
@@ -336,9 +336,10 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.InheritEnv]: {
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('terminal.integrated.inheritEnv', "Whether new shells should inherit their environment from VS Code, which may source a login shell to ensure $PATH and other development variables are initialized. This has no effect on Windows."),
+			description: localize('terminal.integrated.inheritEnv', "Whether new shells should inherit their environment from VS Code, which may source a login shell to ensure $PATH and other development variables are initialized."),
 			type: 'boolean',
-			default: true
+			// False by default on Windows to prevent powershell inheritance issues (#251446)
+			default: isWindows ? false : true,
 		},
 		[TerminalSettingId.PersistentSessionScrollback]: {
 			scope: ConfigurationScope.APPLICATION,

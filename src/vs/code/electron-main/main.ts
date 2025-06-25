@@ -58,7 +58,7 @@ import { ISignService } from '../../platform/sign/common/sign.js';
 import { SignService } from '../../platform/sign/node/signService.js';
 import { IStateReadService, IStateService } from '../../platform/state/node/state.js';
 import { NullTelemetryService } from '../../platform/telemetry/common/telemetryUtils.js';
-import { IThemeMainService, ThemeMainService } from '../../platform/theme/electron-main/themeMainService.js';
+import { IThemeMainService } from '../../platform/theme/electron-main/themeMainService.js';
 import { IUserDataProfilesMainService, UserDataProfilesMainService } from '../../platform/userDataProfile/electron-main/userDataProfile.js';
 import { IPolicyService, NullPolicyService } from '../../platform/policy/common/policy.js';
 import { NativePolicyService } from '../../platform/policy/node/nativePolicyService.js';
@@ -72,6 +72,7 @@ import { massageMessageBoxOptions } from '../../platform/dialogs/common/dialogs.
 import { SaveStrategy, StateService } from '../../platform/state/node/stateService.js';
 import { FileUserDataProvider } from '../../platform/userData/common/fileUserDataProvider.js';
 import { addUNCHostToAllowlist, getUNCHost } from '../../base/node/unc.js';
+import { ThemeMainService } from '../../platform/theme/electron-main/themeMainServiceImpl.js';
 
 /**
  * The main VS Code entry point.
@@ -357,7 +358,7 @@ class CodeMain {
 			// Show a warning dialog after some timeout if it takes long to talk to the other instance
 			// Skip this if we are running with --wait where it is expected that we wait for a while.
 			// Also skip when gathering diagnostics (--status) which can take a longer time.
-			let startupWarningDialogHandle: NodeJS.Timeout | undefined = undefined;
+			let startupWarningDialogHandle: Timeout | undefined = undefined;
 			if (!environmentMainService.args.wait && !environmentMainService.args.status) {
 				startupWarningDialogHandle = setTimeout(() => {
 					this.showStartupWarningDialog(

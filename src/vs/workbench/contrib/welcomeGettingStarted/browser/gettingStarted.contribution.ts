@@ -307,7 +307,7 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor) {
 		const editorService = accessor.get(IEditorService);
-		const options: GettingStartedEditorOptions = { selectedCategory: 'NewWelcomeExperience', showNewExperience: true, forceReload: true };
+		const options: GettingStartedEditorOptions = { selectedCategory: 'NewWelcomeExperience', forceReload: true, showTelemetryNotice: true };
 
 		editorService.openEditor({
 			resource: GettingStartedInput.RESOURCE,

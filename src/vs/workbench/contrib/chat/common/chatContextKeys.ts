@@ -7,6 +7,7 @@ import { localize } from '../../../../nls.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { RemoteNameContext } from '../../../common/contextkeys.js';
+import { ViewContainerLocation } from '../../../common/views.js';
 import { ChatAgentLocation, ChatMode } from './constants.js';
 
 export namespace ChatContextKeys {
@@ -16,6 +17,7 @@ export namespace ChatContextKeys {
 	export const responseIsFiltered = new RawContextKey<boolean>('chatSessionResponseFiltered', false, { type: 'boolean', description: localize('chatResponseFiltered', "True when the chat response was filtered out by the server.") });
 	export const responseHasError = new RawContextKey<boolean>('chatSessionResponseError', false, { type: 'boolean', description: localize('chatResponseErrored', "True when the chat response resulted in an error.") });
 	export const requestInProgress = new RawContextKey<boolean>('chatSessionRequestInProgress', false, { type: 'boolean', description: localize('interactiveSessionRequestInProgress', "True when the current request is still in progress.") });
+	export const currentlyEditing = new RawContextKey<boolean>('chatSessionCurrentlyEditing', false, { type: 'boolean', description: localize('interactiveSessionCurrentlyEditing', "True when the current request is being edited.") });
 	export const isRequestPaused = new RawContextKey<boolean>('chatRequestIsPaused', false, { type: 'boolean', description: localize('chatRequestIsPaused', "True when the current request is paused.") });
 	export const canRequestBePaused = new RawContextKey<boolean>('chatCanRequestBePaused', false, { type: 'boolean', description: localize('chatCanRequestBePaused', "True when the current request can be paused.") });
 
@@ -30,10 +32,11 @@ export namespace ChatContextKeys {
 	export const inputHasFocus = new RawContextKey<boolean>('chatInputHasFocus', false, { type: 'boolean', description: localize('interactiveInputHasFocus', "True when the chat input has focus.") });
 	export const inChatInput = new RawContextKey<boolean>('inChatInput', false, { type: 'boolean', description: localize('inInteractiveInput', "True when focus is in the chat input, false otherwise.") });
 	export const inChatSession = new RawContextKey<boolean>('inChat', false, { type: 'boolean', description: localize('inChat', "True when focus is in the chat widget, false otherwise.") });
+	export const inChatEditor = new RawContextKey<boolean>('inChatEditor', false, { type: 'boolean', description: localize('inChatEditor', "Whether focus is in a chat editor.") });
 	export const hasPromptFile = new RawContextKey<boolean>('chatPromptFileAttached', false, { type: 'boolean', description: localize('chatPromptFileAttachedContextDescription', "True when the chat has a prompt file attached.") });
 	export const chatMode = new RawContextKey<ChatMode>('chatMode', ChatMode.Ask, { type: 'string', description: localize('chatMode', "The current chat mode.") });
 
-	export const supported = ContextKeyExpr.or(IsWebContext.negate(), RemoteNameContext.notEqualsTo('')); // supported on desktop and in web only with a remote connection
+	export const supported = ContextKeyExpr.or(IsWebContext.negate(), RemoteNameContext.notEqualsTo(''), ContextKeyExpr.has('config.chat.experimental.serverlessWebEnabled'));
 	export const enabled = new RawContextKey<boolean>('chatIsEnabled', false, { type: 'boolean', description: localize('chatIsEnabled', "True when chat is enabled because a default chat participant is activated with an implementation.") });
 
 	export const extensionParticipantRegistered = new RawContextKey<boolean>('chatPanelExtensionParticipantRegistered', false, { type: 'boolean', description: localize('chatPanelExtensionParticipantRegistered', "True when a default chat participant is registered for the panel from an extension.") });
@@ -50,16 +53,24 @@ export namespace ChatContextKeys {
 
 	export const languageModelsAreUserSelectable = new RawContextKey<boolean>('chatModelsAreUserSelectable', false, { type: 'boolean', description: localize('chatModelsAreUserSelectable', "True when the chat model can be selected manually by the user.") });
 
+	export const remoteJobCreating = new RawContextKey<boolean>('chatRemoteJobCreating', false, { type: 'boolean', description: localize('chatRemoteJobCreating', "True when a remote coding agent job is being created.") });
+	export const hasRemoteCodingAgent = new RawContextKey<boolean>('hasRemoteCodingAgent', false, localize('hasRemoteCodingAgent', "Whether any remote coding agent is available"));
+
 	export const Setup = {
 		hidden: new RawContextKey<boolean>('chatSetupHidden', false, true), 		// True when chat setup is explicitly hidden.
-		installed: new RawContextKey<boolean>('chatSetupInstalled', false, true)  	// True when the chat extension is installed.
+		installed: new RawContextKey<boolean>('chatSetupInstalled', false, true),  	// True when the chat extension is installed and enabled.
+		disabled: new RawContextKey<boolean>('chatSetupDisabled', false, true),  	// True when the chat extension is disabled.
+		later: new RawContextKey<boolean>('chatSetupLater', false, true)  			// True when the user wants to finish setup later.
 	};
 
 	export const Entitlement = {
-		signedOut: new RawContextKey<boolean>('chatSetupSignedOut', false, true), 	// True when user is signed out.
-		canSignUp: new RawContextKey<boolean>('chatPlanCanSignUp', false, true), 	// True when user can sign up to be a chat limited user.
-		limited: new RawContextKey<boolean>('chatPlanLimited', false, true),		// True when user is a chat limited user.
-		pro: new RawContextKey<boolean>('chatPlanPro', false, true) 				// True when user is a chat pro user.
+		signedOut: new RawContextKey<boolean>('chatEntitlementSignedOut', false, true), // True when user is signed out.
+		canSignUp: new RawContextKey<boolean>('chatPlanCanSignUp', false, true), 		// True when user can sign up to be a chat free user.
+		free: new RawContextKey<boolean>('chatPlanFree', false, true),					// True when user is a chat free user.
+		pro: new RawContextKey<boolean>('chatPlanPro', false, true),					// True when user is a chat pro user.
+		proPlus: new RawContextKey<boolean>('chatPlanProPlus', false, true), 			// True when user is a chat pro plus user.
+		business: new RawContextKey<boolean>('chatPlanBusiness', false, true), 			// True when user is a chat business user.
+		enterprise: new RawContextKey<boolean>('chatPlanEnterprise', false, true) 		// True when user is a chat enterprise user.
 	};
 
 	export const chatQuotaExceeded = new RawContextKey<boolean>('chatQuotaExceeded', false, true);
@@ -73,6 +84,12 @@ export namespace ChatContextKeys {
 	export const Tools = {
 		toolsCount: new RawContextKey<number>('toolsCount', 0, { type: 'number', description: localize('toolsCount', "The count of tools available in the chat.") })
 	};
+
+	export const Modes = {
+		hasCustomChatModes: new RawContextKey<boolean>('chatHasCustomChatModes', false, { type: 'boolean', description: localize('chatHasCustomChatModes', "True when the chat has custom chat modes available.") }),
+	};
+
+	export const panelLocation = new RawContextKey<ViewContainerLocation>('chatPanelLocation', undefined, { type: 'number', description: localize('chatPanelLocation', "The location of the chat panel.") });
 }
 
 export namespace ChatContextKeyExprs {

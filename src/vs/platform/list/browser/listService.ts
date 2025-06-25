@@ -646,13 +646,6 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 	}
 }
 
-export interface IOpenResourceOptions {
-	editorOptions: IEditorOptions;
-	sideBySide: boolean;
-	element: any;
-	payload: any;
-}
-
 export interface IOpenEvent<T> {
 	editorOptions: IEditorOptions;
 	sideBySide: boolean;

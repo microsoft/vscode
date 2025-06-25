@@ -40,7 +40,7 @@ export class ActionWidgetDropdownActionViewItem extends BaseActionViewItem {
 			return this.renderLabel(this.element);
 		};
 
-		this.actionWidgetDropdown = this._register(new ActionWidgetDropdown(container, { ...this.actionWidgetOptions, labelRenderer }, this._actionWidgetService));
+		this.actionWidgetDropdown = this._register(new ActionWidgetDropdown(container, { ...this.actionWidgetOptions, labelRenderer }, this._actionWidgetService, this._keybindingService));
 		this._register(this.actionWidgetDropdown.onDidChangeVisibility(visible => {
 			this.element?.setAttribute('aria-expanded', `${visible}`);
 		}));
@@ -60,11 +60,17 @@ export class ActionWidgetDropdownActionViewItem extends BaseActionViewItem {
 		return null;
 	}
 
+	protected override updateAriaLabel(): void {
+		if (this.element) {
+			this.setAriaLabelAttributes(this.element);
+		}
+	}
+
 	protected setAriaLabelAttributes(element: HTMLElement): void {
 		element.setAttribute('role', 'button');
 		element.setAttribute('aria-haspopup', 'true');
 		element.setAttribute('aria-expanded', 'false');
-		element.ariaLabel = this._action.label || '';
+		element.ariaLabel = (this.getTooltip() + ' - ' + (element.textContent || this._action.label)) || '';
 	}
 
 	protected override getTooltip() {

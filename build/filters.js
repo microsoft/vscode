@@ -103,6 +103,7 @@ module.exports.indentationFilter = [
 	'!extensions/vscode-api-tests/testWorkspace2/**',
 	'!build/monaco/**',
 	'!build/win32/**',
+	'!build/checker/**',
 
 	// except multiple specific files
 	'!**/package.json',

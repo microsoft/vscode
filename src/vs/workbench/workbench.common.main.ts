@@ -54,6 +54,7 @@ import './browser/parts/statusbar/statusbarPart.js';
 
 import '../platform/actions/common/actions.contribution.js';
 import '../platform/undoRedo/common/undoRedoService.js';
+import '../platform/mcp/common/mcpResourceScannerService.js';
 import './services/workspaces/common/editSessionIdentityService.js';
 import './services/workspaces/common/canonicalUriService.js';
 import './services/extensions/browser/extensionUrlHandler.js';
@@ -82,6 +83,7 @@ import './services/notebook/common/notebookDocumentService.js';
 import './services/commands/common/commandService.js';
 import './services/themes/browser/workbenchThemeService.js';
 import './services/label/common/labelService.js';
+import './services/mcp/common/mcpWorkbenchManagementService.js';
 import './services/extensions/common/extensionManifestPropertiesService.js';
 import './services/extensionManagement/common/extensionGalleryService.js';
 import './services/extensionManagement/browser/extensionEnablementService.js';
@@ -109,6 +111,11 @@ import './services/authentication/browser/authenticationService.js';
 import './services/authentication/browser/authenticationExtensionsService.js';
 import './services/authentication/browser/authenticationUsageService.js';
 import './services/authentication/browser/authenticationAccessService.js';
+import './services/authentication/browser/authenticationMcpUsageService.js';
+import './services/authentication/browser/authenticationMcpAccessService.js';
+import './services/authentication/browser/authenticationMcpService.js';
+import './services/authentication/browser/dynamicAuthenticationProviderStorageService.js';
+import './services/authentication/browser/authenticationQueryService.js';
 import './services/accounts/common/defaultAccount.js';
 import '../editor/browser/services/hoverService/hoverService.js';
 import './services/assignment/common/assignmentService.js';
@@ -118,7 +125,7 @@ import '../editor/common/services/languageFeaturesService.js';
 import '../editor/common/services/semanticTokensStylingService.js';
 import '../editor/common/services/treeViewsDndService.js';
 import './services/textMate/browser/textMateTokenizationFeature.contribution.js';
-import './services/treeSitter/browser/treeSitterTokenizationFeature.contribution.js';
+import './services/treeSitter/browser/treeSitter.contribution.js';
 import './services/userActivity/common/userActivityService.js';
 import './services/userActivity/browser/userActivityBrowser.js';
 import './services/editor/browser/editorPaneService.js';
@@ -149,6 +156,9 @@ import { ExtensionStorageService, IExtensionStorageService } from '../platform/e
 import { IUserDataSyncLogService } from '../platform/userDataSync/common/userDataSync.js';
 import { UserDataSyncLogService } from '../platform/userDataSync/common/userDataSyncLog.js';
 import { AllowedExtensionsService } from '../platform/extensionManagement/common/allowedExtensionsService.js';
+import { IMcpGalleryService, IMcpManagementService } from '../platform/mcp/common/mcpManagement.js';
+import { McpGalleryService } from '../platform/mcp/common/mcpGalleryService.js';
+import { McpManagementService } from '../platform/mcp/common/mcpManagementService.js';
 
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, InstantiationType.Delayed);
 registerSingleton(IAllowedExtensionsService, AllowedExtensionsService, InstantiationType.Delayed);
@@ -164,6 +174,8 @@ registerSingleton(IContextKeyService, ContextKeyService, InstantiationType.Delay
 registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService, InstantiationType.Delayed);
 registerSingleton(IDownloadService, DownloadService, InstantiationType.Delayed);
 registerSingleton(IOpenerService, OpenerService, InstantiationType.Delayed);
+registerSingleton(IMcpGalleryService, McpGalleryService, InstantiationType.Delayed);
+registerSingleton(IMcpManagementService, McpManagementService, InstantiationType.Delayed);
 
 //#endregion
 
@@ -242,6 +254,9 @@ import './contrib/debug/browser/debugViewlet.js';
 
 // Markers
 import './contrib/markers/browser/markers.contribution.js';
+
+// Process Explorer
+import './contrib/processExplorer/browser/processExplorer.contribution.js';
 
 // Merge Editor
 import './contrib/mergeEditor/browser/mergeEditor.contribution.js';
@@ -359,6 +374,9 @@ import './contrib/userDataProfile/browser/userDataProfile.contribution.js';
 // Continue Edit Session
 import './contrib/editSessions/browser/editSessions.contribution.js';
 
+// Remote Coding Agents
+import './contrib/remoteCodingAgents/browser/remoteCodingAgents.contribution.js';
+
 // Code Actions
 import './contrib/codeActions/browser/codeActions.contribution.js';
 
@@ -397,6 +415,7 @@ import './contrib/inlineCompletions/browser/inlineCompletions.contribution.js';
 
 // Drop or paste into
 import './contrib/dropOrPasteInto/browser/dropOrPasteInto.contribution.js';
+
 
 
 //#endregion

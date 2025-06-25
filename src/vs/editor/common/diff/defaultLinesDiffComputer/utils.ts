@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from '../../../../base/common/charCode.js';
-import { LineRange } from '../../core/lineRange.js';
+import { LineRange } from '../../core/ranges/lineRange.js';
 import { DetailedLineRangeMapping } from '../rangeMapping.js';
 
 export class Array2D<T> {

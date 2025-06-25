@@ -43,7 +43,8 @@ import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/edit
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { showChatView } from '../../chat/browser/chat.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
-import { ChatModel, ChatRequestRemovalReason, IChatRequestModel, IChatRequestVariableEntry, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from '../../chat/common/chatModel.js';
+import { ChatModel, ChatRequestRemovalReason, IChatRequestModel, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from '../../chat/common/chatModel.js';
+import { IChatRequestVariableEntry } from '../../chat/common/chatVariableEntries.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_VISIBLE, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseType } from '../common/inlineChat.js';
@@ -55,11 +56,13 @@ import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { IChatEditingService, ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
+import { ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { resolveImageEditorAttachContext } from '../../chat/browser/chatAttachmentResolve.js';
+import { IChatAttachmentResolveService } from '../../chat/browser/chatAttachmentResolveService.js';
+import { INotebookService } from '../../notebook/common/notebookService.js';
+import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -209,6 +212,7 @@ export class InlineChatController1 implements IEditorContribution {
 		@INotebookEditorService notebookEditorService: INotebookEditorService,
 		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
 		@IFileService private readonly _fileService: IFileService,
+		@IChatAttachmentResolveService private readonly _chatAttachmentResolveService: IChatAttachmentResolveService
 	) {
 		this._ctxVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
 		this._ctxEditing = CTX_INLINE_CHAT_EDITING.bindTo(contextKeyService);
@@ -431,8 +435,6 @@ export class InlineChatController1 implements IEditorContribution {
 			this._log('Failed to start editor chat');
 			return State.CANCEL;
 		}
-
-		await session.chatModel.waitForInitialization();
 
 		// create a new strategy
 		this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._ui.value, session.headless);
@@ -1085,6 +1087,8 @@ export class InlineChatController1 implements IEditorContribution {
 					// fully or partially applied edits
 					someApplied = someApplied || Boolean(part.state?.applied);
 					lastEdit = part;
+					part.edits = [];
+					part.state = undefined;
 				}
 			}
 		}
@@ -1094,7 +1098,6 @@ export class InlineChatController1 implements IEditorContribution {
 		if (someApplied) {
 			assertType(lastEdit);
 			lastEdit.edits = [doEdits];
-			lastEdit.state!.applied = 0;
 		}
 
 		await this._instaService.invokeFunction(moveToPanelChat, this._session?.chatModel);
@@ -1186,12 +1189,12 @@ export class InlineChatController1 implements IEditorContribution {
 	async createImageAttachment(attachment: URI): Promise<IChatRequestVariableEntry | undefined> {
 		if (attachment.scheme === Schemas.file) {
 			if (await this._fileService.canHandleResource(attachment)) {
-				return await resolveImageEditorAttachContext(this._fileService, this._dialogService, attachment);
+				return await this._chatAttachmentResolveService.resolveImageEditorAttachContext(attachment);
 			}
 		} else if (attachment.scheme === Schemas.http || attachment.scheme === Schemas.https) {
 			const extractedImages = await this._webContentExtractorService.readImage(attachment, CancellationToken.None);
 			if (extractedImages) {
-				return await resolveImageEditorAttachContext(this._fileService, this._dialogService, attachment, extractedImages);
+				return await this._chatAttachmentResolveService.resolveImageEditorAttachContext(attachment, extractedImages);
 			}
 		}
 
@@ -1231,7 +1234,7 @@ export class InlineChatController2 implements IEditorContribution {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
 		@IFileService private readonly _fileService: IFileService,
-		@IDialogService private readonly _dialogService: IDialogService,
+		@IChatAttachmentResolveService private readonly _chatAttachmentResolveService: IChatAttachmentResolveService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInlineChatSessionService inlineChatService: IInlineChatSessionService,
 	) {
@@ -1481,12 +1484,12 @@ export class InlineChatController2 implements IEditorContribution {
 		}
 		if (attachment.scheme === Schemas.file) {
 			if (await this._fileService.canHandleResource(attachment)) {
-				return await resolveImageEditorAttachContext(this._fileService, this._dialogService, attachment);
+				return await this._chatAttachmentResolveService.resolveImageEditorAttachContext(attachment);
 			}
 		} else if (attachment.scheme === Schemas.http || attachment.scheme === Schemas.https) {
 			const extractedImages = await this._webContentExtractorService.readImage(attachment, CancellationToken.None);
 			if (extractedImages) {
-				return await resolveImageEditorAttachContext(this._fileService, this._dialogService, attachment, extractedImages);
+				return await this._chatAttachmentResolveService.resolveImageEditorAttachContext(attachment, extractedImages);
 			}
 		}
 		return undefined;
@@ -1499,16 +1502,15 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 	}
 
 	const chatService = accessor.get(IChatService);
-	const chatEditingService = accessor.get(IChatEditingService);
-
 	const uri = editor.getModel().uri;
 	const chatModel = chatService.startSession(ChatAgentLocation.Editor, token, false);
 
-	const editSession = await chatEditingService.createEditingSession(chatModel);
+	chatModel.startEditingSession(true);
+
+	const editSession = await chatModel.editingSessionObs?.promise;
 
 	const store = new DisposableStore();
 	store.add(chatModel);
-	store.add(editSession);
 
 	// STREAM
 	const chatRequest = chatModel?.addRequest({ text: '', parts: [] }, { variables: [] }, 0);
@@ -1526,11 +1528,69 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 	chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: [], done: true });
 
 	if (!token.isCancellationRequested) {
+		chatModel.completeResponse(chatRequest);
+	}
+
+	const isSettled = derived(r => {
+		const entry = editSession?.readEntry(uri, r);
+		if (!entry) {
+			return false;
+		}
+		const state = entry.state.read(r);
+		return state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected;
+	});
+	const whenDecided = waitForState(isSettled, Boolean);
+	await raceCancellation(whenDecided, token);
+	store.dispose();
+	return true;
+}
+
+export async function reviewNotebookEdits(accessor: ServicesAccessor, uri: URI, stream: AsyncIterable<[URI, TextEdit[]] | ICellEditOperation[]>, token: CancellationToken): Promise<boolean> {
+
+	const chatService = accessor.get(IChatService);
+	const notebookService = accessor.get(INotebookService);
+	const isNotebook = notebookService.hasSupportedNotebooks(uri);
+	const chatModel = chatService.startSession(ChatAgentLocation.Editor, token, false);
+
+	chatModel.startEditingSession(true);
+
+	const editSession = await chatModel.editingSessionObs?.promise;
+
+	const store = new DisposableStore();
+	store.add(chatModel);
+
+	// STREAM
+	const chatRequest = chatModel?.addRequest({ text: '', parts: [] }, { variables: [] }, 0);
+	assertType(chatRequest.response);
+	if (isNotebook) {
+		chatRequest.response.updateContent({ kind: 'notebookEdit', uri, edits: [], done: false });
+	} else {
+		chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: [], done: false });
+	}
+	for await (const chunk of stream) {
+
+		if (token.isCancellationRequested) {
+			chatRequest.response.cancel();
+			break;
+		}
+		if (chunk.every(isCellEditOperation)) {
+			chatRequest.response.updateContent({ kind: 'notebookEdit', uri, edits: chunk, done: false });
+		} else {
+			chatRequest.response.updateContent({ kind: 'textEdit', uri: chunk[0], edits: chunk[1], done: false });
+		}
+	}
+	if (isNotebook) {
+		chatRequest.response.updateContent({ kind: 'notebookEdit', uri, edits: [], done: true });
+	} else {
+		chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: [], done: true });
+	}
+
+	if (!token.isCancellationRequested) {
 		chatRequest.response.complete();
 	}
 
 	const isSettled = derived(r => {
-		const entry = editSession.readEntry(uri, r);
+		const entry = editSession?.readEntry(uri, r);
 		if (!entry) {
 			return false;
 		}
@@ -1547,6 +1607,15 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 	return true;
 }
 
+function isCellEditOperation(edit: URI | TextEdit[] | ICellEditOperation): edit is ICellEditOperation {
+	if (URI.isUri(edit)) {
+		return false;
+	}
+	if (Array.isArray(edit)) {
+		return false;
+	}
+	return true;
+}
 
 async function moveToPanelChat(accessor: ServicesAccessor, model: ChatModel | undefined) {
 

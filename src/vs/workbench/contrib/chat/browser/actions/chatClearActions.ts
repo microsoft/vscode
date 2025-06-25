@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../../../nls.js';
@@ -18,17 +16,12 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession } from '../../common/chatEditingService.js';
-import { IChatService } from '../../common/chatService.js';
 import { ChatMode } from '../../common/constants.js';
 import { ChatViewId, IChatWidget } from '../chat.js';
 import { EditingSessionAction } from '../chatEditing/chatEditingActions.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
-import { CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
+import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
-
-export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
-export const ACTION_ID_NEW_EDIT_SESSION = `workbench.action.chat.newEditSession`;
-export const ChatDoneActionId = 'workbench.action.chat.done';
 
 export interface INewEditSessionActionContext {
 	/**
@@ -57,12 +50,12 @@ export function registerNewChatActions() {
 				icon: Codicon.plus,
 				f1: false,
 				precondition: ChatContextKeys.enabled,
-				menu: [{
-					id: MenuId.EditorTitle,
+				menu: [MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
+					id,
 					group: 'navigation',
-					order: 0,
 					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
-				}]
+					order: 1
+				}))
 			});
 		}
 		async run(accessor: ServicesAccessor, ...args: any[]) {
@@ -71,10 +64,10 @@ export function registerNewChatActions() {
 		}
 	});
 
-	registerAction2(class NewEditSessionAction extends EditingSessionAction {
+	registerAction2(class NewChatAction extends EditingSessionAction {
 		constructor() {
 			super({
-				id: ACTION_ID_NEW_EDIT_SESSION,
+				id: ACTION_ID_NEW_CHAT,
 				title: localize2('chat.newEdits.label', "New Chat"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.plus,
@@ -91,10 +84,12 @@ export function registerNewChatActions() {
 					order: -1
 				}],
 				keybinding: {
-					weight: KeybindingWeight.WorkbenchContrib,
-					primary: KeyMod.CtrlCmd | KeyCode.KeyL,
+					weight: KeybindingWeight.WorkbenchContrib + 1,
+					primary: KeyMod.CtrlCmd | KeyCode.KeyN,
+					secondary: [KeyMod.CtrlCmd | KeyCode.KeyL],
 					mac: {
-						primary: KeyMod.WinCtrl | KeyCode.KeyL
+						primary: KeyMod.CtrlCmd | KeyCode.KeyN,
+						secondary: [KeyMod.WinCtrl | KeyCode.KeyL]
 					},
 					when: ChatContextKeys.inChatSession
 				}
@@ -106,7 +101,6 @@ export function registerNewChatActions() {
 			const context: INewEditSessionActionContext | undefined = args[0];
 			const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 			const dialogService = accessor.get(IDialogService);
-			const chatService = accessor.get(IChatService);
 
 			if (!(await handleCurrentEditingSession(editingSession, undefined, dialogService))) {
 				return;
@@ -116,7 +110,7 @@ export function registerNewChatActions() {
 
 			await editingSession.stop();
 			widget.clear();
-			await waitForChatSessionCleared(editingSession.chatSessionId, chatService);
+			await widget.waitForReady();
 			widget.attachmentModel.clear(true);
 			widget.input.relatedFiles?.clear();
 			widget.focusInput();
@@ -138,7 +132,7 @@ export function registerNewChatActions() {
 			}
 		}
 	});
-	CommandsRegistry.registerCommandAlias(ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION);
+	CommandsRegistry.registerCommandAlias(ACTION_ID_NEW_EDIT_SESSION, ACTION_ID_NEW_CHAT);
 
 
 	registerAction2(class UndoChatEditInteractionAction extends EditingSessionAction {
@@ -190,16 +184,4 @@ export function registerNewChatActions() {
 
 function announceChatCleared(accessibilitySignalService: IAccessibilitySignalService): void {
 	accessibilitySignalService.playSignal(AccessibilitySignal.clear);
-}
-
-export async function waitForChatSessionCleared(sessionId: string, chatService: IChatService): Promise<void> {
-	if (!chatService.getSession(sessionId)) {
-		return;
-	}
-
-	// The ChatWidget just signals cancellation to its host viewpane or editor. Clearing the session is now async, we need to wait for it to finish.
-	// This is expected to always happen.
-	await raceTimeout(Event.toPromise(
-		Event.filter(chatService.onDidDisposeSession, e => e.sessionId === sessionId),
-	), 2000);
 }

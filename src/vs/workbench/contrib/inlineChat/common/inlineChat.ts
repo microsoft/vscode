@@ -66,7 +66,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			tags: ['preview', 'onExp'],
 		},
 		[InlineChatConfigKeys.HideOnRequest]: {
-			description: localize('hideOnRequest', "Whether to hide the inline chat widget after making a request. When enabled, the widget hides after a request has been made and instead the chat overlay shows. When hidden, the widget can always be shown again with the inline chat keybinding or from the chat overlay widget."),
+			markdownDescription: localize('hideOnRequest', "Whether to hide the inline chat widget after making a request. When enabled, the widget hides after a request has been made and instead the chat overlay shows. When hidden, the widget can always be shown again with the inline chat keybinding or from the chat overlay widget. *Note* that this setting requires `#inlineChat.enableV2#` to be enabled."),
 			default: false,
 			type: 'boolean',
 			tags: ['preview', 'onExp'],

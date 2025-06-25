@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { basename } from '../../../../../base/common/resources.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -12,21 +14,24 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { IChatAgentService, IChatAgentHistoryEntry } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { toChatHistoryContent } from '../../common/chatModel.js';
+import { ChatMode2, IChatMode, validateChatMode2 } from '../../common/chatModes.js';
 import { chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatMode, validateChatMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatMode, } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
+import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
-import { CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
-import { ACTION_ID_NEW_CHAT, waitForChatSessionCleared } from './chatClearActions.js';
+import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -39,11 +44,77 @@ export interface IChatExecuteActionContext {
 }
 
 abstract class SubmitAction extends Action2 {
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const context: IChatExecuteActionContext | undefined = args[0];
 
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+		if (widget?.viewModel?.editing) {
+			const configurationService = accessor.get(IConfigurationService);
+			const dialogService = accessor.get(IDialogService);
+			const chatService = accessor.get(IChatService);
+			const chatModel = chatService.getSession(widget.viewModel.sessionId);
+			if (!chatModel) {
+				return;
+			}
+
+			const session = chatModel.editingSession;
+			if (!session) {
+				return;
+			}
+
+			const requestId = widget.viewModel?.editing.id;
+
+			if (requestId) {
+				const chatRequests = chatModel.getRequests();
+				const itemIndex = chatRequests.findIndex(request => request.id === requestId);
+				const editsToUndo = chatRequests.length - itemIndex;
+
+				const requestsToRemove = chatRequests.slice(itemIndex);
+				const requestIdsToRemove = new Set(requestsToRemove.map(request => request.id));
+				const entriesModifiedInRequestsToRemove = session.entries.get().filter((entry) => requestIdsToRemove.has(entry.lastModifyingRequestId)) ?? [];
+				const shouldPrompt = entriesModifiedInRequestsToRemove.length > 0 && configurationService.getValue('chat.editing.confirmEditRequestRemoval') === true;
+
+				let message: string;
+				if (editsToUndo === 1) {
+					if (entriesModifiedInRequestsToRemove.length === 1) {
+						message = localize('chat.removeLast.confirmation.message2', "This will remove your last request and undo the edits made to {0}. Do you want to proceed?", basename(entriesModifiedInRequestsToRemove[0].modifiedURI));
+					} else {
+						message = localize('chat.removeLast.confirmation.multipleEdits.message', "This will remove your last request and undo edits made to {0} files in your working set. Do you want to proceed?", entriesModifiedInRequestsToRemove.length);
+					}
+				} else {
+					if (entriesModifiedInRequestsToRemove.length === 1) {
+						message = localize('chat.remove.confirmation.message2', "This will remove all subsequent requests and undo edits made to {0}. Do you want to proceed?", basename(entriesModifiedInRequestsToRemove[0].modifiedURI));
+					} else {
+						message = localize('chat.remove.confirmation.multipleEdits.message', "This will remove all subsequent requests and undo edits made to {0} files in your working set. Do you want to proceed?", entriesModifiedInRequestsToRemove.length);
+					}
+				}
+
+				const confirmation = shouldPrompt
+					? await dialogService.confirm({
+						title: editsToUndo === 1
+							? localize('chat.removeLast.confirmation.title', "Do you want to undo your last edit?")
+							: localize('chat.remove.confirmation.title', "Do you want to undo {0} edits?", editsToUndo),
+						message: message,
+						primaryButton: localize('chat.remove.confirmation.primaryButton', "Yes"),
+						checkbox: { label: localize('chat.remove.confirmation.checkbox', "Don't ask again"), checked: false },
+						type: 'info'
+					})
+					: { confirmed: true };
+
+				if (!confirmation.confirmed) {
+					return;
+				}
+
+				if (confirmation.checkboxChecked) {
+					await configurationService.updateValue('chat.editing.confirmEditRequestRemoval', false);
+				}
+
+				// Restore the snapshot to what it was before the request(s) that we deleted
+				const snapshotRequestId = chatRequests[itemIndex].id;
+				await session.restoreSnapshot(snapshotRequestId, undefined);
+			}
+		}
 		widget?.acceptInput(context?.inputValue);
 	}
 }
@@ -83,8 +154,7 @@ export class ChatSubmitAction extends SubmitAction {
 						precondition,
 					),
 					group: 'navigation',
-				},
-			]
+				}]
 		});
 	}
 }
@@ -92,7 +162,7 @@ export class ChatSubmitAction extends SubmitAction {
 export const ToggleAgentModeActionId = 'workbench.action.chat.toggleAgentMode';
 
 export interface IToggleChatModeArgs {
-	mode: ChatMode;
+	mode: IChatMode | ChatMode;
 }
 
 class ToggleChatModeAction extends Action2 {
@@ -118,7 +188,7 @@ class ToggleChatModeAction extends Action2 {
 			},
 			menu: [
 				{
-					id: MenuId.ChatExecute,
+					id: MenuId.ChatInput,
 					order: 1,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
@@ -134,7 +204,7 @@ class ToggleChatModeAction extends Action2 {
 	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const commandService = accessor.get(ICommandService);
 		const configurationService = accessor.get(IConfigurationService);
-		const dialogService = accessor.get(IDialogService);
+		const instaService = accessor.get(IInstantiationService);
 
 		const context = getEditingSessionContext(accessor, args);
 		if (!context?.chatWidget) {
@@ -144,54 +214,35 @@ class ToggleChatModeAction extends Action2 {
 		const arg = args.at(0) as IToggleChatModeArgs | undefined;
 		const chatSession = context.chatWidget.viewModel?.model;
 		const requestCount = chatSession?.getRequests().length ?? 0;
-		const switchToMode = validateChatMode(arg?.mode) ?? this.getNextMode(context.chatWidget, requestCount, configurationService);
-		const needToClearEdits = (!configurationService.getValue(ChatConfiguration.Edits2Enabled) && (context.chatWidget.input.currentMode === ChatMode.Edit || switchToMode === ChatMode.Edit)) && requestCount > 0;
+		const switchToMode = validateChatMode2(arg?.mode) ?? this.getNextMode(context.chatWidget, requestCount, configurationService);
 
-		if (switchToMode === context.chatWidget.input.currentMode) {
+		if (switchToMode.id === context.chatWidget.input.currentMode2.id) {
 			return;
 		}
 
-		if (needToClearEdits) {
-			// If not using edits2 and switching into or out of edit mode, ask to discard the session
-			const phrase = localize('switchMode.confirmPhrase', "Switching chat modes will end your current edit session.");
-			if (!context.editingSession) {
-				return;
-			}
-
-			const currentEdits = context.editingSession.entries.get();
-			const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
-			if (undecidedEdits.length > 0) {
-				if (!await handleCurrentEditingSession(context.editingSession, phrase, dialogService)) {
-					return;
-				}
-			} else {
-				const confirmation = await dialogService.confirm({
-					title: localize('agent.newSession', "Start new session?"),
-					message: localize('agent.newSessionMessage', "Changing the chat mode will end your current edit session. Would you like to change the chat mode?"),
-					primaryButton: localize('agent.newSession.confirm', "Yes"),
-					type: 'info'
-				});
-				if (!confirmation.confirmed) {
-					return;
-				}
-			}
+		const chatModeCheck = await instaService.invokeFunction(handleModeSwitch, context.chatWidget.input.currentMode, switchToMode.kind, requestCount, context.editingSession);
+		if (!chatModeCheck) {
+			return;
 		}
 
-		context.chatWidget.input.setChatMode(switchToMode);
+		context.chatWidget.input.setChatMode2(switchToMode);
 
-		if (needToClearEdits) {
+		if (chatModeCheck.needToClearSession) {
+			if (context.chatWidget.viewModel?.editing) {
+				context.chatWidget.input.dispose();
+			}
 			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}
 	}
 
-	private getNextMode(chatWidget: IChatWidget, requestCount: number, configurationService: IConfigurationService): ChatMode {
-		const modes = [ChatMode.Ask];
+	private getNextMode(chatWidget: IChatWidget, requestCount: number, configurationService: IConfigurationService): IChatMode {
+		const modes = [ChatMode2.Ask];
 		if (configurationService.getValue(ChatConfiguration.Edits2Enabled) || requestCount === 0) {
-			modes.push(ChatMode.Edit);
+			modes.push(ChatMode2.Edit);
 		}
-		modes.push(ChatMode.Agent);
+		modes.push(ChatMode2.Agent);
 
-		const modeIndex = modes.indexOf(chatWidget.input.currentMode);
+		const modeIndex = modes.findIndex(mode => mode.id === chatWidget.input.currentMode2.id);
 		const newMode = modes[(modeIndex + 1) % modes.length];
 		return newMode;
 	}
@@ -224,8 +275,7 @@ export class ToggleRequestPausedAction extends Action2 {
 						ContextKeyExpr.or(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.inputHasText.negate()),
 					),
 					group: 'navigation',
-				},
-			]
+				}]
 		});
 	}
 
@@ -266,7 +316,7 @@ class OpenModelPickerAction extends Action2 {
 			id: OpenModelPickerAction.ID,
 			title: localize2('interactive.openModelPicker.label', "Open Model Picker"),
 			category: CHAT_CATEGORY,
-			f1: true,
+			f1: false,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Period,
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -274,7 +324,7 @@ class OpenModelPickerAction extends Action2 {
 			},
 			precondition: ChatContextKeys.enabled,
 			menu: {
-				id: MenuId.ChatExecute,
+				id: MenuId.ChatInput,
 				order: 3,
 				group: 'navigation',
 				when: ContextKeyExpr.and(
@@ -292,10 +342,7 @@ class OpenModelPickerAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const widgetService = accessor.get(IChatWidgetService);
-		let widget = widgetService.lastFocusedWidget;
-		if (widget?.location !== ChatAgentLocation.Notebook && widget?.location !== ChatAgentLocation.Terminal) {
-			widget = await showChatView(accessor.get(IViewsService));
-		}
+		const widget = widgetService.lastFocusedWidget;
 		if (widget) {
 			widget.input.openModelPicker();
 		}
@@ -363,8 +410,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 						),
 						precondition),
 					group: 'navigation',
-				},
-			]
+				}]
 		});
 	}
 }
@@ -409,6 +455,100 @@ class SubmitWithoutDispatchingAction extends Action2 {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		widget?.acceptInput(context?.inputValue, { noCommandDetection: true });
+	}
+}
+
+export class CreateRemoteAgentJobAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.createRemoteAgentJob';
+
+	constructor() {
+		const precondition = ContextKeyExpr.and(
+			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
+			whenNotInProgressOrPaused,
+			ChatContextKeys.remoteJobCreating.negate(),
+		);
+
+		super({
+			id: CreateRemoteAgentJobAction.ID,
+			title: localize2('actions.chat.createRemoteJob', "Create Remote Job"),
+			icon: Codicon.cloudUpload,
+			precondition,
+			toggled: {
+				condition: ChatContextKeys.remoteJobCreating,
+				icon: Codicon.sync,
+				tooltip: localize('remoteJobCreating', "Remote job is being created"),
+			},
+			menu: {
+				id: MenuId.ChatExecute,
+				group: 'navigation',
+				order: 0,
+				when: ChatContextKeys.hasRemoteCodingAgent
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		const contextKeyService = accessor.get(IContextKeyService);
+		const remoteJobCreatingKey = ChatContextKeys.remoteJobCreating.bindTo(contextKeyService);
+
+		try {
+			remoteJobCreatingKey.set(true);
+
+			const remoteCodingAgent = accessor.get(IRemoteCodingAgentsService);
+			const commandService = accessor.get(ICommandService);
+			const widgetService = accessor.get(IChatWidgetService);
+			const chatAgentService = accessor.get(IChatAgentService);
+
+			const widget = widgetService.lastFocusedWidget;
+			if (!widget) {
+				return;
+			}
+			const session = widget.viewModel?.sessionId;
+			if (!session) {
+				return;
+			}
+
+			const userPrompt = widget.getInput();
+			widget.setInput();
+
+			const chatModel = widget.viewModel?.model;
+			const chatRequests = chatModel.getRequests();
+			const agents = remoteCodingAgent.getAvailableAgents();
+			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
+
+			const agent = agents[0]; // TODO: We just pick the first one for testing
+			if (!agent) {
+				return;
+			}
+
+			let summary: string | undefined;
+			if (defaultAgent && chatRequests.length > 0) {
+				const historyEntries: IChatAgentHistoryEntry[] = chatRequests
+					.filter(req => req.response) // Only include completed requests
+					.map(req => ({
+						request: {
+							sessionId: session,
+							requestId: req.id,
+							agentId: req.response?.agent?.id ?? '',
+							message: req.message.text,
+							command: req.response?.slashCommand?.name,
+							variables: req.variableData,
+							location: ChatAgentLocation.Panel,
+							editedFileEvents: req.editedFileEvents,
+						},
+						response: toChatHistoryContent(req.response!.response.value),
+						result: req.response?.result ?? {}
+					}));
+
+				summary = await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
+			}
+			await commandService.executeCommand(agent.command, {
+				userPrompt,
+				summary: summary || `Chat session with ${chatRequests.length} messages`
+			});
+		} finally {
+			remoteJobCreatingKey.set(false);
+		}
 	}
 }
 
@@ -501,16 +641,21 @@ class SendToNewChatAction extends Action2 {
 		const context: IChatExecuteActionContext | undefined = args[0];
 
 		const widgetService = accessor.get(IChatWidgetService);
-		const chatService = accessor.get(IChatService);
+		const dialogService = accessor.get(IDialogService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
 		}
 
-		widget.clear();
-		if (widget.viewModel) {
-			await waitForChatSessionCleared(widget.viewModel.sessionId, chatService);
+		const editingSession = widget.viewModel?.model.editingSession;
+		if (editingSession) {
+			if (!(await handleCurrentEditingSession(editingSession, undefined, dialogService))) {
+				return;
+			}
 		}
+
+		widget.clear();
+		await widget.waitForReady();
 		widget.acceptInput(context?.inputValue);
 	}
 }
@@ -525,12 +670,13 @@ export class CancelAction extends Action2 {
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.stopCircle,
-			menu: {
+			menu: [{
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.requestInProgress),
 				order: 4,
 				group: 'navigation',
 			},
+			],
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.Escape,
@@ -541,7 +687,6 @@ export class CancelAction extends Action2 {
 
 	run(accessor: ServicesAccessor, ...args: any[]) {
 		const context: IChatExecuteActionContext | undefined = args[0];
-
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
@@ -555,6 +700,39 @@ export class CancelAction extends Action2 {
 	}
 }
 
+export const CancelChatEditId = 'workbench.edit.chat.cancel';
+export class CancelEdit extends Action2 {
+	static readonly ID = CancelChatEditId;
+	constructor() {
+		super({
+			id: CancelEdit.ID,
+			title: localize2('interactive.cancelEdit.label', "Cancel Edit"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			keybinding: {
+				primary: KeyCode.Escape,
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput,
+					EditorContextKeys.hoverVisible.toNegated(),
+					EditorContextKeys.hasNonEmptySelection.toNegated(),
+					EditorContextKeys.hasMultipleSelections.toNegated()),
+				weight: KeybindingWeight.EditorContrib - 5
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		const context: IChatExecuteActionContext | undefined = args[0];
+
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+		if (!widget) {
+			return;
+		}
+		widget.input.dispose();
+	}
+}
+
+
 export function registerChatExecuteActions() {
 	registerAction2(ChatSubmitAction);
 	registerAction2(ChatEditingSessionSubmitAction);
@@ -562,9 +740,11 @@ export function registerChatExecuteActions() {
 	registerAction2(CancelAction);
 	registerAction2(SendToNewChatAction);
 	registerAction2(ChatSubmitWithCodebaseAction);
+	registerAction2(CreateRemoteAgentJobAction);
 	registerAction2(ToggleChatModeAction);
 	registerAction2(ToggleRequestPausedAction);
 	registerAction2(SwitchToNextModelAction);
 	registerAction2(OpenModelPickerAction);
 	registerAction2(ChangeChatModelAction);
+	registerAction2(CancelEdit);
 }

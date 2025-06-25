@@ -22,7 +22,7 @@ import { CancellationTokenSource } from '../../../../../base/common/cancellation
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IChatWidgetService, showChatView } from '../chat.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { addDisposableListener } from '../../../../../base/browser/dom.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -31,6 +31,12 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
+import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
+import { IBrowserElementsService } from '../../../../services/browserElements/browser/browserElementsService.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IAction, toAction } from '../../../../../base/common/actions.js';
+import { BrowserType } from '../../../../../platform/browserElements/common/browserElements.js';
 
 class SimpleBrowserOverlayWidget {
 
@@ -39,6 +45,10 @@ class SimpleBrowserOverlayWidget {
 	private readonly imagesFolder: URI;
 
 	private readonly _showStore = new DisposableStore();
+
+	private _timeout: Timeout | undefined = undefined;
+
+	private _activeBrowserType: BrowserType | undefined = undefined;
 
 	constructor(
 		private readonly _editor: IEditorGroup,
@@ -49,7 +59,20 @@ class SimpleBrowserOverlayWidget {
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IPreferencesService private readonly _preferencesService: IPreferencesService,
+		@IBrowserElementsService private readonly _browserElementsService: IBrowserElementsService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
+		this._showStore.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('chat.sendElementsToChat.enabled')) {
+				if (this.configurationService.getValue('chat.sendElementsToChat.enabled')) {
+					this.showElement(this._domNode);
+				} else {
+					this.hideElement(this._domNode);
+				}
+			}
+		}));
 
 		this.imagesFolder = joinPath(this.environmentService.workspaceStorageHome, 'vscode-chat-images');
 		cleanupOldImages(this.fileService, this.logService, this.imagesFolder);
@@ -58,99 +81,217 @@ class SimpleBrowserOverlayWidget {
 		this._domNode.className = 'element-selection-message';
 
 		const message = document.createElement('span');
-		const startSelectionMessage = localize('elementSelectionMessage', 'Add UI element to chat.');
+		const startSelectionMessage = localize('elementSelectionMessage', 'Add element to chat');
 		message.textContent = startSelectionMessage;
 		this._domNode.appendChild(message);
 
 		let cts: CancellationTokenSource;
-		const selectButton = new Button(this._domNode, { ...defaultButtonStyles, supportIcons: true, title: localize('selectAnElement', 'Click to select an element.') });
-		const cancelButton = new Button(this._domNode, { ...defaultButtonStyles, supportIcons: true, title: localize('cancelSelection', 'Click to cancel selection.') });
+		const actions: IAction[] = [];
+		actions.push(
+			toAction({
+				id: 'singleSelection',
+				label: localize('selectElementDropdown', 'Select an Element'),
+				enabled: true,
+				run: async () => { await startElementSelection(); }
+			}),
+			toAction({
+				id: 'continuousSelection',
+				label: localize('continuousSelectionDropdown', 'Continuous Selection'),
+				enabled: true,
+				run: async () => {
+					this._editor.focus();
+					cts = new CancellationTokenSource();
+					// start selection
+					message.textContent = localize('elementSelectionInProgress', 'Selecting element...');
+					this.hideElement(startButton.element);
+					this.showElement(cancelButton.element);
+					cancelButton.label = localize('finishSelectionLabel', 'Done');
+					while (!cts.token.isCancellationRequested) {
+						try {
+							await this.addElementToChat(cts);
+						} catch (err) {
+							this.logService.error('Failed to select this element.', err);
+							cts.cancel();
+							break;
+						}
+					}
 
-		selectButton.element.className = 'element-selection-start';
-		selectButton.label = localize('startSelection', 'Start Selection');
-		cancelButton.element.className = 'element-selection-cancel';
-		cancelButton.label = localize('cancel', 'Cancel');
+					// stop selection
+					message.textContent = localize('elementSelectionComplete', 'Element added to chat');
+					finishedSelecting();
+				}
+			}));
 
-		this.hideElement(cancelButton.element);
+		const startButton = this._showStore.add(new ButtonWithDropdown(this._domNode, {
+			actions: actions,
+			addPrimaryActionToDropdown: false,
+			contextMenuProvider: this.contextMenuService,
+			supportShortLabel: true,
+			title: localize('selectAnElement', 'Click to select an element.'),
+			supportIcons: true,
+			...defaultButtonStyles
+		}));
 
-		this._showStore.add(addDisposableListener(selectButton.element, 'click', async () => {
+		startButton.primaryButton.label = localize('startSelection', 'Start');
+		startButton.element.classList.add('element-selection-start');
+
+		const cancelButton = this._showStore.add(new Button(this._domNode, { ...defaultButtonStyles, supportIcons: true, title: localize('cancelSelection', 'Click to cancel selection.') }));
+		cancelButton.element.className = 'element-selection-cancel hidden';
+		const cancelButtonLabel = localize('cancelSelectionLabel', 'Cancel');
+		cancelButton.label = cancelButtonLabel;
+
+		const configure = this._showStore.add(new Button(this._domNode, { supportIcons: true, title: localize('chat.configureElements', "Configure Attachments Sent") }));
+		configure.icon = Codicon.gear;
+
+		const collapseOverlay = this._showStore.add(new Button(this._domNode, { supportIcons: true, title: localize('chat.hideOverlay', "Collapse Overlay") }));
+		collapseOverlay.icon = Codicon.chevronRight;
+
+		const nextSelection = this._showStore.add(new Button(this._domNode, { supportIcons: true, title: localize('chat.nextSelection', "Select Again") }));
+		nextSelection.icon = Codicon.close;
+		nextSelection.element.classList.add('hidden');
+
+		// shown if the overlay is collapsed
+		const expandOverlay = this._showStore.add(new Button(this._domNode, { supportIcons: true, title: localize('chat.expandOverlay', "Expand Overlay") }));
+		expandOverlay.icon = Codicon.layout;
+		const expandContainer = document.createElement('div');
+		expandContainer.className = 'element-expand-container hidden';
+		expandContainer.appendChild(expandOverlay.element);
+		this._container.appendChild(expandContainer);
+
+		const resetButtons = () => {
+			this.hideElement(nextSelection.element);
+			this.showElement(startButton.element);
+			this.showElement(collapseOverlay.element);
+		};
+
+		const finishedSelecting = () => {
+			// stop selection
+			this.hideElement(cancelButton.element);
+			cancelButton.label = cancelButtonLabel;
+			this.hideElement(collapseOverlay.element);
+			this.showElement(nextSelection.element);
+
+			// wait 3 seconds before showing the start button again unless cancelled out.
+			this._timeout = setTimeout(() => {
+				message.textContent = startSelectionMessage;
+				resetButtons();
+			}, 3000);
+		};
+
+		const startElementSelection = async () => {
 			cts = new CancellationTokenSource();
 			this._editor.focus();
 
 			// start selection
-			message.textContent = localize('elementSelectionInProgress', 'Selection in progress...');
-			this.hideElement(selectButton.element);
+			message.textContent = localize('elementSelectionInProgress', 'Selecting element...');
+			this.hideElement(startButton.element);
 			this.showElement(cancelButton.element);
-
 			await this.addElementToChat(cts);
-			// stop selection
-			this.hideElement(cancelButton.element);
-			message.textContent = localize('elementSelectionComplete', 'Element added to chat.');
 
-			// wait 3 seconds before showing the start selection button again
-			setTimeout(() => {
-				message.textContent = startSelectionMessage;
-				this.showElement(selectButton.element);
-			}, 3000);
+			// stop selection
+			message.textContent = localize('elementSelectionComplete', 'Element added to chat');
+			finishedSelecting();
+		};
+
+		this._showStore.add(addDisposableListener(startButton.primaryButton.element, 'click', async () => {
+			await startElementSelection();
 		}));
 
 		this._showStore.add(addDisposableListener(cancelButton.element, 'click', () => {
 			cts.cancel();
-			this.hideElement(cancelButton.element);
 			message.textContent = localize('elementCancelMessage', 'Selection canceled');
-			setTimeout(() => {
-				message.textContent = startSelectionMessage;
-				this.showElement(selectButton.element);
-			}, 3000);
+			finishedSelecting();
+		}));
+
+		this._showStore.add(addDisposableListener(collapseOverlay.element, 'click', () => {
+			this.hideElement(this._domNode);
+			this.showElement(expandContainer);
+		}));
+
+		this._showStore.add(addDisposableListener(expandOverlay.element, 'click', () => {
+			this.showElement(this._domNode);
+			this.hideElement(expandContainer);
+		}));
+
+		this._showStore.add(addDisposableListener(nextSelection.element, 'click', () => {
+			clearTimeout(this._timeout);
+			message.textContent = startSelectionMessage;
+			resetButtons();
+		}));
+
+		this._showStore.add(addDisposableListener(configure.element, 'click', () => {
+			this._preferencesService.openSettings({ jsonEditor: false, query: '@id:chat.sendElementsToChat.enabled,chat.sendElementsToChat.attachCSS,chat.sendElementsToChat.attachImages' });
 		}));
 	}
 
+	setActiveBrowserType(type: BrowserType | undefined) {
+		this._activeBrowserType = type;
+	}
+
 	hideElement(element: HTMLElement) {
+		if (element.classList.contains('hidden')) {
+			return;
+		}
 		element.classList.add('hidden');
 	}
 
 	showElement(element: HTMLElement) {
+		if (!element.classList.contains('hidden')) {
+			return;
+		}
 		element.classList.remove('hidden');
 	}
 
 	async addElementToChat(cts: CancellationTokenSource) {
-		const rect = this._container.getBoundingClientRect();
-		const elementData = await this._hostService.getElementData(rect.x, rect.y, cts.token);
+		const editorContainer = this._container.querySelector('.editor-container') as HTMLDivElement;
+		const editorContainerPosition = editorContainer ? editorContainer.getBoundingClientRect() : this._container.getBoundingClientRect();
+
+		const elementData = await this._browserElementsService.getElementData(editorContainerPosition, cts.token, this._activeBrowserType);
 		if (!elementData) {
 			throw new Error('Element data not found');
 		}
 		const bounds = elementData.bounds;
+		const toAttach: IChatRequestVariableEntry[] = [];
 
-		// remove container so we don't block anything on screenshot
-		this._domNode.style.display = 'none';
-
-		// Wait 1 extra frame to make sure overlay is gone
-		await new Promise(resolve => setTimeout(resolve, 100));
-
-		const screenshot = await this._hostService.getScreenshot(bounds);
-		if (!screenshot) {
-			throw new Error('Screenshot failed');
+		const widget = await showChatView(this._viewService) ?? this._chatWidgetService.lastFocusedWidget;
+		let value = 'Attached HTML and CSS Context\n\n' + elementData.outerHTML;
+		if (this.configurationService.getValue('chat.sendElementsToChat.attachCSS')) {
+			value += '\n\n' + elementData.computedStyle;
 		}
-		this._domNode.style.display = '';
-		const widget = this._chatWidgetService.lastFocusedWidget ?? await showChatView(this._viewService);
-
-		const fileReference = await createFileForMedia(this.fileService, this.imagesFolder, screenshot.buffer, 'image/png');
-
-		widget?.attachmentModel?.addContext({
+		toAttach.push({
 			id: 'element-' + Date.now(),
 			name: this.getDisplayNameFromOuterHTML(elementData.outerHTML),
 			fullName: this.getDisplayNameFromOuterHTML(elementData.outerHTML),
-			value: elementData.outerHTML + elementData.computedStyle,
+			value: value,
 			kind: 'element',
 			icon: ThemeIcon.fromId(Codicon.layout.id),
-		}, {
-			id: 'element-screenshot-' + Date.now(),
-			name: 'Element Screenshot',
-			fullName: 'Element Screenshot',
-			kind: 'image',
-			value: screenshot.buffer,
-			references: fileReference ? [{ reference: fileReference, kind: 'reference' }] : [],
 		});
+
+		if (this.configurationService.getValue('chat.sendElementsToChat.attachImages')) {
+			// remove container so we don't block anything on screenshot
+			this._domNode.style.display = 'none';
+
+			// Wait 1 extra frame to make sure overlay is gone
+			await new Promise(resolve => setTimeout(resolve, 100));
+
+			const screenshot = await this._hostService.getScreenshot(bounds);
+			if (!screenshot) {
+				throw new Error('Screenshot failed');
+			}
+			const fileReference = await createFileForMedia(this.fileService, this.imagesFolder, screenshot.buffer, 'image/png');
+			toAttach.push({
+				id: 'element-screenshot-' + Date.now(),
+				name: 'Element Screenshot',
+				fullName: 'Element Screenshot',
+				kind: 'image',
+				value: screenshot.buffer,
+				references: fileReference ? [{ reference: fileReference, kind: 'reference' }] : [],
+			});
+
+			this._domNode.style.display = '';
+		}
+
+		widget?.attachmentModel?.addContext(...toAttach);
 	}
 
 
@@ -188,9 +329,14 @@ class SimpleBrowserOverlayController {
 		group: IEditorGroup,
 		@IInstantiationService instaService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IBrowserElementsService private readonly _browserElementsService: IBrowserElementsService,
 	) {
 
-		this._domNode.classList.add('chat-editing-editor-overlay');
+		if (!this.configurationService.getValue('chat.sendElementsToChat.enabled')) {
+			return;
+		}
+
+		this._domNode.classList.add('chat-simple-browser-overlay');
 		this._domNode.style.position = 'absolute';
 		this._domNode.style.bottom = `5px`;
 		this._domNode.style.right = `5px`;
@@ -201,16 +347,48 @@ class SimpleBrowserOverlayController {
 		this._store.add(toDisposable(() => this._domNode.remove()));
 		this._store.add(widget);
 
-		const show = () => {
+		const connectingWebviewElement = document.createElement('div');
+		connectingWebviewElement.className = 'connecting-webview-element';
+
+
+		const getActiveBrowserType = () => {
+			const editor = group.activeEditorPane;
+			const isSimpleBrowser = editor?.input.editorId === 'mainThreadWebview-simpleBrowser.view';
+			const isLiveServer = editor?.input.editorId === 'mainThreadWebview-browserPreview';
+			return isSimpleBrowser ? BrowserType.SimpleBrowser : isLiveServer ? BrowserType.LiveServer : undefined;
+		};
+
+		let cts = new CancellationTokenSource();
+		const show = async () => {
+			// Show the connecting indicator while establishing the session
+			connectingWebviewElement.textContent = localize('connectingWebviewElement', 'Connecting to webview...');
+			if (!container.contains(connectingWebviewElement)) {
+				container.appendChild(connectingWebviewElement);
+			}
+
+			cts = new CancellationTokenSource();
+			const activeBrowserType = getActiveBrowserType();
+			if (activeBrowserType) {
+				try {
+					await this._browserElementsService.startDebugSession(cts.token, activeBrowserType);
+				} catch (error) {
+					connectingWebviewElement.textContent = localize('reopenErrorWebviewElement', 'Please reopen the preview.');
+					return;
+				}
+			}
+
 			if (!container.contains(this._domNode)) {
 				container.appendChild(this._domNode);
 			}
+			connectingWebviewElement.remove();
 		};
 
 		const hide = () => {
 			if (container.contains(this._domNode)) {
+				cts.cancel();
 				this._domNode.remove();
 			}
+			connectingWebviewElement.remove();
 		};
 
 		const activeEditorSignal = observableSignalFromEvent(this, Event.any(group.onDidActiveEditorChange, group.onDidModelChange));
@@ -220,10 +398,11 @@ class SimpleBrowserOverlayController {
 			activeEditorSignal.read(r); // signal
 
 			const editor = group.activeEditorPane;
-			if (editor?.input.editorId === 'mainThreadWebview-simpleBrowser.view') {
-				if (!this.configurationService.getValue('chat.sendElementsToChat.enabled')) {
-					return undefined;
-				}
+
+			const activeBrowser = getActiveBrowserType();
+			widget.setActiveBrowserType(activeBrowser);
+
+			if (activeBrowser) {
 				const uri = EditorResourceAccessor.getOriginalUri(editor?.input, { supportSideBySide: SideBySideEditor.PRIMARY });
 				return uri;
 			}

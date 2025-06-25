@@ -7,8 +7,8 @@ import { isIterable } from './types.js';
 
 export namespace Iterable {
 
-	export function is<T = any>(thing: any): thing is Iterable<T> {
-		return thing && typeof thing === 'object' && typeof thing[Symbol.iterator] === 'function';
+	export function is<T = any>(thing: unknown): thing is Iterable<T> {
+		return !!thing && typeof thing === 'object' && typeof (thing as Iterable<T>)[Symbol.iterator] === 'function';
 	}
 
 	const _empty: Iterable<any> = Object.freeze([]);
@@ -32,7 +32,7 @@ export namespace Iterable {
 		return iterable || _empty;
 	}
 
-	export function* reverse<T>(array: Array<T>): Iterable<T> {
+	export function* reverse<T>(array: ReadonlyArray<T>): Iterable<T> {
 		for (let i = array.length - 1; i >= 0; i--) {
 			yield array[i];
 		}
@@ -54,6 +54,16 @@ export namespace Iterable {
 			}
 		}
 		return false;
+	}
+
+	export function every<T>(iterable: Iterable<T>, predicate: (t: T, i: number) => unknown): boolean {
+		let i = 0;
+		for (const element of iterable) {
+			if (!predicate(element, i++)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	export function find<T, R extends T>(iterable: Iterable<T>, predicate: (t: T) => t is R): R | undefined;
@@ -171,6 +181,14 @@ export namespace Iterable {
 		for await (const item of iterable) {
 			result.push(item);
 		}
-		return Promise.resolve(result);
+		return result;
+	}
+
+	export async function asyncToArrayFlat<T>(iterable: AsyncIterable<T[]>): Promise<T[]> {
+		let result: T[] = [];
+		for await (const item of iterable) {
+			result = result.concat(item);
+		}
+		return result;
 	}
 }

@@ -6,6 +6,7 @@
 import { IRange } from '../core/range.js';
 import { FoldingRules } from '../languages/languageConfiguration.js';
 import { isMultilineRegexSource } from '../model/textModelSearch.js';
+import { regExpLeadsToEndlessLoop } from '../../../base/common/strings.js';
 
 export interface ISectionHeaderFinderTarget {
 	getLineCount(): number;
@@ -90,12 +91,22 @@ export function collectMarkHeaders(model: ISectionHeaderFinderTarget, options: F
 	const markHeaders: SectionHeader[] = [];
 	const endLineNumber = model.getLineCount();
 
+	// Validate regex to prevent infinite loops
+	if (!options.markSectionHeaderRegex || options.markSectionHeaderRegex.trim() === '') {
+		return markHeaders;
+	}
+
 	// Create regex with flags for:
 	// - 'd' for indices to get proper match positions
 	// - 'm' for multi-line mode so ^ and $ match line starts/ends
 	// - 's' for dot-all mode so . matches newlines
 	const multiline = isMultilineRegexSource(options.markSectionHeaderRegex);
 	const regex = new RegExp(options.markSectionHeaderRegex, `gdm${multiline ? 's' : ''}`);
+
+	// Check if the regex would lead to an endless loop
+	if (regExpLeadsToEndlessLoop(regex)) {
+		return markHeaders;
+	}
 
 	// Process text in overlapping chunks for better performance
 	for (let startLine = 1; startLine <= endLineNumber; startLine += CHUNK_SIZE - MAX_SECTION_LINES) {

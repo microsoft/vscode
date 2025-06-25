@@ -1163,6 +1163,7 @@ export class InputBox extends QuickInput implements IInputBox {
 	private _valueSelection: Readonly<[number, number]> | undefined;
 	private valueSelectionUpdated = true;
 	private _placeholder: string | undefined;
+	private _ariaLabel: string | undefined;
 	private _password = false;
 	private _prompt: string | undefined;
 	private readonly onDidValueChangeEmitter = this._register(new Emitter<string>());
@@ -1199,6 +1200,15 @@ export class InputBox extends QuickInput implements IInputBox {
 
 	set placeholder(placeholder: string | undefined) {
 		this._placeholder = placeholder;
+		this.update();
+	}
+
+	get ariaLabel() {
+		return this._ariaLabel;
+	}
+
+	set ariaLabel(ariaLabel: string | undefined) {
+		this._ariaLabel = ariaLabel;
 		this.update();
 	}
 
@@ -1271,6 +1281,20 @@ export class InputBox extends QuickInput implements IInputBox {
 		}
 		if (this.ui.inputBox.password !== this.password) {
 			this.ui.inputBox.password = this.password;
+		}
+		let ariaLabel = this.ariaLabel;
+		// Only set aria label to the input box placeholder if we actually have an input box.
+		if (!ariaLabel && visibilities.inputBox) {
+			ariaLabel = this.placeholder
+				? this.title
+					? `${this.placeholder} - ${this.title}`
+					: this.placeholder
+				: this.title
+					? this.title
+					: 'input';
+		}
+		if (this.ui.inputBox.ariaLabel !== ariaLabel) {
+			this.ui.inputBox.ariaLabel = ariaLabel || 'input';
 		}
 	}
 }

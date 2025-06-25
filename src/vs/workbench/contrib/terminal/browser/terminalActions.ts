@@ -3,22 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isKeyboardEvent, isMouseEvent, isPointerEvent } from '../../../../base/browser/dom.js';
 import { Action } from '../../../../base/common/actions.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Schemas } from '../../../../base/common/network.js';
-import { isWindows } from '../../../../base/common/platform.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { isAbsolute } from '../../../../base/common/path.js';
+import { isWindows } from '../../../../base/common/platform.js';
+import { dirname } from '../../../../base/common/resources.js';
 import { isObject, isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { EndOfLinePreference } from '../../../../editor/common/model.js';
+import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
 import { localize, localize2 } from '../../../../nls.js';
+import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
-import { Action2, registerAction2, IAction2Options, MenuId } from '../../../../platform/actions/common/actions.js';
+import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { FileKind } from '../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
@@ -26,42 +36,31 @@ import { IListService } from '../../../../platform/list/browser/listService.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalProfile, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+import { createProfileSchemaEnums } from '../../../../platform/terminal/common/terminalProfiles.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from '../../../browser/actions/workspaceCommands.js';
 import { CLOSE_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
-import { Direction, ICreateTerminalOptions, IDetachedTerminalInstance, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService, IXtermTerminal } from './terminal.js';
-import { IRemoteTerminalAttachTarget, ITerminalProfileResolverService, ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../common/terminal.js';
-import { TerminalContextKeys } from '../common/terminalContextKey.js';
-import { createProfileSchemaEnums } from '../../../../platform/terminal/common/terminalProfiles.js';
-import { terminalStrings } from '../common/terminalStrings.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
+import { ConfigurationResolverExpression } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
+import { editorGroupToColumn } from '../../../services/editor/common/editorGroupColumn.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { IHistoryService } from '../../../services/history/common/history.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
-import { SIDE_GROUP } from '../../../services/editor/common/editorService.js';
-import { isAbsolute } from '../../../../base/common/path.js';
-import { ITerminalQuickPickItem } from './terminalProfileQuickpick.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { getIconId, getColorClass, getUriClasses } from './terminalIcon.js';
-import { IModelService } from '../../../../editor/common/services/model.js';
-import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { dirname } from '../../../../base/common/resources.js';
-import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
-import { FileKind } from '../../../../platform/files/common/files.js';
-import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
-import { killTerminalIcon, newTerminalIcon } from './terminalIcons.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { Iterable } from '../../../../base/common/iterator.js';
 import { accessibleViewCurrentProviderId, accessibleViewIsShown, accessibleViewOnLastLine } from '../../accessibility/browser/accessibilityConfiguration.js';
-import { isKeyboardEvent, isMouseEvent, isPointerEvent } from '../../../../base/browser/dom.js';
-import { editorGroupToColumn } from '../../../services/editor/common/editorGroupColumn.js';
+import { IRemoteTerminalAttachTarget, ITerminalProfileResolverService, ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../common/terminal.js';
+import { TerminalContextKeys } from '../common/terminalContextKey.js';
+import { terminalStrings } from '../common/terminalStrings.js';
+import { Direction, ICreateTerminalOptions, IDetachedTerminalInstance, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService, IXtermTerminal } from './terminal.js';
 import { InstanceContext } from './terminalContextMenu.js';
-import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { getColorClass, getIconId, getUriClasses } from './terminalIcon.js';
+import { killTerminalIcon, newTerminalIcon } from './terminalIcons.js';
+import { ITerminalQuickPickItem } from './terminalProfileQuickpick.js';
 import { TerminalTabList } from './terminalTabsList.js';
-import { ConfigurationResolverExpression } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -119,23 +118,6 @@ export async function getCwdForSplit(
 			return instance.getCwd();
 	}
 }
-
-export const terminalSendSequenceCommand = async (accessor: ServicesAccessor, args: unknown) => {
-	const instance = accessor.get(ITerminalService).activeInstance;
-	if (instance) {
-		const text = isObject(args) && 'text' in args ? toOptionalString(args.text) : undefined;
-		if (!text) {
-			return;
-		}
-		const configurationResolverService = accessor.get(IConfigurationResolverService);
-		const workspaceContextService = accessor.get(IWorkspaceContextService);
-		const historyService = accessor.get(IHistoryService);
-		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(instance.isRemote ? Schemas.vscodeRemote : Schemas.file);
-		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
-		const resolvedText = await configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, text);
-		instance.sendText(resolvedText, false);
-	}
-};
 
 export class TerminalLaunchHelpAction extends Action {
 
@@ -891,7 +873,7 @@ export function registerTerminalActions() {
 			{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				order: 4,
+				order: 5,
 				when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 				isHiddenByDefault: true
 			}
@@ -952,29 +934,6 @@ export function registerTerminalActions() {
 			// prefer to call focus on the TerminalInstance for additional accessibility triggers
 			(instance || xterm).focus();
 		}
-	});
-
-	registerTerminalAction({
-		id: TerminalCommandId.SendSequence,
-		title: terminalStrings.sendSequence,
-		f1: false,
-		metadata: {
-			description: terminalStrings.sendSequence.value,
-			args: [{
-				name: 'args',
-				schema: {
-					type: 'object',
-					required: ['text'],
-					properties: {
-						text: {
-							description: localize('sendSequence', "The sequence of text to send to the terminal"),
-							type: 'string'
-						}
-					},
-				}
-			}]
-		},
-		run: (c, accessor, args) => terminalSendSequenceCommand(accessor, args)
 	});
 
 	registerTerminalAction({

@@ -79,7 +79,12 @@ declare module 'vscode' {
 		constructor(value: Uri, license: string, snippet: string);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart;
+	export class ChatPrepareToolInvocationPart {
+		toolName: string;
+		constructor(toolName: string);
+	}
+
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatPrepareToolInvocationPart;
 
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
@@ -217,6 +222,8 @@ declare module 'vscode' {
 
 		codeCitation(value: Uri, license: string, snippet: string): void;
 
+		prepareToolInvocation(toolName: string): void;
+
 		push(part: ExtendedChatResponsePart): void;
 	}
 
@@ -327,6 +334,10 @@ declare module 'vscode' {
 		copiedCharacters: number;
 		totalCharacters: number;
 		copiedText: string;
+		totalLines: number;
+		copiedLines: number;
+		modelId: string;
+		languageId?: string;
 	}
 
 	export interface ChatInsertAction {
@@ -334,6 +345,9 @@ declare module 'vscode' {
 		kind: 'insert';
 		codeBlockIndex: number;
 		totalCharacters: number;
+		totalLines: number;
+		languageId?: string;
+		modelId: string;
 		newFile?: boolean;
 	}
 
@@ -342,6 +356,9 @@ declare module 'vscode' {
 		kind: 'apply';
 		codeBlockIndex: number;
 		totalCharacters: number;
+		totalLines: number;
+		languageId?: string;
+		modelId: string;
 		newFile?: boolean;
 		codeMapper?: string;
 	}
@@ -438,5 +455,9 @@ declare module 'vscode' {
 
 	export interface LanguageModelToolInvocationOptions<T> {
 		model?: LanguageModelChat;
+	}
+
+	export interface ChatRequest {
+		modeInstructions?: string;
 	}
 }
