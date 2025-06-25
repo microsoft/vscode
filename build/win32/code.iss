@@ -1460,7 +1460,7 @@ end;
 function GetDestBinDir(Value: string): string;
 begin
   if IsBackgroundUpdate() then
-    Result := ExpandConstant('{#VersionedResourcesFolder}\bin');
+    Result := ExpandConstant('{#VersionedResourcesFolder}\bin')
   else
     Result := 'bin';
 end;
@@ -1476,7 +1476,7 @@ end;
 function GetExeBasename(Value: string): string;
 begin
   if IsBackgroundUpdate() then
-    Result := ExpandConstant('new_{#ExeBasename}.exe');
+    Result := ExpandConstant('new_{#ExeBasename}.exe')
   else
     Result := ExpandConstant('{#ExeBasename}.exe');
 end;
@@ -1532,7 +1532,7 @@ begin
     if IsBackgroundUpdate() then
     begin
       Log('Renaming current executable with old prefix...');
-      Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('"{app}\{#ExeBasename}.exe" --rename'), '', SW_HIDE, ewWaitUntilTerminated, UpdateResultCode);
+      Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('--rename "{app}\{#ExeBasename}.exe" "{app}\{#VersionedResourcesFolder}"'), '', SW_HIDE, ewWaitUntilTerminated, UpdateResultCode);
 
       CreateMutex('{#AppMutex}-ready');
 
