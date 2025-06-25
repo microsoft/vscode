@@ -213,4 +213,42 @@ suite('normalizeSerializableChatData', () => {
 		assert.ok(newData.lastMessageDate > 0);
 		assert.ok(newData.sessionId);
 	});
+
+	test('getDefaultTitle with message count', () => {
+		// Test single message
+		const singleRequest = [
+			{
+				message: { text: 'hello' },
+			}
+		];
+		const singleTitle = ChatModel.getDefaultTitle(singleRequest as any);
+		assert.strictEqual(singleTitle, 'hello');
+
+		// Test multiple messages
+		const multipleRequests = [
+			{
+				message: { text: 'hello' },
+			},
+			{
+				message: { text: 'how are you?' },
+			},
+			{
+				message: { text: 'what is the weather like?' },
+			}
+		];
+		const multipleTitle = ChatModel.getDefaultTitle(multipleRequests as any);
+		assert.strictEqual(multipleTitle, 'hello : Chat session with 3 messages');
+
+		// Test long first message gets truncated but still shows count
+		const longMessageRequests = [
+			{
+				message: { text: 'this is a very long message that should be truncated to fit within the title length limit' },
+			},
+			{
+				message: { text: 'second message' },
+			}
+		];
+		const longTitle = ChatModel.getDefaultTitle(longMessageRequests as any);
+		assert.strictEqual(longTitle, 'this is a very l... : Chat session with 2 messages');
+	});
 });

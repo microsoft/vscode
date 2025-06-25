@@ -1130,7 +1130,23 @@ export class ChatModel extends Disposable implements IChatModel {
 		const message = typeof firstRequestMessage === 'string' ?
 			firstRequestMessage :
 			firstRequestMessage.text;
-		return message.split('\n')[0].substring(0, 50);
+		const firstLine = message.split('\n')[0];
+
+		// If only one message, return just the first line truncated
+		if (requests.length <= 1) {
+			return firstLine.substring(0, 50);
+		}
+
+		// For multiple messages, include the count
+		const messageCount = requests.length;
+		const countSuffix = ` : ${localize('chatSessionWithMessages', "Chat session with {0} messages", messageCount)}`;
+		const maxFirstMessageLength = 50 - countSuffix.length;
+
+		if (firstLine.length <= maxFirstMessageLength) {
+			return firstLine + countSuffix;
+		} else {
+			return firstLine.substring(0, maxFirstMessageLength - 3) + '...' + countSuffix;
+		}
 	}
 
 	private readonly _onDidDispose = this._register(new Emitter<void>());
