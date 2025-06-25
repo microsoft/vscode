@@ -1577,7 +1577,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Workaround is to make editor visible so that its parent view gets
 			// added properly and then enter maximized mode of auxiliary bar.
 			this.setEditorHidden(false);
-			this.setAuxiliaryBarMaximized(true);
+			this.setAuxiliaryBarMaximized(true, true /* fromInit */);
 		}
 
 		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar, auxiliaryBarPart, bannerPart]) {
@@ -2029,10 +2029,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private maximizedAuxiliaryBarState: {
-		readonly sideBarVisible: boolean;
-		readonly editorVisible: boolean;
-		readonly panelVisible: boolean;
-		readonly auxiliaryBarVisible: boolean;
+		sideBarVisible: boolean;
+		editorVisible: boolean;
+		panelVisible: boolean;
+		auxiliaryBarVisible: boolean;
 	} | undefined = undefined;
 
 	private inMaximizedAuxiliaryBarTransition = false;
@@ -2045,7 +2045,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.setAuxiliaryBarMaximized(!this.isAuxiliaryBarMaximized());
 	}
 
-	setAuxiliaryBarMaximized(maximized: boolean): boolean {
+	setAuxiliaryBarMaximized(maximized: boolean, fromInit?: boolean): boolean {
 		if (
 			this.inMaximizedAuxiliaryBarTransition ||			// prevent re-entrance
 			(!maximized && !this.maximizedAuxiliaryBarState)	// return early if not maximizing and no state
@@ -2054,17 +2054,27 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		if (maximized) {
-			const state = this.maximizedAuxiliaryBarState = {
-				sideBarVisible: this.isVisible(Parts.SIDEBAR_PART),
-				editorVisible: this.isVisible(Parts.EDITOR_PART),
-				panelVisible: this.isVisible(Parts.PANEL_PART),
-				auxiliaryBarVisible: this.isVisible(Parts.AUXILIARYBAR_PART)
-			};
+			let state: typeof this.maximizedAuxiliaryBarState;
+			if (fromInit) {
+				state = this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY);
+			} else {
+				state = {
+					sideBarVisible: this.isVisible(Parts.SIDEBAR_PART),
+					editorVisible: this.isVisible(Parts.EDITOR_PART),
+					panelVisible: this.isVisible(Parts.PANEL_PART),
+					auxiliaryBarVisible: this.isVisible(Parts.AUXILIARYBAR_PART)
+				};
+			}
+			this.maximizedAuxiliaryBarState = state;
 
 			this.inMaximizedAuxiliaryBarTransition = true;
 			try {
 				if (!state.auxiliaryBarVisible) {
 					this.setAuxiliaryBarHidden(false);
+				}
+				if (!fromInit) {
+					const size = this.workbenchGrid.getViewSize(this.auxiliaryBarPartView).width;
+					this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE, size);
 				}
 				if (state.sideBarVisible) {
 					this.setSideBarHidden(true);
@@ -2074,6 +2084,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				}
 				if (state.editorVisible) {
 					this.setEditorHidden(true);
+				}
+
+				if (!fromInit) {
+					this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY, state);
 				}
 			} finally {
 				this.inMaximizedAuxiliaryBarTransition = false;
@@ -2087,6 +2101,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.setEditorHidden(!state?.editorVisible);	// this order of updating view visibility
 				this.setPanelHidden(!state?.panelVisible);		// helps in restoring the previous view
 				this.setSideBarHidden(!state?.sideBarVisible);	// sizes we had
+
+				const size = this.workbenchGrid.getViewSize(this.auxiliaryBarPartView);
+				this.workbenchGrid.resizeView(this.auxiliaryBarPartView, {
+					width: this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE),
+					height: size.height
+				});
 			} finally {
 				this.inMaximizedAuxiliaryBarTransition = false;
 			}
@@ -2720,6 +2740,13 @@ const LayoutStateKeys = {
 	PANEL_WAS_LAST_MAXIMIZED: new RuntimeStateKey<boolean>('panel.wasLastMaximized', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
 
 	AUXILIARYBAR_WAS_LAST_MAXIMIZED: new RuntimeStateKey<boolean>('auxiliaryBar.wasLastMaximized', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
+	AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE: new RuntimeStateKey<number>('auxiliaryBar.lastNonMaximizedSize', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
+	AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY: new RuntimeStateKey('auxiliaryBar.lastNonMaximizedVisibility', StorageScope.WORKSPACE, StorageTarget.MACHINE, {
+		sideBarVisible: false,
+		editorVisible: false,
+		panelVisible: false,
+		auxiliaryBarVisible: false
+	}),
 
 	// Part Positions
 	SIDEBAR_POSITON: new RuntimeStateKey<Position>('sideBar.position', StorageScope.WORKSPACE, StorageTarget.MACHINE, Position.LEFT),
