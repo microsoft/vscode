@@ -3379,6 +3379,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 
 		// Restart all active tasks sequentially to preserve terminal order
+		// Sequential restart ensures terminals are recreated in the same order as they appear in tabs
 		for (const task of activeTasks) {
 			try {
 				await this._restart(task);
