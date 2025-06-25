@@ -300,7 +300,7 @@ export interface IModelDecorationOptions {
 	hideInStringTokens?: boolean | null;
 
 	/**
-	 * Affects the font family or font size
+	 * Whether the decoration affects the font.
 	 * @internal
 	 */
 	affectsFont?: boolean | null;

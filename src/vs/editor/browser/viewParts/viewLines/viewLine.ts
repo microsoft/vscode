@@ -354,9 +354,6 @@ class FastRenderedViewLine implements IRenderedViewLine {
 		this._charWidth = renderLineInput.spaceWidth;
 	}
 
-	/**
-	 * The render whitespace setting for this line
-	 */
 	public getRenderWhitespace(): RenderWhitespace {
 		return this.input.renderWhitespace;
 	}

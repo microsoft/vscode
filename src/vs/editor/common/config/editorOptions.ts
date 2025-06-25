@@ -5732,13 +5732,13 @@ export const EditorOptions = {
 	allowVariableFonts: register(new EditorBooleanOption(
 		EditorOption.allowVariableFonts, 'allowVariableFonts', true,
 		{
-			description: nls.localize('allowVariableFonts', "Controls whether to allow using variable font-sizes and font-families in the editor.")
+			description: nls.localize('allowVariableFonts', "Controls whether to allow using variable fonts in the editor.")
 		}
 	)),
 	allowVariableFontsInAccessibilityMode: register(new EditorBooleanOption(
 		EditorOption.allowVariableFontsInAccessibilityMode, 'allowVariableFontsInAccessibilityMode', false,
 		{
-			description: nls.localize('allowVariableFontsInAccessibilityMode', "Controls whether to allow using variable font-sizes and font-families in the editor in the accessibility mode."),
+			description: nls.localize('allowVariableFontsInAccessibilityMode', "Controls whether to allow using variable fonts in the editor in the accessibility mode."),
 			tags: ['accessibility']
 		}
 	)),

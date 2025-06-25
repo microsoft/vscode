@@ -536,7 +536,11 @@ export class ViewModel extends Disposable implements IViewModel {
 	private readonly hiddenAreasModel = new HiddenAreasModel();
 	private previousHiddenAreas: readonly Range[] = [];
 
-	public getFontSizeAtPosition(position: IPosition): string {
+	public getFontSizeAtPosition(position: IPosition): string | null {
+		const allowVariableFonts = this._configuration.options.get(EditorOption.effectiveAllowVariableFonts);
+		if (!allowVariableFonts) {
+			return null;
+		}
 		const fontDecorations = this.model.getFontDecorationsInRange(Range.fromPositions(position), this._editorId);
 		let fontSize: string = this._configuration.options.get(EditorOption.fontInfo).fontSize + 'px';
 		for (const fontDecoration of fontDecorations) {
@@ -795,8 +799,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		const decorationViewportData = this._decorations.getDecorationsViewportData(visibleRange);
 		const allInlineDecorations = decorationViewportData.inlineDecorations;
 		const inlineDecorations = allInlineDecorations[lineNumber - visibleRange.startLineNumber];
-		const hasVariableFonts = decorationViewportData.hasVariableFonts;
-		return this._getViewLineRenderingData(lineNumber, inlineDecorations, hasVariableFonts);
+		return this._getViewLineRenderingData(lineNumber, inlineDecorations, decorationViewportData.hasVariableFonts);
 	}
 
 	public getViewLineRenderingData(lineNumber: number): ViewLineRenderingData {
