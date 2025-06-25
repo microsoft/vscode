@@ -1970,6 +1970,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.interactive-request.editing .value {
 		display: none;
 	}
+
+	.interactive-request.editing {
+		padding: 0px;
+	}
 }
 
 
@@ -1995,7 +1999,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-item-container .chat-edit-input-container {
-	margin-right: -15px;
+	width: 100%;
 }
 
 .chat-row-disabled-overlay,
