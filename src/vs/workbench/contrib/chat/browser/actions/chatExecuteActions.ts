@@ -510,7 +510,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 			const chatModel = widget.viewModel?.model;
 			const chatRequests = chatModel.getRequests();
-			const agents = remoteCodingAgent.getRegisteredAgents();
+			const agents = remoteCodingAgent.getAvailableAgents();
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 
 			const agent = agents[0]; // TODO: We just pick the first one for testing
