@@ -41,6 +41,7 @@ suite("CodeEditorWidget", () => {
 						createChangeSummary: () => undefined,
 						handleChange: (context) => {
 							const obsName = observableName(context.changedObservable, obsEditor);
+							delete (context.change as any).detailedReasons;
 							log.log(`handle change: ${obsName} ${formatChange(context.change)}`);
 							return true;
 						},
