@@ -460,7 +460,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public afterContentClassName: string | undefined;
 	public glyphMarginClassName: string | undefined;
 	public isWholeLine: boolean;
-	public lineHeight?: number;
+	public lineHeight: number | undefined;
 	public fontSize: string | undefined;
 	public fontFamily: string | undefined;
 	public fontWeight: string | undefined;
