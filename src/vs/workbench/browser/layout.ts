@@ -634,8 +634,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// unless auxiliary bar is maximized
 		if (
 			this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN) &&
-			this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN) //&&
-			// !this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED) TODO UNCOMMENT
+			this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN) &&
+			!this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED)
 		) {
 			this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, false);
 		}
@@ -1566,6 +1566,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid = workbenchGrid;
 		this.workbenchGrid.edgeSnapping = this.state.runtime.mainWindowFullscreen;
 
+		if (this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED)) {
+			// TODO@benibenj this is a workaround for the grid not being able to
+			// restore the maximized auxiliary bar on startup when it was maximised
+			// It seems that since editor and panel are hidden, the parent node is
+			// also hidden and not present, breaking the layout.
+			// Workaround is to make editor visible so that its parent view gets
+			// added properly and then enter maximized mode of auxiliary bar.
+			this.setEditorHidden(false);
+			this.enableMaximizedAuxiliaryBar();
+		}
+
 		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar, auxiliaryBarPart, bannerPart]) {
 			this._register(part.onDidVisibilityChange(visible => {
 				if (!this.inMaximizedAuxiliaryBarTransition) {
@@ -1616,11 +1627,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			this.stateModel.save(true, true);
 		}));
-
-		// TODO THIS SHOULD NOT BE NEEDED
-		if (this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED)) {
-			this.enableMaximizedAuxiliaryBar();
-		}
 	}
 
 	layout(): void {
