@@ -1833,7 +1833,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// If sidebar becomes hidden, also hide the current active Viewlet if any
 		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)) {
 			this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.Sidebar);
-			this.focusPanelOrEditor();
+
+			if (!this.isAuxiliaryBarMaximized()) {
+				this.focusPanelOrEditor(); // do not auto focus when auxiliary bar is maximized
+			}
 		}
 
 		// If sidebar becomes visible, show last active Viewlet or default viewlet
@@ -1971,7 +1974,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		let focusEditor = false;
 		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {
 			this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.Panel);
-			focusEditor = isIOS ? false : true; // Do not auto focus on ios #127832
+			if (
+				!isIOS &&						// do not auto focus on iOS (https://github.com/microsoft/vscode/issues/127832)
+				!this.isAuxiliaryBarMaximized()	// do not auto focus when auxiliary bar is maximized
+			) {
+				focusEditor = true;
+			}
 		}
 
 		// If panel part becomes visible, show last active panel or default panel
@@ -2084,6 +2092,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		}
 
+		this.focusPart(Parts.AUXILIARYBAR_PART);
+
 		this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, maximized);
 
 		this._onDidChangeAuxiliaryBarMaximized.fire();
@@ -2114,6 +2124,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.setEditorHidden(true);
 		} else {
 			this.setEditorHidden(false);
+
 			this.workbenchGrid.resizeView(this.panelPartView, {
 				width: isHorizontal(panelPosition) ? size.width : this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_WIDTH),
 				height: isHorizontal(panelPosition) ? this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_HEIGHT) : size.height
