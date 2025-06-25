@@ -243,6 +243,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	toggleMaximizedAuxiliaryBar(): void;
 
 	/**
+	 * Maximizes or restores the auxiliary sidebar.
+	 */
+	setAuxiliaryBarMaximized(maximized: boolean): void;
+
+	/**
 	 * Returns true if the auxiliary sidebar is maximized.
 	 */
 	isAuxiliaryBarMaximized(): boolean;

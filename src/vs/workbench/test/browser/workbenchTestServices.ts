@@ -662,6 +662,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	toggleMaximizedPanel(): void { }
 	isPanelMaximized(): boolean { return false; }
 	toggleMaximizedAuxiliaryBar(): void { }
+	setAuxiliaryBarMaximized(maximized: boolean): void { }
 	isAuxiliaryBarMaximized(): boolean { return false; }
 	getMenubarVisibility(): MenuBarVisibility { throw new Error('not implemented'); }
 	toggleMenuBar(): void { }

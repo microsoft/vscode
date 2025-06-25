@@ -2013,7 +2013,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	toggleMaximizedAuxiliaryBar(): void {
-		if (!this.isAuxiliaryBarMaximized()) {
+		this.setAuxiliaryBarMaximized(!this.isAuxiliaryBarMaximized());
+	}
+
+	setAuxiliaryBarMaximized(maximized: boolean): void {
+		if (maximized) {
 			this.enableMaximizedAuxiliaryBar();
 		} else {
 			this.disableMaximizedAuxiliaryBar();
