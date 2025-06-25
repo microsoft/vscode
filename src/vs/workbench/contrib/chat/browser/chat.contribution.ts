@@ -246,10 +246,11 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental']
 		},
 		'chat.editRequests': {
-			default: true,
 			markdownDescription: nls.localize('chat.editRequests', "Enables editing of requests in the chat. This allows you to change the request content and resubmit it to the model."),
-			type: 'boolean',
-			tags: ['experimental']
+			type: 'string',
+			enum: ['inline', 'hover', 'none'],
+			default: 'inline',
+			tags: ['experimental'],
 		},
 		[mcpEnabledSection]: {
 			type: 'boolean',

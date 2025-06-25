@@ -32,7 +32,8 @@ import { IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
-import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
+import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { IChatListItemTemplate } from '../chatListRenderer.js';
 
 export abstract class EditingSessionAction extends Action2 {
 
@@ -333,21 +334,27 @@ registerAction2(class RemoveAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, ...args: any[]) {
-		let item: ChatTreeItem | undefined = args[0];
-		const chatWidgetService = accessor.get(IChatWidgetService);
-		const widget = chatWidgetService.lastFocusedWidget;
-		if (!isResponseVM(item) && !isRequestVM(item)) {
-			item = widget?.getFocus();
+		const item: IChatListItemTemplate | undefined = args[0];
+		if (!item) {
+			return;
 		}
 
-		if (!item) {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const widget = chatWidgetService.lastFocusedWidget;
+		if (!isResponseVM(item?.currentElement) && !isRequestVM(item?.currentElement)) {
+			item.currentElement = widget?.getFocus();
+		}
+
+		const currentElement = item.currentElement;
+
+		if (!currentElement) {
 			return;
 		}
 
 		const configurationService = accessor.get(IConfigurationService);
 		const dialogService = accessor.get(IDialogService);
 		const chatService = accessor.get(IChatService);
-		const chatModel = chatService.getSession(item.sessionId);
+		const chatModel = chatService.getSession(currentElement.sessionId);
 		if (!chatModel) {
 			return;
 		}
@@ -357,8 +364,8 @@ registerAction2(class RemoveAction extends Action2 {
 			return;
 		}
 
-		const requestId = isRequestVM(item) ? item.id :
-			isResponseVM(item) ? item.requestId : undefined;
+		const requestId = isRequestVM(currentElement) ? currentElement.id :
+			isResponseVM(currentElement) ? currentElement.requestId : undefined;
 
 		if (requestId) {
 			const chatRequests = chatModel.getRequests();
@@ -410,9 +417,45 @@ registerAction2(class RemoveAction extends Action2 {
 			await session.restoreSnapshot(snapshotRequestId, undefined);
 		}
 
-		if (isRequestVM(item) && configurationService.getValue('chat.undoRequests.restoreInput')) {
+		if (isRequestVM(currentElement) && configurationService.getValue('chat.undoRequests.restoreInput')) {
 			widget?.focusInput();
-			widget?.input.setValue(item.messageText, false);
+			widget?.input.setValue(currentElement.messageText, false);
+		}
+	}
+});
+
+registerAction2(class EditAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.editRequests',
+			title: localize2('chat.editRequests.label', "Edit Request"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			icon: Codicon.edit,
+			menu: [
+				{
+					id: MenuId.ChatMessageTitle,
+					group: 'navigation',
+					order: 2,
+					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.editHoverSetting)
+				}
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		const item: IChatListItemTemplate | undefined = args[0];
+		if (!item) {
+			return;
+		}
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const widget = chatWidgetService.lastFocusedWidget;
+		if (!isResponseVM(item?.currentElement) && !isRequestVM(item?.currentElement)) {
+			item.currentElement = widget?.getFocus();
+		}
+
+		if (isRequestVM(item.currentElement)) {
+			widget?.clickedRequest(item);
 		}
 	}
 });

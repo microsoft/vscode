@@ -1921,12 +1921,20 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		height: 26px;
 	}
 
-	.request-hover .actions-container {
+	.request-hover.expanded {
+		width: 50px;
+	}
+
+	.request-hover:not(.expanded) .actions-container {
 		width: 22px;
 		height: 22px;
 	}
 
-	.request-hover .actions-container .action-label.codicon-discard {
+	.request-hover.expanded .actions-container {
+		padding: 0 3px;
+	}
+
+	.request-hover:not(.expanded) .actions-container .action-label.codicon-discard {
 		margin-top: 4px;
 		padding: 3px 3px;
 	}
