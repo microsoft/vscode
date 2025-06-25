@@ -1079,7 +1079,10 @@ class RestoreChatView extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyExpr.equals('view', ChatViewId),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('view', ChatViewId),
+					AuxiliaryBarMaximizedContext
+				),
 				order: -10
 			}
 		});
