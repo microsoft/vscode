@@ -1572,7 +1572,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
 	user-select: none;
-	border-left: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 
 	code {
 		font-size: 11px;
@@ -1970,6 +1969,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.interactive-request.editing .value {
 		display: none;
 	}
+
+	.interactive-request.editing {
+		padding: 0px;
+	}
 }
 
 
@@ -1995,7 +1998,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-item-container .chat-edit-input-container {
-	margin-right: -15px;
+	width: 100%;
 }
 
 .chat-row-disabled-overlay,
