@@ -97,7 +97,11 @@ interface IFocusEventFromScroll extends KeyboardEvent {
 const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
 const SEARCH_TOC_BEHAVIOR_KEY = 'workbench.settings.settingsSearchTocBehavior';
 
+const SHOW_AI_RESULTS_ENABLED_LABEL = localize('showAiResultsEnabled', "Show AI-recommended results");
+const SHOW_AI_RESULTS_DISABLED_LABEL = localize('showAiResultsDisabled', "No AI results available at this time...");
+
 const SETTINGS_EDITOR_STATE_KEY = 'settingsEditorState';
+
 export class SettingsEditor2 extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.settings2';
@@ -335,6 +339,7 @@ export class SettingsEditor2 extends EditorPane {
 		if (this.showAiResultsAction) {
 			this.showAiResultsAction.checked = false;
 			this.showAiResultsAction.enabled = false;
+			this.showAiResultsAction.label = SHOW_AI_RESULTS_DISABLED_LABEL;
 		}
 	}
 
@@ -666,7 +671,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		const showAiResultActionClassNames = ['action-label', ThemeIcon.asClassName(preferencesAiResultsIcon)];
 		this.showAiResultsAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS,
-			localize('showAiResults', "Show AI-recommended results"), showAiResultActionClassNames.join(' '), true
+			SHOW_AI_RESULTS_DISABLED_LABEL, showAiResultActionClassNames.join(' '), true
 		));
 		this._register(this.showAiResultsAction.onDidChange(async () => {
 			await this.onDidToggleAiSearch();
@@ -1823,6 +1828,7 @@ export class SettingsEditor2 extends EditorPane {
 				return this.doAiSearch(query, token).then((results) => {
 					if (results && this.showAiResultsAction) {
 						this.showAiResultsAction.enabled = true;
+						this.showAiResultsAction.label = SHOW_AI_RESULTS_ENABLED_LABEL;
 						this.renderResultCountMessages(true);
 					}
 				}).catch(e => {
