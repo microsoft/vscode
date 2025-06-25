@@ -20,7 +20,7 @@ import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileL
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 
-// example URL: code-oss:chat-prompts/install?https://gist.githubusercontent.com/aeschli/43fe78babd5635f062aef0195a476aad/raw/dfd71f60058a4dd25f584b55de3e20f5fd580e63/filterEvenNumbers.prompt.md
+// example URL: vscode-insiders:chat-prompt/install?https://gist.githubusercontent.com/aeschli/43fe78babd5635f062aef0195a476aad/raw/dfd71f60058a4dd25f584b55de3e20f5fd580e63/filterEvenNumbers.prompt.md
 
 export class PromptUrlHandler extends Disposable implements IWorkbenchContribution, IURLHandler {
 
@@ -42,7 +42,7 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 	async handleURL(uri: URI): Promise<boolean> {
 		let promptType: PromptsType | undefined;
 		switch (uri.path) {
-			case 'chat-prompts/install':
+			case 'chat-prompt/install':
 				promptType = PromptsType.prompt;
 				break;
 			case 'chat-instructions/install':
