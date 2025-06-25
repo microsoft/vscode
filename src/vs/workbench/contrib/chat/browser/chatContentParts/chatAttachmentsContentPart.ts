@@ -14,7 +14,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemVariableEntry, OmittedState } from '../../common/chatVariableEntries.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../../common/chatService.js';
-import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, SCMHistoryItemAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../chatAttachmentWidgets.js';
+import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../chatAttachmentWidgets.js';
 
 export class ChatAttachmentsContentPart extends Disposable {
 	private readonly attachedContextDisposables = this._register(new DisposableStore());
@@ -59,11 +59,16 @@ export class ChatAttachmentsContentPart extends Disposable {
 			} else if (isImageVariableEntry(attachment)) {
 				attachment.omittedState = isAttachmentPartialOrOmitted ? OmittedState.Full : attachment.omittedState;
 				widget = this.instantiationService.createInstance(ImageAttachmentWidget, resource, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels, hoverDelegate);
-			} else if (resource && isPromptFileVariableEntry(attachment)) {
+			} else if (isPromptFileVariableEntry(attachment)) {
+				if (attachment.isHidden) {
+					continue;
+				}
 				widget = this.instantiationService.createInstance(PromptFileAttachmentWidget, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels, hoverDelegate);
 			} else if (isPromptTextVariableEntry(attachment)) {
-				continue; // do not show for now, work in progress @aeschli)
-				//widget = this.instantiationService.createInstance(PromptTextAttachmentWidget, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels, hoverDelegate);
+				if (attachment.isHidden) {
+					continue;
+				}
+				widget = this.instantiationService.createInstance(PromptTextAttachmentWidget, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels, hoverDelegate);
 			} else if (resource && (attachment.kind === 'file' || attachment.kind === 'directory')) {
 				widget = this.instantiationService.createInstance(FileAttachmentWidget, resource, range, attachment, correspondingContentReference, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels, hoverDelegate);
 			} else if (isPasteVariableEntry(attachment)) {

@@ -28,9 +28,8 @@ import { Extensions, IConfigurationMigrationRegistry } from '../../../common/con
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
-import { mcpSchemaId } from '../../../services/configuration/common/configuration.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
-import { allDiscoverySources, discoverySourceLabel, mcpConfigurationSection, mcpDiscoverySection, mcpEnabledSection, mcpSchemaExampleServers, mcpServerSamplingSection } from '../../mcp/common/mcpConfiguration.js';
+import { allDiscoverySources, discoverySourceLabel, mcpDiscoverySection, mcpEnabledSection, mcpServerSamplingSection } from '../../mcp/common/mcpConfiguration.js';
 import { ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
 import { CodeMapperService, ICodeMapperService } from '../common/chatCodeMapperService.js';
 import '../common/chatColors.js';
@@ -246,6 +245,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['experimental']
 		},
+		'chat.editRequests': {
+			default: true,
+			markdownDescription: nls.localize('chat.editRequests', "Enables editing of requests in the chat. This allows you to change the request content and resubmit it to the model."),
+			type: 'boolean',
+			tags: ['experimental']
+		},
 		[mcpEnabledSection]: {
 			type: 'boolean',
 			description: nls.localize('chat.mcp.enabled', "Enables integration with Model Context Protocol servers to provide additional tools and functionality."),
@@ -284,15 +289,6 @@ configurationRegistry.registerConfiguration({
 					}
 				}
 			},
-		},
-		[mcpConfigurationSection]: {
-			type: 'object',
-			default: {
-				inputs: [],
-				servers: mcpSchemaExampleServers,
-			},
-			description: nls.localize('workspaceConfig.mcp.description', "Model Context Protocol server configurations"),
-			$ref: mcpSchemaId
 		},
 		[ChatConfiguration.UseFileStorage]: {
 			type: 'boolean',

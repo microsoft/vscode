@@ -8,7 +8,7 @@ import { itemsEquals } from '../../../../../base/common/equals.js';
 import { BugIndicatingError, onUnexpectedError, onUnexpectedExternalError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, IObservableWithChange, IReader, ITransaction, autorun, autorunWithStore, constObservable, derived, derivedHandleChanges, derivedOpts, observableFromEvent, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../../base/common/observable.js';
+import { IObservable, IObservableWithChange, IReader, ITransaction, autorun, constObservable, derived, derivedHandleChanges, derivedOpts, mapObservableArrayCached, observableFromEvent, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../../base/common/observable.js';
 import { commonPrefixLength, firstNonWhitespaceIndex } from '../../../../../base/common/strings.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -107,7 +107,7 @@ export class InlineCompletionsModel extends Disposable {
 		this._suggestPreviewEnabled = this._editorObs.getOption(EditorOption.suggest).map(v => v.preview);
 		this._suggestPreviewMode = this._editorObs.getOption(EditorOption.suggest).map(v => v.previewMode);
 		this._inlineSuggestMode = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => v.mode);
-		this._suppressedInlineCompletionGroupIds = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => new Set(v.experimental.suppressInlineSuggestions));
+		this._suppressedInlineCompletionGroupIds = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => new Set(v.experimental.suppressInlineSuggestions.split(',')));
 		this._inlineEditsEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.enabled);
 		this._inlineEditsShowCollapsedEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
 		this._lastShownInlineCompletionInfo = undefined;
@@ -150,11 +150,15 @@ export class InlineCompletionsModel extends Disposable {
 					onlyRequestInlineEdits: false,
 					shouldDebounce: true,
 					provider: undefined as InlineCompletionsProvider | undefined,
+					textChange: false,
 				}),
 				handleChange: (ctx, changeSummary) => {
 					/** @description fetch inline completions */
-					if (ctx.didChange(this._textModelVersionId) && this._preserveCurrentCompletionReasons.has(this._getReason(ctx.change))) {
-						changeSummary.preserveCurrentCompletion = true;
+					if (ctx.didChange(this._textModelVersionId)) {
+						if (this._preserveCurrentCompletionReasons.has(this._getReason(ctx.change))) {
+							changeSummary.preserveCurrentCompletion = true;
+						}
+						changeSummary.textChange = true;
 					} else if (ctx.didChange(this._forceUpdateExplicitlySignal)) {
 						changeSummary.inlineCompletionTriggerKind = InlineCompletionTriggerKind.Explicit;
 					} else if (ctx.didChange(this.dontRefetchSignal)) {
@@ -206,7 +210,7 @@ export class InlineCompletionsModel extends Disposable {
 				includeInlineEdits: this._inlineEditsEnabled.read(reader),
 			};
 
-			if (context.triggerKind === InlineCompletionTriggerKind.Automatic) {
+			if (context.triggerKind === InlineCompletionTriggerKind.Automatic && changeSummary.textChange) {
 				if (this.textModel.getAlternativeVersionId() === this._lastShownInlineCompletionInfo?.alternateTextModelVersionId) {
 					// When undoing back to a version where an inline edit/completion was shown,
 					// we want to show an inline edit (or completion) again if it was originally an inline edit (or completion).
@@ -572,32 +576,29 @@ export class InlineCompletionsModel extends Disposable {
 		}));
 
 		const inlineCompletionProviders = observableFromEvent(this._languageFeaturesService.inlineCompletionsProvider.onDidChange, () => this._languageFeaturesService.inlineCompletionsProvider.all(textModel));
-		this._register(autorunWithStore((reader, store) => {
-			const providers = inlineCompletionProviders.read(reader);
-			for (const provider of providers) {
-				if (!provider.onDidChangeInlineCompletions) {
-					continue;
+		mapObservableArrayCached(this, inlineCompletionProviders, (provider, store) => {
+			if (!provider.onDidChangeInlineCompletions) {
+				return;
+			}
+
+			store.add(provider.onDidChangeInlineCompletions(() => {
+				if (!this._enabled.get()) {
+					return;
 				}
 
-				store.add(provider.onDidChangeInlineCompletions(() => {
-					if (!this._enabled.get()) {
-						return;
-					}
+				// If there is an active suggestion from a different provider, we ignore the update
+				const activeState = this.state.get();
+				if (activeState && (activeState.inlineCompletion || activeState.edits) && activeState.inlineCompletion?.source.provider !== provider) {
+					return;
+				}
 
-					// If there is an active suggestion from a different provider, we ignore the update
-					const activeState = this.state.get();
-					if (activeState && (activeState.inlineCompletion || activeState.edits) && activeState.inlineCompletion?.source.provider !== provider) {
-						return;
-					}
+				transaction(tx => {
+					this._fetchSpecificProviderSignal.trigger(tx, provider);
+					this.trigger(tx);
+				});
 
-					transaction(tx => {
-						this._fetchSpecificProviderSignal.trigger(tx, provider);
-						this.trigger(tx);
-					});
-
-				}));
-			}
-		}));
+			}));
+		}).recomputeInitiallyAndOnChange(this._store);
 
 		this._didUndoInlineEdits.recomputeInitiallyAndOnChange(this._store);
 	}

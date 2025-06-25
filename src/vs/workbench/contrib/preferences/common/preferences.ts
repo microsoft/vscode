@@ -40,7 +40,7 @@ export interface IPreferencesSearchService {
 
 	getLocalSearchProvider(filter: string): ISearchProvider;
 	getRemoteSearchProvider(filter: string, newExtensionsOnly?: boolean): ISearchProvider | undefined;
-	getAiSearchProvider(filter: string): IAiSearchProvider;
+	getAiSearchProvider(filter: string): IAiSearchProvider | undefined;
 }
 
 export interface ISearchProvider {
@@ -112,6 +112,7 @@ export const EXTENSION_FETCH_TIMEOUT_MS = 1000;
 
 export enum WorkbenchSettingsEditorSettings {
 	ShowAISearchToggle = 'workbench.settings.showAISearchToggle',
+	EnableNaturalLanguageSearch = 'workbench.settings.enableNaturalLanguageSearch',
 }
 
 export type ExtensionToggleData = {

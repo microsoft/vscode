@@ -146,7 +146,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	setState(state: StickyScrollWidgetState | undefined, foldingModel: FoldingModel | undefined, rebuildFromIndexCandidate?: number): void {
 		const currentStateAndPreviousStateUndefined = !this._state && !state;
 		const currentStateDefinedAndEqualsPreviousState = this._state && this._state.equals(state);
-		if (currentStateAndPreviousStateUndefined || currentStateDefinedAndEqualsPreviousState) {
+		if (rebuildFromIndexCandidate === undefined && (currentStateAndPreviousStateUndefined || currentStateDefinedAndEqualsPreviousState)) {
 			return;
 		}
 		const data = this._findRenderingData(state);

@@ -42,6 +42,8 @@ suite('UserDataSyncService', () => {
 			// Tasks
 			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/tasks`, headers: { 'If-Match': '0' } },
+			// MCP
+			{ type: 'GET', url: `${target.url}/v1/resource/mcp/latest`, headers: {} },
 			// Global state
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
@@ -79,6 +81,8 @@ suite('UserDataSyncService', () => {
 			// Snippets
 			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/tasks`, headers: { 'If-Match': '0' } },
+			// MCP
+			{ type: 'GET', url: `${target.url}/v1/resource/mcp/latest`, headers: {} },
 			// Global state
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
@@ -113,6 +117,8 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
 			// Tasks
 			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
+			// MCP
+			{ type: 'GET', url: `${target.url}/v1/resource/mcp/latest`, headers: {} },
 			// Global state
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			// Extensions
@@ -147,6 +153,7 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/resource/mcp/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/prompts/latest`, headers: {} },
@@ -189,6 +196,7 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '1' } },
 			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/resource/mcp/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/prompts/latest`, headers: {} },
@@ -234,6 +242,7 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '1' } },
 			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/resource/mcp/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/prompts/latest`, headers: {} },
@@ -245,6 +254,7 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/keybindings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/snippets/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/tasks/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/mcp/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/globalState/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/extensions/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/prompts/latest`, headers: {} },
@@ -354,6 +364,7 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/keybindings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/snippets/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/tasks/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/mcp/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/globalState/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/extensions/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/prompts/latest`, headers: {} },
@@ -492,6 +503,7 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/keybindings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/snippets/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/tasks/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/mcp/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/globalState/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/extensions/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/prompts/latest`, headers: {} },
@@ -551,6 +563,8 @@ suite('UserDataSyncService', () => {
 			// Tasks
 			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/tasks`, headers: { 'If-Match': '0' } },
+			// MCP
+			{ type: 'GET', url: `${target.url}/v1/resource/mcp/latest`, headers: {} },
 			// Global state
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
@@ -579,7 +593,7 @@ suite('UserDataSyncService', () => {
 		await (await testObject.createSyncTask(null)).run();
 
 		disposable.dispose();
-		assert.deepStrictEqual(actualStatuses, [SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle]);
+		assert.deepStrictEqual(actualStatuses, [SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle]);
 	});
 
 	test('test sync conflicts status', async () => {
@@ -755,6 +769,7 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/keybindings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/snippets/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/tasks/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/mcp/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/globalState/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/extensions/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/prompts/latest`, headers: {} },
@@ -809,6 +824,7 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/settings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/snippets/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/tasks/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/mcp/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/globalState/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/extensions/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/prompts/latest`, headers: {} },

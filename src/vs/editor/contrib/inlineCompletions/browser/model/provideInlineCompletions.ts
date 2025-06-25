@@ -27,6 +27,7 @@ import { DirectedGraph } from './graph.js';
 import { CachedFunction } from '../../../../../base/common/cache.js';
 import { InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
 import { isDefined } from '../../../../../base/common/types.js';
+import { inlineCompletionIsVisible } from './inlineSuggestionItem.js';
 
 export type InlineCompletionContextWithoutUuid = Omit<InlineCompletionContext, 'requestUuid'>;
 
@@ -38,7 +39,7 @@ export function provideInlineCompletions(
 	editorType: InlineCompletionEditorType,
 	languageConfigurationService?: ILanguageConfigurationService,
 ): IInlineCompletionProviderResult {
-	const requestUuid = generateUuid();
+	const requestUuid = 'icr-' + generateUuid();
 
 	const cancellationTokenSource = new CancellationTokenSource();
 	let cancelReason: InlineCompletionsDisposeReason | undefined = undefined;
@@ -70,9 +71,18 @@ export function provideInlineCompletions(
 			for (const p of yieldsTo) {
 				// We know there is no cycle, so no recursion here
 				const result = await queryProvider.get(p);
-				if (result && result.inlineSuggestions.items.length > 0) {
-					// Skip provider
-					return undefined;
+				if (result) {
+					for (const item of result.inlineSuggestions.items) {
+						if (item.isInlineEdit || typeof item.insertText !== 'string') {
+							return undefined;
+						}
+						const t = new TextReplacement(Range.lift(item.range) ?? defaultReplaceRange, item.insertText);
+						if (inlineCompletionIsVisible(t, undefined, model, position)) {
+							return undefined;
+						}
+
+						// else: inline completion is not visible, so lets not block
+					}
 				}
 			}
 
@@ -96,7 +106,7 @@ export function provideInlineCompletions(
 			});
 
 			for (const item of result.items) {
-				data.push(createInlineCompletionItem(item, list, defaultReplaceRange, model, languageConfigurationService, contextWithUuid, editorType));
+				data.push(toInlineSuggestData(item, list, defaultReplaceRange, model, languageConfigurationService, contextWithUuid, editorType));
 			}
 
 			return list;
@@ -142,7 +152,7 @@ export interface IInlineCompletionProviderResult {
 	lists: AsyncIterableObject<InlineSuggestionList>;
 }
 
-function createInlineCompletionItem(
+function toInlineSuggestData(
 	inlineCompletion: InlineCompletion,
 	source: InlineSuggestionList,
 	defaultReplaceRange: Range,

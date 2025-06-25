@@ -105,6 +105,8 @@ export interface IChatViewOpenRequestEntry {
 	response: string;
 }
 
+export const CHAT_CONFIG_MENU_ID = new MenuId('workbench.chat.menu.config');
+
 const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
 
 abstract class OpenChatGlobalAction extends Action2 {
@@ -476,7 +478,12 @@ export function registerChatActions() {
 				title: localize2('interactiveSession.open', "New Chat Editor"),
 				f1: true,
 				category: CHAT_CATEGORY,
-				precondition: ChatContextKeys.enabled
+				precondition: ChatContextKeys.enabled,
+				keybinding: {
+					weight: KeybindingWeight.WorkbenchContrib + 1,
+					primary: KeyMod.CtrlCmd | KeyCode.KeyN,
+					when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.inChatEditor)
+				}
 			});
 		}
 
@@ -495,12 +502,12 @@ export function registerChatActions() {
 				icon: Codicon.mention,
 				f1: false,
 				category: CHAT_CATEGORY,
-				menu: {
+				menu: [{
 					id: MenuId.ChatExecute,
 					when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
 					group: 'navigation',
 					order: 1
-				}
+				}]
 			});
 		}
 
@@ -795,6 +802,15 @@ export function registerChatActions() {
 			accessor.get(ILanguageModelToolsService).resetToolAutoConfirmation();
 			accessor.get(INotificationService).info(localize('resetTrustedToolsSuccess', "Tool confirmation preferences have been reset."));
 		}
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+		submenu: CHAT_CONFIG_MENU_ID,
+		title: localize2('config.label', "Configure Chat..."),
+		group: 'navigation',
+		when: ContextKeyExpr.equals('view', ChatViewId),
+		icon: Codicon.gear,
+		order: 6
 	});
 }
 

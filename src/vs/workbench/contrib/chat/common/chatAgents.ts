@@ -73,6 +73,7 @@ export interface IChatAgentImplementation {
 	setRequestPaused?(requestId: string, isPaused: boolean): void;
 	provideFollowups?(request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
 	provideChatTitle?: (history: IChatAgentHistoryEntry[], token: CancellationToken) => Promise<string | undefined>;
+	provideChatSummary?: (history: IChatAgentHistoryEntry[], token: CancellationToken) => Promise<string | undefined>;
 }
 
 export interface IChatParticipantDetectionResult {
@@ -195,6 +196,7 @@ export interface IChatAgentService {
 	setRequestPaused(agent: string, requestId: string, isPaused: boolean): void;
 	getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
 	getChatTitle(id: string, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<string | undefined>;
+	getChatSummary(id: string, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<string | undefined>;
 	getAgent(id: string, includeDisabled?: boolean): IChatAgentData | undefined;
 	getAgentByFullyQualifiedId(id: string): IChatAgentData | undefined;
 	getAgents(): IChatAgentData[];
@@ -500,6 +502,15 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		}
 
 		return data.impl.provideChatTitle(history, token);
+	}
+
+	async getChatSummary(id: string, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<string | undefined> {
+		const data = this._agents.get(id);
+		if (!data?.impl?.provideChatSummary) {
+			return undefined;
+		}
+
+		return data.impl.provideChatSummary(history, token);
 	}
 
 	registerChatParticipantDetectionProvider(handle: number, provider: IChatParticipantDetectionProvider) {

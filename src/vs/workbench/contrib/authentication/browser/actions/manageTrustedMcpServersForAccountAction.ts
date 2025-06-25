@@ -12,11 +12,10 @@ import { Action2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
-import { AllowedMcpServer, IAuthenticationMcpAccessService } from '../../../../services/authentication/browser/authenticationMcpAccessService.js';
-import { IAuthenticationMcpUsageService } from '../../../../services/authentication/browser/authenticationMcpUsageService.js';
+import { AllowedMcpServer } from '../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { IAuthenticationQueryService, IAccountQuery } from '../../../../services/authentication/common/authenticationQuery.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 
 export class ManageTrustedMcpServersForAccountAction extends Action2 {
@@ -42,135 +41,101 @@ interface TrustedMcpServersQuickPickItem extends IQuickPickItem {
 
 class ManageTrustedMcpServersForAccountActionImpl {
 	constructor(
-		@IProductService private readonly _productService: IProductService,
 		@IMcpService private readonly _mcpServerService: IMcpService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IAuthenticationService private readonly _mcpServerAuthenticationService: IAuthenticationService,
-		@IAuthenticationMcpUsageService private readonly _mcpServerAuthenticationUsageService: IAuthenticationMcpUsageService,
-		@IAuthenticationMcpAccessService private readonly _mcpServerAuthenticationAccessService: IAuthenticationMcpAccessService,
+		@IAuthenticationQueryService private readonly _authenticationQueryService: IAuthenticationQueryService,
 		@ICommandService private readonly _commandService: ICommandService
 	) { }
 
 	async run(options?: { providerId: string; accountLabel: string }) {
-		const { providerId, accountLabel } = await this._resolveProviderAndAccountLabel(options?.providerId, options?.accountLabel);
-		if (!providerId || !accountLabel) {
+		const accountQuery = await this._resolveAccountQuery(options?.providerId, options?.accountLabel);
+		if (!accountQuery) {
 			return;
 		}
 
-		const items = await this._getItems(providerId, accountLabel);
+		const items = await this._getItems(accountQuery);
 		if (!items.length) {
 			return;
 		}
-		const disposables = new DisposableStore();
-		const picker = this._createQuickPick(disposables, providerId, accountLabel);
+		const picker = this._createQuickPick(accountQuery);
 		picker.items = items;
 		picker.selectedItems = items.filter((i): i is TrustedMcpServersQuickPickItem => i.type !== 'separator' && !!i.picked);
 		picker.show();
 	}
 
-	private async _resolveProviderAndAccountLabel(providerId: string | undefined, accountLabel: string | undefined) {
-		if (!providerId || !accountLabel) {
-			const accounts = new Array<{ providerId: string; providerLabel: string; accountLabel: string }>();
-			for (const id of this._mcpServerAuthenticationService.getProviderIds()) {
-				const providerLabel = this._mcpServerAuthenticationService.getProvider(id).label;
-				const sessions = await this._mcpServerAuthenticationService.getSessions(id);
-				const uniqueAccountLabels = new Set<string>();
-				for (const session of sessions) {
-					if (!uniqueAccountLabels.has(session.account.label)) {
-						uniqueAccountLabels.add(session.account.label);
-						accounts.push({ providerId: id, providerLabel, accountLabel: session.account.label });
-					}
-				}
-			}
+	//#region Account Query Resolution
 
-			const pick = await this._quickInputService.pick(
-				accounts.map(account => ({
-					providerId: account.providerId,
-					label: account.accountLabel,
-					description: account.providerLabel
-				})),
-				{
-					placeHolder: localize('pickAccount', "Pick an account to manage trusted MCP servers for"),
-					matchOnDescription: true,
-				}
-			);
-
-			if (pick) {
-				providerId = pick.providerId;
-				accountLabel = pick.label;
-			} else {
-				return { providerId: undefined, accountLabel: undefined };
-			}
+	private async _resolveAccountQuery(providerId: string | undefined, accountLabel: string | undefined): Promise<IAccountQuery | undefined> {
+		if (providerId && accountLabel) {
+			return this._authenticationQueryService.provider(providerId).account(accountLabel);
 		}
-		return { providerId, accountLabel };
+
+		const accounts = await this._getAllAvailableAccounts();
+		const pick = await this._quickInputService.pick(accounts, {
+			placeHolder: localize('pickAccount', "Pick an account to manage trusted MCP servers for"),
+			matchOnDescription: true,
+		});
+
+		return pick ? this._authenticationQueryService.provider(pick.providerId).account(pick.label) : undefined;
 	}
 
-	private async _getItems(providerId: string, accountLabel: string) {
-		let allowedMcpServers = this._mcpServerAuthenticationAccessService.readAllowedMcpServers(providerId, accountLabel);
-		// only include MCP servers that are installed
-		// TODO: improve?
-		const resolvedMcpServers = await Promise.all(allowedMcpServers.map(server => this._mcpServerService.servers.get().find(s => s.definition.id === server.id)));
-		allowedMcpServers = resolvedMcpServers
-			.map((server, i) => server ? allowedMcpServers[i] : undefined)
-			.filter(server => !!server);
-		const trustedMcpServerAuthAccess = this._productService.trustedMcpAuthAccess;
-		const trustedMcpServerIds =
-			// Case 1: trustedMcpServerAuthAccess is an array
-			Array.isArray(trustedMcpServerAuthAccess)
-				? trustedMcpServerAuthAccess
-				// Case 2: trustedMcpServerAuthAccess is an object
-				: typeof trustedMcpServerAuthAccess === 'object'
-					? trustedMcpServerAuthAccess[providerId] ?? []
-					: [];
-		for (const mcpServerId of trustedMcpServerIds) {
-			const allowedMcpServer = allowedMcpServers.find(server => server.id === mcpServerId);
-			if (!allowedMcpServer) {
-				// Add the MCP server to the allowedMcpServers list
-				// TODO: improve?
-				const mcpServer = this._mcpServerService.servers.get().find(s => s.definition.id === mcpServerId);
-				if (mcpServer) {
-					allowedMcpServers.push({
-						id: mcpServerId,
-						name: mcpServer.definition.label,
-						allowed: true,
-						trusted: true
+	private async _getAllAvailableAccounts() {
+		const accounts = [];
+		for (const providerId of this._mcpServerAuthenticationService.getProviderIds()) {
+			const provider = this._mcpServerAuthenticationService.getProvider(providerId);
+			const sessions = await this._mcpServerAuthenticationService.getSessions(providerId);
+			const uniqueLabels = new Set<string>();
+
+			for (const session of sessions) {
+				if (!uniqueLabels.has(session.account.label)) {
+					uniqueLabels.add(session.account.label);
+					accounts.push({
+						providerId,
+						label: session.account.label,
+						description: provider.label
 					});
 				}
-			} else {
-				// Update the MCP server to be allowed
-				allowedMcpServer.allowed = true;
-				allowedMcpServer.trusted = true;
 			}
 		}
+		return accounts;
+	}
 
-		if (!allowedMcpServers.length) {
+	//#endregion
+
+	//#region Item Retrieval and Quick Pick Creation
+
+	private async _getItems(accountQuery: IAccountQuery) {
+		const allowedMcpServers = accountQuery.mcpServers().getAllowedMcpServers();
+		const serverIdToLabel = new Map<string, string>(this._mcpServerService.servers.get().map(s => [s.definition.id, s.definition.label]));
+		const filteredMcpServers = allowedMcpServers
+			// Filter out MCP servers that are not in the current list of servers
+			.filter(server => serverIdToLabel.has(server.id))
+			.map(server => {
+				const usage = accountQuery.mcpServer(server.id).getUsage();
+				return {
+					...server,
+					// Use the server name from the MCP service
+					name: serverIdToLabel.get(server.id)!,
+					lastUsed: usage.length > 0 ? Math.max(...usage.map(u => u.lastUsed)) : server.lastUsed
+				};
+			});
+
+		if (!filteredMcpServers.length) {
 			this._dialogService.info(localize('noTrustedMcpServers', "This account has not been used by any MCP servers."));
 			return [];
 		}
 
-		const usages = this._mcpServerAuthenticationUsageService.readAccountUsages(providerId, accountLabel);
-		const trustedMcpServers = [];
-		const otherMcpServers = [];
-		for (const mcpServer of allowedMcpServers) {
-			const usage = usages.find(usage => mcpServer.id === usage.mcpServerId);
-			mcpServer.lastUsed = usage?.lastUsed;
-			if (mcpServer.trusted) {
-				trustedMcpServers.push(mcpServer);
-			} else {
-				otherMcpServers.push(mcpServer);
-			}
-		}
-
+		const trustedServers = filteredMcpServers.filter(s => s.trusted);
+		const otherServers = filteredMcpServers.filter(s => !s.trusted);
 		const sortByLastUsed = (a: AllowedMcpServer, b: AllowedMcpServer) => (b.lastUsed || 0) - (a.lastUsed || 0);
 
-		const items = [
-			...otherMcpServers.sort(sortByLastUsed).map(this._toQuickPickItem),
+		return [
+			...otherServers.sort(sortByLastUsed).map(this._toQuickPickItem),
 			{ type: 'separator', label: localize('trustedMcpServers', "Trusted by Microsoft") } satisfies IQuickPickSeparator,
-			...trustedMcpServers.sort(sortByLastUsed).map(this._toQuickPickItem)
+			...trustedServers.sort(sortByLastUsed).map(this._toQuickPickItem)
 		];
-
-		return items;
 	}
 
 	private _toQuickPickItem(mcpServer: AllowedMcpServer): TrustedMcpServersQuickPickItem {
@@ -198,38 +163,39 @@ class ManageTrustedMcpServersForAccountActionImpl {
 		};
 	}
 
-	private _createQuickPick(disposableStore: DisposableStore, providerId: string, accountLabel: string) {
+	private _createQuickPick(accountQuery: IAccountQuery) {
+		const disposableStore = new DisposableStore();
 		const quickPick = disposableStore.add(this._quickInputService.createQuickPick<TrustedMcpServersQuickPickItem>({ useSeparators: true }));
+
+		// Configure quick pick
 		quickPick.canSelectMany = true;
 		quickPick.customButton = true;
 		quickPick.customLabel = localize('manageTrustedMcpServers.cancel', 'Cancel');
-
 		quickPick.title = localize('manageTrustedMcpServers', "Manage Trusted MCP Servers");
 		quickPick.placeholder = localize('manageMcpServers', "Choose which MCP servers can access this account");
 
+		// Set up event handlers
 		disposableStore.add(quickPick.onDidAccept(() => {
-			const updatedAllowedList = quickPick.items
-				.filter((item): item is TrustedMcpServersQuickPickItem => item.type !== 'separator')
-				.map(i => i.mcpServer);
-
-			const allowedMcpServersSet = new Set(quickPick.selectedItems.map(i => i.mcpServer));
-			updatedAllowedList.forEach(mcpServer => {
-				mcpServer.allowed = allowedMcpServersSet.has(mcpServer);
-			});
-			this._mcpServerAuthenticationAccessService.updateAllowedMcpServers(providerId, accountLabel, updatedAllowedList);
 			quickPick.hide();
-		}));
+			const allServers = quickPick.items
+				.filter((item: any): item is TrustedMcpServersQuickPickItem => item.type !== 'separator')
+				.map((i: any) => i.mcpServer);
 
-		disposableStore.add(quickPick.onDidHide(() => {
-			disposableStore.dispose();
-		}));
+			const selectedServers = new Set(quickPick.selectedItems.map((i: any) => i.mcpServer));
 
-		disposableStore.add(quickPick.onDidCustom(() => {
-			quickPick.hide();
+			for (const mcpServer of allServers) {
+				const isAllowed = selectedServers.has(mcpServer);
+				accountQuery.mcpServer(mcpServer.id).setAccessAllowed(isAllowed, mcpServer.name);
+			}
 		}));
-		disposableStore.add(quickPick.onDidTriggerItemButton(e =>
-			this._commandService.executeCommand('_manageAccountPreferencesForMcpServer', e.item.mcpServer.id, providerId)
+		disposableStore.add(quickPick.onDidHide(() => disposableStore.dispose()));
+		disposableStore.add(quickPick.onDidCustom(() => quickPick.hide()));
+		disposableStore.add(quickPick.onDidTriggerItemButton((e: any) =>
+			this._commandService.executeCommand('_manageAccountPreferencesForMcpServer', e.item.mcpServer.id, accountQuery.providerId)
 		));
+
 		return quickPick;
 	}
+
+	//#endregion
 }

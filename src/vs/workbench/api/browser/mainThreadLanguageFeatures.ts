@@ -617,7 +617,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.completionProvider.register(selector, provider));
 	}
 
-	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleEvents: boolean, extensionId: string, yieldsToExtensionIds: string[], displayName: string | undefined, debounceDelayMs: number | undefined, eventHandle: number | undefined): void {
+	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleEvents: boolean, extensionId: string, groupId: string | undefined, yieldsToExtensionIds: string[], displayName: string | undefined, debounceDelayMs: number | undefined, eventHandle: number | undefined): void {
 		const provider: languages.InlineCompletionsProvider<IdentifiableInlineCompletions> = {
 			provideInlineCompletions: async (model: ITextModel, position: EditorPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
 				return this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
@@ -662,7 +662,6 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 						: reason.kind === InlineCompletionEndOfLifeReasonKind.Rejected ? 'rejected'
 							: 'ignored'
 				};
-				console.log('Inline completion end of life:', endOfLifeSummary);
 				this._telemetryService.publicLog2<InlineCompletionEndOfLifeEvent, InlineCompletionsEndOfLifeClassification>('inlineCompletion.endOfLife', endOfLifeSummary);
 			},
 			disposeInlineCompletions: (completions: IdentifiableInlineCompletions, reason: languages.InlineCompletionsDisposeReason): void => {
@@ -673,7 +672,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					await this._proxy.$handleInlineCompletionRejection(handle, completions.pid, item.idx);
 				}
 			},
-			groupId: extensionId,
+			groupId: groupId ?? extensionId,
 			yieldsToGroupIds: yieldsToExtensionIds,
 			debounceDelayMs,
 			displayName,
@@ -681,13 +680,12 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				return `InlineCompletionsProvider(${extensionId})`;
 			},
 		};
-		this._registrations.set(handle, this._languageFeaturesService.inlineCompletionsProvider.register(selector, provider));
-
 		if (typeof eventHandle === 'number') {
 			const emitter = new Emitter<void>();
 			this._registrations.set(eventHandle, emitter);
 			provider.onDidChangeInlineCompletions = emitter.event;
 		}
+		this._registrations.set(handle, this._languageFeaturesService.inlineCompletionsProvider.register(selector, provider));
 	}
 
 	$emitInlineCompletionsChange(handle: number): void {

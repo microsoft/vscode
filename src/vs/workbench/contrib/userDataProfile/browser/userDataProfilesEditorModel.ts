@@ -21,6 +21,7 @@ import { SettingsResource, SettingsResourceTreeItem } from '../../../services/us
 import { KeybindingsResource, KeybindingsResourceTreeItem } from '../../../services/userDataProfile/browser/keybindingsResource.js';
 import { TasksResource, TasksResourceTreeItem } from '../../../services/userDataProfile/browser/tasksResource.js';
 import { SnippetsResource, SnippetsResourceTreeItem } from '../../../services/userDataProfile/browser/snippetsResource.js';
+import { McpProfileResource, McpResourceTreeItem } from '../../../services/userDataProfile/browser/mcpProfileResource.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { InMemoryFileSystemProvider } from '../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -250,13 +251,15 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 				ProfileResourceType.Settings,
 				ProfileResourceType.Keybindings,
 				ProfileResourceType.Tasks,
+				ProfileResourceType.Mcp,
 				ProfileResourceType.Snippets,
 				ProfileResourceType.Extensions
 			];
 			return Promise.all(resourceTypes.map<Promise<IProfileResourceTypeElement>>(async r => {
 				const children = (r === ProfileResourceType.Settings
 					|| r === ProfileResourceType.Keybindings
-					|| r === ProfileResourceType.Tasks) ? await this.getChildrenForResourceType(r) : [];
+					|| r === ProfileResourceType.Tasks
+					|| r === ProfileResourceType.Mcp) ? await this.getChildrenForResourceType(r) : [];
 				return {
 					handle: r,
 					checkbox: undefined,
@@ -294,6 +297,9 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 				break;
 			case ProfileResourceType.Tasks:
 				children = await this.instantiationService.createInstance(TasksResourceTreeItem, profile).getChildren();
+				break;
+			case ProfileResourceType.Mcp:
+				children = await this.instantiationService.createInstance(McpResourceTreeItem, profile).getChildren();
 				break;
 			case ProfileResourceType.Extensions:
 				children = await this.instantiationService.createInstance(ExtensionsResourceExportTreeItem, profile).getChildren();
@@ -656,7 +662,8 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			keybindings: true,
 			snippets: true,
 			tasks: true,
-			extensions: true
+			extensions: true,
+			mcp: true
 		} : undefined;
 	}
 
@@ -678,6 +685,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 					this.setCopyFlag(ProfileResourceType.Tasks, !!this.template.tasks);
 					this.setCopyFlag(ProfileResourceType.Snippets, !!this.template.snippets);
 					this.setCopyFlag(ProfileResourceType.Extensions, !!this.template.extensions);
+					this.setCopyFlag(ProfileResourceType.Mcp, !!this.template.mcp);
 					this._onDidChange.fire({ copyFromInfo: true });
 				}
 				return;
@@ -695,6 +703,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 				this.setCopyFlag(ProfileResourceType.Tasks, true);
 				this.setCopyFlag(ProfileResourceType.Snippets, true);
 				this.setCopyFlag(ProfileResourceType.Extensions, true);
+				this.setCopyFlag(ProfileResourceType.Mcp, true);
 				this._onDidChange.fire({ copyFromInfo: true });
 				return;
 			}
@@ -710,6 +719,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			this.setCopyFlag(ProfileResourceType.Tasks, false);
 			this.setCopyFlag(ProfileResourceType.Snippets, false);
 			this.setCopyFlag(ProfileResourceType.Extensions, false);
+			this.setCopyFlag(ProfileResourceType.Mcp, false);
 			this._onDidChange.fire({ copyFromInfo: true });
 		} finally {
 			this.disabled = false;
@@ -828,6 +838,12 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			case ProfileResourceType.Tasks:
 				if (profileTemplate.tasks) {
 					await this.instantiationService.createInstance(TasksResource).apply(profileTemplate.tasks, profile);
+					return this.getChildrenFromProfile(profile, resourceType);
+				}
+				return [];
+			case ProfileResourceType.Mcp:
+				if (profileTemplate.mcp) {
+					await this.instantiationService.createInstance(McpProfileResource).apply(profileTemplate.mcp, profile);
 					return this.getChildrenFromProfile(profile, resourceType);
 				}
 				return [];
