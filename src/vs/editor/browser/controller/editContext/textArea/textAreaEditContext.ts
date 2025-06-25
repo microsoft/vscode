@@ -891,7 +891,7 @@ interface IRenderData {
 	color?: Color | null;
 	italic?: boolean;
 	bold?: boolean;
-	fontSize?: number;
+	fontSize?: string;
 	underline?: boolean;
 	strikethrough?: boolean;
 }

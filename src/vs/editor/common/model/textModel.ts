@@ -2397,7 +2397,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly glyphMarginHoverMessage: IMarkdownString | IMarkdownString[] | null;
 	readonly isWholeLine: boolean;
 	readonly lineHeight: number | null;
-	readonly fontSize: number | null;
+	readonly fontSize: string | null;
 	readonly fontFamily: string | null;
 	readonly fontWeight: string | null;
 	readonly fontStyle: string | null;

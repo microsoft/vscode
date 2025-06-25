@@ -36,7 +36,7 @@ import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from '.
 import { ViewEventHandler } from '../viewEventHandler.js';
 import { ICoordinatesConverter, InlineDecoration, ILineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
 import { ViewModelDecorations } from './viewModelDecorations.js';
-import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelLineHeightChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
+import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelFontChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelLineHeightChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
@@ -463,6 +463,18 @@ export class ViewModel extends Disposable implements IViewModel {
 			}));
 		}
 
+		const allowVariableFonts = this._configuration.options.get(EditorOption.effectiveAllowVariableFonts);
+		if (allowVariableFonts) {
+			this._register(this.model.onDidChangeFont((e) => {
+				const filteredChanges = e.changes.filter((change) => change.ownerId === this._editorId || change.ownerId === 0);
+				// recreate the model event using the filtered changes
+				if (filteredChanges.length > 0) {
+					const filteredEvent = new textModelEvents.ModelFontChangedEvent(filteredChanges);
+					this._eventDispatcher.emitOutgoingEvent(new ModelFontChangedEvent(filteredEvent));
+				}
+			}));
+		}
+
 		this._register(this.model.onDidChangeTokens((e) => {
 			const viewRanges: { fromLineNumber: number; toLineNumber: number }[] = [];
 			for (let j = 0, lenJ = e.ranges.length; j < lenJ; j++) {
@@ -524,9 +536,9 @@ export class ViewModel extends Disposable implements IViewModel {
 	private readonly hiddenAreasModel = new HiddenAreasModel();
 	private previousHiddenAreas: readonly Range[] = [];
 
-	public getFontSizeAtPosition(position: IPosition): number {
+	public getFontSizeAtPosition(position: IPosition): string {
 		const fontDecorations = this.model.getFontDecorationsInRange(Range.fromPositions(position), this._editorId);
-		let fontSize: number = this._configuration.options.get(EditorOption.fontInfo).fontSize;
+		let fontSize: string = this._configuration.options.get(EditorOption.fontInfo).fontSize + 'px';
 		for (const fontDecoration of fontDecorations) {
 			if (fontDecoration.options.fontSize) {
 				fontSize = fontDecoration.options.fontSize;

@@ -461,7 +461,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public glyphMarginClassName: string | undefined;
 	public isWholeLine: boolean;
 	public lineHeight: number | undefined;
-	public fontSize: number | undefined;
+	public fontSize: string | undefined;
 	public fontFamily: string | undefined;
 	public fontWeight: string | undefined;
 	public fontStyle: string | undefined;
@@ -601,7 +601,7 @@ export const _CSS_MAP: { [prop: string]: string } = {
 
 	fontStyle: 'font-style:{0};',
 	fontWeight: 'font-weight:{0};',
-	fontSize: 'font-size:{0}px;',
+	fontSize: 'font-size:{0};',
 	fontFamily: 'font-family:{0};',
 	textDecoration: 'text-decoration:{0};',
 	cursor: 'cursor:{0};',
@@ -845,7 +845,7 @@ class DecorationCSSRules {
 		return cssTextArr.length !== lenBefore;
 	}
 
-	private resolveValue(value: string | number | ThemeColor | undefined): string | undefined {
+	private resolveValue(value: string | ThemeColor): string {
 		if (isThemeColor(value)) {
 			this._usesThemeColors = true;
 			const color = this._theme.getColor(value.id);
@@ -854,7 +854,7 @@ class DecorationCSSRules {
 			}
 			return 'transparent';
 		}
-		return value ? value.toString() : undefined;
+		return value;
 	}
 }
 

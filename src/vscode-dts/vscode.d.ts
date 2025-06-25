@@ -1070,9 +1070,9 @@ declare module 'vscode' {
 		fontFamily?: string;
 
 		/**
-		 * CSS styling property that will be applied to text enclosed by a decoration. Maximum is 100.
+		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 */
-		fontSize?: number;
+		fontSize?: string;
 
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.

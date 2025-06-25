@@ -493,8 +493,6 @@ export namespace ThemableDecorationAttachmentRenderOptions {
 			borderColor: <string | types.ThemeColor>options.borderColor,
 			fontStyle: options.fontStyle,
 			fontWeight: options.fontWeight,
-			fontFamily: options.fontFamily,
-			fontSize: options.fontSize,
 			textDecoration: options.textDecoration,
 			color: <string | types.ThemeColor>options.color,
 			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
