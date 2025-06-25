@@ -131,7 +131,7 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
     }
     let result;
     if (config.transpileOnly) {
-        const transpiler = !config.transpileWithSwc
+        const transpiler = !config.transpileWithEsbuild
             ? new transpiler_1.TscTranspiler(logFn, printDiagnostic, projectPath, cmdLine)
             : new transpiler_1.ESBuildTranspiler(logFn, printDiagnostic, projectPath, cmdLine);
         result = (() => createTranspileStream(transpiler));
