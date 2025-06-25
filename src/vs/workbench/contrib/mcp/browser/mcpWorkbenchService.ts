@@ -59,8 +59,15 @@ class McpWorkbenchServer implements IWorkbenchMcpServer {
 		return this.gallery?.displayName ?? this.local?.displayName ?? this.local?.name ?? this.installable?.name ?? '';
 	}
 
-	get iconUrl(): string | undefined {
-		return this.gallery?.iconUrl ?? this.local?.iconUrl;
+	get icon(): {
+		readonly dark: string;
+		readonly light: string;
+	} | undefined {
+		return this.gallery?.icon ?? this.local?.icon;
+	}
+
+	get codicon(): string | undefined {
+		return this.gallery?.codicon ?? this.local?.codicon;
 	}
 
 	get publisherDisplayName(): string | undefined {
@@ -343,13 +350,23 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			return false;
 		}
 
-		if (parsed.type === undefined) {
-			(<Mutable<IMcpServerConfiguration>>parsed).type = (<IMcpStdioServerConfiguration>parsed).command ? 'stdio' : 'http';
+		try {
+			const { name, inputs, ...config } = parsed;
+			if (config && Object.keys(config).length > 0) {
+				if (config.type === undefined) {
+					(<Mutable<IMcpServerConfiguration>>config).type = (<IMcpStdioServerConfiguration>parsed).command ? 'stdio' : 'http';
+				}
+				this.open(this.instantiationService.createInstance(McpWorkbenchServer, undefined, undefined, { name, config, inputs }));
+			} else {
+				const galleryServer = await this.mcpGalleryService.getMcpServer(name);
+				if (!galleryServer) {
+					throw new Error(`MCP server '${name}' not found in gallery`);
+				}
+				this.open(this.instantiationService.createInstance(McpWorkbenchServer, undefined, galleryServer, undefined));
+			}
+		} catch (e) {
+			// ignore
 		}
-
-		const { name, inputs, ...config } = parsed;
-
-		this.open(this.instantiationService.createInstance(McpWorkbenchServer, undefined, undefined, { config, name, inputs }));
 		return true;
 	}
 
