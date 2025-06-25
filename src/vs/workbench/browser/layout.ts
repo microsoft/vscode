@@ -1576,7 +1576,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// also hidden and not present, breaking the layout.
 			// Workaround is to make editor visible so that its parent view gets
 			// added properly and then enter maximized mode of auxiliary bar.
-			this.setEditorHidden(false);
 			this.setAuxiliaryBarMaximized(true, true /* fromInit */);
 		}
 
@@ -2056,7 +2055,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (maximized) {
 			let state: typeof this.maximizedAuxiliaryBarState;
 			if (fromInit) {
-				state = this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY);
+				this.setEditorHidden(false); // TODO workaround for a bug with grid, see above in `createWorkbenchLayout`
+				state = {
+					...this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY),
+					editorVisible: true
+				};
 			} else {
 				state = {
 					sideBarVisible: this.isVisible(Parts.SIDEBAR_PART),
