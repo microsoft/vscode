@@ -195,6 +195,7 @@ class QuickPickItemElement extends BaseQuickPickItemElement {
 
 	constructor(
 		index: number,
+		readonly childIndex: number,
 		hasCheckbox: boolean,
 		readonly fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void,
 		private _onChecked: Emitter<{ element: IQuickPickElement; checked: boolean }>,
@@ -520,7 +521,7 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 		} else {
 			data.separator.style.display = 'none';
 		}
-		data.entry.classList.toggle('quick-input-list-separator-border', !!element.separator);
+		data.entry.classList.toggle('quick-input-list-separator-border', !!element.separator && element.childIndex !== 0);
 
 		// Actions
 		const buttons = mainItem.buttons;
@@ -1098,12 +1099,13 @@ export class QuickInputTree extends Disposable {
 				const previous = index > 0 ? inputElements[index - 1] : undefined;
 				let separator: IQuickPickSeparator | undefined;
 				if (previous && previous.type === 'separator' && !previous.buttons) {
-					// Found an inline separator so we clear out the current separator element
-					currentSeparatorElement = undefined;
 					separator = previous;
 				}
 				const qpi = new QuickPickItemElement(
 					index,
+					currentSeparatorElement?.children
+						? currentSeparatorElement.children.length
+						: index,
 					this._hasCheckboxes && item.pickable !== false,
 					e => this._onButtonTriggered.fire(e),
 					this._elementChecked,

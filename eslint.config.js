@@ -99,7 +99,7 @@ export default tseslint.config(
 					'browser': [
 						'common'
 					],
-					'electron-sandbox': [
+					'electron-browser': [
 						'common',
 						'browser'
 					],
@@ -223,20 +223,7 @@ export default tseslint.config(
 				{
 					// Files should (only) be removed from the list they adopt the leak detector
 					'exclude': [
-						'src/vs/platform/configuration/test/common/configuration.test.ts',
-						'src/vs/platform/opener/test/common/opener.test.ts',
-						'src/vs/platform/registry/test/common/platform.test.ts',
-						'src/vs/platform/workspace/test/common/workspace.test.ts',
-						'src/vs/platform/workspaces/test/electron-main/workspaces.test.ts',
-						'src/vs/workbench/contrib/bulkEdit/test/browser/bulkCellEdits.test.ts',
-						'src/vs/workbench/contrib/chat/test/common/chatWordCounter.test.ts',
-						'src/vs/workbench/contrib/extensions/test/common/extensionQuery.test.ts',
-						'src/vs/workbench/contrib/notebook/test/browser/notebookExecutionService.test.ts',
-						'src/vs/workbench/contrib/notebook/test/browser/notebookExecutionStateService.test.ts',
-						'src/vs/workbench/contrib/tasks/test/common/problemMatcher.test.ts',
-						'src/vs/workbench/services/commands/test/common/commandService.test.ts',
 						'src/vs/workbench/services/userActivity/test/browser/domActivityTracker.test.ts',
-						'src/vs/workbench/test/browser/quickAccess.test.ts'
 					]
 				}
 			]
@@ -419,10 +406,10 @@ export default tseslint.config(
 			]
 		}
 	},
-	// browser/electron-sandbox layer
+	// browser/electron-browser layer
 	{
 		files: [
-			'src/**/{browser,electron-sandbox}/**/*.ts'
+			'src/**/{browser,electron-browser}/**/*.ts'
 		],
 		languageOptions: {
 			parser: tseslint.parser,
@@ -783,7 +770,7 @@ export default tseslint.config(
 				{
 					// imports that are allowed in all files of layers:
 					// - browser
-					// - electron-sandbox
+					// - electron-browser
 					'when': 'hasBrowser',
 					'allow': []
 				},
@@ -821,7 +808,7 @@ export default tseslint.config(
 						'net',
 						'node-pty',
 						'os',
-						'path',
+						// 'path', NOT allowed: use src/vs/base/common/path.ts instead
 						'perf_hooks',
 						'readline',
 						'stream',
@@ -879,18 +866,18 @@ export default tseslint.config(
 				//  - src/vs/base/common
 				//  - src/vs/base/worker
 				//  - src/vs/base/browser
-				//  - src/vs/base/electron-sandbox
+				//  - src/vs/base/electron-browser
 				//  - src/vs/base/node
 				//  - src/vs/base/electron-main
 				//  - src/vs/base/test/common
 				//  - src/vs/base/test/worker
 				//  - src/vs/base/test/browser
-				//  - src/vs/base/test/electron-sandbox
+				//  - src/vs/base/test/electron-browser
 				//  - src/vs/base/test/node
 				//  - src/vs/base/test/electron-main
 				//
 				// When /~ is used in the restrictions, it will be replaced with the correct
-				// layers that can be used e.g. 'src/vs/base/electron-sandbox' will be able
+				// layers that can be used e.g. 'src/vs/base/electron-browser' will be able
 				// to import '{common,browser,electron-sanbox}', etc.
 				//
 				// It is possible to use /~ in the restrictions property even without using it in
@@ -1216,7 +1203,7 @@ export default tseslint.config(
 				},
 				{
 					'target': 'src/vs/workbench/workbench.desktop.main.ts',
-					'layer': 'electron-sandbox',
+					'layer': 'electron-browser',
 					'restrictions': [
 						'vs/base/*/~',
 						'vs/base/parts/*/~',
@@ -1243,10 +1230,6 @@ export default tseslint.config(
 				},
 				{
 					'target': 'src/vscode-dts/**',
-					'restrictions': []
-				},
-				{
-					'target': 'src/bootstrap-window.ts',
 					'restrictions': []
 				},
 				{
@@ -1433,81 +1416,6 @@ export default tseslint.config(
 		rules: {
 			'@typescript-eslint/prefer-optional-chain': 'warn',
 			'@typescript-eslint/prefer-readonly': 'warn',
-		}
-	},
-	// Prompt files related code
-	{
-		files: [
-			'src/vs/platform/prompts/**/*.ts',
-			'src/vs/editor/common/codecs/**/*.ts',
-			'src/vs/workbench/contrib/chat/common/promptSyntax/**/*.ts',
-		],
-		languageOptions: {
-			parser: tseslint.parser,
-			parserOptions: {
-				project: 'src/vs/platform/prompts/tsconfig.strict.json',
-			}
-		},
-		plugins: {
-			'@typescript-eslint': tseslint.plugin,
-			'@stylistic/ts': stylisticTs,
-		},
-		rules: {
-			'@typescript-eslint/prefer-readonly': 'warn',
-			'@typescript-eslint/await-thenable': 'error',
-			'@typescript-eslint/consistent-type-assertions': ['error', { 'assertionStyle': 'never' }],
-			'@typescript-eslint/explicit-function-return-type': [
-				'error',
-				{
-					allowDirectConstAssertionInArrowFunctions: false,
-				},
-			],
-			'@typescript-eslint/explicit-member-accessibility': [
-				'error',
-				{
-					accessibility: 'explicit',
-					ignoredMethodNames: ['constructor'],
-				},
-			],
-			'no-shadow': 'off', '@typescript-eslint/no-shadow': 'error',
-			'@typescript-eslint/ban-ts-comment': 'error',
-			'default-param-last': 'off', '@typescript-eslint/default-param-last': 'error',
-			'no-array-constructor': 'off', '@typescript-eslint/no-array-constructor': 'error',
-			'@typescript-eslint/explicit-module-boundary-types': 'error',
-			'@typescript-eslint/no-array-delete': 'error',
-			'@typescript-eslint/no-base-to-string': 'error',
-			'@typescript-eslint/no-confusing-non-null-assertion': 'error',
-			'@typescript-eslint/no-confusing-void-expression': 'error',
-			'@typescript-eslint/no-duplicate-enum-values': 'error',
-			'@typescript-eslint/no-dynamic-delete': 'error',
-			'no-empty-function': 'off', '@typescript-eslint/no-empty-function': [
-				'error', { 'allow': ['private-constructors'] }
-			],
-			'@typescript-eslint/no-empty-object-type': 'error',
-			'@typescript-eslint/no-explicit-any': ['error', { 'ignoreRestArgs': true }],
-			'@typescript-eslint/no-extra-non-null-assertion': 'error',
-			'@typescript-eslint/no-extraneous-class': 'error',
-			'@typescript-eslint/no-for-in-array': 'error',
-			'no-implied-eval': 'off', '@typescript-eslint/no-implied-eval': 'error',
-			'@typescript-eslint/no-invalid-void-type': 'error',
-			'no-loop-func': 'off', '@typescript-eslint/no-loop-func': 'error',
-			'@typescript-eslint/no-misused-new': 'warn',
-			'@typescript-eslint/no-mixed-enums': 'error',
-			'@typescript-eslint/no-floating-promises': 'error',
-			'@typescript-eslint/no-misused-promises': 'error',
-			'@typescript-eslint/no-non-null-asserted-nullish-coalescing': 'error',
-			'@typescript-eslint/no-non-null-asserted-optional-chain': 'error',
-			'@typescript-eslint/no-non-null-assertion': 'error',
-			'@typescript-eslint/no-redundant-type-constituents': 'error',
-			'@typescript-eslint/naming-convention': [
-				'warn',
-				{ 'selector': 'variable', 'format': ['camelCase', 'UPPER_CASE', 'PascalCase'] },
-				{ 'selector': 'variable', 'filter': '^I.+Service$', 'format': ['PascalCase'], 'prefix': ['I'] },
-				{ 'selector': 'enumMember', 'format': ['PascalCase'] },
-				{ 'selector': 'typeAlias', 'format': ['PascalCase'], 'prefix': ['T'] },
-				{ 'selector': 'interface', 'format': ['PascalCase'], 'prefix': ['I'] }
-			],
-			'comma-dangle': ['warn', 'only-multiline'],
 		}
 	},
 );

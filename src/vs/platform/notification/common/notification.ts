@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../nls.js';
 import { IAction } from '../../../base/common/actions.js';
 import { Event } from '../../../base/common/event.js';
 import BaseSeverity from '../../../base/common/severity.js';
@@ -372,16 +373,6 @@ export interface INotificationService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Emitted when a new notification is added.
-	 */
-	readonly onDidAddNotification: Event<INotification>;
-
-	/**
-	 * Emitted when a notification is removed.
-	 */
-	readonly onDidRemoveNotification: Event<INotification>;
-
-	/**
 	 * Emitted when the notifications filter changed.
 	 */
 	readonly onDidChangeFilter: Event<void>;
@@ -481,4 +472,20 @@ export class NoOpProgress implements INotificationProgress {
 	done(): void { }
 	total(value: number): void { }
 	worked(value: number): void { }
+}
+
+export function withSeverityPrefix(label: string, severity: Severity): string {
+
+	// Add severity prefix to match WCAG 4.1.3 Status
+	// Messages requirements.
+
+	if (severity === Severity.Error) {
+		return localize('severityPrefix.error', "Error: {0}", label);
+	}
+
+	if (severity === Severity.Warning) {
+		return localize('severityPrefix.warning', "Warning: {0}", label);
+	}
+
+	return localize('severityPrefix.info', "Info: {0}", label);
 }

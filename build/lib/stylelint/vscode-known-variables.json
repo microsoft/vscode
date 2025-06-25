@@ -55,8 +55,13 @@
 		"--vscode-chat-editedFileForeground",
 		"--vscode-chat-requestBackground",
 		"--vscode-chat-requestBorder",
+		"--vscode-chat-requestBubbleBackground",
+		"--vscode-chat-requestBubbleHoverBackground",
+		"--vscode-chat-requestCodeBorder",
 		"--vscode-chat-slashCommandBackground",
 		"--vscode-chat-slashCommandForeground",
+		"--vscode-chat-linesAddedForeground",
+		"--vscode-chat-linesRemovedForeground",
 		"--vscode-checkbox-background",
 		"--vscode-checkbox-border",
 		"--vscode-checkbox-disabled-background",
@@ -316,6 +321,7 @@
 		"--vscode-editorPane-background",
 		"--vscode-editorRuler-foreground",
 		"--vscode-editorStickyScroll-background",
+		"--vscode-editorStickyScrollGutter-background",
 		"--vscode-editorStickyScroll-border",
 		"--vscode-editorStickyScroll-shadow",
 		"--vscode-editorStickyScrollHover-background",
@@ -558,6 +564,7 @@
 		"--vscode-peekViewEditor-matchHighlightBorder",
 		"--vscode-peekViewEditorGutter-background",
 		"--vscode-peekViewEditorStickyScroll-background",
+		"--vscode-peekViewEditorStickyScrollGutter-background",
 		"--vscode-peekViewResult-background",
 		"--vscode-peekViewResult-fileForeground",
 		"--vscode-peekViewResult-lineForeground",
@@ -577,8 +584,6 @@
 		"--vscode-profileBadge-foreground",
 		"--vscode-profiles-sashBorder",
 		"--vscode-progressBar-background",
-		"--vscode-prompt-frontMatter-background",
-		"--vscode-prompt-frontMatter-inactiveBackground",
 		"--vscode-quickInput-background",
 		"--vscode-quickInput-foreground",
 		"--vscode-quickInput-list-focusBackground",
@@ -954,6 +959,7 @@
 		"--text-link-decoration",
 		"--vscode-action-item-auto-timeout",
 		"--monaco-editor-warning-decoration",
-		"--animation-opacity"
+		"--animation-opacity",
+		"--chat-setup-dialog-glow-angle"
 	]
 }

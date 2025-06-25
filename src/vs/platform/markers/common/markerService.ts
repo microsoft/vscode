@@ -19,6 +19,7 @@ export const unsupportedSchemas = new Set([
 	Schemas.walkThrough,
 	Schemas.walkThroughSnippet,
 	Schemas.vscodeChatCodeBlock,
+	Schemas.vscodeTerminal
 ]);
 
 class DoubleResourceMap<V> {

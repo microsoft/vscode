@@ -66,7 +66,6 @@ export interface IRemoteDiagnosticError {
 export interface IDiagnosticInfoOptions {
 	includeProcesses?: boolean;
 	folders?: UriComponents[];
-	includeExtensions?: boolean;
 }
 
 export interface WorkspaceStatItem {

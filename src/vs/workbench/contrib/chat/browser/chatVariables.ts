@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChatVariablesService, IDynamicVariable } from '../common/chatVariables.js';
-import { IToolData } from '../common/languageModelToolsService.js';
+import { IToolData, ToolSet } from '../common/languageModelToolsService.js';
 import { IChatWidgetService } from './chat.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 
@@ -38,7 +38,17 @@ export class ChatVariablesService implements IChatVariablesService {
 		if (!widget) {
 			return [];
 		}
-		return widget.input.selectedToolsModel.tools.get();
+		return Array.from(widget.input.selectedToolsModel.entries.get())
+			.filter((t): t is IToolData => !(t instanceof ToolSet));
+
+	}
+	getSelectedToolSets(sessionId: string): ReadonlyArray<ToolSet> {
+		const widget = this.chatWidgetService.getWidgetBySessionId(sessionId);
+		if (!widget) {
+			return [];
+		}
+		return Array.from(widget.input.selectedToolsModel.entries.get())
+			.filter((t): t is ToolSet => t instanceof ToolSet);
 	}
 
 }

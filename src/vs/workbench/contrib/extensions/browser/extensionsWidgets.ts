@@ -45,11 +45,12 @@ import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from '../../../services/extensionManagement/common/extensionFeatures.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
-import { extensionVerifiedPublisherIconColor, verifiedPublisherIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
+import { extensionDefaultIcon, extensionVerifiedPublisherIconColor, verifiedPublisherIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IExplorerService } from '../../files/browser/files.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { VIEW_ID as EXPLORER_VIEW_ID } from '../../files/common/files.js';
+import { IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -71,6 +72,75 @@ export function onClick(element: HTMLElement, callback: () => void): IDisposable
 		}
 	}));
 	return disposables;
+}
+
+export class ExtensionIconWidget extends ExtensionWidget {
+
+	private readonly disposables = this._register(new DisposableStore());
+	private readonly element: HTMLElement;
+	private readonly iconElement: HTMLImageElement;
+	private readonly defaultIconElement: HTMLElement;
+
+	private iconUrl: string | undefined;
+
+	constructor(
+		container: HTMLElement,
+	) {
+		super();
+		this.element = append(container, $('.extension-icon'));
+
+		this.iconElement = append(this.element, $('img.icon', { alt: '' }));
+		this.iconElement.style.display = 'none';
+
+		this.defaultIconElement = append(this.element, $(ThemeIcon.asCSSSelector(extensionDefaultIcon)));
+		this.defaultIconElement.style.display = 'none';
+
+		this.render();
+		this._register(toDisposable(() => this.clear()));
+	}
+
+	private clear(): void {
+		this.iconUrl = undefined;
+		this.iconElement.src = '';
+		this.iconElement.style.display = 'none';
+		this.defaultIconElement.style.display = 'none';
+		this.disposables.clear();
+	}
+
+	render(): void {
+		if (!this.extension) {
+			this.clear();
+			return;
+		}
+
+		if (this.extension.iconUrl) {
+			this.iconElement.style.display = 'inherit';
+			this.defaultIconElement.style.display = 'none';
+			if (this.iconUrl !== this.extension.iconUrl) {
+				this.iconUrl = this.extension.iconUrl;
+				this.disposables.add(addDisposableListener(this.iconElement, 'error', () => {
+					if (this.extension?.iconUrlFallback) {
+						this.iconElement.src = this.extension.iconUrlFallback;
+					} else {
+						this.iconElement.style.display = 'none';
+						this.defaultIconElement.style.display = 'inherit';
+					}
+				}, { once: true }));
+				this.iconElement.src = this.iconUrl;
+				if (!this.iconElement.complete) {
+					this.iconElement.style.visibility = 'hidden';
+					this.iconElement.onload = () => this.iconElement.style.visibility = 'inherit';
+				} else {
+					this.iconElement.style.visibility = 'inherit';
+				}
+			}
+		} else {
+			this.iconUrl = undefined;
+			this.iconElement.style.display = 'none';
+			this.iconElement.src = '';
+			this.defaultIconElement.style.display = 'inherit';
+		}
+	}
 }
 
 export class InstallCountWidget extends ExtensionWidget {
@@ -517,6 +587,7 @@ export class ExtensionPackCountWidget extends ExtensionWidget {
 export class ExtensionKindIndicatorWidget extends ExtensionWidget {
 
 	private element: HTMLElement | undefined;
+	private extensionGalleryManifest: IExtensionGalleryManifest | null = null;
 
 	private readonly disposables = this._register(new DisposableStore());
 
@@ -528,10 +599,18 @@ export class ExtensionKindIndicatorWidget extends ExtensionWidget {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IViewsService private readonly viewsService: IViewsService,
+		@IExtensionGalleryManifestService extensionGalleryManifestService: IExtensionGalleryManifestService,
 	) {
 		super();
 		this.render();
 		this._register(toDisposable(() => this.clear()));
+		extensionGalleryManifestService.getExtensionGalleryManifest().then(manifest => {
+			if (this._store.isDisposed) {
+				return;
+			}
+			this.extensionGalleryManifest = manifest;
+			this.render();
+		});
 	}
 
 	private clear(): void {
@@ -542,20 +621,22 @@ export class ExtensionKindIndicatorWidget extends ExtensionWidget {
 	render(): void {
 		this.clear();
 
-		if (this.small) {
-			return;
-		}
-
 		if (!this.extension) {
 			return;
 		}
 
 		if (this.extension?.private) {
 			this.element = append(this.container, $('.extension-kind-indicator'));
-			append(this.element, $('span' + ThemeIcon.asCSSSelector(privateExtensionIcon)));
+			if (!this.small || (this.extensionGalleryManifest?.capabilities.extensions?.includePublicExtensions && this.extensionGalleryManifest?.capabilities.extensions?.includePrivateExtensions)) {
+				append(this.element, $('span' + ThemeIcon.asCSSSelector(privateExtensionIcon)));
+			}
 			if (!this.small) {
 				append(this.element, $('span.private-extension-label', undefined, localize('privateExtension', "Private Extension")));
 			}
+			return;
+		}
+
+		if (!this.small) {
 			return;
 		}
 

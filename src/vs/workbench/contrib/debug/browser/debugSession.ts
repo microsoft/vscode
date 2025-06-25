@@ -26,6 +26,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { FocusMode } from '../../../../platform/native/common/native.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ICustomEndpointTelemetryService, ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
@@ -1375,7 +1376,7 @@ export class DebugSession implements IDebugSession {
 								if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak && !this.workbenchEnvironmentService.extensionTestsLocationURI) {
 									const activeWindow = getActiveWindow();
 									if (!activeWindow.document.hasFocus()) {
-										await this.hostService.focus(mainWindow, { force: true /* Application may not be active */ });
+										await this.hostService.focus(mainWindow, { mode: FocusMode.Force /* Application may not be active */ });
 									}
 								}
 							}

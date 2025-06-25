@@ -675,6 +675,11 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	readonly hasFocus: boolean;
 
 	/**
+	 * The ID of the session that this terminal is connected to
+	 */
+	readonly sessionId: string;
+
+	/**
 	 * Get or set the behavior of the terminal when it closes. This was indented only to be called
 	 * after reconnecting to a terminal.
 	 */
@@ -898,6 +903,13 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * interpreted as a shell keybinding.
 	 */
 	sendText(text: string, shouldExecute: boolean, bracketedPasteMode?: boolean): Promise<void>;
+
+	/**
+	 * Sends a signal to the terminal instance's process.
+	 *
+	 * @param signal The signal to send (e.g., 'SIGTERM', 'SIGINT', 'SIGKILL').
+	 */
+	sendSignal(signal: string): Promise<void>;
 
 	/**
 	 * Sends a path to the terminal instance, preparing it as needed based on the detected shell

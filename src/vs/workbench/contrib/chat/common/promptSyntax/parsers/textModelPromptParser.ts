@@ -18,17 +18,17 @@ export class TextModelPromptParser extends BasePromptParser<TextModelContentsPro
 	constructor(
 		model: ITextModel,
 		options: Partial<IPromptParserOptions>,
-		@IInstantiationService initService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
 		@ILogService logService: ILogService,
 	) {
-		const contentsProvider = initService.createInstance(
+		const contentsProvider = instantiationService.createInstance(
 			TextModelContentsProvider,
 			model,
 			options,
 		);
 
-		super(contentsProvider, options, initService, workspaceService, logService);
+		super(contentsProvider, options, instantiationService, workspaceService, logService);
 
 		this._register(contentsProvider);
 	}

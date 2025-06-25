@@ -310,26 +310,18 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			}
 			this._revealPosition(position);
 		}));
-		const mouseMoveListener = (mouseEvent: MouseEvent) => {
+		this._register(dom.addDisposableListener(mainWindow, dom.EventType.MOUSE_MOVE, mouseEvent => {
 			this._mouseTarget = mouseEvent.target;
 			this._onMouseMoveOrKeyDown(mouseEvent);
-		};
-		const keyDownListener = (mouseEvent: KeyboardEvent) => {
+		}));
+		this._register(dom.addDisposableListener(mainWindow, dom.EventType.KEY_DOWN, mouseEvent => {
 			this._onMouseMoveOrKeyDown(mouseEvent);
-		};
-		const keyUpListener = (e: KeyboardEvent) => {
+		}));
+		this._register(dom.addDisposableListener(mainWindow, dom.EventType.KEY_UP, () => {
 			if (this._showEndForLine !== undefined) {
 				this._showEndForLine = undefined;
 				this._renderStickyScroll();
 			}
-		};
-		mainWindow.addEventListener(dom.EventType.MOUSE_MOVE, mouseMoveListener);
-		mainWindow.addEventListener(dom.EventType.KEY_DOWN, keyDownListener);
-		mainWindow.addEventListener(dom.EventType.KEY_UP, keyUpListener);
-		this._register(toDisposable(() => {
-			mainWindow.removeEventListener(dom.EventType.MOUSE_MOVE, mouseMoveListener);
-			mainWindow.removeEventListener(dom.EventType.KEY_DOWN, keyDownListener);
-			mainWindow.removeEventListener(dom.EventType.KEY_UP, keyUpListener);
 		}));
 
 		this._register(gesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, _keyboardEvent]) => {

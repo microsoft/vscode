@@ -5,35 +5,41 @@
 
 import { TopError } from './topError.js';
 import { ChatMode } from '../../constants.js';
-import { PromptHeader } from './promptHeader/header.js';
+import { TMetadata } from './promptHeader/headerBase.js';
+import { ModeHeader } from './promptHeader/modeHeader.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { PromptToken } from '../codecs/tokens/promptToken.js';
 import * as path from '../../../../../../base/common/path.js';
 import { ChatPromptCodec } from '../codecs/chatPromptCodec.js';
-import { Emitter } from '../../../../../../base/common/event.js';
 import { FileReference } from '../codecs/tokens/fileReference.js';
 import { ChatPromptDecoder } from '../codecs/chatPromptDecoder.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
-import { IPromptContentsProvider } from '../contentProviders/types.js';
-import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Event, Emitter } from '../../../../../../base/common/event.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { InstructionsHeader } from './promptHeader/instructionsHeader.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { PromptVariableWithData } from '../codecs/tokens/promptVariable.js';
-import { IRange, Range } from '../../../../../../editor/common/core/range.js';
+import type { IPromptContentsProvider } from '../contentProviders/types.js';
+import type { TPromptReference, IResolveError, ITopError } from './types.js';
+import { type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { assert, assertNever } from '../../../../../../base/common/assert.js';
 import { basename, dirname } from '../../../../../../base/common/resources.js';
-import { BaseToken } from '../../../../../../editor/common/codecs/baseToken.js';
+import { BaseToken } from '../codecs/base/baseToken.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
-import { IPromptMetadata, TPromptReference, IResolveError, ITopError } from './types.js';
-import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
+import { type IRange, Range } from '../../../../../../editor/common/core/range.js';
+import { PromptHeader, type TPromptMetadata } from './promptHeader/promptHeader.js';
+import { ObservableDisposable } from '../utils/observableDisposable.js';
+import { PromptsType, INSTRUCTIONS_LANGUAGE_ID, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../promptTypes.js';
+import { LinesDecoder } from '../codecs/base/linesCodec/linesDecoder.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/constants.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
-import { MarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownToken.js';
-import { FrontMatterHeader } from '../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
+import { MarkdownLink } from '../codecs/base/markdownCodec/tokens/markdownLink.js';
+import { MarkdownToken } from '../codecs/base/markdownCodec/tokens/markdownToken.js';
+import { isPromptOrInstructionsFile } from '../config/promptFileLocations.js';
+import { FrontMatterHeader } from '../codecs/base/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ResolveError } from '../../promptFileReferenceErrors.js';
-import { IPromptContentsProviderOptions, DEFAULT_OPTIONS as CONTENTS_PROVIDER_DEFAULT_OPTIONS } from '../contentProviders/promptContentsProviderBase.js';
+import { type IPromptContentsProviderOptions, DEFAULT_OPTIONS as CONTENTS_PROVIDER_DEFAULT_OPTIONS } from '../contentProviders/promptContentsProviderBase.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 
 /**
  * Options of the {@link BasePromptParser} class.
@@ -91,20 +97,45 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * Reference to the prompt header object that holds metadata associated
 	 * with the prompt.
 	 */
-	private promptHeader?: PromptHeader;
+	private promptHeader?: PromptHeader | InstructionsHeader | ModeHeader | undefined;
 
 	/**
 	 * Reference to the prompt header object that holds metadata associated
 	 * with the prompt.
 	 */
-	public get header(): PromptHeader | undefined {
+	public get header(): PromptHeader | InstructionsHeader | ModeHeader | undefined {
 		return this.promptHeader;
+	}
+
+	/**
+	 * Get contents of the prompt body.
+	 */
+	public async getBody(): Promise<string> {
+		const startLineNumber = (this.header !== undefined)
+			? this.header.range.endLineNumber + 1
+			: 1;
+
+		const decoder = new LinesDecoder(
+			await this.promptContentsProvider.contents,
+		);
+
+		const tokens = (await decoder.consumeAll())
+			.filter(({ range }) => {
+				return (range.startLineNumber >= startLineNumber);
+			});
+
+		return BaseToken.render(tokens);
 	}
 
 	/**
 	 * The event is fired when lines or their content change.
 	 */
 	private readonly _onUpdate = this._register(new Emitter<void>());
+	/**
+	 * Subscribe to the event that is fired the parser state or contents
+	 * changes, including changes in the possible prompt child references.
+	 */
+	public readonly onUpdate = this._onUpdate.event;
 
 	/**
 	 * Event that is fired when the current prompt parser is settled.
@@ -118,7 +149,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		callback: (error?: Error) => void,
 	): IDisposable {
 		const disposable = this._onSettled.event(callback);
-		const streamEnded = (this.stream?.ended && (this.stream.disposed === false));
+		const streamEnded = (this.stream?.ended && (this.stream.isDisposed === false));
 
 		// if already in the error state or stream has already ended,
 		// invoke the callback immediately but asynchronously
@@ -129,16 +160,6 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		}
 
 		return disposable;
-	}
-
-	/**
-	 * Subscribe to the `onUpdate` event that is fired when prompt tokens are updated.
-	 * @param callback The callback function to be called on updates.
-	 */
-	public onUpdate(callback: () => void): this {
-		this._register(this._onUpdate.event(callback));
-
-		return this;
 	}
 
 	/**
@@ -196,7 +217,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 
 		// by the time when the `firstParseResult` promise is resolved,
 		// this object may have been already disposed, hence noop
-		if (this.disposed) {
+		if (this.isDisposed) {
 			return this;
 		}
 
@@ -245,8 +266,6 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			...options,
 		};
 
-		this._onUpdate.fire = this._onUpdate.fire.bind(this._onUpdate);
-
 		const seenReferences = [...this.options.seenReferences];
 
 		// to prevent infinite file recursion, we keep track of all references in
@@ -281,7 +300,9 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		);
 
 		// dispose self when contents provider is disposed
-		this.promptContentsProvider.onDispose(this.dispose.bind(this));
+		this._register(
+			this.promptContentsProvider.onDispose(this.dispose.bind(this)),
+		);
 	}
 
 	/**
@@ -331,6 +352,13 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		// decode the byte stream to a stream of prompt tokens
 		this.stream = ChatPromptCodec.decode(streamOrError);
 
+		/**
+		 * !NOTE! The order of event subscriptions below is critical here because
+		 *        the `data` event is also starts the stream, hence changing
+		 *        the order of event subscriptions can lead to race conditions.
+		 *        See {@link ReadableStreamEvents} for more info.
+		 */
+
 		// on error or stream end, dispose the stream and fire the update event
 		this.stream.on('error', this.onStreamEnd.bind(this, this.stream));
 		this.stream.on('end', this.onStreamEnd.bind(this, this.stream));
@@ -344,32 +372,28 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 
 			// if a prompt header token received, create a new prompt header instance
 			if (token instanceof FrontMatterHeader) {
-				this.promptHeader = new PromptHeader(
-					token.contentToken,
-					this.promptContentsProvider.languageId,
-				).start();
-
-				return;
+				return this.createHeader(token);
 			}
 
 			// try to convert a prompt variable with data token into a file reference
 			if (token instanceof PromptVariableWithData) {
 				try {
-					this.onReference(FileReference.from(token), [...seenReferences]);
+					this.handleLinkToken(FileReference.from(token), [...seenReferences]);
 				} catch (error) {
-					// no-op
+					// the `FileReference.from` call might throw if the `PromptVariableWithData` token
+					// can not be converted into a valid `#file` reference, hence we ignore the error
 				}
 			}
 
 			// note! the `isURL` is a simple check and needs to be improved to truly
 			// 		 handle only file references, ignoring broken URLs or references
 			if (token instanceof MarkdownLink && !token.isURL) {
-				this.onReference(token, [...seenReferences]);
+				this.handleLinkToken(token, [...seenReferences]);
 			}
 		});
 
 		// calling `start` on a disposed stream throws, so we warn and return instead
-		if (this.stream.disposed) {
+		if (this.stream.isDisposed) {
 			this.logService.warn(
 				`[prompt parser][${basename(this.uri)}] cannot start stream that has been already disposed, aborting`,
 			);
@@ -382,9 +406,33 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	}
 
 	/**
+	 * Create header object base on the target prompt file language ID.
+	 * The language ID is important here, because it defines what type
+	 * of metadata is valid for a prompt file and what type of related
+	 * diagnostics we would show to the user.
+	 */
+	private createHeader(headerToken: FrontMatterHeader): void {
+		const { languageId } = this.promptContentsProvider;
+
+		if (languageId === PROMPT_LANGUAGE_ID) {
+			this.promptHeader = new PromptHeader(headerToken, languageId);
+		}
+
+		if (languageId === INSTRUCTIONS_LANGUAGE_ID) {
+			this.promptHeader = new InstructionsHeader(headerToken, languageId);
+		}
+
+		if (languageId === MODE_LANGUAGE_ID) {
+			this.promptHeader = new ModeHeader(headerToken, languageId);
+		}
+
+		this.promptHeader?.start();
+	}
+
+	/**
 	 * Handle a new reference token inside prompt contents.
 	 */
-	private onReference(
+	private handleLinkToken(
 		token: FileReference | MarkdownLink,
 		seenReferences: string[],
 	): this {
@@ -399,13 +447,15 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		const reference = this.instantiationService
 			.createInstance(PromptReference, contentProvider, token, { seenReferences });
 
-		// the content provider is exclusively owned by the reference
-		// hence dispose it when the reference is disposed
-		reference.onDispose(contentProvider.dispose.bind(contentProvider));
-
 		this._references.push(reference);
 
-		reference.onUpdate(this._onUpdate.fire);
+		reference.addDisposables(
+			// the content provider is exclusively owned by the reference
+			// hence dispose it when the reference is disposed
+			reference.onDispose(contentProvider.dispose.bind(contentProvider)),
+			reference.onUpdate(this._onUpdate.fire),
+
+		);
 		this._onUpdate.fire();
 
 		reference.start();
@@ -426,7 +476,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		// decoders can fire the 'end' event also when they are get disposed,
 		// but because we dispose them when a new stream is received, we can
 		// safely ignore the event in this case
-		if (stream.disposed === true) {
+		if (stream.isDisposed === true) {
 			return this;
 		}
 
@@ -462,7 +512,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	/**
 	 * Start the prompt parser.
 	 */
-	public start(): this {
+	public start(token?: CancellationToken): this {
 		// if already started, nothing to do
 		if (this.started) {
 			return this;
@@ -476,7 +526,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			return this;
 		}
 
-		this.promptContentsProvider.start();
+		this.promptContentsProvider.start(token);
 		return this;
 	}
 
@@ -560,40 +610,45 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	}
 
 	/**
-	 * Get list of all valid child references as URIs.
-	 */
-	public get allValidReferencesUris(): readonly URI[] {
-		return this.allValidReferences
-			.map(child => child.uri);
-	}
-
-	/**
 	 * Valid metadata records defined in the prompt header.
 	 */
-	public get metadata(): IPromptMetadata {
+	public get metadata(): TMetadata | null {
+		const { promptType } = this.promptContentsProvider;
+		if (promptType === 'non-prompt') {
+			return null;
+		}
+
 		if (this.header === undefined) {
-			return {};
+			return { promptType };
 		}
 
-		const { metadata } = this.header;
-		if (metadata === undefined) {
-			return {};
+		if (this.header instanceof InstructionsHeader) {
+			return { promptType, ...this.header.metadata };
 		}
 
-		const { tools, mode, description, applyTo } = metadata;
+		const { tools, mode, description } = this.header.metadata;
 
 		// compute resulting mode based on presence
 		// of `tools` metadata in the prompt header
 		const resultingMode = (tools !== undefined)
 			? ChatMode.Agent
-			: mode?.chatMode;
+			: mode;
 
-		return {
-			mode: resultingMode,
-			description: description?.text,
-			tools: tools?.toolNames,
-			applyTo: applyTo?.text,
-		};
+		const result: Partial<TPromptMetadata> = {};
+
+		if (description !== undefined) {
+			result.description = description;
+		}
+
+		if (tools !== undefined) {
+			result.tools = tools;
+		}
+
+		if (resultingMode !== undefined) {
+			result.mode = resultingMode;
+		}
+
+		return { promptType, ...result };
 	}
 
 	/**
@@ -603,6 +658,10 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	public get allToolsMetadata(): readonly string[] | null {
 		let hasTools = false;
 		const result: string[] = [];
+
+		if (this.metadata?.promptType !== PromptsType.prompt) {
+			return null;
+		}
 
 		const { tools, mode } = this.metadata;
 
@@ -754,7 +813,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * @inheritdoc
 	 */
 	public override dispose(): void {
-		if (this.disposed) {
+		if (this.isDisposed) {
 			return;
 		}
 
@@ -785,11 +844,11 @@ export class PromptReference extends ObservableDisposable implements TPromptRefe
 		private readonly promptContentsProvider: IPromptContentsProvider,
 		public readonly token: FileReference | MarkdownLink,
 		options: Partial<IPromptParserOptions>,
-		@IInstantiationService initService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
-		this.parser = this._register(initService.createInstance(
+		this.parser = this._register(instantiationService.createInstance(
 			BasePromptParser,
 			this.promptContentsProvider,
 			options,
@@ -862,12 +921,9 @@ export class PromptReference extends ObservableDisposable implements TPromptRefe
 
 	/**
 	 * Subscribe to the `onUpdate` event that is fired when prompt tokens are updated.
-	 * @param callback The callback function to be called on updates.
 	 */
-	public onUpdate(callback: () => void): this {
-		this.parser.onUpdate(callback);
-
-		return this;
+	public onUpdate(...args: Parameters<Event<void>>): ReturnType<Event<void>> {
+		return this.parser.onUpdate(...args);
 	}
 
 	public get range(): Range {
@@ -918,7 +974,7 @@ export class PromptReference extends ObservableDisposable implements TPromptRefe
 		return this.parser.allReferences;
 	}
 
-	public get metadata(): IPromptMetadata {
+	public get metadata(): TMetadata | null {
 		return this.parser.metadata;
 	}
 

@@ -36,7 +36,6 @@ export namespace WebFileSystemAccess {
 	}
 }
 
-// TODO@bpasero adopt official types of FileSystemObserver
 export namespace WebFileSystemObserver {
 
 	export function supported(obj: any & Window): boolean {
