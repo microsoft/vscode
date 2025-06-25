@@ -57,8 +57,7 @@ export function isShellTypeSupportedForSuggestions(shellType: TerminalShellType 
 		shellType === PosixShellType.Zsh ||
 		shellType === PosixShellType.Fish ||
 		shellType === GeneralShellType.PowerShell ||
-		shellType === WindowsShellType.GitBash ||
-		shellType === GeneralShellType.Python;
+		shellType === WindowsShellType.GitBash;
 }
 
 export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggestController {
@@ -259,7 +258,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// wait for the shell type to initialize. This prevents user requests sometimes getting lost
 		// if requested shortly after the terminal is created.
 		await this._shellTypeInit;
-		if (!isShellTypeSupportedForSuggestions(this.shellType)) {
+		if (!this.shellType) {
 			return;
 		}
 
@@ -596,6 +595,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _refreshInlineCompletion(completions: ITerminalCompletion[]): void {
+		if (!isShellTypeSupportedForSuggestions(this.shellType)) {
+			// If the shell type is not supported, the inline completion item is invalid
+			return;
+		}
 		const oldIsInvalid = this._inlineCompletionItem.isInvalid;
 		if (!this._currentPromptInputState || this._currentPromptInputState.ghostTextIndex === -1) {
 			this._inlineCompletionItem.isInvalid = true;

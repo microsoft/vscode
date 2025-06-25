@@ -156,7 +156,6 @@ suite('Shell Type Detection', () => {
 		strictEqual(getTerminalShellType('fish'), TerminalShellType.Fish);
 		strictEqual(getTerminalShellType('pwsh'), TerminalShellType.PowerShell);
 		strictEqual(getTerminalShellType('gitbash'), TerminalShellType.GitBash);
-		strictEqual(getTerminalShellType('python'), TerminalShellType.Python);
 	});
 
 	test('should return undefined for unsupported shells', () => {
@@ -167,6 +166,8 @@ suite('Shell Type Detection', () => {
 		strictEqual(getTerminalShellType('csh'), undefined);
 		strictEqual(getTerminalShellType('tcsh'), undefined);
 		strictEqual(getTerminalShellType('dash'), undefined);
+		strictEqual(getTerminalShellType('python'), undefined);
+
 		strictEqual(getTerminalShellType(undefined), undefined);
 		strictEqual(getTerminalShellType(''), undefined);
 	});
