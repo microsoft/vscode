@@ -91,11 +91,13 @@ Name: "runcode"; Description: "{cm:RunAfter,{#NameShort}}"; GroupDescription: "{
 Name: "{app}"; AfterInstall: DisableAppDirInheritance
 
 [Files]
-Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\appx,\appx\*,\resources\app\product.json"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "tools\*"; DestDir: "{app}\{#VersionedResourcesFolder}\tools"; Flags: ignoreversion
+Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\appx,\appx\*,\resources\app\product.json,\{#ExeBasename}.exe,\bin,\bin\*"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#ExeBasename}.exe"; DestDir: "{code:GetDestDir}\{code:GetExeBasename}"; Flags: ignoreversion
+Source: "tools\*"; DestDir: "{code:GetDestDir}\{#VersionedResourcesFolder}\tools"; Flags: ignoreversion
+Source: "bin\*"; DestDir: "{code:GetDestDir}\{code:GetDestBinDir}"; Flags: ignoreversion
 Source: "{#ProductJsonPath}"; DestDir: "{code:GetDestDir}\{#VersionedResourcesFolder}\resources\app"; Flags: ignoreversion
 #ifdef AppxPackageFullname
-Source: "appx\*"; DestDir: "{app}\{#VersionedResourcesFolder}\appx"; BeforeInstall: RemoveAppxPackage; AfterInstall: AddAppxPackage; Flags: ignoreversion; Check: IsWindows11OrLater and QualityIsInsiders
+Source: "appx\*"; DestDir: "{code:GetDestDir}\{#VersionedResourcesFolder}\appx"; BeforeInstall: RemoveAppxPackage; AfterInstall: AddAppxPackage; Flags: ignoreversion; Check: IsWindows11OrLater and QualityIsInsiders
 #endif
 
 [Icons]
@@ -1449,10 +1451,23 @@ end;
 
 function GetDestDir(Value: string): string;
 begin
+  Result := ExpandConstant('{app}');
+end;
+
+function GetDestBinDir(Value: string): string;
+begin
   if IsBackgroundUpdate() then
-    Result := ExpandConstant('{app}\_')
+    Result := ExpandConstant('{#VersionedResourcesFolder}\bin');
   else
-    Result := ExpandConstant('{app}');
+    Result := 'bin';
+end;
+
+function GetExeBasename(Value: string): string;
+begin
+  if IsBackgroundUpdate() then
+    Result := ExpandConstant('new_{#ExeBasename}.exe');
+  else
+    Result := ExpandConstant('{#ExeBasename}.exe');
 end;
 
 function BoolToStr(Value: Boolean): String;
@@ -1505,6 +1520,9 @@ begin
   begin
     if IsBackgroundUpdate() then
     begin
+      Log('Renaming current executable with old prefix...');
+      Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('"{app}\{#ExeBasename}.exe" --rename'), '', SW_HIDE, ewWaitUntilTerminated, UpdateResultCode);
+
       CreateMutex('{#AppMutex}-ready');
 
       Log('Checking whether application is still running...');
