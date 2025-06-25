@@ -250,5 +250,32 @@ suite('normalizeSerializableChatData', () => {
 		];
 		const longTitle = ChatModel.getDefaultTitle(longMessageRequests as any);
 		assert.strictEqual(longTitle, 'this is a very l... : Chat session with 2 messages');
+
+		// Test edge cases
+		const emptyMessage = ChatModel.getDefaultTitle([{ message: { text: '' } }] as any);
+		assert.strictEqual(emptyMessage, '');
+
+		const multilineRequests = [
+			{
+				message: { text: 'hello\nworld\nthis is multiline' },
+			},
+			{
+				message: { text: 'second message' },
+			}
+		];
+		const multilineTitle = ChatModel.getDefaultTitle(multilineRequests as any);
+		assert.strictEqual(multilineTitle, 'hello : Chat session with 2 messages');
+
+		// Test with string message (not object)
+		const stringRequests = [
+			{
+				message: 'hello world',
+			},
+			{
+				message: 'second message',
+			}
+		];
+		const stringTitle = ChatModel.getDefaultTitle(stringRequests as any);
+		assert.strictEqual(stringTitle, 'hello world : Chat session with 2 messages');
 	});
 });
