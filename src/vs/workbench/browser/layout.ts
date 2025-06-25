@@ -2111,8 +2111,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	toggleMaximizedPanel(): void {
 		const size = this.workbenchGrid.getViewSize(this.panelPartView);
 		const panelPosition = this.getPanelPosition();
-		const isMaximized = this.isPanelMaximized();
-		if (!isMaximized) {
+		const maximize = !this.isPanelMaximized();
+		if (maximize) {
 			if (this.isVisible(Parts.PANEL_PART)) {
 				if (isHorizontal(panelPosition)) {
 					this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_HEIGHT, size.height);
@@ -2131,7 +2131,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			});
 		}
 
-		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED, !isMaximized);
+		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED, maximize);
 	}
 
 	private panelOpensMaximized(): boolean {
@@ -2711,8 +2711,8 @@ const LayoutStateKeys = {
 	}),
 
 	// Part Sizing
-	SIDEBAR_SIZE: new InitializationStateKey<number>('sideBar.size', StorageScope.PROFILE, StorageTarget.MACHINE, 200),
-	AUXILIARYBAR_SIZE: new InitializationStateKey<number>('auxiliaryBar.size', StorageScope.PROFILE, StorageTarget.MACHINE, 200),
+	SIDEBAR_SIZE: new InitializationStateKey<number>('sideBar.size', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
+	AUXILIARYBAR_SIZE: new InitializationStateKey<number>('auxiliaryBar.size', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
 	PANEL_SIZE: new InitializationStateKey<number>('panel.size', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
 
 	PANEL_LAST_NON_MAXIMIZED_HEIGHT: new RuntimeStateKey<number>('panel.lastNonMaximizedHeight', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
