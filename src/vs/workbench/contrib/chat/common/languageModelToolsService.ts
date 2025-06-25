@@ -205,6 +205,8 @@ export interface IToolImpl {
 	prepareToolInvocation?(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
 }
 
+export type IToolAndToolSetEnablementMap = ReadonlyMap<IToolData | ToolSet, boolean>;
+
 export class ToolSet {
 
 	protected readonly _tools = new ObservableSet<IToolData>();
@@ -273,8 +275,10 @@ export interface ILanguageModelToolsService {
 	resetToolAutoConfirmation(): void;
 	cancelToolCallsForRequest(requestId: string): void;
 	toToolEnablementMap(toolOrToolSetNames: Set<string>): Record<string, boolean>;
+	toToolAndToolSetEnablementMap(toolOrToolSetNames: Set<string>): IToolAndToolSetEnablementMap;
 
 	readonly toolSets: IObservable<Iterable<ToolSet>>;
+	getToolSet(id: string): ToolSet | undefined;
 	getToolSetByName(name: string): ToolSet | undefined;
 	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string }): ToolSet & IDisposable;
 }

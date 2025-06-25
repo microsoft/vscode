@@ -486,9 +486,29 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return result;
 	}
 
+	toToolAndToolSetEnablementMap(toolOrToolSetNames: Set<string>): Map<ToolSet | IToolData, boolean> {
+		const result = new Map<ToolSet | IToolData, boolean>();
+		for (const tool of this._tools.values()) {
+			result.set(tool.data, tool.data.toolReferenceName !== undefined && toolOrToolSetNames.has(tool.data.toolReferenceName));
+		}
+		for (const toolSet of this._toolSets) {
+			result.set(toolSet, toolOrToolSetNames.has(toolSet.referenceName));
+		}
+		return result;
+	}
+
 	private readonly _toolSets = new ObservableSet<ToolSet>();
 
 	readonly toolSets: IObservable<Iterable<ToolSet>> = this._toolSets.observable;
+
+	getToolSet(id: string): ToolSet | undefined {
+		for (const toolSet of this._toolSets) {
+			if (toolSet.id === id) {
+				return toolSet;
+			}
+		}
+		return undefined;
+	}
 
 	getToolSetByName(name: string): ToolSet | undefined {
 		for (const toolSet of this._toolSets) {
