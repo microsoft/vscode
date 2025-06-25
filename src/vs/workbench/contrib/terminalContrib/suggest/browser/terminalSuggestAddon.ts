@@ -21,7 +21,7 @@ import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalS
 import { LineContext } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import { ITerminalCompletionService } from './terminalCompletionService.js';
-import { TerminalSettingId, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { TerminalSettingId, TerminalShellType, PosixShellType, WindowsShellType, GeneralShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -48,6 +48,23 @@ export interface ISuggestController {
 
 
 let firstShownTracker: { shell: Set<TerminalShellType>; window: boolean } | undefined = undefined;
+
+function isShellTypeSupportedForSuggestions(shellType: TerminalShellType | undefined): boolean {
+	if (!shellType) {
+		return false;
+	}
+	// Supported shell types for terminal suggestions: bash, zsh, fish, PowerShell (pwsh), Git Bash, Python
+	return shellType === PosixShellType.Bash ||
+		shellType === PosixShellType.Zsh ||
+		shellType === PosixShellType.Fish ||
+		shellType === GeneralShellType.PowerShell ||
+		shellType === WindowsShellType.GitBash ||
+		shellType === GeneralShellType.Python;
+}
+
+// Export for testing
+export { isShellTypeSupportedForSuggestions };
+
 export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggestController {
 	private _terminal?: Terminal;
 
@@ -246,7 +263,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// wait for the shell type to initialize. This prevents user requests sometimes getting lost
 		// if requested shortly after the terminal is created.
 		await this._shellTypeInit;
-		if (!this.shellType) {
+		if (!isShellTypeSupportedForSuggestions(this.shellType)) {
 			return;
 		}
 
