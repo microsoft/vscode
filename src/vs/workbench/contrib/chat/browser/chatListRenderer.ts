@@ -171,6 +171,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		private readonly delegate: IChatRendererDelegate,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		overflowWidgetsDomNode: HTMLElement | undefined,
+		private viewModel: IChatViewModel | undefined,
+		private disableEdits: boolean = false,
+     
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
@@ -588,6 +591,20 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderChatRequest(element: IChatRequestViewModel, index: number, templateData: IChatListItemTemplate) {
 		templateData.rowContainer.classList.toggle('chat-response-loading', false);
+		if (element.id === this.viewModel?.editing?.id) {
+			this._onDidRerender.fire(templateData);
+		}
+
+		if (this.configService.getValue<boolean>('chat.editRequests') && !this.disableEdits) {
+			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.KEY_DOWN, e => {
+				const ev = new StandardKeyboardEvent(e);
+				if (ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) {
+					if (this.viewModel?.editing?.id !== element.id && !this.viewModel?.requestInProgress) {
+						this._onDidClickRequest.fire(templateData);
+					}
+				}
+			}));
+		}
 
 		let content: IChatRendererContent[] = [];
 		if (!element.confirmation) {
@@ -1166,8 +1183,24 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.renderer, this._currentLayoutWidth, this.codeBlockModelCollection, {});
 		if (isRequestVM(element)) {
 			markdownPart.domNode.tabIndex = 0;
-			markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, 'focus', () => {
-				dom.show(templateData.requestHover);
+			if (this.configService.getValue<boolean>('chat.editRequests') && !this.disableEdits) {
+				markdownPart.domNode.classList.add('clickable');
+				markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.CLICK, (e: MouseEvent) => {
+					if (this.viewModel?.editing?.id !== element.id && !this.viewModel?.requestInProgress) {
+						this._onDidClickRequest.fire(templateData);
+					}
+				}));
+				this._register(this.hoverService.setupManagedHover(
+					getDefaultHoverDelegate('element'),
+					markdownPart.domNode,
+					localize('requestMarkdownPartTitle', "Click to edit"),
+					{ trapFocus: true }
+				));
+			}
+
+			markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.FOCUS, () => {
+				this.hoverVisible(templateData.requestHover);
+			}));
 			}));
 			markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, 'blur', () => {
 				dom.hide(templateData.requestHover);

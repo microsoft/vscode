@@ -62,6 +62,8 @@ export interface IChatRequestModel {
 	readonly response?: IChatResponseModel;
 	readonly editedFileEvents?: IChatAgentEditedFileEvent[];
 	shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
+	shouldBeBlocked: boolean;
+	readonly modelId?: string;
 }
 
 export interface IChatTextEditGroupState {
@@ -935,6 +937,7 @@ export interface ISerializableChatRequestData {
 	timestamp?: number;
 	confirmation?: string;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
+	modelId?: string;
 }
 
 export interface IExportableChatData {
@@ -1316,6 +1319,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					restoredId: raw.requestId,
 					confirmation: raw.confirmation,
 					editedFileEvents: raw.editedFileEvents,
+					modelId: raw.modelId,
 				});
 				request.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
@@ -1611,6 +1615,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					timestamp: r.timestamp,
 					confirmation: r.confirmation,
 					editedFileEvents: r.editedFileEvents,
+					modelId: r.modelId,
 				};
 			}),
 		};

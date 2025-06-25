@@ -241,7 +241,14 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 					return;
 				}
 
-				accumulator += data.toString('utf8');
+				accumulator += data.toString('utf8').trim();
+				// Wait to start accumulating until we see the start of the JSON
+				// object to avoid issues with `ps` in profile scripts (#251650)
+				if (!accumulator.startsWith('{')) {
+					accumulator = '';
+					return;
+				}
+
 				logService.trace('doResolveShellEnv#tryEagerParse', accumulator);
 				tryParseEnvironment(accumulator.slice(0, -mark.length));
 				if (didResolve) {

@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { basename } from '../../../../../base/common/resources.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -12,11 +14,13 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IChatAgentService, IChatAgentHistoryEntry } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { toChatHistoryContent } from '../../common/chatModel.js';
 import { ChatMode2, IChatMode, validateChatMode2 } from '../../common/chatModes.js';
 import { chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
@@ -26,6 +30,8 @@ import { ILanguageModelToolsService } from '../../common/languageModelToolsServi
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -386,6 +392,100 @@ class SubmitWithoutDispatchingAction extends Action2 {
 	}
 }
 
+export class CreateRemoteAgentJobAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.createRemoteAgentJob';
+
+	constructor() {
+		const precondition = ContextKeyExpr.and(
+			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
+			whenNotInProgressOrPaused,
+			ChatContextKeys.remoteJobCreating.negate(),
+		);
+
+		super({
+			id: CreateRemoteAgentJobAction.ID,
+			title: localize2('actions.chat.createRemoteJob', "Create Remote Job"),
+			icon: Codicon.cloudUpload,
+			precondition,
+			toggled: {
+				condition: ChatContextKeys.remoteJobCreating,
+				icon: Codicon.sync,
+				tooltip: localize('remoteJobCreating', "Remote job is being created"),
+			},
+			menu: {
+				id: MenuId.ChatExecute,
+				group: 'navigation',
+				order: 0,
+				when: ChatContextKeys.hasRemoteCodingAgent
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		const contextKeyService = accessor.get(IContextKeyService);
+		const remoteJobCreatingKey = ChatContextKeys.remoteJobCreating.bindTo(contextKeyService);
+
+		try {
+			remoteJobCreatingKey.set(true);
+
+			const remoteCodingAgent = accessor.get(IRemoteCodingAgentsService);
+			const commandService = accessor.get(ICommandService);
+			const widgetService = accessor.get(IChatWidgetService);
+			const chatAgentService = accessor.get(IChatAgentService);
+
+			const widget = widgetService.lastFocusedWidget;
+			if (!widget) {
+				return;
+			}
+			const session = widget.viewModel?.sessionId;
+			if (!session) {
+				return;
+			}
+
+			const userPrompt = widget.getInput();
+			widget.setInput();
+
+			const chatModel = widget.viewModel?.model;
+			const chatRequests = chatModel.getRequests();
+			const agents = remoteCodingAgent.getAvailableAgents();
+			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
+
+			const agent = agents[0]; // TODO: We just pick the first one for testing
+			if (!agent) {
+				return;
+			}
+
+			let summary: string | undefined;
+			if (defaultAgent && chatRequests.length > 0) {
+				const historyEntries: IChatAgentHistoryEntry[] = chatRequests
+					.filter(req => req.response) // Only include completed requests
+					.map(req => ({
+						request: {
+							sessionId: session,
+							requestId: req.id,
+							agentId: req.response?.agent?.id ?? '',
+							message: req.message.text,
+							command: req.response?.slashCommand?.name,
+							variables: req.variableData,
+							location: ChatAgentLocation.Panel,
+							editedFileEvents: req.editedFileEvents,
+						},
+						response: toChatHistoryContent(req.response!.response.value),
+						result: req.response?.result ?? {}
+					}));
+
+				summary = await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
+			}
+			await commandService.executeCommand(agent.command, {
+				userPrompt,
+				summary: summary || `Chat session with ${chatRequests.length} messages`
+			});
+		} finally {
+			remoteJobCreatingKey.set(false);
+		}
+	}
+}
+
 export class ChatSubmitWithCodebaseAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.submitWithCodebase';
 
@@ -534,6 +634,42 @@ export class CancelAction extends Action2 {
 	}
 }
 
+export const CancelChatEditId = 'workbench.edit.chat.cancel';
+
+export class CancelEdit extends Action2 {
+	static readonly ID = CancelChatEditId;
+
+	constructor() {
+		super({
+			id: CancelEdit.ID,
+			title: localize2('interactive.cancelEdit.label', "Cancel Edit"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			keybinding: {
+				primary: KeyCode.Escape,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.inChatInput,
+					EditorContextKeys.hoverVisible.toNegated(),
+					EditorContextKeys.hasNonEmptySelection.toNegated(),
+					EditorContextKeys.hasMultipleSelections.toNegated()
+				),
+				weight: KeybindingWeight.EditorContrib - 5
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		const context: IChatExecuteActionContext | undefined = args[0];
+
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+		if (!widget) {
+			return;
+		}
+		widget.input.dispose();
+	}
+}
+
 export function registerChatExecuteActions() {
 	registerAction2(ChatSubmitAction);
 	registerAction2(ChatEditingSessionSubmitAction);
@@ -541,6 +677,7 @@ export function registerChatExecuteActions() {
 	registerAction2(CancelAction);
 	registerAction2(SendToNewChatAction);
 	registerAction2(ChatSubmitWithCodebaseAction);
+	registerAction2(CreateRemoteAgentJobAction);
 	registerAction2(ToggleChatModeAction);
 	registerAction2(ToggleRequestPausedAction);
 	registerAction2(SwitchToNextModelAction);

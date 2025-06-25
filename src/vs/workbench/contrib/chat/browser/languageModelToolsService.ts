@@ -355,7 +355,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	private async prepareToolInvocation(tool: IToolEntry, dto: IToolInvocation, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const prepared = tool.impl!.prepareToolInvocation ?
-			await tool.impl!.prepareToolInvocation(dto.parameters, token)
+			await tool.impl!.prepareToolInvocation({
+				parameters: dto.parameters,
+				chatRequestId: dto.chatRequestId,
+				chatSessionId: dto.context?.sessionId,
+				chatInteractionId: dto.chatInteractionId
+			}, token)
 			: undefined;
 
 		if (prepared?.confirmationMessages) {

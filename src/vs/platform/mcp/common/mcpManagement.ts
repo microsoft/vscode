@@ -176,7 +176,7 @@ export type UninstallOptions = {
 	mcpResource?: URI;
 };
 
-export interface IMcpServer {
+export interface IInstallableMcpServer {
 	name: string;
 	config: IMcpServerConfiguration;
 	inputs?: IMcpServerVariable[];
@@ -190,7 +190,7 @@ export interface IMcpManagementService {
 	readonly onUninstallMcpServer: Event<UninstallMcpServerEvent>;
 	readonly onDidUninstallMcpServer: Event<DidUninstallMcpServerEvent>;
 	getInstalled(mcpResource?: URI): Promise<ILocalMcpServer[]>;
-	install(server: IMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
+	install(server: IInstallableMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
 	installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
 	uninstall(server: ILocalMcpServer, options?: UninstallOptions): Promise<void>;
 }

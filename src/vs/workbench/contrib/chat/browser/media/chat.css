@@ -1576,7 +1576,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
 	user-select: none;
-	border-left: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 
 	code {
 		font-size: 11px;
@@ -1907,7 +1906,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.request-hover {
 		position: absolute;
 		overflow: hidden;
-		z-index: 10000;
+		z-index: 100;
 		background-color: var(--vscode-interactive-result-editor-background-color, var(--vscode-editor-background));
 		border: 1px solid var(--vscode-chat-requestBorder);
 		top: -13px;
@@ -1957,6 +1956,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		}
 
 	}
+
+	.interactive-request.editing {
+		padding: 0px;
+	}
 }
 
 .chat-buttons-container {
@@ -1978,4 +1981,33 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	text-align: left;
 	width: initial;
 	padding: 4px 8px;
+}
+.interactive-item-container .chat-edit-input-container {
+	width: 100%;
+}
+
+.chat-row-disabled-overlay,
+.interactive-item-container .chat-edit-input-container .chat-editing-session {
+	display: none;
+}
+
+.chat-row-disabled-overlay.disabled,
+.chat-input-overlay.disabled {
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	background-color: var(--vscode-sideBar-background);
+	opacity: 0.6;
+	pointer-events: none;
+	display: flex;
+	cursor: default;
+	z-index: 101;
+	user-select: none;
+}
+
+.interactive-session .focused-input-dom {
+	position: absolute;
+	top: -50000px;
+	width: 1px;
+	height: 1px;
 }

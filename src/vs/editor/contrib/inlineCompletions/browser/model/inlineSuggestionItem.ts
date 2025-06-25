@@ -274,43 +274,49 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 	}
 
 	public isVisible(model: ITextModel, cursorPosition: Position): boolean {
-		const minimizedReplacement = singleTextRemoveCommonPrefix(this.getSingleTextEdit(), model);
-		if (!this.editRange
-			|| !this._originalRange.getStartPosition().equals(this.editRange.getStartPosition())
-			|| cursorPosition.lineNumber !== minimizedReplacement.range.startLineNumber
-			|| minimizedReplacement.isEmpty // if the completion is empty after removing the common prefix of the completion and the model, the completion item would not be visible
-		) {
-			return false;
-		}
-
-		// We might consider comparing by .toLowerText, but this requires GhostTextReplacement
-		const originalValue = model.getValueInRange(minimizedReplacement.range, EndOfLinePreference.LF);
-		const filterText = minimizedReplacement.text;
-
-		const cursorPosIndex = Math.max(0, cursorPosition.column - minimizedReplacement.range.startColumn);
-
-		let filterTextBefore = filterText.substring(0, cursorPosIndex);
-		let filterTextAfter = filterText.substring(cursorPosIndex);
-
-		let originalValueBefore = originalValue.substring(0, cursorPosIndex);
-		let originalValueAfter = originalValue.substring(cursorPosIndex);
-
-		const originalValueIndent = model.getLineIndentColumn(minimizedReplacement.range.startLineNumber);
-		if (minimizedReplacement.range.startColumn <= originalValueIndent) {
-			// Remove indentation
-			originalValueBefore = originalValueBefore.trimStart();
-			if (originalValueBefore.length === 0) {
-				originalValueAfter = originalValueAfter.trimStart();
-			}
-			filterTextBefore = filterTextBefore.trimStart();
-			if (filterTextBefore.length === 0) {
-				filterTextAfter = filterTextAfter.trimStart();
-			}
-		}
-
-		return filterTextBefore.startsWith(originalValueBefore)
-			&& !!matchesSubString(originalValueAfter, filterTextAfter);
+		const singleTextEdit = this.getSingleTextEdit();
+		return inlineCompletionIsVisible(singleTextEdit, this._originalRange, model, cursorPosition);
 	}
+}
+
+export function inlineCompletionIsVisible(singleTextEdit: TextReplacement, originalRange: Range | undefined, model: ITextModel, cursorPosition: Position): boolean {
+	const minimizedReplacement = singleTextRemoveCommonPrefix(singleTextEdit, model);
+	const editRange = singleTextEdit.range;
+	if (!editRange
+		|| (originalRange && !originalRange.getStartPosition().equals(editRange.getStartPosition()))
+		|| cursorPosition.lineNumber !== minimizedReplacement.range.startLineNumber
+		|| minimizedReplacement.isEmpty // if the completion is empty after removing the common prefix of the completion and the model, the completion item would not be visible
+	) {
+		return false;
+	}
+
+	// We might consider comparing by .toLowerText, but this requires GhostTextReplacement
+	const originalValue = model.getValueInRange(minimizedReplacement.range, EndOfLinePreference.LF);
+	const filterText = minimizedReplacement.text;
+
+	const cursorPosIndex = Math.max(0, cursorPosition.column - minimizedReplacement.range.startColumn);
+
+	let filterTextBefore = filterText.substring(0, cursorPosIndex);
+	let filterTextAfter = filterText.substring(cursorPosIndex);
+
+	let originalValueBefore = originalValue.substring(0, cursorPosIndex);
+	let originalValueAfter = originalValue.substring(cursorPosIndex);
+
+	const originalValueIndent = model.getLineIndentColumn(minimizedReplacement.range.startLineNumber);
+	if (minimizedReplacement.range.startColumn <= originalValueIndent) {
+		// Remove indentation
+		originalValueBefore = originalValueBefore.trimStart();
+		if (originalValueBefore.length === 0) {
+			originalValueAfter = originalValueAfter.trimStart();
+		}
+		filterTextBefore = filterTextBefore.trimStart();
+		if (filterTextBefore.length === 0) {
+			filterTextAfter = filterTextAfter.trimStart();
+		}
+	}
+
+	return filterTextBefore.startsWith(originalValueBefore)
+		&& !!matchesSubString(originalValueAfter, filterTextAfter);
 }
 
 export class InlineEditItem extends InlineSuggestionItemBase {
