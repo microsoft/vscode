@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { basename } from '../../../../../base/common/resources.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -17,7 +18,9 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/cont
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IChatAgentService, IChatAgentHistoryEntry } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { toChatHistoryContent } from '../../common/chatModel.js';
 import { ChatMode2, IChatMode, validateChatMode2 } from '../../common/chatModes.js';
 import { chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
@@ -519,12 +522,41 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			}
 
 			const agents = remoteCodingAgent.getRegisteredAgents();
+			let summary: string | undefined;
+			const chatAgentService = accessor.get(IChatAgentService);
+			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
+			if (defaultAgent && chatRequests.length > 0) {
+				try {
+					// Construct proper history entries for the summarizer
+					const historyEntries: IChatAgentHistoryEntry[] = chatRequests
+						.filter(req => req.response) // Only include completed requests
+						.map(req => ({
+							request: {
+								sessionId: session,
+								requestId: req.id,
+								agentId: req.response?.agent?.id ?? '',
+								message: req.message.text,
+								command: req.response?.slashCommand?.name,
+								variables: req.variableData,
+								location: ChatAgentLocation.Panel,
+								editedFileEvents: req.editedFileEvents,
+							},
+							response: toChatHistoryContent(req.response!.response.value),
+							result: req.response?.result ?? {}
+						}));
 
-			// Summarize everything said (maybe like how we create titles)
+					summary = await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
 
-			const agent = agents[0]; // TODO: We just pick the first one for testing
-			if (agent) {
-				await commandService.executeCommand(agent.command, { chatHistory, userPrompt });
+					const agent = agents[0]; // TODO: We just pick the first one for testing
+					if (agent) {
+						await commandService.executeCommand(agent.command, {
+							userPrompt,
+							summary: summary || `Chat session with ${chatRequests.length} messages`
+						});
+					}
+				} catch (error) {
+					// fail
+				}
 			}
 		} finally {
 			remoteJobCreatingKey.set(false);
