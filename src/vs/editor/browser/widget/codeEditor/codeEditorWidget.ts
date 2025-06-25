@@ -60,6 +60,8 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { editorErrorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { TextModelEditReason } from '../../../common/textModelEditReason.js';
+import { TextEdit } from '../../../common/core/edits/textEdit.js';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -1239,7 +1241,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return true;
 	}
 
-	public executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean {
+	public edit(edit: TextEdit, reason: TextModelEditReason): boolean {
+		return this.executeEdits(reason.metadata.source, edit.replacements.map<IIdentifiedSingleEditOperation>(e => ({ range: e.range, text: e.text })));
+	}
+
+	public executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[], editReason?: TextModelEditReason): boolean {
 		if (!this._modelData) {
 			return false;
 		}
@@ -1259,7 +1265,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		this._onBeforeExecuteEdit.fire({ source: source ?? undefined });
 
-		this._modelData.viewModel.executeEdits(source, edits, cursorStateComputer);
+		if (!editReason) {
+			editReason = source ? new TextModelEditReason({ source: source }) : TextModelEditReason.Unknown;
+		}
+		this._modelData.viewModel.executeEdits(source, edits, cursorStateComputer, editReason);
 		return true;
 	}
 
