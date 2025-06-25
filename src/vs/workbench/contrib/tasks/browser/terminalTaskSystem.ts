@@ -377,6 +377,12 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const tasksByTerminalOrder = activeTasksWithTerminals.sort((a, b) => {
 			const aIndex = terminalInstances.findIndex(instance => instance === a.terminal);
 			const bIndex = terminalInstances.findIndex(instance => instance === b.terminal);
+			
+			// Handle case where terminal might not be found in instances
+			if (aIndex === -1 && bIndex === -1) return 0;
+			if (aIndex === -1) return 1; // Put missing terminals at the end
+			if (bIndex === -1) return -1;
+			
 			return aIndex - bIndex;
 		});
 		
