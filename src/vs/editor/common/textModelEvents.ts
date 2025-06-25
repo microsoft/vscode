@@ -276,17 +276,12 @@ export class ModelFontChanged {
 	 */
 	public readonly ownerId: number;
 	/**
-	 * The version ID of the model.
-	 */
-	public readonly versionId: number;
-	/**
 	 * The line that has changed.
 	 */
 	public readonly lineNumber: number;
 
-	constructor(ownerId: number, versionId: number, lineNumber: number) {
+	constructor(ownerId: number, lineNumber: number) {
 		this.ownerId = ownerId;
-		this.versionId = versionId;
 		this.lineNumber = lineNumber;
 	}
 }

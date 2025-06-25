@@ -331,11 +331,6 @@ export interface InjectedTextOptions {
 	readonly inlineClassNameAffectsLetterSpacing?: boolean;
 
 	/**
-	 * Whether this decoration affects the font.
-	 */
-	readonly affectsFont?: boolean;
-
-	/**
 	 * This field allows to attach data to this injected text.
 	 * The data can be read when injected texts at a given position are queried.
 	 */
@@ -1088,6 +1083,7 @@ export interface ITextModel {
 	 * @param lineNumber The line number
 	 * @param ownerId If set, it will ignore decorations belonging to other owners.
 	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
+	 * @param filterFontDecorations If set, it will ignore font decorations.
 	 * @return An array with the decorations
 	 */
 	getLineDecorations(lineNumber: number, ownerId?: number, filterOutValidation?: boolean, filterFontDecorations?: boolean): IModelDecoration[];
@@ -1105,6 +1101,7 @@ export interface ITextModel {
 	 * @param endLineNumber The end line number
 	 * @param ownerId If set, it will ignore decorations belonging to other owners.
 	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
+	 * @param filterFontDecorations If set, it will ignore font decorations.
 	 * @return An array with the decorations
 	 */
 	getLinesDecorations(startLineNumber: number, endLineNumber: number, ownerId?: number, filterOutValidation?: boolean, filterFontDecorations?: boolean): IModelDecoration[];
@@ -1115,18 +1112,20 @@ export interface ITextModel {
 	 * @param range The range to search in
 	 * @param ownerId If set, it will ignore decorations belonging to other owners.
 	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
+	 * @param filterFontDecorations If set, it will ignore font decorations.
 	 * @param onlyMinimapDecorations If set, it will return only decorations that render in the minimap.
 	 * @param onlyMarginDecorations If set, it will return only decorations that render in the glyph margin.
 	 * @return An array with the decorations
 	 */
-	getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean, onlyMarginDecorations?: boolean): IModelDecoration[];
+	getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean, filterFontDecorations?: boolean, onlyMinimapDecorations?: boolean, onlyMarginDecorations?: boolean): IModelDecoration[];
 
 	/**
 	 * Gets all the decorations as an array.
 	 * @param ownerId If set, it will ignore decorations belonging to other owners.
 	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
+	 * @param filterFontDecorations If set, it will ignore font decorations.
 	 */
-	getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+	getAllDecorations(ownerId?: number, filterOutValidation?: boolean, filterFontDecorations?: boolean): IModelDecoration[];
 
 	/**
 	 * Gets all decorations that render in the glyph margin as an array.
@@ -1138,8 +1137,9 @@ export interface ITextModel {
 	 * Gets all the decorations that should be rendered in the overview ruler as an array.
 	 * @param ownerId If set, it will ignore decorations belonging to other owners.
 	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
+	 * @param filterFontDecorations If set, it will ignore font decorations.
 	 */
-	getOverviewRulerDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+	getOverviewRulerDecorations(ownerId?: number, filterOutValidation?: boolean, filterFontDecorations?: boolean): IModelDecoration[];
 
 	/**
 	 * Gets all the decorations that contain injected text.

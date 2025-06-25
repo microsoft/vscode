@@ -3785,7 +3785,7 @@ export function filterValidationDecorations(options: IComputedEditorOptions): bo
 
 //#endregion
 
-//#region font decorations
+//#region filterFontDecorations
 
 /**
  * @internal

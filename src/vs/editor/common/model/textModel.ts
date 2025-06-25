@@ -1602,7 +1602,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 		if (affectedFontLines && affectedFontLines.size > 0) {
 			const affectedLines = Array.from(affectedFontLines);
-			const fontChangeEvent = affectedLines.map(fontChange => new ModelFontChanged(fontChange.ownerId, fontChange.versionId, fontChange.lineNumber));
+			const fontChangeEvent = affectedLines.map(fontChange => new ModelFontChanged(fontChange.ownerId, fontChange.lineNumber));
 			this._onDidChangeFont.fire(new ModelFontChangedEvent(fontChangeEvent));
 		}
 	}
@@ -1771,8 +1771,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return decorations;
 	}
 
-	public getOverviewRulerDecorations(ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
-		return this._decorationsTree.getAll(this, ownerId, filterOutValidation, false, true, false);
+	public getOverviewRulerDecorations(ownerId: number = 0, filterOutValidation: boolean = false, filterFontDecorations: boolean = false): model.IModelDecoration[] {
+		return this._decorationsTree.getAll(this, ownerId, filterOutValidation, filterFontDecorations, true, false);
 	}
 
 	public getInjectedTextDecorations(ownerId: number = 0): model.IModelDecoration[] {
@@ -1797,8 +1797,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this._decorationsTree.getFontDecorationsInInterval(this, startOffset, endOffset, ownerId);
 	}
 
-	public getAllDecorations(ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
-		let result = this._decorationsTree.getAll(this, ownerId, filterOutValidation, false, false, false);
+	public getAllDecorations(ownerId: number = 0, filterOutValidation: boolean = false, filterFontDecorations: boolean = false): model.IModelDecoration[] {
+		let result = this._decorationsTree.getAll(this, ownerId, filterOutValidation, filterFontDecorations, false, false);
 		result = result.concat(this._decorationProvider.getAllDecorations(ownerId, filterOutValidation));
 		return result;
 	}
@@ -1837,7 +1837,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 		if (node.options.affectsFont) {
 			const oldRange = this.getDecorationRange(decorationId);
-			this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, this.getVersionId(), node.id, oldRange!.startLineNumber);
+			this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, node.id, oldRange!.startLineNumber);
 		}
 
 		const range = this._validateRangeRelaxedNoAllocations(_range);
@@ -1859,7 +1859,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, decorationId, range.startLineNumber, node.options.lineHeight);
 		}
 		if (node.options.affectsFont) {
-			this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, this.getVersionId(), node.id, range.startLineNumber);
+			this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, node.id, range.startLineNumber);
 		}
 	}
 
@@ -1889,7 +1889,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 		if (node.options.affectsFont || options.affectsFont) {
 			const nodeRange = this._decorationsTree.getNodeRange(this, node);
-			this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, this.getVersionId(), decorationId, nodeRange.startLineNumber);
+			this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, decorationId, nodeRange.startLineNumber);
 		}
 
 		const movedInOverviewRuler = nodeWasInOverviewRuler !== nodeIsInOverviewRuler;
@@ -1943,7 +1943,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 						}
 						if (node.options.affectsFont) {
 							const nodeRange = this._decorationsTree.getNodeRange(this, node);
-							this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, versionId, decorationId, nodeRange.startLineNumber);
+							this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, decorationId, nodeRange.startLineNumber);
 						}
 						this._decorationsTree.delete(node);
 
@@ -1983,7 +1983,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 						this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, node.id, range.startLineNumber, node.options.lineHeight);
 					}
 					if (node.options.affectsFont) {
-						this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, versionId, node.id, range.startLineNumber);
+						this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, node.id, range.startLineNumber);
 					}
 					if (!suppressEvents) {
 						this._onDidChangeDecorations.checkAffectedAndFire(options);
@@ -2500,12 +2500,11 @@ class LineHeightChangingDecoration {
 class LineFontChangingDecoration {
 
 	public static toKey(obj: LineFontChangingDecoration): string {
-		return `${obj.ownerId};${obj.decorationId}`;
+		return `${obj.ownerId};${obj.decorationId};${obj.lineNumber}`;
 	}
 
 	constructor(
 		public readonly ownerId: number,
-		public readonly versionId: number,
 		public readonly decorationId: string,
 		public readonly lineNumber: number
 	) { }
@@ -2574,11 +2573,11 @@ class DidChangeDecorationsEmitter extends Disposable {
 		this._affectedLineHeights.add(new LineHeightChangingDecoration(ownerId, decorationId, lineNumber, lineHeight));
 	}
 
-	public recordLineAffectedByFontChange(ownerId: number, versionId: number, decorationId: string, lineNumber: number): void {
+	public recordLineAffectedByFontChange(ownerId: number, decorationId: string, lineNumber: number): void {
 		if (!this._affectedFontLines) {
 			this._affectedFontLines = new SetWithKey<LineFontChangingDecoration>([], LineFontChangingDecoration.toKey);
 		}
-		this._affectedFontLines.add(new LineFontChangingDecoration(ownerId, versionId, decorationId, lineNumber));
+		this._affectedFontLines.add(new LineFontChangingDecoration(ownerId, decorationId, lineNumber));
 	}
 
 	public checkAffectedAndFire(options: ModelDecorationOptions): void {

@@ -10,7 +10,7 @@ import { Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import * as platform from '../../../base/common/platform.js';
 import * as strings from '../../../base/common/strings.js';
-import { ConfigurationChangedEvent, EditorOption, EDITOR_FONT_DEFAULTS, filterValidationDecorations } from '../config/editorOptions.js';
+import { ConfigurationChangedEvent, EditorOption, EDITOR_FONT_DEFAULTS, filterValidationDecorations, filterFontDecorations } from '../config/editorOptions.js';
 import { CursorsController } from '../cursor/cursor.js';
 import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, PartialCursorState } from '../cursorCommon.js';
 import { CursorChangeReason } from '../cursorEvents.js';
@@ -835,7 +835,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public getAllOverviewRulerDecorations(theme: EditorTheme): OverviewRulerDecorationsGroup[] {
-		const decorations = this.model.getOverviewRulerDecorations(this._editorId, filterValidationDecorations(this._configuration.options));
+		const decorations = this.model.getOverviewRulerDecorations(this._editorId, filterValidationDecorations(this._configuration.options), filterFontDecorations(this._configuration.options));
 		const result = new OverviewRulerDecorations();
 		for (const decoration of decorations) {
 			const decorationOptions = <ModelDecorationOptions>decoration.options;
