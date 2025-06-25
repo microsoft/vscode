@@ -18,6 +18,7 @@ import { askForPromptFileName } from './pickers/askForPromptName.js';
 import { askForPromptSourceFolder } from './pickers/askForPromptSourceFolder.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 
 // example URL: code-oss:chat-prompts/install?https://gist.githubusercontent.com/aeschli/43fe78babd5635f062aef0195a476aad/raw/dfd71f60058a4dd25f584b55de3e20f5fd580e63/filterEvenNumbers.prompt.md
 
@@ -31,7 +32,8 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 		@IRequestService private readonly requestService: IRequestService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		this._register(urlService.registerHandler(this));
@@ -87,7 +89,7 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 			return true;
 
 		} catch (error) {
-			this.notificationService.error(`Error handling URL: ${error instanceof Error ? error.message : String(error)}`);
+			this.logService.error(`Error handling prompt URL ${uri}`, error);
 			return false;
 		}
 	}
