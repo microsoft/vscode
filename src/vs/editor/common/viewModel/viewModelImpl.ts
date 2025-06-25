@@ -808,8 +808,6 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	private _getViewLineRenderingData(lineNumber: number, inlineDecorations: InlineDecoration[], hasVariableFonts: boolean): ViewLineRenderingData {
-		const experimentalWhitespaceRendering = this._configuration.options.get(EditorOption.experimentalWhitespaceRendering);
-		const renderWhitespaceInline = hasVariableFonts || experimentalWhitespaceRendering === 'off';
 		const mightContainRTL = this.model.mightContainRTL();
 		const mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
 		const tabSize = this.getTabSize();
@@ -835,8 +833,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			inlineDecorations,
 			tabSize,
 			lineData.startVisibleColumn,
-			hasVariableFonts,
-			renderWhitespaceInline
+			hasVariableFonts
 		);
 	}
 
