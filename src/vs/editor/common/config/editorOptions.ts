@@ -303,6 +303,10 @@ export interface IEditorOptions {
 	 */
 	scrollBeyondLastLine?: boolean;
 	/**
+	 * Scroll editor on middle click
+	 */
+	scrollOnMiddleClick?: boolean;
+	/**
 	 * Enable that scrolling can go beyond the last column by a number of columns.
 	 * Defaults to 5.
 	 */
@@ -1371,13 +1375,6 @@ class EditorEnumOption<K extends EditorOption, T extends string, V> extends Base
 		}
 		return this._convert(<any>input);
 	}
-}
-
-function stringArray(value: any, defaultValue: string[]): string[] {
-	if (!Array.isArray(value)) {
-		return defaultValue;
-	}
-	return value.map(item => String(item));
 }
 
 //#endregion
@@ -4334,10 +4331,6 @@ export interface IInlineSuggestOptions {
 		* @internal
 		*/
 		enabled?: boolean;
-		/**
-		* @internal
-		*/
-		useMultiLineGhostText?: boolean;
 	};
 
 	/**
@@ -4347,7 +4340,7 @@ export interface IInlineSuggestOptions {
 		/**
 		* @internal
 		*/
-		suppressInlineSuggestions?: string[];
+		suppressInlineSuggestions?: string;
 	};
 }
 
@@ -4378,10 +4371,9 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				showCollapsed: false,
 				renderSideBySide: 'auto',
 				allowCodeShifting: 'always',
-				useMultiLineGhostText: true
 			},
 			experimental: {
-				suppressInlineSuggestions: [],
+				suppressInlineSuggestions: '',
 			},
 		};
 
@@ -4415,10 +4407,10 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					description: nls.localize('inlineSuggest.suppressSuggestions', "Controls how inline suggestions interact with the suggest widget. If enabled, the suggest widget is not shown automatically when inline suggestions are available.")
 				},
 				'editor.inlineSuggest.experimental.suppressInlineSuggestions': {
-					type: 'array',
+					type: 'string',
+					default: defaults.experimental.suppressInlineSuggestions,
 					tags: ['experimental', 'onExp'],
-					items: { type: 'string' },
-					description: nls.localize('inlineSuggest.suppressInlineSuggestions', "Suppresses inline completions for specified extension IDs.")
+					description: nls.localize('inlineSuggest.suppressInlineSuggestions', "Suppresses inline completions for specified extension IDs -- comma separated.")
 				},
 				'editor.inlineSuggest.fontFamily': {
 					type: 'string',
@@ -4471,10 +4463,9 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				showCollapsed: boolean(input.edits?.showCollapsed, this.defaultValue.edits.showCollapsed),
 				allowCodeShifting: stringSet(input.edits?.allowCodeShifting, this.defaultValue.edits.allowCodeShifting, ['always', 'horizontal', 'never']),
 				renderSideBySide: stringSet(input.edits?.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto']),
-				useMultiLineGhostText: boolean(input.edits?.useMultiLineGhostText, this.defaultValue.edits.useMultiLineGhostText),
 			},
 			experimental: {
-				suppressInlineSuggestions: stringArray(input.experimental?.suppressInlineSuggestions, this.defaultValue.experimental.suppressInlineSuggestions),
+				suppressInlineSuggestions: EditorStringOption.string(input.experimental?.suppressInlineSuggestions, this.defaultValue.experimental.suppressInlineSuggestions),
 			},
 		};
 	}
@@ -5699,6 +5690,7 @@ export const enum EditorOption {
 	colorDecoratorsActivatedOn,
 	inlineCompletionsAccessibilityVerbose,
 	effectiveEditContext,
+	scrollOnMiddleClick,
 	effectiveAllowVariableFonts
 }
 
@@ -6239,7 +6231,10 @@ export const EditorOptions = {
 	quickSuggestionsDelay: register(new EditorIntOption(
 		EditorOption.quickSuggestionsDelay, 'quickSuggestionsDelay',
 		10, 0, Constants.MAX_SAFE_SMALL_INTEGER,
-		{ description: nls.localize('quickSuggestionsDelay', "Controls the delay in milliseconds after which quick suggestions will show up.") }
+		{
+			description: nls.localize('quickSuggestionsDelay', "Controls the delay in milliseconds after which quick suggestions will show up."),
+			tags: ['onExP']
+		}
 	)),
 	readOnly: register(new EditorBooleanOption(
 		EditorOption.readOnly, 'readOnly', false,
@@ -6315,6 +6310,10 @@ export const EditorOptions = {
 	scrollBeyondLastLine: register(new EditorBooleanOption(
 		EditorOption.scrollBeyondLastLine, 'scrollBeyondLastLine', true,
 		{ description: nls.localize('scrollBeyondLastLine', "Controls whether the editor will scroll beyond the last line.") }
+	)),
+	scrollOnMiddleClick: register(new EditorBooleanOption(
+		EditorOption.scrollOnMiddleClick, 'scrollOnMiddleClick', false,
+		{ description: nls.localize('scrollOnMiddleClick', "Controls whether the editor will scroll when the middle button is pressed.") }
 	)),
 	scrollPredominantAxis: register(new EditorBooleanOption(
 		EditorOption.scrollPredominantAxis, 'scrollPredominantAxis', true,

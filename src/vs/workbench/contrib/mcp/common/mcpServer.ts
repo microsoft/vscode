@@ -5,6 +5,7 @@
 
 import { AsyncIterableObject, raceCancellationError, Sequencer } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 import * as json from '../../../../base/common/json.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
@@ -31,7 +32,7 @@ import { mcpActivationEvent } from './mcpConfiguration.js';
 import { McpDevModeServerAttache } from './mcpDevMode.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { extensionMcpCollectionPrefix, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerTransportType, McpToolName } from './mcpTypes.js';
+import { extensionMcpCollectionPrefix, IMcpElicitationService, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, IMcpToolCallContext, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerTransportType, McpToolName } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 import { UriTemplate } from './uriTemplate.js';
 
@@ -50,6 +51,18 @@ type ServerBootClassification = {
 	supportsPrompts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the server supports prompts' };
 	supportsResources: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the server supports resource' };
 	toolCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of tools the server advertises' };
+	serverName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the MCP server' };
+	serverVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the MCP server' };
+};
+
+type ElicitationTelemetryData = {
+	serverName: string;
+	serverVersion: string;
+};
+
+type ElicitationTelemetryClassification = {
+	owner: 'connor4312';
+	comment: 'Triggered when elictation is requested';
 	serverName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the MCP server' };
 	serverVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the MCP server' };
 };
@@ -289,7 +302,7 @@ export class McpServer extends Disposable implements IMcpServer {
 	private readonly _logger: ILogger;
 	private _lastModeDebugged = false;
 	/** Count of running tool calls, used to detect if sampling is during an LM call */
-	public runningToolCalls = 0;
+	public runningToolCalls = new Set<IMcpToolCallContext>();
 
 	public get trusted() {
 		return this._mcpRegistry.getTrust(this.collection);
@@ -313,6 +326,7 @@ export class McpServer extends Disposable implements IMcpServer {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IMcpSamplingService private readonly _samplingService: IMcpSamplingService,
+		@IMcpElicitationService private readonly _elicitationService: IMcpElicitationService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 	) {
 		super();
@@ -471,10 +485,21 @@ export class McpServer extends Disposable implements IMcpServer {
 			const start = Date.now();
 			const state = await connection.start({
 				createMessageRequestHandler: params => this._samplingService.sample({
-					isDuringToolCall: true,
+					isDuringToolCall: this.runningToolCalls.size > 0,
 					server: this,
 					params,
-				}).then(r => r.sample)
+				}).then(r => r.sample),
+				elicitationRequestHandler: req => {
+					const serverInfo = connection.handler.get()?.serverInfo;
+					if (serverInfo) {
+						this._telemetryService.publicLog2<ElicitationTelemetryData, ElicitationTelemetryClassification>('mcp.elicitationRequested', {
+							serverName: serverInfo.name,
+							serverVersion: serverInfo.version,
+						});
+					}
+
+					return this._elicitationService.elicit(this, Iterable.first(this.runningToolCalls), req, CancellationToken.None);
+				}
 			});
 
 			this._telemetryService.publicLog2<ServerBootState, ServerBootStateClassification>('mcp/serverBootState', {
@@ -666,6 +691,7 @@ class McpPrompt implements IMcpPrompt {
 	readonly id: string;
 	readonly name: string;
 	readonly description?: string;
+	readonly title?: string;
 	readonly arguments: readonly MCP.PromptArgument[];
 
 	constructor(
@@ -674,6 +700,7 @@ class McpPrompt implements IMcpPrompt {
 	) {
 		this.id = mcpPromptReplaceSpecialChars(this._server.definition.label + '.' + _definition.name);
 		this.name = _definition.name;
+		this.title = _definition.title;
 		this.description = _definition.description;
 		this.arguments = _definition.arguments || [];
 	}
@@ -737,23 +764,23 @@ export class McpTool implements IMcpTool {
 		this.id = (idPrefix + _definition.name).replaceAll('.', '_').slice(0, McpToolName.MaxLength);
 	}
 
-	async call(params: Record<string, unknown>, token?: CancellationToken): Promise<MCP.CallToolResult> {
+	async call(params: Record<string, unknown>, context?: IMcpToolCallContext, token?: CancellationToken): Promise<MCP.CallToolResult> {
 		// serverToolName is always set now, but older cache entries (from 1.99-Insiders) may not have it.
 		const name = this._definition.serverToolName ?? this._definition.name;
-		this._server.runningToolCalls++;
+		if (context) { this._server.runningToolCalls.add(context); }
 		try {
 			return await McpServer.callOn(this._server, h => h.callTool({ name, arguments: params }, token), token);
 		} finally {
-			this._server.runningToolCalls--;
+			if (context) { this._server.runningToolCalls.delete(context); }
 		}
 	}
 
-	async callWithProgress(params: Record<string, unknown>, progress: ToolProgress, token?: CancellationToken): Promise<MCP.CallToolResult> {
-		this._server.runningToolCalls++;
+	async callWithProgress(params: Record<string, unknown>, progress: ToolProgress, context?: IMcpToolCallContext, token?: CancellationToken): Promise<MCP.CallToolResult> {
+		if (context) { this._server.runningToolCalls.add(context); }
 		try {
 			return await this._callWithProgress(params, progress, token);
 		} finally {
-			this._server.runningToolCalls--;
+			if (context) { this._server.runningToolCalls.delete(context); }
 		}
 	}
 
@@ -820,18 +847,20 @@ function warnInvalidTools(instaService: IInstantiationService, serverName: strin
 }
 
 class McpResource implements IMcpResource {
-	uri: URI;
-	mcpUri: string;
-	name: string;
-	description: string | undefined;
-	mimeType: string | undefined;
-	sizeInBytes: number | undefined;
+	readonly uri: URI;
+	readonly mcpUri: string;
+	readonly name: string;
+	readonly description: string | undefined;
+	readonly mimeType: string | undefined;
+	readonly sizeInBytes: number | undefined;
+	readonly title: string | undefined;
 
 	constructor(
 		server: McpServer,
 		original: MCP.Resource,
 	) {
 		this.mcpUri = original.uri;
+		this.title = original.title;
 		this.uri = McpResourceURI.fromServer(server.definition, original.uri);
 		this.name = original.name;
 		this.description = original.description;
@@ -842,6 +871,7 @@ class McpResource implements IMcpResource {
 
 class McpResourceTemplate implements IMcpResourceTemplate {
 	readonly name: string;
+	readonly title?: string | undefined;
 	readonly description?: string;
 	readonly mimeType?: string;
 	readonly template: UriTemplate;
@@ -853,6 +883,7 @@ class McpResourceTemplate implements IMcpResourceTemplate {
 		this.name = _definition.name;
 		this.description = _definition.description;
 		this.mimeType = _definition.mimeType;
+		this.title = _definition.title;
 		this.template = UriTemplate.parse(_definition.uriTemplate);
 	}
 

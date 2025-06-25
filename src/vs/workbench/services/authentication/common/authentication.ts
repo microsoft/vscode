@@ -38,6 +38,9 @@ export interface AuthenticationProviderInformation {
 	authorizationServerGlobs?: ReadonlyArray<string>;
 }
 
+/**
+ * Options for creating an authentication session via the service.
+ */
 export interface IAuthenticationCreateSessionOptions {
 	activateImmediate?: boolean;
 	/**
@@ -50,8 +53,18 @@ export interface IAuthenticationCreateSessionOptions {
 	 * the provider can use this authorization server, then it is passed down to the auth provider.
 	 */
 	authorizationServer?: URI;
+	/**
+	 * Allows the authentication provider to take in additional parameters.
+	 * It is up to the provider to define what these parameters are and handle them.
+	 * This is useful for passing in additional information that is specific to the provider
+	 * and not part of the standard authentication flow.
+	 */
+	[key: string]: any;
 }
 
+/**
+ * Options for getting authentication sessions via the service.
+ */
 export interface IAuthenticationGetSessionsOptions {
 	/**
 	 * The account that is being asked about. If this is passed in, the provider should
@@ -63,6 +76,13 @@ export interface IAuthenticationGetSessionsOptions {
 	 * the provider can use this authorization server, then it is passed down to the auth provider.
 	 */
 	authorizationServer?: URI;
+	/**
+	 * Allows the authentication provider to take in additional parameters.
+	 * It is up to the provider to define what these parameters are and handle them.
+	 * This is useful for passing in additional information that is specific to the provider
+	 * and not part of the standard authentication flow.
+	 */
+	[key: string]: any;
 }
 
 export interface AllowedExtension {
@@ -131,6 +151,12 @@ export interface IAuthenticationService {
 	 * @param id The id of the provider to check
 	 */
 	isAuthenticationProviderRegistered(id: string): boolean;
+
+	/**
+	 * Checks if an authentication provider is dynamic
+	 * @param id The id of the provider to check
+	 */
+	isDynamicAuthenticationProvider(id: string): boolean;
 
 	/**
 	 * Registers an authentication provider
@@ -294,6 +320,9 @@ export interface IAuthenticationExtensionsService {
 	requestNewSession(providerId: string, scopes: string[], extensionId: string, extensionName: string): Promise<void>;
 }
 
+/**
+ * Options passed to the authentication provider when asking for sessions.
+ */
 export interface IAuthenticationProviderSessionOptions {
 	/**
 	 * The account that is being asked about. If this is passed in, the provider should
@@ -305,6 +334,13 @@ export interface IAuthenticationProviderSessionOptions {
 	 * attempt to return sessions that are only related to this authorization server.
 	 */
 	authorizationServer?: URI;
+	/**
+	 * Allows the authentication provider to take in additional parameters.
+	 * It is up to the provider to define what these parameters are and handle them.
+	 * This is useful for passing in additional information that is specific to the provider
+	 * and not part of the standard authentication flow.
+	 */
+	[key: string]: any;
 }
 
 /**
@@ -330,6 +366,15 @@ export interface IAuthenticationProvider {
 	 * Indicates whether the authentication provider supports multiple accounts.
 	 */
 	readonly supportsMultipleAccounts: boolean;
+
+	/**
+	 * Optional function to provide a custom confirmation message for authentication prompts.
+	 * If not implemented, the default confirmation messages will be used.
+	 * @param extensionName - The name of the extension requesting authentication.
+	 * @param recreatingSession - Whether this is recreating an existing session.
+	 * @returns A custom confirmation message or undefined to use the default message.
+	 */
+	readonly confirmation?: (extensionName: string, recreatingSession: boolean) => string | undefined;
 
 	/**
 	 * An {@link Event} which fires when the array of sessions has changed, or data

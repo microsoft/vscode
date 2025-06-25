@@ -109,7 +109,8 @@
       codeCitations: [  ],
       timestamp: undefined,
       confirmation: undefined,
-      editedFileEvents: undefined
+      editedFileEvents: undefined,
+      modelId: undefined
     },
     {
       requestId: undefined,
@@ -164,7 +165,8 @@
       codeCitations: [  ],
       timestamp: undefined,
       confirmation: undefined,
-      editedFileEvents: undefined
+      editedFileEvents: undefined,
+      modelId: undefined
     }
   ]
 }

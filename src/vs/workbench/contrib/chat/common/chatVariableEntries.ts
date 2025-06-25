@@ -67,8 +67,7 @@ export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVaria
 	readonly isFile: true;
 	readonly value: URI | Location | undefined;
 	readonly isSelection: boolean;
-	readonly isPromptFile: boolean;
-	readonly enabled: boolean;
+	enabled: boolean;
 }
 
 export interface IChatRequestPasteVariableEntry extends IBaseChatRequestVariableEntry {
@@ -118,15 +117,7 @@ export interface IDiagnosticVariableEntryFilterData {
 	readonly filterRange?: IRange;
 }
 
-/**
- * Chat variable that represents an attached prompt file.
- */
-export interface IPromptVariableEntry extends IBaseChatRequestVariableEntry {
-	readonly kind: 'file';
-	readonly value: URI | Location;
-	readonly isRoot: boolean;
-	readonly modelDescription: string;
-}
+
 
 export namespace IDiagnosticVariableEntryFilterData {
 	export const icon = Codicon.error;
@@ -192,6 +183,19 @@ export interface IElementVariableEntry extends IBaseChatRequestVariableEntry {
 
 export interface IPromptFileVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'promptFile';
+	readonly value: URI;
+	readonly isRoot: boolean;
+	readonly originLabel?: string;
+	readonly modelDescription: string;
+	readonly isHidden: boolean;
+}
+
+export interface IPromptTextVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'promptText';
+	readonly value: string;
+	readonly settingId?: string;
+	readonly modelDescription: string;
+	readonly isHidden: boolean;
 }
 
 export interface ISCMHistoryItemVariableEntry extends IBaseChatRequestVariableEntry {
@@ -204,7 +208,7 @@ export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChat
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
-	| IPromptFileVariableEntry | ISCMHistoryItemVariableEntry;
+	| IPromptFileVariableEntry | IPromptTextVariableEntry | ISCMHistoryItemVariableEntry;
 
 
 export namespace IChatRequestVariableEntry {
@@ -250,6 +254,14 @@ export function isChatRequestFileEntry(obj: IChatRequestVariableEntry): obj is I
 	return obj.kind === 'file';
 }
 
+export function isPromptFileVariableEntry(obj: IChatRequestVariableEntry): obj is IPromptFileVariableEntry {
+	return obj.kind === 'promptFile';
+}
+
+export function isPromptTextVariableEntry(obj: IChatRequestVariableEntry): obj is IPromptTextVariableEntry {
+	return obj.kind === 'promptText';
+}
+
 export function isChatRequestVariableEntry(obj: unknown): obj is IChatRequestVariableEntry {
 	const entry = obj as IChatRequestVariableEntry;
 	return typeof entry === 'object' &&
@@ -260,4 +272,96 @@ export function isChatRequestVariableEntry(obj: unknown): obj is IChatRequestVar
 
 export function isSCMHistoryItemVariableEntry(obj: IChatRequestVariableEntry): obj is ISCMHistoryItemVariableEntry {
 	return obj.kind === 'scmHistoryItem';
+}
+
+export enum PromptFileVariableKind {
+	Instruction = 'vscode.prompt.instructions.root',
+	InstructionReference = `vscode.prompt.instructions`,
+	PromptFile = 'vscode.prompt.file'
+}
+
+/**
+ * Utility to convert a {@link uri} to a chat variable entry.
+ * The `id` of the chat variable can be one of the following:
+ *
+ * - `vscode.prompt.instructions__<URI>`: for all non-root prompt instructions references
+ * - `vscode.prompt.instructions.root__<URI>`: for *root* prompt instructions references
+ * - `vscode.prompt.file__<URI>`: for prompt file references
+ *
+ * @param uri A resource URI that points to a prompt instructions file.
+ * @param kind The kind of the prompt file variable entry.
+ */
+export function toPromptFileVariableEntry(uri: URI, kind: PromptFileVariableKind, originLabel?: string): IPromptFileVariableEntry {
+	//  `id` for all `prompt files` starts with the well-defined part that the copilot extension(or other chatbot) can rely on
+	return {
+		id: `${kind}__${uri.toString()}`,
+		name: `prompt:${basename(uri)}`,
+		value: uri,
+		kind: 'promptFile',
+		modelDescription: 'Prompt instructions file',
+		isRoot: kind !== PromptFileVariableKind.InstructionReference,
+		originLabel,
+		isHidden: kind === PromptFileVariableKind.PromptFile
+	};
+}
+
+export function toPromptTextVariableEntry(content: string, settingId?: string): IPromptTextVariableEntry {
+	return {
+		id: `vscode.prompt.instructions.text${settingId ? `.${settingId}` : ''}`,
+		name: `prompt:text`,
+		value: content,
+		settingId,
+		kind: 'promptText',
+		modelDescription: 'Prompt instructions text',
+		isHidden: true, // do not show in the UI
+	};
+}
+
+export function toFileVariableEntry(uri: URI, range?: IRange): IChatRequestFileEntry {
+	return {
+		kind: 'file',
+		value: range ? { uri, range } : uri,
+		id: uri.toString() + (range?.toString() ?? ''),
+		name: basename(uri),
+	};
+}
+
+export class ChatRequestVariableSet {
+	private _ids = new Set<string>();
+	private _entries: IChatRequestVariableEntry[] = [];
+
+	constructor(entries?: IChatRequestVariableEntry[]) {
+		if (entries) {
+			this.add(...entries);
+		}
+	}
+
+	public add(...entry: IChatRequestVariableEntry[]): void {
+		for (const e of entry) {
+			if (!this._ids.has(e.id)) {
+				this._ids.add(e.id);
+				this._entries.push(e);
+			}
+		}
+	}
+
+	public insertFirst(entry: IChatRequestVariableEntry): void {
+		if (!this._ids.has(entry.id)) {
+			this._ids.add(entry.id);
+			this._entries.unshift(entry);
+		}
+	}
+
+	public remove(entry: IChatRequestVariableEntry): void {
+		this._ids.delete(entry.id);
+		this._entries = this._entries.filter(e => e.id !== entry.id);
+	}
+
+	public has(entry: IChatRequestVariableEntry): boolean {
+		return this._ids.has(entry.id);
+	}
+
+	public asArray(): IChatRequestVariableEntry[] {
+		return this._entries.slice(0); // return a copy
+	}
 }

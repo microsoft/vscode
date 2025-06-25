@@ -294,6 +294,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			commit: this._productService.commit,
 			version: this._productService.version,
 			quality: this._productService.quality,
+			date: this._productService.date,
 			parentPid: 0,
 			environment: {
 				isExtensionDevelopmentDebug: this._environmentService.debugRenderer,

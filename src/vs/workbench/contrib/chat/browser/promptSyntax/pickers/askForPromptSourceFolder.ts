@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename, extUri, isEqual } from '../../../../../../base/common/resources.js';
+import { extUri, isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
 import { localize } from '../../../../../../nls.js';
@@ -67,8 +67,7 @@ export async function askForPromptSourceFolder(
 					"User Data Folder",
 				),
 				detail,
-				description: labelService.getUriLabel(uri),
-				tooltip: uri.fsPath,
+				tooltip: labelService.getUriLabel(uri),
 				folder
 			};
 		}
@@ -83,10 +82,9 @@ export async function askForPromptSourceFolder(
 		if (isMultirootWorkspace || !firstFolder || !extUri.isEqual(firstFolder.uri, uri)) {
 			return {
 				type: 'item',
-				label: basename(uri),
+				label: labelService.getUriLabel(uri, { relative: true }),
 				detail,
-				description: labelService.getUriLabel(uri, { relative: true }),
-				tooltip: uri.fsPath,
+				tooltip: labelService.getUriLabel(uri),
 				folder,
 			};
 		}
@@ -100,9 +98,7 @@ export async function askForPromptSourceFolder(
 				"Current Workspace",
 			),
 			detail,
-			// use absolute path as the description
-			description: labelService.getUriLabel(uri, { relative: false }),
-			tooltip: uri.fsPath,
+			tooltip: labelService.getUriLabel(uri),
 			folder,
 		};
 	});

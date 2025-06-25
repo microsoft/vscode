@@ -79,12 +79,12 @@ class ConfigureToolsAction extends Action2 {
 			f1: false,
 			category: CHAT_CATEGORY,
 			precondition: ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
-			menu: {
+			menu: [{
 				when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
 				id: MenuId.ChatExecute,
 				group: 'navigation',
 				order: 1,
-			}
+			}]
 		});
 	}
 

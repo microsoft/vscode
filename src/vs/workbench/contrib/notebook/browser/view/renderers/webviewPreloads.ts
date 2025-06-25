@@ -1584,12 +1584,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 		});
 	};
 
-	const copyOutputImage = async (outputId: string, altOutputId: string, retries = 5) => {
+	const copyOutputImage = async (outputId: string, altOutputId: string, textAlternates?: { mimeType: string; content: string }[], retries = 5) => {
 		if (!window.document.hasFocus() && retries > 0) {
 			// copyImage can be called from outside of the webview, which means this function may be running whilst the webview is gaining focus.
 			// Since navigator.clipboard.write requires the document to be focused, we need to wait for focus.
 			// We cannot use a listener, as there is a high chance the focus is gained during the setup of the listener resulting in us missing it.
-			setTimeout(() => { copyOutputImage(outputId, altOutputId, retries - 1); }, 50);
+			setTimeout(() => { copyOutputImage(outputId, altOutputId, textAlternates, retries - 1); }, 50);
 			return;
 		}
 
@@ -1611,7 +1611,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			if (image) {
 				const imageToCopy = image;
-				await navigator.clipboard.write([new ClipboardItem({
+
+				// Build clipboard data with both image and text formats
+				const clipboardData: Record<string, any> = {
 					'image/png': new Promise((resolve) => {
 						const canvas = document.createElement('canvas');
 						canvas.width = imageToCopy.naturalWidth;
@@ -1628,7 +1630,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 							canvas.remove();
 						}, 'image/png');
 					})
-				})]);
+				};
+
+				// Add text alternates if provided
+				if (textAlternates) {
+					for (const alternate of textAlternates) {
+						clipboardData[alternate.mimeType] = alternate.content;
+					}
+				}
+
+				await navigator.clipboard.write([new ClipboardItem(clipboardData)]);
 			} else {
 				console.error('Could not find image element to copy for output with id', outputId);
 			}
@@ -1738,7 +1749,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			}
 			case 'copyImage': {
-				await copyOutputImage(event.data.outputId, event.data.altOutputId);
+				await copyOutputImage(event.data.outputId, event.data.altOutputId, event.data.textAlternates);
 				break;
 			}
 			case 'ack-dimension': {
