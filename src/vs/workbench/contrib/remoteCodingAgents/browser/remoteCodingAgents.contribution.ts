@@ -76,13 +76,12 @@ export class RemoteCodingAgentsContribution extends Disposable implements IWorkb
 						continue;
 					}
 
-					// TODO: Handle 'when' clause
-
 					const agent: IRemoteCodingAgent = {
 						id: contribution.id,
 						command: contribution.command,
 						displayName: contribution.displayName,
-						description: contribution.description
+						description: contribution.description,
+						when: contribution.when
 					};
 					this.logService.info(`Registering remote coding agent: ${agent.displayName} (${agent.command})`);
 					this.remoteCodingAgentsService.registerAgent(agent);
