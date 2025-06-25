@@ -212,7 +212,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const shellType: string | undefined = 'shell' in terminal.state ? terminal.state.shell as string : undefined;
 			const terminalShellType = getTerminalShellType(shellType);
 			if (!terminalShellType) {
-				console.debug(`#terminalCompletions Unsupported shell type: ${shellType}`);
+				console.debug('#terminalCompletions No shell type found for terminal');
 				return;
 			}
 
@@ -456,7 +456,7 @@ function getEnvAsRecord(shellIntegrationEnv: ITerminalEnvironment): Record<strin
 	return env;
 }
 
-export function getTerminalShellType(shellType: string | undefined): TerminalShellType | undefined {
+function getTerminalShellType(shellType: string | undefined): TerminalShellType | undefined {
 	switch (shellType) {
 		case 'bash':
 			return TerminalShellType.Bash;
