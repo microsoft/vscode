@@ -130,13 +130,13 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 	}
 
 	private _applyRenderWhitespace(ctx: RenderingContext, lineNumber: number, selections: OffsetRange[] | null, lineData: ViewLineRenderingData): string {
+		if (lineData.hasVariableFonts) {
+			return '';
+		}
 		if (this._options.renderWhitespace === 'selection' && !selections) {
 			return '';
 		}
 		if (this._options.renderWhitespace === 'trailing' && lineData.continuesWithWrappedLine) {
-			return '';
-		}
-		if (lineData.hasVariableFonts) {
 			return '';
 		}
 		const color = this._context.theme.getColor(editorWhitespaces);
