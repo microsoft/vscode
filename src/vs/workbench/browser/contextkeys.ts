@@ -253,9 +253,12 @@ export class WorkbenchContextKeysHandler extends Disposable {
 			this.panelVisibleContext.set(this.layoutService.isVisible(Parts.PANEL_PART));
 			this.panelMaximizedContext.set(this.layoutService.isPanelMaximized());
 			this.auxiliaryBarVisibleContext.set(this.layoutService.isVisible(Parts.AUXILIARYBAR_PART));
-			this.auxiliaryBarMaximizedContext.set(this.layoutService.isAuxiliaryBarMaximized());
 
 			this.updateTitleBarContextKeys();
+		}));
+
+		this._register(this.layoutService.onDidChangeAuxiliaryBarMaximized(() => {
+			this.auxiliaryBarMaximizedContext.set(this.layoutService.isAuxiliaryBarMaximized());
 		}));
 
 		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.dirtyWorkingCopiesContext.set(workingCopy.isDirty() || this.workingCopyService.hasDirty)));

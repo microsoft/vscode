@@ -162,6 +162,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private readonly _onDidChangeNotificationsVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeNotificationsVisibility = this._onDidChangeNotificationsVisibility.event;
 
+	private readonly _onDidChangeAuxiliaryBarMaximized = this._register(new Emitter<void>());
+	readonly onDidChangeAuxiliaryBarMaximized = this._onDidChangeAuxiliaryBarMaximized.event;
+
 	private readonly _onDidLayoutMainContainer = this._register(new Emitter<IDimension>());
 	readonly onDidLayoutMainContainer = this._onDidLayoutMainContainer.event;
 
@@ -1574,7 +1577,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Workaround is to make editor visible so that its parent view gets
 			// added properly and then enter maximized mode of auxiliary bar.
 			this.setEditorHidden(false);
-			this.enableMaximizedAuxiliaryBar();
+			this.setAuxiliaryBarMaximized(true);
 		}
 
 		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar, auxiliaryBarPart, bannerPart]) {
@@ -1779,7 +1782,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private setEditorHidden(hidden: boolean): void {
-		if (!hidden && this.disableMaximizedAuxiliaryBar() && this.isVisible(Parts.EDITOR_PART)) {
+		if (!hidden && this.setAuxiliaryBarMaximized(false) && this.isVisible(Parts.EDITOR_PART)) {
 			return; // return: leaving maximised auxiliary bar made this part visible
 		}
 
@@ -1814,7 +1817,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private setSideBarHidden(hidden: boolean): void {
-		if (!hidden && this.disableMaximizedAuxiliaryBar() && this.isVisible(Parts.SIDEBAR_PART)) {
+		if (!hidden && this.setAuxiliaryBarMaximized(false) && this.isVisible(Parts.SIDEBAR_PART)) {
 			return; // return: leaving maximised auxiliary bar made this part visible
 		}
 
@@ -1946,7 +1949,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return; // Return if not initialized fully (https://github.com/microsoft/vscode/issues/105480)
 		}
 
-		if (!hidden && this.disableMaximizedAuxiliaryBar() && this.isVisible(Parts.PANEL_PART)) {
+		if (!hidden && this.setAuxiliaryBarMaximized(false) && this.isVisible(Parts.PANEL_PART)) {
 			return; // return: leaving maximised auxiliary bar made this part visible
 		}
 
@@ -2034,63 +2037,56 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.setAuxiliaryBarMaximized(!this.isAuxiliaryBarMaximized());
 	}
 
-	setAuxiliaryBarMaximized(maximized: boolean): void {
-		if (maximized) {
-			this.enableMaximizedAuxiliaryBar();
-		} else {
-			this.disableMaximizedAuxiliaryBar();
-		}
-
-		this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, maximized);
-	}
-
-	private enableMaximizedAuxiliaryBar(): void {
-		if (this.inMaximizedAuxiliaryBarTransition) {
-			return;
-		}
-
-		const state = this.maximizedAuxiliaryBarState = {
-			sideBarVisible: this.isVisible(Parts.SIDEBAR_PART),
-			editorVisible: this.isVisible(Parts.EDITOR_PART),
-			panelVisible: this.isVisible(Parts.PANEL_PART),
-			auxiliaryBarVisible: this.isVisible(Parts.AUXILIARYBAR_PART)
-		};
-
-		this.inMaximizedAuxiliaryBarTransition = true;
-		try {
-			if (!state.auxiliaryBarVisible) {
-				this.setAuxiliaryBarHidden(false);
-			}
-			if (state.sideBarVisible) {
-				this.setSideBarHidden(true);
-			}
-			if (state.panelVisible) {
-				this.setPanelHidden(true);
-			}
-			if (state.editorVisible) {
-				this.setEditorHidden(true);
-			}
-		} finally {
-			this.inMaximizedAuxiliaryBarTransition = false;
-		}
-	}
-
-	private disableMaximizedAuxiliaryBar(): boolean {
-		if (this.inMaximizedAuxiliaryBarTransition || !this.maximizedAuxiliaryBarState) {
+	setAuxiliaryBarMaximized(maximized: boolean): boolean {
+		if (
+			this.inMaximizedAuxiliaryBarTransition ||			// prevent re-entrance
+			(!maximized && !this.maximizedAuxiliaryBarState)	// return early if not maximizing and no state
+		) {
 			return false;
 		}
 
-		const state = this.maximizedAuxiliaryBarState;
-		this.maximizedAuxiliaryBarState = undefined;
+		if (maximized) {
+			const state = this.maximizedAuxiliaryBarState = {
+				sideBarVisible: this.isVisible(Parts.SIDEBAR_PART),
+				editorVisible: this.isVisible(Parts.EDITOR_PART),
+				panelVisible: this.isVisible(Parts.PANEL_PART),
+				auxiliaryBarVisible: this.isVisible(Parts.AUXILIARYBAR_PART)
+			};
 
-		this.inMaximizedAuxiliaryBarTransition = true;
-		try {
-			this.setEditorHidden(!state.editorVisible);		// this order of updating view visibility
-			this.setPanelHidden(!state.panelVisible);		// helps in restoring the previous view
-			this.setSideBarHidden(!state.sideBarVisible);	// sizes we had
-		} finally {
-			this.inMaximizedAuxiliaryBarTransition = false;
+			this.inMaximizedAuxiliaryBarTransition = true;
+			try {
+				if (!state.auxiliaryBarVisible) {
+					this.setAuxiliaryBarHidden(false);
+				}
+				if (state.sideBarVisible) {
+					this.setSideBarHidden(true);
+				}
+				if (state.panelVisible) {
+					this.setPanelHidden(true);
+				}
+				if (state.editorVisible) {
+					this.setEditorHidden(true);
+				}
+			} finally {
+				this.inMaximizedAuxiliaryBarTransition = false;
+			}
+		} else {
+			const state = assertReturnsDefined(this.maximizedAuxiliaryBarState);
+			this.maximizedAuxiliaryBarState = undefined;
+
+			this.inMaximizedAuxiliaryBarTransition = true;
+			try {
+				this.setEditorHidden(!state?.editorVisible);	// this order of updating view visibility
+				this.setPanelHidden(!state?.panelVisible);		// helps in restoring the previous view
+				this.setSideBarHidden(!state?.sideBarVisible);	// sizes we had
+			} finally {
+				this.inMaximizedAuxiliaryBarTransition = false;
+			}
 		}
+
+		this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, maximized);
+
+		this._onDidChangeAuxiliaryBarMaximized.fire();
 
 		return true;
 	}
@@ -2139,7 +2135,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private setAuxiliaryBarHidden(hidden: boolean, skipLayout?: boolean): void {
-		if (hidden && this.disableMaximizedAuxiliaryBar() && !this.isVisible(Parts.AUXILIARYBAR_PART)) {
+		if (hidden && this.setAuxiliaryBarMaximized(false) && !this.isVisible(Parts.AUXILIARYBAR_PART)) {
 			return; // return: leaving maximised auxiliary bar made this part hidden
 		}
 
