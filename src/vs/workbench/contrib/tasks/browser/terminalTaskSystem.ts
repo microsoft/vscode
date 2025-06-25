@@ -370,7 +370,17 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	public getActiveTasks(): Task[] {
-		return Object.values(this._activeTasks).flatMap(value => value.terminal ? value.task : []);
+		const activeTasksWithTerminals = Object.values(this._activeTasks).filter(value => value.terminal);
+		
+		// Sort tasks by their terminal instance order to preserve tab order
+		const terminalInstances = this._terminalGroupService.instances;
+		const tasksByTerminalOrder = activeTasksWithTerminals.sort((a, b) => {
+			const aIndex = terminalInstances.findIndex(instance => instance === a.terminal);
+			const bIndex = terminalInstances.findIndex(instance => instance === b.terminal);
+			return aIndex - bIndex;
+		});
+		
+		return tasksByTerminalOrder.map(value => value.task);
 	}
 
 	public getLastInstance(task: Task): Task | undefined {
