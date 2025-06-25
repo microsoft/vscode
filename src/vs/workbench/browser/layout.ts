@@ -631,7 +631,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.stateModel.load(this._mainContainerDimension);
 
 		// Both editor and panel should not be hidden on startup
-		if (this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN) && this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN)) {
+		// unless auxiliary bar is maximized
+		if (
+			this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN) &&
+			this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN) //&&
+			// !this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED) TODO UNCOMMENT
+		) {
 			this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, false);
 		}
 
@@ -1611,6 +1616,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			this.stateModel.save(true, true);
 		}));
+
+		// TODO THIS SHOULD NOT BE NEEDED
+		if (this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED)) {
+			this.enableMaximizedAuxiliaryBar();
+		}
 	}
 
 	layout(): void {
@@ -2024,6 +2034,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		} else {
 			this.disableMaximizedAuxiliaryBar();
 		}
+
+		this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, maximized);
 	}
 
 	private enableMaximizedAuxiliaryBar(): void {
@@ -2693,6 +2705,8 @@ const LayoutStateKeys = {
 	PANEL_LAST_NON_MAXIMIZED_HEIGHT: new RuntimeStateKey<number>('panel.lastNonMaximizedHeight', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
 	PANEL_LAST_NON_MAXIMIZED_WIDTH: new RuntimeStateKey<number>('panel.lastNonMaximizedWidth', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
 	PANEL_WAS_LAST_MAXIMIZED: new RuntimeStateKey<boolean>('panel.wasLastMaximized', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
+
+	AUXILIARYBAR_WAS_LAST_MAXIMIZED: new RuntimeStateKey<boolean>('auxiliaryBar.wasLastMaximized', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
 
 	// Part Positions
 	SIDEBAR_POSITON: new RuntimeStateKey<Position>('sideBar.position', StorageScope.WORKSPACE, StorageTarget.MACHINE, Position.LEFT),
