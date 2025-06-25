@@ -1047,7 +1047,10 @@ class MaximizeChatView extends Action2 {
 		super({
 			id: MaximizeChatView.ID,
 			title: localize2('maximizeChat', 'Maximize Chat View'),
-			precondition: ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.AuxiliaryBar)
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.AuxiliaryBar),
+				AuxiliaryBarMaximizedContext.negate()
+			)
 		});
 	}
 
@@ -1067,7 +1070,18 @@ class RestoreChatView extends Action2 {
 		super({
 			id: RestoreChatView.ID,
 			title: localize2('restoreChat', 'Restore Chat View'),
-			precondition: ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.AuxiliaryBar)
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.AuxiliaryBar),
+				AuxiliaryBarMaximizedContext
+			),
+			toggled: AuxiliaryBarMaximizedContext,
+			icon: Codicon.screenFull,
+			menu: {
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				when: ContextKeyExpr.equals('view', ChatViewId),
+				order: -10
+			}
 		});
 	}
 
