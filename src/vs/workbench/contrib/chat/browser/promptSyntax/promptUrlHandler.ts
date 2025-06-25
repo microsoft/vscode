@@ -19,6 +19,7 @@ import { askForPromptSourceFolder } from './pickers/askForPromptSourceFolder.js'
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { localize } from '../../../../../nls.js';
 
 // example URL: vscode-insiders:chat-prompt/install?https://gist.githubusercontent.com/aeschli/43fe78babd5635f062aef0195a476aad/raw/dfd71f60058a4dd25f584b55de3e20f5fd580e63/filterEvenNumbers.prompt.md
 
@@ -56,15 +57,21 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 		}
 
 		try {
-			const url = decodeURIComponent(uri.query);
-			if (!url || !url.startsWith('https://')) {
-				this.notificationService.error(`Invalid URL: ${url}`);
+			const query = decodeURIComponent(uri.query);
+			if (!query || !query.startsWith('url=')) {
+				return false;
+			}
+
+			const url = query.substring(4);
+			if (!url.startsWith('http://') && !url.startsWith('https://')) {
+				this.logService.error(`PromptUrlHandler: Invalid URL: ${url}`);
 				return false;
 			}
 
 			const result = await this.requestService.request({ type: 'GET', url }, CancellationToken.None);
 			if (result.res.statusCode !== 200) {
-				this.notificationService.error(`Failed to fetch URL: ${url}`);
+				this.logService.error(`PromptUrlHandler: Failed to fetch URL: ${url}`);
+				this.notificationService.error(localize('failed', 'Failed to fetch URL: {0}', url));
 				return false;
 			}
 
