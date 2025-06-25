@@ -403,7 +403,7 @@ class SettingsRecordProvider {
 }
 
 class EmbeddingsSearchProvider implements IRemoteSearchProvider {
-	private static readonly EMBEDDINGS_SETTINGS_SEARCH_MAX_PICKS = 5;
+	private static readonly EMBEDDINGS_SETTINGS_SEARCH_MAX_PICKS = 10;
 
 	private readonly _recordProvider: SettingsRecordProvider;
 	private _filter: string = '';
