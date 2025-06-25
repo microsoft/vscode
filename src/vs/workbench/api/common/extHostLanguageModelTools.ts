@@ -220,7 +220,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		return model;
 	}
 
-	async $prepareToolInvocation(toolId: string, context: IToolInvocationPreparationContext, token?: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+	async $prepareToolInvocation(toolId: string, context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const item = this._registeredTools.get(toolId);
 		if (!item) {
 			throw new Error(`Unknown tool ${toolId}`);
@@ -232,9 +232,8 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			chatSessionId: context.chatSessionId,
 			chatInteractionId: context.chatInteractionId
 		};
-		const cancellationToken = token ?? CancellationToken.None;
 		if (isProposedApiEnabled(item.extension, 'chatParticipantPrivate') && item.tool.prepareInvocation2) {
-			const result = await item.tool.prepareInvocation2(options, cancellationToken);
+			const result = await item.tool.prepareInvocation2(options, token);
 			if (!result) {
 				return undefined;
 			}
@@ -252,7 +251,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				presentation: result.presentation
 			};
 		} else if (item.tool.prepareInvocation) {
-			const result = await item.tool.prepareInvocation(options, cancellationToken);
+			const result = await item.tool.prepareInvocation(options, token);
 			if (!result) {
 				return undefined;
 			}
