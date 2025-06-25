@@ -352,13 +352,13 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 
 		try {
 			const { name, inputs, ...config } = parsed;
+			const galleryServer = await this.mcpGalleryService.getMcpServer(name);
 			if (config && Object.keys(config).length > 0) {
 				if (config.type === undefined) {
 					(<Mutable<IMcpServerConfiguration>>config).type = (<IMcpStdioServerConfiguration>parsed).command ? 'stdio' : 'http';
 				}
-				this.open(this.instantiationService.createInstance(McpWorkbenchServer, undefined, undefined, { name, config, inputs }));
+				this.open(this.instantiationService.createInstance(McpWorkbenchServer, undefined, galleryServer, galleryServer ? undefined : { name, config, inputs }));
 			} else {
-				const galleryServer = await this.mcpGalleryService.getMcpServer(name);
 				if (!galleryServer) {
 					throw new Error(`MCP server '${name}' not found in gallery`);
 				}
