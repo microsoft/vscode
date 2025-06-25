@@ -93,6 +93,21 @@ export function getDevElectronPath(): string {
 	}
 }
 
+function findFilePath(root: string, path: string): string {
+	const entries = fs.readdirSync(root, { withFileTypes: true });
+
+	for (const entry of entries) {
+		if (entry.isDirectory()) {
+			const found = join(root, entry.name, path);
+			if (fs.existsSync(found)) {
+				return found;
+			}
+		}
+	}
+
+	throw new Error(`Could not find ${path} in any subdirectory`);
+}
+
 export function getBuildElectronPath(root: string): string {
 	switch (process.platform) {
 		case 'darwin':
@@ -102,7 +117,8 @@ export function getBuildElectronPath(root: string): string {
 			return join(root, product.applicationName);
 		}
 		case 'win32': {
-			const product = require(join(root, 'resources', 'app', 'product.json'));
+			const productPath = findFilePath(root, join('resources', 'app', 'product.json'));
+			const product = require(productPath);
 			return join(root, `${product.nameShort}.exe`);
 		}
 		default:
@@ -114,6 +130,10 @@ export function getBuildVersion(root: string): string {
 	switch (process.platform) {
 		case 'darwin':
 			return require(join(root, 'Contents', 'Resources', 'app', 'package.json')).version;
+		case 'win32': {
+			const packagePath = findFilePath(root, join('resources', 'app', 'package.json'));
+			return require(packagePath).version;
+		}
 		default:
 			return require(join(root, 'resources', 'app', 'package.json')).version;
 	}
