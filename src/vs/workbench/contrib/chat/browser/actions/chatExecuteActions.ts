@@ -493,8 +493,8 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 			const remoteCodingAgent = accessor.get(IRemoteCodingAgentsService);
 			const commandService = accessor.get(ICommandService);
-			// const chatService = accessor.get(IChatService);
 			const widgetService = accessor.get(IChatWidgetService);
+			const chatAgentService = accessor.get(IChatAgentService);
 
 			const widget = widgetService.lastFocusedWidget;
 			if (!widget) {
@@ -509,55 +509,40 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			widget.setInput();
 
 			const chatModel = widget.viewModel?.model;
-			const chatRequests = chatModel.getRequests(); // Array of IChatRequestModel
-
-			const chatHistory: { req: string; res: string }[] = [];
-			for (const request of chatRequests) {
-				const userMessage = request.message;
-				const response = request.response;
-				chatHistory.push({
-					req: userMessage.text,
-					res: response?.response.toString() ?? '',
-				}); // TODO - There is definitely new nuance here.
-			}
-
+			const chatRequests = chatModel.getRequests();
 			const agents = remoteCodingAgent.getRegisteredAgents();
-			let summary: string | undefined;
-			const chatAgentService = accessor.get(IChatAgentService);
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
-			if (defaultAgent && chatRequests.length > 0) {
-				try {
-					// Construct proper history entries for the summarizer
-					const historyEntries: IChatAgentHistoryEntry[] = chatRequests
-						.filter(req => req.response) // Only include completed requests
-						.map(req => ({
-							request: {
-								sessionId: session,
-								requestId: req.id,
-								agentId: req.response?.agent?.id ?? '',
-								message: req.message.text,
-								command: req.response?.slashCommand?.name,
-								variables: req.variableData,
-								location: ChatAgentLocation.Panel,
-								editedFileEvents: req.editedFileEvents,
-							},
-							response: toChatHistoryContent(req.response!.response.value),
-							result: req.response?.result ?? {}
-						}));
 
-					summary = await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
-
-					const agent = agents[0]; // TODO: We just pick the first one for testing
-					if (agent) {
-						await commandService.executeCommand(agent.command, {
-							userPrompt,
-							summary: summary || `Chat session with ${chatRequests.length} messages`
-						});
-					}
-				} catch (error) {
-					// fail
-				}
+			const agent = agents[0]; // TODO: We just pick the first one for testing
+			if (!agent) {
+				return;
 			}
+
+			let summary: string | undefined;
+			if (defaultAgent && chatRequests.length > 0) {
+				const historyEntries: IChatAgentHistoryEntry[] = chatRequests
+					.filter(req => req.response) // Only include completed requests
+					.map(req => ({
+						request: {
+							sessionId: session,
+							requestId: req.id,
+							agentId: req.response?.agent?.id ?? '',
+							message: req.message.text,
+							command: req.response?.slashCommand?.name,
+							variables: req.variableData,
+							location: ChatAgentLocation.Panel,
+							editedFileEvents: req.editedFileEvents,
+						},
+						response: toChatHistoryContent(req.response!.response.value),
+						result: req.response?.result ?? {}
+					}));
+
+				summary = await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
+			}
+			await commandService.executeCommand(agent.command, {
+				userPrompt,
+				summary: summary || `Chat session with ${chatRequests.length} messages`
+			});
 		} finally {
 			remoteJobCreatingKey.set(false);
 		}
