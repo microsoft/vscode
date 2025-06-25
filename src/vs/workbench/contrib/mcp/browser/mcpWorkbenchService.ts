@@ -17,7 +17,7 @@ import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { DidUninstallMcpServerEvent, IGalleryMcpServer, IMcpGalleryService, InstallMcpServerResult, IQueryOptions, IInstallableMcpServer } from '../../../../platform/mcp/common/mcpManagement.js';
+import { DidUninstallMcpServerEvent, IGalleryMcpServer, IMcpGalleryService, InstallMcpServerResult, IQueryOptions, IInstallableMcpServer, IMcpServerManifest } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
@@ -106,6 +106,18 @@ class McpWorkbenchServer implements IWorkbenchMcpServer {
 		}
 
 		return Promise.reject(new Error('not available'));
+	}
+
+	async getManifest(token: CancellationToken): Promise<IMcpServerManifest> {
+		if (this.local?.manifest) {
+			return this.local.manifest;
+		}
+
+		if (this.gallery) {
+			return this.mcpGalleryService.getManifest(this.gallery, token);
+		}
+
+		throw new Error('No manifest available');
 	}
 
 }
