@@ -2055,10 +2055,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (maximized) {
 			let state: typeof this.maximizedAuxiliaryBarState;
 			if (fromInit) {
-				this.setEditorHidden(false); // TODO workaround for a bug with grid, see above in `createWorkbenchLayout`
+
+				// TODO workaround for a bug with grid, see above in `createWorkbenchLayout`
+				const stateMixin = { editorVisible: true };
+				this.setEditorHidden(false);
+				// TODO workaround
+
 				state = {
 					...this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY),
-					editorVisible: true
+					...stateMixin
 				};
 			} else {
 				state = {
