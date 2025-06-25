@@ -49,7 +49,7 @@ export interface ISuggestController {
 
 let firstShownTracker: { shell: Set<TerminalShellType>; window: boolean } | undefined = undefined;
 
-export function isShellTypeSupportedForSuggestions(shellType: TerminalShellType | undefined): boolean {
+export function isInlineCompletionSupported(shellType: TerminalShellType | undefined): boolean {
 	if (!shellType) {
 		return false;
 	}
@@ -595,7 +595,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _refreshInlineCompletion(completions: ITerminalCompletion[]): void {
-		if (!isShellTypeSupportedForSuggestions(this.shellType)) {
+		if (!isInlineCompletionSupported(this.shellType)) {
 			// If the shell type is not supported, the inline completion item is invalid
 			return;
 		}

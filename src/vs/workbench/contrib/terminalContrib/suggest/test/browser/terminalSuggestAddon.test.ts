@@ -6,29 +6,29 @@
 import { strictEqual } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PosixShellType, WindowsShellType, GeneralShellType } from '../../../../../../platform/terminal/common/terminal.js';
-import { isShellTypeSupportedForSuggestions } from '../../browser/terminalSuggestAddon.js';
+import { isInlineCompletionSupported } from '../../browser/terminalSuggestAddon.js';
 
-suite('Terminal Suggest Addon - Shell Type Support', () => {
+suite('Terminal Suggest Addon - Inline Completion, Shell Type Support', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('should return true for supported shell types', () => {
-		strictEqual(isShellTypeSupportedForSuggestions(PosixShellType.Bash), true);
-		strictEqual(isShellTypeSupportedForSuggestions(PosixShellType.Zsh), true);
-		strictEqual(isShellTypeSupportedForSuggestions(PosixShellType.Fish), true);
-		strictEqual(isShellTypeSupportedForSuggestions(GeneralShellType.PowerShell), true);
-		strictEqual(isShellTypeSupportedForSuggestions(WindowsShellType.GitBash), true);
-		strictEqual(isShellTypeSupportedForSuggestions(GeneralShellType.Python), true);
+		strictEqual(isInlineCompletionSupported(PosixShellType.Bash), true);
+		strictEqual(isInlineCompletionSupported(PosixShellType.Zsh), true);
+		strictEqual(isInlineCompletionSupported(PosixShellType.Fish), true);
+		strictEqual(isInlineCompletionSupported(GeneralShellType.PowerShell), true);
+		strictEqual(isInlineCompletionSupported(WindowsShellType.GitBash), true);
+		strictEqual(isInlineCompletionSupported(GeneralShellType.Python), true);
 	});
 
 	test('should return false for unsupported shell types', () => {
-		strictEqual(isShellTypeSupportedForSuggestions(GeneralShellType.NuShell), false);
-		strictEqual(isShellTypeSupportedForSuggestions(GeneralShellType.Julia), false);
-		strictEqual(isShellTypeSupportedForSuggestions(GeneralShellType.Node), false);
-		strictEqual(isShellTypeSupportedForSuggestions(PosixShellType.Sh), false);
-		strictEqual(isShellTypeSupportedForSuggestions(PosixShellType.Csh), false);
-		strictEqual(isShellTypeSupportedForSuggestions(PosixShellType.Ksh), false);
-		strictEqual(isShellTypeSupportedForSuggestions(WindowsShellType.CommandPrompt), false);
-		strictEqual(isShellTypeSupportedForSuggestions(WindowsShellType.Wsl), false);
-		strictEqual(isShellTypeSupportedForSuggestions(undefined), false);
+		strictEqual(isInlineCompletionSupported(GeneralShellType.NuShell), false);
+		strictEqual(isInlineCompletionSupported(GeneralShellType.Julia), false);
+		strictEqual(isInlineCompletionSupported(GeneralShellType.Node), false);
+		strictEqual(isInlineCompletionSupported(PosixShellType.Sh), false);
+		strictEqual(isInlineCompletionSupported(PosixShellType.Csh), false);
+		strictEqual(isInlineCompletionSupported(PosixShellType.Ksh), false);
+		strictEqual(isInlineCompletionSupported(WindowsShellType.CommandPrompt), false);
+		strictEqual(isInlineCompletionSupported(WindowsShellType.Wsl), false);
+		strictEqual(isInlineCompletionSupported(undefined), false);
 	});
 });
