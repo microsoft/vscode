@@ -198,7 +198,7 @@ export class McpServersListView extends ViewPane {
 		const description = dom.append(welcomeContent, dom.$('.mcp-welcome-description'));
 		const browseUrl = this.productService.quality === 'insider' ? 'https://code.visualstudio.com/insider/mcp' : 'https://code.visualstudio.com/mcp';
 		const markdownResult = this._register(renderMarkdown(new MarkdownString(
-			localize('mcp.welcome.descriptionWithLink', "Extend agent mode by installing [MCP servers]({0}) to bring extra tools for connecting to databases, invoking APIs, performing specialized tasks, etc.", browseUrl),
+			localize('mcp.welcome.descriptionWithLink', "Extend agent mode by installing [MCP servers]({0}) to bring extra tools for connecting to databases, invoking APIs and performing specialized tasks.", browseUrl),
 			{ isTrusted: true }
 		), {
 			actionHandler: {
