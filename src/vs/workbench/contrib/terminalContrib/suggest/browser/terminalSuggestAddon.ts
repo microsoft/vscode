@@ -49,11 +49,10 @@ export interface ISuggestController {
 
 let firstShownTracker: { shell: Set<TerminalShellType>; window: boolean } | undefined = undefined;
 
-function isShellTypeSupportedForSuggestions(shellType: TerminalShellType | undefined): boolean {
+export function isShellTypeSupportedForSuggestions(shellType: TerminalShellType | undefined): boolean {
 	if (!shellType) {
 		return false;
 	}
-	// Supported shell types for terminal suggestions: bash, zsh, fish, PowerShell (pwsh), Git Bash, Python
 	return shellType === PosixShellType.Bash ||
 		shellType === PosixShellType.Zsh ||
 		shellType === PosixShellType.Fish ||
@@ -61,9 +60,6 @@ function isShellTypeSupportedForSuggestions(shellType: TerminalShellType | undef
 		shellType === WindowsShellType.GitBash ||
 		shellType === GeneralShellType.Python;
 }
-
-// Export for testing
-export { isShellTypeSupportedForSuggestions };
 
 export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggestController {
 	private _terminal?: Terminal;
