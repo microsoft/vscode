@@ -1778,8 +1778,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid.setViewVisible(this.editorPartView, !hidden);
 
 		// The editor and panel cannot be hidden at the same time
-		// unless we are transitioning into maximized auxiliary bar
-		if (hidden && !this.isVisible(Parts.PANEL_PART) && !this.inMaximizedAuxiliaryBarTransition) {
+		// unless we have a maximized auxiliary bar
+		if (hidden && !this.isVisible(Parts.PANEL_PART) && !this.isAuxiliaryBarMaximized()) {
 			this.setPanelHidden(false, true);
 		}
 	}
@@ -1970,11 +1970,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		}
 
-		// If maximized and in process of hiding, unmaximize
-		// before hiding to allow caching of non-maximized size
-		// but only if we are not transitioning into maximized
-		// auxiliary bar state.
-		if (hidden && isPanelMaximized && !this.inMaximizedAuxiliaryBarTransition) {
+		// If maximized and in process of hiding, unmaximize before
+		// hiding to allow caching of non-maximized size
+		if (hidden && isPanelMaximized) {
 			this.toggleMaximizedPanel();
 		}
 
@@ -2015,10 +2013,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	toggleMaximizedAuxiliaryBar(): void {
-		if (this.isAuxiliaryBarMaximized()) {
-			this.disableMaximizedAuxiliaryBar();
-		} else {
+		if (!this.isAuxiliaryBarMaximized()) {
 			this.enableMaximizedAuxiliaryBar();
+		} else {
+			this.disableMaximizedAuxiliaryBar();
 		}
 	}
 
