@@ -115,13 +115,8 @@ export class ViewLine implements IVisibleLine {
 		const lineData = viewportData.getViewLineRenderingData(lineNumber);
 		const options = this._options;
 		const actualInlineDecorations = LineDecoration.filter(lineData.inlineDecorations, lineNumber, lineData.minColumn, lineData.maxColumn);
-		const lineHasVariableFonts = lineData.hasVariableFonts;
-		let renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
-		if (lineHasVariableFonts || options.experimentalWhitespaceRendering === 'off') {
-			renderWhitespace = options.renderWhitespace;
-		} else {
-			renderWhitespace = 'none';
-		}
+		const renderWhitespace = lineData.renderWhitespaceInline ? options.renderWhitespace : 'none';
+		const allowFastRendering = !lineData.hasVariableFonts;
 
 		// Only send selection information when needed for rendering whitespace
 		let selectionsOnLine: OffsetRange[] | null = null;
@@ -194,7 +189,7 @@ export class ViewLine implements IVisibleLine {
 		sb.appendString('</div>');
 
 		let renderedViewLine: IRenderedViewLine | null = null;
-		if (!lineHasVariableFonts && monospaceAssumptionsAreValid && canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
+		if (allowFastRendering && monospaceAssumptionsAreValid && canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
 			renderedViewLine = new FastRenderedViewLine(
 				this._renderedViewLine ? this._renderedViewLine.domNode : null,
 				renderLineInput,

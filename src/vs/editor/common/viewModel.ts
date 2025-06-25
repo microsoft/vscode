@@ -354,6 +354,10 @@ export class ViewLineRenderingData {
 	 * Whether the line has variable fonts
 	 */
 	public readonly hasVariableFonts: boolean;
+	/**
+	 * Whether to render the whitespace inline
+	 */
+	public readonly renderWhitespaceInline: boolean;
 
 	constructor(
 		minColumn: number,
@@ -366,7 +370,8 @@ export class ViewLineRenderingData {
 		inlineDecorations: InlineDecoration[],
 		tabSize: number,
 		startVisibleColumn: number,
-		hasVariableFonts: boolean
+		hasVariableFonts: boolean,
+		renderWhitespaceInline: boolean
 	) {
 		this.minColumn = minColumn;
 		this.maxColumn = maxColumn;
@@ -381,6 +386,7 @@ export class ViewLineRenderingData {
 		this.tabSize = tabSize;
 		this.startVisibleColumn = startVisibleColumn;
 		this.hasVariableFonts = hasVariableFonts;
+		this.renderWhitespaceInline = renderWhitespaceInline;
 	}
 
 	public static isBasicASCII(lineContent: string, mightContainNonBasicASCII: boolean): boolean {
