@@ -21,7 +21,7 @@ import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { localize } from '../../../../../nls.js';
 
-// example URL: vscode-insiders:chat-prompt/install?https://gist.githubusercontent.com/aeschli/43fe78babd5635f062aef0195a476aad/raw/dfd71f60058a4dd25f584b55de3e20f5fd580e63/filterEvenNumbers.prompt.md
+// example URL: code-oss:chat-prompt/install?url=https://gist.githubusercontent.com/aeschli/43fe78babd5635f062aef0195a476aad/raw/dfd71f60058a4dd25f584b55de3e20f5fd580e63/filterEvenNumbers.prompt.md
 
 export class PromptUrlHandler extends Disposable implements IWorkbenchContribution, IURLHandler {
 
