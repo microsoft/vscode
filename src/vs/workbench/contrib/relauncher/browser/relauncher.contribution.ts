@@ -46,7 +46,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'window.nativeFullScreen',
 		'window.clickThroughInactive',
 		'window.controlsStyle',
-		'window.accentColor',
+		'window.border',
 		'update.mode',
 		'editor.accessibilitySupport',
 		'security.workspace.trust.enabled',
@@ -63,7 +63,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly nativeTabs = new ChangeObserver('boolean');
 	private readonly nativeFullScreen = new ChangeObserver('boolean');
 	private readonly clickThroughInactive = new ChangeObserver('boolean');
-	private readonly accentColor = new ChangeObserver('string');
+	private readonly border = new ChangeObserver('string');
 	private readonly controlsStyle = new ChangeObserver('string');
 	private readonly updateMode = new ChangeObserver('string');
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
@@ -133,8 +133,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			// macOS: Click through (accept first mouse)
 			processChanged(isMacintosh && this.clickThroughInactive.handleChange(config.window?.clickThroughInactive));
 
-			// Windows: accent color
-			processChanged(isWindows && this.accentColor.handleChange(config.window?.accentColor));
+			// Windows: border
+			processChanged(isWindows && this.border.handleChange(config.window?.border));
 
 			// Windows/Linux: Window controls style
 			processChanged(!isMacintosh && this.controlsStyle.handleChange(config.window?.controlsStyle));

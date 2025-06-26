@@ -210,7 +210,7 @@ export interface IWindowSettings {
 	readonly clickThroughInactive: boolean;
 	readonly newWindowProfile: string;
 	readonly density: IDensitySettings;
-	readonly accentColor: 'off' | 'default' | string;
+	readonly border: 'off' | 'default' | string;
 }
 
 export interface IDensitySettings {

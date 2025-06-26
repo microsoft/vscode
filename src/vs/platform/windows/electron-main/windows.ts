@@ -161,7 +161,7 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 	};
 
 	if (isWindows) {
-		const accentColorSetting = windowSettings?.accentColor ?? 'default';
+		const accentColorSetting = windowSettings?.border ?? 'default';
 		if (accentColorSetting !== 'default') {
 			if (accentColorSetting === 'off') {
 				options.accentColor = false;

@@ -309,11 +309,11 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 				'description': localize('window.clickThroughInactive', "If enabled, clicking on an inactive window will both activate the window and trigger the element under the mouse if it is clickable. If disabled, clicking anywhere on an inactive window will activate it only and a second click is required on the element."),
 				'included': isMacintosh
 			},
-			'window.accentColor': {
+			'window.border': {
 				'type': 'string',
 				'scope': ConfigurationScope.APPLICATION,
 				'default': 'default',
-				'description': localize('window.accentColor', "Controls the accent color of the window. Set to 'off' to disable or to a specific color in Hex, RGB, RGBA, HSL, HSLA format. This requires Windows to have the 'Show accent color on title bars and window borders' enabled."),
+				'description': localize('window.border', "Controls the border color of the window. Set to 'off' to disable or to a specific color in Hex, RGB, RGBA, HSL, HSLA format. This requires Windows to have the 'Show accent color on title bars and window borders' enabled."),
 				'included': isWindows
 			}
 		}
