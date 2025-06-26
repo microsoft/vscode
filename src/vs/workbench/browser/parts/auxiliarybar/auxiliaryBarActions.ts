@@ -19,6 +19,9 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { SwitchCompositeViewAction } from '../compositeBarActions.js';
 import { closeIcon } from '../panel/panelActions.js';
 
+const maximizeIcon = registerIcon('auxiliarybar-maximize', Codicon.screenFull, localize('maximizeIcon', 'Icon to maximize the secondary side bar.'));
+const restoreIcon = registerIcon('auxiliarybar-restore', Codicon.screenNormal, localize('restoreIcon', 'Icon to restore the secondary side bar.'));
+
 const auxiliaryBarRightIcon = registerIcon('auxiliarybar-right-layout-icon', Codicon.layoutSidebarRight, localize('toggleAuxiliaryIconRight', 'Icon to toggle the secondary side bar off in its right position.'));
 const auxiliaryBarRightOffIcon = registerIcon('auxiliarybar-right-off-layout-icon', Codicon.layoutSidebarRightOff, localize('toggleAuxiliaryIconRightOn', 'Icon to toggle the secondary side bar on in its right position.'));
 const auxiliaryBarLeftIcon = registerIcon('auxiliarybar-left-layout-icon', Codicon.layoutSidebarLeft, localize('toggleAuxiliaryIconLeft', 'Icon to toggle the secondary side bar in its left position.'));
@@ -33,6 +36,12 @@ export class ToggleAuxiliaryBarAction extends Action2 {
 		super({
 			id: ToggleAuxiliaryBarAction.ID,
 			title: ToggleAuxiliaryBarAction.LABEL,
+			toggled: {
+				condition: AuxiliaryBarVisibleContext,
+				title: localize('closeSecondarySideBar', 'Hide Secondary Side Bar'),
+				icon: closeIcon,
+				mnemonicTitle: localize({ key: 'miCloseSecondarySideBar', comment: ['&& denotes a mnemonic'] }, "&&Secondary Side Bar"),
+			},
 			icon: closeIcon,
 			category: Categories.View,
 			metadata: {
@@ -204,7 +213,7 @@ class MaximizeAuxiliaryBar extends Action2 {
 			category: Categories.View,
 			f1: true,
 			precondition: AuxiliaryBarMaximizedContext.negate(),
-			icon: Codicon.screenFull,
+			icon: maximizeIcon,
 			menu: {
 				id: MenuId.AuxiliaryBarTitle,
 				group: 'navigation',
@@ -235,7 +244,7 @@ class RestoreAuxiliaryBar extends Action2 {
 			f1: true,
 			precondition: AuxiliaryBarMaximizedContext,
 			toggled: AuxiliaryBarMaximizedContext,
-			icon: Codicon.screenFull,
+			icon: restoreIcon,
 			menu: {
 				id: MenuId.AuxiliaryBarTitle,
 				group: 'navigation',
