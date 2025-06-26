@@ -161,12 +161,12 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 	};
 
 	if (isWindows) {
-		const accentColorSetting = windowSettings?.border ?? 'default';
-		if (accentColorSetting !== 'default') {
-			if (accentColorSetting === 'off') {
+		const borderColorSetting = windowSettings?.border ?? 'default';
+		if (borderColorSetting !== 'default') {
+			if (borderColorSetting === 'off') {
 				options.accentColor = false;
-			} else if (typeof accentColorSetting === 'string') {
-				options.accentColor = accentColorSetting;
+			} else if (typeof borderColorSetting === 'string') {
+				options.accentColor = borderColorSetting;
 			}
 		}
 	}
