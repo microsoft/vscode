@@ -7,15 +7,15 @@
 	display: inline-block;
 	padding: var(--vscode-dragimage-vertical-spacing) var(--vscode-dragimage-horizontal-spacing);
 	border-radius: var(--vscode-dragimage-corner-radius);
-	font-size: var(--vscode-font-body2-size);
+	font-size: var(--vscode-dragimage-font-size);
 	position: absolute;
 	z-index: 1000;
 
 	/* Default styles */
 	background-color: var(--vscode-list-activeSelectionBackground);
 	color: var(--vscode-list-activeSelectionForeground);
-	outline: var(--vscode-base-line-width-s) solid var(--vscode-list-focusOutline);
-	outline-offset: calc(var(--vscode-base-line-width-s) * -1);
+	outline: var(--vscode-dragimage-line-width) solid var(--vscode-list-focusOutline);
+	outline-offset: calc(var(--vscode-dragimage-line-width) * -1);
 
 	/*
 	 * Browsers apply an effect to the drag image when the div becomes too

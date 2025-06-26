@@ -5,7 +5,7 @@
 
 .monaco-dropdown {
 	height: 100%;
-	padding: var(--vscode-base-spacing-none);
+	padding: var(--vscode-static-spacing-none);
 }
 
 .monaco-dropdown > .dropdown-label {
@@ -27,15 +27,15 @@
 }
 
 .monaco-dropdown-with-primary > .action-container > .action-label {
-	margin-right: var(--vscode-base-spacing-none);
+	margin-right: var(--vscode-static-spacing-none);
 }
 
 .monaco-dropdown-with-primary > .dropdown-action-container > .monaco-dropdown > .dropdown-label .codicon[class*='codicon-'] {
 	font-size: var(--vscode-dropdown-font-size);
-	padding-left: var(--vscode-base-spacing-none);
-	padding-right: var(--vscode-base-spacing-none);
+	padding-left: var(--vscode-static-spacing-none);
+	padding-right: var(--vscode-static-spacing-none);
 	line-height: var(--vscode-dropdown-line-height);
-	margin-left: calc(var(--vscode-base-spacing-nudge-xs) * -1);
+	margin-left: calc(var(--vscode-dropdown-horizontal-spacing) * -1);
 }
 
 .monaco-dropdown-with-primary > .dropdown-action-container > .monaco-dropdown > .dropdown-label > .action-label {

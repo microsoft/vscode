@@ -13,7 +13,7 @@
 	width: 2%;
 	height: var(--vscode-progress-height);
 	position: absolute;
-	left: var(--vscode-base-spacing-none);
+	left: var(--vscode-static-spacing-none);
 	display: none;
 }
 
@@ -22,7 +22,7 @@
 }
 
 .monaco-progress-container.discrete .progress-bit {
-	left: var(--vscode-base-spacing-none);
+	left: var(--vscode-static-spacing-none);
 	transition: width 100ms linear;
 }
 

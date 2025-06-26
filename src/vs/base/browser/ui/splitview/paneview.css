@@ -22,7 +22,7 @@
 
 .monaco-pane-view .pane > .pane-header {
 	height: var(--vscode-paneview-header-height);
-	font-size: var(--vscode-font-body3-size);
+	font-size: var(--vscode-paneview-header-font-size);
 	font-weight: bold;
 	overflow: hidden;
 	display: flex;
@@ -46,26 +46,26 @@
 }
 
 .monaco-pane-view .pane > .pane-header > .codicon:first-of-type {
-	margin: var(--vscode-base-spacing-none) var(--vscode-base-spacing-xxs);
+	margin: var(--vscode-static-spacing-none) var(--vscode-paneview-header-horizontal-spacing);
 }
 
 .monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header > .codicon:first-of-type {
-	margin: var(--vscode-base-spacing-xxs);
+	margin: var(--vscode-paneview-header-vertical-spacing) var(--vscode-paneview-header-horizontal-spacing);
 }
 
 /* TODO: actions should be part of the pane, but they aren't yet */
 .monaco-pane-view .pane > .pane-header > .actions {
 	display: none;
 	margin-left: auto;
-	margin-right: var(--vscode-base-spacing-s);
+	margin-right: var(--vscode-paneview-header-actions-horizontal-spacing);
 }
 
 .monaco-pane-view .pane > .pane-header > .actions .action-item {
-	margin-right: var(--vscode-base-spacing-xs);
+	margin-right: var(--vscode-paneview-header-actionitem-horizontal-spacing);
 }
 
 .monaco-pane-view .pane > .pane-header > .actions .action-label {
-	padding: var(--vscode-base-spacing-xxs);
+	padding: var(--vscode-paneview-header-actionlabel-vertical-spacing) var(--vscode-paneview-header-actionlabel-horizontal-spacing);
 }
 
 /* TODO: actions should be part of the pane, but they aren't yet */
@@ -84,12 +84,12 @@
 	cursor: pointer;
 	min-width: var(--vscode-paneview-selectbox-min-width);
 	min-height: var(--vscode-selectbox-min-height);
-	padding: var(--vscode-base-spacing-xxs) calc(var(--vscode-base-default-control-size) + 1) var(--vscode-base-spacing-xxs) var(--vscode-base-spacing-s);
+	padding: var(--vscode-paneview-selectbox-vertical-spacing) calc(var(--vscode-base-default-control-size) + 1) var(--vscode-paneview-selectbox-vertical-spacing) var(--vscode-paneview-selectbox-horizontal-spacing);
 }
 
 .linux .monaco-pane-view .pane > .pane-header .action-item .monaco-select-box,
 .windows .monaco-pane-view .pane > .pane-header .action-item .monaco-select-box {
-	padding: var(--vscode-base-spacing-none) calc(var(--vscode-base-default-control-size) + 1) var(--vscode-base-spacing-none) var(--vscode-base-spacing-s);
+	padding: var(--vscode-static-spacing-none) calc(var(--vscode-base-default-control-size) + 1) var(--vscode-static-spacing-none) var(--vscode-paneview-selectbox-horizontal-spacing);
 }
 
 /* Bold font style does not go well with CJK fonts */
@@ -133,7 +133,7 @@
 	z-index: 10000;
 	width: 100%;
 	height: 100%;
-	left: var(--vscode-base-spacing-none);
+	left: var(--vscode-static-spacing-none);
 	box-sizing: border-box;
 }
 

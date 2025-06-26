@@ -5,11 +5,11 @@
 
 .monaco-count-badge {
 	padding: var(--vscode-badge-vertical-spacing) var(--vscode-badge-horizontal-spacing);
-	border-radius: var(--vscode-base-corner-radius-circular);
-	font-size: var(--vscode-font-body3-size);
+	border-radius: var(--vscode-badge-corner-radius);
+	font-size: var(--vscode-badge-font-size);
 	min-width: var(--vscode-badge-min-width);
 	min-height: var(--vscode-badge-min-height);
-	line-height: var(--vscode-base-line-height-xs);
+	line-height: var(--vscode-badge-line-height);
 	font-weight: normal;
 	text-align: center;
 	display: inline-block;
@@ -18,7 +18,7 @@
 
 .monaco-count-badge.long {
 	padding: var(--vscode-badge-long-vertical-spacing) var(--vscode-badge-long-horizontal-spacing);
-	border-radius: var(--vscode-badge-corner-radius);
+	border-radius: var(--vscode-badge-long-corner-radius);
 	min-height: auto;
 	line-height: normal;
 }

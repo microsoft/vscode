@@ -18,7 +18,7 @@
 }
 
 .fullscreen .menubar:not(.compact) {
-	margin: var(--vscode-base-spacing-none);
+	margin: var(--vscode-static-spacing-none);
 	padding: var(--vscode-menubar-vertical-spacing) var(--vscode-menubar-horizontal-spacing);
 }
 
@@ -30,13 +30,13 @@
 	-webkit-app-region: no-drag;
 	zoom: 1;
 	white-space: nowrap;
-	outline: var(--vscode-base-line-width-none) !important;
+	outline: var(--vscode-static-line-width-none) !important;
 }
 
 .monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus .menubar-menu-title {
-	outline-width: var(--vscode-base-line-width-s);
+	outline-width: var(--vscode-menubar-line-width);
 	outline-style: solid;
-	outline-offset: calc (var(--vscode-base-line-width-s) * -1);
+	outline-offset: calc(var(--vscode-menubar-line-width) * -1);
 	outline-color: var(--vscode-focusBorder);
 }
 
@@ -48,17 +48,17 @@
 .menubar.compact > .menubar-menu-button {
 	width: 100%;
 	height: 100%;
-	padding: var(--vscode-base-spacing-none);
+	padding: var(--vscode-static-spacing-none);
 }
 
 .menubar-menu-title {
-	padding: var(--vscode-base-spacing-none) var(--vscode-base-spacing-s);
+	padding: var(--vscode-static-spacing-none) var(--vscode-menubar-title-horizontal-spacing);
 	border-radius: var(--vscode-menubar-corner-radius);
 }
 
 .menubar .menubar-menu-items-holder {
 	position: fixed;
-	left: var(--vscode-base-line-width-none);
+	left: var(--vscode-static-line-width-none);
 	opacity: 1;
 	z-index: 2000;
 }
@@ -68,18 +68,18 @@
 }
 
 .menubar .menubar-menu-items-holder.monaco-menu-container {
-	outline: var(--vscode-base-line-width-none);
+	outline: var(--vscode-static-line-width-none);
 	border: none;
 }
 
 .menubar .menubar-menu-items-holder.monaco-menu-container :focus {
-	outline: var(--vscode-base-line-width-none);
+	outline: var(--vscode-static-line-width-none);
 }
 
 .menubar .toolbar-toggle-more {
 	width: var(--vscode-menubar-toggle-width);
 	height: var(--vscode-menubar-toggle-height);
-	padding: var(--vscode-base-spacing-none) var(--vscode-base-spacing-s);
+	padding: var(--vscode-static-spacing-none) var(--vscode-menubar-toggle-horizontal-spacing);
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -88,8 +88,8 @@
 
 .menubar.compact .toolbar-toggle-more {
 	position: relative;
-	left: var(--vscode-base-spacing-none);
-	top: var(--vscode-base-spacing-none);
+	left: var(--vscode-static-spacing-none);
+	top: var(--vscode-static-spacing-none);
 	cursor: pointer;
 	width: 100%;
 	display: flex;
@@ -107,6 +107,6 @@
 .menubar.compact > .menubar-menu-button.open .menubar-menu-title,
 .menubar.compact > .menubar-menu-button:focus .menubar-menu-title,
 .menubar.compact > .menubar-menu-button:hover .menubar-menu-title{
-	outline-width: var(--vscode-base-line-width-s) !important;
-	outline-offset: calc(var(--vscode-base-spacing-s) * -1) !important;
+	outline-width: var(--vscode-menubar-line-width) !important;
+	outline-offset: calc(var(--vscode-menubar-line-width) * -1) !important;
 }

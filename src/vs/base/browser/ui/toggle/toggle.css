@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-custom-toggle {
-	margin-left: var(--vscode-base-spacing-xxs);
+	margin-left: var(--vscode-toggle-horizontal-spacing-nudge);
 	float: left;
 	cursor: pointer;
 	overflow: hidden;
 	width: var(--vscode-toggle-width);
 	height: var(--vscode-toggle-height);
 	border-radius: var(--vscode-toggle-corner-radius);
-	border: var(--vscode-base-line-width-s) solid transparent;
-	padding: var(--vscode-base-spacing-xxxs);
+	border: var(--vscode-toggle-line-width) solid transparent;
+	padding: var(--vscode-toggle-vertical-spacing) var(--vscode-toggle-horizontal-spacing);
 	box-sizing:	border-box;
 	user-select: none;
 	-webkit-user-select: none;
@@ -24,7 +24,7 @@
 
 .hc-black .monaco-custom-toggle:hover,
 .hc-light .monaco-custom-toggle:hover {
-	border: var(--vscode-base-line-width-s) dashed var(--vscode-focusBorder);
+	border: var(--vscode-toggle-line-width) dashed var(--vscode-focusBorder);
 }
 
 .hc-black .monaco-custom-toggle,
@@ -40,20 +40,20 @@
 .monaco-custom-toggle.monaco-checkbox {
 	height: var(--vscode-checkbox-height);
 	width: var(--vscode-checkbox-width);
-	border: var(--vscode-base-line-width-s) solid transparent;
+	border: var(--vscode-checkbox-line-width) solid transparent;
 	border-radius: var(--vscode-checkbox-corner-radius);
 	margin-right: calc(var(--vscode-checkbox-width) / 2);
-	margin-left: var(--vscode-base-spacing-none);
-	padding: var(--vscode-base-spacing-none);
+	margin-left: var(--vscode-static-spacing-none);
+	padding: var(--vscode-static-spacing-none);
 	opacity: 1;
-	background-size: calc(var(--vscode-checkbox-height) - var(--vscode-base-spacing-xxs)) !important;
+	background-size: calc(var(--vscode-checkbox-height) - calc(var(--vscode-checkbox-line-width) * 2)) !important;
 }
 
 .monaco-action-bar .checkbox-action-item {
 	display: flex;
 	align-items: center;
 	border-radius: var(--vscode-checkbox-corner-radius);
-	padding-right: var(--vscode-base-spacing-xxs);
+	padding-right: var(--vscode-actionbar-actionitem-checkbox-horizontal-spacing);
 }
 
 .monaco-action-bar .checkbox-action-item:hover {
@@ -61,11 +61,11 @@
 }
 
 .monaco-action-bar .checkbox-action-item > .monaco-custom-toggle.monaco-checkbox {
-	margin-right: var(--vscode-base-spacing-xs);
+	margin-right: var(--vscode-actionbar-actionitem-customtoggle-horizontal-spacing);
 }
 
 .monaco-action-bar .checkbox-action-item > .checkbox-label {
-	font-size: var(--vscode-font-body2-size);
+	font-size: var(--vscode-checkbox-font-size);
 }
 
 /* hide check when unchecked */

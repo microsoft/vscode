@@ -17,15 +17,15 @@
 	vertical-align: middle;
 	font-size: var(--vscode-font-body3-size);
 	padding: var(--vscode-keybinding-key-vertical-spacing) var(--vscode-keybinding-key-horizontal-spacing);
-	margin: var(--vscode-base-spacing-none) var(--vscode-base-spacing-xxs);
+	margin: var(--vscode-static-spacing-none) var(--vscode-keybinding-horizontal-spacing);
 }
 
 .monaco-keybinding > .monaco-keybinding-key:first-child {
-	margin-left: var(--vscode-base-spacing-none);
+	margin-left: var(--vscode-static-spacing-none);
 }
 
 .monaco-keybinding > .monaco-keybinding-key:last-child {
-	margin-right: var(--vscode-base-spacing-none);
+	margin-right: var(--vscode-static-spacing-none);
 }
 
 .monaco-keybinding > .monaco-keybinding-key-separator {

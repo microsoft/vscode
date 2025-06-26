@@ -9,7 +9,7 @@
 
 .icon-select-box .icon-select-icons-container {
 	height: 100%;
-	outline: var(--vscode-base-line-width-none) !important;
+	outline: var(--vscode-static-line-width-none) !important;
 }
 
 .icon-select-box .icon-select-icons-container > .icon-container {
@@ -32,8 +32,8 @@
 }
 
 .icon-select-box .icon-select-id-container .icon-select-id-label {
-	height: var(--vscode-base-spacing-xxl);
-	padding: var(--vscode-base-spacing-nudge-m);
+	height: var(--vscode-iconselectbox-label-height);
+	padding: var(--vscode-iconselectbox-label-vertical-spacing) var(--vscode-iconselectbox-label-horizontal-spacing);
 	opacity: .8;
 }
 

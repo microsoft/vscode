@@ -10,8 +10,8 @@
 
 .monaco-action-bar .actions-container {
 	display: flex;
-	margin: var(--vscode-base-spacing-none) auto;
-	padding: var(--vscode-base-spacing-none);
+	margin: var(--vscode-static-spacing-none) auto;
+	padding: var(--vscode-static-spacing-none);
 	height: 100%;
 	width: 100%;
 	align-items: center;
@@ -47,8 +47,8 @@
 
 .monaco-action-bar .action-label {
 	display: flex;
-	font-size: var(--vscode-font-body3-size);
-	padding: var(--vscode-base-spacing-nudge-xs);
+	font-size: var(--vscode-actionbar-font-size);
+	padding: var(--vscode-actionbar-actionlabel-spacing);
 	border-radius: var(--vscode-actionbar-actionlabel-corner-radius);
 }
 
@@ -77,24 +77,24 @@
 
 .monaco-action-bar.vertical .action-label.separator {
 	display: block;
-	border-bottom: var(--vscode-base-line-width-s) solid #bbb;
-	padding-top: var(--vscode-base-spacing-xxxs);
+	border-bottom: var(--vscode-actionbar-line-width) solid #bbb;
+	padding-top: var(--vscode-actionbar-actionlabel-separator-vertical-spacing);
 	margin-left: .8em;
 	margin-right: .8em;
 }
 
 .monaco-action-bar .action-item .action-label.separator {
-	width: var(--vscode-base-line-width-s);
+	width: var(--vscode-actionbar-line-width);
 	height: var(--vscode-actionbar-actionlabel-height);
 	margin: var(--vscode-actionbar-actionlabel-horizontal-spacing) var(--vscode-base-spacing-xs) !important;
 	cursor: default;
-	min-width: var(--vscode-base-line-width-s);
-	padding: var(--vscode-base-spacing-none);
+	min-width: var(--vscode-actionbar-line-width);
+	padding: var(--vscode-static-spacing-none);
 	background-color: #bbb;
 }
 
 .secondary-actions .monaco-action-bar .action-label {
-	margin-left: var(--vscode-base-spacing-nudge-s);
+	margin-left: var(--vscode-actionbar-actionlabel-secondary-horizontal-spacing);
 }
 
 /* Action Items */
@@ -106,7 +106,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	margin-right: var(--vscode-base-spacing-nudge-m);
+	margin-right: var(--vscode-actionbar-actionitem-select-horizontal-spacing);
 }
 
 .monaco-action-bar .action-item.action-dropdown-item {
@@ -120,5 +120,5 @@
 }
 
 .monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator > div {
-	width: var(--vscode-base-line-width-s);
+	width: var(--vscode-actionbar-line-width);
 }

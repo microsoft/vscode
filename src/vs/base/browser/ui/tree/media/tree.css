@@ -16,20 +16,20 @@
 .monaco-tl-indent {
 	height: 100%;
 	position: absolute;
-	top: var(--vscode-base-spacing-none);
-	left: var(--vscode-base-spacing-l);
+	top: var(--vscode-static-spacing-none);
+	left: var(--vscode-tree-indent-horizontal-spacing);
 	pointer-events: none;
 }
 
 .hide-arrows .monaco-tl-indent {
-	left: var(--vscode-base-spacing-m);
+	left: var(--vscode-tree-indent-noarrows-horizontal-spacing);
 }
 
 .monaco-tl-indent > .indent-guide {
 	display: inline-block;
 	box-sizing: border-box;
 	height: 100%;
-	border-left: var(--vscode-base-line-width-s) solid transparent;
+	border-left: var(--vscode-tree-line-width) solid transparent;
 	opacity: 0;
 }
 
@@ -45,13 +45,13 @@
 .monaco-tl-twistie {
 	font-size: var(--vscode-tree-twistie-font-size);
 	text-align: right;
-	padding-right: var(--vscode-base-spacing-nudge-s);
+	padding-right: var(--vscode-tree-twistie-horizontal-spacing);
 	flex-shrink: 0;
-	width: var(--vscode-base-spacing-l);
+	width: var(--vscode-tree-twistie-width);
 	display: flex !important;
 	align-items: center;
 	justify-content: center;
-	transform: translateX(var(--vscode-base-spacing-nudge-xs));
+	transform: translateX(var(--vscode-tree-twistie-horizontal-spacing-nudge));
 }
 
 .monaco-tl-contents {
@@ -60,7 +60,7 @@
 }
 
 .monaco-tl-twistie::before {
-	border-radius: var(--vscode-base-corner-radius-circular);
+	border-radius: var(--vscode-tree-twistie-corner-radius);
 }
 
 .monaco-tl-twistie.collapsed::before {
@@ -74,16 +74,16 @@
 
 .monaco-tree-type-filter {
 	position: absolute;
-	top: var(--vscode-base-spacing-none);
-	right: var(--vscode-base-spacing-none);
+	top: var(--vscode-static-spacing-none);
+	right: var(--vscode-static-spacing-none);
 	display: flex;
-	padding: var(--vscode-base-spacing-nudge-xs);
+	padding: var(--vscode-tree-filter-spacing-xs);
 	max-width: var(--vscode-tree-filter-max-width);
 	z-index: 100;
-	margin: var(--vscode-base-spacing-none) var(--vscode-base-spacing-nudge-m) var(--vscode-base-spacing-none) var(--vscode-base-spacing-nudge-s);
-	border: var(--vscode-base-line-width-s) solid var(--vscode-widget-border);
-	border-bottom-left-radius: var(--vscode-base-spacing-xs);
-	border-bottom-right-radius: var(--vscode-base-spacing-xs);
+	margin: var(--vscode-static-spacing-none) var(--vscode-tree-filter-spacing-m) var(--vscode-static-spacing-none) var(--vscode-tree-filter-spacing-s);
+	border: var(--vscode-tree-line-width) solid var(--vscode-widget-border);
+	border-bottom-left-radius: var(--vscode-tree-filter-corner-radius);
+	border-bottom-right-radius: var(--vscode-tree-filter-corner-radius);
 }
 
 .monaco-workbench:not(.reduce-motion) .monaco-tree-type-filter {
@@ -91,7 +91,7 @@
 }
 
 .monaco-tree-type-filter.disabled {
-	top: -40px !important;
+	top: calc(var(--vscode-tree-filter-disabled-vertical-spacing-nudge) * -1) !important;
 }
 
 .monaco-tree-type-filter-input {
@@ -104,27 +104,27 @@
 
 .monaco-tree-type-filter-input .monaco-inputbox > .ibwrapper > .input,
 .monaco-tree-type-filter-input .monaco-inputbox > .ibwrapper > .mirror {
-	padding: var(--vscode-base-spacing-xxs) var(--vscode-base-spacing-xs);
+	padding: var(--vscode-tree-filter-spacing-xxs) var(--vscode-tree-filter-spacing-xs);
 }
 
 .monaco-tree-type-filter-input .monaco-findInput > .controls {
-	top: var(--vscode-base-spacing-xxs);
+	top: var(--vscode-tree-filter-spacing-xxs);
 }
 
 .monaco-tree-type-filter-actionbar {
-	margin-left: var(--vscode-base-spacing-xs);
+	margin-left: var(--vscode-tree-filter-spacing-xs);
 }
 
 .monaco-tree-type-filter-actionbar .monaco-action-bar .action-label {
-	padding: var(--vscode-base-spacing-xxs);
+	padding: var(--vscode-tree-filter-spacing-xxs);
 }
 
 .monaco-list .monaco-scrollable-element .monaco-tree-sticky-container{
 	position: absolute;
-	top: var(--vscode-base-spacing-none);
-	left: var(--vscode-base-spacing-none);
+	top: var(--vscode-static-spacing-none);
+	left: var(--vscode-static-spacing-none);
 	width: 100%;
-	height: var(--vscode-base-spacing-none);
+	height: var(--vscode-static-spacing-none);
 	z-index: 13; /* Settings editor uses z-index: 12 */
 
 	/* Backup color in case the tree does not provide the background color */
@@ -153,9 +153,9 @@
 
 .monaco-list .monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-container-shadow {
 	position: absolute;
-	bottom: calc(var(--vscode-base-spacing-nudge-xs) * -1);
-	left: var(--vscode-base-spacing-none);
-	height: var(--vscode-base-spacing-none); /* heigt is 3px and only set when there is a treeStickyScrollShadow color */
+	bottom: calc(var(--vscode-scrollableelement-shadow-spacing) * -1);
+	left: var(--vscode-static-spacing-none);
+	height: var(--vscode-static-spacing-none); /* heigt is 3px and only set when there is a treeStickyScrollShadow color */
 	width: 100%;
 }
 

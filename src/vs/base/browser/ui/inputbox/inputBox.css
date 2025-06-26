@@ -6,9 +6,9 @@
 .monaco-inputbox {
 	position: relative;
 	display: block;
-	padding: var(--vscode-base-spacing-none);
+	padding: var(--vscode-static-spacing-none);
 	box-sizing:	border-box;
-	border-radius: var(--vscode-base-corner-radius-xs);
+	border-radius: var(--vscode-inputbox-corner-radius);
 
 	/* Customizable */
 	font-size: inherit;
@@ -18,7 +18,7 @@
 .monaco-inputbox > .ibwrapper > .mirror {
 
 	/* Customizable */
-	padding: var(--vscode-base-spacing-xs) var(--vscode-base-spacing-nudge-s);
+	padding: var(--vscode-inputbox-wrapper-vertical-spacing) var(--vscode-inputbox-wrapper-horizontal-spacing);
 }
 
 .monaco-inputbox > .ibwrapper {
@@ -61,8 +61,8 @@
 	position: absolute;
 	display: inline-block;
 	width: 100%;
-	top: var(--vscode-base-spacing-none);
-	left: var(--vscode-base-spacing-none);
+	top: var(--vscode-static-spacing-none);
+	left: var(--vscode-static-spacing-none);
 	box-sizing: border-box;
 	white-space: pre-wrap;
 	visibility: hidden;
@@ -82,21 +82,21 @@
 	width: 100%;
 	box-sizing:	border-box;
 	padding: 0.4em;
-	font-size: var(--vscode-font-body2-size);
-	line-height: var(--vscode-inputbox-line-height);
-	margin-top: calc(var(--vscode-base-spacing-xxxs) * -1);
+	font-size: var(--vscode-inputbox-message-font-size);
+	line-height: var(--vscode-inputbox-message-line-height);
+	margin-top: calc(var(--vscode-inputbox-message-vertical-spacing) * -1);
 	word-wrap: break-word;
 }
 
 /* Action bar support */
 .monaco-inputbox .monaco-action-bar {
 	position: absolute;
-	right: var(--vscode-base-spacing-xxs);
-	top: var(--vscode-base-spacing-xs);
+	right: var(--vscode-inputbox-actionbar-horizontal-spacing);
+	top: var(--vscode-inputbox-actionbar-vertical-spacing);
 }
 
 .monaco-inputbox .monaco-action-bar .action-item {
-	margin-left: var(--vscode-base-spacing-xxs);
+	margin-left: var(--vscode-inputbox-actionbar-actionitem-horizontal-spacing);
 }
 
 .monaco-inputbox .monaco-action-bar .action-item .codicon {

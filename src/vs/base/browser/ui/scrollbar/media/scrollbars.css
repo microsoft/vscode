@@ -34,7 +34,7 @@
 }
 .monaco-scrollable-element > .shadow.top {
 	display: block;
-	top: var(--vscode-base-spacing-none);
+	top: var(--vscode-static-spacing-none);
 	left: var(--vscode-scrollableelement-shadow-spacing);
 	height: var(--vscode-scrollableelement-shadow-height);
 	width: 100%;
@@ -43,15 +43,15 @@
 .monaco-scrollable-element > .shadow.left {
 	display: block;
 	top: var(--vscode-scrollableelement-shadow-spacing);
-	left: var(--vscode-base-spacing-none);
+	left: var(--vscode-static-spacing-none);
 	height: 100%;
 	width: var(--vscode-scrollableelement-shadow-width);
 	box-shadow: var(--vscode-scrollbar-shadow) var(--vscode-shadow-offset-m) var(--vscode-shadow-offset-none) var(--vscode-shadow-blur-radius-m) var(--vscode-shadow-spread-radius-m) inset;
 }
 .monaco-scrollable-element > .shadow.top-left-corner {
 	display: block;
-	top: var(--vscode-base-spacing-none);
-	left: var(--vscode-base-spacing-none);
+	top: var(--vscode-static-spacing-none);
+	left: var(--vscode-static-spacing-none);
 	height: var(--vscode-scrollableelement-shadow-height);
 	width: var(--vscode-scrollableelement-shadow-width);
 }

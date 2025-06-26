@@ -49,14 +49,14 @@
 
 .monaco-sash.vertical {
 	cursor: ew-resize;
-	top: var(--vscode-base-spacing-none);
+	top: var(--vscode-static-spacing-none);
 	width: var(--vscode-sash-size);
 	height: 100%;
 }
 
 .monaco-sash.horizontal {
 	cursor: ns-resize;
-	left: var(--vscode-base-spacing-none);
+	left: var(--vscode-static-spacing-none);
 	width: 100%;
 	height: var(--vscode-sash-size);
 }
