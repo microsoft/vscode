@@ -267,7 +267,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.toggleMaximizedPanel',
 			title: localize2('toggleMaximizedPanel', 'Toggle Maximized Panel'),
-			tooltip: localize('maximizePanel', "Maximize Panel Size"),
+			tooltip: localize('maximizePanel', "Maximize Panel"),
 			category: Categories.View,
 			f1: true,
 			icon: Codicon.screenFull,
