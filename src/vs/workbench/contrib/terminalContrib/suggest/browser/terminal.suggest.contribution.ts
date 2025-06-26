@@ -39,6 +39,7 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { env } from '../../../../../base/common/process.js';
 import { PYLANCE_DEBUG_DISPLAY_NAME } from './lspTerminalUtil.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
@@ -284,6 +285,26 @@ registerTerminalAction({
 		order: 1
 	},
 	run: (c, accessor) => accessor.get(IPreferencesService).openSettings({ query: terminalSuggestConfigSection })
+});
+
+registerTerminalAction({
+	id: TerminalSuggestCommandId.LearnMore,
+	title: localize2('workbench.action.terminal.learnMore', 'Learn More'),
+	f1: false,
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+	menu: {
+		id: MenuId.MenubarTerminalSuggestStatusMenu,
+		group: 'center',
+		order: 1
+	},
+	keybinding: {
+		primary: KeyMod.CtrlCmd | KeyCode.KeyK,
+		mac: { primary: KeyMod.WinCtrl | KeyCode.KeyK },
+		weight: KeybindingWeight.WorkbenchContrib + 1
+	},
+	run: (c, accessor) => {
+		(accessor.get(IOpenerService)).open('https://code.visualstudio.com/docs/terminal/shell-integration#_intellisense');
+	}
 });
 
 registerActiveInstanceAction({

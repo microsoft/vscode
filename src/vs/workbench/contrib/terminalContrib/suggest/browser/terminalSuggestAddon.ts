@@ -46,6 +46,10 @@ export interface ISuggestController {
 	hideSuggestWidget(cancelAnyRequests: boolean, wasClosedByUser?: boolean): void;
 }
 
+const TERMINAL_SUGGEST_DISCOVERABILITY_KEY = 'terminal.suggest.increasedDiscoverability';
+const TERMINAL_SUGGEST_DISCOVERABILITY_COUNT_KEY = 'terminal.suggest.increasedDiscoverabilityCount';
+const TERMINAL_SUGGEST_DISCOVERABILITY_MAX_COUNT = 10;
+const TERMINAL_SUGGEST_DISCOVERABILITY_MIN_MS = 10000;
 
 let firstShownTracker: { shell: Set<TerminalShellType>; window: boolean } | undefined = undefined;
 export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggestController {
@@ -76,6 +80,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _lastUserDataTimestamp: number = 0;
 
 	private _cancellationTokenSource: CancellationTokenSource | undefined;
+
+	private _discoverabilityDone: boolean = false;
+	private _discoverabilityCount: number = 0;
+	private _discoverabilityTimeout: Timeout | undefined;
+	private _discoverabilityStart: number | undefined;
 
 	isPasting: boolean = false;
 	shellType: TerminalShellType | undefined;
@@ -150,6 +159,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
+		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super();
 
@@ -220,6 +230,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			}
 		}));
 		this._register(this._extensionService.onWillStop(() => firstShownTracker = undefined));
+		this._discoverabilityDone = _storageService.getBoolean(TERMINAL_SUGGEST_DISCOVERABILITY_KEY, StorageScope.APPLICATION, false);
+		this._discoverabilityCount = _storageService.getNumber(TERMINAL_SUGGEST_DISCOVERABILITY_COUNT_KEY, StorageScope.APPLICATION, 0);
+
 	}
 
 	activate(xterm: Terminal): void {
@@ -748,6 +761,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				}));
 			}
 
+			this._register(this._suggestWidget.onDidShow(() => this._updateDiscoverabilityState()));
 			this._register(this._suggestWidget.onDidBlurDetails((e) => {
 				const elt = e.relatedTarget as HTMLElement;
 				if (this._terminal?.element?.contains(elt)) {
@@ -761,6 +775,41 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._terminalSuggestWidgetVisibleContextKey.set(false);
 		}
 		return this._suggestWidget;
+	}
+
+	private _updateDiscoverabilityState(): void {
+		if (!this._suggestWidget || this._discoverabilityDone) {
+			return;
+		}
+		if (!this._discoverabilityDone) {
+			this._discoverabilityCount++;
+			this._storageService.store(TERMINAL_SUGGEST_DISCOVERABILITY_COUNT_KEY, this._discoverabilityCount, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			const widgetElt = this._suggestWidget.element.domNode;
+			if (widgetElt && !widgetElt.classList.contains('increased-discoverability')) {
+				widgetElt.classList.add('increased-discoverability');
+			}
+			if (this._discoverabilityCount >= TERMINAL_SUGGEST_DISCOVERABILITY_MAX_COUNT) {
+				this._setDiscoverabilityDone(widgetElt);
+			} else if (!this._discoverabilityStart) {
+				this._discoverabilityStart = Date.now();
+				this._discoverabilityTimeout = setTimeout(() => {
+					this._setDiscoverabilityDone(widgetElt);
+				}, TERMINAL_SUGGEST_DISCOVERABILITY_MIN_MS);
+			}
+		}
+	}
+
+	private _setDiscoverabilityDone(widgetElt: HTMLElement | undefined) {
+		this._discoverabilityDone = true;
+		this._storageService.store(TERMINAL_SUGGEST_DISCOVERABILITY_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		if (widgetElt) {
+			widgetElt.classList.remove('increased-discoverability');
+		}
+		if (this._discoverabilityTimeout) {
+			clearTimeout(this._discoverabilityTimeout);
+			this._discoverabilityTimeout = undefined;
+		}
+		this._discoverabilityStart = undefined;
 	}
 
 	selectPreviousSuggestion(): void {
