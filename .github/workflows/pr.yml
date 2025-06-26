@@ -93,18 +93,30 @@ jobs:
 
       - name: npm run hygiene
         run: npm run hygiene
+        env:
+          NODE_OPTIONS: "--max-old-space-size=8192"
 
       - name: npm run eslint
         run: npm run eslint
+        env:
+          NODE_OPTIONS: "--max-old-space-size=8192"
 
       - name: npm run valid-layers-check
         run: npm run valid-layers-check
+        env:
+          NODE_OPTIONS: "--max-old-space-size=8192"
 
       - name: npm run define-class-fields-check
         run: npm run define-class-fields-check
+        env:
+          NODE_OPTIONS: "--max-old-space-size=8192"
 
       - name: npm run vscode-dts-compile-check
         run: npm run vscode-dts-compile-check
+        env:
+          NODE_OPTIONS: "--max-old-space-size=8192"
 
       - name: npm run tsec-compile-check
         run: npm run tsec-compile-check
+        env:
+          NODE_OPTIONS: "--max-old-space-size=8192"
