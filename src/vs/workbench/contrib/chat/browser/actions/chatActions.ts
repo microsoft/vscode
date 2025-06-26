@@ -804,6 +804,51 @@ export function registerChatActions() {
 		}
 	});
 
+	registerAction2(class UpdateInstructionsAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.updateInstructions',
+				title: localize2('updateInstructions', "Automatically Update Instructions"),
+				shortTitle: localize2('updateInstructions.short', "Auto-update Instructions"),
+				category: CHAT_CATEGORY,
+				icon: Codicon.sparkle,
+				f1: true,
+				precondition: ChatContextKeys.enabled,
+				menu: {
+					id: CHAT_CONFIG_MENU_ID,
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
+					order: 13,
+					group: '1_level'
+				}
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const commandService = accessor.get(ICommandService);
+
+			// Use chat command to open and send the query
+			const query = `Analyze this workspace and create or update \`.github/copilot-instructions.md\`. The file guides future AI coding agents here.
+
+Add:
+- Core commands, especially build, lint, test (incl. single-test run), docs, migrations, etc.
+- High-level architecture, including major packages, services, data stores, external APIs, etc.
+- Repo-specific style rules, including formatting, imports, typing, naming, error handling, etc.
+- Relevant agent rules detected in \`.cursor/**\`, \`.cursorrules\`, \`AGENTS.md\`, \`AGENT.md\`, \`CLAUDE.md\`, \`.windsurfrules\`, existing Copilot file, etc.
+- Summarize important parts of README or other docs instead of copying them.
+
+Guidelines (read more at https://aka.ms/vscode-instructions-docs):
+- If \`.github/copilot-instructions.md\` exists, patch/merge. Never overwrite blindly.
+- Be concise; skip boilerplate, generic advice, or exhaustive file listings.
+- Use Markdown headings + bullets; keep prose minimal and non-repetitive.
+- Cite only facts found in the repo (don't invent information).`;
+
+			await commandService.executeCommand('workbench.action.chat.open', {
+				mode: 'agent',
+				query: query,
+			});
+		}
+	});
+
 	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 		submenu: CHAT_CONFIG_MENU_ID,
 		title: localize2('config.label', "Configure Chat..."),
