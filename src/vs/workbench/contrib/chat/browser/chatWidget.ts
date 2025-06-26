@@ -959,6 +959,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.viewModel?.setEditing(currentElement);
 			if (this.templateData?.contextKeyService) {
 				ChatContextKeys.currentlyEditing.bindTo(this.templateData.contextKeyService).set(true);
+				ChatContextKeys.currentlyEditingInput.bindTo(this.contextKeyService).set(true);
 			}
 
 			const isInput = this.configurationService.getValue<string>('chat.editRequests') === 'input';

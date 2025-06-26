@@ -941,11 +941,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part.editing .chat-input-container .chat-editor-container .monaco-editor,
-.interactive-session .interactive-input-part.editing .chat-input-container .chat-editor-container .monaco-editor .monaco-editor-background {
+.interactive-session .interactive-input-part.editing .chat-input-container .chat-editor-container .monaco-editor .monaco-editor-background,
+.interactive-session .interactive-request.editing .interactive-input-part .chat-input-container .chat-editor-container .monaco-editor,
+.interactive-session .interactive-request.editing .interactive-input-part .chat-input-container .chat-editor-container .monaco-editor .monaco-editor-background {
 	background-color: transparent !important;
 }
 
-.interactive-session  .interactive-input-part.editing .chat-input-container {
+.interactive-session .interactive-input-part.editing .chat-input-container,
+.interactive-session .interactive-request.editing .interactive-input-part .chat-input-container {
 	background-color: var(--vscode-chat-requestBubbleBackground);
 }
 
