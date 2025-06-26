@@ -809,7 +809,7 @@ export function registerChatActions() {
 		title: localize2('config.label', "Configure Chat..."),
 		group: 'navigation',
 		when: ContextKeyExpr.equals('view', ChatViewId),
-		icon: Codicon.gear,
+		icon: Codicon.settings,
 		order: 6
 	});
 }
