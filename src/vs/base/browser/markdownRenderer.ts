@@ -42,6 +42,7 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 export interface ISanitizerOptions {
 	replaceWithPlaintext?: boolean;
 	allowedTags?: string[];
+	allowedProductProtocols?: string[];
 }
 
 const defaultMarkedRenderers = Object.freeze({
@@ -533,6 +534,10 @@ function getSanitizerOptions(options: IInternalSanitizerOptions): { config: domp
 
 	if (options.isTrusted) {
 		allowedSchemes.push(Schemas.command);
+	}
+
+	if (options.allowedProductProtocols) {
+		allowedSchemes.push(...options.allowedProductProtocols);
 	}
 
 	return {
