@@ -7,13 +7,21 @@ import { IDisposable } from '../../../lifecycle.js';
 
 export function getFirstStackFrameOutsideOf(stack: string, pattern?: RegExp): ILocation | undefined {
 	const lines = stack.split('\n');
-	let i = -1;
-	for (const line of lines.slice(1)) {
-		i++;
+
+	for (let i = 1; i < lines.length; i++) {
+		const line = lines[i];
 
 		if (pattern && pattern.test(line)) {
 			continue;
 		}
+
+		const showFramesUpMatch = line.match(/\$show(\d+)FramesUp/);
+		if (showFramesUpMatch) {
+			const n = parseInt(showFramesUpMatch[1], 10);
+			i += (n - 1);
+			continue;
+		}
+
 		const result = parseLine(line);
 		if (result) {
 			return result;

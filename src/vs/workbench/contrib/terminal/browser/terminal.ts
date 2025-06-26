@@ -133,6 +133,7 @@ export interface ITerminalGroup {
 	activeInstance: ITerminalInstance | undefined;
 	terminalInstances: ITerminalInstance[];
 	title: string;
+	readonly hadFocusOnExit: boolean;
 
 	readonly onDidDisposeInstance: Event<ITerminalInstance>;
 	readonly onDisposed: Event<ITerminalGroup>;
@@ -673,6 +674,11 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * Whether an element within this terminal is focused.
 	 */
 	readonly hasFocus: boolean;
+
+	/**
+	 * The ID of the session that this terminal is connected to
+	 */
+	readonly sessionId: string;
 
 	/**
 	 * Get or set the behavior of the terminal when it closes. This was indented only to be called

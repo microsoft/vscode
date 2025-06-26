@@ -133,6 +133,17 @@ class AttachFileToChatAction extends AttachResourceAction {
 					)
 				),
 			}, {
+				id: MenuId.EditorTitleContext,
+				group: 'zContext',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ContextKeyExpr.or(
+						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)
+					)
+				),
+			}, {
 				id: MenuId.ChatTextEditorMenu,
 				group: 'zContext',
 				order: 2,

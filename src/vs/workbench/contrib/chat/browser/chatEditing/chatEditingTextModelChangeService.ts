@@ -212,12 +212,12 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			this._isEditFromUs = true;
 			// make the actual edit
 			let result: ISingleEditOperation[] = [];
-			TextModelEditReason.editWithReason(new TextModelEditReason({ source: 'Chat.applyEdits' }), () => {
-				this.modifiedModel.pushEditOperations(null, edits, (undoEdits) => {
-					result = undoEdits;
-					return null;
-				});
-			});
+
+			this.modifiedModel.pushEditOperations(null, edits, (undoEdits) => {
+				result = undoEdits;
+				return null;
+			}, undefined, new TextModelEditReason({ source: 'Chat.applyEdits' }));
+
 			return result;
 		} finally {
 			this._isEditFromUs = false;

@@ -324,7 +324,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			const cellHandle = this._cellhandlePool++;
 			const cellUri = CellUri.generate(this.uri, cellHandle);
 			const collapseState = this._getDefaultCollapseState(cell);
-			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.mime, cell.cellKind, cell.outputs, cell.metadata, cell.internalMetadata, collapseState, this.transientOptions, this._languageService, this._languageDetectionService);
+			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.mime, cell.cellKind, cell.outputs, cell.metadata, cell.internalMetadata, collapseState, this.transientOptions, this._languageService,
+				this._modelService.getCreationOptions(cell.language, cellUri, false).defaultEOL, this._languageDetectionService);
 		});
 
 		for (let i = 0; i < mainCells.length; i++) {
@@ -853,6 +854,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				cellUri, cellHandle,
 				cellDto.source, cellDto.language, cellDto.mime, cellDto.cellKind, cellDto.outputs || [], cellDto.metadata, cellDto.internalMetadata, collapseState, this.transientOptions,
 				this._languageService,
+				this._modelService.getCreationOptions(cellDto.language, cellUri, false).defaultEOL,
 				this._languageDetectionService
 			);
 			const textModel = this._modelService.getModel(cellUri);

@@ -536,9 +536,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Update Existing Model
 		if (this.textEditorModel) {
-			this.textEditorModel.editWithReason(new TextModelEditReason({ source: 'reloadFromDisk' }), () => {
-				this.doUpdateTextModel(content.value);
-			});
+			this.doUpdateTextModel(content.value, new TextModelEditReason({ source: 'reloadFromDisk' }));
 		}
 
 		// Create New Model
@@ -570,13 +568,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.autoDetectLanguage();
 	}
 
-	private doUpdateTextModel(value: ITextBufferFactory): void {
+	private doUpdateTextModel(value: ITextBufferFactory, reason: TextModelEditReason): void {
 		this.trace('doUpdateTextModel()');
 
 		// Update model value in a block that ignores content change events for dirty tracking
 		this.ignoreDirtyOnModelContentChange = true;
 		try {
-			this.updateTextEditorModel(value, this.preferredLanguageId);
+			this.updateTextEditorModel(value, this.preferredLanguageId, reason);
 		} finally {
 			this.ignoreDirtyOnModelContentChange = false;
 		}

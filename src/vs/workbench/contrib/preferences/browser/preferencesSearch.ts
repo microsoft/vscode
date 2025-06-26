@@ -72,7 +72,11 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		return this._remoteSearchProvider;
 	}
 
-	getAiSearchProvider(filter: string): IAiSearchProvider {
+	getAiSearchProvider(filter: string): IAiSearchProvider | undefined {
+		if (!this.remoteSearchAllowed) {
+			return undefined;
+		}
+
 		this._aiSearchProvider ??= this.instantiationService.createInstance(AiSearchProvider);
 		this._aiSearchProvider.setFilter(filter);
 		return this._aiSearchProvider;
@@ -399,7 +403,7 @@ class SettingsRecordProvider {
 }
 
 class EmbeddingsSearchProvider implements IRemoteSearchProvider {
-	private static readonly EMBEDDINGS_SETTINGS_SEARCH_MAX_PICKS = 5;
+	private static readonly EMBEDDINGS_SETTINGS_SEARCH_MAX_PICKS = 10;
 
 	private readonly _recordProvider: SettingsRecordProvider;
 	private _filter: string = '';
@@ -555,21 +559,16 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 }
 
 class RemoteSearchProvider implements IRemoteSearchProvider {
-	private _embeddingsSearchProvider: EmbeddingsSearchProvider;
 	private _tfIdfSearchProvider: TfIdfSearchProvider;
 	private _filter: string = '';
 
-	constructor(
-		@IAiSettingsSearchService private readonly aiSettingsSearchService: IAiSettingsSearchService
-	) {
-		this._embeddingsSearchProvider = new EmbeddingsSearchProvider(this.aiSettingsSearchService, true);
+	constructor() {
 		this._tfIdfSearchProvider = new TfIdfSearchProvider();
 	}
 
 	setFilter(filter: string): void {
 		this._filter = filter;
 		this._tfIdfSearchProvider.setFilter(filter);
-		this._embeddingsSearchProvider.setFilter(filter);
 	}
 
 	async searchModel(preferencesModel: ISettingsEditorModel, token: CancellationToken): Promise<ISearchResult | null> {
@@ -577,21 +576,8 @@ class RemoteSearchProvider implements IRemoteSearchProvider {
 			return null;
 		}
 
-		if (!this.aiSettingsSearchService.isEnabled()) {
-			return this._tfIdfSearchProvider.searchModel(preferencesModel, token);
-		}
-
-		let results = await this._embeddingsSearchProvider.searchModel(preferencesModel, token);
-		if (results?.filterMatches.length) {
-			return results;
-		}
-		if (!token.isCancellationRequested) {
-			results = await this._tfIdfSearchProvider.searchModel(preferencesModel, token);
-			if (results?.filterMatches.length) {
-				return results;
-			}
-		}
-		return null;
+		const results = await this._tfIdfSearchProvider.searchModel(preferencesModel, token);
+		return results;
 	}
 }
 

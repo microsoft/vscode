@@ -177,7 +177,7 @@ class UrlHandlerFlow implements IFlow {
 		callbackUri,
 		enterpriseUri,
 		nonce,
-		signInProvider: authProvider,
+		signInProvider,
 		uriHandler,
 		existingLogin,
 		logger,
@@ -205,11 +205,14 @@ class UrlHandlerFlow implements IFlow {
 			} else {
 				searchParams.append('prompt', 'select_account');
 			}
+			if (signInProvider) {
+				searchParams.append('provider', signInProvider);
+			}
 
 			// The extra toString, parse is apparently needed for env.openExternal
 			// to open the correct URL.
 			const uri = Uri.parse(baseUri.with({
-				path: getAuthorizeUrlPath(authProvider),
+				path: '/login/oauth/authorize',
 				query: searchParams.toString()
 			}).toString(true));
 			await env.openExternal(uri);
@@ -253,7 +256,7 @@ class LocalServerFlow implements IFlow {
 		redirectUri,
 		callbackUri,
 		enterpriseUri,
-		signInProvider: authProvider,
+		signInProvider,
 		existingLogin,
 		logger
 	}: IFlowTriggerOptions): Promise<string> {
@@ -277,9 +280,12 @@ class LocalServerFlow implements IFlow {
 			} else {
 				searchParams.append('prompt', 'select_account');
 			}
+			if (signInProvider) {
+				searchParams.append('provider', signInProvider);
+			}
 
 			const loginUrl = baseUri.with({
-				path: getAuthorizeUrlPath(authProvider),
+				path: '/login/oauth/authorize',
 				query: searchParams.toString()
 			});
 			const server = new LoopbackAuthServer(path.join(__dirname, '../media'), loginUrl.toString(true), callbackUri.toString(true));
@@ -324,7 +330,7 @@ class DeviceCodeFlow implements IFlow {
 		supportsSupportedClients: true,
 		supportsUnsupportedClients: true
 	};
-	async trigger({ scopes, baseUri, logger }: IFlowTriggerOptions) {
+	async trigger({ scopes, baseUri, signInProvider, logger }: IFlowTriggerOptions) {
 		logger.info(`Trying device code flow... (${scopes})`);
 
 		// Get initial device code
@@ -344,7 +350,7 @@ class DeviceCodeFlow implements IFlow {
 
 		const json = await result.json() as IGitHubDeviceCodeResponse;
 
-		const button = l10n.t('Copy & Continue to GitHub');
+		const button = l10n.t('Copy & Continue to {0}', signInProvider ? GitHubSocialSignInProviderLabels[signInProvider] : l10n.t('GitHub'));
 		const modalResult = await window.showInformationMessage(
 			l10n.t({ message: 'Your Code: {0}', args: [json.user_code], comment: ['The {0} will be a code, e.g. 123-456'] }),
 			{
@@ -358,7 +364,13 @@ class DeviceCodeFlow implements IFlow {
 
 		await env.clipboard.writeText(json.user_code);
 
-		const uriToOpen = await env.asExternalUri(Uri.parse(json.verification_uri));
+		let open = Uri.parse(json.verification_uri);
+		if (signInProvider) {
+			const query = new URLSearchParams(open.query);
+			query.set('provider', signInProvider);
+			open = open.with({ query: query.toString() });
+		}
+		const uriToOpen = await env.asExternalUri(open);
 		await env.openExternal(uriToOpen);
 
 		return await this.waitForDeviceCodeAccessToken(baseUri, json);
@@ -562,15 +574,11 @@ export const enum GitHubSocialSignInProvider {
 	// Apple = 'apple',
 }
 
+const GitHubSocialSignInProviderLabels = {
+	[GitHubSocialSignInProvider.Google]: l10n.t('Google'),
+	// [GitHubSocialSignInProvider.Apple]: l10n.t('Apple'),
+};
+
 export function isSocialSignInProvider(provider: unknown): provider is GitHubSocialSignInProvider {
 	return provider === GitHubSocialSignInProvider.Google; // || provider === GitHubSocialSignInProvider.Apple;
-}
-
-export function getAuthorizeUrlPath(provider: GitHubSocialSignInProvider | undefined): string {
-	switch (provider) {
-		case GitHubSocialSignInProvider.Google:
-			// case GitHubSocialSignInProvider.Apple:
-			return `/sessions/social/${provider}/initiate`;
-	}
-	return '/login/oauth/authorize';
 }
