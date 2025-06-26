@@ -111,7 +111,14 @@ export interface IChatResponseToolUsePart {
 	parameters: any;
 }
 
-export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart | IChatResponseDataPart;
+export interface IChatResponseThinkingPart {
+	type: 'thinking';
+	value: string;
+	id?: string;
+	metadata?: string;
+}
+
+export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart | IChatResponseDataPart | IChatResponseThinkingPart;
 
 export interface IChatResponseFragment {
 	index: number;

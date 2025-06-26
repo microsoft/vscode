@@ -40,13 +40,13 @@ type LanguageModelData = {
 
 class LanguageModelResponseStream {
 
-	readonly stream = new AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>();
+	readonly stream = new AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelThinkingPart | vscode.LanguageModelToolCallPart>();
 
 	constructor(
 		readonly option: number,
-		stream?: AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>
+		stream?: AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelThinkingPart | vscode.LanguageModelToolCallPart>
 	) {
-		this.stream = stream ?? new AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>();
+		this.stream = stream ?? new AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelThinkingPart | vscode.LanguageModelToolCallPart>();
 	}
 }
 
@@ -55,7 +55,7 @@ class LanguageModelResponse {
 	readonly apiObject: vscode.LanguageModelChatResponse;
 
 	private readonly _responseStreams = new Map<number, LanguageModelResponseStream>();
-	private readonly _defaultStream = new AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>();
+	private readonly _defaultStream = new AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelThinkingPart | vscode.LanguageModelToolCallPart>();
 	private _isDone: boolean = false;
 
 	constructor() {
@@ -93,13 +93,15 @@ class LanguageModelResponse {
 			return;
 		}
 
-		const partsByIndex = new Map<number, (vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart)[]>();
+		const partsByIndex = new Map<number, (vscode.LanguageModelTextPart | vscode.LanguageModelThinkingPart | vscode.LanguageModelToolCallPart)[]>();
 
 		for (const fragment of Iterable.wrap(fragments)) {
 
-			let out: vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart;
+			let out: vscode.LanguageModelTextPart | vscode.LanguageModelThinkingPart | vscode.LanguageModelToolCallPart;
 			if (fragment.part.type === 'text') {
 				out = new extHostTypes.LanguageModelTextPart(fragment.part.value);
+			} else if (fragment.part.type === 'thinking') {
+				out = new extHostTypes.LanguageModelThinkingPart(fragment.part.value, fragment.part.id, fragment.part.metadata);
 			} else if (fragment.part.type === 'data') {
 				out = new extHostTypes.LanguageModelTextPart('');
 			} else {
