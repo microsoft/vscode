@@ -631,17 +631,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._mainContainerDimension = getClientArea(this.parent, DEFAULT_WINDOW_DIMENSIONS); // running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
 
 		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService);
-		this.stateModel.load(this._mainContainerDimension);
-
-		// Both editor and panel should not be hidden on startup
-		// unless auxiliary bar is maximized
-		if (
-			this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN) &&
-			this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN) &&
-			!this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED)
-		) {
-			this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, false);
-		}
+		this.stateModel.load({ mainContainerDimension: this._mainContainerDimension, auxiliaryBarOpensMaximized: this.auxiliaryBarOpensMaximized() });
 
 		this._register(this.stateModel.onDidChangeState(change => {
 			if (change.key === LayoutStateKeys.ACTIVITYBAR_HIDDEN) {
@@ -1569,17 +1559,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid = workbenchGrid;
 		this.workbenchGrid.edgeSnapping = this.state.runtime.mainWindowFullscreen;
 
-		if (
-			this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED) ||
-			this.auxiliaryBarOpensMaximized()
-		) {
+		if (this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED)) {
 			// TODO@benibenj this is a workaround for the grid not being able to
 			// restore the maximized auxiliary bar on startup when it was maximised
 			// It seems that since editor and panel are hidden, the parent node is
 			// also hidden and not present, breaking the layout.
 			// Workaround is to make editor visible so that its parent view gets
 			// added properly and then enter maximized mode of auxiliary bar.
-			this.setAuxiliaryBarMaximized(this.auxiliaryBarOpensMaximized(), true /* fromInit */);
+			this.setAuxiliaryBarMaximized(true, true /* fromInit */);
 		}
 
 		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar, auxiliaryBarPart, bannerPart]) {
@@ -2849,7 +2836,7 @@ class LayoutStateModel extends Disposable {
 		}
 	}
 
-	load(mainContainerDimension: IDimension): void {
+	load({ mainContainerDimension, auxiliaryBarOpensMaximized }: { mainContainerDimension: IDimension; auxiliaryBarOpensMaximized: boolean }): void {
 		let key: keyof typeof LayoutStateKeys;
 
 		// Load stored values for all keys
@@ -2895,6 +2882,9 @@ class LayoutStateModel extends Disposable {
 			}
 		}
 
+		// Apply all overrides
+		this.applyOverrides(auxiliaryBarOpensMaximized);
+
 		// Register for runtime key changes
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(storageChangeEvent => {
 			let key: keyof typeof LayoutStateKeys;
@@ -2911,6 +2901,46 @@ class LayoutStateModel extends Disposable {
 				}
 			}
 		}));
+	}
+
+	private applyOverrides(auxiliaryBarOpensMaximized: boolean): void {
+		const wasAuxiliaryBarMaximized = this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED);
+		if (wasAuxiliaryBarMaximized && !auxiliaryBarOpensMaximized) {
+			const state = this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY);
+
+			this.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, !state.sideBarVisible);
+			this.setRuntimeValue(LayoutStateKeys.PANEL_HIDDEN, !state.panelVisible);
+			this.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, !state.editorVisible);
+			this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, !state.auxiliaryBarVisible);
+
+			this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE));
+
+			this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, false);
+		} else if (!wasAuxiliaryBarMaximized && auxiliaryBarOpensMaximized) {
+			this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY, {
+				sideBarVisible: !this.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN),
+				panelVisible: !this.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN),
+				editorVisible: !this.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN),
+				auxiliaryBarVisible: !this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN)
+			});
+
+			this.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, true);
+			this.setRuntimeValue(LayoutStateKeys.PANEL_HIDDEN, true);
+			this.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, true);
+			this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, false);
+
+			this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, true);
+		}
+
+		// Both editor and panel should not be hidden on startup
+		// unless auxiliary bar is maximized
+		if (
+			this.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN) &&
+			this.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN) &&
+			!this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED)
+		) {
+			this.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, false);
+		}
 	}
 
 	save(workspace: boolean, global: boolean): void {
