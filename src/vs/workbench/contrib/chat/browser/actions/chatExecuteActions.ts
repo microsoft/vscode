@@ -113,9 +113,6 @@ abstract class SubmitAction extends Action2 {
 				// Restore the snapshot to what it was before the request(s) that we deleted
 				const snapshotRequestId = chatRequests[itemIndex].id;
 				await session.restoreSnapshot(snapshotRequestId, undefined);
-				if (configurationService.getValue<string>('chat.editRequests') === 'input') {
-					widget?.handleDispose();
-				}
 			}
 		}
 		widget?.acceptInput(context?.inputValue);

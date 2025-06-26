@@ -455,8 +455,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 		templateData.footerToolbar.context = element;
 
-		templateData.requestHover.classList.toggle('hidden', !!this.viewModel?.editing && element.id !== this.viewModel?.editing?.id);
-
 		ChatContextKeys.responseHasError.bindTo(templateData.contextKeyService).set(isResponseVM(element) && !!element.errorDetails);
 		const isFiltered = !!(isResponseVM(element) && element.errorDetails?.responseIsFiltered);
 		ChatContextKeys.responseIsFiltered.bindTo(templateData.contextKeyService).set(isFiltered);
@@ -488,6 +486,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('editing', editing && !isInput);
 		templateData.rowContainer.classList.toggle('editing-input', editing && isInput);
 		templateData.requestHover.classList.toggle('editing', editing && isInput);
+		templateData.requestHover.classList.toggle('hidden', !!this.viewModel?.editing && !editing);
 		templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.CLICK, () => {
 			if (this.viewModel?.editing && element.id !== this.viewModel.editing.id) {
 				this._onDidFocusOutside.fire();
@@ -628,7 +627,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this._onDidRerender.fire(templateData);
 		}
 
-		if (this.configService.getValue<string>('chat.editRequests') === 'inline' && !this.disableEdits) {
+		if (this.configService.getValue<string>('chat.editRequests') !== 'none' && !this.disableEdits) {
 			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.KEY_DOWN, e => {
 				const ev = new StandardKeyboardEvent(e);
 				if (ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) {

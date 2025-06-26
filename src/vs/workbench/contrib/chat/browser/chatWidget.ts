@@ -1567,7 +1567,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					}
 				});
 
-				if (this.viewModel?.editing && this.configurationService.getValue<string>('chat.editRequests') !== 'input') {
+				if (this.viewModel?.editing) {
 					this.handleDispose();
 				}
 				return result.responseCreatedPromise;
