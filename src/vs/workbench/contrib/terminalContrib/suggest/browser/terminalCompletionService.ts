@@ -402,9 +402,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				label += resourceRequestConfig.pathSeparator;
 			}
 
-			if (shellType) {
-				label = escapeTerminalCompletionLabel(label, shellType, resourceRequestConfig.pathSeparator);
-			}
+			label = escapeTerminalCompletionLabel(label, shellType, resourceRequestConfig.pathSeparator);
 
 			if (child.isFile && fileExtensions) {
 				const extension = child.name.split('.').length > 1 ? child.name.split('.').at(-1) : undefined;
@@ -567,19 +565,12 @@ function addPathRelativePrefix(text: string, resourceRequestConfig: Pick<Termina
  * Escapes special characters in a file/folder label for shell completion.
  * This ensures that characters like [, ], etc. are properly escaped.
  */
-export function escapeTerminalCompletionLabel(label: string, shellType: TerminalShellType, pathSeparator: string): string {
+export function escapeTerminalCompletionLabel(label: string, shellType: TerminalShellType | undefined, pathSeparator: string): string {
 	// Only escape for bash/zsh/fish; PowerShell and cmd have different rules
-	if (shellType === GeneralShellType.PowerShell || shellType === WindowsShellType.CommandPrompt) {
-		// TODO: Implement escaping for PowerShell/cmd if needed
+	if (shellType === undefined || shellType === GeneralShellType.PowerShell || shellType === WindowsShellType.CommandPrompt) {
 		return label;
 	}
-
-	const specialCharsSet = new Set(['[', ']', '(', ')', '\'', '"', '\\', '`', '*', '?', ';', '&', '|', '<', '>']);
-	const specialCharsRegex = /[\[\]\(\)'"\\\`\*\?;|&<>]/;
-	if (!specialCharsRegex.test(label)) {
-		return label;
-	}
-	return label.split('').map(c => specialCharsSet.has(c) ? '\\' + c : c).join('');
+	return label.replace(/[\[\]\(\)'"\\\`\*\?;|&<>]/g, '\\$&');
 }
 
 function getIsAbsolutePath(shellType: TerminalShellType | undefined, pathSeparator: string, lastWord: string, useWindowsStylePath: boolean): boolean {
