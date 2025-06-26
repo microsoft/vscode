@@ -635,7 +635,7 @@ export class SettingsEditor2 extends EditorPane {
 			const showAiResultActionClassNames = ['action-label', ThemeIcon.asClassName(preferencesAiResultsIcon)];
 			const searchServiceEnabled = this.aiSettingsSearchService.isEnabled();
 			this.showAiResultsAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS,
-				localize('showAiResultsDescription', "Search settings with AI"), showAiResultActionClassNames.join(' '), searchServiceEnabled
+				localize('showAiResultsDescription', "Show semantic search results"), showAiResultActionClassNames.join(' '), searchServiceEnabled
 			));
 			this._register(this.aiSettingsSearchService.onProviderRegistered(() => {
 				this.showAiResultsAction!.enabled = true;
