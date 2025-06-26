@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createStyleSheetFromObservable } from '../../../../../base/browser/domStylesheets.js';
+import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { derived, mapObservableArrayCached, derivedDisposable, constObservable, derivedObservableWithCache, IObservable, ISettableObservable } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -14,6 +15,7 @@ import { InlineCompletionsHintsWidget } from '../hintsWidget/inlineCompletionsHi
 import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
 import { convertItemsToStableObservables } from '../utils.js';
 import { GhostTextView } from './ghostText/ghostTextView.js';
+import { InlineCompletionViewKind } from './inlineEdits/inlineEditsViewInterface.js';
 import { InlineEditsViewAndDiffProducer } from './inlineEdits/inlineEditsViewProducer.js';
 
 export class InlineCompletionsView extends Disposable {
@@ -54,6 +56,15 @@ export class InlineCompletionsView extends Disposable {
 				}),
 				minReservedLineCount: constObservable(0),
 				targetTextModel: this._model.map(v => v?.textModel),
+				handleInlineCompletionShown: (viewData) => {
+					// TODO: there is a better way of doing this
+					const inlineCompletion = this._model.get()?.inlineCompletionState.get()?.inlineCompletion;
+					if (inlineCompletion) {
+						this._model.get()?.handleInlineSuggestionShown(inlineCompletion, InlineCompletionViewKind.GhostText, viewData);
+					} else {
+						throw new BugIndicatingError('Inline completion not found');
+					}
+				}
 			},
 			this._editorObs.getOption(EditorOption.inlineSuggest).map(v => ({ syntaxHighlightingEnabled: v.syntaxHighlightingEnabled })),
 			false,

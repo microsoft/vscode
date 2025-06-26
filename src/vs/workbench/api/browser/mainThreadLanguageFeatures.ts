@@ -656,6 +656,14 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					editorType: lifetimeSummary.editorType,
 					viewKind: lifetimeSummary.viewKind,
 					error: lifetimeSummary.error,
+					cursorColumnDistance: lifetimeSummary.cursorColumnDistance,
+					cursorLineDistance: lifetimeSummary.cursorLineDistance,
+					lineCountOriginal: lifetimeSummary.lineCountOriginal,
+					lineCountModified: lifetimeSummary.lineCountModified,
+					characterCountOriginal: lifetimeSummary.characterCountOriginal,
+					characterCountModified: lifetimeSummary.characterCountModified,
+					disjointReplacements: lifetimeSummary.disjointReplacements,
+					sameShapeReplacements: lifetimeSummary.sameShapeReplacements,
 					extensionId,
 					superseded: reason.kind === InlineCompletionEndOfLifeReasonKind.Ignored && !!reason.supersededBy,
 					reason: reason.kind === InlineCompletionEndOfLifeReasonKind.Accepted ? 'accepted'
@@ -1294,6 +1302,15 @@ type InlineCompletionEndOfLifeEvent = {
 	superseded: boolean;
 	editorType: string;
 	viewKind: string | undefined;
+	// render info
+	cursorColumnDistance: number | undefined;
+	cursorLineDistance: number | undefined;
+	lineCountOriginal: number | undefined;
+	lineCountModified: number | undefined;
+	characterCountOriginal: number | undefined;
+	characterCountModified: number | undefined;
+	disjointReplacements: number | undefined;
+	sameShapeReplacements: boolean | undefined;
 };
 
 type InlineCompletionsEndOfLifeClassification = {
@@ -1309,4 +1326,12 @@ type InlineCompletionsEndOfLifeClassification = {
 	superseded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was superseded by another one' };
 	editorType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of the editor where the inline completion was shown' };
 	viewKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of the view where the inline completion was shown' };
+	cursorColumnDistance: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The distance in columns from the cursor to the inline suggestion' };
+	cursorLineDistance: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The distance in lines from the cursor to the inline suggestion' };
+	lineCountOriginal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of lines in the original text' };
+	lineCountModified: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of lines in the modified text' };
+	characterCountOriginal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of characters in the original text' };
+	characterCountModified: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of characters in the modified text' };
+	disjointReplacements: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of inner replacements made by the inline completion' };
+	sameShapeReplacements: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether all inner replacements are the same shape' };
 };

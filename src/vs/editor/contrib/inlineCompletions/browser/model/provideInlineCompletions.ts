@@ -25,7 +25,7 @@ import { getReadonlyEmptyArray } from '../utils.js';
 import { groupByMap } from '../../../../../base/common/collections.js';
 import { DirectedGraph } from './graph.js';
 import { CachedFunction } from '../../../../../base/common/cache.js';
-import { InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
+import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { inlineCompletionIsVisible } from './inlineSuggestionItem.js';
 
@@ -239,6 +239,7 @@ function toInlineSuggestData(
 
 export type InlineSuggestViewData = {
 	editorType: InlineCompletionEditorType;
+	renderData?: InlineCompletionViewData;
 	viewKind?: InlineCompletionViewKind;
 	error?: string;
 };
@@ -277,7 +278,7 @@ export class InlineSuggestData {
 		return new TextReplacement(this.range, this.insertText);
 	}
 
-	public async reportInlineEditShown(commandService: ICommandService, updatedInsertText: string, viewKind: InlineCompletionViewKind): Promise<void> {
+	public async reportInlineEditShown(commandService: ICommandService, updatedInsertText: string, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData): Promise<void> {
 		this.updateShownDuration(viewKind);
 
 		if (this._didShow) {
@@ -285,6 +286,7 @@ export class InlineSuggestData {
 		}
 		this._didShow = true;
 		this._viewData.viewKind = viewKind;
+		this._viewData.renderData = viewData;
 
 		this.source.provider.handleItemDidShow?.(this.source.inlineSuggestions, this.sourceInlineCompletion, updatedInsertText);
 
@@ -331,6 +333,7 @@ export class InlineSuggestData {
 				editorType: this._viewData.editorType,
 				viewKind: this._viewData.viewKind,
 				error: this._viewData.error,
+				...this._viewData.renderData,
 			};
 			this.source.provider.handleEndOfLifetime(this.source.inlineSuggestions, this.sourceInlineCompletion, reason, summary);
 		}

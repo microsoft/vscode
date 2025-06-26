@@ -7508,6 +7508,14 @@ declare namespace monaco.languages {
 		editorType: string;
 		viewKind: string | undefined;
 		error: string | undefined;
+		cursorColumnDistance?: number;
+		cursorLineDistance?: number;
+		lineCountOriginal?: number;
+		lineCountModified?: number;
+		characterCountOriginal?: number;
+		characterCountModified?: number;
+		disjointReplacements?: number;
+		sameShapeReplacements?: boolean;
 	};
 
 	export interface CodeAction {
