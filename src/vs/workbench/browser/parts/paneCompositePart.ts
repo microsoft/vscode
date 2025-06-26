@@ -364,8 +364,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 				anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
 				toggleMenuTitle: localize('moreActions', "More Actions..."),
 				hoverDelegate: this.toolbarHoverDelegate,
-				hiddenItemStrategy: HiddenItemStrategy.NoHide,
-				highlightToggledItems: true
+				hiddenItemStrategy: HiddenItemStrategy.NoHide
 			}
 		));
 
