@@ -1,0 +1,50 @@
+name: Code OSS
+
+on:
+  push:
+    branches:
+      - main
+      - 'release/*'
+  pull_request:
+    branches:
+      - main
+      - 'release/*'
+
+jobs:
+  compile:
+    name: Compile & Hygiene
+    runs-on: macos-15
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+        env:
+          NODEJS_ORG_MIRROR: https://github.com/joaomoreno/node-mirror/releases/download
+
+      - name: Install dependencies
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+
+          for i in {1..5}; do # try 5 times
+            npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "Npm install failed too many times" >&2
+              exit 1
+            fi
+            echo "Npm install failed $i, trying again..."
+          done
+
+      - name: Compile /build/ folder
+        run: npm run compile
+        working-directory: build
+
+      - name: Check /build/ folder
+        run: .github/workflows/check-clean-git-state.sh
