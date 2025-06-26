@@ -20,7 +20,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IChatAgentService, IChatAgentHistoryEntry } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { toChatHistoryContent } from '../../common/chatModel.js';
+import { ChatModel, toChatHistoryContent } from '../../common/chatModel.js';
 import { ChatMode2, IChatMode, validateChatMode2 } from '../../common/chatModes.js';
 import { chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
@@ -32,6 +32,8 @@ import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
+import { ChatRequestParser } from '../../common/chatRequestParser.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -470,13 +472,13 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 		super({
 			id: CreateRemoteAgentJobAction.ID,
-			title: localize2('actions.chat.createRemoteJob', "Create Remote Job"),
+			title: localize2('actions.chat.createRemoteJob', "Push to Coding Agent"),
 			icon: Codicon.cloudUpload,
 			precondition,
 			toggled: {
 				condition: ChatContextKeys.remoteJobCreating,
 				icon: Codicon.sync,
-				tooltip: localize('remoteJobCreating', "Remote job is being created"),
+				tooltip: localize('remoteJobCreating', "Pushing to Coding Agent"),
 			},
 			menu: {
 				id: MenuId.ChatExecute,
@@ -513,9 +515,31 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 			const chatModel = widget.viewModel?.model;
 			const chatRequests = chatModel.getRequests();
-			const agents = remoteCodingAgent.getAvailableAgents();
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 
+			// Complete implementation of adding request back into chat stream
+			const chatModelConcrete = widget.viewModel?.model as ChatModel;
+			const instantiationService = accessor.get(IInstantiationService);
+
+			// Parse the request text to create a structured request
+			const requestParser = instantiationService.createInstance(ChatRequestParser);
+			const parsedRequest = requestParser.parseChatRequest(session, userPrompt, ChatAgentLocation.Panel);
+
+			// Add the request to the model first
+			const addedRequest = chatModelConcrete.addRequest(
+				parsedRequest,
+				{ variables: [] },
+				0,
+				defaultAgent,
+			);
+
+			// Show initial loading indicator
+			chatModelConcrete.acceptResponseProgress(addedRequest, {
+				kind: 'progressMessage',
+				content: new MarkdownString(localize('preparingCodingAgent', "Preparing coding agent..."))
+			});
+
+			const agents = remoteCodingAgent.getAvailableAgents();
 			const agent = agents[0]; // TODO: We just pick the first one for testing
 			if (!agent) {
 				return;
@@ -523,6 +547,11 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 			let summary: string | undefined;
 			if (defaultAgent && chatRequests.length > 0) {
+				chatModelConcrete.acceptResponseProgress(addedRequest, {
+					kind: 'progressMessage',
+					content: new MarkdownString(localize('analyzingChatHistory', "Analyzing chat history..."))
+				});
+
 				const historyEntries: IChatAgentHistoryEntry[] = chatRequests
 					.filter(req => req.response) // Only include completed requests
 					.map(req => ({
@@ -542,10 +571,27 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 				summary = await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
 			}
-			await commandService.executeCommand(agent.command, {
-				userPrompt,
-				summary: summary || `Chat session with ${chatRequests.length} messages`
+
+			// Show progress for job creation
+			chatModelConcrete.acceptResponseProgress(addedRequest, {
+				kind: 'progressMessage',
+				content: new MarkdownString(localize('creatingRemoteJob', "Pushing state to coding agent"))
 			});
+
+			// Execute the remote command
+			const resultMarkdown: string | undefined = await commandService.executeCommand(agent.command, {
+				userPrompt,
+				summary: summary || userPrompt
+			});
+
+			let content = new MarkdownString(resultMarkdown, true);
+			if (!resultMarkdown) {
+				content = new MarkdownString(localize('remoteAgentError', "Coding agent error occurred. See logs for details."));
+			}
+
+			chatModelConcrete.acceptResponseProgress(addedRequest, { content, kind: 'markdownContent' });
+			chatModelConcrete.setResponse(addedRequest, {});
+			chatModelConcrete.completeResponse(addedRequest);
 		} finally {
 			remoteJobCreatingKey.set(false);
 		}
