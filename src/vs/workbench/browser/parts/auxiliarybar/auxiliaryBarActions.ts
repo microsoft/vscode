@@ -200,6 +200,7 @@ class MaximizeAuxiliaryBar extends Action2 {
 		super({
 			id: MaximizeAuxiliaryBar.ID,
 			title: localize2('maximizeAuxiliaryBar', 'Maximize Secondary Side Bar'),
+			tooltip: localize('maximizeAuxiliaryBarTooltip', "Maximize Secondary Side Bar Size"),
 			category: Categories.View,
 			f1: true,
 			precondition: AuxiliaryBarMaximizedContext.negate(),
@@ -229,6 +230,7 @@ class RestoreAuxiliaryBar extends Action2 {
 		super({
 			id: RestoreAuxiliaryBar.ID,
 			title: localize2('restoreAuxiliaryBar', 'Restore Secondary Side Bar'),
+			tooltip: localize('restoreAuxiliaryBarTooltip', "Restore Secondary Side Bar Size"),
 			category: Categories.View,
 			f1: true,
 			precondition: AuxiliaryBarMaximizedContext,
