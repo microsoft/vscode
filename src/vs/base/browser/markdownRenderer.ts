@@ -822,6 +822,12 @@ function completeListItemPattern(list: marked.Tokens.List): marked.Tokens.List |
 	return newList;
 }
 
+function completeHeading(token: marked.Tokens.Heading): marked.TokensList | void {
+	if (token.raw.match(/-\s*$/)) {
+		return marked.lexer(token.raw + ' &nbsp;');
+	}
+}
+
 const maxIncompleteTokensFixRounds = 3;
 export function fillInIncompleteTokens(tokens: marked.TokensList): marked.TokensList {
 	for (let i = 0; i < maxIncompleteTokensFixRounds; i++) {
@@ -846,22 +852,23 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 			newTokens = completeTable(tokens.slice(i));
 			break;
 		}
+	}
 
-		if (i === tokens.length - 1 && token.type === 'list') {
-			const newListToken = completeListItemPattern(token as marked.Tokens.List);
-			if (newListToken) {
-				newTokens = [newListToken];
-				break;
-			}
+	const lastToken = tokens.at(-1);
+	if (!newTokens && lastToken?.type === 'list') {
+		const newListToken = completeListItemPattern(lastToken as marked.Tokens.List);
+		if (newListToken) {
+			newTokens = [newListToken];
+			i = tokens.length - 1;
 		}
+	}
 
-		if (i === tokens.length - 1 && token.type === 'paragraph') {
-			// Only operates on a single token, because any newline that follows this should break these patterns
-			const newToken = completeSingleLinePattern(token as marked.Tokens.Paragraph);
-			if (newToken) {
-				newTokens = [newToken];
-				break;
-			}
+	if (!newTokens && lastToken?.type === 'paragraph') {
+		// Only operates on a single token, because any newline that follows this should break these patterns
+		const newToken = completeSingleLinePattern(lastToken as marked.Tokens.Paragraph);
+		if (newToken) {
+			newTokens = [newToken];
+			i = tokens.length - 1;
 		}
 	}
 
@@ -872,6 +879,13 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 		];
 		(newTokensList as marked.TokensList).links = tokens.links;
 		return newTokensList as marked.TokensList;
+	}
+
+	if (lastToken?.type === 'heading') {
+		const completeTokens = completeHeading(lastToken as marked.Tokens.Heading);
+		if (completeTokens) {
+			return completeTokens;
+		}
 	}
 
 	return null;
