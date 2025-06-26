@@ -125,7 +125,10 @@ export class DesktopMain extends Disposable {
 		this.applyWindowZoomLevel(services.configurationService);
 
 		// Create Workbench
-		const workbench = new Workbench(mainWindow.document.body, { extraClasses: this.getExtraClasses() }, services.serviceCollection, services.logService);
+		const workbench = new Workbench(mainWindow.document.body, {
+			extraClasses: this.getExtraClasses(),
+			resetLayout: this.configuration['disable-layout-restore'] === true
+		}, services.serviceCollection, services.logService);
 
 		// Listeners
 		this.registerListeners(workbench, services.storageService);

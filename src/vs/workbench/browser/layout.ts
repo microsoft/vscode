@@ -298,7 +298,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private disposed = false;
 
 	constructor(
-		protected readonly parent: HTMLElement
+		protected readonly parent: HTMLElement,
+		private readonly layoutOptions?: { resetLayout: boolean }
 	) {
 		super();
 	}
@@ -631,7 +632,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._mainContainerDimension = getClientArea(this.parent, DEFAULT_WINDOW_DIMENSIONS); // running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
 
 		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService);
-		this.stateModel.load({ mainContainerDimension: this._mainContainerDimension, auxiliaryBarOpensMaximized: this.auxiliaryBarOpensMaximized() });
+		this.stateModel.load({
+			mainContainerDimension: this._mainContainerDimension,
+			auxiliaryBarOpensMaximized: this.auxiliaryBarOpensMaximized(),
+			resetLayout: Boolean(this.layoutOptions?.resetLayout)
+		});
 
 		this._register(this.stateModel.onDidChangeState(change => {
 			if (change.key === LayoutStateKeys.ACTIVITYBAR_HIDDEN) {
@@ -2836,16 +2841,18 @@ class LayoutStateModel extends Disposable {
 		}
 	}
 
-	load({ mainContainerDimension, auxiliaryBarOpensMaximized }: { mainContainerDimension: IDimension; auxiliaryBarOpensMaximized: boolean }): void {
+	load({ mainContainerDimension, auxiliaryBarOpensMaximized, resetLayout }: { mainContainerDimension: IDimension; auxiliaryBarOpensMaximized: boolean; resetLayout: boolean }): void {
 		let key: keyof typeof LayoutStateKeys;
 
-		// Load stored values for all keys
-		for (key in LayoutStateKeys) {
-			const stateKey = LayoutStateKeys[key] as WorkbenchLayoutStateKey<StorageKeyType>;
-			const value = this.loadKeyFromStorage(stateKey);
+		// Load stored values for all keys unless we explicitly set to reset
+		if (!resetLayout) {
+			for (key in LayoutStateKeys) {
+				const stateKey = LayoutStateKeys[key] as WorkbenchLayoutStateKey<StorageKeyType>;
+				const value = this.loadKeyFromStorage(stateKey);
 
-			if (value !== undefined) {
-				this.stateCache.set(stateKey.name, value);
+				if (value !== undefined) {
+					this.stateCache.set(stateKey.name, value);
+				}
 			}
 		}
 
