@@ -31,7 +31,7 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 
 	static readonly ID = 'workbench.contrib.promptUrlHandler';
 
-	static readonly CONFIRM_INSTALL_STORAGE_KEY = 'chat.prompt.install.confirm';
+	static readonly CONFIRM_INSTALL_STORAGE_KEY = 'security.promptForPromptProtocolHandling';
 
 	constructor(
 		@IURLService urlService: IURLService,
