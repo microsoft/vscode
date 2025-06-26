@@ -2932,7 +2932,6 @@ class LayoutStateModel extends Disposable {
 			this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, false);
 
 			this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE, this.getInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE));
-
 			this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, true);
 		}
 
