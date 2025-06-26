@@ -343,7 +343,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			return false;
 		}
 
-		let parsed: IMcpServerConfiguration & { name: string; inputs?: IMcpServerVariable[] };
+		let parsed: IMcpServerConfiguration & { name: string; inputs?: IMcpServerVariable[]; gallery?: boolean };
 		try {
 			parsed = JSON.parse(decodeURIComponent(uri.query));
 		} catch (e) {
@@ -351,18 +351,19 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		}
 
 		try {
-			const { name, inputs, ...config } = parsed;
-			const galleryServer = await this.mcpGalleryService.getMcpServer(name);
-			if (config && Object.keys(config).length > 0) {
-				if (config.type === undefined) {
-					(<Mutable<IMcpServerConfiguration>>config).type = (<IMcpStdioServerConfiguration>parsed).command ? 'stdio' : 'http';
-				}
-				this.open(this.instantiationService.createInstance(McpWorkbenchServer, undefined, galleryServer, galleryServer ? undefined : { name, config, inputs }));
-			} else {
+			const { name, inputs, gallery, ...config } = parsed;
+
+			if (gallery || !config || Object.keys(config).length === 0) {
+				const galleryServer = await this.mcpGalleryService.getMcpServer(name);
 				if (!galleryServer) {
 					throw new Error(`MCP server '${name}' not found in gallery`);
 				}
 				this.open(this.instantiationService.createInstance(McpWorkbenchServer, undefined, galleryServer, undefined));
+			} else {
+				if (config.type === undefined) {
+					(<Mutable<IMcpServerConfiguration>>config).type = (<IMcpStdioServerConfiguration>parsed).command ? 'stdio' : 'http';
+				}
+				this.open(this.instantiationService.createInstance(McpWorkbenchServer, undefined, undefined, { name, config, inputs }));
 			}
 		} catch (e) {
 			// ignore
