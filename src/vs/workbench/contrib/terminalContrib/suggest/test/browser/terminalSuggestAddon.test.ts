@@ -17,13 +17,13 @@ suite('Terminal Suggest Addon - Inline Completion, Shell Type Support', () => {
 		strictEqual(isInlineCompletionSupported(PosixShellType.Fish), true);
 		strictEqual(isInlineCompletionSupported(GeneralShellType.PowerShell), true);
 		strictEqual(isInlineCompletionSupported(WindowsShellType.GitBash), true);
-		strictEqual(isInlineCompletionSupported(GeneralShellType.Python), true);
 	});
 
 	test('should return false for unsupported shell types', () => {
 		strictEqual(isInlineCompletionSupported(GeneralShellType.NuShell), false);
 		strictEqual(isInlineCompletionSupported(GeneralShellType.Julia), false);
 		strictEqual(isInlineCompletionSupported(GeneralShellType.Node), false);
+		strictEqual(isInlineCompletionSupported(GeneralShellType.Python), false);
 		strictEqual(isInlineCompletionSupported(PosixShellType.Sh), false);
 		strictEqual(isInlineCompletionSupported(PosixShellType.Csh), false);
 		strictEqual(isInlineCompletionSupported(PosixShellType.Ksh), false);
