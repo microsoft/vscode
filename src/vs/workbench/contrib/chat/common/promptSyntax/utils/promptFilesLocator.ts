@@ -106,7 +106,7 @@ export class PromptFilesLocator extends Disposable {
 				eventEmitter.fire();
 				return;
 			}
-			if (parentFolders.some(folder => folder.filePattern !== undefined ? e.affects(folder.parent) : e.contains(folder.parent))) {
+			if (parentFolders.some(folder => e.affects(folder.parent))) {
 				eventEmitter.fire();
 				return;
 			}
