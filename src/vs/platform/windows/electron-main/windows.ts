@@ -133,7 +133,7 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 	const windowSettings = configurationService.getValue<IWindowSettings | undefined>('window');
 
-	const options: electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
+	const options: electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean; accentColor: boolean | string | undefined } = {
 		backgroundColor: themeMainService.getBackgroundColor(),
 		minWidth: WindowMinimumSize.WIDTH,
 		minHeight: WindowMinimumSize.HEIGHT,
@@ -143,6 +143,7 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		y: windowState.y,
 		width: windowState.width,
 		height: windowState.height,
+		accentColor: typeof windowSettings?.accentColor === 'string' ? windowSettings.accentColor === 'default' ? true : windowSettings.accentColor : undefined,
 		webPreferences: {
 			...webPreferences,
 			enableWebSQL: false,
