@@ -258,7 +258,9 @@ class ToggleMaximizedAuxiliaryBar extends Action2 {
 	constructor() {
 		super({
 			id: ToggleMaximizedAuxiliaryBar.ID,
-			title: localize2('toggleMaximizedAuxiliaryBar', 'Toggle Maximized Secondary Side Bar')
+			title: localize2('toggleMaximizedAuxiliaryBar', 'Toggle Maximized Secondary Side Bar'),
+			f1: true,
+			category: Categories.View
 		});
 	}
 
