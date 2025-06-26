@@ -535,14 +535,8 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				defaultAgent,
 			);
 
-			// Show initial loading indicator
-			chatModel.acceptResponseProgress(addedRequest, {
-				kind: 'progressMessage',
-				content: new MarkdownString(localize('preparingCodingAgent', "Preparing coding agent..."))
-			});
-
 			const agents = remoteCodingAgent.getAvailableAgents();
-			const agent = agents[0]; // TODO: We just pick the first one for testing
+			const agent = agents[0]; // TODO: We just pick the first one for now
 			if (!agent) {
 				return;
 			}
@@ -551,7 +545,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			if (defaultAgent && chatRequests.length > 0) {
 				chatModel.acceptResponseProgress(addedRequest, {
 					kind: 'progressMessage',
-					content: new MarkdownString(localize('analyzingChatHistory', "Analyzing chat history..."))
+					content: new MarkdownString(localize('analyzingChatHistory', "Analyzing chat history"))
 				});
 
 				const historyEntries: IChatAgentHistoryEntry[] = chatRequests
@@ -588,7 +582,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 			let content = new MarkdownString(resultMarkdown, true);
 			if (!resultMarkdown) {
-				content = new MarkdownString(localize('remoteAgentError', "Coding agent error occurred. See logs for details."));
+				content = new MarkdownString(localize('remoteAgentError', "Coding agent session cancelled."));
 			}
 
 			chatModel.acceptResponseProgress(addedRequest, { content, kind: 'markdownContent' });
