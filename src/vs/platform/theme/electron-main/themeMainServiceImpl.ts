@@ -32,6 +32,7 @@ const THEME_WINDOW_SPLASH_KEY = 'windowSplash';
 const THEME_WINDOW_SPLASH_OVERRIDE_KEY = 'windowSplashWorkspaceOverride';
 
 const AUXILIARYBAR_DEFAULT_VISIBILITY = 'workbench.secondarySideBar.defaultVisibility';
+const AUXILIARYBAR_OPEN_MAXIMIZED = 'workbench.secondarySideBar.opensMaximized';
 
 namespace ThemeSettings {
 	export const DETECT_COLOR_SCHEME = 'window.autoDetectColorScheme';
@@ -223,7 +224,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	}
 
 	private doUpdateWindowSplashOverride(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, splash: IPartsSplash, splashOverride: IPartsSplashOverride, part: 'sideBar' | 'auxiliaryBar'): boolean {
-		const currentWidth = part === 'sideBar' ? splash.layoutInfo?.sideBarWidth : splash.layoutInfo?.auxiliarySideBarWidth;
+		const currentWidth = part === 'sideBar' ? splash.layoutInfo?.sideBarWidth : splash.layoutInfo?.auxiliaryBarWidth;
 		const overrideWidth = part === 'sideBar' ? splashOverride.layoutInfo.sideBarWidth : splashOverride.layoutInfo.auxiliaryBarWidth;
 
 		// No layout info: remove override
@@ -334,23 +335,35 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		}
 
 		// Figure out auxiliary bar width based on workspace, configuration and overrides
-		const auxiliarySideBarDefaultVisibility = this.configurationService.getValue(AUXILIARYBAR_DEFAULT_VISIBILITY);
-		let auxiliarySideBarWidth: number;
+		const auxiliaryBarDefaultVisibility = this.configurationService.getValue(AUXILIARYBAR_DEFAULT_VISIBILITY);
+		let auxiliaryBarWidth: number;
 		if (workspace) {
 			const auxiliaryBarVisible = override.layoutInfo.workspaces[workspace.id]?.auxiliaryBarVisible;
 			if (auxiliaryBarVisible === true) {
-				auxiliarySideBarWidth = override.layoutInfo.auxiliaryBarWidth || partSplash.layoutInfo.auxiliarySideBarWidth || ThemeMainService.DEFAULT_BAR_WIDTH;
+				auxiliaryBarWidth = override.layoutInfo.auxiliaryBarWidth || partSplash.layoutInfo.auxiliaryBarWidth || ThemeMainService.DEFAULT_BAR_WIDTH;
 			} else if (auxiliaryBarVisible === false) {
-				auxiliarySideBarWidth = 0;
+				auxiliaryBarWidth = 0;
 			} else {
-				if (auxiliarySideBarDefaultVisibility === 'visible' || auxiliarySideBarDefaultVisibility === 'visibleInWorkspace' || auxiliarySideBarDefaultVisibility === 'visibleInNewWorkspace') {
-					auxiliarySideBarWidth = override.layoutInfo.auxiliaryBarWidth || partSplash.layoutInfo.auxiliarySideBarWidth || ThemeMainService.DEFAULT_BAR_WIDTH;
+				if (auxiliaryBarDefaultVisibility === 'visible' || auxiliaryBarDefaultVisibility === 'visibleInWorkspace' || auxiliaryBarDefaultVisibility === 'visibleInNewWorkspace') {
+					auxiliaryBarWidth = override.layoutInfo.auxiliaryBarWidth || partSplash.layoutInfo.auxiliaryBarWidth || ThemeMainService.DEFAULT_BAR_WIDTH;
 				} else {
-					auxiliarySideBarWidth = 0;
+					auxiliaryBarWidth = 0;
 				}
 			}
 		} else {
-			auxiliarySideBarWidth = 0; // technically not true if configured 'visible', but we never store splash per empty window, so we decide on a default here
+			auxiliaryBarWidth = 0; // technically not true if configured 'visible', but we never store splash per empty window, so we decide on a default here
+		}
+
+		const auxiliaryBarOpenMaximized = this.configurationService.getValue(AUXILIARYBAR_OPEN_MAXIMIZED);
+		switch (auxiliaryBarOpenMaximized) {
+			case 'always':
+				auxiliaryBarWidth = Number.MAX_SAFE_INTEGER; // marker for a maximised auxiliary bar
+				break;
+			case 'never':
+				if (auxiliaryBarWidth === Number.MAX_SAFE_INTEGER) {
+					auxiliaryBarWidth = ThemeMainService.DEFAULT_BAR_WIDTH; // reset marker for a maximized auxiliary bar if we never restore
+				}
+				break;
 		}
 
 		return {
@@ -358,7 +371,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 			layoutInfo: {
 				...partSplash.layoutInfo,
 				sideBarWidth,
-				auxiliarySideBarWidth
+				auxiliaryBarWidth
 			}
 		};
 	}

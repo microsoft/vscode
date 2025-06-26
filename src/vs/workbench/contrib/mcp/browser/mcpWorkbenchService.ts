@@ -59,8 +59,15 @@ class McpWorkbenchServer implements IWorkbenchMcpServer {
 		return this.gallery?.displayName ?? this.local?.displayName ?? this.local?.name ?? this.installable?.name ?? '';
 	}
 
-	get iconUrl(): string | undefined {
-		return this.gallery?.iconUrl ?? this.local?.iconUrl;
+	get icon(): {
+		readonly dark: string;
+		readonly light: string;
+	} | undefined {
+		return this.gallery?.icon ?? this.local?.icon;
+	}
+
+	get codicon(): string | undefined {
+		return this.gallery?.codicon ?? this.local?.codicon;
 	}
 
 	get publisherDisplayName(): string | undefined {
@@ -336,20 +343,31 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			return false;
 		}
 
-		let parsed: IMcpServerConfiguration & { name: string; inputs?: IMcpServerVariable[] };
+		let parsed: IMcpServerConfiguration & { name: string; inputs?: IMcpServerVariable[]; gallery?: boolean };
 		try {
 			parsed = JSON.parse(decodeURIComponent(uri.query));
 		} catch (e) {
 			return false;
 		}
 
-		if (parsed.type === undefined) {
-			(<Mutable<IMcpServerConfiguration>>parsed).type = (<IMcpStdioServerConfiguration>parsed).command ? 'stdio' : 'http';
+		try {
+			const { name, inputs, gallery, ...config } = parsed;
+
+			if (gallery || !config || Object.keys(config).length === 0) {
+				const galleryServer = await this.mcpGalleryService.getMcpServer(name);
+				if (!galleryServer) {
+					throw new Error(`MCP server '${name}' not found in gallery`);
+				}
+				this.open(this.instantiationService.createInstance(McpWorkbenchServer, undefined, galleryServer, undefined));
+			} else {
+				if (config.type === undefined) {
+					(<Mutable<IMcpServerConfiguration>>config).type = (<IMcpStdioServerConfiguration>parsed).command ? 'stdio' : 'http';
+				}
+				this.open(this.instantiationService.createInstance(McpWorkbenchServer, undefined, undefined, { name, config, inputs }));
+			}
+		} catch (e) {
+			// ignore
 		}
-
-		const { name, inputs, ...config } = parsed;
-
-		this.open(this.instantiationService.createInstance(McpWorkbenchServer, undefined, undefined, { config, name, inputs }));
 		return true;
 	}
 

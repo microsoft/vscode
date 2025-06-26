@@ -677,7 +677,7 @@ export class McpServerEditor extends EditorPane {
 						const argStrings: string[] = [];
 						for (const arg of pkg.package_arguments) {
 							if (arg.type === 'named') {
-								argStrings.push(`--${arg.name}`);
+								argStrings.push(arg.name);
 								if (arg.value) {
 									argStrings.push(arg.value);
 								}
@@ -692,7 +692,7 @@ export class McpServerEditor extends EditorPane {
 						const argStrings: string[] = [];
 						for (const arg of pkg.runtime_arguments) {
 							if (arg.type === 'named') {
-								argStrings.push(`--${arg.name}`);
+								argStrings.push(arg.name);
 								if (arg.value) {
 									argStrings.push(arg.value);
 								}
@@ -719,7 +719,9 @@ export class McpServerEditor extends EditorPane {
 			for (const remote of manifest.remotes) {
 				const packagesGrid = append(packageSection, $('.package-details'));
 				append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('url', "URL:")), $('.detail-value', undefined, remote.url)));
-				append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('transport', "Transport:")), $('.detail-value', undefined, remote.transport_type)));
+				if (remote.transport_type) {
+					append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('transport', "Transport:")), $('.detail-value', undefined, remote.transport_type)));
+				}
 				if (remote.headers && remote.headers.length > 0) {
 					const headerStrings = remote.headers.map((header: any) => `${header.name}: ${header.value}`);
 					append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('headers', "Headers:")), $('.detail-value', undefined, headerStrings.join(', '))));
@@ -845,19 +847,23 @@ class AdditionalDetailsWidget extends Disposable {
 						$('div.more-info-entry-name', undefined, localize('id', "Identifier")),
 						$('code', undefined, extension.name)
 					));
+				if (gallery.version) {
+					append(moreInfo,
+						$('.more-info-entry', undefined,
+							$('div.more-info-entry-name', undefined, localize('Version', "Version")),
+							$('code', undefined, gallery.version)
+						)
+					);
+				}
+			}
+			if (gallery.lastUpdated) {
 				append(moreInfo,
 					$('.more-info-entry', undefined,
-						$('div.more-info-entry-name', undefined, localize('Version', "Version")),
-						$('code', undefined, gallery.version)
+						$('div.more-info-entry-name', undefined, localize('last released', "Last Released")),
+						$('div', undefined, toDateString(new Date(gallery.lastUpdated)))
 					)
 				);
 			}
-			append(moreInfo,
-				$('.more-info-entry', undefined,
-					$('div.more-info-entry-name', undefined, localize('last released', "Last Released")),
-					$('div', undefined, toDateString(new Date(gallery.lastUpdated)))
-				)
-			);
 		}
 	}
 }

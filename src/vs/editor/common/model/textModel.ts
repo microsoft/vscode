@@ -49,6 +49,7 @@ import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from '../.
 import { TokenArray } from '../tokens/lineTokens.js';
 import { SetWithKey } from '../../../base/common/collections.js';
 import { TextModelEditReason } from '../textModelEditReason.js';
+import { TextEdit } from '../core/edits/textEdit.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -450,7 +451,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._eventEmitter.fire(new InternalModelContentChangeEvent(rawChange, change));
 	}
 
-	public setValue(value: string | model.ITextSnapshot): void {
+	public setValue(value: string | model.ITextSnapshot, reason = TextModelEditReason.SetValue): void {
 		this._assertNotDisposed();
 
 		if (value === null || value === undefined) {
@@ -458,10 +459,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 
 		const { textBuffer, disposable } = createTextBuffer(value, this._options.defaultEOL);
-		this._setValueFromTextBuffer(textBuffer, disposable);
+		this._setValueFromTextBuffer(textBuffer, disposable, reason);
 	}
 
-	private _createContentChanged2(range: Range, rangeOffset: number, rangeLength: number, rangeEndPosition: Position, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean, isEolChange: boolean): IModelContentChangedEvent {
+	private _createContentChanged2(range: Range, rangeOffset: number, rangeLength: number, rangeEndPosition: Position, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean, isEolChange: boolean, reason: TextModelEditReason): IModelContentChangedEvent {
 		return {
 			changes: [{
 				range: range,
@@ -474,11 +475,13 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			versionId: this.getVersionId(),
 			isUndoing: isUndoing,
 			isRedoing: isRedoing,
-			isFlush: isFlush
+			isFlush: isFlush,
+			detailedReasons: [reason],
+			detailedReasonsChangeLengths: [1],
 		};
 	}
 
-	private _setValueFromTextBuffer(textBuffer: model.ITextBuffer, textBufferDisposable: IDisposable): void {
+	private _setValueFromTextBuffer(textBuffer: model.ITextBuffer, textBufferDisposable: IDisposable, reason: TextModelEditReason): void {
 		this._assertNotDisposed();
 		const oldFullModelRange = this.getFullModelRange();
 		const oldModelValueLength = this.getValueLengthInRange(oldFullModelRange);
@@ -507,7 +510,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				false,
 				false
 			),
-			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, new Position(endLineNumber, endColumn), this.getValue(), false, false, true, false)
+			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, new Position(endLineNumber, endColumn), this.getValue(), false, false, true, false, reason)
 		);
 	}
 
@@ -538,7 +541,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				false,
 				false
 			),
-			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, new Position(endLineNumber, endColumn), this.getValue(), false, false, false, true)
+			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, new Position(endLineNumber, endColumn), this.getValue(), false, false, false, true, TextModelEditReason.EolChange)
 		);
 	}
 
@@ -1281,18 +1284,22 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return result;
 	}
 
-	public pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer | null, group?: UndoRedoGroup): Selection[] | null {
+	public edit(edit: TextEdit, options?: { reason?: TextModelEditReason }): void {
+		this.pushEditOperations(null, edit.replacements.map(r => ({ range: r.range, text: r.text })), null);
+	}
+
+	public pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer | null, group?: UndoRedoGroup, reason?: TextModelEditReason): Selection[] | null {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._eventEmitter.beginDeferredEmit();
-			return this._pushEditOperations(beforeCursorState, this._validateEditOperations(editOperations), cursorStateComputer, group);
+			return this._pushEditOperations(beforeCursorState, this._validateEditOperations(editOperations), cursorStateComputer, group, reason);
 		} finally {
 			this._eventEmitter.endDeferredEmit();
 			this._onDidChangeDecorations.endDeferredEmit();
 		}
 	}
 
-	private _pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.ValidAnnotatedEditOperation[], cursorStateComputer: model.ICursorStateComputer | null, group?: UndoRedoGroup): Selection[] | null {
+	private _pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.ValidAnnotatedEditOperation[], cursorStateComputer: model.ICursorStateComputer | null, group?: UndoRedoGroup, reason?: TextModelEditReason): Selection[] | null {
 		if (this._options.trimAutoWhitespace && this._trimAutoWhitespaceLines) {
 			// Go through each saved line number and insert a trim whitespace edit
 			// if it is safe to do so (no conflicts with other edits).
@@ -1379,7 +1386,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		if (this._initialUndoRedoSnapshot === null) {
 			this._initialUndoRedoSnapshot = this._undoRedoService.createSnapshot(this.uri);
 		}
-		return this._commandManager.pushEditOperation(beforeCursorState, editOperations, cursorStateComputer, group);
+		return this._commandManager.pushEditOperation(beforeCursorState, editOperations, cursorStateComputer, group, reason);
 	}
 
 	_applyUndo(changes: TextChange[], eol: model.EndOfLineSequence, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void {
@@ -1426,19 +1433,24 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[]): void;
 	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: false): void;
 	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: true): model.IValidEditOperation[];
-	public applyEdits(rawOperations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: boolean = false): void | model.IValidEditOperation[] {
+	/** @internal */
+	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: false, reason: TextModelEditReason): void;
+	/** @internal */
+	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: true, reason: TextModelEditReason): model.IValidEditOperation[];
+	public applyEdits(rawOperations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits?: boolean, reason?: TextModelEditReason): void | model.IValidEditOperation[] {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._eventEmitter.beginDeferredEmit();
 			const operations = this._validateEditOperations(rawOperations);
-			return this._doApplyEdits(operations, computeUndoEdits);
+
+			return this._doApplyEdits(operations, computeUndoEdits ?? false, reason ?? TextModelEditReason.ApplyEdits);
 		} finally {
 			this._eventEmitter.endDeferredEmit();
 			this._onDidChangeDecorations.endDeferredEmit();
 		}
 	}
 
-	private _doApplyEdits(rawOperations: model.ValidAnnotatedEditOperation[], computeUndoEdits: boolean): void | model.IValidEditOperation[] {
+	private _doApplyEdits(rawOperations: model.ValidAnnotatedEditOperation[], computeUndoEdits: boolean, reason: TextModelEditReason): void | model.IValidEditOperation[] {
 
 		const oldLineCount = this._buffer.getLineCount();
 		const result = this._buffer.applyEdits(rawOperations, this._options.trimAutoWhitespace, computeUndoEdits);
@@ -1555,7 +1567,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					versionId: this.getVersionId(),
 					isUndoing: this._isUndoing,
 					isRedoing: this._isRedoing,
-					isFlush: false
+					isFlush: false,
+					detailedReasons: [reason],
+					detailedReasonsChangeLengths: [contentChanges.length],
 				}
 			);
 		}
@@ -2026,10 +2040,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public override toString(): string {
 		return `TextModel(${this.uri.toString()})`;
-	}
-
-	editWithReason<T>(editReason: TextModelEditReason, cb: () => T): T {
-		return TextModelEditReason.editWithReason(editReason, cb);
 	}
 }
 

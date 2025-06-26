@@ -2329,9 +2329,9 @@ declare namespace monaco.editor {
 		 * @param operations The edit operations.
 		 * @return If desired, the inverse edit operations, that, when applied, will bring the model back to the previous state.
 		 */
-		applyEdits(operations: IIdentifiedSingleEditOperation[]): void;
-		applyEdits(operations: IIdentifiedSingleEditOperation[], computeUndoEdits: false): void;
-		applyEdits(operations: IIdentifiedSingleEditOperation[], computeUndoEdits: true): IValidEditOperation[];
+		applyEdits(operations: readonly IIdentifiedSingleEditOperation[]): void;
+		applyEdits(operations: readonly IIdentifiedSingleEditOperation[], computeUndoEdits: false): void;
+		applyEdits(operations: readonly IIdentifiedSingleEditOperation[], computeUndoEdits: true): IValidEditOperation[];
 		/**
 		 * Change the end of line sequence without recording in the undo stack.
 		 * This can have dire consequences on the undo stack! See @pushEOL for the preferred way.
@@ -2934,6 +2934,43 @@ declare namespace monaco.editor {
 	 * An event describing a change in the text of a model.
 	 */
 	export interface IModelContentChangedEvent {
+		/**
+		 * The changes are ordered from the end of the document to the beginning, so they should be safe to apply in sequence.
+		 */
+		readonly changes: IModelContentChange[];
+		/**
+		 * The (new) end-of-line character.
+		 */
+		readonly eol: string;
+		/**
+		 * The new version id the model has transitioned to.
+		 */
+		readonly versionId: number;
+		/**
+		 * Flag that indicates that this event was generated while undoing.
+		 */
+		readonly isUndoing: boolean;
+		/**
+		 * Flag that indicates that this event was generated while redoing.
+		 */
+		readonly isRedoing: boolean;
+		/**
+		 * Flag that indicates that all decorations were lost with this edit.
+		 * The model has been reset to a new value.
+		 */
+		readonly isFlush: boolean;
+		/**
+		 * Flag that indicates that this event describes an eol change.
+		 */
+		readonly isEolChange: boolean;
+		/**
+		 * The sum of these lengths equals changes.length.
+		 * The length of this array must equal the length of detailedReasons.
+		*/
+		readonly detailedReasonsChangeLengths: number[];
+	}
+
+	export interface ISerializedModelContentChangedEvent {
 		/**
 		 * The changes are ordered from the end of the document to the beginning, so they should be safe to apply in sequence.
 		 */

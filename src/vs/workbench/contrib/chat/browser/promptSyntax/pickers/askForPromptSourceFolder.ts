@@ -44,11 +44,6 @@ export async function askForPromptSourceFolder(
 		return;
 	}
 
-	// if there is only one folder and it's for new, no need to ask
-	if (!existingFolder && folders.length === 1) {
-		return folders[0];
-	}
-
 	const pickOptions: IPickOptions<IFolderQuickPickItem> = {
 		placeHolder: existingFolder ? getPlaceholderStringforMove(type, isMove) : getPlaceholderStringforNew(type),
 		canPickMany: false,

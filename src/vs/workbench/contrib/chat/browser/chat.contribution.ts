@@ -111,6 +111,7 @@ import { runSaveToPromptAction, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './prom
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './chatAttachmentResolveService.js';
 import { registerLanguageModelActions } from './actions/chatLanguageModelActions.js';
+import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -475,13 +476,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.signInDialogVariant', "Control variations of the sign-in dialog."),
 			default: 'default',
 			tags: ['onExp', 'experimental']
-		},
-		'chat.setup.continueLaterIndicator': { // TODO@bpasero remove me eventually
-			type: 'boolean',
-			description: nls.localize('chat.continueLaterIndicator', "Enable indicator in the status bar to finish chat setup."),
-			default: false,
-			tags: ['onExp', 'experimental'],
-		},
+		}
 	}
 });
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -717,6 +712,7 @@ registerWorkbenchContribution2(ChatEditingEditorContextKeys.ID, ChatEditingEdito
 registerWorkbenchContribution2(ChatTransferContribution.ID, ChatTransferContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatContextContributions.ID, ChatContextContributions, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatResponseResourceFileSystemProvider.ID, ChatResponseResourceFileSystemProvider, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(PromptUrlHandler.ID, PromptUrlHandler, WorkbenchPhase.BlockRestore);
 
 registerChatActions();
 registerChatCopyActions();

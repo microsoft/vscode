@@ -577,7 +577,11 @@ export interface IWorkbenchMcpServer {
 	readonly name: string;
 	readonly label: string;
 	readonly description: string;
-	readonly iconUrl?: string;
+	readonly icon?: {
+		readonly dark: string;
+		readonly light: string;
+	};
+	readonly codicon?: string;
 	readonly publisherUrl?: string;
 	readonly publisherDisplayName?: string;
 	readonly installCount?: number;

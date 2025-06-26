@@ -19,6 +19,8 @@ import { Location } from '../../../../editor/common/languages.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
+import { IAccountQuery, IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
+import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 
 export abstract class McpServerAction extends Action implements IMcpServerContainer {
 
@@ -185,6 +187,9 @@ export class ManageMcpServerAction extends DropDownAction {
 		groups.push([
 			this.instantiationService.createInstance(StopServerAction),
 			this.instantiationService.createInstance(RestartServerAction),
+		]);
+		groups.push([
+			this.instantiationService.createInstance(AuthServerAction),
 		]);
 		groups.push([
 			this.instantiationService.createInstance(ShowServerOutputAction),
@@ -367,6 +372,103 @@ export class RestartServerAction extends McpServerAction {
 		}
 		return this.mcpService.servers.get().find(s => s.definition.label === this.mcpServer?.name);
 	}
+}
+
+export class AuthServerAction extends McpServerAction {
+
+	static readonly CLASS = `${this.LABEL_ACTION_CLASS} prominent account`;
+	private static readonly HIDE = `${this.CLASS} hide`;
+
+	private static readonly SIGN_OUT = localize('mcp.signOut', 'Sign Out');
+	private static readonly DISCONNECT = localize('mcp.disconnect', 'Disconnect Account');
+
+	private _accountQuery: IAccountQuery | undefined;
+
+	constructor(
+		@IMcpService private readonly mcpService: IMcpService,
+		@IAuthenticationQueryService private readonly _authenticationQueryService: IAuthenticationQueryService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService
+	) {
+		super('extensions.restart', localize('restart', "Restart Server"), RestartServerAction.CLASS, false);
+		this.update();
+	}
+
+	update(): void {
+		this.enabled = false;
+		this.class = AuthServerAction.HIDE;
+		const server = this.getServer();
+		if (!server) {
+			return;
+		}
+		const accountQuery = this.getAccountQuery();
+		if (!accountQuery) {
+			return;
+		}
+		this._accountQuery = accountQuery;
+		this.class = AuthServerAction.CLASS;
+		this.enabled = true;
+		let label = accountQuery.entities().getEntityCount().total > 1 ? AuthServerAction.DISCONNECT : AuthServerAction.SIGN_OUT;
+		label += ` (${accountQuery.accountName})`;
+		this.label = label;
+	}
+
+	override async run(): Promise<void> {
+		const server = this.getServer();
+		if (!server) {
+			return;
+		}
+		const accountQuery = this.getAccountQuery();
+		if (!accountQuery) {
+			return;
+		}
+		await server.stop();
+		const { providerId, accountName } = accountQuery;
+		accountQuery.mcpServer(server.definition.id).setAccessAllowed(false, server.definition.label);
+		if (this.label === AuthServerAction.SIGN_OUT) {
+			const accounts = await this._authenticationService.getAccounts(providerId);
+			const account = accounts.find(a => a.label === accountName);
+			if (account) {
+				const sessions = await this._authenticationService.getSessions(providerId, undefined, { account });
+				for (const session of sessions) {
+					await this._authenticationService.removeSession(providerId, session.id);
+				}
+			}
+		}
+	}
+
+	private getServer(): IMcpServer | undefined {
+		if (!this.mcpServer) {
+			return;
+		}
+		if (!this.mcpServer.local) {
+			return;
+		}
+		return this.mcpService.servers.get().find(s => s.definition.label === this.mcpServer?.name);
+	}
+
+	private getAccountQuery(): IAccountQuery | undefined {
+		const server = this.getServer();
+		if (!server) {
+			return undefined;
+		}
+		if (this._accountQuery) {
+			return this._accountQuery;
+		}
+		const serverId = server.definition.id;
+		const preferences = this._authenticationQueryService.mcpServer(serverId).getAllAccountPreferences();
+		if (!preferences.size) {
+			return undefined;
+		}
+		for (const [providerId, accountName] of preferences) {
+			const accountQuery = this._authenticationQueryService.provider(providerId).account(accountName);
+			if (!accountQuery.mcpServer(serverId).isAccessAllowed()) {
+				continue; // skip accounts that are not allowed
+			}
+			return accountQuery;
+		}
+		return undefined;
+	}
+
 }
 
 export class ShowServerOutputAction extends McpServerAction {
