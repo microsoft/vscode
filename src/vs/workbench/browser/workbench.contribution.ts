@@ -530,8 +530,19 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('panelOpensMaximized', "Controls whether the panel opens maximized. It can either always open maximized, never open maximized, or open to the last state it was in before being closed."),
 				'enumDescriptions': [
 					localize('workbench.panel.opensMaximized.always', "Always maximize the panel when opening it."),
-					localize('workbench.panel.opensMaximized.never', "Never maximize the panel when opening it. The panel will open un-maximized."),
+					localize('workbench.panel.opensMaximized.never', "Never maximize the panel when opening it."),
 					localize('workbench.panel.opensMaximized.preserve', "Open the panel to the state that it was in, before it was closed.")
+				]
+			},
+			'workbench.secondarySideBar.opensMaximized': {
+				'type': 'string',
+				'enum': ['always', 'never', 'preserve'],
+				'default': 'preserve',
+				'description': localize('auxiliaryBarOpensMaximized', "Controls whether the secondary side bar opens maximized. It can either always open maximized, never open maximized, or open to the last state it was in before being closed."),
+				'enumDescriptions': [
+					localize('workbench.auxiliaryBar.opensMaximized.always', "Always maximize the secondary side bar when opening it."),
+					localize('workbench.auxiliaryBar.opensMaximized.never', "Never maximize the secondary side bar when opening it."),
+					localize('workbench.auxiliaryBar.opensMaximized.preserve', "Open the secondary side bar to the state that it was in, before it was closed.")
 				]
 			},
 			'workbench.secondarySideBar.defaultVisibility': {
