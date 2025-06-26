@@ -77,7 +77,7 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 			sanitizerOptions: {
 				replaceWithPlaintext: true,
 				allowedTags: allowedHtmlTags,
-				additionalAllowedSchemes: [product.urlProtocol]
+				allowedProductProtocols: [product.urlProtocol]
 			}
 		};
 
