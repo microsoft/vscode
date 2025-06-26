@@ -176,19 +176,16 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 			// Finish Setup
 			if (
-				(
-					this.chatEntitlementService.sentiment.later ||	// user skipped setup
-					entitlement === ChatEntitlement.Available ||	// user is entitled
-					isProUser(entitlement) ||						// user is already pro
-					entitlement === ChatEntitlement.Free			// user is already free
-				) &&
-				this.configurationService.getValue('chat.setup.continueLaterIndicator') === true
+				this.chatEntitlementService.sentiment.later ||	// user skipped setup
+				entitlement === ChatEntitlement.Available ||	// user is entitled
+				isProUser(entitlement) ||						// user is already pro
+				entitlement === ChatEntitlement.Free			// user is already free
 			) {
 				const finishSetup = localize('copilotLaterStatus', "Finish Setup");
 
 				text = `$(copilot) ${finishSetup}`;
 				ariaLabel = finishSetup;
-				kind = this.chatEntitlementService.sentiment.later ? 'prominent' : undefined;
+				kind = 'prominent';
 			}
 		} else {
 			const chatQuotaExceeded = this.chatEntitlementService.quotas.chat?.percentRemaining === 0;

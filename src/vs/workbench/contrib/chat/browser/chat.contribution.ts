@@ -475,13 +475,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.signInDialogVariant', "Control variations of the sign-in dialog."),
 			default: 'default',
 			tags: ['onExp', 'experimental']
-		},
-		'chat.setup.continueLaterIndicator': { // TODO@bpasero remove me eventually
-			type: 'boolean',
-			description: nls.localize('chat.continueLaterIndicator', "Enable indicator in the status bar to finish chat setup."),
-			default: false,
-			tags: ['onExp', 'experimental'],
-		},
+		}
 	}
 });
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
