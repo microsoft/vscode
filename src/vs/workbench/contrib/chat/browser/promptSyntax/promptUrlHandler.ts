@@ -20,12 +20,18 @@ import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileL
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { localize } from '../../../../../nls.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
 // example URL: code-oss:chat-prompt/install?url=https://gist.githubusercontent.com/aeschli/43fe78babd5635f062aef0195a476aad/raw/dfd71f60058a4dd25f584b55de3e20f5fd580e63/filterEvenNumbers.prompt.md
 
 export class PromptUrlHandler extends Disposable implements IWorkbenchContribution, IURLHandler {
 
 	static readonly ID = 'workbench.contrib.promptUrlHandler';
+
+	static readonly CONFIRM_INSTALL_STORAGE_KEY = 'chat.prompt.install.confirm';
 
 	constructor(
 		@IURLService urlService: IURLService,
@@ -34,7 +40,9 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 		this._register(urlService.registerHandler(this));
@@ -62,16 +70,21 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 				return false;
 			}
 
-			const url = query.substring(4);
-			if (!url.startsWith('http://') && !url.startsWith('https://')) {
-				this.logService.error(`PromptUrlHandler: Invalid URL: ${url}`);
+			const urlString = query.substring(4);
+			const url = URI.parse(urlString);
+			if (url.scheme !== Schemas.https && url.scheme !== Schemas.http) {
+				this.logService.error(`[PromptUrlHandler] Invalid URL: ${urlString}`);
 				return false;
 			}
 
-			const result = await this.requestService.request({ type: 'GET', url }, CancellationToken.None);
+			if (await this.shouldBlockInstall(promptType, url)) {
+				return false;
+			}
+
+			const result = await this.requestService.request({ type: 'GET', url: urlString }, CancellationToken.None);
 			if (result.res.statusCode !== 200) {
-				this.logService.error(`PromptUrlHandler: Failed to fetch URL: ${url}`);
-				this.notificationService.error(localize('failed', 'Failed to fetch URL: {0}', url));
+				this.logService.error(`[PromptUrlHandler] Failed to fetch URL: ${urlString}`);
+				this.notificationService.error(localize('failed', 'Failed to fetch URL: {0}', urlString));
 				return false;
 			}
 
@@ -82,7 +95,7 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 				return false;
 			}
 
-			const newName = await this.instantiationService.invokeFunction(askForPromptFileName, promptType, newFolder.uri, getCleanPromptName(URI.parse(url)));
+			const newName = await this.instantiationService.invokeFunction(askForPromptFileName, promptType, newFolder.uri, getCleanPromptName(url));
 			if (!newName) {
 				return false;
 			}
@@ -96,9 +109,58 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 			return true;
 
 		} catch (error) {
-			this.logService.error(`Error handling prompt URL ${uri}`, error);
+			this.logService.error(`Error handling prompt URL ${uri.toString()}`, error);
 			return false;
 		}
 	}
 
+	private async shouldBlockInstall(promptType: PromptsType, url: URI): Promise<boolean> {
+		const location = url.with({ path: url.path.substring(0, url.path.indexOf('/', 1) + 1), query: undefined, fragment: undefined }).toString();
+		const key = PromptUrlHandler.CONFIRM_INSTALL_STORAGE_KEY + '-' + location;
+
+		if (this.storageService.getBoolean(key, StorageScope.APPLICATION, false)) {
+			return false;
+		}
+
+		let uriLabel = url.toString();
+		if (uriLabel.length > 50) {
+			uriLabel = `${uriLabel.substring(0, 35)}...${uriLabel.substring(uriLabel.length - 15)}`;
+		}
+
+		const detail = new MarkdownString('', { supportHtml: true });
+		detail.appendMarkdown(localize('confirmOpenDetail2', "This will access {0}.\n\n", `[${uriLabel}](${url.toString()})`));
+		detail.appendMarkdown(localize('confirmOpenDetail1', "Do you want to continue by selecting a destination folder and name?\n\n"));
+		detail.appendMarkdown(localize('confirmOpenDetail3', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'Cancel'"));
+
+		let message: string;
+		switch (promptType) {
+			case PromptsType.prompt:
+				message = localize('confirmInstallPrompt', "An external application wants to create a prompt file with content from an URL.");
+				break;
+			case PromptsType.instructions:
+				message = localize('confirmInstallInstructions', "An external application wants to create an instructions file with content from an URL.");
+				break;
+			default:
+				message = localize('confirmInstallMode', "An external application wants to create a chat mode with content from an URL.");
+				break;
+		}
+
+		const { confirmed, checkboxChecked } = await this.dialogService.confirm({
+			type: 'warning',
+			primaryButton: localize({ key: 'confirmOpenButton', comment: ['&& denotes a mnemonic'] }, "&&Continue"),
+			message,
+			checkbox: { label: localize('confirmOpenDoNotAskAgain', "Do not show this message again for files from '{0}'", location) },
+			custom: {
+				markdownDetails: [{
+					markdown: detail
+				}]
+			}
+		});
+
+		if (checkboxChecked) {
+			this.storageService.store(key, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		}
+		return !confirmed;
+
+	}
 }
