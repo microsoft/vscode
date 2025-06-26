@@ -35,6 +35,12 @@ export class TogglePanelAction extends Action2 {
 		super({
 			id: TogglePanelAction.ID,
 			title: TogglePanelAction.LABEL,
+			toggled: {
+				condition: PanelVisibleContext,
+				title: localize('closePanel', 'Hide Panel'),
+				icon: closeIcon,
+				mnemonicTitle: localize({ key: 'miTogglePanelMnemonic', comment: ['&& denotes a mnemonic'] }, "&&Panel"),
+			},
 			icon: closeIcon,
 			f1: true,
 			category: Categories.View,
@@ -273,7 +279,7 @@ registerAction2(class extends Action2 {
 			icon: Codicon.screenFull,
 			// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
 			precondition: ContextKeyExpr.or(PanelAlignmentContext.isEqualTo('center'), ContextKeyExpr.and(PanelPositionContext.notEqualsTo('bottom'), PanelPositionContext.notEqualsTo('top'))),
-			toggled: { condition: PanelMaximizedContext, icon: Codicon.screenFull, tooltip: localize('minimizePanel', "Restore Panel Size") },
+			toggled: { condition: PanelMaximizedContext, icon: Codicon.screenNormal, tooltip: localize('minimizePanel', "Restore Panel Size") },
 			menu: [{
 				id: MenuId.PanelTitle,
 				group: 'navigation',

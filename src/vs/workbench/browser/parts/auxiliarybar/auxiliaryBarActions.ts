@@ -33,6 +33,12 @@ export class ToggleAuxiliaryBarAction extends Action2 {
 		super({
 			id: ToggleAuxiliaryBarAction.ID,
 			title: ToggleAuxiliaryBarAction.LABEL,
+			toggled: {
+				condition: AuxiliaryBarVisibleContext,
+				title: localize('closeSecondarySideBar', 'Hide Secondary Side Bar'),
+				icon: closeIcon,
+				mnemonicTitle: localize({ key: 'miCloseSecondarySideBar', comment: ['&& denotes a mnemonic'] }, "&&Secondary Side Bar"),
+			},
 			icon: closeIcon,
 			category: Categories.View,
 			metadata: {
@@ -235,7 +241,7 @@ class RestoreAuxiliaryBar extends Action2 {
 			f1: true,
 			precondition: AuxiliaryBarMaximizedContext,
 			toggled: AuxiliaryBarMaximizedContext,
-			icon: Codicon.screenFull,
+			icon: Codicon.screenNormal,
 			menu: {
 				id: MenuId.AuxiliaryBarTitle,
 				group: 'navigation',
