@@ -20,7 +20,6 @@ import { SwitchCompositeViewAction } from '../compositeBarActions.js';
 import { closeIcon } from '../panel/panelActions.js';
 
 const maximizeIcon = registerIcon('auxiliarybar-maximize', Codicon.screenFull, localize('maximizeIcon', 'Icon to maximize the secondary side bar.'));
-const restoreIcon = registerIcon('auxiliarybar-restore', Codicon.screenNormal, localize('restoreIcon', 'Icon to restore the secondary side bar.'));
 
 const auxiliaryBarRightIcon = registerIcon('auxiliarybar-right-layout-icon', Codicon.layoutSidebarRight, localize('toggleAuxiliaryIconRight', 'Icon to toggle the secondary side bar off in its right position.'));
 const auxiliaryBarRightOffIcon = registerIcon('auxiliarybar-right-off-layout-icon', Codicon.layoutSidebarRightOff, localize('toggleAuxiliaryIconRightOn', 'Icon to toggle the secondary side bar on in its right position.'));
@@ -62,11 +61,6 @@ export class ToggleAuxiliaryBarAction extends Action2 {
 					id: MenuId.MenubarAppearanceMenu,
 					group: '2_workbench_layout',
 					order: 2
-				}, {
-					id: MenuId.AuxiliaryBarTitle,
-					group: 'navigation',
-					order: 2,
-					when: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.DEFAULT)
 				}
 			]
 		});
@@ -79,6 +73,17 @@ export class ToggleAuxiliaryBarAction extends Action2 {
 }
 
 registerAction2(ToggleAuxiliaryBarAction);
+
+MenuRegistry.appendMenuItem(MenuId.AuxiliaryBarTitle, {
+	command: {
+		id: ToggleAuxiliaryBarAction.ID,
+		title: localize('closeSecondarySideBar', 'Hide Secondary Side Bar'),
+		icon: closeIcon
+	},
+	group: 'navigation',
+	order: 2,
+	when: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.DEFAULT)
+});
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -244,7 +249,7 @@ class RestoreAuxiliaryBar extends Action2 {
 			f1: true,
 			precondition: AuxiliaryBarMaximizedContext,
 			toggled: AuxiliaryBarMaximizedContext,
-			icon: restoreIcon,
+			icon: maximizeIcon,
 			menu: {
 				id: MenuId.AuxiliaryBarTitle,
 				group: 'navigation',
