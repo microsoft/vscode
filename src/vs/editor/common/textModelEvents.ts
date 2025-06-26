@@ -7,6 +7,7 @@ import { IPosition } from './core/position.js';
 import { IRange, Range } from './core/range.js';
 import { Selection } from './core/selection.js';
 import { IModelDecoration, InjectedTextOptions } from './model.js';
+import { ITextModelEditReasonMetadata, TextModelEditReason } from './textModelEditReason.js';
 
 /**
  * An event describing that the current language associated with a model has changed.
@@ -86,6 +87,57 @@ export interface IModelContentChangedEvent {
 	 * Flag that indicates that this event describes an eol change.
 	 */
 	readonly isEolChange: boolean;
+
+	/**
+	 * Detailed reason information for the change
+	 * @internal
+	 */
+	readonly detailedReasons: TextModelEditReason[];
+
+	/**
+	 * The sum of these lengths equals changes.length.
+	 * The length of this array must equal the length of detailedReasons.
+	*/
+	readonly detailedReasonsChangeLengths: number[];
+}
+
+export interface ISerializedModelContentChangedEvent {
+	/**
+	 * The changes are ordered from the end of the document to the beginning, so they should be safe to apply in sequence.
+	 */
+	readonly changes: IModelContentChange[];
+	/**
+	 * The (new) end-of-line character.
+	 */
+	readonly eol: string;
+	/**
+	 * The new version id the model has transitioned to.
+	 */
+	readonly versionId: number;
+	/**
+	 * Flag that indicates that this event was generated while undoing.
+	 */
+	readonly isUndoing: boolean;
+	/**
+	 * Flag that indicates that this event was generated while redoing.
+	 */
+	readonly isRedoing: boolean;
+	/**
+	 * Flag that indicates that all decorations were lost with this edit.
+	 * The model has been reset to a new value.
+	 */
+	readonly isFlush: boolean;
+
+	/**
+	 * Flag that indicates that this event describes an eol change.
+	 */
+	readonly isEolChange: boolean;
+
+	/**
+	 * Detailed reason information for the change
+	 * @internal
+	 */
+	readonly detailedReason: ITextModelEditReasonMetadata | undefined;
 }
 
 /**
@@ -455,6 +507,8 @@ export class InternalModelContentChangeEvent {
 			isUndoing: isUndoing,
 			isRedoing: isRedoing,
 			isFlush: isFlush,
+			detailedReasons: a.detailedReasons.concat(b.detailedReasons),
+			detailedReasonsChangeLengths: a.detailedReasonsChangeLengths.concat(b.detailedReasonsChangeLengths),
 		};
 	}
 }
