@@ -143,7 +143,7 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		y: windowState.y,
 		width: windowState.width,
 		height: windowState.height,
-		accentColor: typeof windowSettings?.accentColor === 'string' ? windowSettings.accentColor === 'default' ? true : windowSettings.accentColor : undefined,
+		accentColor: typeof windowSettings?.accentColor === 'string' ? windowSettings.accentColor === 'off' ? false : windowSettings.accentColor : undefined,
 		webPreferences: {
 			...webPreferences,
 			enableWebSQL: false,
