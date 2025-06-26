@@ -22,8 +22,6 @@ import { ICommandActionTitle } from '../../../../platform/action/common/action.j
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { SwitchCompositeViewAction } from '../compositeBarActions.js';
 
-const maximizeIcon = registerIcon('panel-maximize', Codicon.chevronUp, localize('maximizeIcon', 'Icon to maximize a panel.'));
-const restoreIcon = registerIcon('panel-restore', Codicon.chevronDown, localize('restoreIcon', 'Icon to restore a panel.'));
 export const closeIcon = registerIcon('panel-close', Codicon.close, localize('closeIcon', 'Icon to close a panel.'));
 const panelIcon = registerIcon('panel-layout-icon', Codicon.layoutPanel, localize('togglePanelOffIcon', 'Icon to toggle the panel off when it is on.'));
 const panelOffIcon = registerIcon('panel-layout-icon-off', Codicon.layoutPanelOff, localize('togglePanelOnIcon', 'Icon to toggle the panel on when it is off.'));
@@ -37,13 +35,7 @@ export class TogglePanelAction extends Action2 {
 		super({
 			id: TogglePanelAction.ID,
 			title: TogglePanelAction.LABEL,
-			toggled: {
-				condition: PanelVisibleContext,
-				title: localize('closePanel', 'Hide Panel'),
-				icon: closeIcon,
-				mnemonicTitle: localize({ key: 'toggle panel mnemonic', comment: ['&& denotes a mnemonic'] }, "&&Panel"),
-			},
-			icon: closeIcon, // Ensures no flickering when using toggled.icon
+			icon: closeIcon,
 			f1: true,
 			category: Categories.View,
 			metadata: {
@@ -278,10 +270,10 @@ registerAction2(class extends Action2 {
 			tooltip: localize('maximizePanel', "Maximize Panel Size"),
 			category: Categories.View,
 			f1: true,
-			icon: maximizeIcon, // This is being rotated in CSS depending on the panel position
+			icon: Codicon.screenFull,
 			// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
 			precondition: ContextKeyExpr.or(PanelAlignmentContext.isEqualTo('center'), ContextKeyExpr.and(PanelPositionContext.notEqualsTo('bottom'), PanelPositionContext.notEqualsTo('top'))),
-			toggled: { condition: PanelMaximizedContext, icon: restoreIcon, tooltip: localize('minimizePanel', "Restore Panel Size") },
+			toggled: { condition: PanelMaximizedContext, icon: Codicon.screenFull, tooltip: localize('minimizePanel', "Restore Panel Size") },
 			menu: [{
 				id: MenuId.PanelTitle,
 				group: 'navigation',
