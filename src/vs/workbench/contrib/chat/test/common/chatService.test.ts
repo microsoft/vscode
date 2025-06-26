@@ -316,6 +316,22 @@ suite('ChatService', () => {
 
 		await assertSnapshot(toSnapshotExportData(chatModel2));
 	});
+
+	test('isSessionEmpty', async () => {
+		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+
+		// Test with a new empty session
+		const emptySession = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
+		assert.strictEqual(testService.isSessionEmpty(emptySession.sessionId), true, 'New session should be empty');
+
+		// Test with a session that has a request
+		const sessionWithRequest = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
+		sessionWithRequest.addRequest({ parts: [], text: 'test request' }, { variables: [] }, 0);
+		assert.strictEqual(testService.isSessionEmpty(sessionWithRequest.sessionId), false, 'Session with request should not be empty');
+
+		// Test with unknown session ID
+		assert.strictEqual(testService.isSessionEmpty('unknown-session-id'), true, 'Unknown session should be considered empty');
+	});
 });
 
 

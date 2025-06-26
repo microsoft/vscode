@@ -557,6 +557,16 @@ export class ChatService extends Disposable implements IChatService {
 		return this._chatSessionStore.isSessionEmpty(sessionId);
 	}
 
+	isSessionEmpty(sessionId: string): boolean {
+		const session = this._sessionModels.get(sessionId);
+		if (session) {
+			return session.getRequests().length === 0;
+		}
+
+		// If session is not in memory, check persisted sessions
+		return this.isPersistedSessionEmpty(sessionId);
+	}
+
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined {
 		return this._startSession(data, data.initialLocation ?? ChatAgentLocation.Panel, true, CancellationToken.None);
 	}
