@@ -910,7 +910,6 @@ export interface IChatModel {
 	readonly requestInProgress: boolean;
 	readonly requestInProgressObs: IObservable<boolean>;
 	readonly requestPausibility: ChatPauseState;
-	// readonly addRequest
 	readonly inputPlaceholder?: string;
 	readonly editingSessionObs?: ObservablePromise<IChatEditingSession> | undefined;
 	readonly editingSession?: IChatEditingSession | undefined;
@@ -924,6 +923,10 @@ export interface IChatModel {
 	getRequests(): IChatRequestModel[];
 	setCheckpoint(requestId: string | undefined): void;
 	readonly checkpoint: IChatRequestModel | undefined;
+	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], isCompleteAddedRequest?: boolean, modelId?: string): IChatRequestModel;
+	acceptResponseProgress(request: IChatRequestModel, progress: IChatProgress, quiet?: boolean): void;
+	setResponse(request: IChatRequestModel, result: IChatAgentResult): void;
+	completeResponse(request: IChatRequestModel): void;
 	toExport(): IExportableChatData;
 	toJSON(): ISerializableChatData;
 }
