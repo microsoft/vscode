@@ -174,6 +174,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 */
 	readonly onDidChangeNotificationsVisibility: Event<boolean>;
 
+	/*
+	 * Emit when auxiliary bar maximized state changes.
+	 */
+	readonly onDidChangeAuxiliaryBarMaximized: Event<void>;
+
 	/**
 	 * True if a default layout with default editors was applied at startup
 	 */
@@ -232,6 +237,29 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	toggleMaximizedPanel(): void;
 
 	/**
+	 * Returns true if the panel is maximized.
+	 */
+	isPanelMaximized(): boolean;
+
+	/**
+	 * Maximizes the auxiliary sidebar by hiding the editor and panel areas.
+	 * Restores the previous layout if the auxiliary sidebar is already maximized.
+	 */
+	toggleMaximizedAuxiliaryBar(): void;
+
+	/**
+	 * Maximizes or restores the auxiliary sidebar.
+	 *
+	 * @returns `true` if there was a change in the maximization state.
+	 */
+	setAuxiliaryBarMaximized(maximized: boolean): boolean;
+
+	/**
+	 * Returns true if the auxiliary sidebar is maximized.
+	 */
+	isAuxiliaryBarMaximized(): boolean;
+
+	/**
 	 * Returns true if the main window has a border.
 	 */
 	hasMainWindowBorder(): boolean;
@@ -240,11 +268,6 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Returns the main window border radius if any.
 	 */
 	getMainWindowBorderRadius(): string | undefined;
-
-	/**
-	 * Returns true if the panel is maximized.
-	 */
-	isPanelMaximized(): boolean;
 
 	/**
 	 * Gets the current side bar position. Note that the sidebar can be hidden too.
