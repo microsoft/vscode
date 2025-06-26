@@ -29,6 +29,7 @@ suite('Terminal Suggest Addon - Inline Completion, Shell Type Support', () => {
 		strictEqual(isInlineCompletionSupported(PosixShellType.Ksh), false);
 		strictEqual(isInlineCompletionSupported(WindowsShellType.CommandPrompt), false);
 		strictEqual(isInlineCompletionSupported(WindowsShellType.Wsl), false);
+		strictEqual(isInlineCompletionSupported(GeneralShellType.Python), false);
 		strictEqual(isInlineCompletionSupported(undefined), false);
 	});
 });
