@@ -13,7 +13,7 @@ on:
 jobs:
   compile:
     name: Compile & Hygiene
-    runs-on: macOS-14
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@v4
@@ -39,9 +39,9 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit == 'true'
         run: tar -xzf .build/node_modules_cache/cache.tgz
 
-      # - name: Install build tools
-      #   if: steps.cache-node-modules.outputs.cache-hit != 'true'
-      #   run: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
+      - name: Install build tools
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -76,10 +76,42 @@ jobs:
       - name: Check /build/ folder
         run: .github/workflows/check-clean-git-state.sh
 
-      - name: Compile & Hygiene
+      # - name: Compile & Hygiene
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #   run: npm exec -- npm-run-all -lp core-ci-pr extensions-ci-pr hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check
+
+      - name: npm run extensions-ci-pr
+        run: npm run extensions-ci-pr
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_OPTIONS: "--max-old-space-size=8192"
-        # run: npm exec -- npm-run-all -lp core-ci-pr extensions-ci-pr hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check
-        run: npm exec -- npm-run-all -lp core-ci-pr valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check
 
+      - name: npm run hygiene
+        run: npm run hygiene
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: npm run eslint
+        run: npm run eslint
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: npm run valid-layers-check
+        run: npm run valid-layers-check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: npm run define-class-fields-check
+        run: npm run define-class-fields-check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: npm run vscode-dts-compile-check
+        run: npm run vscode-dts-compile-check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: npm run tsec-compile-check
+        run: npm run tsec-compile-check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
