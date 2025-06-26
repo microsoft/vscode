@@ -34,7 +34,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	telemetry?: { feedback?: { enabled?: boolean } };
 	_extensionsGallery?: { enablePPE?: boolean };
 	accessibility?: { verbosity?: { debug?: boolean } };
-	chat?: { useFileStorage?: boolean };
+	chat?: { useFileStorage?: boolean; editRequests: string };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
@@ -54,6 +54,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'security.restrictUNCAccess',
 		'accessibility.verbosity.debug',
 		ChatConfiguration.UseFileStorage,
+		ChatConfiguration.EditRequests,
 		'telemetry.feedback.enabled'
 	];
 
@@ -71,6 +72,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly restrictUNCAccess = new ChangeObserver('boolean');
 	private readonly accessibilityVerbosityDebug = new ChangeObserver('boolean');
 	private readonly useFileStorage = new ChangeObserver('boolean');
+	private readonly editRequests = new ChangeObserver('string');
 	private readonly telemetryFeedbackEnabled = new ChangeObserver('boolean');
 
 	constructor(
@@ -155,6 +157,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			processChanged(this.accessibilityVerbosityDebug.handleChange(config?.accessibility?.verbosity?.debug));
 
 			processChanged(this.useFileStorage.handleChange(config.chat?.useFileStorage));
+
+			processChanged(this.editRequests.handleChange(config.chat?.editRequests));
 		}
 
 		// Experiments

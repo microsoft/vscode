@@ -32,8 +32,7 @@ import { IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { ChatAgentLocation, ChatConfiguration, ChatMode } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
-import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { IChatListItemTemplate } from '../chatListRenderer.js';
+import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
 
 export abstract class EditingSessionAction extends Action2 {
 
@@ -327,34 +326,33 @@ registerAction2(class RemoveAction extends Action2 {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 2,
-					when: ChatContextKeys.isRequest
+					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.currentlyEditing.negate(), ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input').negate())
 				}
 			]
 		});
 	}
 
 	async run(accessor: ServicesAccessor, ...args: any[]) {
-		const item: IChatListItemTemplate | undefined = args[0];
+		let item: ChatTreeItem | undefined = args[0];
 		if (!item) {
 			return;
 		}
 
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const widget = chatWidgetService.lastFocusedWidget;
-		if (!isResponseVM(item?.currentElement) && !isRequestVM(item?.currentElement)) {
-			item.currentElement = widget?.getFocus();
+		if (!isResponseVM(item) && !isRequestVM(item)) {
+			item = widget?.getFocus();
 		}
 
-		const currentElement = item.currentElement;
 
-		if (!currentElement) {
+		if (!item) {
 			return;
 		}
 
 		const configurationService = accessor.get(IConfigurationService);
 		const dialogService = accessor.get(IDialogService);
 		const chatService = accessor.get(IChatService);
-		const chatModel = chatService.getSession(currentElement.sessionId);
+		const chatModel = chatService.getSession(item.sessionId);
 		if (!chatModel) {
 			return;
 		}
@@ -364,8 +362,8 @@ registerAction2(class RemoveAction extends Action2 {
 			return;
 		}
 
-		const requestId = isRequestVM(currentElement) ? currentElement.id :
-			isResponseVM(currentElement) ? currentElement.requestId : undefined;
+		const requestId = isRequestVM(item) ? item.id :
+			isResponseVM(item) ? item.requestId : undefined;
 
 		if (requestId) {
 			const chatRequests = chatModel.getRequests();
@@ -417,9 +415,9 @@ registerAction2(class RemoveAction extends Action2 {
 			await session.restoreSnapshot(snapshotRequestId, undefined);
 		}
 
-		if (isRequestVM(currentElement) && configurationService.getValue('chat.undoRequests.restoreInput')) {
+		if (isRequestVM(item) && configurationService.getValue('chat.undoRequests.restoreInput')) {
 			widget?.focusInput();
-			widget?.input.setValue(currentElement.messageText, false);
+			widget?.input.setValue(item.messageText, false);
 		}
 	}
 });
@@ -437,25 +435,25 @@ registerAction2(class EditAction extends Action2 {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'hover'))
+					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.currentlyEditing.negate(), ContextKeyExpr.or(ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'hover'), ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input')))
 				}
 			]
 		});
 	}
 
 	async run(accessor: ServicesAccessor, ...args: any[]) {
-		const item: IChatListItemTemplate | undefined = args[0];
+		let item: ChatTreeItem | undefined = args[0];
 		if (!item) {
 			return;
 		}
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const widget = chatWidgetService.lastFocusedWidget;
-		if (!isResponseVM(item?.currentElement) && !isRequestVM(item?.currentElement)) {
-			item.currentElement = widget?.getFocus();
+		if (!isResponseVM(item) && !isRequestVM(item)) {
+			item = widget?.getFocus();
 		}
 
-		if (isRequestVM(item.currentElement)) {
-			widget?.clickedRequest(item);
+		if (isRequestVM(item)) {
+			widget?.startEditing(item.id);
 		}
 	}
 });

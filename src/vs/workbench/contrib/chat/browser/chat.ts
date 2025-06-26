@@ -21,7 +21,6 @@ import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '.
 import { ChatAgentLocation, ChatMode } from '../common/constants.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatInputPart } from './chatInputPart.js';
-import { IChatListItemTemplate } from './chatListRenderer.js';
 import { ChatViewPane } from './chatViewPane.js';
 import { IChatViewState, IChatWidgetContrib } from './chatWidget.js';
 import { ICodeBlockActionContext } from './codeBlockPart.js';
@@ -201,7 +200,8 @@ export interface IChatWidget {
 	refreshParsedInput(): void;
 	logInputHistory(): void;
 	acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined>;
-	clickedRequest(item: IChatListItemTemplate): void;
+	startEditing(requestId: string): void;
+	handleDispose(): void;
 	rerunLastRequest(): Promise<void>;
 	setInputPlaceholder(placeholder: string): void;
 	resetInputPlaceholder(): void;

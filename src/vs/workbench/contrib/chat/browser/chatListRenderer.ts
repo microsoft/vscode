@@ -139,6 +139,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly fileTreesByResponseId = new Map<string, IChatFileTreeInfo[]>();
 	private readonly focusedFileTreesByResponseId = new Map<string, number>();
 
+	private readonly templateDataByRequestId = new Map<string, IChatListItemTemplate>();
+
 	private readonly renderer: MarkdownRenderer;
 	private readonly markdownDecorationsRenderer: ChatMarkdownDecorationsRenderer;
 
@@ -281,6 +283,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return undefined;
 	}
 
+	getTemplateDataForRequestId(requestId: string): IChatListItemTemplate | undefined {
+		const templateData = this.templateDataByRequestId.get(requestId);
+		if (templateData && templateData.currentElement?.id === requestId) {
+			return templateData;
+		}
+		if (templateData) {
+			this.templateDataByRequestId.delete(requestId);
+		}
+		return undefined;
+	}
+
 	setVisible(visible: boolean): void {
 		this._isVisible = visible;
 		this._onDidChangeVisibility.fire(visible);
@@ -416,9 +429,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (templateData.currentElement && templateData.currentElement.id !== element.id) {
 			this.traceLayout('renderChatTreeItem', `Rendering a different element into the template, index=${index}`);
 			this.clearRenderedParts(templateData);
+			this.templateDataByRequestId.delete(templateData.currentElement.id);
 		}
 
 		templateData.currentElement = element;
+		this.templateDataByRequestId.set(element.id, templateData);
 		const kind = isRequestVM(element) ? 'request' :
 			isResponseVM(element) ? 'response' :
 				'welcome';
@@ -436,9 +451,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		if (templateData.titleToolbar) {
-			templateData.titleToolbar.context = templateData;
+			templateData.titleToolbar.context = element;
 		}
 		templateData.footerToolbar.context = element;
+
+		templateData.requestHover.classList.toggle('hidden', !!this.viewModel?.editing && element.id !== this.viewModel?.editing?.id);
 
 		ChatContextKeys.responseHasError.bindTo(templateData.contextKeyService).set(isResponseVM(element) && !!element.errorDetails);
 		const isFiltered = !!(isResponseVM(element) && element.errorDetails?.responseIsFiltered);
@@ -464,8 +481,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.renderDetail(element, templateData);
 		}
 
-		templateData.disabledOverlay.classList.toggle('disabled', element.shouldBeBlocked);
-		templateData.rowContainer.classList.toggle('editing', element.id === this.viewModel?.editing?.id);
+		const editing = element.id === this.viewModel?.editing?.id;
+		const isInput = this.configService.getValue<string>('chat.editRequests') === 'input';
+
+		templateData.disabledOverlay.classList.toggle('disabled', element.shouldBeBlocked && !editing);
+		templateData.rowContainer.classList.toggle('editing', editing && !isInput);
+		templateData.rowContainer.classList.toggle('editing-input', editing && isInput);
+		templateData.requestHover.classList.toggle('editing', editing && isInput);
 		templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.CLICK, () => {
 			if (this.viewModel?.editing && element.id !== this.viewModel.editing.id) {
 				this._onDidFocusOutside.fire();
@@ -1226,6 +1248,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, details?: IListElementRenderDetails): void {
 		this.traceLayout('disposeElement', `Disposing element, index=${index}`);
 		templateData.elementDisposables.clear();
+
+		if (templateData.currentElement) {
+			this.templateDataByRequestId.delete(templateData.currentElement.id);
+		}
 
 		if (isRequestVM(node.element) && node.element.id === this.viewModel?.editing?.id && details?.onScroll) {
 			this._onDidDispose.fire(templateData);

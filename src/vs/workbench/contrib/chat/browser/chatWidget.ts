@@ -472,7 +472,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	get input(): ChatInputPart {
-		return this.viewModel?.editing ? this.inlineInputPart : this.inputPart;
+		return this.viewModel?.editing && this.configurationService.getValue<string>('chat.editRequests') !== 'input' ? this.inlineInputPart : this.inputPart;
 	}
 
 	get inputEditor(): ICodeEditor {
@@ -832,7 +832,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 
 		this._register(this.renderer.onDidRerender(item => {
-			if (isRequestVM(item.currentElement)) {
+			if (isRequestVM(item.currentElement) && this.configurationService.getValue<string>('chat.editRequests') !== 'input') {
 				if (!item.rowContainer.contains(this.inputContainer)) {
 					item.rowContainer.appendChild(this.inputContainer);
 				}
@@ -846,10 +846,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 
 		this._register(this.renderer.onDidFocusOutside(() => {
-			if (this.viewModel?.editing) {
-				this.viewModel?.model.setCheckpoint(undefined);
-				this.input.dispose();
-			}
+			this.handleDispose();
+			this.viewModel?.model.setCheckpoint(undefined);
 		}));
 
 		this._register(this.renderer.onDidClickFollowup(item => {
@@ -926,7 +924,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 	}
 
-	clickedRequest(item: IChatListItemTemplate) {
+	startEditing(requestId: string): void {
+		const templateData = this.renderer.getTemplateDataForRequestId(requestId);
+		if (templateData) {
+			this.clickedRequest(templateData);
+		}
+	}
+
+	private clickedRequest(item: IChatListItemTemplate) {
 		this.templateData = item;
 		const currentElement = this.templateData.currentElement;
 		if (isRequestVM(currentElement) && !this.viewModel?.editing) {
@@ -937,7 +942,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			this.viewModel?.model.setCheckpoint(currentElement.id);
-			this.onDidChangeItems();
 
 			// set contexts and request to false
 			const currentContext: IChatRequestVariableEntry[] = [];
@@ -951,79 +955,86 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}
 
-			item.disabledOverlay.classList.remove('disabled');
-			item.rowContainer.classList.add('editing');
-			const rowContainer = item.rowContainer;
-			this.inputContainer = dom.$('.chat-edit-input-container');
-			rowContainer.appendChild(this.inputContainer);
-
 			// set states
 			this.viewModel?.setEditing(currentElement);
 			if (this.templateData?.contextKeyService) {
 				ChatContextKeys.currentlyEditing.bindTo(this.templateData.contextKeyService).set(true);
 			}
-			this.createInput(this.inputContainer);
-			this.input.setChatMode(this.inputPart.currentMode);
-			this.inputPart.toggleChatInputOverlay(true);
+
+			const isInput = this.configurationService.getValue<string>('chat.editRequests') === 'input';
+
+			if (!isInput) {
+				const rowContainer = item.rowContainer;
+				this.inputContainer = dom.$('.chat-edit-input-container');
+				rowContainer.appendChild(this.inputContainer);
+				this.createInput(this.inputContainer);
+				this.input.setChatMode(this.inputPart.currentMode);
+			} else {
+				this.inputPart.element.classList.add('editing');
+			}
+
+			this.inputPart.toggleChatInputOverlay(!isInput);
 			if (currentContext.length > 0) {
 				this.input.attachmentModel.addContext(...currentContext);
 			}
 
 			// rerenders
-			this.inputPart.dnd.setDisabledOverlay(true);
+			this.inputPart.dnd.setDisabledOverlay(!isInput);
 			this.input.renderAttachedContext();
 			this.input.setValue(currentElement.messageText, false);
 			this.renderer.updateItemHeightOnRender(currentElement, item);
+			this.onDidChangeItems();
 			this.input.inputEditor.focus();
 
 			// listeners
-			this._register(dom.addDisposableListener(this.inputPart.element, dom.EventType.CLICK, () => {
-				if (this.viewModel?.editing) {
-					this.handleDispose(this.inputPart);
-				}
-			}));
+			if (!isInput) {
+				this._register(dom.addDisposableListener(this.inputPart.element, dom.EventType.CLICK, () => {
+					if (this.viewModel?.editing) {
+						this.handleDispose();
+					}
+				}));
 
-			this._register(this.inlineInputPart.onDidDispose(() => {
-				this.handleDispose(this.inputPart);
+				this._register(this.inlineInputPart.inputEditor.onDidChangeModelContent(() => {
+					this.scrollToCurrentItem(currentElement);
+				}));
 
-			}));
-
-			this._register(this.inlineInputPart.inputEditor.onDidChangeModelContent(() => {
-				this.scrollToCurrentItem(currentElement);
-			}));
-
-			this._register(this.inlineInputPart.inputEditor.onDidChangeCursorSelection((e) => {
-				this.scrollToCurrentItem(currentElement);
-			}));
+				this._register(this.inlineInputPart.inputEditor.onDidChangeCursorSelection((e) => {
+					this.scrollToCurrentItem(currentElement);
+				}));
+			}
 		}
 	}
 
-	private handleDispose(inputPart: ChatInputPart): void {
-
+	handleDispose(): void {
 		// reset states
 		this.viewModel?.model.setCheckpoint(undefined);
 		this.inputPart.dnd.setDisabledOverlay(false);
-		inputPart.toggleChatInputOverlay(false);
 		if (this.templateData?.contextKeyService) {
 			ChatContextKeys.currentlyEditing.bindTo(this.templateData.contextKeyService).set(false);
+			ChatContextKeys.currentlyEditingInput.bindTo(this.contextKeyService).set(false);
 		}
 
-		// try to remove input container from the row
-		try {
-			this.templateData?.rowContainer.removeChild(this.inputContainer);
-		} catch (e) {
-			if (this.inputContainer.parentElement) {
-				this.inputContainer.parentElement.removeChild(this.inputContainer);
+		const isInput = this.configurationService.getValue<string>('chat.editRequests') === 'input';
+
+		if (!isInput) {
+			this.inputPart?.toggleChatInputOverlay(false);
+			try {
+				this.templateData?.rowContainer.removeChild(this.inputContainer);
+			} catch (e) {
+				if (this.inputContainer.parentElement) {
+					this.inputContainer.parentElement.removeChild(this.inputContainer);
+				}
+				this.inputContainer = null!;
 			}
-			this.inputContainer = null!;
 		}
-
-		this.templateData?.rowContainer.classList.remove('editing');
+		if (isInput) {
+			this.inputPart.element.classList.remove('editing');
+		}
+		this.viewModel?.setEditing(undefined);
 		this.onDidChangeItems();
 		if (this.templateData && this.templateData.currentElement) {
 			this.renderer.updateItemHeightOnRender(this.templateData.currentElement, this.templateData);
 		}
-		this.viewModel?.setEditing(undefined);
 
 		this.inputPart.focus();
 	}
@@ -1554,8 +1565,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						}
 					}
 				});
-				if (this.viewModel?.editing) {
-					this.input.dispose();
+
+				if (this.viewModel?.editing && this.configurationService.getValue<string>('chat.editRequests') !== 'input') {
+					this.handleDispose();
 				}
 				return result.responseCreatedPromise;
 			}

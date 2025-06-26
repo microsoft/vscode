@@ -940,6 +940,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: var(--vscode-input-background) !important;
 }
 
+.interactive-session .interactive-input-part.editing .chat-input-container .chat-editor-container .monaco-editor,
+.interactive-session .interactive-input-part.editing .chat-input-container .chat-editor-container .monaco-editor .monaco-editor-background {
+	background-color: transparent !important;
+}
+
+.interactive-session  .interactive-input-part.editing .chat-input-container {
+	background-color: var(--vscode-chat-requestBubbleBackground);
+}
+
+
 .interactive-session .chat-editor-container .monaco-editor .cursors-layer {
 	padding-left: 4px;
 }
@@ -1905,7 +1915,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.interactive-request .header.header-disabled,
-	.request-hover.has-no-actions {
+	.request-hover.has-no-actions,
+	.request-hover.hidden {
 		display: none !important;
 	}
 	.request-hover {
@@ -1925,6 +1936,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		width: 50px;
 	}
 
+	.request-hover.editing {
+		opacity: 1 !important;
+	}
+
 	.request-hover:not(.expanded) .actions-container {
 		width: 22px;
 		height: 22px;
@@ -1934,9 +1949,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		padding: 0 3px;
 	}
 
-	.request-hover:not(.expanded) .actions-container .action-label.codicon-discard {
-		margin-top: 4px;
-		padding: 3px 3px;
+	.request-hover:not(.expanded) .actions-container{
+		.action-label.codicon-discard,
+		.action-label.codicon-x,
+		.action-label.codicon-edit {
+			margin-top: 4px;
+			padding: 3px 3px;
+		}
 	}
 
 	.request-hover:focus-within {
@@ -1976,6 +1995,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.interactive-request.editing .rendered-markdown,
 	.interactive-request.editing .value {
 		display: none;
+	}
+
+	.interactive-request.editing-input .rendered-markdown {
+		outline: 1px solid var(--vscode-focusBorder);
 	}
 
 	.interactive-request.editing {

@@ -248,7 +248,7 @@ configurationRegistry.registerConfiguration({
 		'chat.editRequests': {
 			markdownDescription: nls.localize('chat.editRequests', "Enables editing of requests in the chat. This allows you to change the request content and resubmit it to the model."),
 			type: 'string',
-			enum: ['inline', 'hover', 'none'],
+			enum: ['inline', 'hover', 'input', 'none'],
 			default: 'inline',
 			tags: ['experimental'],
 		},
