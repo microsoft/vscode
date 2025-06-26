@@ -1,0 +1,43 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .part.fab-part {
+	position: absolute;
+	bottom: 20px; /* Adjust as needed, especially considering bottom navigation bar */
+	right: 20px;
+	z-index: 200; /* Above most content, but below critical overlays like notifications */
+	display: none; /* Initially hidden, controlled by FabPart logic */
+}
+
+.monaco-workbench .fab-button {
+	width: 56px;
+	height: 56px;
+	border-radius: 50%;
+	background-color: var(--vscode-fab-background);
+	color: var(--vscode-fab-foreground);
+	border: none;
+	box-shadow: 0 2px 5px rgba(0,0,0,0.2), 0 4px 6px rgba(0,0,0,0.2); /* Material-like shadow */
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	outline: none;
+	transition: background-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.monaco-workbench .fab-button:hover {
+	background-color: var(--vscode-fab-hoverBackground);
+	box-shadow: 0 4px 8px rgba(0,0,0,0.25), 0 8px 12px rgba(0,0,0,0.22);
+}
+
+.monaco-workbench .fab-button:active {
+	background-color: var(--vscode-fab-hoverBackground); /* Or a dedicated active color */
+	box-shadow: 0 1px 3px rgba(0,0,0,0.2), 0 2px 4px rgba(0,0,0,0.18);
+}
+
+.monaco-workbench .fab-button .codicon {
+	font-size: 24px;
+	line-height: 1;
+}

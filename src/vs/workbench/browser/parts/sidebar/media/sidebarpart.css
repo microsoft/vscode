@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench.nosidebar > .part.sidebar {
+.monaco-workbench.nosidebar > .part.sidebar:not(.mobile-drawer-mode) {
 	display: none !important;
 	visibility: hidden !important;
 }
 
+/* Default Sidebar Styles (Desktop) */
 .monaco-workbench .part.sidebar .title-actions .actions-container {
 	justify-content: flex-end;
 }
@@ -24,6 +25,7 @@
 	text-transform: uppercase;
 }
 
+/* Styles for viewlets within the sidebar */
 .monaco-workbench .viewlet .collapsible.header .title {
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -64,45 +66,171 @@
 	height: 16px;
 }
 
-.monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus,
-.monaco-workbench .part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus {
+/* Styles for composite bar in title area (Desktop) */
+.monaco-workbench .part.sidebar:not(.mobile-drawer-mode) > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus,
+.monaco-workbench .part.sidebar:not(.mobile-drawer-mode) > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus {
 	outline: 0 !important; /* activity bar indicates focus custom */
 }
 
-.monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
-.monaco-workbench .part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
+.monaco-workbench .part.sidebar:not(.mobile-drawer-mode) > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
+.monaco-workbench .part.sidebar:not(.mobile-drawer-mode) > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
 	border-radius: 0px;
 	outline-offset: 2px;
 }
 
-.monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label::before,
-.monaco-workbench .part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label::before {
+.monaco-workbench .part.sidebar:not(.mobile-drawer-mode) > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label::before,
+.monaco-workbench .part.sidebar:not(.mobile-drawer-mode) > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label::before {
 	position: absolute;
 	left: 5px; /* place icon in center */
 }
 
-.monaco-workbench .part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
-.monaco-workbench .part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before,
-.monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
-.monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before {
+.monaco-workbench .part.sidebar:not(.mobile-drawer-mode) > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
+.monaco-workbench .part.sidebar:not(.mobile-drawer-mode) > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before,
+.monaco-workbench .part.sidebar:not(.mobile-drawer-mode) > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
+.monaco-workbench .part.sidebar:not(.mobile-drawer-mode) > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before {
 	border-top-color: var(--vscode-activityBarTop-activeBorder) !important;
 }
 
-.monaco-workbench .part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label,
-.monaco-workbench .part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .action-label,
-.monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label,
-.monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .action-label {
+.monaco-workbench .part.sidebar:not(.mobile-drawer-mode) > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label,
+.monaco-workbench .part.sidebar:not(.mobile-drawer-mode) > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .action-label,
+.monaco-workbench .part.sidebar:not(.mobile-drawer-mode) > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label,
+.monaco-workbench .part.sidebar:not(.mobile-drawer-mode) > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .action-label {
 	color: var(--vscode-activityBarTop-foreground) !important;
 }
 
-.monaco-workbench .sidebar.pane-composite-part > .title > .composite-bar-container {
+.monaco-workbench .sidebar.pane-composite-part:not(.mobile-drawer-mode) > .title > .composite-bar-container {
 	flex: 1;
 }
 
-.monaco-workbench .sidebar.part.pane-composite-part > .composite.title.has-composite-bar > .title-actions {
+.monaco-workbench .sidebar.part.pane-composite-part:not(.mobile-drawer-mode) > .composite.title.has-composite-bar > .title-actions {
 	flex: inherit;
 }
 
-.monaco-workbench .sidebar.pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item {
+.monaco-workbench .sidebar.part.pane-composite-part:not(.mobile-drawer-mode) > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item {
 	max-width: 150px;
+}
+
+
+/* Mobile Drawer Mode Styles */
+.monaco-workbench .part.sidebar.mobile-drawer-mode {
+	/* position, top, left, height, width are set by JavaScript in layout() */
+	position: absolute !important; /* Ensure it overrides other positioning */
+	z-index: 300; /* Above editor, below critical overlays like notifications */
+	background-color: var(--vscode-sideBar-background);
+	box-shadow: var(--vscode-widget-shadow) 2px 0 6px; /* Material-like shadow */
+	/* transform is set by JavaScript for open/close animation */
+	transition: transform 0.22s cubic-bezier(0.0, 0, 0.2, 1); /* Material Design standard curve */
+	display: block !important; /* Overrides .nosidebar > .part.sidebar if that class is still present */
+	visibility: visible !important;
+	contain: strict; /* Performance: tell browser this element is independent */
+}
+
+/* When the drawer is open, transform is set to translateX(0%) by JS */
+.monaco-workbench .part.sidebar.mobile-drawer-mode.open {
+	/* transform: translateX(0%) !important; */ /* Managed by JS but can be here for clarity */
+}
+
+/* Hide the desktop-style title bar of the part itself when in mobile drawer mode */
+.monaco-workbench .part.sidebar.mobile-drawer-mode > .title {
+	display: none !important;
+}
+
+.monaco-workbench .part.sidebar.mobile-drawer-mode .drawer-body {
+	display: flex;
+	flex-direction: row;
+	height: 100%;
+	overflow: hidden; /* Critical to prevent content spill during animation or if oversized */
+}
+
+.monaco-workbench .part.sidebar.mobile-drawer-mode .mobile-drawer-activity-host {
+	/* width is set by JS in layout() e.g., 48px or 56px */
+	height: 100%;
+	background-color: var(--vscode-activityBar-background); /* Consistent with desktop activity bar */
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding-top: 8px; /* Some space from the top */
+	overflow-y: auto; /* Allow scrolling if many activity icons */
+	overflow-x: hidden;
+	scrollbar-width: none; /* Hide scrollbar for cleaner look */
+	-ms-overflow-style: none; /* IE/Edge */
+}
+.monaco-workbench .part.sidebar.mobile-drawer-mode .mobile-drawer-activity-host::-webkit-scrollbar {
+	display: none; /* Chrome/Safari/Opera */
+}
+
+
+.monaco-workbench .part.sidebar.mobile-drawer-mode .mobile-drawer-activity-host .monaco-action-bar .action-item {
+	width: 100%; /* Make full width for easier tap */
+	margin-bottom: 4px; /* Spacing between vertical icons */
+	padding: 0 4px; /* Horizontal padding for the item itself */
+	box-sizing: border-box;
+}
+
+.monaco-workbench .part.sidebar.mobile-drawer-mode .mobile-drawer-activity-host .monaco-action-bar .action-item .action-label {
+	font-size: 22px; /* Icon visual size */
+	min-height: 40px; /* Touch target height */
+	min-width: 40px; /* Touch target width (host is ~48px) */
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 4px;
+	color: var(--vscode-activityBar-inactiveForeground); /* Default icon color */
+	background-color: transparent;
+	position: relative; /* For active indicator */
+}
+
+/* Active and Hover states for icons in mobile drawer activity host */
+.monaco-workbench .part.sidebar.mobile-drawer-mode .mobile-drawer-activity-host .monaco-action-bar .action-item.checked .action-label,
+.monaco-workbench .part.sidebar.mobile-drawer-mode .mobile-drawer-activity-host .monaco-action-bar .action-item .action-label:hover {
+	color: var(--vscode-activityBar-foreground); /* Active/hover icon color */
+	background-color: var(--vscode-activityBar-activeBackground); /* Subtle background for active/hover */
+}
+
+/* Active indicator for checked item (e.g., a vertical bar) */
+.monaco-workbench .part.sidebar.mobile-drawer-mode .mobile-drawer-activity-host .monaco-action-bar .action-item.checked .action-label::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 50%;
+	transform: translateY(-50%);
+	width: 4px;
+	height: 60%; /* Adjust size of the indicator */
+	background-color: var(--vscode-activityBar-activeBorder, var(--vscode-focusBorder)); /* Use active border or focus border */
+	border-radius: 2px;
+}
+
+
+.monaco-workbench .part.sidebar.mobile-drawer-mode .drawer-original-content {
+	/* width and height are set by JS in layout() */
+	overflow: auto; /* Allow scrolling for the viewlet's content (e.g., explorer tree) */
+	flex: 1; /* Takes remaining space from drawer-body if it were flex, but absolute positioning is used by JS for now */
+	background-color: var(--vscode-sideBar-background); /* Ensure content area has a background */
+	contain: content; /* Performance: content is independent */
+}
+
+/* Ensure viewlet content (e.g. explorer, search) takes full height within the drawer's content area */
+.monaco-workbench .part.sidebar.mobile-drawer-mode .drawer-original-content > .pane-composite {
+	height: 100%; /* The direct child (the viewlet itself) should fill the content area */
+}
+
+/* Optional: Add a subtle scrim/overlay when the drawer is open, for better focus */
+.monaco-workbench .mobile-drawer-scrim {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100vw;
+	height: 100vh;
+	background-color: rgba(0, 0, 0, 0.3); /* Semi-transparent black */
+	z-index: 299; /* Just below the drawer */
+	opacity: 0;
+	visibility: hidden;
+	transition: opacity 0.22s cubic-bezier(0.0, 0, 0.2, 1), visibility 0.22s;
+	pointer-events: none; /* By default, don't intercept clicks */
+}
+
+.monaco-workbench .mobile-drawer-scrim.visible {
+	opacity: 1;
+	visibility: visible;
+	pointer-events: auto; /* Intercept clicks to close drawer when scrim is clicked */
 }

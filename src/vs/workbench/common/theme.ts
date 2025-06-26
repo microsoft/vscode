@@ -809,3 +809,8 @@ export const WINDOW_INACTIVE_BORDER = registerColor('window.inactiveBorder', {
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
 }, localize('windowInactiveBorder', "The color used for the border of the window when it is inactive on macOS or Linux. Requires custom title bar style and custom or hidden window controls on Linux."));
+
+// --- Floating Action Button ---
+export const FAB_BACKGROUND = registerColor('fab.background', { dark: '#0E70C0', light: '#0E70C0', hcDark: '#0E70C0', hcLight: '#0E70C0' }, localize('fab.background', "Floating Action Button background color.")); // Note: Using registerColor directly here as in other parts of this file. The actual registration is in miscColors.ts
+export const FAB_FOREGROUND = registerColor('fab.foreground', { dark: Color.white, light: Color.white, hcDark: Color.white, hcLight: Color.white }, localize('fab.foreground', "Floating Action Button foreground color."));
+export const FAB_HOVER_BACKGROUND = registerColor('fab.hoverBackground', { dark: Color.fromHex('#0E70C0').lighten(0.2), light: Color.fromHex('#0E70C0').lighten(0.2), hcDark: Color.fromHex('#0E70C0').lighten(0.2), hcLight: Color.fromHex('#0E70C0').lighten(0.2) }, localize('fab.hoverBackground', "Floating Action Button hover background color."));
