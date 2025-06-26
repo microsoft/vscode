@@ -150,8 +150,8 @@ export class TextSearchResultRenderer extends Disposable implements ICompressibl
 
 			const localizedLabel = nls.localize({
 				key: 'searchFolderMatch.aiText.label',
-				comment: ['This is displayed before the AI text search results, now always "Expanded Results".']
-			}, 'Expanded Results');
+				comment: ['This is displayed before the AI text search results, now always "Semantic search results".']
+			}, 'Semantic search results');
 
 			// todo: make icon extension-contributed.
 			templateData.label.setLabel(`$(${Codicon.search.id}) ${localizedLabel}`);

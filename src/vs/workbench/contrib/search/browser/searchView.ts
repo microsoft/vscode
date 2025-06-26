@@ -1745,10 +1745,10 @@ export class SearchView extends ViewPane {
 
 			if (aiName) {
 				const searchWithAIButtonTooltip = appendKeyBindingLabel(
-					nls.localize('triggerAISearch.tooltip', "Expand your search with AI."),
+					nls.localize('triggerAISearch.tooltip', "Enhance your search."),
 					this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.SearchWithAIActionId)
 				);
-				const searchWithAIButtonText = nls.localize('searchWithAIButtonTooltip', "Expand your search with AI.");
+				const searchWithAIButtonText = nls.localize('searchWithAIButtonTooltip', "Enhance your search.");
 				const searchWithAIButton = this.messageDisposables.add(new SearchLinkButton(
 					searchWithAIButtonText,
 					() => {
