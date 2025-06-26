@@ -52,5 +52,5 @@ jobs:
       - name: Compile & Hygiene
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm exec -- npm-run-all -lp core-ci-pr extensions-ci-pr
+        run: npm exec -- npm-run-all -lp core-ci-pr extensions-ci-pr hygiene eslint
         # run: npm exec -- npm-run-all -lp core-ci-pr extensions-ci-pr hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check
