@@ -255,6 +255,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				part = { type: 'text', value: fragment.part.value };
 			} else if (fragment.part instanceof extHostTypes.LanguageModelDataPart) {
 				part = { type: 'data', value: { mimeType: fragment.part.mimeType as ChatImageMimeType, data: VSBuffer.wrap(fragment.part.data) } };
+			} else if (fragment.part instanceof extHostTypes.LanguageModelThinkingPart) {
+				part = { type: 'thinking', value: fragment.part.value, id: fragment.part.id, metadata: fragment.part.metadata };
 			}
 
 			if (!part) {
