@@ -87,40 +87,24 @@ jobs:
 
       - name: npm run core-ci-pr
         run: npm run core-ci-pr
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: npm run extensions-ci-pr
         run: npm run extensions-ci-pr
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: npm run hygiene
         run: npm run hygiene
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: npm run eslint
         run: npm run eslint
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: npm run valid-layers-check
         run: npm run valid-layers-check
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: npm run define-class-fields-check
         run: npm run define-class-fields-check
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: npm run vscode-dts-compile-check
         run: npm run vscode-dts-compile-check
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: npm run tsec-compile-check
         run: npm run tsec-compile-check
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
