@@ -135,13 +135,13 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 		let message: string;
 		switch (promptType) {
 			case PromptsType.prompt:
-				message = localize('confirmInstallPrompt', "An external application wants to create a prompt file with content from an URL.");
+				message = localize('confirmInstallPrompt', "An external application wants to create a prompt file with content from a URL.");
 				break;
 			case PromptsType.instructions:
-				message = localize('confirmInstallInstructions', "An external application wants to create an instructions file with content from an URL.");
+				message = localize('confirmInstallInstructions', "An external application wants to create an instructions file with content from a URL.");
 				break;
 			default:
-				message = localize('confirmInstallMode', "An external application wants to create a chat mode with content from an URL.");
+				message = localize('confirmInstallMode', "An external application wants to create a chat mode with content from a URL.");
 				break;
 		}
 
