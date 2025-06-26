@@ -123,6 +123,13 @@ export function isToolInvocationContext(obj: any): obj is IToolInvocationContext
 	return typeof obj === 'object' && typeof obj.sessionId === 'string';
 }
 
+export interface IToolInvocationPreparationContext {
+	parameters: any;
+	chatRequestId?: string;
+	chatSessionId?: string;
+	chatInteractionId?: string;
+}
+
 export interface IToolResultInputOutputDetails {
 	readonly input: string;
 	readonly output: ({
@@ -195,8 +202,10 @@ export interface IPreparedToolInvocation {
 
 export interface IToolImpl {
 	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult>;
-	prepareToolInvocation?(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
+	prepareToolInvocation?(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
 }
+
+export type IToolAndToolSetEnablementMap = ReadonlyMap<IToolData | ToolSet, boolean>;
 
 export class ToolSet {
 
@@ -266,8 +275,10 @@ export interface ILanguageModelToolsService {
 	resetToolAutoConfirmation(): void;
 	cancelToolCallsForRequest(requestId: string): void;
 	toToolEnablementMap(toolOrToolSetNames: Set<string>): Record<string, boolean>;
+	toToolAndToolSetEnablementMap(toolOrToolSetNames: Set<string>): IToolAndToolSetEnablementMap;
 
 	readonly toolSets: IObservable<Iterable<ToolSet>>;
+	getToolSet(id: string): ToolSet | undefined;
 	getToolSetByName(name: string): ToolSet | undefined;
 	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string }): ToolSet & IDisposable;
 }

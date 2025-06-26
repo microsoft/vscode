@@ -9,17 +9,17 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../browser/languageModelToolsService.js';
 import { IChatService } from '../../common/chatService.js';
-import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { MockChatService } from '../common/mockChatService.js';
 import { ChatSelectedTools } from '../../browser/chatSelectedTools.js';
 import { constObservable } from '../../../../../base/common/observable.js';
-import { ChatMode } from '../../common/constants.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ChatMode2 } from '../../common/chatModes.js';
 
 suite('ChatSelectedTools', () => {
 
@@ -40,7 +40,7 @@ suite('ChatSelectedTools', () => {
 
 		store.add(instaService);
 		toolsService = instaService.get(ILanguageModelToolsService);
-		selectedTools = store.add(instaService.createInstance(ChatSelectedTools, constObservable(ChatMode.Agent)));
+		selectedTools = store.add(instaService.createInstance(ChatSelectedTools, constObservable(ChatMode2.Agent)));
 	});
 
 	teardown(function () {
@@ -102,9 +102,10 @@ suite('ChatSelectedTools', () => {
 
 			await timeout(1000); // UGLY the tools service updates its state sync but emits the event async (750ms) delay. This affects the observable that depends on the event
 
-			assert.strictEqual(selectedTools.entriesMap.size, 4); // 1 toolset, 3 tools
+			assert.strictEqual(selectedTools.entriesMap.get().size, 4); // 1 toolset, 3 tools
 
-			selectedTools.disable([], [toolData2, toolData3], false);
+			const toSet = new Map<IToolData | ToolSet, boolean>([[toolData1, true], [toolData2, false], [toolData3, false], [toolset, true]]);
+			selectedTools.set(toSet, false);
 
 			const map = selectedTools.asEnablementMap();
 			assert.strictEqual(map.size, 3); // 3 tools
@@ -165,10 +166,11 @@ suite('ChatSelectedTools', () => {
 
 			await timeout(1000); // UGLY the tools service updates its state sync but emits the event async (750ms) delay. This affects the observable that depends on the event
 
-			assert.strictEqual(selectedTools.entriesMap.size, 4); // 1 toolset, 3 tools
+			assert.strictEqual(selectedTools.entriesMap.get().size, 4); // 1 toolset, 3 tools
 
 			// Toolset is checked, tools 2 and 3 are unchecked
-			selectedTools.disable([], [toolData2, toolData3], false);
+			const toSet = new Map<IToolData | ToolSet, boolean>([[toolData1, true], [toolData2, false], [toolData3, false], [toolset, true]]);
+			selectedTools.set(toSet, false);
 
 			const map = selectedTools.asEnablementMap();
 			assert.strictEqual(map.size, 3); // 3 tools

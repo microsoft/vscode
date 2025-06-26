@@ -420,6 +420,48 @@ suite('Inline Completions', () => {
 				}
 			);
 		});
+
+		test('Push item to preserve to front', async function () {
+			const provider = new MockInlineCompletionsProvider(true);
+			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+				{ fakeClock: true, provider },
+				async ({ editor, editorViewModel, model, context }) => {
+					provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 4) });
+					context.keyboardType('foo');
+					await timeout(1000);
+
+					assert.deepStrictEqual(provider.getAndClearCallHistory(), ([
+						{
+							position: "(1,4)",
+							triggerKind: 0,
+							text: "foo"
+						}
+					]));
+					assert.deepStrictEqual(context.getAndClearViewStates(),
+						([
+							"",
+							"foo[bar]"
+						])
+					);
+
+					provider.setReturnValues([{ insertText: 'foobar1', range: new Range(1, 1, 1, 4) }, { insertText: 'foobar', range: new Range(1, 1, 1, 4) }]);
+
+					await model.triggerExplicitly();
+					await timeout(1000);
+
+					assert.deepStrictEqual(provider.getAndClearCallHistory(), ([
+						{
+							position: "(1,4)",
+							triggerKind: 1,
+							text: "foo"
+						}
+					]));
+					assert.deepStrictEqual(context.getAndClearViewStates(),
+						([])
+					);
+				}
+			);
+		});
 	});
 
 	test('No race conditions', async function () {

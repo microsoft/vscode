@@ -52,7 +52,7 @@ import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequest
 import { IChatInputState } from '../common/chatWidgetHistoryService.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatMode } from '../common/constants.js';
-import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, ToolSet } from '../common/languageModelToolsService.js';
 import { type TPromptMetadata } from '../common/promptSyntax/parsers/promptHeader/promptHeader.js';
 import { IPromptParserResult, IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
@@ -110,6 +110,10 @@ export interface IChatWidgetLocationOptions {
 
 export function isQuickChat(widget: IChatWidget): boolean {
 	return 'viewContext' in widget && 'isQuickChat' in widget.viewContext && Boolean(widget.viewContext.isQuickChat);
+}
+
+export function isInlineChat(widget: IChatWidget): boolean {
+	return 'viewContext' in widget && 'isInlineChat' in widget.viewContext && Boolean(widget.viewContext.isInlineChat);
 }
 
 export class ChatWidget extends Disposable implements IChatWidget {
@@ -820,6 +824,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._codeBlockModelCollection,
 			overflowWidgetsContainer,
 			this.viewModel,
+			isInlineChat(this) || isQuickChat(this),
 		));
 
 		this._register(this.renderer.onDidClickRequest(async item => {
@@ -1559,18 +1564,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	getUserSelectedTools(): Record<string, boolean> | undefined {
-		if (this.input.currentMode2.customTools) {
-			const customTools = new Set<string>(this.input.currentMode2.customTools);
-			return this.toolsService.toToolEnablementMap(customTools);
-		} else if (this.input.currentMode === ChatMode.Agent) {
-			const userSelectedTools: Record<string, boolean> = {};
-			for (const [tool, enablement] of this.input.selectedToolsModel.asEnablementMap()) {
-				userSelectedTools[tool.id] = enablement;
-			}
-			return userSelectedTools;
+		const userSelectedTools: Record<string, boolean> = {};
+		for (const [tool, enablement] of this.input.selectedToolsModel.asEnablementMap()) {
+			userSelectedTools[tool.id] = enablement;
 		}
-
-		return undefined;
+		return userSelectedTools;
 	}
 
 	getModeRequestOptions(): Partial<IChatSendRequestOptions> {
@@ -1799,28 +1797,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// if we have some tools present, the mode must have been equal to `agent`
 		assert(this.input.currentMode === ChatMode.Agent, `Chat mode must be 'agent' when there are 'tools' defined, got ${this.input.currentMode}.`);
 
-		// convert names to tools or tool sets
-		const enabledTools: IToolData[] = [];
-		const enabledToolSets: ToolSet[] = [];
-		for (const name of tools) {
-			const tool = this.toolsService.getToolByName(name);
-			if (tool) {
-				enabledTools.push(tool);
-				continue;
-			}
-			const toolset = this.toolsService.getToolSetByName(name);
-			if (toolset) {
-				enabledToolSets.push(toolset);
-				continue;
-			}
-		}
-		this.input.selectedToolsModel.enable(enabledToolSets, enabledTools, true);
+		const enablementMap = this.toolsService.toToolAndToolSetEnablementMap(new Set(tools));
+		this.input.selectedToolsModel.set(enablementMap, true);
 	}
 
 	/**
 	 * Adds additional instructions to the context
 	 * - instructions that have a 'applyTo' pattern that matches the current input
-	 * - instructions referenced in the copilot settings 'copilot-instructions*
+	 * - instructions referenced in the copilot settings 'copilot-instructions'
 	 * - instructions referenced in an already included instruction file
 	 */
 	private async _autoAttachInstructions({ attachedContext }: IChatRequestInputOptions): Promise<void> {

@@ -159,6 +159,7 @@ export interface IChatViewViewContext {
 
 export interface IChatResourceViewContext {
 	isQuickChat?: boolean;
+	isInlineChat?: boolean;
 }
 
 export type IChatWidgetViewContext = IChatViewViewContext | IChatResourceViewContext | {};

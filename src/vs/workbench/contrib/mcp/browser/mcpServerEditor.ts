@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, Dimension, append, setParentFlowTo } from '../../../../base/browser/dom.js';
+import './media/mcpServerEditor.css';
+import { $, Dimension, append, clearNode, setParentFlowTo } from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -41,11 +42,13 @@ import { InstallCountWidget, McpServerIconWidget, McpServerWidget, onClick, Publ
 import { DropDownAction, InstallAction, ManageMcpServerAction, UninstallAction } from './mcpServerActions.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
-import { ILocalMcpServer } from '../../../../platform/mcp/common/mcpManagement.js';
+import { ILocalMcpServer, IMcpServerManifest, IMcpServerPackage, PackageType } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 
 const enum McpServerEditorTab {
 	Readme = 'readme',
+	Configuration = 'configuration',
+	Manifest = 'manifest',
 }
 
 function toDateString(date: Date) {
@@ -136,6 +139,7 @@ export class McpServerEditor extends EditorPane {
 	private template: IExtensionEditorTemplate | undefined;
 
 	private mcpServerReadme: Cache<string> | null;
+	private mcpServerManifest: Cache<IMcpServerManifest> | null;
 
 	// Some action bar items use a webview whose vertical scroll position we track in this map
 	private initialScrollProgress: Map<WebviewIndex, number> = new Map();
@@ -165,6 +169,7 @@ export class McpServerEditor extends EditorPane {
 	) {
 		super(McpServerEditor.ID, group, telemetryService, themeService, storageService);
 		this.mcpServerReadme = null;
+		this.mcpServerManifest = null;
 	}
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
@@ -172,7 +177,7 @@ export class McpServerEditor extends EditorPane {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		const root = append(parent, $('.extension-editor'));
+		const root = append(parent, $('.extension-editor.mcp-server-editor'));
 		this._scopedContextKeyService.value = this.contextKeyService.createScoped(root);
 		this._scopedContextKeyService.value.createKey('inExtensionEditor', true);
 
@@ -294,6 +299,7 @@ export class McpServerEditor extends EditorPane {
 		const token = this.transientDisposables.add(new CancellationTokenSource()).token;
 
 		this.mcpServerReadme = new Cache(() => mcpServer.getReadme(token));
+		this.mcpServerManifest = new Cache(() => mcpServer.getManifest(token));
 		template.mcpServer = mcpServer;
 
 		template.name.textContent = mcpServer.label;
@@ -315,7 +321,18 @@ export class McpServerEditor extends EditorPane {
 			this.currentIdentifier = extension.id;
 		}
 
-		template.navbar.push(McpServerEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
+		if (extension.hasReadme()) {
+			template.navbar.push(McpServerEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
+		}
+
+		if (extension.config) {
+			template.navbar.push(McpServerEditorTab.Configuration, localize('configuration', "Configuration"), localize('configurationtooltip', "Server configuration details"));
+		}
+
+		if (extension.gallery || extension.local?.manifest) {
+			template.navbar.push(McpServerEditorTab.Manifest, localize('manifest', "Manifest"), localize('manifesttooltip', "Server manifest details"));
+		}
+
 		if (template.navbar.currentId) {
 			this.onNavbarChange(extension, { id: template.navbar.currentId, focus: !preserveFocus }, template);
 		}
@@ -371,7 +388,9 @@ export class McpServerEditor extends EditorPane {
 
 	private open(id: string, extension: IWorkbenchMcpServer, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		switch (id) {
+			case McpServerEditorTab.Configuration: return this.openConfiguration(extension, template, token);
 			case McpServerEditorTab.Readme: return this.openDetails(extension, template, token);
+			case McpServerEditorTab.Manifest: return this.openManifest(extension, template, token);
 		}
 		return Promise.resolve(null);
 	}
@@ -536,6 +555,181 @@ export class McpServerEditor extends EditorPane {
 		return activeElement;
 	}
 
+	private async openConfiguration(mcpServer: IWorkbenchMcpServer, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+		const configContainer = append(template.content, $('.configuration'));
+		const content = $('div', { class: 'configuration-content', tabindex: '0' });
+
+		this.renderConfigurationDetails(content, mcpServer);
+
+		const scrollableContent = new DomScrollableElement(content, {});
+		const layout = () => scrollableContent.scanDomNode();
+		this.contentDisposables.add(toDisposable(arrays.insert(this.layoutParticipants, { layout })));
+
+		append(configContainer, scrollableContent.getDomNode());
+
+		return { focus: () => content.focus() };
+	}
+
+	private async openManifest(mcpServer: IWorkbenchMcpServer, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+		const manifestContainer = append(template.content, $('.manifest'));
+		const content = $('div', { class: 'manifest-content', tabindex: '0' });
+
+		try {
+			const manifest = await this.loadContents(() => this.mcpServerManifest!.get(), content);
+			if (token.isCancellationRequested) {
+				return null;
+			}
+			this.renderManifestDetails(content, manifest);
+		} catch (error) {
+			// Handle error - show no manifest message
+			while (content.firstChild) {
+				content.removeChild(content.firstChild);
+			}
+			const noManifestMessage = append(content, $('.no-manifest'));
+			noManifestMessage.textContent = localize('noManifest', "No manifest available for this MCP server.");
+		}
+
+		const scrollableContent = new DomScrollableElement(content, {});
+		const layout = () => scrollableContent.scanDomNode();
+		this.contentDisposables.add(toDisposable(arrays.insert(this.layoutParticipants, { layout })));
+
+		append(manifestContainer, scrollableContent.getDomNode());
+
+		return { focus: () => content.focus() };
+	}
+
+	private renderConfigurationDetails(container: HTMLElement, mcpServer: IWorkbenchMcpServer): void {
+		clearNode(container);
+
+		const config = mcpServer.config;
+
+		if (!config) {
+			const noConfigMessage = append(container, $('.no-config'));
+			noConfigMessage.textContent = localize('noConfig', "No configuration available for this MCP server.");
+			return;
+		}
+
+		// Server Name
+		const nameSection = append(container, $('.config-section'));
+		const nameLabel = append(nameSection, $('.config-label'));
+		nameLabel.textContent = localize('serverName', "Name:");
+		const nameValue = append(nameSection, $('.config-value'));
+		nameValue.textContent = mcpServer.name;
+
+		// Server Type
+		const typeSection = append(container, $('.config-section'));
+		const typeLabel = append(typeSection, $('.config-label'));
+		typeLabel.textContent = localize('serverType', "Type:");
+		const typeValue = append(typeSection, $('.config-value'));
+		typeValue.textContent = config.type;
+
+		// Type-specific configuration
+		if (config.type === 'stdio') {
+			// Command
+			const commandSection = append(container, $('.config-section'));
+			const commandLabel = append(commandSection, $('.config-label'));
+			commandLabel.textContent = localize('command', "Command:");
+			const commandValue = append(commandSection, $('code.config-value'));
+			commandValue.textContent = config.command;
+
+			// Arguments (if present)
+			if (config.args && config.args.length > 0) {
+				const argsSection = append(container, $('.config-section'));
+				const argsLabel = append(argsSection, $('.config-label'));
+				argsLabel.textContent = localize('arguments', "Arguments:");
+				const argsValue = append(argsSection, $('code.config-value'));
+				argsValue.textContent = config.args.join(' ');
+			}
+		} else if (config.type === 'http') {
+			// URL
+			const urlSection = append(container, $('.config-section'));
+			const urlLabel = append(urlSection, $('.config-label'));
+			urlLabel.textContent = localize('url', "URL:");
+			const urlValue = append(urlSection, $('code.config-value'));
+			urlValue.textContent = config.url;
+		}
+	}
+
+	private renderManifestDetails(container: HTMLElement, manifest: IMcpServerManifest): void {
+		clearNode(container);
+
+		if (manifest.packages && manifest.packages.length > 0) {
+			const packagesByType = new Map<PackageType, IMcpServerPackage[]>();
+			for (const pkg of manifest.packages) {
+				const type = pkg.registry_name;
+				let packages = packagesByType.get(type);
+				if (!packages) {
+					packagesByType.set(type, packages = []);
+				}
+				packages.push(pkg);
+			}
+
+			append(container, $('.manifest-section', undefined, $('.manifest-section-title', undefined, localize('packages', "Packages"))));
+
+			for (const [packageType, packages] of packagesByType) {
+				const packageSection = append(container, $('.package-section', undefined, $('.package-section-title', undefined, packageType.toUpperCase())));
+				const packagesGrid = append(packageSection, $('.package-details'));
+
+				for (let i = 0; i < packages.length; i++) {
+					const pkg = packages[i];
+					append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('packageName', "Package:")), $('.detail-value', undefined, pkg.name)));
+					if (pkg.package_arguments && pkg.package_arguments.length > 0) {
+						const argStrings: string[] = [];
+						for (const arg of pkg.package_arguments) {
+							if (arg.type === 'named') {
+								argStrings.push(arg.name);
+								if (arg.value) {
+									argStrings.push(arg.value);
+								}
+							}
+							if (arg.type === 'positional') {
+								argStrings.push(arg.value ?? arg.value_hint);
+							}
+						}
+						append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('packagearguments', "Package Arguments:")), $('code.detail-value', undefined, argStrings.join(' '))));
+					}
+					if (pkg.runtime_arguments && pkg.runtime_arguments.length > 0) {
+						const argStrings: string[] = [];
+						for (const arg of pkg.runtime_arguments) {
+							if (arg.type === 'named') {
+								argStrings.push(arg.name);
+								if (arg.value) {
+									argStrings.push(arg.value);
+								}
+							}
+							if (arg.type === 'positional') {
+								argStrings.push(arg.value ?? arg.value_hint);
+							}
+						}
+						append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('runtimeargs', "Runtime Arguments:")), $('code.detail-value', undefined, argStrings.join(' '))));
+					}
+					if (pkg.environment_variables && pkg.environment_variables.length > 0) {
+						const envStrings = pkg.environment_variables.map((envVar: any) => `${envVar.name}=${envVar.value}`);
+						append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('environmentVariables', "Environment Variables:")), $('code.detail-value', undefined, envStrings.join(' '))));
+					}
+					if (i < packages.length - 1) {
+						append(packagesGrid, $('.package-separator'));
+					}
+				}
+			}
+		}
+
+		if (manifest.remotes && manifest.remotes.length > 0) {
+			const packageSection = append(container, $('.package-section', undefined, $('.package-section-title', undefined, localize('remotes', "Remote").toLocaleUpperCase())));
+			for (const remote of manifest.remotes) {
+				const packagesGrid = append(packageSection, $('.package-details'));
+				append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('url', "URL:")), $('.detail-value', undefined, remote.url)));
+				if (remote.transport_type) {
+					append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('transport', "Transport:")), $('.detail-value', undefined, remote.transport_type)));
+				}
+				if (remote.headers && remote.headers.length > 0) {
+					const headerStrings = remote.headers.map((header: any) => `${header.name}: ${header.value}`);
+					append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('headers', "Headers:")), $('.detail-value', undefined, headerStrings.join(', '))));
+				}
+			}
+		}
+	}
+
 	private renderAdditionalDetails(container: HTMLElement, extension: IWorkbenchMcpServer): void {
 		const content = $('div', { class: 'additional-details-content', tabindex: '0' });
 		const scrollableContent = new DomScrollableElement(content, {});
@@ -653,19 +847,23 @@ class AdditionalDetailsWidget extends Disposable {
 						$('div.more-info-entry-name', undefined, localize('id', "Identifier")),
 						$('code', undefined, extension.name)
 					));
+				if (gallery.version) {
+					append(moreInfo,
+						$('.more-info-entry', undefined,
+							$('div.more-info-entry-name', undefined, localize('Version', "Version")),
+							$('code', undefined, gallery.version)
+						)
+					);
+				}
+			}
+			if (gallery.lastUpdated) {
 				append(moreInfo,
 					$('.more-info-entry', undefined,
-						$('div.more-info-entry-name', undefined, localize('Version', "Version")),
-						$('code', undefined, gallery.version)
+						$('div.more-info-entry-name', undefined, localize('last released', "Last Released")),
+						$('div', undefined, toDateString(new Date(gallery.lastUpdated)))
 					)
 				);
 			}
-			append(moreInfo,
-				$('.more-info-entry', undefined,
-					$('div.more-info-entry-name', undefined, localize('last released', "Last Released")),
-					$('div', undefined, toDateString(new Date(gallery.lastUpdated)))
-				)
-			);
 		}
 	}
 }

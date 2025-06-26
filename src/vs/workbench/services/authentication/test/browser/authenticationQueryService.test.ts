@@ -1094,4 +1094,155 @@ suite('AuthenticationQueryService Integration Tests', () => {
 		assert.strictEqual(userServer.trusted, undefined);
 		assert.strictEqual(userServer.allowed, true);
 	});
+
+	test('getAllowedExtensions returns extension data with trusted state', () => {
+		// Set up some extension access data
+		const accountQuery = queryService.provider('github').account('user@example.com');
+		accountQuery.extension('ext1').setAccessAllowed(true, 'Extension One');
+		accountQuery.extension('ext2').setAccessAllowed(true, 'Extension Two');
+		accountQuery.extension('ext1').addUsage(['read'], 'Extension One');
+
+		const allowedExtensions = accountQuery.extensions().getAllowedExtensions();
+
+		// Should have both extensions
+		assert.strictEqual(allowedExtensions.length, 2);
+
+		// Find the first extension
+		const ext1 = allowedExtensions.find(e => e.id === 'ext1');
+		assert.ok(ext1);
+		assert.strictEqual(ext1.name, 'Extension One');
+		assert.strictEqual(ext1.allowed, true);
+		assert.strictEqual(ext1.trusted, false); // Not in trusted list
+		assert.ok(typeof ext1.lastUsed === 'number');
+
+		// Find the second extension
+		const ext2 = allowedExtensions.find(e => e.id === 'ext2');
+		assert.ok(ext2);
+		assert.strictEqual(ext2.name, 'Extension Two');
+		assert.strictEqual(ext2.allowed, true);
+		assert.strictEqual(ext2.trusted, false); // Not in trusted list
+		assert.strictEqual(ext2.lastUsed, undefined); // No usage
+	});
+
+	suite('Account entities query', () => {
+		test('hasAnyUsage returns false for clean account', () => {
+			const entitiesQuery = queryService.provider('github').account('clean@example.com').entities();
+			assert.strictEqual(entitiesQuery.hasAnyUsage(), false);
+		});
+
+		test('hasAnyUsage returns true when extension has usage', () => {
+			const accountQuery = queryService.provider('github').account('user@example.com');
+			accountQuery.extension('test-ext').addUsage(['read'], 'Test Extension');
+
+			const entitiesQuery = accountQuery.entities();
+			assert.strictEqual(entitiesQuery.hasAnyUsage(), true);
+		});
+
+		test('hasAnyUsage returns true when MCP server has usage', () => {
+			const accountQuery = queryService.provider('github').account('user@example.com');
+			accountQuery.mcpServer('test-server').addUsage(['write'], 'Test Server');
+
+			const entitiesQuery = accountQuery.entities();
+			assert.strictEqual(entitiesQuery.hasAnyUsage(), true);
+		});
+
+		test('hasAnyUsage returns true when extension has access', () => {
+			const accountQuery = queryService.provider('github').account('user@example.com');
+			accountQuery.extension('test-ext').setAccessAllowed(true, 'Test Extension');
+
+			const entitiesQuery = accountQuery.entities();
+			assert.strictEqual(entitiesQuery.hasAnyUsage(), true);
+		});
+
+		test('hasAnyUsage returns true when MCP server has access', () => {
+			const accountQuery = queryService.provider('github').account('user@example.com');
+			accountQuery.mcpServer('test-server').setAccessAllowed(true, 'Test Server');
+
+			const entitiesQuery = accountQuery.entities();
+			assert.strictEqual(entitiesQuery.hasAnyUsage(), true);
+		});
+
+		test('getEntityCount returns correct counts', () => {
+			const accountQuery = queryService.provider('github').account('user@example.com');
+
+			// Set up test data
+			accountQuery.extension('ext1').setAccessAllowed(true, 'Extension One');
+			accountQuery.extension('ext2').setAccessAllowed(true, 'Extension Two');
+			accountQuery.mcpServer('server1').setAccessAllowed(true, 'Server One');
+
+			const entitiesQuery = accountQuery.entities();
+			const counts = entitiesQuery.getEntityCount();
+
+			assert.strictEqual(counts.extensions, 2);
+			assert.strictEqual(counts.mcpServers, 1);
+			assert.strictEqual(counts.total, 3);
+		});
+
+		test('getEntityCount returns zero for clean account', () => {
+			const entitiesQuery = queryService.provider('github').account('clean@example.com').entities();
+			const counts = entitiesQuery.getEntityCount();
+
+			assert.strictEqual(counts.extensions, 0);
+			assert.strictEqual(counts.mcpServers, 0);
+			assert.strictEqual(counts.total, 0);
+		});
+
+		test('removeAllAccess removes access for all entity types', () => {
+			const accountQuery = queryService.provider('github').account('user@example.com');
+
+			// Set up test data
+			accountQuery.extension('ext1').setAccessAllowed(true, 'Extension One');
+			accountQuery.extension('ext2').setAccessAllowed(true, 'Extension Two');
+			accountQuery.mcpServer('server1').setAccessAllowed(true, 'Server One');
+			accountQuery.mcpServer('server2').setAccessAllowed(true, 'Server Two');
+
+			// Verify initial state
+			assert.strictEqual(accountQuery.extension('ext1').isAccessAllowed(), true);
+			assert.strictEqual(accountQuery.extension('ext2').isAccessAllowed(), true);
+			assert.strictEqual(accountQuery.mcpServer('server1').isAccessAllowed(), true);
+			assert.strictEqual(accountQuery.mcpServer('server2').isAccessAllowed(), true);
+
+			// Remove all access
+			const entitiesQuery = accountQuery.entities();
+			entitiesQuery.removeAllAccess();
+
+			// Verify all access is removed
+			assert.strictEqual(accountQuery.extension('ext1').isAccessAllowed(), false);
+			assert.strictEqual(accountQuery.extension('ext2').isAccessAllowed(), false);
+			assert.strictEqual(accountQuery.mcpServer('server1').isAccessAllowed(), false);
+			assert.strictEqual(accountQuery.mcpServer('server2').isAccessAllowed(), false);
+		});
+
+		test('forEach iterates over all entity types', () => {
+			const accountQuery = queryService.provider('github').account('user@example.com');
+
+			// Set up test data
+			accountQuery.extension('ext1').setAccessAllowed(true, 'Extension One');
+			accountQuery.extension('ext2').addUsage(['read'], 'Extension Two');
+			accountQuery.mcpServer('server1').setAccessAllowed(true, 'Server One');
+			accountQuery.mcpServer('server2').addUsage(['write'], 'Server Two');
+
+			const entitiesQuery = accountQuery.entities();
+			const visitedEntities: Array<{ id: string; type: 'extension' | 'mcpServer' }> = [];
+
+			entitiesQuery.forEach((entityId, entityType) => {
+				visitedEntities.push({ id: entityId, type: entityType });
+			});
+
+			// Should visit all entities that have usage or access
+			assert.strictEqual(visitedEntities.length, 4);
+
+			const extensions = visitedEntities.filter(e => e.type === 'extension');
+			const mcpServers = visitedEntities.filter(e => e.type === 'mcpServer');
+
+			assert.strictEqual(extensions.length, 2);
+			assert.strictEqual(mcpServers.length, 2);
+
+			// Check specific entities were visited
+			assert.ok(visitedEntities.some(e => e.id === 'ext1' && e.type === 'extension'));
+			assert.ok(visitedEntities.some(e => e.id === 'ext2' && e.type === 'extension'));
+			assert.ok(visitedEntities.some(e => e.id === 'server1' && e.type === 'mcpServer'));
+			assert.ok(visitedEntities.some(e => e.id === 'server2' && e.type === 'mcpServer'));
+		});
+	});
 });

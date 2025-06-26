@@ -1369,13 +1369,6 @@ class EditorEnumOption<K extends EditorOption, T extends string, V> extends Base
 	}
 }
 
-function stringArray(value: any, defaultValue: string[]): string[] {
-	if (!Array.isArray(value)) {
-		return defaultValue;
-	}
-	return value.map(item => String(item));
-}
-
 //#endregion
 
 //#region autoIndent
@@ -4308,7 +4301,7 @@ export interface IInlineSuggestOptions {
 		/**
 		* @internal
 		*/
-		suppressInlineSuggestions?: string[];
+		suppressInlineSuggestions?: string;
 	};
 }
 
@@ -4341,7 +4334,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				allowCodeShifting: 'always',
 			},
 			experimental: {
-				suppressInlineSuggestions: [],
+				suppressInlineSuggestions: '',
 			},
 		};
 
@@ -4375,10 +4368,10 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					description: nls.localize('inlineSuggest.suppressSuggestions', "Controls how inline suggestions interact with the suggest widget. If enabled, the suggest widget is not shown automatically when inline suggestions are available.")
 				},
 				'editor.inlineSuggest.experimental.suppressInlineSuggestions': {
-					type: 'array',
+					type: 'string',
+					default: defaults.experimental.suppressInlineSuggestions,
 					tags: ['experimental', 'onExp'],
-					items: { type: 'string' },
-					description: nls.localize('inlineSuggest.suppressInlineSuggestions', "Suppresses inline completions for specified extension IDs.")
+					description: nls.localize('inlineSuggest.suppressInlineSuggestions', "Suppresses inline completions for specified extension IDs -- comma separated.")
 				},
 				'editor.inlineSuggest.fontFamily': {
 					type: 'string',
@@ -4433,7 +4426,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				renderSideBySide: stringSet(input.edits?.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto']),
 			},
 			experimental: {
-				suppressInlineSuggestions: stringArray(input.experimental?.suppressInlineSuggestions, this.defaultValue.experimental.suppressInlineSuggestions),
+				suppressInlineSuggestions: EditorStringOption.string(input.experimental?.suppressInlineSuggestions, this.defaultValue.experimental.suppressInlineSuggestions),
 			},
 		};
 	}

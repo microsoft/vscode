@@ -47,7 +47,7 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { ITerminalGroupService, ITerminalService } from '../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../terminal/common/terminal.js';
 
-import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, ITaskEvent, ITaskIdentifier, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RuntimeType, Task, TASK_RUNNING_STATE, TaskDefinition, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, USER_TASKS_GROUP_KEY, TaskEventKind, InstancePolicy } from '../common/tasks.js';
+import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, ITaskEvent, ITaskIdentifier, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RuntimeType, Task, TASK_RUNNING_STATE, TaskDefinition, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, USER_TASKS_GROUP_KEY, TaskEventKind, InstancePolicy, RerunAllRunningTasksCommandId } from '../common/tasks.js';
 import { CustomExecutionSupportedContext, ICustomizationProperties, IProblemMatcherRunOptions, ITaskFilter, ITaskProvider, ITaskService, IWorkspaceFolderTaskResult, ProcessExecutionSupportedContext, ServerlessWebContext, ShellExecutionSupportedContext, TaskCommandsRegistered, TaskExecutionSupportedContext } from '../common/taskService.js';
 import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers, VerifiedTask } from '../common/taskSystem.js';
 import { getTemplates as getTaskTemplates } from '../common/taskTemplates.js';
@@ -530,6 +530,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		CommandsRegistry.registerCommand('workbench.action.tasks.restartTask', async (accessor, arg) => {
 			if (await this._trust()) {
 				this._runRestartTaskCommand(arg);
+			}
+		});
+
+		CommandsRegistry.registerCommand(RerunAllRunningTasksCommandId, async (accessor, arg) => {
+			if (await this._trust()) {
+				this._runRerunAllRunningTasksCommand();
 			}
 		});
 
@@ -3362,6 +3368,19 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this._restart(activeTasks[0]);
 			}
 		}
+	}
+
+	private async _runRerunAllRunningTasksCommand(): Promise<void> {
+		const activeTasks = await this.getActiveTasks();
+
+		if (activeTasks.length === 0) {
+			this._notificationService.info(nls.localize('TaskService.noRunningTasks', 'No running tasks to restart'));
+			return;
+		}
+
+		// Restart all active tasks
+		const restartPromises = activeTasks.map(task => this._restart(task));
+		await Promise.allSettled(restartPromises);
 	}
 
 	private _getTaskIdentifier(filter?: string | ITaskIdentifier): string | KeyedTaskIdentifier | undefined {

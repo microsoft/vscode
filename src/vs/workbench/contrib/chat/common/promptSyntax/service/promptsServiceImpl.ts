@@ -44,6 +44,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	private readonly fileLocator: PromptFilesLocator;
 
+	/**
+	 * Cached custom modes. Caching only happens if the `onDidChangeCustomChatModes` event is used.
+	 */
+	private cachedCustomChatModes: Promise<readonly ICustomChatMode[]> | undefined;
 
 	/**
 	 * Lazily created event that is fired when the custom chat modes change.
@@ -100,6 +104,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 	public get onDidChangeCustomChatModes(): Event<void> {
 		if (!this.onDidChangeCustomChatModesEvent) {
 			this.onDidChangeCustomChatModesEvent = this._register(this.fileLocator.createFilesUpdatedEvent(PromptsType.mode)).event;
+			this._register(this.onDidChangeCustomChatModesEvent(() => {
+				this.cachedCustomChatModes = undefined; // reset cached custom chat modes
+			}));
 		}
 		return this.onDidChangeCustomChatModesEvent;
 	}
@@ -203,11 +210,21 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public async getCustomChatModes(token: CancellationToken): Promise<readonly ICustomChatMode[]> {
-		const modeFiles = (await this.listPromptFiles(PromptsType.mode, token))
-			.map(modeFile => modeFile.uri);
+		if (!this.cachedCustomChatModes) {
+			const customChatModes = this.computeCustomChatModes(token);
+			if (!this.onDidChangeCustomChatModesEvent) {
+				return customChatModes;
+			}
+			this.cachedCustomChatModes = customChatModes;
+		}
+		return this.cachedCustomChatModes;
+	}
+
+	private async computeCustomChatModes(token: CancellationToken): Promise<readonly ICustomChatMode[]> {
+		const modeFiles = await this.listPromptFiles(PromptsType.mode, token);
 
 		const metadataList = await Promise.all(
-			modeFiles.map(async (uri): Promise<ICustomChatMode> => {
+			modeFiles.map(async ({ uri }): Promise<ICustomChatMode> => {
 				let parser: PromptParser | undefined;
 				try {
 					// Note! this can be (and should be) improved by using shared parser instances
@@ -231,7 +248,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 						name: getCleanPromptName(uri),
 						description: metadata?.description,
 						tools,
-						body,
+						body
 					};
 				} finally {
 					parser?.dispose();
@@ -258,7 +275,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 			parser?.dispose();
 		}
 	}
-
 
 	public async getAllMetadata(promptUris: readonly URI[]): Promise<IMetadata[]> {
 		const metadata = await Promise.all(

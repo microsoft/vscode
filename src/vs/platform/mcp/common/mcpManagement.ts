@@ -19,7 +19,7 @@ export interface IScannedMcpServers {
 export interface IScannedMcpServer {
 	readonly id: string;
 	readonly name: string;
-	readonly version: string;
+	readonly version?: string;
 	readonly gallery?: boolean;
 	readonly config: IMcpServerConfiguration;
 }
@@ -38,7 +38,11 @@ export interface ILocalMcpServer {
 	readonly readmeUrl?: URI;
 	readonly publisher?: string;
 	readonly publisherDisplayName?: string;
-	readonly iconUrl?: string;
+	readonly icon?: {
+		readonly dark: string;
+		readonly light: string;
+	};
+	readonly codicon?: string;
 	readonly manifest?: IMcpServerManifest;
 }
 
@@ -84,7 +88,7 @@ export const enum PackageType {
 
 export interface IMcpServerPackage {
 	readonly name: string;
-	readonly version: string;
+	readonly version?: string;
 	readonly registry_name: PackageType;
 	readonly package_arguments?: readonly IMcpServerArgument[];
 	readonly runtime_arguments?: readonly IMcpServerArgument[];
@@ -93,31 +97,36 @@ export interface IMcpServerPackage {
 
 export interface IMcpServerRemote {
 	readonly url: string;
-	readonly transport_type: 'streamable' | 'sse';
-	readonly headers: ReadonlyArray<IMcpServerKeyValueInput>;
+	readonly transport_type?: 'streamable' | 'sse';
+	readonly headers?: ReadonlyArray<IMcpServerKeyValueInput>;
 }
 
 export interface IMcpServerManifest {
-	readonly packages: readonly IMcpServerPackage[];
-	readonly remotes: readonly IMcpServerRemote[];
+	readonly packages?: readonly IMcpServerPackage[];
+	readonly remotes?: readonly IMcpServerRemote[];
 }
 
 export interface IGalleryMcpServer {
 	readonly id: string;
 	readonly name: string;
 	readonly displayName: string;
-	readonly url: string;
+	readonly url?: string;
+	readonly icon?: {
+		readonly dark: string;
+		readonly light: string;
+	};
 	readonly description: string;
-	readonly version: string;
-	readonly lastUpdated: number;
-	readonly repositoryUrl: string;
-	readonly manifestUrl: string;
+	readonly version?: string;
+	readonly lastUpdated?: number;
+	readonly repositoryUrl?: string;
+	readonly manifestUrl?: string;
+	readonly manifest?: IMcpServerManifest;
 	readonly packageTypes: readonly PackageType[];
 	readonly readmeUrl?: string;
 	readonly publisher: string;
 	readonly publisherDisplayName?: string;
 	readonly publisherDomain?: { link: string; verified: boolean };
-	readonly iconUrl?: string;
+	readonly codicon?: string;
 	readonly licenseUrl?: string;
 	readonly installCount?: number;
 	readonly rating?: number;
@@ -138,6 +147,7 @@ export interface IMcpGalleryService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): boolean;
 	query(options?: IQueryOptions, token?: CancellationToken): Promise<IGalleryMcpServer[]>;
+	getMcpServer(server: string): Promise<IGalleryMcpServer | undefined>;
 	getManifest(extension: IGalleryMcpServer, token: CancellationToken): Promise<IMcpServerManifest>;
 	getReadme(extension: IGalleryMcpServer, token: CancellationToken): Promise<string>;
 }
@@ -176,7 +186,7 @@ export type UninstallOptions = {
 	mcpResource?: URI;
 };
 
-export interface IMcpServer {
+export interface IInstallableMcpServer {
 	name: string;
 	config: IMcpServerConfiguration;
 	inputs?: IMcpServerVariable[];
@@ -190,7 +200,7 @@ export interface IMcpManagementService {
 	readonly onUninstallMcpServer: Event<UninstallMcpServerEvent>;
 	readonly onDidUninstallMcpServer: Event<DidUninstallMcpServerEvent>;
 	getInstalled(mcpResource?: URI): Promise<ILocalMcpServer[]>;
-	install(server: IMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
+	install(server: IInstallableMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
 	installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
 	uninstall(server: ILocalMcpServer, options?: UninstallOptions): Promise<void>;
 }

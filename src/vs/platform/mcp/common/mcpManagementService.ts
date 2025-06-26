@@ -7,7 +7,6 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { uppercaseFirstLetter } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
@@ -15,7 +14,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
-import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, IMcpServerInput, IMcpServerManifest, InstallMcpServerEvent, InstallMcpServerResult, PackageType, UninstallMcpServerEvent, IScannedMcpServer, InstallOptions, UninstallOptions, IMcpServer } from './mcpManagement.js';
+import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, IMcpServerInput, IMcpServerManifest, InstallMcpServerEvent, InstallMcpServerResult, PackageType, UninstallMcpServerEvent, IScannedMcpServer, InstallOptions, UninstallOptions, IInstallableMcpServer } from './mcpManagement.js';
 import { IMcpServerVariable, McpServerVariableType, IMcpServerConfiguration } from './mcpPlatformTypes.js';
 import { IMcpResourceScannerService, McpResourceTarget } from './mcpResourceScannerService.js';
 
@@ -29,7 +28,11 @@ export interface ILocalMcpServerInfo {
 	repositoryUrl?: string;
 	publisher?: string;
 	publisherDisplayName?: string;
-	iconUrl?: string;
+	icon?: {
+		dark: string;
+		light: string;
+	};
+	codicon?: string;
 	manifest?: IMcpServerManifest;
 	readmeUrl?: URI;
 	location?: URI;
@@ -83,19 +86,9 @@ export abstract class AbstractMcpManagementService extends Disposable implements
 	protected async scanServer(scannedMcpServer: IScannedMcpServer, mcpResource: URI): Promise<ILocalMcpServer> {
 		let mcpServerInfo = await this.getLocalMcpServerInfo(scannedMcpServer);
 		if (!mcpServerInfo) {
-			let publisher = '';
-			const nameParts = scannedMcpServer.name.split('/');
-			if (nameParts.length > 0) {
-				const domainParts = nameParts[0].split('.');
-				if (domainParts.length > 0) {
-					publisher = domainParts[domainParts.length - 1]; // Always take the last part as owner
-				}
-			}
 			mcpServerInfo = {
 				name: scannedMcpServer.name,
 				version: '1.0.0',
-				displayName: nameParts[nameParts.length - 1].split('-').map(s => uppercaseFirstLetter(s)).join(' '),
-				publisher
 			};
 		}
 
@@ -112,12 +105,13 @@ export abstract class AbstractMcpManagementService extends Disposable implements
 			publisherDisplayName: mcpServerInfo.publisherDisplayName,
 			repositoryUrl: mcpServerInfo.repositoryUrl,
 			readmeUrl: mcpServerInfo.readmeUrl,
-			iconUrl: mcpServerInfo.iconUrl,
+			icon: mcpServerInfo.icon,
+			codicon: mcpServerInfo.codicon,
 			manifest: mcpServerInfo.manifest
 		};
 	}
 
-	async install(server: IMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
+	async install(server: IInstallableMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
 		this.logService.trace('MCP Management Service: install', server.name);
 
 		const mcpResource = options?.mcpResource ?? this.getDefaultMcpResource();
@@ -170,12 +164,17 @@ export abstract class AbstractMcpManagementService extends Disposable implements
 		let config: IMcpServerConfiguration;
 		const inputs: IMcpServerVariable[] = [];
 
-		if (packageType === PackageType.REMOTE) {
+		if (packageType === PackageType.REMOTE && manifest.remotes?.length) {
 			const headers: Record<string, string> = {};
 			for (const input of manifest.remotes[0].headers ?? []) {
-				headers[input.name] = input.value;
-				if (input.variables) {
-					inputs.push(...this.getVariables(input.variables));
+				const variables = input.variables ? this.getVariables(input.variables) : [];
+				let value = input.value;
+				for (const variable of variables) {
+					value = value.replace(`{${variable.id}}`, `{input:${variable.id}}`);
+				}
+				headers[input.name] = value;
+				if (variables.length) {
+					inputs.push(...variables);
 				}
 			}
 			config = {
@@ -184,7 +183,11 @@ export abstract class AbstractMcpManagementService extends Disposable implements
 				headers: Object.keys(headers).length ? headers : undefined,
 			};
 		} else {
-			const serverPackage = manifest.packages.find(p => p.registry_name === packageType) ?? manifest.packages[0];
+			const serverPackage = manifest.packages?.find(p => p.registry_name === packageType) ?? manifest.packages?.[0];
+			if (!serverPackage) {
+				throw new Error(`No server package found`);
+			}
+
 			const args: string[] = [];
 			const env: Record<string, string> = {};
 
@@ -195,16 +198,27 @@ export abstract class AbstractMcpManagementService extends Disposable implements
 			}
 
 			for (const arg of serverPackage.runtime_arguments ?? []) {
+				const variables = arg.variables ? this.getVariables(arg.variables) : [];
 				if (arg.type === 'positional') {
-					args.push(arg.value ?? arg.value_hint);
+					let value = arg.value;
+					if (value) {
+						for (const variable of variables) {
+							value = value.replace(`{${variable.id}}`, `{input:${variable.id}}`);
+						}
+					}
+					args.push(value ?? arg.value_hint);
 				} else if (arg.type === 'named') {
 					args.push(arg.name);
 					if (arg.value) {
-						args.push(arg.value);
+						let value = arg.value;
+						for (const variable of variables) {
+							value = value.replace(`{${variable.id}}`, `{input:${variable.id}}`);
+						}
+						args.push(value);
 					}
 				}
-				if (arg.variables) {
-					inputs.push(...this.getVariables(arg.variables));
+				if (variables.length) {
+					inputs.push(...variables);
 				}
 			}
 
@@ -212,7 +226,7 @@ export abstract class AbstractMcpManagementService extends Disposable implements
 				const variables = input.variables ? this.getVariables(input.variables) : [];
 				let value = input.value;
 				for (const variable of variables) {
-					value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
+					value = value.replace(`{${variable.id}}`, `{input:${variable.id}}`);
 				}
 				env[input.name] = value;
 				if (variables.length) {
@@ -225,26 +239,37 @@ export abstract class AbstractMcpManagementService extends Disposable implements
 			}
 
 			if (serverPackage.registry_name === PackageType.NODE) {
-				args.push(`${serverPackage.name}@${serverPackage.version}`);
+				args.push(serverPackage.version ? `${serverPackage.name}@${serverPackage.version}` : serverPackage.name);
 			}
 			else if (serverPackage.registry_name === PackageType.PYTHON) {
-				args.push(`${serverPackage.name}==${serverPackage.version}`);
+				args.push(serverPackage.version ? `${serverPackage.name}==${serverPackage.version}` : serverPackage.name);
 			}
 			else if (serverPackage.registry_name === PackageType.DOCKER) {
-				args.push(`${serverPackage.name}:${serverPackage.version}`);
+				args.push(serverPackage.version ? `${serverPackage.name}:${serverPackage.version}` : serverPackage.name);
 			}
 
 			for (const arg of serverPackage.package_arguments ?? []) {
+				const variables = arg.variables ? this.getVariables(arg.variables) : [];
 				if (arg.type === 'positional') {
-					args.push(arg.value ?? arg.value_hint);
+					let value = arg.value;
+					if (value) {
+						for (const variable of variables) {
+							value = value.replace(`{${variable.id}}`, `{input:${variable.id}}`);
+						}
+					}
+					args.push(value ?? arg.value_hint);
 				} else if (arg.type === 'named') {
 					args.push(arg.name);
 					if (arg.value) {
-						args.push(arg.value);
+						let value = arg.value;
+						for (const variable of variables) {
+							value = value.replace(`{${variable.id}}`, `{input:${variable.id}}`);
+						}
+						args.push(value);
 					}
 				}
-				if (arg.variables) {
-					inputs.push(...this.getVariables(arg.variables));
+				if (variables.length) {
+					inputs.push(...variables);
 				}
 			}
 
@@ -329,6 +354,8 @@ export class McpManagementService extends AbstractMcpManagementService implement
 				publisherDisplayName: server.publisherDisplayName,
 				repository: server.repositoryUrl,
 				licenseUrl: server.licenseUrl,
+				icon: server.icon,
+				codicon: server.codicon,
 				...manifest,
 			})));
 
@@ -384,8 +411,9 @@ export class McpManagementService extends AbstractMcpManagementService implement
 		return this.userDataProfilesService.defaultProfile.mcpResource;
 	}
 
-	private getLocation(name: string, version: string): URI {
-		return this.uriIdentityService.extUri.joinPath(this.mcpLocation, `${name.replace('/', '.')}-${version}`);
+	private getLocation(name: string, version?: string): URI {
+		name = name.replace('/', '.');
+		return this.uriIdentityService.extUri.joinPath(this.mcpLocation, version ? `${name}-${version}` : name);
 	}
 
 }

@@ -414,7 +414,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _requestTriggerCharQuickSuggestCompletions(): boolean {
-		if (!this._wasLastInputVerticalArrowKey()) {
+		if (!this._wasLastInputVerticalArrowKey() && !this._wasLastInputTabKey()) {
 			// Only request on trigger character when it's a regular input, or on an arrow if the widget
 			// is already visible
 			if (!this._wasLastInputIncludedEscape() || this._terminalSuggestWidgetVisibleContextKey.get()) {
@@ -445,6 +445,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// Never request completions if the last key sequence was up or down as the user was likely
 		// navigating history
 		return !!this._lastUserData?.match(/^\x1b[\[O]?[A-D]$/);
+	}
+
+	private _wasLastInputTabKey(): boolean {
+		return this._lastUserData === '\t';
 	}
 
 	private _sync(promptInputState: IPromptInputModelState): void {
