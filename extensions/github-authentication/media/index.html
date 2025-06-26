@@ -33,6 +33,14 @@
 		const appName = urlParams.get('app_name');
 		document.querySelectorAll('.app-name').forEach(e => e.innerText = appName);
 
+		// if name contains 'insiders', update filter CSS variables
+		if (appName.toLowerCase().includes('insiders')) {
+			document.documentElement.style.setProperty('--vscode-filter-0', 'var(--vscode-insiders-filter-0)');
+			document.documentElement.style.setProperty('--vscode-filter-50', 'var(--vscode-insiders-filter-50)');
+			document.documentElement.style.setProperty('--vscode-filter-70', 'var(--vscode-insiders-filter-70)');
+			document.documentElement.style.setProperty('--vscode-filter-100', 'var(--vscode-insiders-filter-100)');
+		}
+
 		const error = urlParams.get('error');
 		const redirectUri = urlParams.get('redirect_uri');
 		if (error) {
