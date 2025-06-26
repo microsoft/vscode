@@ -294,7 +294,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				}
 
 				data.actionbar.clear();
-				
+
 				// Add restart action if needed
 				if (element.marketplaceInfo) {
 					const restartAction = this._instantiationService.createInstance(ExtensionRuntimeStateAction);
@@ -304,7 +304,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 						data.elementDisposables.push(restartAction);
 					}
 				}
-				
+
 				const slowExtensionAction = this._createSlowExtensionAction(element);
 				if (slowExtensionAction) {
 					data.actionbar.push(slowExtensionAction, { icon: false, label: true });
