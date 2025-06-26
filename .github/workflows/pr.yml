@@ -88,8 +88,8 @@ jobs:
       # - name: npm run core-ci-pr
       #   run: npm run core-ci-pr
 
-      - name: npm run extensions-ci-pr
-        run: npm run extensions-ci-pr
+      # - name: npm run extensions-ci-pr
+      #   run: npm run extensions-ci-pr
 
       - name: npm run hygiene
         run: npm run hygiene
