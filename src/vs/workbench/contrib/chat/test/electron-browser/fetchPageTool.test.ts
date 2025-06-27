@@ -5,20 +5,38 @@
 
 import * as assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { NullWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { IWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { FetchWebPageTool } from '../../electron-browser/tools/fetchPageTool.js';
+
+class TestWebContentExtractorService implements IWebContentExtractorService {
+	_serviceBrand: undefined;
+
+	constructor(private uriToContentMap: Map<string, string>) { }
+
+	async extract(uris: URI[]): Promise<string[]> {
+		return uris.map(uri => {
+			const content = this.uriToContentMap.get(uri.toString());
+			if (content === undefined) {
+				throw new Error(`No content configured for URI: ${uri.toString()}`);
+			}
+			return content;
+		});
+	}
+}
 
 suite('FetchWebPageTool', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let tool: FetchWebPageTool;
-
-	setup(() => {
-		tool = new FetchWebPageTool(new NullWebContentExtractorService());
-	});
-
 	test('should only accept http and https URLs', async () => {
+		const uriToContentMap = new Map([
+			['https://example.com', 'HTTPS content'],
+			['http://example.com', 'HTTP content']
+		]);
+
+		const tool = new FetchWebPageTool(new TestWebContentExtractorService(uriToContentMap));
+
 		const testUrls = [
 			'https://example.com',
 			'http://example.com',
@@ -29,36 +47,81 @@ suite('FetchWebPageTool', () => {
 			'invalid-url'
 		];
 
-		// Use the private _parseUris method via any cast to test the internal logic
-		const parseUris = (tool as any)._parseUris.bind(tool);
-		const results = parseUris(testUrls);
+		const result = await tool.invoke(
+			{ parameters: { urls: testUrls } },
+			() => 0,
+			() => { },
+			CancellationToken.None
+		);
 
-		// Only HTTP and HTTPS URLs should be considered valid
-		assert.strictEqual(results.get('https://example.com') !== undefined, true, 'HTTPS URLs should be valid');
-		assert.strictEqual(results.get('http://example.com') !== undefined, true, 'HTTP URLs should be valid');
-		
-		// All other schemes should be considered invalid
-		assert.strictEqual(results.get('test://static/resource/50'), undefined, 'test:// URLs should be invalid');
-		assert.strictEqual(results.get('mcp-resource://746573742D736572766572/custom/hello/world.txt'), undefined, 'mcp-resource:// URLs should be invalid');
-		assert.strictEqual(results.get('file:///path/to/file'), undefined, 'file:// URLs should be invalid');
-		assert.strictEqual(results.get('ftp://example.com'), undefined, 'ftp:// URLs should be invalid');
-		assert.strictEqual(results.get('invalid-url'), undefined, 'Invalid URLs should be invalid');
+		// Should have 7 results (one for each input URL)
+		assert.strictEqual(result.content.length, 7, 'Should have result for each input URL');
+
+		// HTTP and HTTPS URLs should have their content
+		assert.strictEqual(result.content[0].value, 'HTTPS content', 'HTTPS URL should return content');
+		assert.strictEqual(result.content[1].value, 'HTTP content', 'HTTP URL should return content');
+
+		// All other schemes should be marked as invalid
+		assert.strictEqual(result.content[2].value, 'Invalid URL', 'test:// URL should be invalid');
+		assert.strictEqual(result.content[3].value, 'Invalid URL', 'mcp-resource:// URL should be invalid');
+		assert.strictEqual(result.content[4].value, 'Invalid URL', 'file:// URL should be invalid');
+		assert.strictEqual(result.content[5].value, 'Invalid URL', 'ftp:// URL should be invalid');
+		assert.strictEqual(result.content[6].value, 'Invalid URL', 'Invalid URL should be invalid');
+
+		// Only HTTP and HTTPS URLs should be in toolResultDetails
+		assert.strictEqual(result.toolResultDetails?.length, 2, 'Should have 2 valid URLs in toolResultDetails');
 	});
 
 	test('should handle empty and undefined URLs', async () => {
-		const parseUris = (tool as any)._parseUris.bind(tool);
-		
+		const tool = new FetchWebPageTool(new TestWebContentExtractorService(new Map()));
+
 		// Test empty array
-		const emptyResults = parseUris([]);
-		assert.strictEqual(emptyResults.size, 0, 'Empty array should result in empty map');
+		const emptyResult = await tool.invoke(
+			{ parameters: { urls: [] } },
+			() => 0,
+			() => { },
+			CancellationToken.None
+		);
+		assert.strictEqual(emptyResult.content.length, 1, 'Empty array should return single message');
+		assert.strictEqual(emptyResult.content[0].value, 'No valid URLs provided.', 'Should indicate no valid URLs');
 
 		// Test undefined
-		const undefinedResults = parseUris(undefined);
-		assert.strictEqual(undefinedResults.size, 0, 'Undefined should result in empty map');
+		const undefinedResult = await tool.invoke(
+			{ parameters: {} },
+			() => 0,
+			() => { },
+			CancellationToken.None
+		);
+		assert.strictEqual(undefinedResult.content.length, 1, 'Undefined URLs should return single message');
+		assert.strictEqual(undefinedResult.content[0].value, 'No valid URLs provided.', 'Should indicate no valid URLs');
 
-		// Test array with empty strings
-		const emptyStringResults = parseUris(['', ' ']);
-		assert.strictEqual(emptyStringResults.get(''), undefined, 'Empty string should be invalid');
-		assert.strictEqual(emptyStringResults.get(' '), undefined, 'Space-only string should be invalid');
+		// Test array with invalid URLs
+		const invalidResult = await tool.invoke(
+			{ parameters: { urls: ['', ' ', 'invalid-scheme://test'] } },
+			() => 0,
+			() => { },
+			CancellationToken.None
+		);
+		assert.strictEqual(invalidResult.content.length, 3, 'Should have result for each invalid URL');
+		assert.strictEqual(invalidResult.content[0].value, 'Invalid URL', 'Empty string should be invalid');
+		assert.strictEqual(invalidResult.content[1].value, 'Invalid URL', 'Space-only string should be invalid');
+		assert.strictEqual(invalidResult.content[2].value, 'Invalid URL', 'Invalid scheme should be invalid');
+	});
+
+	test('should provide correct past tense messages for mixed valid/invalid URLs', async () => {
+		const uriToContentMap = new Map([
+			['https://valid.com', 'Valid content']
+		]);
+
+		const tool = new FetchWebPageTool(new TestWebContentExtractorService(uriToContentMap));
+
+		const preparation = await tool.prepareToolInvocation(
+			{ parameters: { urls: ['https://valid.com', 'test://invalid'] } },
+			CancellationToken.None
+		);
+
+		assert.ok(preparation, 'Should return prepared invocation');
+		assert.ok(preparation.pastTenseMessage.value.includes('Fetched web page'), 'Should mention fetched web page');
+		assert.ok(preparation.pastTenseMessage.value.includes('test://invalid'), 'Should mention invalid URL');
 	});
 });
