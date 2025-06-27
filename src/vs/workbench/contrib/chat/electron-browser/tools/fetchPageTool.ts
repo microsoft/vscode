@@ -15,9 +15,9 @@ import { InternalFetchWebPageToolId } from '../../common/tools/tools.js';
 
 export const FetchWebPageToolData: IToolData = {
 	id: InternalFetchWebPageToolId,
-	displayName: 'Fetch Content',
+	displayName: 'Fetch Web Page',
 	canBeReferencedInPrompt: false,
-	modelDescription: localize('fetchWebPage.modelDescription', 'Fetches content from web pages (HTTP/HTTPS) or file resources. This tool is useful for summarizing or analyzing content from various sources.'),
+	modelDescription: localize('fetchWebPage.modelDescription', 'Fetches the main content from a web page. This tool is useful for summarizing or analyzing the content of a webpage.'),
 	source: ToolDataSource.Internal,
 	inputSchema: {
 		type: 'object',
@@ -27,7 +27,7 @@ export const FetchWebPageToolData: IToolData = {
 				items: {
 					type: 'string',
 				},
-				description: localize('fetchWebPage.urlsDescription', 'An array of URLs to fetch content from. Supports HTTP/HTTPS web pages and file resources.')
+				description: localize('fetchWebPage.urlsDescription', 'An array of URLs to fetch content from.')
 			}
 		},
 		required: ['urls']
