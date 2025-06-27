@@ -115,7 +115,7 @@ export async function getCwdForSplit(
 		case 'initial':
 			return instance.getInitialCwd();
 		case 'inherited':
-			return instance.getCwd();
+			return instance.getSpeculativeCwd();
 	}
 }
 
