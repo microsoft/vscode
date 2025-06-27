@@ -80,7 +80,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	},
 	'agent': {
 		type: 'subcommand',
-		description: 'Pass in a prompt to run in a chat agent session.',
+		description: 'Pass in a prompt to run in a chat agent session in the current working directory.',
 		options: {
 			'_': { type: 'string[]', description: localize('agentPrompt', "The prompt to send to the agent.") }
 		}
