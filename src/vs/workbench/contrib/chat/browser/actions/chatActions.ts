@@ -709,7 +709,8 @@ export function registerChatActions() {
 				title: localize2('configureCompletions', "Configure Code Completions..."),
 				precondition: ContextKeyExpr.and(
 					ChatContextKeys.Setup.installed,
-					ChatContextKeys.Setup.disabled.negate()
+					ChatContextKeys.Setup.disabled.negate(),
+					ChatContextKeys.Setup.untrusted.negate()
 				),
 				menu: {
 					id: MenuId.ChatTitleBarMenu,
