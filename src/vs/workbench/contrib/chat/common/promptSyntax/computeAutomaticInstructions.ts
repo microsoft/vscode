@@ -252,15 +252,16 @@ export class ComputeAutomaticInstructions {
 					seen.add(ref);
 				}
 			}
-
-			const stats = await this._fileService.resolveAll(refsToCheck);
-			for (let i = 0; i < stats.length; i++) {
-				const stat = stats[i];
-				const uri = refsToCheck[i].resource;
-				if (stat.success && stat.stat?.isFile) {
-					todo.push(uri);
-					const reason = localize('instruction.file.reason.referenced', 'Referenced by {0}', basename(next));
-					attachedContext.add(toPromptFileVariableEntry(uri, PromptFileVariableKind.InstructionReference, reason));
+			if (refsToCheck.length > 0) {
+				const stats = await this._fileService.resolveAll(refsToCheck);
+				for (let i = 0; i < stats.length; i++) {
+					const stat = stats[i];
+					const uri = refsToCheck[i].resource;
+					if (stat.success && stat.stat?.isFile) {
+						todo.push(uri);
+						const reason = localize('instruction.file.reason.referenced', 'Referenced by {0}', basename(next));
+						attachedContext.add(toPromptFileVariableEntry(uri, PromptFileVariableKind.InstructionReference, reason));
+					}
 				}
 			}
 			next = todo.pop();
