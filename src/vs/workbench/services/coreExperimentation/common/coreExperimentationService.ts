@@ -24,15 +24,55 @@ interface IExperiment {
 
 export interface ICoreExperimentationService {
 	readonly _serviceBrand: undefined;
-	getExperiment(experimentName: string): IExperiment | undefined;
+	getExperiment(): IExperiment | undefined;
 }
 
-interface IExperimentDefinition {
+interface ExperimentGroupDefinition {
 	name: string;
-	targetPercentage: number;
-	treatments: { name: string; percentage: number }[];
+	min: number;
+	max: number;
 	iteration: number;
 }
+
+interface ExperimentConfiguration {
+	experimentName: string;
+	targetPercentage: number;
+	groups: ExperimentGroupDefinition[];
+}
+
+enum StartupExperimentGroup {
+	Control = 'control',
+	MaximizedChat = 'maximizedChat',
+	SplitEmptyEditorChat = 'splitEmptyEditorChat',
+	SplitWelcomeChat = 'splitWelcomeChat'
+}
+
+export const STARTUP_EXPERIMENT_NAME = 'startup';
+
+const EXPERIMENT_CONFIGURATIONS: Record<string, ExperimentConfiguration> = {
+	stable: {
+		experimentName: STARTUP_EXPERIMENT_NAME,
+		targetPercentage: 20,
+		groups: [
+			// Bump the iteration each time we change group allocations
+			{ name: StartupExperimentGroup.Control, min: 0.0, max: 0.25, iteration: 1 },
+			{ name: StartupExperimentGroup.MaximizedChat, min: 0.25, max: 0.5, iteration: 1 },
+			{ name: StartupExperimentGroup.SplitEmptyEditorChat, min: 0.5, max: 0.75, iteration: 1 },
+			{ name: StartupExperimentGroup.SplitWelcomeChat, min: 0.75, max: 1.0, iteration: 1 }
+		]
+	},
+	insider: {
+		experimentName: STARTUP_EXPERIMENT_NAME,
+		targetPercentage: 20,
+		groups: [
+			// Bump the iteration each time we change group allocations
+			{ name: StartupExperimentGroup.Control, min: 0.0, max: 0.25, iteration: 1 },
+			{ name: StartupExperimentGroup.MaximizedChat, min: 0.25, max: 0.5, iteration: 1 },
+			{ name: StartupExperimentGroup.SplitEmptyEditorChat, min: 0.5, max: 0.75, iteration: 1 },
+			{ name: StartupExperimentGroup.SplitWelcomeChat, min: 0.75, max: 1.0, iteration: 1 }
+		]
+	}
+};
 
 export class CoreExperimentationService extends Disposable implements ICoreExperimentationService {
 	declare readonly _serviceBrand: undefined;
@@ -58,30 +98,22 @@ export class CoreExperimentationService extends Disposable implements ICoreExper
 			return;
 		}
 
-		const expName = 'startupExp';
+		const experimentConfig = this.getExperimentConfiguration();
+		if (!experimentConfig) {
+			return;
+		}
+
 		// also check storage to see if this user has already seen the startup experience
-		const storageKey = `coreExperimentation.${expName}`;
+		const storageKey = `coreExperimentation.${experimentConfig.experimentName}`;
 		const storedExperiment = this.storageService.get(storageKey, StorageScope.APPLICATION);
 		if (storedExperiment) {
 			return;
 		}
 
-		const startupLayoutExperiment: IExperimentDefinition = {
-			name: expName,
-			targetPercentage: this.getTargetPercentage(),
-			treatments: [
-				{ name: 'control', percentage: 25 },
-				{ name: 'maximizedChat', percentage: 25 },
-				{ name: 'splitEmptyEditorChat', percentage: 25 },
-				{ name: 'splitWelcomeChat', percentage: 25 }
-			],
-			iteration: 1
-		};
-
-		const experiment = this.createNewExperiment(startupLayoutExperiment);
+		const experiment = this.createStartupExperiment(experimentConfig.experimentName, experimentConfig);
 		if (experiment) {
-			this.experiments.set(startupLayoutExperiment.name, experiment);
-			this.sendExperimentTelemetry(startupLayoutExperiment.name, experiment);
+			this.experiments.set(experimentConfig.experimentName, experiment);
+			this.sendExperimentTelemetry(experimentConfig.experimentName, experiment);
 			startupExpContext.bindTo(this.contextKeyService).set(experiment.experimentGroup);
 			this.storageService.store(
 				storageKey,
@@ -92,35 +124,32 @@ export class CoreExperimentationService extends Disposable implements ICoreExper
 		}
 	}
 
-	private getTargetPercentage(): number {
+	private getExperimentConfiguration(): ExperimentConfiguration | undefined {
 		const quality = this.productService.quality;
-		if (quality === 'stable') {
-			return 20;
-		} else if (quality === 'insider') {
-			return 20;
+		if (!quality) {
+			return undefined;
 		}
-		return 0;
+		return EXPERIMENT_CONFIGURATIONS[quality];
 	}
 
-	private createNewExperiment(definition: IExperimentDefinition): IExperiment | undefined {
+	private createStartupExperiment(experimentName: string, experimentConfig: ExperimentConfiguration): IExperiment | undefined {
 		const cohort = Math.random();
 
-		if (cohort >= definition.targetPercentage / 100) {
+		if (cohort >= experimentConfig.targetPercentage / 100) {
 			return undefined;
 		}
 
 		// Normalize the cohort to the experiment range [0, targetPercentage/100]
-		const normalizedCohort = cohort / (definition.targetPercentage / 100);
+		const normalizedCohort = cohort / (experimentConfig.targetPercentage / 100);
 
-		let cumulativePercentage = 0;
-		for (const treatment of definition.treatments) {
-			cumulativePercentage += treatment.percentage;
-			if (normalizedCohort * 100 <= cumulativePercentage) {
+		// Find which group this user falls into
+		for (const group of experimentConfig.groups) {
+			if (normalizedCohort >= group.min && normalizedCohort < group.max) {
 				return {
 					cohort,
 					subCohort: normalizedCohort,
-					experimentGroup: treatment.name,
-					iteration: definition.iteration,
+					experimentGroup: group.name,
+					iteration: group.iteration,
 					isInExperiment: true
 				};
 			}
@@ -162,8 +191,8 @@ export class CoreExperimentationService extends Disposable implements ICoreExper
 		);
 	}
 
-	getExperiment(experimentName: string): IExperiment | undefined {
-		return this.experiments.get(experimentName);
+	getExperiment(): IExperiment | undefined {
+		return this.experiments.get(STARTUP_EXPERIMENT_NAME);
 	}
 }
 
