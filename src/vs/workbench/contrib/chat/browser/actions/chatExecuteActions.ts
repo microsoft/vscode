@@ -546,7 +546,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				});
 
 				const historyEntries: IChatAgentHistoryEntry[] = chatRequests
-					.filter(req => req.response) // Only include completed requests
 					.map(req => ({
 						request: {
 							sessionId: session,
