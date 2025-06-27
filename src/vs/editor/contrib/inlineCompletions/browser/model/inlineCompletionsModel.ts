@@ -43,7 +43,7 @@ import { InlineCompletionItem, InlineEditItem, InlineSuggestionItem } from './in
 import { InlineCompletionContextWithoutUuid, InlineCompletionEditorType, InlineSuggestRequestInfo } from './provideInlineCompletions.js';
 import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 import { SuggestItemInfo } from './suggestWidgetAdapter.js';
-import { TextModelEditReason } from '../../../../common/textModelEditReason.js';
+import { TextModelEditReason, EditReasons } from '../../../../common/textModelEditReason.js';
 import { ICodeEditorService } from '../../../../browser/services/codeEditorService.js';
 import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
 
@@ -774,13 +774,20 @@ export class InlineCompletionsModel extends Disposable {
 	public async previous(): Promise<void> { await this._deltaSelectedInlineCompletionIndex(-1); }
 
 	private _getMetadata(completion: InlineSuggestionItem, type: 'word' | 'line' | undefined = undefined): TextModelEditReason {
-		return new TextModelEditReason({
-			source: 'inlineCompletionAccept',
-			extensionId: completion.source.provider.groupId,
-			nes: completion.isInlineEdit,
-			type,
-			requestUuid: completion.requestUuid,
-		});
+		if (type) {
+			return EditReasons.inlineCompletionPartialAccept({
+				nes: completion.isInlineEdit,
+				requestUuid: completion.requestUuid,
+				extensionId: completion.source.provider.groupId ?? 'unknown',
+				type,
+			});
+		} else {
+			return EditReasons.inlineCompletionAccept({
+				nes: completion.isInlineEdit,
+				requestUuid: completion.requestUuid,
+				extensionId: completion.source.provider.groupId ?? 'unknown',
+			});
+		}
 	}
 
 	public async accept(editor: ICodeEditor = this._editor): Promise<void> {
