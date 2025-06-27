@@ -101,20 +101,25 @@ export class PromptCodingAgentActionOverlayWidget extends Disposable implements 
 			return;
 		}
 
-		const promptContent = model.getValue();
-		const promptName = getPromptCommandName(model.uri.path);
+		this._button.enabled = false;
+		try {
+			const promptContent = model.getValue();
+			const promptName = getPromptCommandName(model.uri.path);
 
-		const agents = this._remoteCodingAgentService.getAvailableAgents();
-		const agent = agents[0]; // Use the first available agent
-		if (!agent) {
-			return;
+			const agents = this._remoteCodingAgentService.getAvailableAgents();
+			const agent = agents[0]; // Use the first available agent
+			if (!agent) {
+				return;
+			}
+
+			await this._commandService.executeCommand(agent.command, {
+				userPrompt: promptName,
+				summary: promptContent,
+				source: 'prompt',
+			});
+		} finally {
+			this._button.enabled = true;
 		}
-
-		await this._commandService.executeCommand(agent.command, {
-			userPrompt: promptName,
-			summary: promptContent,
-			source: 'prompt',
-		});
 	}
 
 	override dispose(): void {
