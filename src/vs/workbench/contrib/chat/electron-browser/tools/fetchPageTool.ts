@@ -162,7 +162,12 @@ export class FetchWebPageTool implements IToolImpl {
 		urls?.forEach(uri => {
 			try {
 				const uriObj = URI.parse(uri);
-				results.set(uri, uriObj);
+				// Only accept http and https schemes for web content extraction
+				if (uriObj.scheme === 'http' || uriObj.scheme === 'https') {
+					results.set(uri, uriObj);
+				} else {
+					results.set(uri, undefined);
+				}
 			} catch (e) {
 				results.set(uri, undefined);
 			}
