@@ -38,13 +38,13 @@ import { MarkdownToken } from '../codecs/base/markdownCodec/tokens/markdownToken
 import { isPromptOrInstructionsFile } from '../config/promptFileLocations.js';
 import { FrontMatterHeader } from '../codecs/base/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ResolveError } from '../../promptFileReferenceErrors.js';
-import { type IPromptContentsProviderOptions, DEFAULT_OPTIONS as CONTENTS_PROVIDER_DEFAULT_OPTIONS } from '../contentProviders/promptContentsProviderBase.js';
+import { type IPromptContentsProviderOptions } from '../contentProviders/promptContentsProviderBase.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 
 /**
  * Options of the {@link BasePromptParser} class.
  */
-export interface IPromptParserOptions extends IPromptContentsProviderOptions {
+export interface IBasePromptParserOptions {
 	/**
 	 * List of reference paths have been already seen before
 	 * getting to the current prompt. Used to prevent infinite
@@ -53,13 +53,8 @@ export interface IPromptParserOptions extends IPromptContentsProviderOptions {
 	readonly seenReferences: readonly string[];
 }
 
-/**
- * Default {@link IPromptContentsProviderOptions} options.
- */
-const DEFAULT_OPTIONS: IPromptParserOptions = {
-	...CONTENTS_PROVIDER_DEFAULT_OPTIONS,
-	seenReferences: [],
-};
+export type IPromptParserOptions = IBasePromptParserOptions & IPromptContentsProviderOptions;
+
 
 /**
  * Error conditions that may happen during the file reference resolution.
@@ -75,7 +70,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * Options passed to the constructor, extended with
 	 * value defaults from {@link DEFAULT_OPTIONS}.
 	 */
-	protected readonly options: IPromptParserOptions;
+	protected readonly options: IBasePromptParserOptions;
 
 	/**
 	 * List of all tokens that were parsed from the prompt contents so far.
@@ -254,17 +249,14 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 
 	constructor(
 		private readonly promptContentsProvider: TContentsProvider,
-		options: Partial<IPromptParserOptions>,
+		options: IBasePromptParserOptions,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@ILogService protected readonly logService: ILogService,
 	) {
 		super();
 
-		this.options = {
-			...DEFAULT_OPTIONS,
-			...options,
-		};
+		this.options = options;
 
 		const seenReferences = [...this.options.seenReferences];
 
@@ -442,7 +434,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			? URI.joinPath(parentFolder, token.path)
 			: URI.file(token.path);
 
-		const contentProvider = this.promptContentsProvider.createNew({ uri: referenceUri });
+		const contentProvider = this.promptContentsProvider.createNew({ uri: referenceUri }, { allowNonPromptFiles: false, languageId: undefined });
 
 		const reference = this.instantiationService
 			.createInstance(PromptReference, contentProvider, token, { seenReferences });
@@ -843,7 +835,7 @@ export class PromptReference extends ObservableDisposable implements TPromptRefe
 	constructor(
 		private readonly promptContentsProvider: IPromptContentsProvider,
 		public readonly token: FileReference | MarkdownLink,
-		options: Partial<IPromptParserOptions>,
+		options: IBasePromptParserOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();

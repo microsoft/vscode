@@ -29,7 +29,7 @@ import { MarkdownLink } from '../../../common/promptSyntax/codecs/base/markdownC
 import { FileReference } from '../../../common/promptSyntax/codecs/tokens/fileReference.js';
 import { getPromptFileType } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { IPromptParserOptions, type TErrorCondition } from '../../../common/promptSyntax/parsers/basePromptParser.js';
+import { type TErrorCondition } from '../../../common/promptSyntax/parsers/basePromptParser.js';
 import { FilePromptParser } from '../../../common/promptSyntax/parsers/filePromptParser.js';
 import { type TPromptReference } from '../../../common/promptSyntax/parsers/types.js';
 import { IMockFolder, MockFilesystem } from './testUtils/mockFilesystem.js';
@@ -91,7 +91,6 @@ class TestPromptFileReference extends Disposable {
 	 * Run the test.
 	 */
 	public async run(
-		options: Partial<IPromptParserOptions> = {},
 	): Promise<FilePromptParser> {
 		// create the files structure on the disk
 		await (this.instantiationService.createInstance(MockFilesystem, this.fileStructure)).mock();
@@ -107,7 +106,7 @@ class TestPromptFileReference extends Disposable {
 			this.instantiationService.createInstance(
 				FilePromptParser,
 				this.rootFileUri,
-				options,
+				{ seenReferences: [], allowNonPromptFiles: true, languageId: undefined },
 			),
 		).start();
 
@@ -690,7 +689,7 @@ suite('PromptFileReference', function () {
 				]
 			));
 
-			await test.run({ allowNonPromptFiles: true });
+			await test.run();
 		});
 	});
 
