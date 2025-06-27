@@ -62,7 +62,7 @@ div.chat-welcome-view {
 		bottom: 0;
 		text-align: center;
 		max-width: 100%;
-		padding: 20px 20px 100px 20px;
+		padding: 20px 20px 105px 20px;
 		margin: 0 auto;
 		color: var(--vscode-input-placeholderForeground);
 
@@ -71,6 +71,7 @@ div.chat-welcome-view {
 		}
 		p{
 			margin-top: 0px;
+			margin-bottom: 8px;
 		}
 	}
 /*
