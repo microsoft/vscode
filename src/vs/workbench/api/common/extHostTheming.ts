@@ -5,7 +5,7 @@
 
 import { ColorTheme, ColorThemeKind } from './extHostTypes.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
-import { ExtHostThemingShape } from './extHost.protocol.js';
+import { ExtHostThemingShape, MainContext, MainThreadThemingShape } from './extHost.protocol.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 
 export class ExtHostTheming implements ExtHostThemingShape {
@@ -14,16 +14,22 @@ export class ExtHostTheming implements ExtHostThemingShape {
 
 	private _actual: ColorTheme;
 	private _onDidChangeActiveColorTheme: Emitter<ColorTheme>;
+	private _mainThreadTheming: MainThreadThemingShape;
 
 	constructor(
-		@IExtHostRpcService _extHostRpc: IExtHostRpcService
+		@IExtHostRpcService extHostRpc: IExtHostRpcService
 	) {
 		this._actual = new ColorTheme(ColorThemeKind.Dark);
 		this._onDidChangeActiveColorTheme = new Emitter<ColorTheme>();
+		this._mainThreadTheming = extHostRpc.getProxy(MainContext.MainThreadTheming);
 	}
 
 	public get activeColorTheme(): ColorTheme {
 		return this._actual;
+	}
+
+	public async getColorAsHex(colorId: string): Promise<string | undefined> {
+		return this._mainThreadTheming.$getColorAsHex(colorId);
 	}
 
 	$onColorThemeChange(type: string): void {

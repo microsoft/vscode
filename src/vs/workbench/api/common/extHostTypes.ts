@@ -3125,8 +3125,28 @@ ThemeIcon.Folder = new ThemeIcon('folder');
 @es5ClassCompat
 export class ThemeColor {
 	id: string;
+	private static _themingService: { getColorAsHex(colorId: string): Promise<string | undefined> } | undefined;
+
 	constructor(id: string) {
 		this.id = id;
+	}
+
+	/**
+	 * Returns the hexadecimal representation of this theme color when resolved
+	 * against the currently active color theme.
+	 * 
+	 * @returns The hexadecimal color string (e.g., '#FF0000' for red), or undefined
+	 * if the color cannot be resolved in the current theme.
+	 */
+	asHex(): Promise<string | undefined> {
+		if (!ThemeColor._themingService) {
+			throw new Error('ThemeColor.asHex() is not available. This proposal API requires an active extension host.');
+		}
+		return ThemeColor._themingService.getColorAsHex(this.id);
+	}
+
+	static _setThemingService(service: { getColorAsHex(colorId: string): Promise<string | undefined> }) {
+		ThemeColor._themingService = service;
 	}
 }
 

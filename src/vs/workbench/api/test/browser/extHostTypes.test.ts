@@ -783,4 +783,54 @@ suite('ExtHostTypes', function () {
 		m.content = 'Hello';
 		assert.deepStrictEqual(m.content, [new types.LanguageModelTextPart('Hello')]);
 	});
+
+	test('ThemeColor.asHex proposal', async function () {
+		// Mock theming service for testing
+		const mockThemingService = {
+			async getColorAsHex(colorId: string): Promise<string | undefined> {
+				const colorMap: { [key: string]: string | undefined } = {
+					'editor.foreground': '#CCCCCC',
+					'editor.background': '#1E1E1E',
+					'statusBar.background': '#007ACC',
+					'invalid.color': undefined
+				};
+				return colorMap[colorId];
+			}
+		};
+
+		// Test without theming service set
+		const color1 = new types.ThemeColor('editor.foreground');
+		try {
+			await color1.asHex();
+			assert.fail('Expected error when theming service not set');
+		} catch (error) {
+			assert.ok(error.message.includes('not available'));
+		}
+
+		// Set theming service
+		types.ThemeColor._setThemingService(mockThemingService);
+
+		// Test valid color
+		const color2 = new types.ThemeColor('editor.foreground');
+		const hex2 = await color2.asHex();
+		assert.strictEqual(hex2, '#CCCCCC');
+
+		// Test another valid color
+		const color3 = new types.ThemeColor('statusBar.background');
+		const hex3 = await color3.asHex();
+		assert.strictEqual(hex3, '#007ACC');
+
+		// Test invalid color
+		const color4 = new types.ThemeColor('invalid.color');
+		const hex4 = await color4.asHex();
+		assert.strictEqual(hex4, undefined);
+
+		// Test non-existent color
+		const color5 = new types.ThemeColor('non.existent.color');
+		const hex5 = await color5.asHex();
+		assert.strictEqual(hex5, undefined);
+
+		// Cleanup for other tests
+		types.ThemeColor._setThemingService(undefined as any);
+	});
 });
