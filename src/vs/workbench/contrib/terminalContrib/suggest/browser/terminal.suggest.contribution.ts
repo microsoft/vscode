@@ -298,7 +298,7 @@ registerTerminalAction({
 		order: 1
 	},
 	keybinding: {
-		primary: KeyMod.CtrlCmd | KeyCode.KeyK,
+		primary: KeyMod.CtrlCmd | KeyCode.Slash,
 		mac: { primary: KeyMod.WinCtrl | KeyCode.KeyK },
 		weight: KeybindingWeight.WorkbenchContrib + 1
 	},
