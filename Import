@@ -1,0 +1,30 @@
+import matplotlib.pyplot as plt
+import numpy as np
+
+‎# إنشاء نافذة الرسم
+fig, ax = plt.subplots(figsize=(6, 6))
+fig.patch.set_facecolor('black')       # خلفية الشكل
+ax.set_facecolor('black')              # خلفية المحاور
+
+‎# رسم شكل القلب
+t = np.linspace(0, 2 * np.pi, 1000)
+x = 16 * np.sin(t)**3
+y = 13 * np.cos(t) - 5 * np.cos(2*t) - 2 * np.cos(3*t) - np.cos(4*t)
+
+‎# تكرار القلب بعدة زوايا (تأثير دائري)
+for angle in np.linspace(0, 360, 100):
+    theta = np.radians(angle)
+    x_rot = x * np.cos(theta) - y * np.sin(theta)
+    y_rot = x * np.sin(theta) + y * np.cos(theta)
+    ax.plot(x_rot, y_rot, color='blue', linewidth=0.5)
+
+‎# كتابة الاسم في وسط الرسم
+ax.text(0, -2, 'عوض', color='cyan', fontsize=20, ha='center', va='center', fontweight='bold')
+
+‎# ضبط المظهر النهائي
+ax.set_aspect('equal')
+ax.axis('off')  # إخفاء المحاور
+
+‎# عرض أو حفظ الصورة
+plt.show()
+# plt.savefig("heart_awad_image.png", dpi=300, bbox_inches='tight', facecolor=fig.get_facecolor())
