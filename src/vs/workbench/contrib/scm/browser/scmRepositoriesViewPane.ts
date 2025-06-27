@@ -27,7 +27,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { autorun, IObservable } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
@@ -60,14 +60,20 @@ class RepositoryTreeIdentityProvider implements IIdentityProvider<ISCMRepository
 }
 
 class SCMRepositoriesViewModel extends Disposable {
+	readonly onDidChangeRepositoriesSignal = observableSignalFromEvent(this,
+		this.scmViewService.onDidChangeRepositories);
+
+	readonly onDidChangeVisibleRepositoriesSignal = observableSignalFromEvent(this,
+		this.scmViewService.onDidChangeVisibleRepositories);
+
 	constructor(
-		@ISCMViewService private readonly _scmViewService: ISCMViewService
+		@ISCMViewService private readonly scmViewService: ISCMViewService
 	) {
 		super();
 	}
 
 	get repositories(): ISCMRepository[] {
-		return this._scmViewService.repositories;
+		return this.scmViewService.repositories;
 	}
 }
 
@@ -134,11 +140,17 @@ export class SCMRepositoriesViewPane extends ViewPane {
 				this.updateBodySize(visibleCount);
 			}));
 
-			this.scmViewService.onDidChangeRepositories(this.onDidChangeRepositories, this, this.visibilityDisposables);
-			this.scmViewService.onDidChangeVisibleRepositories(this.updateTreeSelection, this, this.visibilityDisposables);
+			// onDidChangeRepositoriesSignal
+			this.visibilityDisposables.add(autorun(async reader => {
+				this.treeViewModel.onDidChangeRepositoriesSignal.read(reader);
+				await this.updateChildren();
+			}));
 
-			this.onDidChangeRepositories();
-			this.updateTreeSelection();
+			// onDidChangeVisibleRepositoriesSignal
+			this.visibilityDisposables.add(autorun(async reader => {
+				this.treeViewModel.onDidChangeVisibleRepositoriesSignal.read(reader);
+				this.updateTreeSelection();
+			}));
 		}, this, this._store);
 	}
 
@@ -193,11 +205,6 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		this._register(this.tree.onContextMenu(this.onTreeContextMenu, this));
 	}
 
-	private async onDidChangeRepositories(): Promise<void> {
-		await this.tree.updateChildren(this.treeViewModel);
-		this.updateBodySize(this.visibleCountObs.get());
-	}
-
 	private onTreeContextMenu(e: ITreeContextMenuEvent<ISCMRepository>): void {
 		if (!e.element) {
 			return;
@@ -236,6 +243,11 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		if (e.browserEvent && e.elements.length > 0) {
 			this.scmViewService.focus(e.elements[0]);
 		}
+	}
+
+	private async updateChildren(): Promise<void> {
+		await this.tree.updateChildren(this.treeViewModel);
+		this.updateBodySize(this.visibleCountObs.get());
 	}
 
 	private updateBodySize(visibleCount: number): void {
