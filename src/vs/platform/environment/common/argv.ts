@@ -24,7 +24,7 @@ export interface NativeParsedArgs {
 		};
 	};
 	'serve-web'?: INativeCliOptions;
-	'agent'?: { _: string[] };
+	agent?: { _: string[] };
 
 	// arguments
 	_: string[];
