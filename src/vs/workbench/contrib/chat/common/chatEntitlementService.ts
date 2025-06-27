@@ -22,7 +22,7 @@ import { asText, IRequestService } from '../../../../platform/request/common/req
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
 import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationExtensionsService, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
-import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { ChatContextKeys } from './chatContextKeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -949,7 +949,14 @@ export class ChatEntitlementContext extends Disposable {
 
 			const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
 			const installed = !!defaultChatExtension?.local;
-			const disabled = installed && !this.extensionEnablementService.isEnabled(defaultChatExtension.local);
+
+			let disabled: boolean;
+			if (installed) {
+				const state = this.extensionEnablementService.getEnablementState(defaultChatExtension.local);
+				disabled = state !== EnablementState.DisabledByTrustRequirement; // treat workspace trust specially
+			} else {
+				disabled = false;
+			}
 
 			this.update({ installed, disabled });
 		}));
