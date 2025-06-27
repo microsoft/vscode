@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ILogger } from '../../log/common/log.js';
-import { IMcpServerConfiguration } from './mcpPlatformTypes.js';
+import { IMcpServerConfiguration, IMcpServerVariable } from './mcpPlatformTypes.js';
 import { IMcpManagementService } from './mcpManagement.js';
 
-type ValidatedConfig = { name: string; config: IMcpServerConfiguration };
+type ValidatedConfig = { name: string; config: IMcpServerConfiguration; inputs?: IMcpServerVariable[] };
 
 export class McpManagementCli {
 	constructor(
@@ -24,11 +24,11 @@ export class McpManagementCli {
 	}
 
 	private async updateMcpInResource(configs: ValidatedConfig[]) {
-		await Promise.all(configs.map(({ name, config }) => this._mcpManagementService.install({ name, config })));
+		await Promise.all(configs.map(({ name, config, inputs }) => this._mcpManagementService.install({ name, config, inputs })));
 	}
 
 	private validateConfiguration(config: string): ValidatedConfig {
-		let parsed: IMcpServerConfiguration & { name: string };
+		let parsed: IMcpServerConfiguration & { name: string; inputs?: IMcpServerVariable[] };
 		try {
 			parsed = JSON.parse(config);
 		} catch (e) {
@@ -43,8 +43,8 @@ export class McpManagementCli {
 			throw new InvalidMcpOperationError(`Missing command or URL property in ${config}`);
 		}
 
-		const { name, ...rest } = parsed;
-		return { name, config: rest as IMcpServerConfiguration };
+		const { name, inputs, ...rest } = parsed;
+		return { name, inputs, config: rest as IMcpServerConfiguration };
 	}
 }
 

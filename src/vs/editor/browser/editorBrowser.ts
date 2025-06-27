@@ -991,7 +991,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean;
 	/** @internal */
-	executeEdits(source: TextModelEditReason, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean;
+	executeEdits(source: TextModelEditReason | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean;
 
 	/**
 	 * @internal
