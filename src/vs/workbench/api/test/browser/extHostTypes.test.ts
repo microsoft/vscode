@@ -784,8 +784,8 @@ suite('ExtHostTypes', function () {
 		assert.deepStrictEqual(m.content, [new types.LanguageModelTextPart('Hello')]);
 	});
 
-	test('ThemeColor.asHex proposal', async function () {
-		// Mock theming service for testing
+	test('ColorTheme.getHexFromThemeColor proposal', async function () {
+		// Mock theming service for testing  
 		const mockThemingService = {
 			async getColorAsHex(colorId: string): Promise<string | undefined> {
 				const colorMap: { [key: string]: string | undefined } = {
@@ -798,39 +798,39 @@ suite('ExtHostTypes', function () {
 			}
 		};
 
+		// Create a color theme
+		const colorTheme = new types.ColorTheme(types.ColorThemeKind.Dark);
+
 		// Test without theming service set
-		const color1 = new types.ThemeColor('editor.foreground');
+		const themeColor1 = new types.ThemeColor('editor.foreground');
 		try {
-			await color1.asHex();
+			await colorTheme.getHexFromThemeColor(themeColor1);
 			assert.fail('Expected error when theming service not set');
 		} catch (error) {
 			assert.ok(error.message.includes('not available'));
 		}
 
 		// Set theming service
-		types.ThemeColor._setThemingService(mockThemingService);
+		colorTheme._setThemingService(mockThemingService);
 
 		// Test valid color
-		const color2 = new types.ThemeColor('editor.foreground');
-		const hex2 = await color2.asHex();
+		const themeColor2 = new types.ThemeColor('editor.foreground');
+		const hex2 = await colorTheme.getHexFromThemeColor(themeColor2);
 		assert.strictEqual(hex2, '#CCCCCC');
 
 		// Test another valid color
-		const color3 = new types.ThemeColor('statusBar.background');
-		const hex3 = await color3.asHex();
+		const themeColor3 = new types.ThemeColor('statusBar.background');
+		const hex3 = await colorTheme.getHexFromThemeColor(themeColor3);
 		assert.strictEqual(hex3, '#007ACC');
 
 		// Test invalid color
-		const color4 = new types.ThemeColor('invalid.color');
-		const hex4 = await color4.asHex();
+		const themeColor4 = new types.ThemeColor('invalid.color');
+		const hex4 = await colorTheme.getHexFromThemeColor(themeColor4);
 		assert.strictEqual(hex4, undefined);
 
 		// Test non-existent color
-		const color5 = new types.ThemeColor('non.existent.color');
-		const hex5 = await color5.asHex();
+		const themeColor5 = new types.ThemeColor('non.existent.color');
+		const hex5 = await colorTheme.getHexFromThemeColor(themeColor5);
 		assert.strictEqual(hex5, undefined);
-
-		// Cleanup for other tests
-		types.ThemeColor._setThemingService(undefined as any);
 	});
 });

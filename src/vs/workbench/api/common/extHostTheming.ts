@@ -22,6 +22,9 @@ export class ExtHostTheming implements ExtHostThemingShape {
 		this._actual = new ColorTheme(ColorThemeKind.Dark);
 		this._onDidChangeActiveColorTheme = new Emitter<ColorTheme>();
 		this._mainThreadTheming = extHostRpc.getProxy(MainContext.MainThreadTheming);
+		
+		// Set the theming service on the color theme instance
+		this._actual._setThemingService(this);
 	}
 
 	public get activeColorTheme(): ColorTheme {
@@ -42,6 +45,8 @@ export class ExtHostTheming implements ExtHostThemingShape {
 				kind = ColorThemeKind.Dark;
 		}
 		this._actual = new ColorTheme(kind);
+		// Set the theming service on the new color theme instance
+		this._actual._setThemingService(this);
 		this._onDidChangeActiveColorTheme.fire(this._actual);
 	}
 
