@@ -46,7 +46,6 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { WorkspaceTrustContext } from '../../../workspace/common/workspace.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
@@ -711,7 +710,7 @@ export function registerChatActions() {
 				precondition: ContextKeyExpr.and(
 					ChatContextKeys.Setup.installed,
 					ChatContextKeys.Setup.disabled.negate(),
-					WorkspaceTrustContext.IsTrusted
+					ChatContextKeys.Setup.untrusted.negate()
 				),
 				menu: {
 					id: MenuId.ChatTitleBarMenu,

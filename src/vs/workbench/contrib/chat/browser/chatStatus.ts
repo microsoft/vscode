@@ -42,7 +42,6 @@ import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 
 const gaugeBackground = registerColor('gauge.background', {
 	dark: inputValidationInfoBorder,
@@ -119,7 +118,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService
 	) {
 		super();
 
@@ -194,7 +192,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			const completionsQuotaExceeded = this.chatEntitlementService.quotas.completions?.percentRemaining === 0;
 
 			// Disabled
-			if (this.chatEntitlementService.sentiment.disabled || !this.workspaceTrustManagementService.isWorkspaceTrusted()) {
+			if (this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted) {
 				text = `$(copilot-unavailable)`;
 				ariaLabel = localize('copilotDisabledStatus', "Copilot Disabled");
 			}
@@ -255,9 +253,9 @@ function isNewUser(chatEntitlementService: IChatEntitlementService): boolean {
 		chatEntitlementService.entitlement === ChatEntitlement.Available;	// not yet signed up to copilot
 }
 
-function canUseCopilot(chatEntitlementService: IChatEntitlementService, workspaceTrustManagementService: IWorkspaceTrustManagementService): boolean {
+function canUseCopilot(chatEntitlementService: IChatEntitlementService): boolean {
 	const newUser = isNewUser(chatEntitlementService);
-	const disabled = chatEntitlementService.sentiment.disabled || !workspaceTrustManagementService.isWorkspaceTrusted();
+	const disabled = chatEntitlementService.sentiment.disabled || chatEntitlementService.sentiment.untrusted;
 	const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 	const free = chatEntitlementService.entitlement === ChatEntitlement.Free;
 	const allFreeQuotaReached = free && chatEntitlementService.quotas.chat?.percentRemaining === 0 && chatEntitlementService.quotas.completions?.percentRemaining === 0;
@@ -317,7 +315,6 @@ class ChatStatusDashboard extends Disposable {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService
 	) {
 		super();
 	}
@@ -362,7 +359,7 @@ class ChatStatusDashboard extends Disposable {
 			}
 
 			if (this.chatEntitlementService.entitlement === ChatEntitlement.Free && (Number(chatQuota?.percentRemaining) <= 25 || Number(completionsQuota?.percentRemaining) <= 25)) {
-				const upgradeProButton = disposables.add(new Button(this.element, { ...defaultButtonStyles, secondary: canUseCopilot(this.chatEntitlementService, this.workspaceTrustManagementService) /* use secondary color when copilot can still be used */ }));
+				const upgradeProButton = disposables.add(new Button(this.element, { ...defaultButtonStyles, secondary: canUseCopilot(this.chatEntitlementService) /* use secondary color when copilot can still be used */ }));
 				upgradeProButton.label = localize('upgradeToCopilotPro', "Upgrade to Copilot Pro");
 				disposables.add(upgradeProButton.onDidClick(() => this.runCommandAndClose('workbench.action.chat.upgradePlan')));
 			}
@@ -427,7 +424,7 @@ class ChatStatusDashboard extends Disposable {
 		// New to Copilot / Signed out
 		{
 			const newUser = isNewUser(this.chatEntitlementService);
-			const disabled = this.chatEntitlementService.sentiment.disabled || !this.workspaceTrustManagementService.isWorkspaceTrusted();
+			const disabled = this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted;
 			const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 			if (newUser || signedOut || disabled) {
 				addSeparator();
@@ -639,7 +636,7 @@ class ChatStatusDashboard extends Disposable {
 			}
 		}));
 
-		if (!canUseCopilot(this.chatEntitlementService, this.workspaceTrustManagementService)) {
+		if (!canUseCopilot(this.chatEntitlementService)) {
 			container.classList.add('disabled');
 			checkbox.disable();
 			checkbox.checked = false;
@@ -701,7 +698,7 @@ class ChatStatusDashboard extends Disposable {
 
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(completionsSettingId)) {
-				if (completionsSettingAccessor.readSetting() && canUseCopilot(this.chatEntitlementService, this.workspaceTrustManagementService)) {
+				if (completionsSettingAccessor.readSetting() && canUseCopilot(this.chatEntitlementService)) {
 					checkbox.enable();
 					container.classList.remove('disabled');
 				} else {
