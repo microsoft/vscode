@@ -12,7 +12,7 @@ import { mcpConfigurationSection } from '../../../contrib/mcp/common/mcpConfigur
 import { IWorkbenchMcpManagementService } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
 import { URI } from '../../../../base/common/uri.js';
 import { parse } from '../../../../base/common/jsonc.js';
 import { isObject, Mutable } from '../../../../base/common/types.js';
@@ -83,7 +83,9 @@ export class McpConfigMigrationContribution extends Disposable implements IWorkb
 			}
 			return mcpConfiguration;
 		} catch (error) {
-			this.logService.warn(`MCP migration: Failed to parse MCP config from ${settingsFile}:`, error);
+			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+				this.logService.warn(`MCP migration: Failed to parse MCP config from ${settingsFile}:`, error);
+			}
 			return;
 		}
 	}
