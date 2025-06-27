@@ -164,7 +164,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private inputPart!: ChatInputPart;
 	private inlineInputPart!: ChatInputPart;
-	private editedRequest: IChatListItemTemplate | undefined;
 	private inputContainer!: HTMLElement;
 	private focusedInputDOM!: HTMLElement;
 	private editorOptions!: ChatEditorOptions;
@@ -361,7 +360,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.renderChatEditingSessionState();
 			} else if (e.affectsConfiguration(ChatConfiguration.EditRequests)) {
 				this.settingChangeCounter++;
-				this.onDidChangeItems(false, this.settingChangeCounter);
+				this.onDidChangeItems();
 			}
 		}));
 
@@ -659,7 +658,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._onDidClear.fire();
 	}
 
-	private onDidChangeItems(skipDynamicLayout?: boolean, settingId?: number) {
+	private onDidChangeItems(skipDynamicLayout?: boolean) {
 		if (this._visible || !this.viewModel) {
 			const treeItems = (this.viewModel?.getItems() ?? [])
 				.map((item): ITreeElement<ChatTreeItem> => {
@@ -694,7 +693,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							// Re-render if we have an element currently being edited
 							`_${this.viewModel?.editing ? '1' : '0'}` +
 							// Re-render all if invoked by setting change
-							`_setting${settingId || '0'}` +
+							`_setting${this.settingChangeCounter || '0'}` +
 							// Rerender request if we got new content references in the response
 							// since this may change how we render the corresponding attachments in the request
 							(isRequestVM(element) && element.contentReferences ? `_${element.contentReferences?.length}` : '') +
@@ -932,9 +931,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	startEditing(requestId: string): void {
-		this.editedRequest = this.renderer.getTemplateDataForRequestId(requestId);
-		if (this.editedRequest) {
-			this.clickedRequest(this.editedRequest);
+		const editedRequest = this.renderer.getTemplateDataForRequestId(requestId);
+		if (editedRequest) {
+			this.clickedRequest(editedRequest);
 		}
 	}
 
@@ -994,7 +993,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.input.inputEditor.focus();
 
 			this._register(dom.addDisposableListener(this.inputPart.element, dom.EventType.CLICK, () => {
-				if (this.viewModel?.editing && !isInput) {
+				if (this.viewModel?.editing && this.configurationService.getValue<string>('chat.editRequests') !== 'input') {
 					this.finishedEditing();
 				}
 			}));
@@ -1014,11 +1013,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	finishedEditing(currentRequest?: IChatListItemTemplate | undefined): void {
 		// reset states
-		this.editedRequest = currentRequest ?? this.renderer.getTemplateDataForRequestId(this.viewModel?.editing?.id);
+		const editedRequest = this.renderer.getTemplateDataForRequestId(this.viewModel?.editing?.id);
 		this.viewModel?.model.setCheckpoint(undefined);
 		this.inputPart.dnd.setDisabledOverlay(false);
-		if (this.editedRequest?.contextKeyService) {
-			ChatContextKeys.currentlyEditing.bindTo(this.editedRequest.contextKeyService).set(false);
+		if (editedRequest?.contextKeyService) {
+			ChatContextKeys.currentlyEditing.bindTo(editedRequest.contextKeyService).set(false);
 		}
 
 		const isInput = this.configurationService.getValue<string>('chat.editRequests') === 'input';
@@ -1026,7 +1025,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!isInput) {
 			this.inputPart?.toggleChatInputOverlay(false);
 			try {
-				this.editedRequest?.rowContainer.removeChild(this.inputContainer);
+				editedRequest?.rowContainer.removeChild(this.inputContainer);
 			} catch (e) {
 				if (this.inputContainer.parentElement) {
 					this.inputContainer.parentElement.removeChild(this.inputContainer);
@@ -1042,11 +1041,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart?.setEditing(!!this.viewModel?.editing && isInput);
 
 		this.onDidChangeItems();
-		if (this.editedRequest && this.editedRequest.currentElement) {
-			this.renderer.updateItemHeightOnRender(this.editedRequest.currentElement, this.editedRequest);
+		if (editedRequest && editedRequest.currentElement) {
+			this.renderer.updateItemHeightOnRender(editedRequest.currentElement, editedRequest);
 		}
-
-		this.editedRequest = undefined;
 
 		this.inputPart.focus();
 	}
@@ -1135,8 +1132,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		};
 
 		if (this.viewModel?.editing) {
-			this.editedRequest = this.renderer.getTemplateDataForRequestId(this.viewModel?.editing?.id);
-			const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.editedRequest?.contextKeyService])));
+			const editedRequest = this.renderer.getTemplateDataForRequestId(this.viewModel?.editing?.id);
+			const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, editedRequest?.contextKeyService])));
 			this.inlineInputPart = this._register(scopedInstantiationService.createInstance(ChatInputPart,
 				this.location,
 				commonConfig,
@@ -1209,8 +1206,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			});
 		}));
 		this._register(this.input.onDidChangeHeight(() => {
-			if (isRequestVM(this.editedRequest?.currentElement) && this.viewModel?.editing) {
-				this.renderer.updateItemHeightOnRender(this.editedRequest?.currentElement, this.editedRequest);
+			const editedRequest = this.renderer.getTemplateDataForRequestId(this.viewModel?.editing?.id);
+			if (isRequestVM(editedRequest?.currentElement) && this.viewModel?.editing) {
+				this.renderer.updateItemHeightOnRender(editedRequest?.currentElement, editedRequest);
 			}
 
 			if (this.bodyDimension) {
@@ -1287,10 +1285,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
-		if (this.editedRequest) {
-			this.finishedEditing(this.editedRequest);
-		}
-
 		this._codeBlockModelCollection.clear();
 
 		this.container.setAttribute('data-session-id', model.sessionId);
@@ -1318,7 +1312,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
 			// Ensure that view state is saved here, because we will load it again when a new model is assigned
 			this.input.saveState();
-
+			if (this.viewModel?.editing) {
+				this.finishedEditing();
+			}
 			// Disposes the viewmodel and listeners
 			this.viewModel = undefined;
 			this.onDidChangeItems();
