@@ -48,9 +48,8 @@ class ChatCommandLineSupportContribution extends Disposable {
 	) {
 		super();
 
-		const agentArgs = this.environmentService.args.agent?._;
-		if (this.environmentService.window.isInitialStartup && Array.isArray(agentArgs) && agentArgs.length > 0) {
-			this.run(agentArgs.join(' '));
+		if (this.environmentService.window.isInitialStartup) {
+			this.promptAgentic(this.environmentService.args.agent?._);
 		}
 
 		this.registerListeners();
@@ -62,13 +61,15 @@ class ChatCommandLineSupportContribution extends Disposable {
 				return;
 			}
 
-			if (Array.isArray(subcommand.args._) && subcommand.args._.length > 0) {
-				this.run(subcommand.args._.join(' '));
-			}
+			this.promptAgentic(subcommand.args._);
 		});
 	}
 
-	private async run(prompt: string): Promise<void> {
+	private async promptAgentic(agentArgs: string[] | undefined): Promise<void> {
+		if (!Array.isArray(agentArgs) || agentArgs.length === 0) {
+			return;
+		}
+
 		const trusted = await this.workspaceTrustRequestService.requestWorkspaceTrust({
 			message: localize('copilotWorkspaceTrust', "Copilot is currently only supported in trusted workspaces.")
 		});
@@ -77,12 +78,13 @@ class ChatCommandLineSupportContribution extends Disposable {
 			return;
 		}
 
+		this.layoutService.setAuxiliaryBarMaximized(true);
+
 		const opts: IChatViewOpenOptions = {
-			query: prompt,
+			query: agentArgs.join(' '),
 			mode: ChatMode.Agent
 		};
 		this.commandService.executeCommand(CHAT_OPEN_ACTION_ID, opts);
-		this.layoutService.setAuxiliaryBarMaximized(true);
 	}
 }
 
