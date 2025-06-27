@@ -49,9 +49,8 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 			return undefined;
 		}
 
-		// TODO: Don't use track (sync* or `setCommandLine`)
 		// Apply edit for non-executed current commandline --> Pretend we are typing in the real-document.
-		this._lspTerminalModelContentProvider.trackPromptInputToVirtualFile(value);
+		this._lspTerminalModelContentProvider.setCommandLineVirtualFile(value);
 
 		const textBeforeCursor = value.substring(0, cursorPosition);
 		const lines = textBeforeCursor.split('\n');

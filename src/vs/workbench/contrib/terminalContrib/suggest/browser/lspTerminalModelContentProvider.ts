@@ -83,7 +83,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	 * We want to track the input and update the virtual document.
 	 * Note: This is for non-executed command.
 	*/
-	trackPromptInputToVirtualFile(content: string): void {
+	setCommandLineVirtualFile(content: string): void {
 		this._commandDetection = this._capabilitiesStore.get(TerminalCapability.CommandDetection);
 		const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
 		// TODO: Hardcoded python stuff
