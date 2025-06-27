@@ -284,6 +284,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// Bring window to front
 		window.focus();
 
+		if (openConfig.cli.agent) {
+			window.sendWhenReady('vscode:subcommand', CancellationToken.None, {
+				type: 'agent',
+				args: openConfig.cli.agent
+			});
+		}
+
 		// Handle --wait
 		this.handleWaitMarkerFile(openConfig, [window]);
 	}
@@ -747,6 +754,14 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		let pathsToOpen: IPathToOpen[];
 		let isCommandLineOrAPICall = false;
 		let isRestoringPaths = false;
+
+		// Extract paths: current working directory for agent subcommand
+		if (openConfig.cli.agent) {
+			const res = await this.doResolveFilePath(process.cwd(), {});
+			if (res) {
+				return [res];
+			}
+		}
 
 		// Extract paths: from API
 		if (openConfig.urisToOpen && openConfig.urisToOpen.length > 0) {

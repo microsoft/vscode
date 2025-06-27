@@ -78,6 +78,13 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 			'telemetry-level': { type: 'string' },
 		}
 	},
+	'agent': {
+		type: 'subcommand',
+		description: 'Pass in a prompt to run in a chat agent session.',
+		options: {
+			'_': { type: 'string[]', description: localize('agentPrompt', "The prompt to send to the agent.") }
+		}
+	},
 
 	'diff': { type: 'boolean', cat: 'o', alias: 'd', args: ['file', 'file'], description: localize('diff', "Compare two files with each other.") },
 	'merge': { type: 'boolean', cat: 'o', alias: 'm', args: ['path1', 'path2', 'base', 'result'], description: localize('merge', "Perform a three-way merge by providing paths for two modified versions of a file, the common origin of both modified versions and the output file to save merge results.") },

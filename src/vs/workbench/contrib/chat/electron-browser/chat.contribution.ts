@@ -11,6 +11,12 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { FetchWebPageTool, FetchWebPageToolData } from './tools/fetchPageTool.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
+import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
+import { ChatMode } from '../common/constants.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 
 class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -25,6 +31,47 @@ class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchCon
 		const editTool = instantiationService.createInstance(FetchWebPageTool);
 		this._register(toolsService.registerToolData(FetchWebPageToolData));
 		this._register(toolsService.registerToolImplementation(FetchWebPageToolData.id, editTool));
+	}
+}
+
+class ChatCommandLineSupportContribution extends Disposable {
+
+	static readonly ID = 'workbench.contrib.chatCommandLineSupport';
+
+	constructor(
+		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+	) {
+		super();
+
+		const agentArgs = this.environmentService.args.agent?._;
+		if (Array.isArray(agentArgs) && agentArgs.length > 0) {
+			this.run(agentArgs.join(' '));
+		}
+
+		this.registerListeners();
+	}
+
+	private registerListeners() {
+		ipcRenderer.on('vscode:subcommand', (_, subcommand: { type: string; args: { _: string[] } }) => {
+			if (subcommand.type !== 'agent') {
+				return;
+			}
+
+			if (Array.isArray(subcommand.args._) && subcommand.args._.length > 0) {
+				this.run(subcommand.args._.join(' '));
+			}
+		});
+	}
+
+	private async run(prompt: string): Promise<void> {
+		const opts: IChatViewOpenOptions = {
+			query: prompt,
+			mode: ChatMode.Agent
+		};
+		this.commandService.executeCommand(CHAT_OPEN_ACTION_ID, opts);
+		this.layoutService.setAuxiliaryBarMaximized(true);
 	}
 }
 
@@ -47,3 +94,4 @@ registerChatDeveloperActions();
 
 registerWorkbenchContribution2(KeywordActivationContribution.ID, KeywordActivationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(NativeBuiltinToolsContribution.ID, NativeBuiltinToolsContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatCommandLineSupportContribution.ID, ChatCommandLineSupportContribution, WorkbenchPhase.AfterRestored);

@@ -1209,6 +1209,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		delete configuration.filesToDiff;
 		delete configuration.filesToMerge;
 		delete configuration.filesToWait;
+		delete configuration.agent;
 
 		// Some configuration things get inherited if the window is being reloaded and we are
 		// in extension development mode. These options are all development related.
