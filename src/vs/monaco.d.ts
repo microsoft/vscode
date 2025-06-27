@@ -7502,12 +7502,16 @@ declare namespace monaco.languages {
 
 	export type LifetimeSummary = {
 		requestUuid: string;
+		partiallyAccepted: number;
 		shown: boolean;
 		shownDuration: number;
 		shownDurationUncollapsed: number;
+		timeUntilShown: number | undefined;
 		editorType: string;
 		viewKind: string | undefined;
 		error: string | undefined;
+		languageId: string;
+		isExplicitRequest: boolean;
 		cursorColumnDistance?: number;
 		cursorLineDistance?: number;
 		lineCountOriginal?: number;

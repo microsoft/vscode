@@ -144,10 +144,9 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 				minReservedLineCount: constObservable(0),
 				targetTextModel: this._editorObs.model.map(model => model ?? undefined),
 				warning: constObservable(undefined),
-				handleInlineCompletionShown: (viewData) => {
-					// This is a no-op for the insertion view, as it does not handle inline completions.
-					// The state is handled by the InlineEditsView.
-				}
+				handleInlineCompletionShown: constObservable(() => {
+					// This is a no-op for the insertion view, as it is handled by the InlineEditsView.
+				}),
 			},
 			observableValue(this, { syntaxHighlightingEnabled: true, extraClasses: ['inline-edit'] }),
 			true,

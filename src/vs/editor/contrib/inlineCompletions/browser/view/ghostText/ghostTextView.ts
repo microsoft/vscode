@@ -42,7 +42,7 @@ export interface IGhostTextWidgetModel {
 	readonly warning: IObservable<{ icon: IconPath | undefined } | undefined>;
 	readonly minReservedLineCount: IObservable<number>;
 
-	handleInlineCompletionShown(viewData: InlineCompletionViewData): void;
+	readonly handleInlineCompletionShown: IObservable<(viewData: InlineCompletionViewData) => void>;
 }
 
 const USE_SQUIGGLES_FOR_WARNING = true;
@@ -136,7 +136,7 @@ export class GhostTextView extends Disposable {
 				disjointReplacements: inlineTextsWithTokens.length + (additionalLines.length > 0 ? 1 : 0),
 				sameShapeReplacements: inlineTextsWithTokens.length > 1 && inlineTextsWithTokens.length === 0 ? inlineTextsWithTokens.every(inline => inline.text.length === inlineTextsWithTokens[0].text.length) : undefined,
 			};
-			this._model.handleInlineCompletionShown(renderData);
+			this._model.handleInlineCompletionShown.read(reader)?.(renderData);
 
 			return {
 				replacedRange,

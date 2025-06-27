@@ -647,15 +647,17 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				if (supportsHandleEvents) {
 					await this._proxy.$handleInlineCompletionEndOfLifetime(handle, completions.pid, item.idx, mapReason(reason, i => ({ pid: completions.pid, idx: i.idx })));
 				}
-
 				const endOfLifeSummary: InlineCompletionEndOfLifeEvent = {
 					id: lifetimeSummary.requestUuid,
 					shown: lifetimeSummary.shown,
 					shownDuration: lifetimeSummary.shownDuration,
 					shownDurationUncollapsed: lifetimeSummary.shownDurationUncollapsed,
+					timeUntilShown: lifetimeSummary.timeUntilShown,
 					editorType: lifetimeSummary.editorType,
 					viewKind: lifetimeSummary.viewKind,
+					isExplicitRequest: lifetimeSummary.isExplicitRequest,
 					error: lifetimeSummary.error,
+					languageId: lifetimeSummary.languageId,
 					cursorColumnDistance: lifetimeSummary.cursorColumnDistance,
 					cursorLineDistance: lifetimeSummary.cursorLineDistance,
 					lineCountOriginal: lifetimeSummary.lineCountOriginal,
@@ -665,6 +667,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					disjointReplacements: lifetimeSummary.disjointReplacements,
 					sameShapeReplacements: lifetimeSummary.sameShapeReplacements,
 					extensionId,
+					partiallyAccepted: lifetimeSummary.partiallyAccepted,
 					superseded: reason.kind === InlineCompletionEndOfLifeReasonKind.Ignored && !!reason.supersededBy,
 					reason: reason.kind === InlineCompletionEndOfLifeReasonKind.Accepted ? 'accepted'
 						: reason.kind === InlineCompletionEndOfLifeReasonKind.Rejected ? 'rejected'
@@ -1297,7 +1300,11 @@ type InlineCompletionEndOfLifeEvent = {
 	shown: boolean;
 	shownDuration: number;
 	shownDurationUncollapsed: number;
+	timeUntilShown: number | undefined;
 	reason: 'accepted' | 'rejected' | 'ignored';
+	partiallyAccepted: number;
+	isExplicitRequest: boolean;
+	languageId: string;
 	error: string | undefined;
 	superseded: boolean;
 	editorType: string;
@@ -1321,7 +1328,11 @@ type InlineCompletionsEndOfLifeClassification = {
 	shown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was shown to the user' };
 	shownDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown' };
 	shownDurationUncollapsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown without collapsing' };
+	timeUntilShown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be shown after the request' };
+	isExplicitRequest: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was requested explicitly by the user' };
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion ending' };
+	partiallyAccepted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How often the inline completion was partially accepted by the user' };
+	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language ID of the document where the inline completion was shown' };
 	error: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The error message if the inline completion failed' };
 	superseded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was superseded by another one' };
 	editorType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of the editor where the inline completion was shown' };
