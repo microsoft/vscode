@@ -42,7 +42,7 @@ export function claudeConfigToServerDefinition(idPrefix: string, contents: VSBuf
 			id: `${idPrefix}.${name}`,
 			label: name,
 			launch: server.url ? {
-				type: McpServerTransportType.SSE,
+				type: McpServerTransportType.HTTP,
 				uri: URI.parse(server.url),
 				headers: [],
 			} : {
@@ -51,7 +51,7 @@ export function claudeConfigToServerDefinition(idPrefix: string, contents: VSBuf
 				command: server.command,
 				env: server.env || {},
 				envFile: undefined,
-				cwd,
+				cwd: cwd?.fsPath,
 			}
 		};
 	});

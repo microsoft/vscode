@@ -281,7 +281,7 @@
 	},
 	{
 		"c": "${",
-		"t": "string.template.ts punctuation.definition.template-expression.begin.ts",
+		"t": "string.template.ts meta.template.expression.ts punctuation.definition.template-expression.begin.ts",
 		"r": {
 			"dark_plus": "punctuation.definition.template-expression.begin: #569CD6",
 			"light_plus": "punctuation.definition.template-expression.begin: #0000FF",
@@ -295,12 +295,12 @@
 	},
 	{
 		"c": "startTime",
-		"t": "string.template.ts variable.ts",
+		"t": "string.template.ts meta.template.expression.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
+			"dark_vs": "meta.template.expression: #D4D4D4",
+			"light_vs": "meta.template.expression: #000000",
 			"hc_black": "variable: #9CDCFE",
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
@@ -309,7 +309,7 @@
 	},
 	{
 		"c": "}",
-		"t": "string.template.ts punctuation.ts punctuation.definition.template-expression.end.ts",
+		"t": "string.template.ts meta.template.expression.ts punctuation.ts punctuation.definition.template-expression.end.ts",
 		"r": {
 			"dark_plus": "punctuation.definition.template-expression.end: #569CD6",
 			"light_plus": "punctuation.definition.template-expression.end: #0000FF",
@@ -337,7 +337,7 @@
 	},
 	{
 		"c": "${",
-		"t": "string.template.ts punctuation.definition.template-expression.begin.ts",
+		"t": "string.template.ts meta.template.expression.ts punctuation.definition.template-expression.begin.ts",
 		"r": {
 			"dark_plus": "punctuation.definition.template-expression.begin: #569CD6",
 			"light_plus": "punctuation.definition.template-expression.begin: #0000FF",
@@ -351,12 +351,12 @@
 	},
 	{
 		"c": "endTime",
-		"t": "string.template.ts variable.ts",
+		"t": "string.template.ts meta.template.expression.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
+			"dark_vs": "meta.template.expression: #D4D4D4",
+			"light_vs": "meta.template.expression: #000000",
 			"hc_black": "variable: #9CDCFE",
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
@@ -365,7 +365,7 @@
 	},
 	{
 		"c": "}",
-		"t": "string.template.ts punctuation.ts punctuation.definition.template-expression.end.ts",
+		"t": "string.template.ts meta.template.expression.ts punctuation.ts punctuation.definition.template-expression.end.ts",
 		"r": {
 			"dark_plus": "punctuation.definition.template-expression.end: #569CD6",
 			"light_plus": "punctuation.definition.template-expression.end: #0000FF",

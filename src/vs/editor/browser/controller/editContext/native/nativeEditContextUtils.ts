@@ -15,6 +15,7 @@ export interface ITypeData {
 
 export class FocusTracker extends Disposable {
 	private _isFocused: boolean = false;
+	private _isPaused: boolean = false;
 
 	constructor(
 		private readonly _domNode: HTMLElement,
@@ -22,14 +23,29 @@ export class FocusTracker extends Disposable {
 	) {
 		super();
 		this._register(addDisposableListener(this._domNode, 'focus', () => {
+			if (this._isPaused) {
+				return;
+			}
 			// Here we don't trust the browser and instead we check
 			// that the active element is the one we are tracking
 			// (this happens when cmd+tab is used to switch apps)
 			this.refreshFocusState();
 		}));
 		this._register(addDisposableListener(this._domNode, 'blur', () => {
+			if (this._isPaused) {
+				return;
+			}
 			this._handleFocusedChanged(false);
 		}));
+	}
+
+	public pause(): void {
+		this._isPaused = true;
+	}
+
+	public resume(): void {
+		this._isPaused = false;
+		this.refreshFocusState();
 	}
 
 	private _handleFocusedChanged(focused: boolean): void {

@@ -291,8 +291,8 @@ export function detectUnicodeEncoding(buffer: Buffer): Encoding | null {
 	return null;
 }
 
-export function truncate(value: string, maxLength = 20): string {
-	return value.length <= maxLength ? value : `${value.substring(0, maxLength)}\u2026`;
+export function truncate(value: string, maxLength = 20, ellipsis = true): string {
+	return value.length <= maxLength ? value : `${value.substring(0, maxLength)}${ellipsis ? '\u2026' : ''}`;
 }
 
 function normalizePath(path: string): string {

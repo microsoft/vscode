@@ -28,7 +28,7 @@ import { CodeEditorContributions } from './codeEditorContributions.js';
 import { IEditorConfiguration } from '../../../common/config/editorConfiguration.js';
 import { ConfigurationChangedEvent, EditorLayoutInfo, EditorOption, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, filterValidationDecorations } from '../../../common/config/editorOptions.js';
 import { CursorColumns } from '../../../common/core/cursorColumns.js';
-import { IDimension } from '../../../common/core/dimension.js';
+import { IDimension } from '../../../common/core/2d/dimension.js';
 import { editorUnnecessaryCodeOpacity } from '../../../common/core/editorColorRegistry.js';
 import { IPosition, Position } from '../../../common/core/position.js';
 import { IRange, Range } from '../../../common/core/range.js';
@@ -44,7 +44,7 @@ import { EndOfLinePreference, IAttachedView, ICursorStateComputer, IIdentifiedSi
 import { ClassName } from '../../../common/model/intervalTree.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from '../../../common/textModelEvents.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelLineHeightChangedEvent } from '../../../common/textModelEvents.js';
 import { VerticalRevealType } from '../../../common/viewEvents.js';
 import { IEditorWhitespace, IViewModel } from '../../../common/viewModel.js';
 import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
@@ -60,6 +60,8 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { editorErrorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { TextModelEditReason } from '../../../common/textModelEditReason.js';
+import { TextEdit } from '../../../common/core/edits/textEdit.js';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -90,6 +92,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private readonly _onDidChangeModelDecorations: Emitter<IModelDecorationsChangedEvent> = this._register(new Emitter<IModelDecorationsChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeModelDecorations: Event<IModelDecorationsChangedEvent> = this._onDidChangeModelDecorations.event;
+
+	private readonly _onDidChangeLineHeight: Emitter<ModelLineHeightChangedEvent> = this._register(new Emitter<ModelLineHeightChangedEvent>({ deliveryQueue: this._deliveryQueue }));
+	public readonly onDidChangeLineHeight: Event<ModelLineHeightChangedEvent> = this._onDidChangeLineHeight.event;
 
 	private readonly _onDidChangeModelTokens: Emitter<IModelTokensChangedEvent> = this._register(new Emitter<IModelTokensChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeModelTokens: Event<IModelTokensChangedEvent> = this._onDidChangeModelTokens.event;
@@ -592,6 +597,17 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 		const maxCol = this._modelData.model.getLineMaxColumn(lineNumber);
 		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, maxCol, includeViewZones);
+	}
+
+	public getLineHeightForPosition(position: IPosition): number {
+		if (!this._modelData) {
+			return -1;
+		}
+		const viewModel = this._modelData.viewModel;
+		if (viewModel.coordinatesConverter.modelPositionIsVisible(Position.lift(position))) {
+			return viewModel.viewLayout.getLineHeightForLineNumber(position.lineNumber);
+		}
+		return 0;
 	}
 
 	public setHiddenAreas(ranges: IRange[], source?: unknown, forceUpdate?: boolean): void {
@@ -1225,7 +1241,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return true;
 	}
 
-	public executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean {
+	public edit(edit: TextEdit, reason: TextModelEditReason): boolean {
+		return this.executeEdits(reason.metadata.source, edit.replacements.map<IIdentifiedSingleEditOperation>(e => ({ range: e.range, text: e.text })));
+	}
+
+	public executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[], editReason?: TextModelEditReason): boolean {
 		if (!this._modelData) {
 			return false;
 		}
@@ -1245,7 +1265,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		this._onBeforeExecuteEdit.fire({ source: source ?? undefined });
 
-		this._modelData.viewModel.executeEdits(source, edits, cursorStateComputer);
+		if (!editReason) {
+			editReason = source ? new TextModelEditReason({ source: source }) : TextModelEditReason.Unknown;
+		}
+		this._modelData.viewModel.executeEdits(source, edits, cursorStateComputer, editReason);
 		return true;
 	}
 
@@ -1314,7 +1337,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		});
 	}
 
-	public setDecorationsByType(description: string, decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): void {
+	public setDecorationsByType(description: string, decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): readonly string[] {
 
 		const newDecorationsSubTypes: { [key: string]: boolean } = {};
 		const oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
@@ -1354,6 +1377,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		// update all decorations
 		const oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey] || [];
 		this.changeDecorations(accessor => this._decorationTypeKeysToIds[decorationTypeKey] = accessor.deltaDecorations(oldDecorationsIds, newModelDecorations));
+		return this._decorationTypeKeysToIds[decorationTypeKey] || [];
 	}
 
 	public setDecorationsByTypeFast(decorationTypeKey: string, ranges: IRange[]): void {
@@ -1597,11 +1621,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		const top = CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, position.lineNumber, position.column) - this.getScrollTop();
 		const left = this._modelData.view.getOffsetForColumn(position.lineNumber, position.column) + layoutInfo.glyphMarginWidth + layoutInfo.lineNumbersWidth + layoutInfo.decorationsWidth - this.getScrollLeft();
-
+		const height = this.getLineHeightForPosition(position);
 		return {
 			top: top,
 			left: left,
-			height: options.get(EditorOption.lineHeight)
+			height
 		};
 	}
 
@@ -1774,6 +1798,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					break;
 				case OutgoingViewModelEventKind.ModelTokensChanged:
 					this._onDidChangeModelTokens.fire(e.event);
+					break;
+				case OutgoingViewModelEventKind.ModelLineHeightChanged:
+					this._onDidChangeLineHeight.fire(e.event);
 					break;
 
 			}
@@ -2146,7 +2173,7 @@ class EditorContextKeysManager extends Disposable {
 	private _updateFromConfig(): void {
 		const options = this._editor.getOptions();
 
-		this._tabMovesFocus.set(TabFocus.getTabFocusMode());
+		this._tabMovesFocus.set(options.get(EditorOption.tabFocusMode) || TabFocus.getTabFocusMode());
 		this._editorReadonly.set(options.get(EditorOption.readOnly));
 		this._inDiffEditor.set(options.get(EditorOption.inDiffEditor));
 		this._editorColumnSelection.set(options.get(EditorOption.columnSelection));

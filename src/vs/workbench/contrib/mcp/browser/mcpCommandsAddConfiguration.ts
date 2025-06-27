@@ -8,32 +8,32 @@ import { assertNever } from '../../../../base/common/assert.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { parse as parseJsonc } from '../../../../base/common/jsonc.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ConfigurationTarget, getConfigValueInTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { IMcpConfiguration, IMcpConfigurationSSE, McpConfigurationServer } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { EditorsOrder } from '../../../common/editor.js';
-import { IJSONEditingService } from '../../../services/configuration/common/jsonEditing.js';
-import { ConfiguredInput } from '../../../services/configurationResolver/common/configurationResolver.js';
+import { isWorkspaceFolder, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { IMcpConfigurationStdio, mcpConfigurationSection, mcpStdioServerSchema } from '../common/mcpConfiguration.js';
+import { IWorkbenchMcpManagementService } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { McpCommandIds } from '../common/mcpCommandIds.js';
+import { mcpStdioServerSchema } from '../common/mcpConfiguration.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { IMcpService, McpConnectionState } from '../common/mcpTypes.js';
-import { McpServerOptionsCommand } from './mcpCommands.js';
 
 const enum AddConfigurationType {
 	Stdio,
-	SSE,
+	HTTP,
 
 	NpmPackage,
 	PipPackage,
@@ -98,10 +98,9 @@ type AddServerCompletedClassification = {
 
 export class McpAddConfigurationCommand {
 	constructor(
-		private readonly _explicitConfigUri: string | undefined,
+		private readonly workspaceFolder: IWorkspaceFolder | undefined,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IJSONEditingService private readonly _jsonEditingService: IJSONEditingService,
+		@IWorkbenchMcpManagementService private readonly _mcpManagementService: IWorkbenchMcpManagementService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -112,12 +111,13 @@ export class McpAddConfigurationCommand {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IMcpService private readonly _mcpService: IMcpService,
+		@ILabelService private readonly _label: ILabelService,
 	) { }
 
 	private async getServerType(): Promise<AddConfigurationType | undefined> {
-		const items: QuickPickInput<{ kind: AddConfigurationType } & IQuickPickItem>[] = [
+		const items: QuickPickInput<{ kind: AddConfigurationType | 'browse' } & IQuickPickItem>[] = [
 			{ kind: AddConfigurationType.Stdio, label: localize('mcp.serverType.command', "Command (stdio)"), description: localize('mcp.serverType.command.description', "Run a local command that implements the MCP protocol") },
-			{ kind: AddConfigurationType.SSE, label: localize('mcp.serverType.http', "HTTP (server-sent events)"), description: localize('mcp.serverType.http.description', "Connect to a remote HTTP server that implements the MCP protocol") }
+			{ kind: AddConfigurationType.HTTP, label: localize('mcp.serverType.http', "HTTP (HTTP or Server-Sent Events)"), description: localize('mcp.serverType.http.description', "Connect to a remote HTTP server that implements the MCP protocol") }
 		];
 
 		let aiSupported: boolean | undefined;
@@ -139,14 +139,27 @@ export class McpAddConfigurationCommand {
 			);
 		}
 
-		const result = await this._quickInputService.pick<{ kind: AddConfigurationType } & IQuickPickItem>(items, {
+		items.push(
+			{ type: 'separator' },
+			{
+				kind: 'browse',
+				label: localize('mcp.servers.browse', "Browse MCP Servers..."),
+			}
+		);
+
+		const result = await this._quickInputService.pick<{ kind: AddConfigurationType | 'browse' } & IQuickPickItem>(items, {
 			placeHolder: localize('mcp.serverType.placeholder', "Choose the type of MCP server to add"),
 		});
+
+		if (result?.kind === 'browse') {
+			this._commandService.executeCommand(McpCommandIds.Browse);
+			return undefined;
+		}
 
 		return result?.kind;
 	}
 
-	private async getStdioConfig(): Promise<IMcpConfigurationStdio | undefined> {
+	private async getStdioConfig(): Promise<IMcpStdioServerConfiguration | undefined> {
 		const command = await this._quickInputService.input({
 			title: localize('mcp.command.title', "Enter Command"),
 			placeHolder: localize('mcp.command.placeholder', "Command to run (with optional arguments)"),
@@ -171,7 +184,7 @@ export class McpAddConfigurationCommand {
 		};
 	}
 
-	private async getSSEConfig(): Promise<IMcpConfigurationSSE | undefined> {
+	private async getSSEConfig(): Promise<IMcpRemoteServerConfiguration | undefined> {
 		const url = await this._quickInputService.input({
 			title: localize('mcp.url.title', "Enter Server URL"),
 			placeHolder: localize('mcp.url.placeholder', "URL of the MCP server (e.g., http://localhost:3000)"),
@@ -186,10 +199,7 @@ export class McpAddConfigurationCommand {
 			packageType: 'sse'
 		});
 
-		return {
-			type: 'sse',
-			url
-		};
+		return { url, type: 'http' };
 	}
 
 	private async getServerId(suggestion = `my-mcp-server-${generateUuid().split('-')[0]}`): Promise<string | undefined> {
@@ -203,32 +213,38 @@ export class McpAddConfigurationCommand {
 		return id;
 	}
 
-	private async getConfigurationTarget(): Promise<ConfigurationTarget | undefined> {
-		const options: (IQuickPickItem & { target: ConfigurationTarget })[] = [
-			{ target: ConfigurationTarget.USER, label: localize('mcp.target.user', "User Settings"), description: localize('mcp.target.user.description', "Available in all workspaces") }
+	private async getConfigurationTarget(): Promise<ConfigurationTarget | IWorkspaceFolder | undefined> {
+		const options: (IQuickPickItem & { target?: ConfigurationTarget | IWorkspaceFolder })[] = [
+			{ target: ConfigurationTarget.USER_LOCAL, label: localize('mcp.target.user', "Global"), description: localize('mcp.target.user.description', "Available in all workspaces, runs locally") }
 		];
 
-		if (!!this._environmentService.remoteAuthority) {
-			options.push({ target: ConfigurationTarget.USER_REMOTE, label: localize('mcp.target.remote', "Remote Settings"), description: localize('mcp.target..remote.description', "Available on this remote machine") });
+		const raLabel = this._environmentService.remoteAuthority && this._label.getHostLabel(Schemas.vscodeRemote, this._environmentService.remoteAuthority);
+		if (raLabel) {
+			options.push({ target: ConfigurationTarget.USER_REMOTE, label: localize('mcp.target.remote', "Remote"), description: localize('mcp.target..remote.description', "Available on this remote machine, runs on {0}", raLabel) });
 		}
 
-		if (this._workspaceService.getWorkspace().folders.length > 0) {
-			options.push({ target: ConfigurationTarget.WORKSPACE, label: localize('mcp.target.workspace', "Workspace Settings"), description: localize('mcp.target.workspace.description', "Available in this workspace") });
+		const workbenchState = this._workspaceService.getWorkbenchState();
+		if (workbenchState !== WorkbenchState.EMPTY) {
+			const target = workbenchState === WorkbenchState.FOLDER ? this._workspaceService.getWorkspace().folders[0] : ConfigurationTarget.WORKSPACE;
+			if (this._environmentService.remoteAuthority) {
+				options.push({ target, label: localize('mcp.target.workspace', "Workspace"), description: localize('mcp.target.workspace.description.remote', "Available in this workspace, runs on {0}", raLabel) });
+			} else {
+				options.push({ target, label: localize('mcp.target.workspace', "Workspace"), description: localize('mcp.target.workspace.description', "Available in this workspace, runs locally") });
+			}
 		}
 
 		if (options.length === 1) {
 			return options[0].target;
 		}
 
-
 		const targetPick = await this._quickInputService.pick(options, {
-			title: localize('mcp.target.title', "Choose where to save the configuration"),
+			title: localize('mcp.target.title', "Choose where to install the MCP server"),
 		});
 
 		return targetPick?.target;
 	}
 
-	private async getAssistedConfig(type: AssistedConfigurationType): Promise<{ name: string; config: McpConfigurationServer } | undefined> {
+	private async getAssistedConfig(type: AssistedConfigurationType): Promise<{ name: string; server: Omit<IMcpStdioServerConfiguration, 'type'>; inputs?: IMcpServerVariable[]; inputValues?: Record<string, string> } | undefined> {
 		const packageName = await this._quickInputService.input({
 			ignoreFocusLost: true,
 			title: assistedTypes[type].title,
@@ -304,20 +320,13 @@ export class McpAddConfigurationCommand {
 				return undefined;
 		}
 
-		const configWithName = await this._commandService.executeCommand<McpConfigurationServer & { name: string }>(
+		return await this._commandService.executeCommand<{ name: string; server: Omit<IMcpStdioServerConfiguration, 'type'>; inputs?: IMcpServerVariable[]; inputValues?: Record<string, string> }>(
 			AddConfigurationCopilotCommand.StartFlow,
 			{
 				name: packageName,
 				type: packageType
 			}
 		);
-
-		if (!configWithName) {
-			return undefined;
-		}
-
-		const { name, ...config } = configWithName;
-		return { name, config };
 	}
 
 	/** Shows the location of a server config once it's discovered. */
@@ -329,6 +338,8 @@ export class McpAddConfigurationCommand {
 			const match = mapFindFirst(colls, collection => mapFindFirst(collection.serverDefinitions.read(reader),
 				server => server.label === name ? { server, collection } : undefined));
 			const server = match && servers.find(s => s.definition.id === match.server.id);
+
+
 			if (match && server) {
 				if (match.collection.presentation?.origin) {
 					this._openerService.openEditor({
@@ -339,10 +350,10 @@ export class McpAddConfigurationCommand {
 						}
 					});
 				} else {
-					this._commandService.executeCommand(McpServerOptionsCommand.id, name);
+					this._commandService.executeCommand(McpCommandIds.ServerOptions, name);
 				}
 
-				server.start(true).then(state => {
+				server.start({ isFromInteraction: true }).then(state => {
 					if (state.state === McpConnectionState.Kind.Error) {
 						server.showOutput();
 					}
@@ -355,15 +366,6 @@ export class McpAddConfigurationCommand {
 		store.add(disposableTimeout(() => store.dispose(), 5000));
 	}
 
-	private writeToUserSetting(name: string, config: McpConfigurationServer, target: ConfigurationTarget, inputs?: ConfiguredInput[]) {
-		const settings: IMcpConfiguration = { ...getConfigValueInTarget(this._configurationService.inspect<IMcpConfiguration>(mcpConfigurationSection), target) };
-		settings.servers = { ...settings.servers, [name]: config };
-		if (inputs) {
-			settings.inputs = [...(settings.inputs || []), ...inputs];
-		}
-		return this._configurationService.updateValue(mcpConfigurationSection, settings, target);
-	}
-
 	public async run(): Promise<void> {
 		// Step 1: Choose server type
 		const serverType = await this.getServerType();
@@ -372,73 +374,68 @@ export class McpAddConfigurationCommand {
 		}
 
 		// Step 2: Get server details based on type
-		let serverConfig: McpConfigurationServer | undefined;
+		let config: IMcpServerConfiguration | undefined;
 		let suggestedName: string | undefined;
+		let inputs: IMcpServerVariable[] | undefined;
+		let inputValues: Record<string, string> | undefined;
 		switch (serverType) {
 			case AddConfigurationType.Stdio:
-				serverConfig = await this.getStdioConfig();
+				config = await this.getStdioConfig();
 				break;
-			case AddConfigurationType.SSE:
-				serverConfig = await this.getSSEConfig();
+			case AddConfigurationType.HTTP:
+				config = await this.getSSEConfig();
 				break;
 			case AddConfigurationType.NpmPackage:
 			case AddConfigurationType.PipPackage:
 			case AddConfigurationType.DockerImage: {
 				const r = await this.getAssistedConfig(serverType);
-				serverConfig = r?.config;
+				config = r?.server ? { ...r.server, type: 'stdio' } : undefined;
 				suggestedName = r?.name;
+				inputs = r?.inputs;
+				inputValues = r?.inputValues;
 				break;
 			}
 			default:
 				assertNever(serverType);
 		}
 
-		if (!serverConfig) {
+		if (!config) {
 			return;
 		}
 
 		// Step 3: Get server ID
-		const serverId = await this.getServerId(suggestedName);
-		if (!serverId) {
+		const name = await this.getServerId(suggestedName);
+		if (!name) {
 			return;
 		}
 
 		// Step 4: Choose configuration target if no configUri provided
-		let target: ConfigurationTarget | undefined;
-		const workspace = this._workspaceService.getWorkspace();
-		if (!this._explicitConfigUri) {
+		let target: ConfigurationTarget | IWorkspaceFolder | undefined = this.workspaceFolder;
+		if (!target) {
 			target = await this.getConfigurationTarget();
 			if (!target) {
 				return;
 			}
 		}
 
-		// Step 5: Update configuration
-		const writeToUriDirect = this._explicitConfigUri
-			? URI.parse(this._explicitConfigUri)
-			: target === ConfigurationTarget.WORKSPACE && workspace.folders.length === 1
-				? URI.joinPath(workspace.folders[0].uri, '.vscode', 'mcp.json')
-				: undefined;
+		await this._mcpManagementService.install({ name, config, inputs }, { target });
 
-		if (writeToUriDirect) {
-			await this._jsonEditingService.write(writeToUriDirect, [{
-				path: ['servers', serverId],
-				value: serverConfig
-			}], true);
-		} else {
-			await this.writeToUserSetting(serverId, serverConfig, target!);
+		if (inputValues) {
+			for (const [key, value] of Object.entries(inputValues)) {
+				await this._mcpRegistry.setSavedInput(key, (isWorkspaceFolder(target) ? ConfigurationTarget.WORKSPACE_FOLDER : target) ?? ConfigurationTarget.WORKSPACE, value);
+			}
 		}
 
 		const packageType = this.getPackageType(serverType);
 		if (packageType) {
 			this._telemetryService.publicLog2<AddServerCompletedData, AddServerCompletedClassification>('mcp.addserver.completed', {
 				packageType,
-				serverType: serverConfig.type,
+				serverType: config.type,
 				target: target === ConfigurationTarget.WORKSPACE ? 'workspace' : 'user'
 			});
 		}
 
-		this.showOnceDiscovered(serverId);
+		this.showOnceDiscovered(name);
 	}
 
 	public async pickForUrlHandler(resource: URI, showIsPrimary = false): Promise<void> {
@@ -446,7 +443,7 @@ export class McpAddConfigurationCommand {
 		const placeHolder = localize('install.title', 'Install MCP server {0}', name);
 
 		const items: IQuickPickItem[] = [
-			{ id: 'install', label: localize('install.start', 'Install Server'), description: localize('install.description', 'Install in your user settings') },
+			{ id: 'install', label: localize('install.start', 'Install Server') },
 			{ id: 'show', label: localize('install.show', 'Show Configuration', name) },
 			{ id: 'rename', label: localize('install.rename', 'Rename "{0}"', name) },
 			{ id: 'cancel', label: localize('cancel', 'Cancel') },
@@ -456,8 +453,7 @@ export class McpAddConfigurationCommand {
 		}
 
 		const pick = await this._quickInputService.pick(items, { placeHolder, ignoreFocusLost: true });
-		const getEditors = () => this._editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)
-			.filter(e => e.editor.resource?.toString() === resource.toString());
+		const getEditors = () => this._editorService.findEditors(resource);
 
 		switch (pick?.id) {
 			case 'show':
@@ -467,8 +463,8 @@ export class McpAddConfigurationCommand {
 				await this._editorService.save(getEditors());
 				try {
 					const contents = await this._fileService.readFile(resource);
-					const { inputs, ...config }: McpConfigurationServer & { inputs?: ConfiguredInput[] } = parseJsonc(contents.value.toString());
-					await this.writeToUserSetting(name, config, ConfigurationTarget.USER_LOCAL, inputs);
+					const { inputs, ...config }: IMcpServerConfiguration & { inputs?: IMcpServerVariable[] } = parseJsonc(contents.value.toString());
+					await this._mcpManagementService.install({ name, config, inputs });
 					this._editorService.closeEditors(getEditors());
 					this.showOnceDiscovered(name);
 				} catch (e) {
@@ -499,7 +495,7 @@ export class McpAddConfigurationCommand {
 				return 'docker';
 			case AddConfigurationType.Stdio:
 				return 'stdio';
-			case AddConfigurationType.SSE:
+			case AddConfigurationType.HTTP:
 				return 'sse';
 			default:
 				return undefined;

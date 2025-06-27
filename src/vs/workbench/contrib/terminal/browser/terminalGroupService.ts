@@ -218,7 +218,9 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			if (this.groups.length > 0 && !this._isQuickInputOpened) {
 				const newIndex = index < this.groups.length ? index : this.groups.length - 1;
 				this.setActiveGroupByIndex(newIndex, true);
-				this.activeInstance?.focus(true);
+				if (group.hadFocusOnExit) {
+					this.activeInstance?.focus(true);
+				}
 			}
 		} else {
 			// Adjust the active group if the removed group was above the active group

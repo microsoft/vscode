@@ -50,25 +50,14 @@ export class InlineEditsOnboardingExperience extends Disposable {
 		this._register(this._initializeDebugSetting());
 
 		// Setup the onboarding experience for new users
-		if (this.getNewUserType() === UserKind.Active) { // todo: turn === into !== mid month
-			this._disposables.value = this.setupNewUserExperience();
-		}
-
-		// Existing users should not see the onboarding experience when turning on the onbarding experience
-		this._register(autorunWithStore((reader, store) => { // todo: remove mid month
-			const host = this._host.read(reader);
-			if (!host) { return; }
-			store.add(host.onDidAccept(() => {
-				this.setNewUserType(UserKind.Active);
-			}));
-		}));
+		this._disposables.value = this.setupNewUserExperience();
 
 		this._setupDone.set(true, undefined);
 	}
 
-	private setupNewUserExperience(): IDisposable {
+	private setupNewUserExperience(): IDisposable | undefined {
 		if (this.getNewUserType() === UserKind.Active) {
-			return Disposable.None;
+			return undefined;
 		}
 
 		const disposableStore = new DisposableStore();
@@ -93,7 +82,7 @@ export class InlineEditsOnboardingExperience extends Disposable {
 					break;
 				}
 				case UserKind.SecondTime: {
-					if (secondTimeUserAnimationCount++ >= 5 && inlineEditHasBeenAccepted) {
+					if (secondTimeUserAnimationCount++ >= 3 && inlineEditHasBeenAccepted) {
 						userType = UserKind.Active;
 						this.setNewUserType(userType);
 					}
@@ -176,6 +165,7 @@ export class InlineEditsOnboardingExperience extends Disposable {
 		const disposable = this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(hiddenDebugSetting) && this._configurationService.getValue(hiddenDebugSetting)) {
 				this._storageService.remove('inlineEditsGutterIndicatorUserKind', StorageScope.APPLICATION);
+				this._disposables.value = this.setupNewUserExperience();
 			}
 		});
 

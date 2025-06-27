@@ -26,8 +26,8 @@ import { StandardKeyboardEvent } from './keyboardEvent.js';
 import { StandardMouseEvent } from './mouseEvent.js';
 import { renderLabelWithIcons } from './ui/iconLabel/iconLabels.js';
 
-export interface MarkedOptions extends marked.MarkedOptions {
-	baseUrl?: never;
+export interface MarkedOptions extends Readonly<Omit<marked.MarkedOptions, 'extensions' | 'baseUrl'>> {
+	readonly markedExtensions?: marked.MarkedExtension[];
 }
 
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
@@ -42,6 +42,7 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 export interface ISanitizerOptions {
 	replaceWithPlaintext?: boolean;
 	allowedTags?: string[];
+	allowedProductProtocols?: string[];
 }
 
 const defaultMarkedRenderers = Object.freeze({
@@ -99,13 +100,14 @@ const defaultMarkedRenderers = Object.freeze({
  * **Note** that for most cases you should be using {@link import('../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js').MarkdownRenderer MarkdownRenderer}
  * which comes with support for pretty code block rendering and which uses the default way of handling links.
  */
-export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: Readonly<MarkedOptions> = {}): { element: HTMLElement; dispose: () => void } {
+export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: MarkedOptions = {}): { element: HTMLElement; dispose: () => void } {
 	const disposables = new DisposableStore();
 	let isDisposed = false;
 
 	const element = createElement(options);
 
-	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(options, markdown);
+	const markedInstance = new marked.Marked(...(markedOptions.markedExtensions ?? []));
+	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(markedInstance, options, markdown);
 	const value = preprocessMarkdownString(markdown);
 
 	let renderedMarkdown: string;
@@ -116,11 +118,11 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			...markedOptions,
 			renderer
 		};
-		const tokens = marked.lexer(value, opts);
+		const tokens = markedInstance.lexer(value, opts);
 		const newTokens = fillInIncompleteTokens(tokens);
-		renderedMarkdown = marked.parser(newTokens, opts);
+		renderedMarkdown = markedInstance.parser(newTokens, opts);
 	} else {
-		renderedMarkdown = marked.parse(value, { ...markedOptions, renderer, async: false });
+		renderedMarkdown = markedInstance.parse(value, { ...markedOptions, renderer, async: false });
 	}
 
 	// Rewrite theme icons
@@ -243,7 +245,7 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 	}
 }
 
-function createMarkdownRenderer(options: MarkdownRenderOptions, markdown: IMarkdownString): { renderer: marked.Renderer; codeBlocks: Promise<[string, HTMLElement]>[]; syncCodeBlocks: [string, HTMLElement][] } {
+function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOptions, markdown: IMarkdownString): { renderer: marked.Renderer; codeBlocks: Promise<[string, HTMLElement]>[]; syncCodeBlocks: [string, HTMLElement][] } {
 	const renderer = new marked.Renderer();
 	renderer.image = defaultMarkedRenderers.image;
 	renderer.link = defaultMarkedRenderers.link;
@@ -322,7 +324,7 @@ function activateLink(markdown: IMarkdownString, options: MarkdownRenderOptions,
 }
 
 function uriMassage(markdown: IMarkdownString, part: string): string {
-	let data: any;
+	let data: unknown;
 	try {
 		data = parse(decodeURIComponent(part));
 	} catch (e) {
@@ -527,10 +529,15 @@ function getSanitizerOptions(options: IInternalSanitizerOptions): { config: domp
 		Schemas.vscodeFileResource,
 		Schemas.vscodeRemote,
 		Schemas.vscodeRemoteResource,
+		Schemas.vscodeNotebookCell
 	];
 
 	if (options.isTrusted) {
 		allowedSchemes.push(Schemas.command);
+	}
+
+	if (options.allowedProductProtocols) {
+		allowedSchemes.push(...options.allowedProductProtocols);
 	}
 
 	return {
@@ -820,6 +827,12 @@ function completeListItemPattern(list: marked.Tokens.List): marked.Tokens.List |
 	return newList;
 }
 
+function completeHeading(token: marked.Tokens.Heading): marked.TokensList | void {
+	if (token.raw.match(/-\s*$/)) {
+		return marked.lexer(token.raw + ' &nbsp;');
+	}
+}
+
 const maxIncompleteTokensFixRounds = 3;
 export function fillInIncompleteTokens(tokens: marked.TokensList): marked.TokensList {
 	for (let i = 0; i < maxIncompleteTokensFixRounds; i++) {
@@ -844,22 +857,23 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 			newTokens = completeTable(tokens.slice(i));
 			break;
 		}
+	}
 
-		if (i === tokens.length - 1 && token.type === 'list') {
-			const newListToken = completeListItemPattern(token as marked.Tokens.List);
-			if (newListToken) {
-				newTokens = [newListToken];
-				break;
-			}
+	const lastToken = tokens.at(-1);
+	if (!newTokens && lastToken?.type === 'list') {
+		const newListToken = completeListItemPattern(lastToken as marked.Tokens.List);
+		if (newListToken) {
+			newTokens = [newListToken];
+			i = tokens.length - 1;
 		}
+	}
 
-		if (i === tokens.length - 1 && token.type === 'paragraph') {
-			// Only operates on a single token, because any newline that follows this should break these patterns
-			const newToken = completeSingleLinePattern(token as marked.Tokens.Paragraph);
-			if (newToken) {
-				newTokens = [newToken];
-				break;
-			}
+	if (!newTokens && lastToken?.type === 'paragraph') {
+		// Only operates on a single token, because any newline that follows this should break these patterns
+		const newToken = completeSingleLinePattern(lastToken as marked.Tokens.Paragraph);
+		if (newToken) {
+			newTokens = [newToken];
+			i = tokens.length - 1;
 		}
 	}
 
@@ -870,6 +884,13 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 		];
 		(newTokensList as marked.TokensList).links = tokens.links;
 		return newTokensList as marked.TokensList;
+	}
+
+	if (lastToken?.type === 'heading') {
+		const completeTokens = completeHeading(lastToken as marked.Tokens.Heading);
+		if (completeTokens) {
+			return completeTokens;
+		}
 	}
 
 	return null;

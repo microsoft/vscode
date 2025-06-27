@@ -172,11 +172,18 @@
 	"css.format.spaceAroundSelectorSeparator": true,
 	"eslint.useFlatConfig": true,
 	"editor.occurrencesHighlightDelay": 0,
+	// "editor.experimental.preferTreeSitter.typescript": true,
+	// "editor.experimental.preferTreeSitter.regex": true,
+	// "editor.experimental.preferTreeSitter.css": true,
 	"typescript.experimental.expandableHover": true,
 	"git.diagnosticsCommitHook.enabled": true,
 	"git.diagnosticsCommitHook.sources": {
 		"*": "error",
 		"ts": "warning",
 		"eslint": "warning"
+	},
+	"chat.instructionsFilesLocations": {
+		".github/instructions": true,
+		".vscode": true
 	}
 }

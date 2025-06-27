@@ -151,6 +151,19 @@ function createNodeTree(nodes: AXNode[]): AXNodeTree | null {
 	return null;
 }
 
+/**
+ * When possible, we will make sure lines are no longer than 80. This is to help
+ * certain pieces of software that can't handle long lines.
+ */
+const LINE_MAX_LENGTH = 80;
+
+/**
+ * Converts an accessibility tree represented by AXNode objects into a markdown string.
+ *
+ * @param uri The URI of the document
+ * @param axNodes The array of AXNode objects representing the accessibility tree
+ * @returns A markdown representation of the accessibility tree
+ */
 export function convertAXTreeToMarkdown(uri: URI, axNodes: AXNode[]): string {
 	const tree = createNodeTree(axNodes);
 	if (!tree) {
@@ -171,7 +184,7 @@ function extractMainContent(uri: URI, tree: AXNodeTree): string {
 	return contentBuffer.join('');
 }
 
-function processNode(uri: URI, node: AXNodeTree, buffer: string[], depth: number, semanticLineBreak: boolean): void {
+function processNode(uri: URI, node: AXNodeTree, buffer: string[], depth: number, allowWrap: boolean): void {
 	const role = getNodeRole(node.node);
 
 	switch (role) {
@@ -183,20 +196,36 @@ function processNode(uri: URI, node: AXNodeTree, buffer: string[], depth: number
 			return;
 
 		case 'paragraph':
-			processParagraphNode(uri, node, buffer, depth, semanticLineBreak);
+			processParagraphNode(uri, node, buffer, depth, allowWrap);
 			return;
 
 		case 'list':
-			processListNode(uri, node, buffer, depth);
+			buffer.push('\n');
+			for (const descChild of node.children) {
+				processNode(uri, descChild, buffer, depth + 1, true);
+			}
+			buffer.push('\n');
 			return;
 
-		case 'listitem':
-			// Individual list items are handled in processListNode
+		case 'ListMarker':
+			// TODO: Should we normalize these ListMarkers to `-` and normal lists?
+			buffer.push(getNodeText(node.node, allowWrap));
 			return;
+
+		case 'listitem': {
+			const tempBuffer: string[] = [];
+			// Process the children of the list item
+			for (const descChild of node.children) {
+				processNode(uri, descChild, tempBuffer, depth + 1, true);
+			}
+			const indent = getLevel(node.node) > 1 ? ' '.repeat(getLevel(node.node)) : '';
+			buffer.push(`${indent}${tempBuffer.join('').trim()}\n`);
+			return;
+		}
 
 		case 'link':
 			if (!isNavigationLink(node)) {
-				const linkText = getNodeText(node.node, semanticLineBreak);
+				const linkText = getNodeText(node.node, allowWrap);
 				const url = getLinkUrl(node.node);
 				if (!isSameUriIgnoringQueryAndFragment(uri, node.node)) {
 					buffer.push(`[${linkText}](${url})`);
@@ -206,14 +235,14 @@ function processNode(uri: URI, node: AXNodeTree, buffer: string[], depth: number
 			}
 			return;
 		case 'StaticText': {
-			const staticText = getNodeText(node.node, semanticLineBreak);
+			const staticText = getNodeText(node.node, allowWrap);
 			if (staticText) {
 				buffer.push(staticText);
 			}
 			break;
 		}
 		case 'image': {
-			const altText = getNodeText(node.node, semanticLineBreak) || 'Image';
+			const altText = getNodeText(node.node, allowWrap) || 'Image';
 			const imageUrl = getImageUrl(node.node);
 			if (imageUrl) {
 				buffer.push(`![${altText}](${imageUrl})\n\n`);
@@ -228,7 +257,7 @@ function processNode(uri: URI, node: AXNodeTree, buffer: string[], depth: number
 			return;
 
 		case 'blockquote':
-			buffer.push('> ' + getNodeText(node.node, semanticLineBreak).replace(/\n/g, '\n> ') + '\n\n');
+			buffer.push('> ' + getNodeText(node.node, allowWrap).replace(/\n/g, '\n> ') + '\n\n');
 			break;
 
 		// TODO: Is this the correct way to handle the generic role?
@@ -252,7 +281,7 @@ function processNode(uri: URI, node: AXNodeTree, buffer: string[], depth: number
 
 	// Process children if not already handled in specific cases
 	for (const child of node.children) {
-		processNode(uri, child, buffer, depth + 1, semanticLineBreak);
+		processNode(uri, child, buffer, depth + 1, allowWrap);
 	}
 }
 
@@ -260,17 +289,34 @@ function getNodeRole(node: AXNode): string {
 	return node.role?.value as string || '';
 }
 
-function getNodeText(node: AXNode, semanticLineBreak: boolean): string {
+function getNodeText(node: AXNode, allowWrap: boolean): string {
 	const text = node.name?.value as string || node.value?.value as string || '';
-	if (!semanticLineBreak) {
+	if (!allowWrap) {
 		return text;
 	}
 
-	// Insert line breaks after punctuation followed by space
-	return text.replace(/([.!?:;])\s/g, '$1\n');
+	if (text.length <= LINE_MAX_LENGTH) {
+		return text;
+	}
+
+	const chars = text.split('');
+	let lastSpaceIndex = -1;
+	for (let i = 1; i < chars.length; i++) {
+		if (chars[i] === ' ') {
+			lastSpaceIndex = i;
+		}
+		// Check if we reached the line max length, try to break at the last space
+		// before the line max length
+		if (i % LINE_MAX_LENGTH === 0 && lastSpaceIndex !== -1) {
+			// replace the space with a new line
+			chars[lastSpaceIndex] = '\n';
+			lastSpaceIndex = i;
+		}
+	}
+	return chars.join('');
 }
 
-function getHeadingLevel(node: AXNode): number {
+function getLevel(node: AXNode): number {
 	const levelProp = node.properties?.find(p => p.name === 'level');
 	return levelProp ? Math.min(Number(levelProp.value.value) || 1, 6) : 1;
 }
@@ -311,18 +357,18 @@ function isSameUriIgnoringQueryAndFragment(uri: URI, node: AXNode): boolean {
 	}
 }
 
-function processParagraphNode(uri: URI, node: AXNodeTree, buffer: string[], depth: number, semanticLineBreak: boolean): void {
+function processParagraphNode(uri: URI, node: AXNodeTree, buffer: string[], depth: number, allowWrap: boolean): void {
 	buffer.push('\n');
 	// Process the children of the paragraph
 	for (const child of node.children) {
-		processNode(uri, child, buffer, depth + 1, semanticLineBreak);
+		processNode(uri, child, buffer, depth + 1, allowWrap);
 	}
 	buffer.push('\n\n');
 }
 
 function processHeadingNode(uri: URI, node: AXNodeTree, buffer: string[], depth: number): void {
 	buffer.push('\n');
-	const level = getHeadingLevel(node.node);
+	const level = getLevel(node.node);
 	buffer.push(`${'#'.repeat(level)} `);
 	// Process children nodes of the heading
 	for (const child of node.children) {
@@ -353,33 +399,6 @@ function processDescriptionListNode(uri: URI, node: AXNodeTree, buffer: string[]
 				processNode(uri, descChild, buffer, depth + 1, true);
 			}
 			buffer.push('\n');
-		}
-	}
-
-	buffer.push('\n');
-}
-
-function processListNode(uri: URI, node: AXNodeTree, buffer: string[], depth: number): void {
-	// Check if it's an ordered list
-	// TODO: Verify that this is the correct way to check for ordered lists
-	const isOrdered = getNodeRole(node.node).includes('ordered');
-
-	let itemIndex = 1;
-	buffer.push('\n');
-
-	for (const child of node.children) {
-		if (getNodeRole(child.node) === 'listitem') {
-			const tempBuffer: string[] = [];
-			// Process the children of the list item
-			for (const descChild of child.children) {
-				processNode(uri, descChild, tempBuffer, depth + 1, true);
-			}
-			const itemText = tempBuffer.join('').trim();
-			if (isOrdered) {
-				buffer.push(`${itemIndex++}. ${itemText}\n`);
-			} else {
-				buffer.push(`- ${itemText}\n`);
-			}
 		}
 	}
 
@@ -432,8 +451,7 @@ function processCodeNode(uri: URI, node: AXNodeTree, buffer: string[], depth: nu
 		// Append the processed text to the buffer
 		for (const tempItem of tempBuffer) {
 			characterCount += tempItem.length;
-			// Semantic line feed max of 80
-			if (characterCount > 80) {
+			if (characterCount > LINE_MAX_LENGTH) {
 				buffer.push('\n');
 				characterCount = 0;
 			}

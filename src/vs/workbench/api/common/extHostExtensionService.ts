@@ -593,8 +593,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			try {
 				activationTimesBuilder.activateCallStart();
 				logService.trace(`ExtensionService#_callActivateOptional ${extensionId.value}`);
-				const scope = typeof global === 'object' ? global : self; // `global` is nodejs while `self` is for workers
-				const activateResult: Promise<IExtensionAPI> = extensionModule.activate.apply(scope, [context]);
+				const activateResult: Promise<IExtensionAPI> = extensionModule.activate.apply(globalThis, [context]);
 				activationTimesBuilder.activateCallStop();
 
 				activationTimesBuilder.activateResolveStart();
@@ -1087,8 +1086,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	protected _isESM(extensionDescription: IExtensionDescription | undefined, modulePath?: string): boolean {
-		modulePath ??= extensionDescription?.main;
-		return modulePath?.endsWith('.mjs') || extensionDescription?.type === 'module';
+		modulePath ??= extensionDescription ? this._getEntryPoint(extensionDescription) : modulePath;
+		return modulePath?.endsWith('.mjs') || (extensionDescription?.type === 'module' && !modulePath?.endsWith('.cjs'));
 	}
 
 	protected abstract _beforeAlmostReadyToRunExtensions(): Promise<void>;

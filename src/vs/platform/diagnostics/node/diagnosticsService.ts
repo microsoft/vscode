@@ -486,7 +486,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 		// Format name with indent
 		let name: string;
 		if (isRoot) {
-			name = item.pid === mainPid ? `${this.productService.applicationName} main` : 'remote agent';
+			name = item.pid === mainPid ? this.productService.applicationName : 'remote-server';
 		} else {
 			if (mapProcessToName.has(item.pid)) {
 				name = mapProcessToName.get(item.pid)!;

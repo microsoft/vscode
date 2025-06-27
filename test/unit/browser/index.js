@@ -114,7 +114,7 @@ function ensureIsArray(a) {
 
 const testModules = (async function () {
 
-	const excludeGlob = '**/{node,electron-sandbox,electron-main,electron-utility}/**/*.test.js';
+	const excludeGlob = '**/{node,electron-browser,electron-main,electron-utility}/**/*.test.js';
 	let isDefaultModules = true;
 	let promise;
 
@@ -151,7 +151,7 @@ const testModules = (async function () {
 				modules.push(file.replace(/\.js$/, ''));
 
 			} else if (!isDefaultModules) {
-				console.warn(`DROPPONG ${file} because it cannot be run inside a browser`);
+				console.warn(`DROPPING ${file} because it cannot be run inside a browser`);
 			}
 		}
 		return modules;

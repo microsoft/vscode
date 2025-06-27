@@ -27,7 +27,6 @@ import { GitPostCommitCommandsProvider } from './postCommitCommands';
 import { GitEditSessionIdentityProvider } from './editSessionIdentityProvider';
 import { GitCommitInputBoxCodeActionsProvider, GitCommitInputBoxDiagnosticsManager } from './diagnostics';
 import { GitBlameController } from './blame';
-import { StagedResourceQuickDiffProvider } from './repository';
 
 const deactivateTasks: { (): Promise<any> }[] = [];
 
@@ -71,7 +70,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 		logger.error(`[main] Failed to create git IPC: ${err}`);
 	}
 
-	const askpass = new Askpass(ipcServer);
+	const askpass = new Askpass(ipcServer, logger);
 	disposables.push(askpass);
 
 	const gitEditor = new GitEditor(ipcServer);
@@ -117,7 +116,6 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 		new GitBlameController(model),
 		new GitTimelineProvider(model, cc),
 		new GitEditSessionIdentityProvider(model),
-		new StagedResourceQuickDiffProvider(model),
 		new TerminalShellExecutionManager(model, logger)
 	);
 

@@ -34,12 +34,14 @@ import { ViewLayout } from '../viewLayout/viewLayout.js';
 import { MinimapTokensColorTracker } from './minimapTokensColorTracker.js';
 import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from '../modelLineProjectionData.js';
 import { ViewEventHandler } from '../viewEventHandler.js';
-import { ICoordinatesConverter, InlineDecoration, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
+import { ICoordinatesConverter, InlineDecoration, ILineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
 import { ViewModelDecorations } from './viewModelDecorations.js';
-import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
+import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelLineHeightChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
+import { ICustomLineHeightData } from '../viewLayout/lineHeights.js';
+import { TextModelEditReason } from '../textModelEditReason.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -116,7 +118,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		this._cursor = this._register(new CursorsController(model, this, this.coordinatesConverter, this.cursorConfig));
 
-		this.viewLayout = this._register(new ViewLayout(this._configuration, this.getLineCount(), scheduleAtNextAnimationFrame));
+		this.viewLayout = this._register(new ViewLayout(this._configuration, this.getLineCount(), this._getCustomLineHeights(), scheduleAtNextAnimationFrame));
 
 		this._register(this.viewLayout.onDidScroll((e) => {
 			if (e.scrollTopChanged) {
@@ -181,6 +183,24 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	public removeViewEventHandler(eventHandler: ViewEventHandler): void {
 		this._eventDispatcher.removeViewEventHandler(eventHandler);
+	}
+
+	private _getCustomLineHeights(): ICustomLineHeightData[] {
+		const allowVariableLineHeights = this._configuration.options.get(EditorOption.allowVariableLineHeights);
+		if (!allowVariableLineHeights) {
+			return [];
+		}
+		const decorations = this.model.getCustomLineHeightsDecorations(this._editorId);
+		return decorations.map((d) => {
+			const lineNumber = d.range.startLineNumber;
+			const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
+			return {
+				decorationId: d.id,
+				startLineNumber: viewRange.startLineNumber,
+				endLineNumber: viewRange.endLineNumber,
+				lineHeight: d.options.lineHeight || 0
+			};
+		});
 	}
 
 	private _updateConfigurationViewLineCountNow(): void {
@@ -254,7 +274,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
 			this._cursor.onLineMappingChanged(eventsCollector);
 			this._decorations.onLineMappingChanged();
-			this.viewLayout.onFlushed(this.getLineCount());
+			this.viewLayout.onFlushed(this.getLineCount(), this._getCustomLineHeights());
 
 			this._updateConfigurationViewLineCount.schedule();
 		}
@@ -327,7 +347,7 @@ export class ViewModel extends Disposable implements IViewModel {
 							this._lines.onModelFlushed();
 							eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
 							this._decorations.reset();
-							this.viewLayout.onFlushed(this.getLineCount());
+							this.viewLayout.onFlushed(this.getLineCount(), this._getCustomLineHeights());
 							hadOtherModelChange = true;
 							break;
 						}
@@ -419,6 +439,31 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._handleVisibleLinesChanged();
 		}));
 
+		const allowVariableLineHeights = this._configuration.options.get(EditorOption.allowVariableLineHeights);
+		if (allowVariableLineHeights) {
+			this._register(this.model.onDidChangeLineHeight((e) => {
+				const filteredChanges = e.changes.filter((change) => change.ownerId === this._editorId || change.ownerId === 0);
+
+				this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
+					for (const change of filteredChanges) {
+						const { decorationId, lineNumber, lineHeight } = change;
+						const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
+						if (lineHeight !== null) {
+							accessor.insertOrChangeCustomLineHeight(decorationId, viewRange.startLineNumber, viewRange.endLineNumber, lineHeight);
+						} else {
+							accessor.removeCustomLineHeight(decorationId);
+						}
+					}
+				});
+
+				// recreate the model event using the filtered changes
+				if (filteredChanges.length > 0) {
+					const filteredEvent = new textModelEvents.ModelLineHeightChangedEvent(filteredChanges);
+					this._eventDispatcher.emitOutgoingEvent(new ModelLineHeightChangedEvent(filteredEvent));
+				}
+			}));
+		}
+
 		this._register(this.model.onDidChangeTokens((e) => {
 			const viewRanges: { fromLineNumber: number; toLineNumber: number }[] = [];
 			for (let j = 0, lenJ = e.ranges.length; j < lenJ; j++) {
@@ -457,7 +502,7 @@ export class ViewModel extends Disposable implements IViewModel {
 					eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
 					this._cursor.onLineMappingChanged(eventsCollector);
 					this._decorations.onLineMappingChanged();
-					this.viewLayout.onFlushed(this.getLineCount());
+					this.viewLayout.onFlushed(this.getLineCount(), this._getCustomLineHeights());
 				} finally {
 					this._eventDispatcher.endEmitViewEvents();
 				}
@@ -506,7 +551,7 @@ export class ViewModel extends Disposable implements IViewModel {
 				eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
 				this._cursor.onLineMappingChanged(eventsCollector);
 				this._decorations.onLineMappingChanged();
-				this.viewLayout.onFlushed(this.getLineCount());
+				this.viewLayout.onFlushed(this.getLineCount(), this._getCustomLineHeights());
 				this.viewLayout.onHeightMaybeChanged();
 			}
 
@@ -1052,8 +1097,8 @@ export class ViewModel extends Disposable implements IViewModel {
 		}
 		this._withViewEventsCollector(callback);
 	}
-	public executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): void {
-		this._executeCursorEdit(eventsCollector => this._cursor.executeEdits(eventsCollector, source, edits, cursorStateComputer));
+	public executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer, reason: TextModelEditReason): void {
+		this._executeCursorEdit(eventsCollector => this._cursor.executeEdits(eventsCollector, source, edits, cursorStateComputer, reason));
 	}
 	public startComposition(): void {
 		this._executeCursorEdit(eventsCollector => this._cursor.startComposition(eventsCollector));

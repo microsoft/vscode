@@ -713,6 +713,15 @@ suite('MarkdownRenderer', () => {
 				const completeTokens = marked.marked.lexer(incomplete + '&nbsp;');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
+
+			test('text with start of list', () => {
+				const incomplete = `hello\n- `;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ' &nbsp;');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
 		});
 
 		suite('codespan', () => {

@@ -51,7 +51,7 @@ class Renderer implements ICompressibleTreeRenderer<Element, void, HTMLElement> 
 	disposeTemplate(templateData: HTMLElement): void {
 		// noop
 	}
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<Element>, void>, index: number, templateData: HTMLElement, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<Element>, void>, index: number, templateData: HTMLElement): void {
 		const result: string[] = [];
 
 		for (const element of node.element.elements) {

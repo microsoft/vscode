@@ -8,12 +8,25 @@ export enum ChatConfiguration {
 	AgentEnabled = 'chat.agent.enabled',
 	Edits2Enabled = 'chat.edits2.enabled',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
+	EditRequests = 'chat.editRequests',
 }
 
 export enum ChatMode {
 	Ask = 'ask',
 	Edit = 'edit',
 	Agent = 'agent'
+}
+
+export function modeToString(mode: ChatMode) {
+	switch (mode) {
+		case ChatMode.Agent:
+			return 'Agent';
+		case ChatMode.Edit:
+			return 'Edit';
+		case ChatMode.Ask:
+		default:
+			return 'Ask';
+	}
 }
 
 export function validateChatMode(mode: unknown): ChatMode | undefined {
@@ -25,6 +38,10 @@ export function validateChatMode(mode: unknown): ChatMode | undefined {
 		default:
 			return undefined;
 	}
+}
+
+export function isChatMode(mode: unknown): mode is ChatMode {
+	return !!validateChatMode(mode);
 }
 
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';

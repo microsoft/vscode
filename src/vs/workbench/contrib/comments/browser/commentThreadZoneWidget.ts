@@ -338,8 +338,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		if (confirmSetting === 'whenHasUnsubmittedComments' && this._commentThreadWidget.hasUnsubmittedComments) {
 			const result = await this.dialogService.confirm({
-				message: nls.localize('confirmCollapse', "Collapsing a comment thread will discard unsubmitted comments. Do you want to collapse this comment thread?"),
-				primaryButton: nls.localize('collapse', "Collapse"),
+				message: nls.localize('confirmCollapse', "Collapsing this comment thread will discard unsubmitted comments. Are you sure you want to discard these comments?"),
+				primaryButton: nls.localize('discard', "Discard"),
 				type: Severity.Warning,
 				checkbox: { label: nls.localize('neverAskAgain', "Never ask me again"), checked: false }
 			});

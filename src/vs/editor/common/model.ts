@@ -19,12 +19,14 @@ import { IWordAtPosition } from './core/wordHelper.js';
 import { FormattingOptions } from './languages.js';
 import { ILanguageSelection } from './languages/language.js';
 import { IBracketPairsTextModelPart } from './textModelBracketPairs.js';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent } from './textModelEvents.js';
+import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
 import { IGuidesTextModelPart } from './textModelGuides.js';
 import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { UndoRedoGroup } from '../../platform/undoRedo/common/undoRedo.js';
-import { TokenArray } from './tokens/tokenArray.js';
+import { TokenArray } from './tokens/lineTokens.js';
 import { IEditorModel } from './editorCommon.js';
+import { TextModelEditReason } from './textModelEditReason.js';
+import { TextEdit } from './core/edits/textEdit.js';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -218,6 +220,10 @@ export interface IModelDecorationOptions {
 	 * with the specified {@link IModelDecorationGlyphMarginOptions} in the glyph margin.
 	 */
 	glyphMargin?: IModelDecorationGlyphMarginOptions | null;
+	/**
+	 * If set, the decoration will override the line height of the lines it spans. Maximum value is 300px.
+	 */
+	lineHeight?: number | null;
 	/**
 	 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 	 */
@@ -1109,6 +1115,12 @@ export interface ITextModel {
 	getInjectedTextDecorations(ownerId?: number): IModelDecoration[];
 
 	/**
+	 * Gets all the decorations that contain custom line heights.
+	 * @param ownerId If set, it will ignore decorations belonging to other owners.
+	 */
+	getCustomLineHeightsDecorations(ownerId?: number): IModelDecoration[];
+
+	/**
 	 * @internal
 	 */
 	_getTrackedRange(id: string): Range | null;
@@ -1150,6 +1162,11 @@ export interface ITextModel {
 	popStackElement(): void;
 
 	/**
+	 * @internal
+	*/
+	edit(edit: TextEdit, options?: { reason?: TextModelEditReason }): void;
+
+	/**
 	 * Push edit operations, basically editing the model. This is the preferred way
 	 * of editing the model. The edit operations will land on the undo stack.
 	 * @param beforeCursorState The cursor state before the edit operations. This cursor state will be returned when `undo` or `redo` are invoked.
@@ -1161,7 +1178,7 @@ export interface ITextModel {
 	/**
 	 * @internal
 	 */
-	pushEditOperations(beforeCursorState: Selection[] | null, editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer, group?: UndoRedoGroup): Selection[] | null;
+	pushEditOperations(beforeCursorState: Selection[] | null, editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer, group?: UndoRedoGroup, reason?: TextModelEditReason): Selection[] | null;
 
 	/**
 	 * Change the end of line sequence. This is the preferred way of
@@ -1175,9 +1192,11 @@ export interface ITextModel {
 	 * @param operations The edit operations.
 	 * @return If desired, the inverse edit operations, that, when applied, will bring the model back to the previous state.
 	 */
-	applyEdits(operations: IIdentifiedSingleEditOperation[]): void;
-	applyEdits(operations: IIdentifiedSingleEditOperation[], computeUndoEdits: false): void;
-	applyEdits(operations: IIdentifiedSingleEditOperation[], computeUndoEdits: true): IValidEditOperation[];
+	applyEdits(operations: readonly IIdentifiedSingleEditOperation[]): void;
+	/** @internal */
+	applyEdits(operations: readonly IIdentifiedSingleEditOperation[], reason: TextModelEditReason): void;
+	applyEdits(operations: readonly IIdentifiedSingleEditOperation[], computeUndoEdits: false): void;
+	applyEdits(operations: readonly IIdentifiedSingleEditOperation[], computeUndoEdits: true): IValidEditOperation[];
 
 	/**
 	 * Change the end of line sequence without recording in the undo stack.
@@ -1238,6 +1257,14 @@ export interface ITextModel {
 	 * @event
 	 */
 	readonly onDidChangeDecorations: Event<IModelDecorationsChangedEvent>;
+	/**
+	 * An event emitted when line heights from decorations changes.
+	 * This event is emitted only when adding, removing or changing a decoration
+	 * and not when doing edits in the model (i.e. when decoration ranges change)
+	 * @internal
+	 * @event
+	 */
+	readonly onDidChangeLineHeight: Event<ModelLineHeightChangedEvent>;
 	/**
 	 * An event emitted when the model options have changed.
 	 * @event

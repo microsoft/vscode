@@ -185,8 +185,6 @@ extends:
       sourceAnalysisPool: 1es-windows-2022-x64
       createAdoIssuesForJustificationsForDisablement: false
     containers:
-      snapcraft:
-        image: vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64
       ubuntu-2004-arm64:
         image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
     stages:
@@ -265,7 +263,8 @@ extends:
             - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
               - job: CLIMacOSX64
                 pool:
-                  name: AcesShared
+                  name: Azure Pipelines
+                  image: macOS-13
                   os: macOS
                 variables:
                   # todo@connor4312 to diagnose build flakes
@@ -281,7 +280,8 @@ extends:
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
               - job: CLIMacOSARM64
                 pool:
-                  name: AcesShared
+                  name: Azure Pipelines
+                  image: macOS-13
                   os: macOS
                 variables:
                   # todo@connor4312 to diagnose build flakes
@@ -296,7 +296,7 @@ extends:
             - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
               - job: CLIWindowsX64
                 pool:
-                  name: 1es-windows-2019-x64
+                  name: 1es-windows-2022-x64
                   os: windows
                 steps:
                   - template: build/azure-pipelines/win32/cli-build-win32.yml@self
@@ -308,7 +308,7 @@ extends:
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
               - job: CLIWindowsARM64
                 pool:
-                  name: 1es-windows-2019-x64
+                  name: 1es-windows-2022-x64
                   os: windows
                 steps:
                   - template: build/azure-pipelines/win32/cli-build-win32.yml@self
@@ -320,7 +320,7 @@ extends:
         - stage: APIScan
           dependsOn: []
           pool:
-            name: 1es-windows-2019-x64
+            name: 1es-windows-2022-x64
             os: windows
           jobs:
             - job: WindowsAPIScan
@@ -337,7 +337,7 @@ extends:
             - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true),eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true),eq(parameters.VSCODE_BUILD_LINUX_ARM64, true),eq(parameters.VSCODE_BUILD_ALPINE, true),eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true),eq(parameters.VSCODE_BUILD_MACOS, true),eq(parameters.VSCODE_BUILD_MACOS_ARM64, true),eq(parameters.VSCODE_BUILD_WIN32, true),eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
               - CompileCLI
           pool:
-            name: 1es-windows-2019-x64
+            name: 1es-windows-2022-x64
             os: windows
           jobs:
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
@@ -498,21 +498,6 @@ extends:
                       VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                       VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                       VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX, true)) }}:
-              - job: LinuxSnap
-                dependsOn:
-                  - Linuxx64
-                container: snapcraft
-                variables:
-                  VSCODE_ARCH: x64
-                templateContext:
-                  authenticatedContainerRegistries:
-                    - registry: onebranch.azurecr.io
-                      tenant: AME
-                      identity: 1ESPipelineIdentity
-                steps:
-                  - template: build/azure-pipelines/linux/snap-build-linux.yml@self
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
               - job: LinuxArmhf
@@ -684,7 +669,7 @@ extends:
         - stage: Publish
           dependsOn: []
           pool:
-            name: 1es-windows-2019-x64
+            name: 1es-windows-2022-x64
             os: windows
           variables:
             - name: BUILDS_API_URL

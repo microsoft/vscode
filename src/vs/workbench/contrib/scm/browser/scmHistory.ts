@@ -10,7 +10,6 @@ import { asCssVariable, ColorIdentifier, registerColor } from '../../../../platf
 import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemRef, ISCMHistoryItemViewModel } from '../common/history.js';
 import { rot } from '../../../../base/common/numbers.js';
 import { svgElem } from '../../../../base/browser/dom.js';
-import { compareHistoryItemRefs } from './util.js';
 
 export const SWIMLANE_HEIGHT = 22;
 export const SWIMLANE_WIDTH = 11;
@@ -56,10 +55,10 @@ function getLabelColorIdentifier(historyItem: ISCMHistoryItem, colorMap: Map<str
 	return undefined;
 }
 
-function createPath(colorIdentifier: string): SVGPathElement {
+function createPath(colorIdentifier: string, strokeWidth = 1): SVGPathElement {
 	const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
 	path.setAttribute('fill', 'none');
-	path.setAttribute('stroke-width', '1px');
+	path.setAttribute('stroke-width', `${strokeWidth}px`);
 	path.setAttribute('stroke-linecap', 'round');
 	path.style.stroke = asCssVariable(colorIdentifier);
 
@@ -80,8 +79,8 @@ function drawCircle(index: number, radius: number, strokeWidth: number, colorIde
 	return circle;
 }
 
-function drawVerticalLine(x1: number, y1: number, y2: number, color: string): SVGPathElement {
-	const path = createPath(color);
+function drawVerticalLine(x1: number, y1: number, y2: number, color: string, strokeWidth = 1): SVGPathElement {
+	const path = createPath(color, strokeWidth);
 	path.setAttribute('d', `M ${x1} ${y1} V ${y2}`);
 
 	return path;
@@ -240,14 +239,15 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 	return svg;
 }
 
-export function renderSCMHistoryGraphPlaceholder(columns: ISCMHistoryItemGraphNode[]): HTMLElement {
+export function renderSCMHistoryGraphPlaceholder(columns: ISCMHistoryItemGraphNode[], highlightIndex?: number): HTMLElement {
 	const elements = svgElem('svg', {
 		style: { height: `${SWIMLANE_HEIGHT}px`, width: `${SWIMLANE_WIDTH * (columns.length + 1)}px`, }
 	});
 
 	// Draw |
 	for (let index = 0; index < columns.length; index++) {
-		const path = drawVerticalLine(SWIMLANE_WIDTH * (index + 1), 0, SWIMLANE_HEIGHT, columns[index].color);
+		const strokeWidth = index === highlightIndex ? 3 : 1;
+		const path = drawVerticalLine(SWIMLANE_WIDTH * (index + 1), 0, SWIMLANE_HEIGHT, columns[index].color, strokeWidth);
 		elements.root.append(path);
 	}
 
@@ -352,4 +352,43 @@ export function toISCMHistoryItemViewModelArray(
 	}
 
 	return viewModels;
+}
+
+export function getHistoryItemIndex(historyItemViewModel: ISCMHistoryItemViewModel): number {
+	const historyItem = historyItemViewModel.historyItem;
+	const inputSwimlanes = historyItemViewModel.inputSwimlanes;
+
+	// Find the history item in the input swimlanes
+	const inputIndex = inputSwimlanes.findIndex(node => node.id === historyItem.id);
+
+	// Circle index - use the input swimlane index if present, otherwise add it to the end
+	return inputIndex !== -1 ? inputIndex : inputSwimlanes.length;
+}
+
+export function compareHistoryItemRefs(
+	ref1: ISCMHistoryItemRef,
+	ref2: ISCMHistoryItemRef,
+	currentHistoryItemRef?: ISCMHistoryItemRef,
+	currentHistoryItemRemoteRef?: ISCMHistoryItemRef,
+	currentHistoryItemBaseRef?: ISCMHistoryItemRef
+): number {
+	const getHistoryItemRefOrder = (ref: ISCMHistoryItemRef) => {
+		if (ref.id === currentHistoryItemRef?.id) {
+			return 1;
+		} else if (ref.id === currentHistoryItemRemoteRef?.id) {
+			return 2;
+		} else if (ref.id === currentHistoryItemBaseRef?.id) {
+			return 3;
+		} else if (ref.color !== undefined) {
+			return 4;
+		}
+
+		return 99;
+	};
+
+	// Assign order (current > remote > base > color)
+	const ref1Order = getHistoryItemRefOrder(ref1);
+	const ref2Order = getHistoryItemRefOrder(ref2);
+
+	return ref1Order - ref2Order;
 }

@@ -13,10 +13,6 @@ declare module 'vscode' {
 		message: MarkdownString;
 	}
 
-	export interface ChatWelcomeMessageProvider {
-		provideSampleQuestions?(location: ChatLocation, token: CancellationToken): ProviderResult<ChatFollowup[]>;
-	}
-
 	export interface ChatRequesterInformation {
 		name: string;
 
@@ -31,6 +27,10 @@ declare module 'vscode' {
 		 * TODO@API Should this take a ChatResult like the followup provider, or just take a new ChatContext that includes the current message as history?
 		 */
 		provideChatTitle(context: ChatContext, token: CancellationToken): ProviderResult<string>;
+	}
+
+	export interface ChatSummarizer {
+		provideChatSummary(context: ChatContext, token: CancellationToken): ProviderResult<string>;
 	}
 
 	export interface ChatParticipant {
@@ -49,9 +49,9 @@ declare module 'vscode' {
 		 */
 		helpTextPostfix?: string | MarkdownString;
 
-		welcomeMessageProvider?: ChatWelcomeMessageProvider;
 		additionalWelcomeMessage?: string | MarkdownString;
 		titleProvider?: ChatTitleProvider;
+		summarizer?: ChatSummarizer;
 		requester?: ChatRequesterInformation;
 	}
 }

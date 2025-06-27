@@ -45,6 +45,7 @@ import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions, localFileLangua
 import '../media/chatCodeBlockPill.css';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
 
 const $ = dom.$;
 
@@ -105,6 +106,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					hideEmptyCodeblock.style.display = 'none';
 					return hideEmptyCodeblock;
 				}
+				if (languageId === 'vscode-extensions') {
+					const chatExtensions = this._register(instantiationService.createInstance(ChatExtensionsContentPart, { kind: 'extensions', extensions: text.split(',') }));
+					this._register(chatExtensions.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+					return chatExtensions.domNode;
+				}
 				const globalIndex = globalCodeBlockIndexStart++;
 				const thisPartIndex = thisPartCodeBlockIndexStart++;
 				let textModel: Promise<ITextModel>;
@@ -135,7 +141,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				if (hideToolbar !== undefined) {
 					renderOptions.hideToolbar = hideToolbar;
 				}
-				const codeBlockInfo: ICodeBlockData = { languageId, textModel, codeBlockIndex: globalIndex, codeBlockPartIndex: thisPartIndex, element, range, parentContextKeyService: contextKeyService, vulns, codemapperUri: codeblockEntry?.codemapperUri, renderOptions };
+				const codeBlockInfo: ICodeBlockData = { languageId, textModel, codeBlockIndex: globalIndex, codeBlockPartIndex: thisPartIndex, element, range, parentContextKeyService: contextKeyService, vulns, codemapperUri: codeblockEntry?.codemapperUri, renderOptions, chatSessionId: element.sessionId };
 
 				if (element.isCompleteAddedRequest || !codeblockEntry?.codemapperUri || !codeblockEntry.isEdit) {
 					const ref = this.renderCodeBlock(codeBlockInfo, text, isCodeBlockComplete, currentWidth);
@@ -151,6 +157,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						readonly codeBlockIndex = globalIndex;
 						readonly elementId = element.id;
 						readonly isStreaming = false;
+						readonly chatSessionId = element.sessionId;
 						codemapperUri = undefined; // will be set async
 						public get uri() {
 							// here we must do a getter because the ref.object is rendered
@@ -184,6 +191,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						readonly elementId = element.id;
 						readonly isStreaming = !isCodeBlockComplete;
 						readonly codemapperUri = codeblockEntry?.codemapperUri;
+						readonly chatSessionId = element.sessionId;
 						public get uri() {
 							return undefined;
 						}
@@ -330,16 +338,13 @@ class CollapsedCodeBlock extends Disposable {
 	) {
 		super();
 		this.element = $('.chat-codeblock-pill-widget');
+		this.element.tabIndex = 0;
 		this.element.classList.add('show-file-icons');
-		this._register(dom.addDisposableListener(this.element, 'click', async () => {
-			if (this._currentDiff) {
-				this.editorService.openEditor({
-					original: { resource: this._currentDiff.originalURI },
-					modified: { resource: this._currentDiff.modifiedURI },
-					options: { transient: true },
-				});
-			} else if (this.uri) {
-				this.editorService.openEditor({ resource: this.uri });
+		this.element.role = 'button';
+		this._register(dom.addDisposableListener(this.element, 'click', () => this._showDiff()));
+		this._register(dom.addDisposableListener(this.element, 'keydown', (e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				this._showDiff();
 			}
 		}));
 		this._register(dom.addDisposableListener(this.element, dom.EventType.CONTEXT_MENU, domEvent => {
@@ -355,6 +360,18 @@ class CollapsedCodeBlock extends Disposable {
 				},
 			});
 		}));
+	}
+
+	private _showDiff(): void {
+		if (this._currentDiff) {
+			this.editorService.openEditor({
+				original: { resource: this._currentDiff.originalURI },
+				modified: { resource: this._currentDiff.modifiedURI },
+				options: { transient: true },
+			});
+		} else if (this.uri) {
+			this.editorService.openEditor({ resource: this.uri });
+		}
 	}
 
 	render(uri: URI, isStreaming?: boolean): void {

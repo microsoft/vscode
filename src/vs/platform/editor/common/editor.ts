@@ -7,6 +7,7 @@ import { equals } from '../../../base/common/arrays.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
+import { IRectangle } from '../../window/common/window.js';
 
 export interface IResolvableEditorModel extends IDisposable {
 
@@ -251,11 +252,6 @@ export interface IEditorOptions {
 	inactive?: boolean;
 
 	/**
-	 * Will not show an error in case opening the editor fails and thus allows to show a custom error
-	 * message as needed. By default, an error will be presented as notification if opening was not possible.
-	 */
-
-	/**
 	 * In case of an error opening the editor, will not present this error to the user (e.g. by showing
 	 * a generic placeholder in the editor area). So it is up to the caller to provide error information
 	 * in that case.
@@ -303,6 +299,27 @@ export interface IEditorOptions {
 	 * not turn transient.
 	 */
 	transient?: boolean;
+
+	/**
+	 * Options that only apply when `AUX_WINDOW_GROUP` is used for opening.
+	 */
+	auxiliary?: {
+
+		/**
+		 * Define the bounds of the editor window.
+		 */
+		bounds?: Partial<IRectangle>;
+
+		/**
+		 * Show editor compact, hiding unnecessary elements.
+		 */
+		compact?: boolean;
+
+		/**
+		 * Show the editor always on top of other windows.
+		 */
+		alwaysOnTop?: boolean;
+	};
 }
 
 export interface ITextEditorSelection {

@@ -23,13 +23,14 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IEditorPane } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
-import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatMode } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
 
@@ -100,58 +101,6 @@ abstract class WorkingSetAction extends EditingSessionAction {
 	abstract runWorkingSetAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget | undefined, ...uris: URI[]): any;
 }
 
-registerAction2(class RemoveFileFromWorkingSet extends WorkingSetAction {
-	constructor() {
-		super({
-			id: 'chatEditing.removeFileFromWorkingSet',
-			title: localize2('removeFileFromWorkingSet', 'Remove File'),
-			icon: Codicon.close,
-			precondition: ChatContextKeys.requestInProgress.negate(),
-			menu: [{
-				id: MenuId.ChatEditingWidgetModifiedFilesToolbar,
-				// when: ContextKeyExpr.or(ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Attached), ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Suggested), ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Transient)),
-				order: 5,
-				group: 'navigation'
-			}],
-		});
-	}
-
-	async runWorkingSetAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, chatWidget: IChatWidget, ...uris: URI[]): Promise<void> {
-		const dialogService = accessor.get(IDialogService);
-
-		const pendingEntries = currentEditingSession.entries.get().filter((entry) => uris.includes(entry.modifiedURI) && entry.state.get() === ModifiedFileEntryState.Modified);
-		if (pendingEntries.length > 0) {
-			// Ask for confirmation if there are any pending edits
-			const file = pendingEntries.length > 1
-				? localize('chat.editing.removeFile.confirmationmanyFiles', "{0} files", pendingEntries.length)
-				: basename(pendingEntries[0].modifiedURI);
-			const confirmation = await dialogService.confirm({
-				title: localize('chat.editing.removeFile.confirmation.title', "Remove {0} from working set?", file),
-				message: localize('chat.editing.removeFile.confirmation.message', "This will remove {0} from your working set and undo the edits made to it. Do you want to proceed?", file),
-				primaryButton: localize('chat.editing.removeFile.confirmation.primaryButton', "Yes"),
-				type: 'info'
-			});
-			if (!confirmation.confirmed) {
-				return;
-			}
-		}
-
-		// Remove from working set
-		await currentEditingSession.reject(...uris);
-		currentEditingSession.remove(...uris);
-
-		// Remove from chat input part
-		for (const uri of uris) {
-			chatWidget.attachmentModel.delete(uri.toString());
-		}
-
-		// Clear all related file suggestions
-		if (chatWidget.attachmentModel.fileAttachments.length === 0) {
-			chatWidget.input.relatedFiles?.clear();
-		}
-	}
-});
-
 registerAction2(class OpenFileInDiffAction extends WorkingSetAction {
 	constructor() {
 		super({
@@ -169,16 +118,21 @@ registerAction2(class OpenFileInDiffAction extends WorkingSetAction {
 
 	async runWorkingSetAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, _chatWidget: IChatWidget, ...uris: URI[]): Promise<void> {
 		const editorService = accessor.get(IEditorService);
+
+
 		for (const uri of uris) {
-			const editedFile = currentEditingSession.getEntry(uri);
-			if (editedFile?.state.get() === ModifiedFileEntryState.Modified) {
-				await editorService.openEditor({
-					original: { resource: URI.from(editedFile.originalURI, true) },
-					modified: { resource: URI.from(editedFile.modifiedURI, true) },
-				});
-			} else {
-				await editorService.openEditor({ resource: uri });
+
+			let pane: IEditorPane | undefined = editorService.activeEditorPane;
+			if (!pane) {
+				pane = await editorService.openEditor({ resource: uri });
 			}
+
+			if (!pane) {
+				return;
+			}
+
+			const editedFile = currentEditingSession.getEntry(uri);
+			editedFile?.getEditorIntegration(pane).toggleDiff(undefined, true);
 		}
 	}
 });
@@ -322,41 +276,6 @@ export async function discardAllEditsWithConfirmation(accessor: ServicesAccessor
 	return true;
 }
 
-// TODO@roblourens this may be obsolete?
-export class ChatEditingRemoveAllFilesAction extends EditingSessionAction {
-	static readonly ID = 'chatEditing.clearWorkingSet';
-
-	constructor() {
-		super({
-			id: ChatEditingRemoveAllFilesAction.ID,
-			title: localize('clearWorkingSet', 'Clear Working Set'),
-			icon: Codicon.clearAll,
-			tooltip: localize('clearWorkingSet', 'Clear Working Set'),
-			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate()),
-			menu: [
-				{
-					id: MenuId.ChatEditingWidgetToolbar,
-					group: 'navigation',
-					order: 5,
-					when: hasAppliedChatEditsContextKey.negate()
-				}
-			]
-		});
-	}
-
-	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): Promise<void> {
-		// Remove all files from working set
-		const uris = [...editingSession.entries.get()].map((e) => e.modifiedURI);
-		editingSession.remove(...uris);
-
-		// Remove all file attachments
-		const fileAttachments = chatWidget.attachmentModel ? chatWidget.attachmentModel.fileAttachments : [];
-		const attachmentIdsToRemove = fileAttachments.map(attachment => attachment.toString());
-		chatWidget.attachmentModel.delete(...attachmentIdsToRemove);
-	}
-}
-registerAction2(ChatEditingRemoveAllFilesAction);
-
 export class ChatEditingShowChangesAction extends EditingSessionAction {
 	static readonly ID = 'chatEditing.viewChanges';
 	static readonly LABEL = localize('chatEditing.viewChanges', 'View All Edits');
@@ -393,7 +312,7 @@ registerAction2(class RemoveAction extends Action2 {
 			title: localize2('chat.undoEdits.label', "Undo Requests"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			icon: Codicon.x,
+			icon: Codicon.discard,
 			keybinding: {
 				primary: KeyCode.Delete,
 				mac: {
@@ -407,7 +326,7 @@ registerAction2(class RemoveAction extends Action2 {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 2,
-					when: ChatContextKeys.isRequest
+					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.currentlyEditing.negate(), ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input').negate())
 				}
 			]
 		});
@@ -415,11 +334,12 @@ registerAction2(class RemoveAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, ...args: any[]) {
 		let item: ChatTreeItem | undefined = args[0];
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const widget = chatWidgetService.lastFocusedWidget;
 		if (!isResponseVM(item) && !isRequestVM(item)) {
-			const chatWidgetService = accessor.get(IChatWidgetService);
-			const widget = chatWidgetService.lastFocusedWidget;
 			item = widget?.getFocus();
 		}
+
 
 		if (!item) {
 			return;
@@ -489,6 +409,47 @@ registerAction2(class RemoveAction extends Action2 {
 			// Restore the snapshot to what it was before the request(s) that we deleted
 			const snapshotRequestId = chatRequests[itemIndex].id;
 			await session.restoreSnapshot(snapshotRequestId, undefined);
+		}
+
+		if (isRequestVM(item) && configurationService.getValue('chat.undoRequests.restoreInput')) {
+			widget?.focusInput();
+			widget?.input.setValue(item.messageText, false);
+		}
+	}
+});
+
+registerAction2(class EditAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.editRequests',
+			title: localize2('chat.editRequests.label', "Edit Request"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			icon: Codicon.edit,
+			menu: [
+				{
+					id: MenuId.ChatMessageTitle,
+					group: 'navigation',
+					order: 2,
+					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.currentlyEditing.negate(), ContextKeyExpr.or(ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'hover'), ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input')))
+				}
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		let item: ChatTreeItem | undefined = args[0];
+		if (!item) {
+			return;
+		}
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const widget = chatWidgetService.lastFocusedWidget;
+		if (!isResponseVM(item) && !isRequestVM(item)) {
+			item = widget?.getFocus();
+		}
+
+		if (isRequestVM(item)) {
+			widget?.startEditing(item.id);
 		}
 	}
 });
@@ -602,7 +563,7 @@ registerAction2(class ResolveSymbolsContextAction extends EditingSessionAction {
 		// how important it is that they make it into the working set as it has limited size
 		const attachments = [];
 		for (const reference of [...definitions, ...implementations, ...references]) {
-			attachments.push(chatWidget.attachmentModel.asVariableEntry(reference.uri));
+			attachments.push(chatWidget.attachmentModel.asFileVariableEntry(reference.uri));
 		}
 
 		chatWidget.attachmentModel.addContext(...attachments);

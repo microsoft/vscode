@@ -12,9 +12,9 @@ import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSou
 import { Git, Stash } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
-import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges } from './staging';
+import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
-import { DiagnosticSeverityConfig, dispose, fromNow, getCommitShortHash, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, toDiagnosticSeverity, truncate } from './util';
+import { DiagnosticSeverityConfig, dispose, fromNow, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, toDiagnosticSeverity, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -91,7 +91,7 @@ class RefItem implements QuickPickItem {
 
 	get detail(): string | undefined {
 		if (this.ref.commitDetails?.authorName && this.ref.commitDetails?.message) {
-			return `${this.ref.commitDetails?.authorName}$(circle-small-filled)${this.ref.commitDetails?.message}`;
+			return `${this.ref.commitDetails.authorName}$(circle-small-filled)${this.shortCommit}$(circle-small-filled)${this.ref.commitDetails.message}`;
 		}
 
 		return undefined;
@@ -99,13 +99,13 @@ class RefItem implements QuickPickItem {
 
 	get refName(): string | undefined { return this.ref.name; }
 	get refRemote(): string | undefined { return this.ref.remote; }
-	get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
+	get shortCommit(): string { return (this.ref.commit || '').substring(0, this.shortCommitLength); }
 
 	private _buttons?: QuickInputButton[];
 	get buttons(): QuickInputButton[] | undefined { return this._buttons; }
 	set buttons(newButtons: QuickInputButton[] | undefined) { this._buttons = newButtons; }
 
-	constructor(protected readonly ref: Ref) { }
+	constructor(protected readonly ref: Ref, private readonly shortCommitLength: number) { }
 }
 
 class BranchItem extends RefItem {
@@ -122,8 +122,8 @@ class BranchItem extends RefItem {
 		return description.length > 0 ? description.join('$(circle-small-filled)') : this.shortCommit;
 	}
 
-	constructor(override readonly ref: Branch) {
-		super(ref);
+	constructor(override readonly ref: Branch, shortCommitLength: number) {
+		super(ref, shortCommitLength);
 	}
 }
 
@@ -242,10 +242,10 @@ class RebaseUpstreamItem extends RebaseItem {
 
 class HEADItem implements QuickPickItem {
 
-	constructor(private repository: Repository) { }
+	constructor(private repository: Repository, private readonly shortCommitLength: number) { }
 
 	get label(): string { return 'HEAD'; }
-	get description(): string { return (this.repository.HEAD && this.repository.HEAD.commit || '').substr(0, 8); }
+	get description(): string { return (this.repository.HEAD?.commit ?? '').substring(0, this.shortCommitLength); }
 	get alwaysShow(): boolean { return true; }
 	get refName(): string { return 'HEAD'; }
 }
@@ -413,12 +413,7 @@ async function getRemoteRefItemButtons(repository: Repository) {
 class RefProcessor {
 	protected readonly refs: Ref[] = [];
 
-	get items(): QuickPickItem[] {
-		const items = this.refs.map(r => new this.ctor(r));
-		return items.length === 0 ? items : [new RefItemSeparator(this.type), ...items];
-	}
-
-	constructor(protected readonly type: RefType, protected readonly ctor: { new(ref: Ref): QuickPickItem } = RefItem) { }
+	constructor(protected readonly type: RefType, protected readonly ctor: { new(ref: Ref, shortCommitLength: number): QuickPickItem } = RefItem) { }
 
 	processRef(ref: Ref): boolean {
 		if (!ref.name && !ref.commit) {
@@ -431,9 +426,15 @@ class RefProcessor {
 		this.refs.push(ref);
 		return true;
 	}
+
+	getItems(shortCommitLength: number): QuickPickItem[] {
+		const items = this.refs.map(r => new this.ctor(r, shortCommitLength));
+		return items.length === 0 ? items : [new RefItemSeparator(this.type), ...items];
+	}
 }
 
 class RefItemsProcessor {
+	protected readonly shortCommitLength: number;
 
 	constructor(
 		protected readonly repository: Repository,
@@ -442,7 +443,10 @@ class RefItemsProcessor {
 			skipCurrentBranch?: boolean;
 			skipCurrentBranchRemote?: boolean;
 		} = {}
-	) { }
+	) {
+		const config = workspace.getConfiguration('git', Uri.file(repository.root));
+		this.shortCommitLength = config.get<number>('commitShortHashLength', 7);
+	}
 
 	processRefs(refs: Ref[]): QuickPickItem[] {
 		const refsToSkip = this.getRefsToSkip();
@@ -460,7 +464,7 @@ class RefItemsProcessor {
 
 		const result: QuickPickItem[] = [];
 		for (const processor of this.processors) {
-			result.push(...processor.items);
+			result.push(...processor.getItems(this.shortCommitLength));
 		}
 
 		return result;
@@ -483,18 +487,18 @@ class RefItemsProcessor {
 
 class CheckoutRefProcessor extends RefProcessor {
 
-	override get items(): QuickPickItem[] {
+	constructor(private readonly repository: Repository) {
+		super(RefType.Head);
+	}
+
+	override getItems(shortCommitLength: number): QuickPickItem[] {
 		const items = this.refs.map(ref => {
 			return this.repository.isBranchProtected(ref) ?
-				new CheckoutProtectedItem(ref) :
-				new CheckoutItem(ref);
+				new CheckoutProtectedItem(ref, shortCommitLength) :
+				new CheckoutItem(ref, shortCommitLength);
 		});
 
 		return items.length === 0 ? items : [new RefItemSeparator(this.type), ...items];
-	}
-
-	constructor(private readonly repository: Repository) {
-		super(RefType.Head);
 	}
 }
 
@@ -532,7 +536,7 @@ class CheckoutItemsProcessor extends RefItemsProcessor {
 
 		const result: QuickPickItem[] = [];
 		for (const processor of this.processors) {
-			for (const item of processor.items) {
+			for (const item of processor.getItems(this.shortCommitLength)) {
 				if (!(item instanceof RefItem)) {
 					result.push(item);
 					continue;
@@ -1020,18 +1024,37 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.continueInLocalClone')
-	async continueInLocalClone(): Promise<Uri | void> {
-		if (this.model.repositories.length === 0) { return; }
-
-		// Pick a single repository to continue working on in a local clone if there's more than one
-		const items = this.model.repositories.reduce<(QuickPickItem & { repository: Repository })[]>((items, repository) => {
+	private getRepositoriesWithRemote(repositories: Repository[]) {
+		return repositories.reduce<(QuickPickItem & { repository: Repository })[]>((items, repository) => {
 			const remote = repository.remotes.find((r) => r.name === repository.HEAD?.upstream?.remote);
 			if (remote?.pushUrl) {
 				items.push({ repository: repository, label: remote.pushUrl });
 			}
 			return items;
 		}, []);
+	}
+
+	@command('git.continueInLocalClone')
+	async continueInLocalClone(): Promise<Uri | void> {
+		if (this.model.repositories.length === 0) { return; }
+
+		// Pick a single repository to continue working on in a local clone if there's more than one
+		let items = this.getRepositoriesWithRemote(this.model.repositories);
+
+		// We have a repository but there is no remote URL (e.g. git init)
+		if (items.length === 0) {
+			const pick = this.model.repositories.length === 1
+				? { repository: this.model.repositories[0] }
+				: await window.showQuickPick(this.model.repositories.map((i) => ({ repository: i, label: i.root })), { canPickMany: false, placeHolder: l10n.t('Choose which repository to publish') });
+			if (!pick) { return; }
+
+			await this.publish(pick.repository);
+
+			items = this.getRepositoriesWithRemote([pick.repository]);
+			if (items.length === 0) {
+				return;
+			}
+		}
 
 		let selection = items[0];
 		if (items.length > 1) {
@@ -1955,16 +1978,6 @@ export class CommandCenter {
 		const modifiedDocument = textEditor.document;
 		const modifiedUri = modifiedDocument.uri;
 
-		if (!isGitUri(modifiedUri)) {
-			return;
-		}
-
-		const { ref } = fromGitUri(modifiedUri);
-
-		if (ref !== '') {
-			return;
-		}
-
 		const repository = this.model.getRepository(modifiedUri);
 		if (!repository) {
 			return;
@@ -1989,6 +2002,7 @@ export class CommandCenter {
 		const originalUri = toGitUri(resource.original, 'HEAD');
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
+
 		const selectedDiffs = indexLineChanges
 			.map(change => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, change, range), null))
 			.filter(c => !!c) as LineChange[];
@@ -1998,13 +2012,20 @@ export class CommandCenter {
 			return;
 		}
 
-		const invertedDiffs = selectedDiffs.map(invertLineChange);
-
 		this.logger.trace(`[CommandCenter][unstageSelectedRanges] selectedDiffs: ${JSON.stringify(selectedDiffs)}`);
-		this.logger.trace(`[CommandCenter][unstageSelectedRanges] invertedDiffs: ${JSON.stringify(invertedDiffs)}`);
 
-		const result = applyLineChanges(modifiedDocument, originalDocument, invertedDiffs);
-		await repository.stage(modifiedUri, result, modifiedDocument.encoding);
+		// if (modifiedUri.scheme === 'file') {
+		// 	// Editor
+		// 	this.logger.trace(`[CommandCenter][unstageSelectedRanges] changes: ${JSON.stringify(selectedDiffs)}`);
+		// 	await this._unstageChanges(textEditor, selectedDiffs);
+		// 	return;
+		// }
+
+		const selectedDiffsInverted = selectedDiffs.map(invertLineChange);
+		this.logger.trace(`[CommandCenter][unstageSelectedRanges] selectedDiffsInverted: ${JSON.stringify(selectedDiffsInverted)}`);
+
+		const result = applyLineChanges(modifiedDocument, originalDocument, selectedDiffsInverted);
+		await repository.stage(modifiedDocument.uri, result, modifiedDocument.encoding);
 	}
 
 	@command('git.unstageFile')
@@ -2029,6 +2050,49 @@ export class CommandCenter {
 		await repository.revert(resources);
 	}
 
+	@command('git.unstageChange')
+	async unstageChange(uri: Uri, changes: LineChange[], index: number): Promise<void> {
+		if (!uri) {
+			return;
+		}
+
+		const textEditor = window.visibleTextEditors.filter(e => e.document.uri.toString() === uri.toString())[0];
+		if (!textEditor) {
+			return;
+		}
+
+		await this._unstageChanges(textEditor, [changes[index]]);
+	}
+
+	private async _unstageChanges(textEditor: TextEditor, changes: LineChange[]): Promise<void> {
+		const modifiedDocument = textEditor.document;
+		const modifiedUri = modifiedDocument.uri;
+
+		if (modifiedUri.scheme !== 'file') {
+			return;
+		}
+
+		const workingTreeDiffInformation = getWorkingTreeDiffInformation(textEditor);
+		if (!workingTreeDiffInformation) {
+			return;
+		}
+
+		// Approach to unstage change(s):
+		// - use file on disk as original document
+		// - revert all changes from the working tree
+		// - revert the specify change(s) from the index
+		const workingTreeDiffs = toLineChanges(workingTreeDiffInformation);
+		const workingTreeDiffsInverted = workingTreeDiffs.map(invertLineChange);
+		const changesInverted = changes.map(invertLineChange);
+		const diffsInverted = [...changesInverted, ...workingTreeDiffsInverted].sort(compareLineChanges);
+
+		const originalUri = toGitUri(modifiedUri, 'HEAD');
+		const originalDocument = await workspace.openTextDocument(originalUri);
+		const result = applyLineChanges(modifiedDocument, originalDocument, diffsInverted);
+
+		await this.runByRepository(modifiedUri, async (repository, resource) =>
+			await repository.stage(resource, result, modifiedDocument.encoding));
+	}
 
 	@command('git.clean')
 	async clean(...resourceStates: SourceControlResourceState[]): Promise<void> {
@@ -2951,6 +3015,7 @@ export class CommandCenter {
 
 		const config = workspace.getConfiguration('git');
 		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+		const commitShortHashLength = config.get<number>('commitShortHashLength') ?? 7;
 
 		if (from) {
 			const getRefPicks = async () => {
@@ -2961,7 +3026,7 @@ export class CommandCenter {
 					new RefProcessor(RefType.Tag)
 				]);
 
-				return [new HEADItem(repository), ...refProcessors.processRefs(refs)];
+				return [new HEADItem(repository, commitShortHashLength), ...refProcessors.processRefs(refs)];
 			};
 
 			const placeHolder = l10n.t('Select a ref to create the branch from');
@@ -3173,6 +3238,7 @@ export class CommandCenter {
 	async rebase(repository: Repository): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+		const commitShortHashLength = config.get<number>('commitShortHashLength') ?? 7;
 
 		const getQuickPickItems = async (): Promise<QuickPickItem[]> => {
 			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
@@ -3191,7 +3257,7 @@ export class CommandCenter {
 					ref.name === `${repository.HEAD!.upstream!.remote}/${repository.HEAD!.upstream!.name}`);
 
 				if (upstreamRef) {
-					quickPickItems.splice(0, 0, new RebaseUpstreamItem(upstreamRef));
+					quickPickItems.splice(0, 0, new RebaseUpstreamItem(upstreamRef, commitShortHashLength));
 				}
 			}
 
@@ -3232,10 +3298,13 @@ export class CommandCenter {
 	async deleteTag(repository: Repository): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+		const commitShortHashLength = config.get<number>('commitShortHashLength') ?? 7;
 
 		const tagPicks = async (): Promise<TagDeleteItem[] | QuickPickItem[]> => {
 			const remoteTags = await repository.getRefs({ pattern: 'refs/tags', includeCommitDetails: showRefDetails });
-			return remoteTags.length === 0 ? [{ label: l10n.t('$(info) This repository has no tags.') }] : remoteTags.map(ref => new TagDeleteItem(ref));
+			return remoteTags.length === 0
+				? [{ label: l10n.t('$(info) This repository has no tags.') }]
+				: remoteTags.map(ref => new TagDeleteItem(ref, commitShortHashLength));
 		};
 
 		const placeHolder = l10n.t('Select a tag to delete');
@@ -3258,6 +3327,9 @@ export class CommandCenter {
 
 	@command('git.deleteRemoteTag', { repository: true })
 	async deleteRemoteTag(repository: Repository): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const commitShortHashLength = config.get<number>('commitShortHashLength') ?? 7;
+
 		const remotePicks = repository.remotes
 			.filter(r => r.pushUrl !== undefined)
 			.map(r => new RemoteItem(repository, r));
@@ -3294,7 +3366,9 @@ export class CommandCenter {
 				}
 			}
 
-			return remoteTags.length === 0 ? [{ label: l10n.t('$(info) Remote "{0}" has no tags.', remoteName) }] : remoteTags.map(ref => new RemoteTagDeleteItem(ref));
+			return remoteTags.length === 0
+				? [{ label: l10n.t('$(info) Remote "{0}" has no tags.', remoteName) }]
+				: remoteTags.map(ref => new RemoteTagDeleteItem(ref, commitShortHashLength));
 		};
 
 		const tagPickPlaceholder = l10n.t('Select a remote tag to delete');
@@ -3382,6 +3456,9 @@ export class CommandCenter {
 
 	@command('git.pullFrom', { repository: true })
 	async pullFrom(repository: Repository): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const commitShortHashLength = config.get<number>('commitShortHashLength') ?? 7;
+
 		const remotes = repository.remotes;
 
 		if (remotes.length === 0) {
@@ -3404,7 +3481,7 @@ export class CommandCenter {
 
 		const getBranchPicks = async (): Promise<RefItem[]> => {
 			const remoteRefs = await repository.getRefs({ pattern: `refs/remotes/${remoteName}/` });
-			return remoteRefs.map(r => new RefItem(r));
+			return remoteRefs.map(r => new RefItem(r, commitShortHashLength));
 		};
 
 		const branchPlaceHolder = l10n.t('Pick a branch to pull from');
@@ -4544,8 +4621,11 @@ export class CommandCenter {
 		}
 
 		const rootUri = Uri.file(repository.root);
+		const config = workspace.getConfiguration('git', rootUri);
+		const commitShortHashLength = config.get<number>('commitShortHashLength', 7);
+
 		const commit = await repository.getCommit(historyItemId);
-		const title = `${getCommitShortHash(rootUri, historyItemId)} - ${truncate(commit.message)}`;
+		const title = `${truncate(historyItemId, commitShortHashLength, false)} - ${truncate(commit.message)}`;
 		const historyItemParentId = commit.parents.length > 0 ? commit.parents[0] : await repository.getEmptyTree();
 
 		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${historyItemParentId}..${historyItemId}` });
