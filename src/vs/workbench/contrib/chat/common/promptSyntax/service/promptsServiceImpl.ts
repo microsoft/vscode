@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../nls.js';
-import { getPromptsTypeForLanguageId, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
+import { getLanguageIdForPromptsType, getPromptsTypeForLanguageId, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
 import { PromptParser } from '../parsers/promptParser.js';
 import { type URI } from '../../../../../../base/common/uri.js';
 import { type IPromptFileReference } from '../parsers/types.js';
@@ -84,7 +84,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const parser: TextModelPromptParser = instantiationService.createInstance(
 					TextModelPromptParser,
 					model,
-					{ seenReferences: [] },
+					{ seenReferences: [], allowNonPromptFiles: true, languageId: undefined },
 				).start();
 
 				// this is a sanity check and the contract of the object cache,
@@ -176,7 +176,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (!promptUri) {
 			return undefined;
 		}
-		return await this.parse(promptUri, token);
+		return await this.parse(promptUri, PromptsType.prompt, token);
 	}
 
 	private async getPromptPath(data: IChatPromptSlashCommand): Promise<URI | undefined> {
@@ -232,7 +232,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					parser = this.instantiationService.createInstance(
 						PromptParser,
 						uri,
-						{ allowNonPromptFiles: true },
+						{ seenReferences: [], allowNonPromptFiles: true, languageId: MODE_LANGUAGE_ID },
 					).start(token);
 
 					await parser.settled();
@@ -259,10 +259,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return metadataList;
 	}
 
-	public async parse(uri: URI, token: CancellationToken): Promise<IPromptParserResult> {
+	public async parse(uri: URI, type: PromptsType, token: CancellationToken): Promise<IPromptParserResult> {
 		let parser: PromptParser | undefined;
 		try {
-			parser = this.instantiationService.createInstance(PromptParser, uri, { allowNonPromptFiles: true }).start(token);
+			const languageId = getLanguageIdForPromptsType(type);
+			parser = this.instantiationService.createInstance(PromptParser, uri, { seenReferences: [], allowNonPromptFiles: true, languageId }).start(token);
 			await parser.settled();
 			// make a copy, to avoid leaking the parser instance
 			return {
@@ -284,7 +285,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					parser = this.instantiationService.createInstance(
 						PromptParser,
 						uri,
-						{ allowNonPromptFiles: true },
+						{ seenReferences: [], allowNonPromptFiles: true, languageId: undefined },
 					).start();
 
 					await parser.allSettled();

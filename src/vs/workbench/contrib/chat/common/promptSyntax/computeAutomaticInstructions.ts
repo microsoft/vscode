@@ -43,11 +43,11 @@ export class ComputeAutomaticInstructions {
 		return this._autoAddedInstructions;
 	}
 
-	private async _parsePromptFile(uri: URI, token: CancellationToken): Promise<IPromptParserResult> {
+	private async _parseInstructionsFile(uri: URI, token: CancellationToken): Promise<IPromptParserResult> {
 		if (this._parseResults.has(uri)) {
 			return this._parseResults.get(uri)!;
 		}
-		const result = await this._promptsService.parse(uri, token);
+		const result = await this._promptsService.parse(uri, PromptsType.instructions, token);
 		this._parseResults.set(uri, result);
 		return result;
 	}
@@ -77,7 +77,7 @@ export class ComputeAutomaticInstructions {
 			variables.add(toPromptTextVariableEntry(text, PromptsConfig.COPILOT_INSTRUCTIONS));
 		}
 		// add all instructions for all instruction files that are in the context
-		this._addReferencedInstructions(variables, token);
+		await this._addReferencedInstructions(variables, token);
 
 	}
 
@@ -86,7 +86,7 @@ export class ComputeAutomaticInstructions {
 
 		const autoAddedInstructions: IPromptFileVariableEntry[] = [];
 		for (const instructionFile of instructionFiles) {
-			const { metadata, uri } = await this._parsePromptFile(instructionFile.uri, token);
+			const { metadata, uri } = await this._parseInstructionsFile(instructionFile.uri, token);
 
 			if (metadata?.promptType !== PromptsType.instructions) {
 				this._logService.trace(`[InstructionsContextComputer] Not an instruction file: ${uri}`);
@@ -205,7 +205,7 @@ export class ComputeAutomaticInstructions {
 
 		const entries: string[] = [];
 		for (const instructionFile of instructionFiles) {
-			const { metadata, uri } = await this._parsePromptFile(instructionFile.uri, token);
+			const { metadata, uri } = await this._parseInstructionsFile(instructionFile.uri, token);
 			if (metadata?.promptType !== PromptsType.instructions) {
 				continue;
 			}
@@ -234,7 +234,7 @@ export class ComputeAutomaticInstructions {
 	private async _addReferencedInstructions(attachedContext: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
 		for (const variable of attachedContext.asArray()) {
 			if (isPromptFileVariableEntry(variable)) {
-				const result = await this._parsePromptFile(variable.value, token);
+				const result = await this._parseInstructionsFile(variable.value, token);
 				for (const ref of result.allValidReferences) {
 					if (await this._fileService.exists(ref)) {
 						const reason = localize('instruction.file.reason.referenced', 'Referenced by {0}', basename(variable.value));

@@ -40,7 +40,7 @@ export class MockPromptsService implements IPromptsService {
 	getCustomChatModes(token: CancellationToken): Promise<readonly ICustomChatMode[]> {
 		throw new Error('Method not implemented.');
 	}
-	parse(uri: URI, token: CancellationToken): Promise<IPromptParserResult> {
+	parse(uri: URI, type: PromptsType, token: CancellationToken): Promise<IPromptParserResult> {
 		throw new Error('Method not implemented.');
 	}
 	getPromptFileType(resource: URI): PromptsType | undefined {
