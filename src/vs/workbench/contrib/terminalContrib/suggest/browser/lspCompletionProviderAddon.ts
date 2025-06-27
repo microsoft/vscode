@@ -13,6 +13,8 @@ import { Position } from '../../../../../editor/common/core/position.js';
 import { CompletionItemLabel, CompletionItemProvider, CompletionTriggerKind } from '../../../../../editor/common/languages.js';
 import { LspTerminalModelContentProvider } from './lspTerminalModelContentProvider.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
+import { LSP_SUPPORTED_SHELLS } from './lspTerminalUtil.js';
 
 export class LspCompletionProviderAddon extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
 	readonly id = 'lsp';
@@ -21,17 +23,20 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 	private _provider: CompletionItemProvider;
 	private _textVirtualModel: IReference<IResolvedTextEditorModel>;
 	private _lspTerminalModelContentProvider: LspTerminalModelContentProvider;
+	private _terminal: ITerminalInstance;
 
 	constructor(
 		provider: CompletionItemProvider,
 		textVirtualModel: IReference<IResolvedTextEditorModel>,
 		lspTerminalModelContentProvider: LspTerminalModelContentProvider,
+		terminal: ITerminalInstance
 	) {
 		super();
 		this._provider = provider;
 		this._textVirtualModel = textVirtualModel;
 		this._lspTerminalModelContentProvider = lspTerminalModelContentProvider;
 		this.triggerCharacters = provider.triggerCharacters ? [...provider.triggerCharacters, ' '] : [' '];
+		this._terminal = terminal;
 	}
 
 	activate(terminal: Terminal): void {
@@ -40,6 +45,11 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 
 	async provideCompletions(value: string, cursorPosition: number, allowFallbackCompletions: false, token: CancellationToken): Promise<ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined> {
 
+		if (!this._terminal.shellType || !LSP_SUPPORTED_SHELLS.includes(this._terminal.shellType)) {
+			return undefined;
+		}
+
+		// TODO: Don't use track (sync* or `setCommandLine`)
 		// Apply edit for non-executed current commandline --> Pretend we are typing in the real-document.
 		this._lspTerminalModelContentProvider.trackPromptInputToVirtualFile(value);
 
@@ -54,22 +64,24 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 
 		// TODO: Scan back to start of nearest word like other providers? Is this needed for `ILanguageFeaturesService`?
 		const completions: ITerminalCompletion[] = [];
+		// TODO: Why are we ignoring these? Do we just need to give them a penalty in the completion item?
 		if (this._provider && this._provider._debugDisplayName !== 'wordbasedCompletions') {
 
 			const result = await this._provider.provideCompletionItems(this._textVirtualModel.object.textEditorModel, positionVirtualDocument, { triggerKind: CompletionTriggerKind.TriggerCharacter }, token);
 
+			// TODO: Do not use any
 			completions.push(...(result?.suggestions || []).map((e: any) => {
 				// TODO: Support more terminalCompletionItemKind for [different LSP providers](https://github.com/microsoft/vscode/issues/249479)
 				const convertedKind = e.kind ? mapLspKindToTerminalKind(e.kind) : TerminalCompletionItemKind.Method;
-				const completionItemTemp = createCompletionItemPython(cursorPosition, textBeforeCursor, convertedKind, 'lspCompletionItem', undefined);
+				const { replacementIndex, replacementLength } = createCompletionItemPython(cursorPosition, textBeforeCursor, convertedKind, 'lspCompletionItem', undefined);
 
 				return {
 					label: e.insertText,
 					provider: `lsp:${this._provider._debugDisplayName}`,
 					detail: e.detail,
 					kind: convertedKind,
-					replacementIndex: completionItemTemp.replacementIndex,
-					replacementLength: completionItemTemp.replacementLength,
+					replacementIndex,
+					replacementLength,
 				};
 			}));
 		}
