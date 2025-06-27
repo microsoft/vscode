@@ -190,16 +190,6 @@ export interface IPromptsService extends IDisposable {
 	getCustomChatModes(token: CancellationToken): Promise<readonly ICustomChatMode[]>;
 
 	/**
-	 * Get all metadata for entire prompt references tree
-	 * that spans out of each of the provided files.
-	 *
-	 * In other words, the metadata tree is built starting from
-	 * each of the provided files, therefore the result is a number
-	 * of metadata trees, one for each file.
-	 */
-	getAllMetadata(promptUris: readonly URI[]): Promise<readonly IMetadata[]>;
-
-	/**
 	 * Parses the provided URI
 	 * @param uris
 	 */
@@ -223,5 +213,5 @@ export interface IPromptParserResult {
 	readonly uri: URI;
 	readonly metadata: TMetadata | null;
 	readonly topError: ITopError | undefined;
-	readonly allValidReferences: readonly URI[];
+	readonly references: readonly URI[];
 }

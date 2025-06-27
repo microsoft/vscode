@@ -9,7 +9,6 @@ import { ITextModel } from '../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { FolderReference, NotPromptFile } from '../../promptFileReferenceErrors.js';
 import { ILink, ILinksList, LinkProvider } from '../../../../../../editor/common/languages.js';
 
 /**
@@ -53,19 +52,6 @@ export class PromptLinkProvider implements LinkProvider {
 
 		// filter out references that are not valid links
 		const links: ILink[] = references
-			.filter((reference) => {
-				const { errorCondition, linkRange } = reference;
-				if (!errorCondition && linkRange) {
-					return true;
-				}
-
-				// don't provide links for folder references
-				if (errorCondition instanceof FolderReference) {
-					return false;
-				}
-
-				return errorCondition instanceof NotPromptFile;
-			})
 			.map((reference) => {
 				const { uri, linkRange } = reference;
 
