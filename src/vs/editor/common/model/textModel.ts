@@ -48,7 +48,7 @@ import { IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from '../../../platform/undoRedo/common/undoRedo.js';
 import { TokenArray } from '../tokens/lineTokens.js';
 import { SetWithKey } from '../../../base/common/collections.js';
-import { TextModelEditReason } from '../textModelEditReason.js';
+import { EditReasons, TextModelEditReason } from '../textModelEditReason.js';
 import { TextEdit } from '../core/edits/textEdit.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
@@ -451,7 +451,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._eventEmitter.fire(new InternalModelContentChangeEvent(rawChange, change));
 	}
 
-	public setValue(value: string | model.ITextSnapshot, reason = TextModelEditReason.SetValue): void {
+	public setValue(value: string | model.ITextSnapshot, reason = EditReasons.setValue()): void {
 		this._assertNotDisposed();
 
 		if (value === null || value === undefined) {
@@ -541,7 +541,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				false,
 				false
 			),
-			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, new Position(endLineNumber, endColumn), this.getValue(), false, false, false, true, TextModelEditReason.EolChange)
+			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, new Position(endLineNumber, endColumn), this.getValue(), false, false, false, true, EditReasons.eolChange())
 		);
 	}
 
@@ -1443,7 +1443,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			this._eventEmitter.beginDeferredEmit();
 			const operations = this._validateEditOperations(rawOperations);
 
-			return this._doApplyEdits(operations, computeUndoEdits ?? false, reason ?? TextModelEditReason.ApplyEdits);
+			return this._doApplyEdits(operations, computeUndoEdits ?? false, reason ?? EditReasons.applyEdits());
 		} finally {
 			this._eventEmitter.endDeferredEmit();
 			this._onDidChangeDecorations.endDeferredEmit();
