@@ -49,7 +49,7 @@ class ChatCommandLineSupportContribution extends Disposable {
 		super();
 
 		const agentArgs = this.environmentService.args.agent?._;
-		if (Array.isArray(agentArgs) && agentArgs.length > 0) {
+		if (this.environmentService.window.isInitialStartup && Array.isArray(agentArgs) && agentArgs.length > 0) {
 			this.run(agentArgs.join(' '));
 		}
 
