@@ -146,7 +146,7 @@ export type Visibilities = {
 	progressBar?: boolean;
 };
 
-abstract class QuickInput extends Disposable implements IQuickInput {
+export abstract class QuickInput extends Disposable implements IQuickInput {
 	protected static readonly noPromptMessage = localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
 
 	private _title: string | undefined;
