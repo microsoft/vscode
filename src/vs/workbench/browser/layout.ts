@@ -635,7 +635,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.stateModel.load({
 			mainContainerDimension: this._mainContainerDimension,
 			auxiliaryBarOpensMaximized: () => this.auxiliaryBarOpensMaximized(), // deferred as function because this depends on state
-			resetLayout: Boolean(this.layoutOptions?.resetLayout)
+			resetLayout: Boolean(this.layoutOptions?.resetLayout),
+			experimentalSecondarySidebarForNewUsers: ExperimentalSecondarySidebarForNewUsers.Off
 		});
 
 		this._register(this.stateModel.onDidChangeState(change => {
@@ -2793,10 +2794,18 @@ enum LegacyWorkbenchLayoutSettings {
 	SIDEBAR_POSITION = 'workbench.sideBar.location', 	// Deprecated to UI State
 }
 
+// TODO@bpasero remove this experiment in the future
+enum ExperimentalSecondarySidebarForNewUsers {
+	Off = 0,
+	Maximized = 1,
+	Half = 2
+}
+
 interface ILayoutStateLoadConfiguration {
 	readonly mainContainerDimension: IDimension;
 	readonly auxiliaryBarOpensMaximized: () => boolean;
 	readonly resetLayout: boolean;
+	readonly experimentalSecondarySidebarForNewUsers: ExperimentalSecondarySidebarForNewUsers;
 }
 
 class LayoutStateModel extends Disposable {
@@ -2919,39 +2928,43 @@ class LayoutStateModel extends Disposable {
 
 	private applyOverrides(configuration: ILayoutStateLoadConfiguration): void {
 
-		// Override runtime values for auxiliary bar maximized state
-		const wasAuxiliaryBarMaximized = this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED);
-		const auxiliaryBarOpensMaximized = configuration.auxiliaryBarOpensMaximized();
-		const state = this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY);
-		if (wasAuxiliaryBarMaximized && !auxiliaryBarOpensMaximized) {
-
-			this.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, !state.sideBarVisible);
-			this.setRuntimeValue(LayoutStateKeys.PANEL_HIDDEN, !state.panelVisible);
-			this.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, !state.editorVisible);
-			this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, !state.auxiliaryBarVisible);
-
-			this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE));
-
-			this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, false);
-		} else if (!wasAuxiliaryBarMaximized && auxiliaryBarOpensMaximized) {
-			this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY, {
-				sideBarVisible: !this.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN),
-				panelVisible: !this.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN),
-				editorVisible: !this.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN),
-				auxiliaryBarVisible: !this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN)
-			});
-
-			this.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, true);
-			this.setRuntimeValue(LayoutStateKeys.PANEL_HIDDEN, true);
-			this.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, true);
-			this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, false);
-
-			this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE, this.getInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE));
-			this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, true);
+		// With experimental treatment for new users
+		if (
+			this.storageService.isNew(StorageScope.APPLICATION) &&
+			this.contextService.getWorkbenchState() === WorkbenchState.EMPTY &&
+			configuration.experimentalSecondarySidebarForNewUsers !== ExperimentalSecondarySidebarForNewUsers.Off
+		) {
+			if (configuration.experimentalSecondarySidebarForNewUsers === ExperimentalSecondarySidebarForNewUsers.Maximized) {
+				this.applyAuxiliaryBarMaximizedOverride();
+			} else if (configuration.experimentalSecondarySidebarForNewUsers === ExperimentalSecondarySidebarForNewUsers.Half) {
+				const mainContainerDimension = configuration.mainContainerDimension;
+				this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, false);
+				this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, mainContainerDimension.width / 2);
+			}
 		}
 
-		// Both editor and panel should not be hidden on startup
-		// unless auxiliary bar is maximized
+		// Without experimental treatment
+		else {
+
+			// Override runtime values for auxiliary bar maximized state
+			const wasAuxiliaryBarMaximized = this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED);
+			const auxiliaryBarOpensMaximized = configuration.auxiliaryBarOpensMaximized();
+			const state = this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY);
+			if (wasAuxiliaryBarMaximized && !auxiliaryBarOpensMaximized) {
+				this.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, !state.sideBarVisible);
+				this.setRuntimeValue(LayoutStateKeys.PANEL_HIDDEN, !state.panelVisible);
+				this.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, !state.editorVisible);
+				this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, !state.auxiliaryBarVisible);
+
+				this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE));
+
+				this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, false);
+			} else if (!wasAuxiliaryBarMaximized && auxiliaryBarOpensMaximized) {
+				this.applyAuxiliaryBarMaximizedOverride();
+			}
+		}
+
+		// Both editor and panel should not be hidden on startup unless auxiliary bar is maximized
 		if (
 			this.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN) &&
 			this.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN) &&
@@ -2959,6 +2972,23 @@ class LayoutStateModel extends Disposable {
 		) {
 			this.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, false);
 		}
+	}
+
+	private applyAuxiliaryBarMaximizedOverride(): void {
+		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY, {
+			sideBarVisible: !this.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN),
+			panelVisible: !this.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN),
+			editorVisible: !this.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN),
+			auxiliaryBarVisible: !this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN)
+		});
+
+		this.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, true);
+		this.setRuntimeValue(LayoutStateKeys.PANEL_HIDDEN, true);
+		this.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, true);
+		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, false);
+
+		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE, this.getInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE));
+		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, true);
 	}
 
 	save(workspace: boolean, global: boolean): void {
