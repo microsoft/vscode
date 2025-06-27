@@ -191,6 +191,7 @@ export interface IMcpManagementService {
 	readonly _serviceBrand: undefined;
 	readonly onInstallMcpServer: Event<InstallMcpServerEvent>;
 	readonly onDidInstallMcpServers: Event<readonly InstallMcpServerResult[]>;
+	readonly onDidUpdateMcpServers: Event<readonly InstallMcpServerResult[]>;
 	readonly onUninstallMcpServer: Event<UninstallMcpServerEvent>;
 	readonly onDidUninstallMcpServer: Event<DidUninstallMcpServerEvent>;
 	getInstalled(mcpResource?: URI): Promise<ILocalMcpServer[]>;
