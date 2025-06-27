@@ -85,7 +85,6 @@ export class View extends ViewEventHandler {
 
 	private _widgetFocusTracker: CodeEditorWidgetFocusTracker;
 
-	private readonly _owner: number;
 	private readonly _scrollbar: EditorScrollbar;
 	private readonly _context: ViewContext;
 	private readonly _viewGpuContext?: ViewGpuContext;
@@ -117,6 +116,7 @@ export class View extends ViewEventHandler {
 	// Actual mutable state
 	private _shouldRecomputeGlyphMarginLanes: boolean = false;
 	private _renderAnimationFrame: IDisposable | null;
+	private _owner: number;
 
 	constructor(
 		editorContainer: HTMLElement,

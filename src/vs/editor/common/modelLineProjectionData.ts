@@ -10,7 +10,7 @@ import { Position } from './core/position.js';
 import { InjectedTextCursorStops, InjectedTextOptions, ITextModel, PositionAffinity } from './model.js';
 import { LineInjectedText } from './textModelEvents.js';
 import { LineTokens } from './tokens/lineTokens.js';
-import { InlineDecoration, InlineDecorationsComputer } from './viewModel/inlineDecorations.js';
+import { InlineDecoration, IdentityInlineDecorationsComputer } from './viewModel/inlineDecorations.js';
 
 /**
  * *input*:
@@ -331,6 +331,7 @@ export class OutputPosition {
 }
 
 export interface ILineBreaksComputerContext {
+	getLineMaxColumn(lineNumber: number): number;
 	getLineContent(lineNumber: number): string;
 	getLineInjectedText(lineNumber: number): LineInjectedText[] | null;
 	getLineInlineDecorations(lineNumber: number): InlineDecoration[];
@@ -351,8 +352,11 @@ export interface ILineBreaksComputer {
 }
 
 export function getLineBreaksComputerContext(ownerId: number, model: ITextModel, options: IComputedEditorOptions): ILineBreaksComputerContext {
-	const inlineDecorationsComputer = new InlineDecorationsComputer(ownerId, model, options);
+	const inlineDecorationsComputer = new IdentityInlineDecorationsComputer(ownerId, model, options);
 	const context: ILineBreaksComputerContext = {
+		getLineMaxColumn: (lineNumber: number): number => {
+			return model.getLineMaxColumn(lineNumber);
+		},
 		getLineContent: (lineNumber: number): string => {
 			return model.getLineContent(lineNumber);
 		},
@@ -363,10 +367,10 @@ export function getLineBreaksComputerContext(ownerId: number, model: ITextModel,
 			return model.getLineInjectedText(lineNumber, ownerId);
 		},
 		getLineInlineDecorations: (lineNumber: number): InlineDecoration[] => {
-			return inlineDecorationsComputer.getDecorations(lineNumber).decorations;
+			return inlineDecorationsComputer.getLineInlineDecorations(lineNumber);
 		},
 		hasVariableFonts: (lineNumber: number): boolean => {
-			return inlineDecorationsComputer.getDecorations(lineNumber).hasVariableFonts;
+			return inlineDecorationsComputer.hasVariableFonts(lineNumber);
 		}
 	};
 	return context;

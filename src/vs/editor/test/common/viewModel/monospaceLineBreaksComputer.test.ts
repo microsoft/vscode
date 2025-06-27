@@ -90,6 +90,9 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 		lineHeight: fontInfo.lineHeight,
 	});
 	const context: ILineBreaksComputerContext = {
+		getLineMaxColumn(lineNumber) {
+			return text.length;
+		},
 		getLineContent(lineNumber: number) {
 			return text;
 		},

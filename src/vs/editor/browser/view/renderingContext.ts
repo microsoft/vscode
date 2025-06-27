@@ -69,6 +69,7 @@ export abstract class RestrictedRenderingContext {
 	public getDecorationsInViewport(): ViewModelDecoration[] {
 		return this.viewportData.getDecorationsInViewport();
 	}
+
 }
 
 export class RenderingContext extends RestrictedRenderingContext {

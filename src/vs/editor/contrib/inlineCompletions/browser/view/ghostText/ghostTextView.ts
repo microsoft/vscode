@@ -25,6 +25,7 @@ import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops, PositionAff
 import { LineTokens } from '../../../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../../../common/viewLayout/lineDecorations.js';
 import { RenderLineInput, renderViewLine } from '../../../../../common/viewLayout/viewLineRenderer.js';
+import { InlineDecorationType } from '../../../../../common/viewModel/inlineDecorations.js';
 import { GhostText, GhostTextReplacement, IGhostTextLine } from '../../model/ghostText.js';
 import { RangeSingleLine } from '../../../../../common/core/ranges/rangeSingleLine.js';
 import { ColumnRange } from '../../../../../common/core/ranges/columnRange.js';
@@ -33,7 +34,6 @@ import './ghostTextView.css';
 import { IMouseEvent, StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { CodeEditorWidget } from '../../../../../browser/widget/codeEditor/codeEditorWidget.js';
 import { TokenWithTextArray } from '../../../../../common/tokens/tokenWithTextArray.js';
-import { InlineDecorationType } from '../../../../../common/viewModel/inlineDecorations.js';
 
 export interface IGhostTextWidgetModel {
 	readonly targetTextModel: IObservable<ITextModel | undefined>;

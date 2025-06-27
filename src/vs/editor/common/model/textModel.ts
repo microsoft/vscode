@@ -295,7 +295,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public get guides(): IGuidesTextModelPart { return this._guidesTextModelPart; }
 
 	private readonly _attachedViews = new AttachedViews();
-	private readonly _viewModels = new Map<number, IViewModel>();
+	private readonly _viewModels = new Set<IViewModel>();
 
 	constructor(
 		source: string | model.ITextBufferFactory,
@@ -428,13 +428,12 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 	}
 
-	public registerViewModel(ownerId: number, viewModel: IViewModel): void {
-		// Maybe use a set instead
-		this._viewModels.set(ownerId, viewModel);
+	public registerViewModel(viewModel: IViewModel): void {
+		this._viewModels.add(viewModel);
 	}
 
-	public unregisterViewModel(ownerId: number): void {
-		this._viewModels.delete(ownerId);
+	public unregisterViewModel(viewModel: IViewModel): void {
+		this._viewModels.delete(viewModel);
 	}
 
 	public equalsTextBuffer(other: model.ITextBuffer): boolean {
@@ -454,15 +453,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 		this._tokenizationTextModelPart.handleDidChangeContent(change);
 		this._bracketPairs.handleDidChangeContent(change);
-		const changeEvent = new InternalModelContentChangeEvent(rawChange, change);
-		this._eventEmitter.fire(changeEvent);
-		this._handleContentOrInjectedTextChange(changeEvent);
-	}
-
-	private _handleContentOrInjectedTextChange(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void {
-		for (const [_ownerId, viewModel] of this._viewModels) {
-			viewModel.onDidChangeContentOrInjectedText(e);
-		}
+		const contentChangeEvent = new InternalModelContentChangeEvent(rawChange, change);
+		this._eventEmitter.fire(contentChangeEvent);
+		this.onDidChangeContentOrInjectedText(contentChangeEvent);
 	}
 
 	public setValue(value: string | model.ITextSnapshot): void {
@@ -840,18 +833,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	public getLineTokens(lineNumber: number): LineTokens {
-		let injectionOptions: InjectedTextOptions[] | null;
-		let injectionOffsets: number[] | null;
-		const lineInjectedText = this.getLineInjectedText(lineNumber);
-		if (lineInjectedText) {
-			injectionOptions = lineInjectedText.map(t => t.options);
-			injectionOffsets = lineInjectedText.map(text => text.column - 1);
-		} else {
-			injectionOptions = null;
-			injectionOffsets = null;
-		}
 		const lineTokens = this.tokenization.getLineTokens(lineNumber);
-		return getModelLineTokensWithInjections(lineTokens, injectionOptions, injectionOffsets);
+		const lineInjectedText = this.getLineInjectedText(lineNumber);
+		const injectionOptions = lineInjectedText?.map(t => t.options) ?? null;
+		const injectionOffsets = lineInjectedText?.map(text => text.column - 1) ?? null;
+		return getLineTokensWithInjections(lineTokens, injectionOptions, injectionOffsets);
 	}
 
 	public getLineLength(lineNumber: number): number {
@@ -1591,7 +1577,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		if (affectedInjectedTextLines && affectedInjectedTextLines.size > 0) {
 			const affectedLines = Array.from(affectedInjectedTextLines);
 			const lineChangeEvents = affectedLines.map(lineNumber => new ModelRawLineChanged(lineNumber, lineNumber));
-			this._handleContentOrInjectedTextChange(new ModelInjectedTextChangedEvent(lineChangeEvents));
+			this.onDidChangeContentOrInjectedText(new ModelInjectedTextChangedEvent(lineChangeEvents));
 		}
 		if (affectedLineHeights && affectedLineHeights.size > 0) {
 			const affectedLines = Array.from(affectedLineHeights);
@@ -1602,6 +1588,13 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			const affectedLines = Array.from(affectedFontLines);
 			const fontChangeEvent = affectedLines.map(fontChange => new ModelFontChanged(fontChange.ownerId, fontChange.versionId, fontChange.lineNumber));
 			this._onDidChangeFont.fire(new ModelFontChangedEvent(fontChangeEvent));
+		}
+	}
+
+	// TODO: need to check this happens as soon as there is a change and not deferred
+	private onDidChangeContentOrInjectedText(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void {
+		for (const viewModel of this._viewModels) {
+			viewModel.onDidChangeContentOrInjectedText(e);
 		}
 	}
 
@@ -2064,8 +2057,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 }
 
-export function getModelLineTokensWithInjections(tokens: LineTokens, injectionOptions: InjectedTextOptions[] | null, injectionOffsets: number[] | null): LineTokens {
-	let lineWithInjections: LineTokens;
+export function getLineTokensWithInjections(tokens: LineTokens, injectionOptions: InjectedTextOptions[] | null, injectionOffsets: number[] | null): LineTokens {
+	let lineTokens: LineTokens;
 	if (injectionOffsets) {
 		const tokensToInsert: { offset: number; text: string; tokenMetadata: number }[] = [];
 		for (let idx = 0; idx < injectionOffsets.length; idx++) {
@@ -2087,11 +2080,11 @@ export function getModelLineTokensWithInjections(tokens: LineTokens, injectionOp
 				});
 			}
 		}
-		lineWithInjections = tokens.withInserted(tokensToInsert);
+		lineTokens = tokens.withInserted(tokensToInsert);
 	} else {
-		lineWithInjections = tokens;
+		lineTokens = tokens;
 	}
-	return lineWithInjections;
+	return lineTokens;
 }
 
 export function indentOfLine(line: string): number {
@@ -2528,7 +2521,7 @@ class LineHeightChangingDecoration {
 class LineFontChangingDecoration {
 
 	public static toKey(obj: LineFontChangingDecoration): string {
-		return `${obj.ownerId};${obj.decorationId}`;
+		return `${obj.ownerId};${obj.decorationId};${obj.lineNumber}`;
 	}
 
 	constructor(

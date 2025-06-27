@@ -10,7 +10,7 @@ import { EndOfLinePreference, ITextModel, PositionAffinity } from '../model.js';
 import { LineInjectedText } from '../textModelEvents.js';
 import { InjectedText, ModelLineProjectionData } from '../modelLineProjectionData.js';
 import { ViewLineData } from '../viewModel.js';
-import { getModelLineTokensWithInjections } from '../model/textModel.js';
+import { getLineTokensWithInjections } from '../model/textModel.js';
 import { IInjectedTextInlineDecorationsComputer, InjectedTextInlineDecorationsComputer, InlineDecoration } from './inlineDecorations.js';
 
 export interface IModelLineProjection {
@@ -172,9 +172,9 @@ class ModelLineProjection implements IModelLineProjection {
 			getWrappedTextIndentLength: () => lineBreakData.wrappedTextIndentLength
 		};
 		const computer = new InjectedTextInlineDecorationsComputer(context);
-		const lineInlineDecorations = computer.getDecorations(modelLineNumber);
+		const lineInlineDecorations = computer.getInlineDecorations(modelLineNumber)?.decorations;
 		const lineTokens = model.tokenization.getLineTokens(modelLineNumber);
-		const lineWithInjections = getModelLineTokensWithInjections(lineTokens, injectionOptions, injectionOffsets);
+		const lineWithInjections = getLineTokensWithInjections(lineTokens, injectionOptions, injectionOffsets);
 
 		for (let outputLineIndex = outputLineIdx; outputLineIndex < outputLineIdx + lineCount; outputLineIndex++) {
 			const globalIndex = globalStartIndex + outputLineIndex - outputLineIdx;

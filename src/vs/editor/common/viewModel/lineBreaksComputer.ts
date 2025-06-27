@@ -28,9 +28,10 @@ export class LineBreaksComputer implements ILineBreaksComputer {
 
 	private readonly _domLineBreaksComputer: ILineBreaksComputer;
 	private readonly _monospaceLineBreaksComputer: ILineBreaksComputer;
-	private readonly _lineBreaksComputationMapping: LineBreaksComputationType[] = [];
+
 	private readonly _config: IEditorConfiguration;
 	private readonly _context: ILineBreaksComputerContext;
+	private readonly _lineBreaksComputationMapping: LineBreaksComputationType[] = [];
 
 	constructor(
 		context: ILineBreaksComputerContext,

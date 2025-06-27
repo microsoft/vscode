@@ -17,7 +17,7 @@ import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaks
 import { ConstantTimePrefixSumComputer } from '../model/prefixSumComputer.js';
 import { ViewLineData } from '../viewModel.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
-import { ICoordinatesConverter, IdentityCoordinatesConverter } from '../viewModelUtils.js';
+import { ICoordinatesConverter, IdentityCoordinatesConverter } from '../coordinatesConverter.js';
 
 export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;

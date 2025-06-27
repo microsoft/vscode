@@ -10,7 +10,7 @@ import { ITextModel } from '../model.js';
 import { IViewModelLines } from './viewModelLines.js';
 import { filterFontDecorations, filterValidationDecorations } from '../config/editorOptions.js';
 import { IDecorationsViewportData, IInlineDecorationsComputerContext, InlineDecoration, InlineModelDecorationsComputer } from './inlineDecorations.js';
-import { ICoordinatesConverter } from '../viewModelUtils.js';
+import { ICoordinatesConverter } from '../coordinatesConverter.js';
 import { ViewModelDecoration } from './viewModelDecoration.js';
 
 export class ViewModelDecorations implements IDisposable {
@@ -29,7 +29,7 @@ export class ViewModelDecorations implements IDisposable {
 		this.configuration = configuration;
 		this._linesCollection = linesCollection;
 		const context: IInlineDecorationsComputerContext = {
-			getModelDecorations: (range: Range) => this._linesCollection.getDecorationsInRange(range, this.editorId, filterValidationDecorations(this.configuration.options), filterFontDecorations(this.configuration.options), false, false)
+			getModelDecorations: (range: Range, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean) => this._linesCollection.getDecorationsInRange(range, this.editorId, filterValidationDecorations(this.configuration.options), filterFontDecorations(this.configuration.options), onlyMinimapDecorations, onlyMarginDecorations)
 		};
 		this._inlineDecorationsComputer = new InlineModelDecorationsComputer(context, model, coordinatesConverter);
 		this._cachedModelDecorationsResolver = null;
@@ -42,36 +42,35 @@ export class ViewModelDecorations implements IDisposable {
 	}
 
 	public dispose(): void {
-		this._inlineDecorationsComputer.clear();
+		this._inlineDecorationsComputer.reset();
 		this._clearCachedModelDecorationsResolver();
 	}
 
 	public reset(): void {
-		this._inlineDecorationsComputer.clear();
+		this._inlineDecorationsComputer.reset();
 		this._clearCachedModelDecorationsResolver();
 	}
 
 	public onModelDecorationsChanged(): void {
-		this._inlineDecorationsComputer.clear();
+		this._inlineDecorationsComputer.onModelDecorationsChanged();
 		this._clearCachedModelDecorationsResolver();
 	}
 
 	public onLineMappingChanged(): void {
-		this._inlineDecorationsComputer.clear();
-
+		this._inlineDecorationsComputer.onLineMappingChanged();
 		this._clearCachedModelDecorationsResolver();
 	}
 
 
 	public getMinimapDecorationsInRange(range: Range): ViewModelDecoration[] {
-		return this._inlineDecorationsComputer.getDecorations(range).decorations;
+		return this._inlineDecorationsComputer.getDecorations(range, true, false).decorations;
 	}
 
 	public getDecorationsViewportData(viewRange: Range): IDecorationsViewportData {
 		let cacheIsValid = (this._cachedModelDecorationsResolver !== null);
 		cacheIsValid = cacheIsValid && (viewRange.equalsRange(this._cachedModelDecorationsResolverViewRange));
 		if (!cacheIsValid) {
-			this._cachedModelDecorationsResolver = this._inlineDecorationsComputer.getDecorations(viewRange);
+			this._cachedModelDecorationsResolver = this._inlineDecorationsComputer.getDecorations(viewRange, false, false);
 			this._cachedModelDecorationsResolverViewRange = viewRange;
 		}
 		return this._cachedModelDecorationsResolver!;
@@ -79,7 +78,7 @@ export class ViewModelDecorations implements IDisposable {
 
 	public getInlineDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): { inlineDecorations: InlineDecoration[]; hasVariableFonts: boolean } {
 		const range = new Range(lineNumber, this._linesCollection.getViewLineMinColumn(lineNumber), lineNumber, this._linesCollection.getViewLineMaxColumn(lineNumber));
-		const decorations = this._inlineDecorationsComputer.getDecorations(range);
+		const decorations = this._inlineDecorationsComputer.getDecorations(range, onlyMinimapDecorations, onlyMarginDecorations);
 		return { inlineDecorations: decorations.inlineDecorations[0], hasVariableFonts: decorations.hasVariableFonts };
 	}
 }

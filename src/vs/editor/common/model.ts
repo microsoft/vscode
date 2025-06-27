@@ -709,13 +709,13 @@ export interface ITextModel {
 	 * Method to register a view model on a model
 	 * @internal
 	 */
-	registerViewModel(ownerId: number, viewModel: IViewModel): void;
+	registerViewModel(viewModel: IViewModel): void;
 
 	/**
 	 * Method which unregister a view model on a model
 	 * @internal
 	 */
-	unregisterViewModel(ownerId: number): void;
+	unregisterViewModel(viewModel: IViewModel): void;
 
 	/**
 	 * If true, the text model might contain RTL.
@@ -856,6 +856,7 @@ export interface ITextModel {
 	 * @internal
 	 */
 	getLineInjectedText(lineNumber: number, ownerId?: number): LineInjectedText[];
+
 	/**
 	 * Get the text length for a certain line.
 	 */
