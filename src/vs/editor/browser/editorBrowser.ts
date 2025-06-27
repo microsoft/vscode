@@ -990,6 +990,8 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @param endCursorState Cursor state after the edits were applied.
 	 */
 	executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean;
+	/** @internal */
+	executeEdits(source: TextModelEditReason, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean;
 
 	/**
 	 * @internal
