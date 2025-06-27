@@ -48,6 +48,8 @@ import { AuxiliaryBarPart } from './parts/auxiliarybar/auxiliaryBarPart.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { IAuxiliaryWindowService } from '../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { CodeWindow, mainWindow } from '../../base/browser/window.js';
+import { ICoreExperimentationService, StartupExperimentGroup } from '../services/coreExperimentation/common/coreExperimentationService.js';
+import { Lazy } from '../../base/common/lazy.js';
 
 //#region Layout Implementation
 
@@ -334,7 +336,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.registerLayoutListeners();
 
 		// State
-		this.initLayoutState(accessor.get(ILifecycleService), accessor.get(IFileService));
+		this.initLayoutState(accessor.get(ILifecycleService), accessor.get(IFileService), accessor.get(ICoreExperimentationService));
 	}
 
 	private registerLayoutListeners(): void {
@@ -628,15 +630,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService): void {
+	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService, coreExperimentationService: ICoreExperimentationService): void {
 		this._mainContainerDimension = getClientArea(this.parent, DEFAULT_WINDOW_DIMENSIONS); // running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
 
-		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService);
+		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService, coreExperimentationService);
 		this.stateModel.load({
 			mainContainerDimension: this._mainContainerDimension,
 			auxiliaryBarOpensMaximized: () => this.auxiliaryBarOpensMaximized(), // deferred as function because this depends on state
-			resetLayout: Boolean(this.layoutOptions?.resetLayout),
-			experimentalSecondarySidebarForNewUsers: ExperimentalSecondarySidebarForNewUsers.Off
+			resetLayout: Boolean(this.layoutOptions?.resetLayout)
 		});
 
 		this._register(this.stateModel.onDidChangeState(change => {
@@ -2794,18 +2795,10 @@ enum LegacyWorkbenchLayoutSettings {
 	SIDEBAR_POSITION = 'workbench.sideBar.location', 	// Deprecated to UI State
 }
 
-// TODO@bpasero remove this experiment in the future
-enum ExperimentalSecondarySidebarForNewUsers {
-	Off = 0,
-	Maximized = 1,
-	Half = 2
-}
-
 interface ILayoutStateLoadConfiguration {
 	readonly mainContainerDimension: IDimension;
 	readonly auxiliaryBarOpensMaximized: () => boolean;
 	readonly resetLayout: boolean;
-	readonly experimentalSecondarySidebarForNewUsers: ExperimentalSecondarySidebarForNewUsers;
 }
 
 class LayoutStateModel extends Disposable {
@@ -2820,7 +2813,8 @@ class LayoutStateModel extends Disposable {
 	constructor(
 		private readonly storageService: IStorageService,
 		private readonly configurationService: IConfigurationService,
-		private readonly contextService: IWorkspaceContextService
+		private readonly contextService: IWorkspaceContextService,
+		private readonly coreExperimentationService: ICoreExperimentationService
 	) {
 		super();
 
@@ -2928,15 +2922,31 @@ class LayoutStateModel extends Disposable {
 
 	private applyOverrides(configuration: ILayoutStateLoadConfiguration): void {
 
+		// TODO@bpasero remove this startup experiment once settled
+		const experiment = new Lazy(() => {
+			try {
+				return this.coreExperimentationService.getExperiment();
+			} catch (error) {
+				return undefined;
+			}
+		});
+
 		// With experimental treatment for new users
 		if (
 			this.storageService.isNew(StorageScope.APPLICATION) &&
 			this.contextService.getWorkbenchState() === WorkbenchState.EMPTY &&
-			configuration.experimentalSecondarySidebarForNewUsers !== ExperimentalSecondarySidebarForNewUsers.Off
+			(
+				experiment.value?.experimentGroup === StartupExperimentGroup.MaximizedChat ||
+				experiment.value?.experimentGroup === StartupExperimentGroup.SplitEmptyEditorChat ||
+				experiment.value?.experimentGroup === StartupExperimentGroup.SplitWelcomeChat
+			)
 		) {
-			if (configuration.experimentalSecondarySidebarForNewUsers === ExperimentalSecondarySidebarForNewUsers.Maximized) {
+			if (experiment.value.experimentGroup === StartupExperimentGroup.MaximizedChat) {
 				this.applyAuxiliaryBarMaximizedOverride();
-			} else if (configuration.experimentalSecondarySidebarForNewUsers === ExperimentalSecondarySidebarForNewUsers.Half) {
+			} else if (
+				experiment.value.experimentGroup === StartupExperimentGroup.SplitEmptyEditorChat ||
+				experiment.value.experimentGroup === StartupExperimentGroup.SplitWelcomeChat
+			) {
 				const mainContainerDimension = configuration.mainContainerDimension;
 				this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, false);
 				this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, mainContainerDimension.width / 2);
