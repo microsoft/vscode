@@ -16,7 +16,7 @@ import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
-import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, PartialAcceptInfo, InlineCompletionsDisposeReason, LifetimeSummary } from '../../../../common/languages.js';
+import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, PartialAcceptInfo, InlineCompletionsDisposeReason, LifetimeSummary, InlineCompletionTriggerKind } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { fixBracketsInLine } from '../../../../common/model/bracketPairsTextModelPart/fixBrackets.js';
@@ -25,7 +25,7 @@ import { getReadonlyEmptyArray } from '../utils.js';
 import { groupByMap } from '../../../../../base/common/collections.js';
 import { DirectedGraph } from './graph.js';
 import { CachedFunction } from '../../../../../base/common/cache.js';
-import { InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
+import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { inlineCompletionIsVisible } from './inlineSuggestionItem.js';
 
@@ -36,7 +36,7 @@ export function provideInlineCompletions(
 	position: Position,
 	model: ITextModel,
 	context: InlineCompletionContextWithoutUuid,
-	editorType: InlineCompletionEditorType,
+	requestInfo: InlineSuggestRequestInfo,
 	languageConfigurationService?: ILanguageConfigurationService,
 ): IInlineCompletionProviderResult {
 	const requestUuid = 'icr-' + generateUuid();
@@ -106,7 +106,7 @@ export function provideInlineCompletions(
 			});
 
 			for (const item of result.items) {
-				data.push(toInlineSuggestData(item, list, defaultReplaceRange, model, languageConfigurationService, contextWithUuid, editorType));
+				data.push(toInlineSuggestData(item, list, defaultReplaceRange, model, languageConfigurationService, contextWithUuid, requestInfo));
 			}
 
 			return list;
@@ -159,7 +159,7 @@ function toInlineSuggestData(
 	textModel: ITextModel,
 	languageConfigurationService: ILanguageConfigurationService | undefined,
 	context: InlineCompletionContext,
-	editorType: InlineCompletionEditorType,
+	requestInfo: InlineSuggestRequestInfo
 ): InlineSuggestData {
 	let insertText: string;
 	let snippetInfo: SnippetInfo | undefined;
@@ -233,18 +233,26 @@ function toInlineSuggestData(
 		source,
 		context,
 		inlineCompletion.isInlineEdit ?? false,
-		editorType
+		requestInfo
 	);
 }
 
+export type InlineSuggestRequestInfo = {
+	startTime: number;
+	editorType: InlineCompletionEditorType;
+	languageId: string;
+};
+
 export type InlineSuggestViewData = {
 	editorType: InlineCompletionEditorType;
+	renderData?: InlineCompletionViewData;
 	viewKind?: InlineCompletionViewKind;
 	error?: string;
 };
 
 export class InlineSuggestData {
 	private _didShow = false;
+	private _timeUntilShown: number | undefined = undefined;
 	private _showStartTime: number | undefined = undefined;
 	private _shownDuration: number = 0;
 	private _showUncollapsedStartTime: number | undefined = undefined;
@@ -253,6 +261,7 @@ export class InlineSuggestData {
 	private _viewData: InlineSuggestViewData;
 	private _didReportEndOfLife = false;
 	private _lastSetEndOfLifeReason: InlineCompletionEndOfLifeReason | undefined = undefined;
+	private _partiallyAcceptedCount = 0;
 
 	constructor(
 		public readonly range: Range,
@@ -266,9 +275,9 @@ export class InlineSuggestData {
 		public readonly context: InlineCompletionContext,
 		public readonly isInlineEdit: boolean,
 
-		editorType: InlineCompletionEditorType,
+		private readonly _requestInfo: InlineSuggestRequestInfo,
 	) {
-		this._viewData = { editorType };
+		this._viewData = { editorType: _requestInfo.editorType };
 	}
 
 	public get showInlineEditMenu() { return this.sourceInlineCompletion.showInlineEditMenu ?? false; }
@@ -277,7 +286,7 @@ export class InlineSuggestData {
 		return new TextReplacement(this.range, this.insertText);
 	}
 
-	public async reportInlineEditShown(commandService: ICommandService, updatedInsertText: string, viewKind: InlineCompletionViewKind): Promise<void> {
+	public async reportInlineEditShown(commandService: ICommandService, updatedInsertText: string, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData): Promise<void> {
 		this.updateShownDuration(viewKind);
 
 		if (this._didShow) {
@@ -285,6 +294,8 @@ export class InlineSuggestData {
 		}
 		this._didShow = true;
 		this._viewData.viewKind = viewKind;
+		this._viewData.renderData = viewData;
+		this._timeUntilShown = Date.now() - this._requestInfo.startTime;
 
 		this.source.provider.handleItemDidShow?.(this.source.inlineSuggestions, this.sourceInlineCompletion, updatedInsertText);
 
@@ -294,6 +305,7 @@ export class InlineSuggestData {
 	}
 
 	public reportPartialAccept(acceptedCharacters: number, info: PartialAcceptInfo) {
+		this._partiallyAcceptedCount++;
 		this.source.provider.handlePartialAccept?.(
 			this.source.inlineSuggestions,
 			this.sourceInlineCompletion,
@@ -325,12 +337,17 @@ export class InlineSuggestData {
 		if (this.source.provider.handleEndOfLifetime) {
 			const summary: LifetimeSummary = {
 				requestUuid: this.context.requestUuid,
+				partiallyAccepted: this._partiallyAcceptedCount,
 				shown: this._didShow,
 				shownDuration: this._shownDuration,
 				shownDurationUncollapsed: this._showUncollapsedDuration,
+				timeUntilShown: this._timeUntilShown,
 				editorType: this._viewData.editorType,
+				languageId: this._requestInfo.languageId,
 				viewKind: this._viewData.viewKind,
 				error: this._viewData.error,
+				isExplicitRequest: this.context.triggerKind === InlineCompletionTriggerKind.Explicit,
+				...this._viewData.renderData,
 			};
 			this.source.provider.handleEndOfLifetime(this.source.inlineSuggestions, this.sourceInlineCompletion, reason, summary);
 		}
