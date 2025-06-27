@@ -947,7 +947,7 @@ export type LifetimeSummary = {
 	viewKind: string | undefined;
 	error: string | undefined;
 	languageId: string;
-	isExplicitRequest: boolean;
+	requestReason: string;
 	cursorColumnDistance?: number;
 	cursorLineDistance?: number;
 	lineCountOriginal?: number;
