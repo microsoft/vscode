@@ -464,8 +464,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		isTrusted: {
 			enabledCommands: [] as string[],
 		},
-		supportThemeIcons: true,
-		supportHtml: true
 	};
 
 	constructor() {
