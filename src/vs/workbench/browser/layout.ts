@@ -634,7 +634,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService);
 		this.stateModel.load({
 			mainContainerDimension: this._mainContainerDimension,
-			auxiliaryBarOpensMaximized: this.auxiliaryBarOpensMaximized(),
+			auxiliaryBarOpensMaximized: () => this.auxiliaryBarOpensMaximized(), // deferred as function because this depends on state
 			resetLayout: Boolean(this.layoutOptions?.resetLayout)
 		});
 
@@ -2793,6 +2793,12 @@ enum LegacyWorkbenchLayoutSettings {
 	SIDEBAR_POSITION = 'workbench.sideBar.location', 	// Deprecated to UI State
 }
 
+interface ILayoutStateLoadConfiguration {
+	readonly mainContainerDimension: IDimension;
+	readonly auxiliaryBarOpensMaximized: () => boolean;
+	readonly resetLayout: boolean;
+}
+
 class LayoutStateModel extends Disposable {
 
 	static readonly STORAGE_PREFIX = 'workbench.';
@@ -2841,11 +2847,11 @@ class LayoutStateModel extends Disposable {
 		}
 	}
 
-	load({ mainContainerDimension, auxiliaryBarOpensMaximized, resetLayout }: { mainContainerDimension: IDimension; auxiliaryBarOpensMaximized: boolean; resetLayout: boolean }): void {
+	load(configuration: ILayoutStateLoadConfiguration): void {
 		let key: keyof typeof LayoutStateKeys;
 
 		// Load stored values for all keys unless we explicitly set to reset
-		if (!resetLayout) {
+		if (!configuration.resetLayout) {
 			for (key in LayoutStateKeys) {
 				const stateKey = LayoutStateKeys[key] as WorkbenchLayoutStateKey<StorageKeyType>;
 				const value = this.loadKeyFromStorage(stateKey);
@@ -2863,6 +2869,7 @@ class LayoutStateModel extends Disposable {
 
 		// Set dynamic defaults: part sizing and side bar visibility
 		const workbenchState = this.contextService.getWorkbenchState();
+		const mainContainerDimension = configuration.mainContainerDimension;
 		LayoutStateKeys.SIDEBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
 		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = workbenchState === WorkbenchState.EMPTY;
 		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
@@ -2890,7 +2897,7 @@ class LayoutStateModel extends Disposable {
 		}
 
 		// Apply all overrides
-		this.applyOverrides(auxiliaryBarOpensMaximized);
+		this.applyOverrides(configuration);
 
 		// Register for runtime key changes
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(storageChangeEvent => {
@@ -2910,12 +2917,13 @@ class LayoutStateModel extends Disposable {
 		}));
 	}
 
-	private applyOverrides(auxiliaryBarOpensMaximized: boolean): void {
+	private applyOverrides(configuration: ILayoutStateLoadConfiguration): void {
 
 		// Override runtime values for auxiliary bar maximized state
 		const wasAuxiliaryBarMaximized = this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED);
+		const auxiliaryBarOpensMaximized = configuration.auxiliaryBarOpensMaximized();
+		const state = this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY);
 		if (wasAuxiliaryBarMaximized && !auxiliaryBarOpensMaximized) {
-			const state = this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY);
 
 			this.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, !state.sideBarVisible);
 			this.setRuntimeValue(LayoutStateKeys.PANEL_HIDDEN, !state.panelVisible);
