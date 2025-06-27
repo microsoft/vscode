@@ -93,14 +93,17 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 		getLineContent(lineNumber: number) {
 			return text;
 		},
-		getLineInlineDecorationsData(lineNumber: number) {
-			return { decorations: [], affectsFont: false };
+		getLineInlineDecorations(lineNumber: number) {
+			return [];
 		},
 		getLineTokens(lineNumber: number) {
 			return new LineTokens(new Uint32Array(text.length), text, new LanguageIdCodec());
 		},
 		getLineInjectedText(lineNumber) {
 			return null;
+		},
+		hasVariableFonts(lineNumber) {
+			return false;
 		}
 	};
 	const lineBreaksComputer = factory.createLineBreaksComputer(context, configuration, tabSize);

@@ -5,10 +5,12 @@
 
 import { assertNever } from '../../base/common/assert.js';
 import { IEditorConfiguration } from './config/editorConfiguration.js';
+import { IComputedEditorOptions } from './config/editorOptions.js';
 import { Position } from './core/position.js';
-import { IModelInlineDecorationData, InjectedTextCursorStops, InjectedTextOptions, PositionAffinity } from './model.js';
+import { InjectedTextCursorStops, InjectedTextOptions, ITextModel, PositionAffinity } from './model.js';
 import { LineInjectedText } from './textModelEvents.js';
 import { LineTokens } from './tokens/lineTokens.js';
+import { InlineDecoration, InlineDecorationsComputer } from './viewModel/inlineDecorations.js';
 
 /**
  * *input*:
@@ -331,8 +333,9 @@ export class OutputPosition {
 export interface ILineBreaksComputerContext {
 	getLineContent(lineNumber: number): string;
 	getLineInjectedText(lineNumber: number): LineInjectedText[] | null;
-	getLineInlineDecorationsData(lineNumber: number): IModelInlineDecorationData;
+	getLineInlineDecorations(lineNumber: number): InlineDecoration[];
 	getLineTokens(lineNumber: number): LineTokens;
+	hasVariableFonts(lineNumber: number): boolean;
 }
 
 export interface ILineBreaksComputerFactory {
@@ -345,4 +348,26 @@ export interface ILineBreaksComputer {
 	 */
 	addRequest(lineNumber: number, previousLineBreakData: ModelLineProjectionData | null): void;
 	finalize(): (ModelLineProjectionData | null)[];
+}
+
+export function getLineBreaksComputerContext(ownerId: number, model: ITextModel, options: IComputedEditorOptions): ILineBreaksComputerContext {
+	const inlineDecorationsComputer = new InlineDecorationsComputer(ownerId, model, options);
+	const context: ILineBreaksComputerContext = {
+		getLineContent: (lineNumber: number): string => {
+			return model.getLineContent(lineNumber);
+		},
+		getLineTokens: (lineNumber: number): LineTokens => {
+			return model.getLineTokens(lineNumber, ownerId);
+		},
+		getLineInjectedText: (lineNumber: number): LineInjectedText[] => {
+			return model.getLineInjectedText(lineNumber, ownerId);
+		},
+		getLineInlineDecorations: (lineNumber: number): InlineDecoration[] => {
+			return inlineDecorationsComputer.getDecorations(lineNumber).decorations;
+		},
+		hasVariableFonts: (lineNumber: number): boolean => {
+			return inlineDecorationsComputer.getDecorations(lineNumber).hasVariableFonts;
+		}
+	};
+	return context;
 }

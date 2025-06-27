@@ -6,7 +6,8 @@
 import { Position } from '../../common/core/position.js';
 import { Range } from '../../common/core/range.js';
 import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
-import { IViewLayout, ViewModelDecoration } from '../../common/viewModel.js';
+import { IViewLayout } from '../../common/viewModel.js';
+import { ViewModelDecoration } from '../../common/viewModel/viewModelDecoration.js';
 
 export interface IViewLines {
 	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null;
@@ -68,7 +69,6 @@ export abstract class RestrictedRenderingContext {
 	public getDecorationsInViewport(): ViewModelDecoration[] {
 		return this.viewportData.getDecorationsInViewport();
 	}
-
 }
 
 export class RenderingContext extends RestrictedRenderingContext {

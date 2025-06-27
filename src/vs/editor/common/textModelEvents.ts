@@ -143,7 +143,7 @@ export class ModelRawFlush {
 }
 
 /**
- * Represents text injected on a model line
+ * Represents text injected on a line
  * @internal
  */
 export class LineInjectedText {

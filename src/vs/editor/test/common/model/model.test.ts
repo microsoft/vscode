@@ -99,7 +99,7 @@ suite('Editor Model - Model', () => {
 	// --------- insert text eventing
 
 	test('model insert empty text does not trigger eventing', () => {
-		const disposable = thisModel.onDidChangeContentOrInjectedText((e) => {
+		const disposable = thisModel.onDidChangeContent((e) => {
 			assert.ok(false, 'was not expecting event');
 		});
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), '')]);
@@ -108,7 +108,7 @@ suite('Editor Model - Model', () => {
 
 	test('model insert text without newline eventing', () => {
 		let e: ModelRawContentChangedEvent | null = null;
-		const disposable = thisModel.onDidChangeContentOrInjectedText((_e) => {
+		const disposable = thisModel.onDidChangeContent((_e) => {
 			if (e !== null || !(_e instanceof InternalModelContentChangeEvent)) {
 				assert.fail('Unexpected assertion error');
 			}
@@ -128,7 +128,7 @@ suite('Editor Model - Model', () => {
 
 	test('model insert text with one newline eventing', () => {
 		let e: ModelRawContentChangedEvent | null = null;
-		const disposable = thisModel.onDidChangeContentOrInjectedText((_e) => {
+		const disposable = thisModel.onDidChangeContent((_e) => {
 			if (e !== null || !(_e instanceof InternalModelContentChangeEvent)) {
 				assert.fail('Unexpected assertion error');
 			}
@@ -198,7 +198,7 @@ suite('Editor Model - Model', () => {
 	// --------- delete text eventing
 
 	test('model delete empty text does not trigger eventing', () => {
-		const disposable = thisModel.onDidChangeContentOrInjectedText((e) => {
+		const disposable = thisModel.onDidChangeContent((e) => {
 			assert.ok(false, 'was not expecting event');
 		});
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 1))]);
@@ -207,7 +207,7 @@ suite('Editor Model - Model', () => {
 
 	test('model delete text from one line eventing', () => {
 		let e: ModelRawContentChangedEvent | null = null;
-		const disposable = thisModel.onDidChangeContentOrInjectedText((_e) => {
+		const disposable = thisModel.onDidChangeContent((_e) => {
 			if (e !== null || !(_e instanceof InternalModelContentChangeEvent)) {
 				assert.fail('Unexpected assertion error');
 			}
@@ -227,7 +227,7 @@ suite('Editor Model - Model', () => {
 
 	test('model delete all text from a line eventing', () => {
 		let e: ModelRawContentChangedEvent | null = null;
-		const disposable = thisModel.onDidChangeContentOrInjectedText((_e) => {
+		const disposable = thisModel.onDidChangeContent((_e) => {
 			if (e !== null || !(_e instanceof InternalModelContentChangeEvent)) {
 				assert.fail('Unexpected assertion error');
 			}
@@ -247,7 +247,7 @@ suite('Editor Model - Model', () => {
 
 	test('model delete text from two lines eventing', () => {
 		let e: ModelRawContentChangedEvent | null = null;
-		const disposable = thisModel.onDidChangeContentOrInjectedText((_e) => {
+		const disposable = thisModel.onDidChangeContent((_e) => {
 			if (e !== null || !(_e instanceof InternalModelContentChangeEvent)) {
 				assert.fail('Unexpected assertion error');
 			}
@@ -268,7 +268,7 @@ suite('Editor Model - Model', () => {
 
 	test('model delete text from many lines eventing', () => {
 		let e: ModelRawContentChangedEvent | null = null;
-		const disposable = thisModel.onDidChangeContentOrInjectedText((_e) => {
+		const disposable = thisModel.onDidChangeContent((_e) => {
 			if (e !== null || !(_e instanceof InternalModelContentChangeEvent)) {
 				assert.fail('Unexpected assertion error');
 			}
@@ -320,7 +320,7 @@ suite('Editor Model - Model', () => {
 	// --------- setValue
 	test('setValue eventing', () => {
 		let e: ModelRawContentChangedEvent | null = null;
-		const disposable = thisModel.onDidChangeContentOrInjectedText((_e) => {
+		const disposable = thisModel.onDidChangeContent((_e) => {
 			if (e !== null || !(_e instanceof InternalModelContentChangeEvent)) {
 				assert.fail('Unexpected assertion error');
 			}

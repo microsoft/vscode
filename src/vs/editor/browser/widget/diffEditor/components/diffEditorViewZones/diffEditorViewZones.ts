@@ -26,13 +26,12 @@ import { Position } from '../../../../../common/core/position.js';
 import { DetailedLineRangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { ScrollType } from '../../../../../common/editorCommon.js';
 import { BackgroundTokenizationState } from '../../../../../common/tokenizationTextModelPart.js';
-import { InlineDecoration } from '../../../../../common/viewModel.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { DiffEditorOptions } from '../../diffEditorOptions.js';
 import { Range } from '../../../../../common/core/range.js';
-import { ILineBreaksComputerContext, ModelLineProjectionData } from '../../../../../common/modelLineProjectionData.js';
-import { IModelInlineDecorationData, InlineDecorationType } from '../../../../../common/model.js';
+import { ModelLineProjectionData } from '../../../../../common/modelLineProjectionData.js';
+import { InlineDecoration, InlineDecorationType } from '../../../../../common/viewModel/inlineDecorations.js';
 
 /**
  * Ensures both editors have the same height by aligning unchanged lines.
@@ -172,21 +171,7 @@ export class DiffEditorViewZones extends Disposable {
 				if (modifiedViewModel) {
 					const originalEditor = this._editors.original;
 					const originalModel = originalEditor.getModel()!;
-					const context: ILineBreaksComputerContext = {
-						getLineContent: (lineNumber: number) => {
-							return originalModel.getLineContent(lineNumber);
-						},
-						getLineTokens: (lineNumber: number) => {
-							return originalModel.getLineTokens(lineNumber, originalEditor.getNumberId());
-						},
-						getLineInlineDecorationsData: (lineNumber: number): IModelInlineDecorationData => {
-							return originalModel.getLineInlineDecorationData(lineNumber, originalEditor.getNumberId());
-						},
-						getLineInjectedText: (lineNumber: number) => {
-							return originalModel.getLineInjectedText(lineNumber, originalEditor.getNumberId());
-						}
-					};
-					const deletedCodeLineBreaksComputer = modifiedViewModel.createLineBreaksComputer(context);
+					const deletedCodeLineBreaksComputer = modifiedViewModel.createLineBreaksComputer();
 					for (const a of alignmentsVal) {
 						if (a.diff) {
 							for (let i = a.originalRange.startLineNumber; i < a.originalRange.endLineNumberExclusive; i++) {

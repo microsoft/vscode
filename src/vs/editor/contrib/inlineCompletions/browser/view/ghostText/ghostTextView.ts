@@ -21,7 +21,7 @@ import { Range } from '../../../../../common/core/range.js';
 import { StringBuilder } from '../../../../../common/core/stringBuilder.js';
 import { IconPath } from '../../../../../common/languages.js';
 import { ILanguageService } from '../../../../../common/languages/language.js';
-import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops, InlineDecorationType, PositionAffinity } from '../../../../../common/model.js';
+import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops, PositionAffinity } from '../../../../../common/model.js';
 import { LineTokens } from '../../../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../../../common/viewLayout/lineDecorations.js';
 import { RenderLineInput, renderViewLine } from '../../../../../common/viewLayout/viewLineRenderer.js';
@@ -33,6 +33,7 @@ import './ghostTextView.css';
 import { IMouseEvent, StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { CodeEditorWidget } from '../../../../../browser/widget/codeEditor/codeEditorWidget.js';
 import { TokenWithTextArray } from '../../../../../common/tokens/tokenWithTextArray.js';
+import { InlineDecorationType } from '../../../../../common/viewModel/inlineDecorations.js';
 
 export interface IGhostTextWidgetModel {
 	readonly targetTextModel: IObservable<ITextModel | undefined>;
