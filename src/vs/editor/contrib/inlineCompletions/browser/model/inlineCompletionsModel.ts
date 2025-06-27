@@ -40,7 +40,7 @@ import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostT
 import { InlineCompletionsSource } from './inlineCompletionsSource.js';
 import { InlineEdit } from './inlineEdit.js';
 import { InlineCompletionItem, InlineEditItem, InlineSuggestionItem } from './inlineSuggestionItem.js';
-import { InlineCompletionContextWithoutUuid, InlineCompletionEditorType } from './provideInlineCompletions.js';
+import { InlineCompletionContextWithoutUuid, InlineCompletionEditorType, InlineSuggestRequestInfo } from './provideInlineCompletions.js';
 import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 import { SuggestItemInfo } from './suggestWidgetAdapter.js';
 import { TextModelEditReason } from '../../../../common/textModelEditReason.js';
@@ -150,6 +150,7 @@ export class InlineCompletionsModel extends Disposable {
 					shouldDebounce: true,
 					provider: undefined as InlineCompletionsProvider | undefined,
 					textChange: false,
+					changeReason: '',
 				}),
 				handleChange: (ctx, changeSummary) => {
 					/** @description fetch inline completions */
@@ -157,6 +158,8 @@ export class InlineCompletionsModel extends Disposable {
 						if (this._preserveCurrentCompletionReasons.has(this._getReason(ctx.change))) {
 							changeSummary.preserveCurrentCompletion = true;
 						}
+						const detailedReasons = ctx.change?.detailedReasons ?? [];
+						changeSummary.changeReason = detailedReasons.length > 0 ? detailedReasons[0].getType() : '';
 						changeSummary.textChange = true;
 					} else if (ctx.didChange(this._forceUpdateExplicitlySignal)) {
 						changeSummary.inlineCompletionTriggerKind = InlineCompletionTriggerKind.Explicit;
@@ -202,6 +205,12 @@ export class InlineCompletionsModel extends Disposable {
 				return undefined;
 			}
 
+			const requestInfo: InlineSuggestRequestInfo = {
+				editorType: this.editorType,
+				startTime: Date.now(),
+				languageId: this.textModel.getLanguageId(),
+				reason: changeSummary.inlineCompletionTriggerKind === InlineCompletionTriggerKind.Explicit ? 'Explicit' : changeSummary.changeReason,
+			};
 			let context: InlineCompletionContextWithoutUuid = {
 				triggerKind: changeSummary.inlineCompletionTriggerKind,
 				selectedSuggestionInfo: suggestItem?.toSelectedSuggestionInfo(),
@@ -230,7 +239,7 @@ export class InlineCompletionsModel extends Disposable {
 			const suppressedProviderGroupIds = this._suppressedInlineCompletionGroupIds.get();
 			const availableProviders = providers.filter(provider => !(provider.groupId && suppressedProviderGroupIds.has(provider.groupId)));
 
-			return this._source.fetch(availableProviders, context, itemToPreserve?.identity, changeSummary.shouldDebounce, userJumpedToActiveCompletion, !!changeSummary.provider, this.editorType);
+			return this._source.fetch(availableProviders, context, itemToPreserve?.identity, changeSummary.shouldDebounce, userJumpedToActiveCompletion, !!changeSummary.provider, requestInfo);
 		});
 
 		this._inlineCompletionItems = derivedOpts({ owner: this }, reader => {

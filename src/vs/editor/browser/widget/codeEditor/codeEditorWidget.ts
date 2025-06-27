@@ -1266,7 +1266,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._onBeforeExecuteEdit.fire({ source: source ?? undefined });
 
 		if (!editReason) {
-			editReason = source ? new TextModelEditReason({ source: source }) : TextModelEditReason.Unknown;
+			editReason = source ? new TextModelEditReason({ source: 'unknown', name: source }) : TextModelEditReason.Unknown;
 		}
 		this._modelData.viewModel.executeEdits(source, edits, cursorStateComputer, editReason);
 		return true;
