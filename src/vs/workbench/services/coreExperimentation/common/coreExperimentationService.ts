@@ -17,7 +17,7 @@ export const startupExpContext = new RawContextKey<string>('coreExperimentation.
 interface IExperiment {
 	cohort: number;
 	subCohort: number; // Optional for future use
-	experimentGroup: string;
+	experimentGroup: StartupExperimentGroup;
 	iteration: number;
 	isInExperiment: boolean;
 }
@@ -28,7 +28,7 @@ export interface ICoreExperimentationService {
 }
 
 interface ExperimentGroupDefinition {
-	name: string;
+	name: StartupExperimentGroup;
 	min: number;
 	max: number;
 	iteration: number;
@@ -40,7 +40,7 @@ interface ExperimentConfiguration {
 	groups: ExperimentGroupDefinition[];
 }
 
-enum StartupExperimentGroup {
+export enum StartupExperimentGroup {
 	Control = 'control',
 	MaximizedChat = 'maximizedChat',
 	SplitEmptyEditorChat = 'splitEmptyEditorChat',
