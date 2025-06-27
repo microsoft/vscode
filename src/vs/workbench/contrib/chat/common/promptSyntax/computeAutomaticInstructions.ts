@@ -18,7 +18,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { ChatRequestVariableSet, IChatRequestVariableEntry, IPromptFileVariableEntry, isPromptFileVariableEntry, toPromptFileVariableEntry, toPromptTextVariableEntry, PromptFileVariableKind } from '../chatVariableEntries.js';
 import { IToolData } from '../languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
-import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME } from './config/promptFileLocations.js';
+import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, isPromptOrInstructionsFile } from './config/promptFileLocations.js';
 import { PromptsType } from './promptTypes.js';
 import { IPromptParserResult, IPromptPath, IPromptsService } from './service/promptsService.js';
 
@@ -232,19 +232,42 @@ export class ComputeAutomaticInstructions {
 	}
 
 	private async _addReferencedInstructions(attachedContext: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
+		const seen = new ResourceSet();
+		const todo: URI[] = [];
 		for (const variable of attachedContext.asArray()) {
 			if (isPromptFileVariableEntry(variable)) {
-				const result = await this._parseInstructionsFile(variable.value, token);
-				for (const ref of result.allValidReferences) {
-					if (await this._fileService.exists(ref)) {
-						const reason = localize('instruction.file.reason.referenced', 'Referenced by {0}', basename(variable.value));
-						attachedContext.add(toPromptFileVariableEntry(ref, PromptFileVariableKind.InstructionReference, reason));
-					}
+				if (!seen.has(variable.value)) {
+					todo.push(variable.value);
+					seen.add(variable.value);
 				}
 			}
 		}
+		let next = todo.pop();
+		while (next) {
+			const result = await this._parseInstructionsFile(next, token);
+			const refsToCheck: { resource: URI }[] = [];
+			for (const ref of result.references) {
+				if (!seen.has(ref) && isPromptOrInstructionsFile(ref)) {
+					refsToCheck.push({ resource: ref });
+					seen.add(ref);
+				}
+			}
+
+			const stats = await this._fileService.resolveAll(refsToCheck);
+			for (let i = 0; i < stats.length; i++) {
+				const stat = stats[i];
+				const uri = refsToCheck[i].resource;
+				if (stat.success && stat.stat?.isFile) {
+					todo.push(uri);
+					const reason = localize('instruction.file.reason.referenced', 'Referenced by {0}', basename(next));
+					attachedContext.add(toPromptFileVariableEntry(uri, PromptFileVariableKind.InstructionReference, reason));
+				}
+			}
+			next = todo.pop();
+		}
 	}
 }
+
 
 function getFilePath(uri: URI): string {
 	if (uri.scheme === Schemas.file || uri.scheme === Schemas.vscodeRemote) {
