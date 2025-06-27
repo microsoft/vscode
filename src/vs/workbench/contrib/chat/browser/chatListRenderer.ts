@@ -139,6 +139,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly fileTreesByResponseId = new Map<string, IChatFileTreeInfo[]>();
 	private readonly focusedFileTreesByResponseId = new Map<string, number>();
 
+	private readonly templateDataByRequestId = new Map<string, IChatListItemTemplate>();
+
 	private readonly renderer: MarkdownRenderer;
 	private readonly markdownDecorationsRenderer: ChatMarkdownDecorationsRenderer;
 
@@ -281,6 +283,20 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return undefined;
 	}
 
+	getTemplateDataForRequestId(requestId?: string): IChatListItemTemplate | undefined {
+		if (!requestId) {
+			return undefined;
+		}
+		const templateData = this.templateDataByRequestId.get(requestId);
+		if (templateData && templateData.currentElement?.id === requestId) {
+			return templateData;
+		}
+		if (templateData) {
+			this.templateDataByRequestId.delete(requestId);
+		}
+		return undefined;
+	}
+
 	setVisible(visible: boolean): void {
 		this._isVisible = visible;
 		this._onDidChangeVisibility.fire(visible);
@@ -414,9 +430,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (templateData.currentElement && templateData.currentElement.id !== element.id) {
 			this.traceLayout('renderChatTreeItem', `Rendering a different element into the template, index=${index}`);
 			this.clearRenderedParts(templateData);
+			this.templateDataByRequestId.delete(templateData.currentElement.id);
 		}
 
 		templateData.currentElement = element;
+		this.templateDataByRequestId.set(element.id, templateData);
 		const kind = isRequestVM(element) ? 'request' :
 			isResponseVM(element) ? 'response' :
 				'welcome';
@@ -462,8 +480,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.renderDetail(element, templateData);
 		}
 
-		templateData.disabledOverlay.classList.toggle('disabled', element.shouldBeBlocked);
-		templateData.rowContainer.classList.toggle('editing', element.id === this.viewModel?.editing?.id);
+		const editing = element.id === this.viewModel?.editing?.id;
+		const isInput = this.configService.getValue<string>('chat.editRequests') === 'input';
+
+		templateData.disabledOverlay.classList.toggle('disabled', element.shouldBeBlocked && !editing);
+		templateData.rowContainer.classList.toggle('editing', editing && !isInput);
+		templateData.rowContainer.classList.toggle('editing-input', editing && isInput);
+		templateData.requestHover.classList.toggle('editing', editing && isInput);
+		templateData.requestHover.classList.toggle('hidden', !!this.viewModel?.editing && !editing);
+		templateData.requestHover.classList.toggle('expanded', this.configService.getValue<string>('chat.editRequests') === 'hover');
 		templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.CLICK, () => {
 			if (this.viewModel?.editing && element.id !== this.viewModel.editing.id) {
 				this._onDidFocusOutside.fire();
@@ -604,7 +629,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this._onDidRerender.fire(templateData);
 		}
 
-		if (this.configService.getValue<boolean>('chat.editRequests') && !this.disableEdits) {
+		if (this.configService.getValue<string>('chat.editRequests') !== 'none' && !this.disableEdits) {
 			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.KEY_DOWN, e => {
 				const ev = new StandardKeyboardEvent(e);
 				if (ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) {
@@ -1194,7 +1219,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.renderer, this._currentLayoutWidth, this.codeBlockModelCollection, {});
 		if (isRequestVM(element)) {
 			markdownPart.domNode.tabIndex = 0;
-			if (this.configService.getValue<boolean>('chat.editRequests') && !this.disableEdits) {
+			if (this.configService.getValue<string>('chat.editRequests') === 'inline' && !this.disableEdits) {
 				markdownPart.domNode.classList.add('clickable');
 				markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.CLICK, (e: MouseEvent) => {
 					if (this.viewModel?.editing?.id !== element.id && !this.viewModel?.requestInProgress) {
@@ -1224,6 +1249,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, details?: IListElementRenderDetails): void {
 		this.traceLayout('disposeElement', `Disposing element, index=${index}`);
 		templateData.elementDisposables.clear();
+
+		if (templateData.currentElement && !this.viewModel?.editing) {
+			this.templateDataByRequestId.delete(templateData.currentElement.id);
+		}
 
 		if (isRequestVM(node.element) && node.element.id === this.viewModel?.editing?.id && details?.onScroll) {
 			this._onDidDispose.fire(templateData);
