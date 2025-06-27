@@ -711,27 +711,28 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private getWelcomeViewContent(): IChatWelcomeMessageContent {
 		const baseMessage = localize('chatMessage', //"Ask questions about your codebase, coding, and general technology concepts. \n\n
 			"AI responses may be inaccurate.");
+
 		if (this.input.currentMode === ChatMode.Ask) {
 			return {
-				title: localize('chatDescription', "Ask about your code"),
+				title: localize('chatDescription', "Ask about your code."),
 				message: new MarkdownString(baseMessage),
-				icon: Codicon.vscode,
+				icon: Codicon.commentDiscussion,
 				//tips: new MarkdownString('$(attach) or type # to attach context\n\n$(mention) to chat with extensions\n\nType / to use commands', { supportThemeIcons: true })
 			};
 		} else if (this.input.currentMode === ChatMode.Edit) {
 			return {
-				title: localize('editsTitle', "Edit in context"),
+				title: localize('editsTitle', "Edit in context."),
 				message: new MarkdownString(localize('editsMessage', //"Start by defining a set of files that you want to work with. Then ask for the changes you want to make. \n\n
 					"AI responses may be inaccurate.")),
-				icon: Codicon.vscode,
+				icon: Codicon.commentDiscussion,
 				//tips: new MarkdownString('$(attach) or type # to attach context', { supportThemeIcons: true })
 			};
 		} else {
 			return {
-				title: localize('agentTitle', "Build with agent mode"),
+				title: localize('agentTitle', "Build with agent mode."),
 				message: new MarkdownString(localize('agentMessage', //"Let AI autonomously reason about the request, plan the work needed, and apply the changes to your codebase. \n\n
 					"AI responses may be inaccurate.")),
-				icon: Codicon.vscode,
+				icon: Codicon.commentDiscussion,
 				//tips: new MarkdownString('$(attach) or type # to attach context', { supportThemeIcons: true })
 			};
 		}
