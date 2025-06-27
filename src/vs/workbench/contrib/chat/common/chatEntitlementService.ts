@@ -952,8 +952,13 @@ export class ChatEntitlementContext extends Disposable {
 
 			let disabled: boolean;
 			if (installed) {
-				const state = this.extensionEnablementService.getEnablementState(defaultChatExtension.local);
-				disabled = state !== EnablementState.DisabledByTrustRequirement; // treat workspace trust specially
+				disabled = !this.extensionEnablementService.isEnabled(defaultChatExtension.local);
+				if (disabled) {
+					const state = this.extensionEnablementService.getEnablementState(defaultChatExtension.local);
+					if (state === EnablementState.DisabledByTrustRequirement) {
+						disabled = false; // treat workspace trust specially
+					}
+				}
 			} else {
 				disabled = false;
 			}
