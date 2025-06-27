@@ -34,7 +34,10 @@ let shellEnvPromise: Promise<typeof process.env> | undefined = undefined;
  */
 export async function getResolvedShellEnv(configurationService: IConfigurationService, logService: ILogService, args: NativeParsedArgs, env: IProcessEnvironment): Promise<typeof process.env> {
 
+	// Skip on windows
 	if (isWindows) {
+		logService.trace('resolveShellEnv(): skipped (Windows)');
+
 		return {};
 	}
 
@@ -115,14 +118,13 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 	};
 
 	logService.trace('doResolveShellEnv#env', env);
-	const systemShell = await getSystemShell(OS, env); // note: windows always resolves a powershell instance
+	const systemShell = await getSystemShell(OS, env);
 	logService.trace('doResolveShellEnv#shell', systemShell);
 
 	const name = basename(systemShell);
 	let command: string, shellArgs: Array<string>;
-	const extraArgs = '';
 	if (/^(?:pwsh|powershell)(?:-preview)?$/.test(name)) {
-		const profilePaths = await getPowershellProfilePaths();
+		const profilePaths = getPowershellProfilePaths();
 		const profilePathThatExists = await first(profilePaths.map(profilePath => async () => (await FSPromises.exists(profilePath)) ? profilePath : undefined));
 		if (!profilePathThatExists) {
 			logService.trace('doResolveShellEnv#noPowershellProfile after testing paths', profilePaths);
@@ -138,13 +140,13 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 		command = `Write-Output '${mark}'; [System.Environment]::GetEnvironmentVariables() | ConvertTo-Json -Compress; Write-Output '${mark}'`;
 		shellArgs = ['-Login', '-Command'];
 	} else if (name === 'nu') { // nushell requires ^ before quoted path to treat it as a command
-		command = `^'${process.execPath}' ${extraArgs} -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
+		command = `^'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
 		shellArgs = ['-i', '-l', '-c'];
 	} else if (name === 'xonsh') { // #200374: native implementation is shorter
 		command = `import os, json; print("${mark}", json.dumps(dict(os.environ)), "${mark}")`;
 		shellArgs = ['-i', '-l', '-c'];
 	} else {
-		command = `'${process.execPath}' ${extraArgs} -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
+		command = `'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
 
 		if (name === 'tcsh' || name === 'csh') {
 			shellArgs = ['-ic'];
@@ -281,7 +283,7 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
  *
  * @see https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_profiles?view=powershell-7.5
  */
-async function getPowershellProfilePaths() {
+function getPowershellProfilePaths() {
 	const paths: string[] = [];
 	const userHome = homedir();
 
