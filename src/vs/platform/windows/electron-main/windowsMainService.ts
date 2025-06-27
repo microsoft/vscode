@@ -761,7 +761,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Extract paths: current working directory for agent subcommand
 		if (openConfig.cli.agent) {
-			const res = await this.doResolveFilePath(process.cwd(), {});
+			const res = await this.doResolveFilePath(cwd(), {});
 			if (res) {
 				return [res];
 			}
