@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../nls.js';
 import { InlineVoiceChatAction, QuickVoiceChatAction, StartVoiceChatAction, VoiceChatInChatViewAction, StopListeningAction, StopListeningAndSubmitAction, KeywordActivationContribution, InstallSpeechProviderForVoiceChatAction, HoldToVoiceChatInChatViewAction, ReadChatResponseAloud, StopReadAloud, StopReadChatItemAloud } from './actions/voiceChatActions.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
@@ -17,7 +18,7 @@ import { CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/ch
 import { ChatMode } from '../common/constants.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
-import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 
 class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -43,7 +44,7 @@ class ChatCommandLineSupportContribution extends Disposable {
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService
 	) {
 		super();
 
@@ -68,8 +69,12 @@ class ChatCommandLineSupportContribution extends Disposable {
 	}
 
 	private async run(prompt: string): Promise<void> {
-		if (!this.workspaceTrustManagementService.isWorkspaceTrusted()) {
-			return; // we require workspace trust to run chats
+		const trusted = await this.workspaceTrustRequestService.requestWorkspaceTrust({
+			message: localize('copilotWorkspaceTrust', "Copilot is currently only supported in trusted workspaces.")
+		});
+
+		if (!trusted) {
+			return;
 		}
 
 		const opts: IChatViewOpenOptions = {
