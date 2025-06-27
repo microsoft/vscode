@@ -334,10 +334,6 @@ registerAction2(class RemoveAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, ...args: any[]) {
 		let item: ChatTreeItem | undefined = args[0];
-		if (!item) {
-			return;
-		}
-
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const widget = chatWidgetService.lastFocusedWidget;
 		if (!isResponseVM(item) && !isRequestVM(item)) {

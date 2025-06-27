@@ -283,7 +283,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return undefined;
 	}
 
-	getTemplateDataForRequestId(requestId: string): IChatListItemTemplate | undefined {
+	getTemplateDataForRequestId(requestId?: string): IChatListItemTemplate | undefined {
+		if (!requestId) {
+			return undefined;
+		}
 		const templateData = this.templateDataByRequestId.get(requestId);
 		if (templateData && templateData.currentElement?.id === requestId) {
 			return templateData;
@@ -348,8 +351,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 
 		const requestHover = dom.append(rowContainer, $('.request-hover'));
-		requestHover.classList.toggle('expanded', this.configService.getValue<string>('chat.editRequests') === 'hover');
-
 		let titleToolbar: MenuWorkbenchToolBar | undefined;
 		if (this.rendererOptions.noHeader) {
 			header.classList.add('hidden');
@@ -487,6 +488,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('editing-input', editing && isInput);
 		templateData.requestHover.classList.toggle('editing', editing && isInput);
 		templateData.requestHover.classList.toggle('hidden', !!this.viewModel?.editing && !editing);
+		templateData.requestHover.classList.toggle('expanded', this.configService.getValue<string>('chat.editRequests') === 'hover');
 		templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.CLICK, () => {
 			if (this.viewModel?.editing && element.id !== this.viewModel.editing.id) {
 				this._onDidFocusOutside.fire();
@@ -1248,7 +1250,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.traceLayout('disposeElement', `Disposing element, index=${index}`);
 		templateData.elementDisposables.clear();
 
-		if (templateData.currentElement) {
+		if (templateData.currentElement && !this.viewModel?.editing) {
 			this.templateDataByRequestId.delete(templateData.currentElement.id);
 		}
 

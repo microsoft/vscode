@@ -17,7 +17,7 @@ import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession } from '../../common/chatEditingService.js';
 import { ChatMode } from '../../common/constants.js';
-import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
+import { ChatViewId, IChatWidget } from '../chat.js';
 import { EditingSessionAction } from '../chatEditing/chatEditingActions.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
@@ -60,14 +60,6 @@ export function registerNewChatActions() {
 		}
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			announceChatCleared(accessor.get(IAccessibilitySignalService));
-			const widgetService = accessor.get(IChatWidgetService);
-			const widget = widgetService.lastFocusedWidget;
-			if (!widget) {
-				return;
-			}
-			if (widget.viewModel?.editing) {
-				widget.handleDispose();
-			}
 			await clearChatEditor(accessor);
 		}
 	});
@@ -115,9 +107,6 @@ export function registerNewChatActions() {
 			}
 
 			announceChatCleared(accessibilitySignalService);
-			if (widget.viewModel?.editing) {
-				widget.handleDispose();
-			}
 
 			await editingSession.stop();
 			widget.clear();

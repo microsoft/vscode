@@ -228,9 +228,6 @@ class ToggleChatModeAction extends Action2 {
 		context.chatWidget.input.setChatMode2(switchToMode);
 
 		if (chatModeCheck.needToClearSession) {
-			if (context.chatWidget.viewModel?.editing && configurationService.getValue<string>(ChatConfiguration.EditRequests) !== 'input') {
-				context.chatWidget.handleDispose();
-			}
 			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}
 	}
@@ -738,7 +735,7 @@ export class CancelEdit extends Action2 {
 		if (!widget) {
 			return;
 		}
-		widget.handleDispose();
+		widget.finishedEditing();
 	}
 }
 

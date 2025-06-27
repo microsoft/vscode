@@ -52,7 +52,7 @@ import { getFlatActionBarActions } from '../../../../platform/actions/browser/me
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService, IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { registerAndCreateHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
@@ -161,6 +161,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._attachmentModel;
 	}
 
+	private inputScopedContextKeyService: IScopedContextKeyService | undefined;
 	readonly selectedToolsModel: ChatSelectedTools;
 
 	public getAttachedAndImplicitContext(sessionId: string): ChatRequestVariableSet {
@@ -494,6 +495,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.checkModelSupported();
 			}
 		}));
+	}
+
+	public setEditing(enabled: boolean) {
+		if (!this.inputScopedContextKeyService) {
+			return;
+		}
+		ChatContextKeys.currentlyEditingInput.bindTo(this.inputScopedContextKeyService).set(enabled);
 	}
 
 	public switchModel(modelMetadata: Pick<ILanguageModelChatMetadata, 'vendor' | 'id' | 'family'>) {
@@ -1029,11 +1037,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.dnd.addOverlay(this.options.dndContainer ?? container, this.options.dndContainer ?? container);
 
-		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
-		ChatContextKeys.inChatInput.bindTo(inputScopedContextKeyService).set(true);
-		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, inputScopedContextKeyService])));
+		this.inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
+		ChatContextKeys.inChatInput.bindTo(this.inputScopedContextKeyService).set(true);
+		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.inputScopedContextKeyService])));
 
-		const { historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this._register(registerAndCreateHistoryNavigationContext(inputScopedContextKeyService, this));
+		const { historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this._register(registerAndCreateHistoryNavigationContext(this.inputScopedContextKeyService, this));
 		this.historyNavigationBackwardsEnablement = historyNavigationBackwardsEnablement;
 		this.historyNavigationForewardsEnablement = historyNavigationForwardsEnablement;
 
