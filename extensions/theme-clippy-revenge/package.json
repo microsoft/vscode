@@ -1,0 +1,30 @@
+{
+  "name": "theme-clippy-revenge",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "*"
+  },
+  "categories": ["Themes"],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "themes": [
+      {
+        "id": "Clippys Revenge",
+        "label": "%themeLabel%",
+        "uiTheme": "vs-dark",
+        "path": "./themes/clippy-revenge-color-theme.json"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}
