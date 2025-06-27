@@ -80,6 +80,7 @@ export function createCompile(src: string, { build, emitError, transpileOnly, pr
 			.pipe(tsFilter)
 			.pipe(util.loadSourcemaps())
 			.pipe(compilation(token))
+			.pipe(util.$if(!!transpileOnly, util.loadSourcemaps()))
 			.pipe(noDeclarationsFilter)
 			.pipe(util.$if(build, nls.nls({ preserveEnglish })))
 			.pipe(noDeclarationsFilter.restore)
@@ -124,7 +125,7 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 			throw new Error('compilation requires 4GB of RAM');
 		}
 
-		const compile = createCompile(src, { build, emitError: true, transpileOnly: false, preserveEnglish: !!options.preserveEnglish });
+		const compile = createCompile(src, { build, emitError: true, transpileOnly: process.env.VSCODE_FORCE_TRANSPILE ? { esbuild: true } : false, preserveEnglish: !!options.preserveEnglish });
 		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
 		const generator = new MonacoGenerator(false);
 		if (src === 'src') {
