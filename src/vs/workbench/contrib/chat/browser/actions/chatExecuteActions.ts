@@ -483,7 +483,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			menu: {
 				id: MenuId.ChatExecute,
 				group: 'navigation',
-				order: 0,
+				order: 3.9,
 				when: ChatContextKeys.hasRemoteCodingAgent
 			}
 		});
