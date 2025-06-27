@@ -636,7 +636,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'default': product.quality !== 'stable',
 				'description': localize('settings.showAISearchToggle', "Controls whether the AI search results toggle is shown in the search bar in the Settings editor after doing a search and once AI search results are available."),
-				'tags': ['preview', 'onExP']
+				'tags': ['experimental', 'onExP']
 			},
 			'workbench.hover.delay': {
 				'type': 'number',
