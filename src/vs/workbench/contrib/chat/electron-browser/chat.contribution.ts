@@ -16,7 +16,6 @@ import { INativeWorkbenchEnvironmentService } from '../../../services/environmen
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
 import { ChatMode } from '../common/constants.js';
-import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 
@@ -43,7 +42,6 @@ class ChatCommandLineSupportContribution extends Disposable {
 	constructor(
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService
 	) {
 		super();
@@ -77,8 +75,6 @@ class ChatCommandLineSupportContribution extends Disposable {
 		if (!trusted) {
 			return;
 		}
-
-		this.layoutService.setAuxiliaryBarMaximized(true);
 
 		const opts: IChatViewOpenOptions = {
 			query: agentArgs.join(' '),
