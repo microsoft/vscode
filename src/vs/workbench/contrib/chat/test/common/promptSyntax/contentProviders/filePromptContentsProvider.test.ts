@@ -70,7 +70,7 @@ suite('FilePromptContentsProvider', () => {
 		const contentsProvider = testDisposables.add(instantiationService.createInstance(
 			FilePromptContentProvider,
 			fileUri,
-			{},
+			{ allowNonPromptFiles: true, languageId: undefined },
 		));
 
 		let streamOrError: ReadableStream<VSBuffer> | Error | undefined;
@@ -128,7 +128,7 @@ suite('FilePromptContentsProvider', () => {
 				const contentsProvider = testDisposables.add(instantiationService.createInstance(
 					FilePromptContentProvider,
 					fileUri,
-					{ allowNonPromptFiles: true },
+					{ allowNonPromptFiles: true, languageId: undefined },
 				));
 
 				let streamOrError: ReadableStream<VSBuffer> | Error | undefined;
@@ -184,47 +184,7 @@ suite('FilePromptContentsProvider', () => {
 				const contentsProvider = testDisposables.add(instantiationService.createInstance(
 					FilePromptContentProvider,
 					fileUri,
-					{ allowNonPromptFiles: false },
-				));
-
-				let streamOrError: ReadableStream<VSBuffer> | Error | undefined;
-				testDisposables.add(contentsProvider.onContentChanged((event) => {
-					streamOrError = event;
-				}));
-				contentsProvider.start();
-
-				await timeout(CONTENT_CHANGED_TIMEOUT);
-
-				assertDefined(
-					streamOrError,
-					'The `streamOrError` must be defined.',
-				);
-
-				assert(
-					streamOrError instanceof NotPromptFile,
-					`Provider must produce an 'NotPromptFile' error, got '${streamOrError}'.`,
-				);
-			});
-
-			test('undefined', async () => {
-				const fileService = instantiationService.get(IFileService);
-
-				const fileName = (randomBoolean() === true)
-					? `file-${randomInt(10_000)}.md`
-					: `file-${randomInt(10_000)}.txt`;
-
-				const fileUri = URI.file(`/${fileName}`);
-
-				if (await fileService.exists(fileUri)) {
-					await fileService.del(fileUri);
-				}
-				await fileService.writeFile(fileUri, VSBuffer.fromString('Hello, world!'));
-				await timeout(5);
-
-				const contentsProvider = testDisposables.add(instantiationService.createInstance(
-					FilePromptContentProvider,
-					fileUri,
-					{},
+					{ allowNonPromptFiles: false, languageId: undefined },
 				));
 
 				let streamOrError: ReadableStream<VSBuffer> | Error | undefined;

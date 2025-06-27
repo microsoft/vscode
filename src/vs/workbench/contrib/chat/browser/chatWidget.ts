@@ -1446,7 +1446,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// if not, check if the context contains a prompt file: This is the old workflow that we still support for legacy reasons
 			const uri = this._findPromptFileInContext(requestInput.attachedContext);
 			if (uri) {
-				parseResult = await this.promptsService.parse(uri, CancellationToken.None);
+				parseResult = await this.promptsService.parse(uri, PromptsType.prompt, CancellationToken.None);
 			}
 		}
 
