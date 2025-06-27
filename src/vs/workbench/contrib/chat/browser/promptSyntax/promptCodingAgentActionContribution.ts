@@ -8,12 +8,12 @@ import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { registerEditorContribution, EditorContributionInstantiation } from '../../../../../editor/browser/editorExtensions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
-import { PromptCloudActionOverlayWidget } from './promptCodingAgentActionOverlay.js';
+import { PromptCodingAgentActionOverlayWidget } from './promptCodingAgentActionOverlay.js';
 
-export class PromptCloudActionContribution extends Disposable {
-	static readonly ID = 'promptCloudActionContribution';
+export class PromptCodingAgentActionContribution extends Disposable {
+	static readonly ID = 'promptCodingAgentActionContribution';
 
-	private readonly _overlayWidgets = this._register(new DisposableMap<ICodeEditor, PromptCloudActionOverlayWidget>());
+	private readonly _overlayWidgets = this._register(new DisposableMap<ICodeEditor, PromptCodingAgentActionOverlayWidget>());
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -35,10 +35,10 @@ export class PromptCloudActionContribution extends Disposable {
 
 		// Add overlay if this is a prompt file
 		if (model && model.getLanguageId() === PROMPT_LANGUAGE_ID) {
-			const widget = this._instantiationService.createInstance(PromptCloudActionOverlayWidget, this._editor);
+			const widget = this._instantiationService.createInstance(PromptCodingAgentActionOverlayWidget, this._editor);
 			this._overlayWidgets.set(this._editor, widget);
 		}
 	}
 }
 
-registerEditorContribution(PromptCloudActionContribution.ID, PromptCloudActionContribution, EditorContributionInstantiation.AfterFirstRender);
+registerEditorContribution(PromptCodingAgentActionContribution.ID, PromptCodingAgentActionContribution, EditorContributionInstantiation.AfterFirstRender);

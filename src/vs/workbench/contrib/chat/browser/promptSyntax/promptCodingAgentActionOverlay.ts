@@ -16,9 +16,9 @@ import { getPromptCommandName } from '../../common/promptSyntax/service/promptsS
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 import { $ } from '../../../../../base/browser/dom.js';
 
-export class PromptCloudActionOverlayWidget extends Disposable implements IOverlayWidget {
+export class PromptCodingAgentActionOverlayWidget extends Disposable implements IOverlayWidget {
 
-	private static readonly ID = 'promptCloudActionOverlay';
+	private static readonly ID = 'promptCodingAgentActionOverlay';
 
 	private readonly _domNode: HTMLElement;
 	private readonly _button: Button;
@@ -33,11 +33,11 @@ export class PromptCloudActionOverlayWidget extends Disposable implements IOverl
 		super();
 
 		// Create DOM structure
-		this._domNode = $('.prompt-cloud-action-overlay');
+		this._domNode = $('.prompt-coding-agent-action-overlay');
 
 		this._button = this._register(new Button(this._domNode, {
 			supportIcons: true,
-			title: localize('runPromptInCloud', "Run with Coding Agent")
+			title: localize('runPromptWithCodingAgent', "Run with Coding Agent")
 		}));
 
 		this._button.label = `$(cloud-upload)`;
@@ -62,7 +62,7 @@ export class PromptCloudActionOverlayWidget extends Disposable implements IOverl
 	}
 
 	getId(): string {
-		return PromptCloudActionOverlayWidget.ID;
+		return PromptCodingAgentActionOverlayWidget.ID;
 	}
 
 	getDomNode(): HTMLElement {
