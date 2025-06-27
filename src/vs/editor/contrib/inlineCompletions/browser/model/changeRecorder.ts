@@ -24,7 +24,7 @@ export class TextModelChangeRecorder extends Disposable {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILoggerService private readonly _loggerService: ILoggerService,
+		@ILoggerService private readonly _loggerService: ILoggerService | undefined,
 	) {
 		super();
 
@@ -32,22 +32,24 @@ export class TextModelChangeRecorder extends Disposable {
 			'editor.inlineSuggest.logChangeReason.commandId'
 		));
 
-		const logger = this._loggerService.createLogger('textModelChanges', { hidden: false, name: 'Text Model Changes Reason' });
+		const logger = this._loggerService?.createLogger('textModelChanges', { hidden: false, name: 'Text Model Changes Reason' });
 
-		const loggingLevel = observableFromEvent(this, logger.onDidChangeLogLevel, () => logger.getLevel());
+		if (logger) {
+			const loggingLevel = observableFromEvent(this, logger.onDidChangeLogLevel, () => logger.getLevel());
 
-		this._register(autorun(reader => {
-			if (!canLog(loggingLevel.read(reader), LogLevel.Trace)) {
-				return;
-			}
-
-			reader.store.add(this._editor.onDidChangeModelContent((e) => {
-				if (this._editor.getModel()?.uri.scheme === 'output') {
+			this._register(autorun(reader => {
+				if (!canLog(loggingLevel.read(reader), LogLevel.Trace)) {
 					return;
 				}
-				logger.trace('onDidChangeModelContent: ' + e.detailedReasons.map(r => r.toKey(Number.MAX_VALUE)).join(', '));
+
+				reader.store.add(this._editor.onDidChangeModelContent((e) => {
+					if (this._editor.getModel()?.uri.scheme === 'output') {
+						return;
+					}
+					logger.trace('onDidChangeModelContent: ' + e.detailedReasons.map(r => r.toKey(Number.MAX_VALUE)).join(', '));
+				}));
 			}));
-		}));
+		}
 
 		this._register(autorun(reader => {
 			if (!(this._editor instanceof CodeEditorWidget)) { return; }
