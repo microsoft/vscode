@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/promptCloudActionOverlay.css';
+import './media/promptCodingAgentActionOverlay.css';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../../../editor/browser/editorBrowser.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
