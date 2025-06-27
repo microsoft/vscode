@@ -230,9 +230,6 @@ class ToggleChatModeAction extends Action2 {
 		context.chatWidget.input.setChatMode2(switchToMode);
 
 		if (chatModeCheck.needToClearSession) {
-			if (context.chatWidget.viewModel?.editing) {
-				context.chatWidget.input.dispose();
-			}
 			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}
 	}
@@ -751,12 +748,22 @@ export class CancelEdit extends Action2 {
 			title: localize2('interactive.cancelEdit.label', "Cancel Edit"),
 			f1: false,
 			category: CHAT_CATEGORY,
+			icon: Codicon.x,
+			menu: [
+				{
+					id: MenuId.ChatMessageTitle,
+					group: 'navigation',
+					order: 1,
+					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.currentlyEditing, ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input'))
+				}
+			],
 			keybinding: {
 				primary: KeyCode.Escape,
 				when: ContextKeyExpr.and(ChatContextKeys.inChatInput,
 					EditorContextKeys.hoverVisible.toNegated(),
 					EditorContextKeys.hasNonEmptySelection.toNegated(),
-					EditorContextKeys.hasMultipleSelections.toNegated()),
+					EditorContextKeys.hasMultipleSelections.toNegated(),
+					ContextKeyExpr.or(ChatContextKeys.currentlyEditing, ChatContextKeys.currentlyEditingInput)),
 				weight: KeybindingWeight.EditorContrib - 5
 			}
 		});
@@ -770,7 +777,7 @@ export class CancelEdit extends Action2 {
 		if (!widget) {
 			return;
 		}
-		widget.input.dispose();
+		widget.finishedEditing();
 	}
 }
 

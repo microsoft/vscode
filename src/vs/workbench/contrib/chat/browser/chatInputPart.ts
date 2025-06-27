@@ -150,9 +150,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidBlur: Emitter<void>;
 	readonly onDidBlur: Event<void>;
 
-	private _onDidDispose: Emitter<void>;
-	readonly onDidDispose: Event<void>;
-
 	private _onDidChangeContext: Emitter<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>;
 	readonly onDidChangeContext: Event<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>;
 
@@ -266,6 +263,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private inputEditorHasText: IContextKey<boolean>;
 	private chatCursorAtTop: IContextKey<boolean>;
 	private inputEditorHasFocus: IContextKey<boolean>;
+	private currentlyEditingInputKey!: IContextKey<boolean>;
 	/**
 	 * Context key is set when prompt instructions are attached.
 	 */
@@ -375,8 +373,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.onDidFocus = this._onDidFocus.event;
 		this._onDidBlur = this._register(new Emitter<void>());
 		this.onDidBlur = this._onDidBlur.event;
-		this._onDidDispose = this._register(new Emitter<void>());
-		this.onDidDispose = this._onDidDispose.event;
 		this._onDidChangeContext = this._register(new Emitter<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>());
 		this.onDidChangeContext = this._onDidChangeContext.event;
 		this._onDidAcceptFollowup = this._register(new Emitter<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>());
@@ -452,10 +448,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		this._register(this.chatModeService.onDidChangeChatModes(() => this.validateCurrentChatMode()));
 	}
-	public override dispose(): void {
-		this._onDidDispose.fire();
-		super.dispose();
-	}
 
 	private getSelectedModelStorageKey(): string {
 		return `chat.currentLanguageModel.${this.location}`;
@@ -503,6 +495,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.checkModelSupported();
 			}
 		}));
+	}
+
+	public setEditing(enabled: boolean) {
+		this.currentlyEditingInputKey?.set(enabled);
 	}
 
 	public switchModel(modelMetadata: Pick<ILanguageModelChatMetadata, 'vendor' | 'id' | 'family'>) {
@@ -1036,6 +1032,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
 		ChatContextKeys.inChatInput.bindTo(inputScopedContextKeyService).set(true);
+		this.currentlyEditingInputKey = ChatContextKeys.currentlyEditingInput.bindTo(inputScopedContextKeyService);
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, inputScopedContextKeyService])));
 
 		const { historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this._register(registerAndCreateHistoryNavigationContext(inputScopedContextKeyService, this));
