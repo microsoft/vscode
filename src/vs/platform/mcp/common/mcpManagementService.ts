@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RunOnceScheduler } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../base/common/map.js';
 import { URI } from '../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
@@ -38,9 +41,13 @@ export interface ILocalMcpServerInfo {
 	location?: URI;
 }
 
-export abstract class AbstractMcpManagementService extends Disposable implements IMcpManagementService {
+export abstract class AbstractMcpResourceManagementService extends Disposable implements IMcpManagementService {
 
 	_serviceBrand: undefined;
+
+	private initializePromise: Promise<void> | undefined;
+	private readonly reloadConfigurationScheduler: RunOnceScheduler;
+	private local: ILocalMcpServer[] = [];
 
 	protected readonly _onInstallMcpServer = this._register(new Emitter<InstallMcpServerEvent>());
 	readonly onInstallMcpServer = this._onInstallMcpServer.event;
@@ -55,6 +62,7 @@ export abstract class AbstractMcpManagementService extends Disposable implements
 	get onDidUninstallMcpServer() { return this._onDidUninstallMcpServer.event; }
 
 	constructor(
+		protected readonly mcpResource: URI,
 		protected readonly target: McpResourceTarget,
 		@IMcpGalleryService protected readonly mcpGalleryService: IMcpGalleryService,
 		@IFileService protected readonly fileService: IFileService,
@@ -63,27 +71,65 @@ export abstract class AbstractMcpManagementService extends Disposable implements
 		@IMcpResourceScannerService protected readonly mcpResourceScannerService: IMcpResourceScannerService,
 	) {
 		super();
+		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.updateLocal(), 50));
 	}
 
-	async getInstalled(mcpResource?: URI): Promise<ILocalMcpServer[]> {
-		const mcpResourceUri = mcpResource || this.getDefaultMcpResource();
-		this.logService.info('MCP Management Service: getInstalled', mcpResourceUri.toString());
+	private initialize(): Promise<void> {
+		if (!this.initializePromise) {
+			this.initializePromise = (async () => {
+				this.local = await this.getLocal();
+				this.startWatching();
+			})();
+		}
+		return this.initializePromise;
+	}
 
+	private async getLocal(): Promise<ILocalMcpServer[]> {
+		this.logService.info('MCP Management Service: fetchInstalled', this.mcpResource.toString());
 		try {
-			const scannedMcpServers = await this.mcpResourceScannerService.scanMcpServers(mcpResourceUri, this.target);
-
-			if (!scannedMcpServers.servers) {
-				return [];
+			const scannedMcpServers = await this.mcpResourceScannerService.scanMcpServers(this.mcpResource, this.target);
+			if (scannedMcpServers.servers) {
+				return Promise.all(Object.entries(scannedMcpServers.servers).map(([, scannedServer]) => this.scanServer(scannedServer)));
 			}
-
-			return Promise.all(Object.entries(scannedMcpServers.servers).map(([, scannedServer]) => this.scanServer(scannedServer, mcpResourceUri)));
 		} catch (error) {
 			this.logService.debug('Could not read user MCP servers:', error);
-			return [];
+		}
+		return [];
+	}
+
+	private startWatching(): void {
+		this._register(this.fileService.watch(this.mcpResource));
+		this._register(this.fileService.onDidFilesChange(e => {
+			if (e.affects(this.mcpResource)) {
+				this.reloadConfigurationScheduler.schedule();
+			}
+		}));
+	}
+
+	private async updateLocal(): Promise<void> {
+		try {
+			const current = await this.getLocal();
+			const previous = this.local;
+			const added = current.filter(server => !previous.some(prev => prev.name === server.name));
+			const removed = previous.filter(server => !current.some(curr => curr.name === server.name));
+			this.local = current;
+			if (added.length) {
+				this._onDidInstallMcpServers.fire(added.map(server => ({ name: server.name, local: server, mcpResource: this.mcpResource })));
+			}
+			for (const server of removed) {
+				this._onDidUninstallMcpServer.fire({ name: server.name, mcpResource: this.mcpResource });
+			}
+		} catch (error) {
+			this.logService.error('Failed to load installed MCP servers:', error);
 		}
 	}
 
-	protected async scanServer(scannedMcpServer: IScannedMcpServer, mcpResource: URI): Promise<ILocalMcpServer> {
+	async getInstalled(): Promise<ILocalMcpServer[]> {
+		await this.initialize();
+		return this.local;
+	}
+
+	protected async scanServer(scannedMcpServer: IScannedMcpServer): Promise<ILocalMcpServer> {
 		let mcpServerInfo = await this.getLocalMcpServerInfo(scannedMcpServer);
 		if (!mcpServerInfo) {
 			mcpServerInfo = {
@@ -96,7 +142,7 @@ export abstract class AbstractMcpManagementService extends Disposable implements
 			name: scannedMcpServer.name,
 			config: scannedMcpServer.config,
 			version: mcpServerInfo.version,
-			mcpResource,
+			mcpResource: this.mcpResource,
 			location: mcpServerInfo.location,
 			id: mcpServerInfo.id,
 			displayName: mcpServerInfo.displayName,
@@ -111,11 +157,10 @@ export abstract class AbstractMcpManagementService extends Disposable implements
 		};
 	}
 
-	async install(server: IInstallableMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
+	async install(server: IInstallableMcpServer, options?: Omit<InstallOptions, 'mcpResource'>): Promise<ILocalMcpServer> {
 		this.logService.trace('MCP Management Service: install', server.name);
 
-		const mcpResource = options?.mcpResource ?? this.getDefaultMcpResource();
-		this._onInstallMcpServer.fire({ name: server.name, mcpResource });
+		this._onInstallMcpServer.fire({ name: server.name, mcpResource: this.mcpResource });
 		try {
 			const scannedServer: IScannedMcpServer = {
 				id: server.name,
@@ -124,34 +169,33 @@ export abstract class AbstractMcpManagementService extends Disposable implements
 				config: server.config
 			};
 
-			await this.mcpResourceScannerService.addMcpServers([{ server: scannedServer, inputs: server.inputs }], mcpResource, this.target);
+			await this.mcpResourceScannerService.addMcpServers([{ server: scannedServer, inputs: server.inputs }], this.mcpResource, this.target);
 
-			const local = await this.scanServer(scannedServer, mcpResource);
-			this._onDidInstallMcpServers.fire([{ name: server.name, local, mcpResource }]);
+			const local = await this.scanServer(scannedServer);
+			this.reloadConfigurationScheduler.schedule();
 			return local;
 		} catch (e) {
-			this._onDidInstallMcpServers.fire([{ name: server.name, error: e, mcpResource }]);
+			this._onDidInstallMcpServers.fire([{ name: server.name, error: e, mcpResource: this.mcpResource }]);
 			throw e;
 		}
 	}
 
-	async uninstall(server: ILocalMcpServer, options?: UninstallOptions): Promise<void> {
+	async uninstall(server: ILocalMcpServer, options?: Omit<UninstallOptions, 'mcpResource'>): Promise<void> {
 		this.logService.trace('MCP Management Service: uninstall', server.name);
-		const mcpResource = options?.mcpResource ?? this.getDefaultMcpResource();
-		this._onUninstallMcpServer.fire({ name: server.name, mcpResource });
+		this._onUninstallMcpServer.fire({ name: server.name, mcpResource: this.mcpResource });
 
 		try {
-			const currentServers = await this.mcpResourceScannerService.scanMcpServers(mcpResource, this.target);
+			const currentServers = await this.mcpResourceScannerService.scanMcpServers(this.mcpResource, this.target);
 			if (!currentServers.servers) {
 				return;
 			}
-			await this.mcpResourceScannerService.removeMcpServers([server.name], mcpResource, this.target);
+			await this.mcpResourceScannerService.removeMcpServers([server.name], this.mcpResource, this.target);
 			if (server.location) {
 				await this.fileService.del(URI.revive(server.location), { recursive: true });
 			}
-			this._onDidUninstallMcpServer.fire({ name: server.name, mcpResource });
+			this.reloadConfigurationScheduler.schedule();
 		} catch (e) {
-			this._onDidUninstallMcpServer.fire({ name: server.name, error: e, mcpResource });
+			this._onDidUninstallMcpServer.fire({ name: server.name, error: e, mcpResource: this.mcpResource });
 			throw e;
 		}
 	}
@@ -312,33 +356,30 @@ export abstract class AbstractMcpManagementService extends Disposable implements
 	}
 
 	abstract installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
-	protected abstract getDefaultMcpResource(): URI;
 	protected abstract getLocalMcpServerInfo(scannedMcpServer: IScannedMcpServer): Promise<ILocalMcpServerInfo | undefined>;
-
 }
 
-export class McpManagementService extends AbstractMcpManagementService implements IMcpManagementService {
+export class McpUserResourceManagementService extends AbstractMcpResourceManagementService implements IMcpManagementService {
 
 	private readonly mcpLocation: URI;
 
 	constructor(
+		mcpResource: URI,
 		@IMcpGalleryService mcpGalleryService: IMcpGalleryService,
 		@IFileService fileService: IFileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ILogService logService: ILogService,
 		@IMcpResourceScannerService mcpResourceScannerService: IMcpResourceScannerService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
-		super(ConfigurationTarget.USER, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService);
+		super(mcpResource, ConfigurationTarget.USER, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService);
 		this.mcpLocation = uriIdentityService.extUri.joinPath(environmentService.userRoamingDataHome, 'mcp');
 	}
 
 	async installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
 		this.logService.trace('MCP Management Service: installGallery', server.url);
 
-		const mcpResource = options?.mcpResource ?? this.getDefaultMcpResource();
-		this._onInstallMcpServer.fire({ name: server.name, mcpResource });
+		this._onInstallMcpServer.fire({ name: server.name, mcpResource: this.mcpResource });
 
 		try {
 			const manifest = await this.mcpGalleryService.getManifest(server, CancellationToken.None);
@@ -373,13 +414,12 @@ export class McpManagementService extends AbstractMcpManagementService implement
 				config
 			};
 
-			await this.mcpResourceScannerService.addMcpServers([{ server: scannedServer, inputs }], mcpResource, this.target);
+			await this.mcpResourceScannerService.addMcpServers([{ server: scannedServer, inputs }], this.mcpResource, this.target);
 
-			const local = await this.scanServer(scannedServer, mcpResource);
-			this._onDidInstallMcpServers.fire([{ name: server.name, source: server, local, mcpResource }]);
+			const local = await this.scanServer(scannedServer);
 			return local;
 		} catch (e) {
-			this._onDidInstallMcpServers.fire([{ name: server.name, source: server, error: e, mcpResource }]);
+			this._onDidInstallMcpServers.fire([{ name: server.name, source: server, error: e, mcpResource: this.mcpResource }]);
 			throw e;
 		}
 	}
@@ -407,13 +447,76 @@ export class McpManagementService extends AbstractMcpManagementService implement
 		return storedMcpServerInfo;
 	}
 
-	protected getDefaultMcpResource(): URI {
-		return this.userDataProfilesService.defaultProfile.mcpResource;
-	}
-
 	private getLocation(name: string, version?: string): URI {
 		name = name.replace('/', '.');
 		return this.uriIdentityService.extUri.joinPath(this.mcpLocation, version ? `${name}-${version}` : name);
+	}
+
+}
+
+export class McpManagementService extends Disposable implements IMcpManagementService {
+
+	readonly _serviceBrand: undefined;
+
+	private readonly _onInstallMcpServer = this._register(new Emitter<InstallMcpServerEvent>());
+	readonly onInstallMcpServer = this._onInstallMcpServer.event;
+
+	private readonly _onDidInstallMcpServers = this._register(new Emitter<readonly InstallMcpServerResult[]>());
+	readonly onDidInstallMcpServers = this._onDidInstallMcpServers.event;
+
+	private readonly _onUninstallMcpServer = this._register(new Emitter<UninstallMcpServerEvent>());
+	readonly onUninstallMcpServer = this._onUninstallMcpServer.event;
+
+	private readonly _onDidUninstallMcpServer = this._register(new Emitter<DidUninstallMcpServerEvent>());
+	readonly onDidUninstallMcpServer = this._onDidUninstallMcpServer.event;
+
+	private readonly mcpResourceManagementServices = new ResourceMap<{ service: McpUserResourceManagementService } & IDisposable>();
+
+	constructor(
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
+		super();
+	}
+
+	private getMcpResourceManagementService(mcpResource: URI): McpUserResourceManagementService {
+		let mcpResourceManagementService = this.mcpResourceManagementServices.get(mcpResource);
+		if (!mcpResourceManagementService) {
+			const disposables = new DisposableStore();
+			const service = disposables.add(this.instantiationService.createInstance(McpUserResourceManagementService, mcpResource));
+			disposables.add(service.onInstallMcpServer(e => this._onInstallMcpServer.fire(e)));
+			disposables.add(service.onDidInstallMcpServers(e => this._onDidInstallMcpServers.fire(e)));
+			disposables.add(service.onUninstallMcpServer(e => this._onUninstallMcpServer.fire(e)));
+			disposables.add(service.onDidUninstallMcpServer(e => this._onDidUninstallMcpServer.fire(e)));
+			this.mcpResourceManagementServices.set(mcpResource, mcpResourceManagementService = { service, dispose: () => disposables.dispose() });
+		}
+		return mcpResourceManagementService.service;
+	}
+
+	async getInstalled(mcpResource?: URI): Promise<ILocalMcpServer[]> {
+		const mcpResourceUri = mcpResource || this.userDataProfilesService.defaultProfile.mcpResource;
+		return this.getMcpResourceManagementService(mcpResourceUri).getInstalled();
+	}
+
+	async install(server: IInstallableMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
+		const mcpResourceUri = options?.mcpResource || this.userDataProfilesService.defaultProfile.mcpResource;
+		return this.getMcpResourceManagementService(mcpResourceUri).install(server, options);
+	}
+
+	async uninstall(server: ILocalMcpServer, options?: UninstallOptions): Promise<void> {
+		const mcpResourceUri = options?.mcpResource || this.userDataProfilesService.defaultProfile.mcpResource;
+		return this.getMcpResourceManagementService(mcpResourceUri).uninstall(server, options);
+	}
+
+	async installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
+		const mcpResourceUri = options?.mcpResource || this.userDataProfilesService.defaultProfile.mcpResource;
+		return this.getMcpResourceManagementService(mcpResourceUri).installFromGallery(server, options);
+	}
+
+	override dispose(): void {
+		this.mcpResourceManagementServices.forEach(service => service.dispose());
+		this.mcpResourceManagementServices.clear();
+		super.dispose();
 	}
 
 }

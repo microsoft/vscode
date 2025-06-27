@@ -187,16 +187,17 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 	}
 
 	private fromUserMcpServers(scannedMcpServers: IScannedMcpServers): IScannedMcpServers {
+		const userMcpServers: IScannedMcpServers = {
+			inputs: scannedMcpServers.inputs
+		};
 		const servers = Object.entries(scannedMcpServers.servers ?? {});
 		if (servers.length > 0) {
-			scannedMcpServers.servers = {};
-			for (const [, server] of servers) {
-				if (server.config.type === undefined || (server.config.type !== 'http' && server.config.type !== 'stdio')) {
-					server.config = this.sanitizeServerConfiguration(server.config);
-				}
+			userMcpServers.servers = {};
+			for (const [serverName, server] of servers) {
+				userMcpServers.servers[serverName] = this.sanitizeServer(serverName, server);
 			}
 		}
-		return scannedMcpServers;
+		return userMcpServers;
 	}
 
 	private fromWorkspaceFolderMcpServers(scannedWorkspaceFolderMcpServers: IScannedWorkspaceFolderMcpServers): IScannedMcpServers {
@@ -207,25 +208,32 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 		if (servers.length > 0) {
 			scannedMcpServers.servers = {};
 			for (const [serverName, config] of servers) {
-				scannedMcpServers.servers[serverName] = {
-					id: serverName,
-					name: serverName,
-					version: '0.0.1',
-					config: this.sanitizeServerConfiguration(config)
-				};
+				scannedMcpServers.servers[serverName] = this.sanitizeServer(serverName, config);
 			}
 		}
 		return scannedMcpServers;
 	}
 
-	private sanitizeServerConfiguration(config: IMcpServerConfiguration): IMcpServerConfiguration {
-		if (config.type === undefined || (config.type !== 'http' && config.type !== 'stdio')) {
-			return {
-				...config as any,
-				type: (<IMcpStdioServerConfiguration>config).command ? 'stdio' : 'http'
+	private sanitizeServer(name: string, serverOrConfig: Mutable<IScannedMcpServer> | IMcpServerConfiguration): IScannedMcpServer {
+		let server: Mutable<IScannedMcpServer>;
+		if (!(<IScannedMcpServer>serverOrConfig).config) {
+			server = {
+				id: name,
+				name: name,
+				version: '0.0.1',
+				config: serverOrConfig as IMcpServerConfiguration
+			};
+		} else {
+			server = serverOrConfig as IScannedMcpServer;
+		}
+
+		if (server.config.type === undefined || (server.config.type !== 'http' && server.config.type !== 'stdio')) {
+			server.config = {
+				...server.config as any,
+				type: (<IMcpStdioServerConfiguration>server.config).command ? 'stdio' : 'http'
 			};
 		}
-		return config;
+		return server;
 	}
 
 	private toWorkspaceFolderMcpServers(scannedMcpServers: IScannedMcpServers): IScannedWorkspaceFolderMcpServers {

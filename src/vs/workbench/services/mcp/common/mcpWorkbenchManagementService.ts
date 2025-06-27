@@ -21,7 +21,7 @@ import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { McpManagementChannelClient } from '../../../../platform/mcp/common/mcpManagementIpc.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IRemoteUserDataProfilesService } from '../../userDataProfile/common/remoteUserDataProfiles.js';
-import { AbstractMcpManagementService, ILocalMcpServerInfo } from '../../../../platform/mcp/common/mcpManagementService.js';
+import { AbstractMcpResourceManagementService, ILocalMcpServerInfo } from '../../../../platform/mcp/common/mcpManagementService.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 
@@ -315,22 +315,18 @@ class WorkbenchMcpManagementService extends Disposable implements IWorkbenchMcpM
 	}
 }
 
-class WorkspaceMcpResourceManagementService extends AbstractMcpManagementService {
+class WorkspaceMcpResourceManagementService extends AbstractMcpResourceManagementService {
 
 	constructor(
+		mcpResource: URI,
 		target: McpResourceTarget,
-		private readonly mcpResource: URI,
 		@IMcpGalleryService mcpGalleryService: IMcpGalleryService,
 		@IFileService fileService: IFileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ILogService logService: ILogService,
 		@IMcpResourceScannerService mcpResourceScannerService: IMcpResourceScannerService,
 	) {
-		super(target, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService);
-	}
-
-	protected getDefaultMcpResource(): URI {
-		return this.mcpResource;
+		super(mcpResource, target, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService);
 	}
 
 	override installFromGallery(): Promise<ILocalMcpServer> {
@@ -414,7 +410,7 @@ class WorkspaceMcpManagementService extends Disposable implements IMcpManagement
 		}
 
 		const disposables = new DisposableStore();
-		const service = disposables.add(this.instantiationService.createInstance(WorkspaceMcpResourceManagementService, target, mcpResource));
+		const service = disposables.add(this.instantiationService.createInstance(WorkspaceMcpResourceManagementService, mcpResource, target));
 
 		try {
 			const installedServers = await service.getInstalled();
