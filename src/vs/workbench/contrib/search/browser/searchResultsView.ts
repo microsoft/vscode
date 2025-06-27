@@ -141,20 +141,20 @@ export class TextSearchResultRenderer extends Disposable implements ICompressibl
 			SearchContext.FileFocusKey.bindTo(templateData.contextKeyService).set(false);
 			SearchContext.FolderFocusKey.bindTo(templateData.contextKeyService).set(false);
 		} else {
-			let aiName = 'Copilot';
 			try {
-				aiName = (await node.element.parent().searchModel.getAITextResultProviderName()) || 'Copilot';
+				// Removed unused variable assignment that caused error
+				await node.element.parent().searchModel.getAITextResultProviderName();
 			} catch {
 				// ignore
 			}
 
 			const localizedLabel = nls.localize({
 				key: 'searchFolderMatch.aiText.label',
-				comment: ['This is displayed before the AI text search results, where {0} will be in the place of the AI name (ie: Copilot)']
-			}, '{0} Results', aiName);
+				comment: ['This is displayed before the AI text search results, now always "Semantic search results".']
+			}, 'Semantic search results');
 
 			// todo: make icon extension-contributed.
-			templateData.label.setLabel(`$(${Codicon.copilot.id}) ${localizedLabel}`);
+			templateData.label.setLabel(`$(${Codicon.search.id}) ${localizedLabel}`);
 
 			SearchContext.AIResultsTitle.bindTo(templateData.contextKeyService).set(true);
 			SearchContext.MatchFocusKey.bindTo(templateData.contextKeyService).set(false);

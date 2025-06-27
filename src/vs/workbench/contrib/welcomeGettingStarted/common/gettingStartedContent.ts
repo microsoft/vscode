@@ -203,9 +203,9 @@ export const startEntries: GettingStartedStartEntryContent = [
 	},
 	{
 		id: 'topLevelNewWorkspaceChat',
-		title: localize('gettingStarted.newWorkspaceChat.title', "New Workspace with Copilot..."),
-		description: localize('gettingStarted.newWorkspaceChat.description', "Create a new workspace with Copilot"),
-		icon: Codicon.copilot,
+		title: localize('gettingStarted.newWorkspaceChat.title', "Create new workspace with Chat..."),
+		description: localize('gettingStarted.newWorkspaceChat.description', "Create a new workspace with Chat"),
+		icon: Codicon.commentDiscussion,
 		when: '!isWeb && !chatSetupHidden',
 		content: {
 			type: 'startEntry',
@@ -700,7 +700,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'copilotSetup.customize',
 					title: localize('gettingStarted.customize.title', "Personalized to how you work"),
-					description: localize('gettingStarted.customize.description', "Swap models, add agent mode tools, and create personalized instructions.\n{0}", Button(localize('signUp', "Set up AI"), 'command:workbench.action.chat.triggerSetupWithoutDialog')),
+					description: localize('gettingStarted.customize.description', "Swap models, add agent mode tools, and create personalized instructions.\n{0}", Button(localize('signUp', "Enable AI features"), 'command:workbench.action.chat.triggerSetupWithoutDialog')),
 					media: {
 						type: 'svg', altText: 'Personalize', path: 'customize-ai.svg'
 					},

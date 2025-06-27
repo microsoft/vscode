@@ -66,6 +66,7 @@ export interface IChatWelcomeMessageContent {
 	icon: ThemeIcon;
 	title: string;
 	message: IMarkdownString;
+	tips?: IMarkdownString;
 }
 
 export interface IChatAgentImplementation {
