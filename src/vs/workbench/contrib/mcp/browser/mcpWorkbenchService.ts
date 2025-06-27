@@ -17,7 +17,7 @@ import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { DidUninstallMcpServerEvent, IGalleryMcpServer, IMcpGalleryService, InstallMcpServerResult, IQueryOptions, IInstallableMcpServer } from '../../../../platform/mcp/common/mcpManagement.js';
+import { DidUninstallMcpServerEvent, IGalleryMcpServer, IMcpGalleryService, InstallMcpServerResult, IQueryOptions, IInstallableMcpServer, IMcpServerManifest } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
@@ -59,8 +59,15 @@ class McpWorkbenchServer implements IWorkbenchMcpServer {
 		return this.gallery?.displayName ?? this.local?.displayName ?? this.local?.name ?? this.installable?.name ?? '';
 	}
 
-	get iconUrl(): string | undefined {
-		return this.gallery?.iconUrl ?? this.local?.iconUrl;
+	get icon(): {
+		readonly dark: string;
+		readonly light: string;
+	} | undefined {
+		return this.gallery?.icon ?? this.local?.icon;
+	}
+
+	get codicon(): string | undefined {
+		return this.gallery?.codicon ?? this.local?.codicon;
 	}
 
 	get publisherDisplayName(): string | undefined {
@@ -106,6 +113,18 @@ class McpWorkbenchServer implements IWorkbenchMcpServer {
 		}
 
 		return Promise.reject(new Error('not available'));
+	}
+
+	async getManifest(token: CancellationToken): Promise<IMcpServerManifest> {
+		if (this.local?.manifest) {
+			return this.local.manifest;
+		}
+
+		if (this.gallery) {
+			return this.mcpGalleryService.getManifest(this.gallery, token);
+		}
+
+		throw new Error('No manifest available');
 	}
 
 }
@@ -324,20 +343,31 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			return false;
 		}
 
-		let parsed: IMcpServerConfiguration & { name: string; inputs?: IMcpServerVariable[] };
+		let parsed: IMcpServerConfiguration & { name: string; inputs?: IMcpServerVariable[]; gallery?: boolean };
 		try {
 			parsed = JSON.parse(decodeURIComponent(uri.query));
 		} catch (e) {
 			return false;
 		}
 
-		if (parsed.type === undefined) {
-			(<Mutable<IMcpServerConfiguration>>parsed).type = (<IMcpStdioServerConfiguration>parsed).command ? 'stdio' : 'http';
+		try {
+			const { name, inputs, gallery, ...config } = parsed;
+
+			if (gallery || !config || Object.keys(config).length === 0) {
+				const galleryServer = await this.mcpGalleryService.getMcpServer(name);
+				if (!galleryServer) {
+					throw new Error(`MCP server '${name}' not found in gallery`);
+				}
+				this.open(this.instantiationService.createInstance(McpWorkbenchServer, undefined, galleryServer, undefined));
+			} else {
+				if (config.type === undefined) {
+					(<Mutable<IMcpServerConfiguration>>config).type = (<IMcpStdioServerConfiguration>parsed).command ? 'stdio' : 'http';
+				}
+				this.open(this.instantiationService.createInstance(McpWorkbenchServer, undefined, undefined, { name, config, inputs }));
+			}
+		} catch (e) {
+			// ignore
 		}
-
-		const { name, inputs, ...config } = parsed;
-
-		this.open(this.instantiationService.createInstance(McpWorkbenchServer, undefined, undefined, { config, name, inputs }));
 		return true;
 	}
 

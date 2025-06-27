@@ -48,12 +48,12 @@ export async function performAsyncTextEdit(model: ITextModel, edit: AsyncTextEdi
 			? EditOperation.replace(range, part) // first edit needs to override the "anchor"
 			: EditOperation.insert(range.getEndPosition(), part);
 		obs?.start();
-		TextModelEditReason.editWithReason(new TextModelEditReason({ source: 'inlineChat.applyEdit' }), () => {
-			model.pushEditOperations(null, [edit], (undoEdits) => {
-				progress?.report(undoEdits);
-				return null;
-			});
-		});
+
+		model.pushEditOperations(null, [edit], (undoEdits) => {
+			progress?.report(undoEdits);
+			return null;
+		}, undefined, new TextModelEditReason({ source: 'inlineChat.applyEdit' }));
+
 		obs?.stop();
 		first = false;
 	}

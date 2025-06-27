@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from '../../../../base/common/arrays.js';
+import { compareBy, equals } from '../../../../base/common/arrays.js';
 import { assertFn, checkAdjacentItems } from '../../../../base/common/assert.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { commonPrefixLength, commonSuffixLength } from '../../../../base/common/strings.js';
@@ -24,8 +24,17 @@ export class TextEdit {
 		return new TextEdit([new TextReplacement(originalRange, newText)]);
 	}
 
+	public static delete(range: Range): TextEdit {
+		return new TextEdit([new TextReplacement(range, '')]);
+	}
+
 	public static insert(position: Position, newText: string): TextEdit {
 		return new TextEdit([new TextReplacement(Range.fromPositions(position, position), newText)]);
+	}
+
+	public static fromParallelReplacementsUnsorted(replacements: readonly TextReplacement[]): TextEdit {
+		const r = replacements.slice().sort(compareBy(i => i.range, Range.compareRangesUsingStarts));
+		return new TextEdit(r);
 	}
 
 	constructor(
@@ -283,6 +292,10 @@ export class TextReplacement {
 
 	public static fromStringReplacement(replacement: StringReplacement, initialState: AbstractText): TextReplacement {
 		return new TextReplacement(initialState.getTransformer().getRange(replacement.replaceRange), replacement.newText);
+	}
+
+	public static delete(range: Range): TextReplacement {
+		return new TextReplacement(range, '');
 	}
 
 	constructor(

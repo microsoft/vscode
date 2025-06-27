@@ -20,7 +20,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IInstallableMcpServer as IInstallableMcpServer, IGalleryMcpServer, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IInstallableMcpServer as IInstallableMcpServer, IGalleryMcpServer, IQueryOptions, IMcpServerManifest } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpDevModeConfig, IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
@@ -577,7 +577,11 @@ export interface IWorkbenchMcpServer {
 	readonly name: string;
 	readonly label: string;
 	readonly description: string;
-	readonly iconUrl?: string;
+	readonly icon?: {
+		readonly dark: string;
+		readonly light: string;
+	};
+	readonly codicon?: string;
 	readonly publisherUrl?: string;
 	readonly publisherDisplayName?: string;
 	readonly installCount?: number;
@@ -588,6 +592,7 @@ export interface IWorkbenchMcpServer {
 	readonly config?: IMcpServerConfiguration | undefined;
 	hasReadme(): boolean;
 	getReadme(token: CancellationToken): Promise<string>;
+	getManifest(token: CancellationToken): Promise<IMcpServerManifest>;
 }
 
 export const IMcpWorkbenchService = createDecorator<IMcpWorkbenchService>('IMcpWorkbenchService');

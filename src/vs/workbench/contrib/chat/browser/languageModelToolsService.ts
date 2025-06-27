@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveDocument } from '../../../../base/browser/dom.js';
 import { renderStringAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
@@ -380,7 +379,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private playAccessibilitySignal(toolInvocations: ChatToolInvocation[]): void {
-		const hasFocusedWindow = getActiveDocument().hasFocus();
 		const autoApproved = this._configurationService.getValue('chat.tools.autoApprove');
 		if (autoApproved) {
 			return;
@@ -389,7 +387,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		if (!setting) {
 			return;
 		}
-		const soundEnabled = setting.sound === 'on' || (setting.sound === 'auto' && (this._accessibilityService.isScreenReaderOptimized() || !hasFocusedWindow));
+		const soundEnabled = setting.sound === 'on' || (setting.sound === 'auto' && (this._accessibilityService.isScreenReaderOptimized()));
 		const announcementEnabled = this._accessibilityService.isScreenReaderOptimized() && setting.announcement === 'auto';
 		if (soundEnabled || announcementEnabled) {
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { customAlertMessage: this._instantiationService.invokeFunction(getToolConfirmationAlert, toolInvocations), userGesture: true, modality: !soundEnabled ? 'announcement' : undefined });
@@ -486,9 +484,29 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return result;
 	}
 
+	toToolAndToolSetEnablementMap(toolOrToolSetNames: Set<string>): Map<ToolSet | IToolData, boolean> {
+		const result = new Map<ToolSet | IToolData, boolean>();
+		for (const tool of this._tools.values()) {
+			result.set(tool.data, tool.data.toolReferenceName !== undefined && toolOrToolSetNames.has(tool.data.toolReferenceName));
+		}
+		for (const toolSet of this._toolSets) {
+			result.set(toolSet, toolOrToolSetNames.has(toolSet.referenceName));
+		}
+		return result;
+	}
+
 	private readonly _toolSets = new ObservableSet<ToolSet>();
 
 	readonly toolSets: IObservable<Iterable<ToolSet>> = this._toolSets.observable;
+
+	getToolSet(id: string): ToolSet | undefined {
+		for (const toolSet of this._toolSets) {
+			if (toolSet.id === id) {
+				return toolSet;
+			}
+		}
+		return undefined;
+	}
 
 	getToolSetByName(name: string): ToolSet | undefined {
 		for (const toolSet of this._toolSets) {

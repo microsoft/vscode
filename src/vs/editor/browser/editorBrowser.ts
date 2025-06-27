@@ -25,6 +25,8 @@ import { OverviewRulerZone } from '../common/viewModel/overviewZoneManager.js';
 import { MenuId } from '../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
+import { TextEdit } from '../common/core/edits/textEdit.js';
+import { TextModelEditReason } from '../common/textModelEditReason.js';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -988,6 +990,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @param endCursorState Cursor state after the edits were applied.
 	 */
 	executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean;
+
+	/**
+	 * @internal
+	*/
+	edit(edit: TextEdit, reason: TextModelEditReason): void;
 
 	/**
 	 * Execute multiple (concomitant) commands on the editor.

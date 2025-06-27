@@ -18,7 +18,6 @@ import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { CursorColumns } from '../../../../common/core/cursorColumns.js';
-import { EditOperation } from '../../../../common/core/editOperation.js';
 import { LineRange } from '../../../../common/core/ranges/lineRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
@@ -776,6 +775,7 @@ export class InlineCompletionsModel extends Disposable {
 
 	private _getMetadata(completion: InlineSuggestionItem, type: 'word' | 'line' | undefined = undefined): TextModelEditReason {
 		return new TextModelEditReason({
+			source: 'inlineCompletionAccept',
 			extensionId: completion.source.provider.groupId,
 			nes: completion.isInlineEdit,
 			type,
@@ -808,15 +808,11 @@ export class InlineCompletionsModel extends Disposable {
 		try {
 			editor.pushUndoStop();
 			if (completion.snippetInfo) {
-				TextModelEditReason.editWithReason(this._getMetadata(completion), () => {
-					editor.executeEdits(
-						'inlineSuggestion.accept',
-						[
-							EditOperation.replace(completion.editRange, ''),
-							...completion.additionalTextEdits
-						]
-					);
-				});
+				const mainEdit = TextReplacement.delete(completion.editRange);
+				const additionalEdits = completion.additionalTextEdits.map(e => new TextReplacement(Range.lift(e.range), e.text ?? ''));
+				const edit = TextEdit.fromParallelReplacementsUnsorted([mainEdit, ...additionalEdits]);
+				editor.edit(edit, this._getMetadata(completion));
+
 				editor.setPosition(completion.snippetInfo.range.getStartPosition(), 'inlineCompletionAccept');
 				SnippetController2.get(editor)?.insert(completion.snippetInfo.snippet, { undoStopBefore: false });
 			} else {
@@ -831,20 +827,18 @@ export class InlineCompletionsModel extends Disposable {
 				}
 				const selections = getEndPositionsAfterApplying(minimalEdits).map(p => Selection.fromPositions(p));
 
-				TextModelEditReason.editWithReason(this._getMetadata(completion), () => {
-					editor.executeEdits('inlineSuggestion.accept', [
-						...edits.map(edit => EditOperation.replace(edit.range, edit.text)),
-						...completion.additionalTextEdits
-					]);
-				});
+				const additionalEdits = completion.additionalTextEdits.map(e => new TextReplacement(Range.lift(e.range), e.text ?? ''));
+				const edit = TextEdit.fromParallelReplacementsUnsorted([...edits, ...additionalEdits]);
+
+				editor.edit(edit, this._getMetadata(completion));
+
 				if (completion.displayLocation === undefined) {
 					// do not move the cursor when the completion is displayed in a different location
 					editor.setSelections(state.kind === 'inlineEdit' ? selections.slice(-1) : selections, 'inlineCompletionAccept');
 				}
 
 				if (state.kind === 'inlineEdit' && !this._accessibilityService.isMotionReduced()) {
-					// we can assume that edits is sorted!
-					const editRanges = new TextEdit(edits).getNewRanges();
+					const editRanges = edit.getNewRanges();
 					const dec = this._store.add(new FadeoutDecoration(editor, editRanges, () => {
 						this._store.delete(dec);
 					}));
@@ -951,9 +945,8 @@ export class InlineCompletionsModel extends Disposable {
 				const primaryEdit = new TextReplacement(replaceRange, newText);
 				const edits = [primaryEdit, ...getSecondaryEdits(this.textModel, positions, primaryEdit)];
 				const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
-				TextModelEditReason.editWithReason(this._getMetadata(completion, type), () => {
-					editor.executeEdits('inlineSuggestion.accept', edits.map(edit => EditOperation.replace(edit.range, edit.text)));
-				});
+
+				editor.edit(TextEdit.fromParallelReplacementsUnsorted(edits), this._getMetadata(completion, type));
 				editor.setSelections(selections, 'inlineCompletionPartialAccept');
 				editor.revealPositionInCenterIfOutsideViewport(editor.getPosition()!, ScrollType.Immediate);
 			} finally {

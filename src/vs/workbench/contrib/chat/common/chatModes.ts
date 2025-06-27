@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -37,7 +38,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -95,6 +96,7 @@ export interface IChatMode {
 	readonly kind: ChatMode;
 	readonly customTools?: readonly string[];
 	readonly body?: string;
+	readonly uri?: URI;
 }
 
 export function isIChatMode(mode: unknown): mode is IChatMode {
@@ -126,6 +128,10 @@ export class CustomChatMode implements IChatMode {
 
 	get body(): string {
 		return this.customChatMode.body;
+	}
+
+	get uri(): URI {
+		return this.customChatMode.uri;
 	}
 
 	public readonly kind = ChatMode.Agent;
