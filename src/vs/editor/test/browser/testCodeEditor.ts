@@ -48,7 +48,7 @@ import { ServiceCollection } from '../../../platform/instantiation/common/servic
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { ILogService, NullLogService } from '../../../platform/log/common/log.js';
+import { ILoggerService, ILogService, NullLoggerService, NullLogService } from '../../../platform/log/common/log.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../platform/notification/test/common/testNotificationService.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
@@ -213,6 +213,7 @@ export function createCodeEditorServices(disposables: Pick<DisposableStore, 'add
 	define(IContextKeyService, MockContextKeyService);
 	define(ICommandService, TestCommandService);
 	define(ITelemetryService, NullTelemetryServiceShape);
+	define(ILoggerService, NullLoggerService);
 	define(IEnvironmentService, class extends mock<IEnvironmentService>() {
 		declare readonly _serviceBrand: undefined;
 		override isBuilt: boolean = true;

@@ -11,7 +11,7 @@ import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { IntervalTimer, AsyncIterableSource } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { getNWords } from '../../chat/common/chatWordCounter.js';
-import { TextModelEditReason } from '../../../../editor/common/textModelEditReason.js';
+import { EditReasons } from '../../../../editor/common/textModelEditReason.js';
 
 
 
@@ -52,7 +52,7 @@ export async function performAsyncTextEdit(model: ITextModel, edit: AsyncTextEdi
 		model.pushEditOperations(null, [edit], (undoEdits) => {
 			progress?.report(undoEdits);
 			return null;
-		}, undefined, new TextModelEditReason({ source: 'inlineChat.applyEdit' }));
+		}, undefined, EditReasons.inlineChatApplyEdit({ modelId: undefined }));
 
 		obs?.stop();
 		first = false;

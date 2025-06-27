@@ -33,16 +33,16 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 	/**
 	 * Update diagnostic markers for the current editor.
 	 */
-	protected override onPromptSettled(
+	protected override async onPromptSettled(
 		_error: Error | undefined,
 		token: CancellationToken,
-	): this {
+	): Promise<void> {
 		// clean up all previously added markers
 		this.markerService.remove(MARKERS_OWNER_ID, [this.model.uri]);
 
 		const { header } = this.parser;
 		if (header === undefined) {
-			return this;
+			return;
 		}
 
 		// header parsing process is separate from the prompt parsing one, hence
@@ -66,7 +66,7 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 			);
 		});
 
-		return this;
+		return;
 	}
 
 	/**
