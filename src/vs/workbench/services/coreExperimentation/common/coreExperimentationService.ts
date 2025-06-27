@@ -66,7 +66,6 @@ export class CoreExperimentationService extends Disposable implements ICoreExper
 			return;
 		}
 
-		// check that this is a new launch scenario.
 		const startupLayoutExperiment: IExperimentDefinition = {
 			name: expName,
 			targetPercentage: this.getTargetPercentage(),
@@ -79,11 +78,17 @@ export class CoreExperimentationService extends Disposable implements ICoreExper
 			iteration: 1
 		};
 
-		const experiment = this.createExperiment(startupLayoutExperiment, storageKey);
+		const experiment = this.createNewExperiment(startupLayoutExperiment);
 		if (experiment) {
 			this.experiments.set(startupLayoutExperiment.name, experiment);
 			this.sendExperimentTelemetry(startupLayoutExperiment.name, experiment);
 			startupExpContext.bindTo(this.contextKeyService).set(experiment.experimentGroup);
+			this.storageService.store(
+				storageKey,
+				JSON.stringify(experiment),
+				StorageScope.APPLICATION,
+				StorageTarget.MACHINE
+			);
 		}
 	}
 
@@ -94,20 +99,7 @@ export class CoreExperimentationService extends Disposable implements ICoreExper
 		} else if (quality === 'insider') {
 			return 20;
 		}
-		return 100;
-	}
-
-	private createExperiment(definition: IExperimentDefinition, storageKey: string): IExperiment | undefined {
-		const newExperiment = this.createNewExperiment(definition);
-		if (newExperiment) {
-			this.storageService.store(
-				storageKey,
-				JSON.stringify(newExperiment),
-				StorageScope.APPLICATION,
-				StorageTarget.MACHINE
-			);
-		}
-		return newExperiment;
+		return 0;
 	}
 
 	private createNewExperiment(definition: IExperimentDefinition): IExperiment | undefined {
