@@ -45,7 +45,7 @@ import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTe
 import { SuggestItemInfo } from './suggestWidgetAdapter.js';
 import { TextModelEditReason } from '../../../../common/textModelEditReason.js';
 import { ICodeEditorService } from '../../../../browser/services/codeEditorService.js';
-import { InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
+import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -541,15 +541,6 @@ export class InlineCompletionsModel extends Disposable {
 		this._register(recomputeInitiallyAndOnChange(this._fetchInlineCompletionsPromise));
 
 		this._register(autorun(reader => {
-			/** @description call handleItemDidShow */
-			const item = this.inlineCompletionState.read(reader);
-			const completion = item?.inlineCompletion;
-			if (completion) {
-				this.handleInlineSuggestionShown(completion, InlineCompletionViewKind.GhostText);
-			}
-		}));
-
-		this._register(autorun(reader => {
 			this._editorObs.versionId.read(reader);
 			this._inAcceptFlow.set(false, undefined);
 		}));
@@ -1016,8 +1007,8 @@ export class InlineCompletionsModel extends Disposable {
 		});
 	}
 
-	public async handleInlineSuggestionShown(inlineCompletion: InlineSuggestionItem, viewKind: InlineCompletionViewKind): Promise<void> {
-		await inlineCompletion.reportInlineEditShown(this._commandService, viewKind);
+	public async handleInlineSuggestionShown(inlineCompletion: InlineSuggestionItem, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData): Promise<void> {
+		await inlineCompletion.reportInlineEditShown(this._commandService, viewKind, viewData);
 	}
 }
 

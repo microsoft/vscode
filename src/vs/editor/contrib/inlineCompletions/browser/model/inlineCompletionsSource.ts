@@ -120,6 +120,7 @@ export class InlineCompletionsSource extends Disposable {
 	public fetch(providers: InlineCompletionsProvider[], context: InlineCompletionContextWithoutUuid, activeInlineCompletion: InlineSuggestionIdentity | undefined, withDebounce: boolean, userJumpedToActiveCompletion: IObservable<boolean>, providerhasChangedCompletion: boolean, editorType: InlineCompletionEditorType): Promise<boolean> {
 		const position = this._cursorPosition.get();
 		const request = new UpdateRequest(position, context, this._textModel.getVersionId(), new Set(providers));
+		const requestInfo = { editorType, startTime: Date.now(), languageId: this._textModel.getLanguageId() };
 
 		const target = context.selectedSuggestionInfo ? this.suggestWidgetInlineCompletions.get() : this.inlineCompletions.get();
 
@@ -161,7 +162,7 @@ export class InlineCompletionsSource extends Disposable {
 				}
 
 				const startTime = new Date();
-				const providerResult = provideInlineCompletions(providers, this._cursorPosition.get(), this._textModel, context, editorType, this._languageConfigurationService);
+				const providerResult = provideInlineCompletions(providers, this._cursorPosition.get(), this._textModel, context, requestInfo, this._languageConfigurationService);
 
 				runWhenCancelled(source.token, () => providerResult.cancelAndDispose({ kind: 'tokenCancellation' }));
 

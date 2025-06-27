@@ -34,12 +34,15 @@ import './ghostTextView.css';
 import { IMouseEvent, StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { CodeEditorWidget } from '../../../../../browser/widget/codeEditor/codeEditorWidget.js';
 import { TokenWithTextArray } from '../../../../../common/tokens/tokenWithTextArray.js';
+import { InlineCompletionViewData } from '../inlineEdits/inlineEditsViewInterface.js';
 
 export interface IGhostTextWidgetModel {
 	readonly targetTextModel: IObservable<ITextModel | undefined>;
 	readonly ghostText: IObservable<GhostText | GhostTextReplacement | undefined>;
 	readonly warning: IObservable<{ icon: IconPath | undefined } | undefined>;
 	readonly minReservedLineCount: IObservable<number>;
+
+	readonly handleInlineCompletionShown: IObservable<(viewData: InlineCompletionViewData) => void>;
 }
 
 const USE_SQUIGGLES_FOR_WARNING = true;
@@ -121,6 +124,19 @@ export class GhostTextView extends Disposable {
 					decorations: l.decorations,
 				};
 			});
+
+			const cursorColumn = this._editor.getSelection()?.getStartPosition().column;
+			const renderData: InlineCompletionViewData = {
+				cursorColumnDistance: cursorColumn !== undefined ? Math.abs((inlineTextsWithTokens.length > 0 ? inlineTextsWithTokens[0].column : 1) - cursorColumn) : -1,
+				cursorLineDistance: inlineTextsWithTokens.length > 0 ? 0 : additionalLines.findIndex(line => line.content !== ''),
+				lineCountOriginal: inlineTextsWithTokens.length > 0 ? 1 : 0,
+				lineCountModified: additionalLines.length + (inlineTextsWithTokens.length > 0 ? 1 : 0),
+				characterCountOriginal: 0,
+				characterCountModified: inlineTextsWithTokens.reduce((acc, inline) => acc + inline.text.length, 0) + tokenizedAdditionalLines.reduce((acc, line) => acc + line.content.getTextLength(), 0),
+				disjointReplacements: inlineTextsWithTokens.length + (additionalLines.length > 0 ? 1 : 0),
+				sameShapeReplacements: inlineTextsWithTokens.length > 1 && inlineTextsWithTokens.length === 0 ? inlineTextsWithTokens.every(inline => inline.text.length === inlineTextsWithTokens[0].text.length) : undefined,
+			};
+			this._model.handleInlineCompletionShown.read(reader)?.(renderData);
 
 			return {
 				replacedRange,
