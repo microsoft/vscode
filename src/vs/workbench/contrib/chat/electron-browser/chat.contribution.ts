@@ -17,6 +17,7 @@ import { CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/ch
 import { ChatMode } from '../common/constants.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 
 class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -41,7 +42,8 @@ class ChatCommandLineSupportContribution extends Disposable {
 	constructor(
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService
 	) {
 		super();
 
@@ -66,6 +68,10 @@ class ChatCommandLineSupportContribution extends Disposable {
 	}
 
 	private async run(prompt: string): Promise<void> {
+		if (!this.workspaceTrustManagementService.isWorkspaceTrusted()) {
+			return; // we require workspace trust to run chats
+		}
+
 		const opts: IChatViewOpenOptions = {
 			query: prompt,
 			mode: ChatMode.Agent
