@@ -27,7 +27,7 @@ import { IBackupMainService } from '../../backup/electron-main/backup.js';
 import { IEmptyWindowBackupInfo } from '../../backup/node/backup.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService.js';
-import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { NativeParsedArgs, SUBCOMMANDS } from '../../environment/common/argv.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { FileType, IFileService } from '../../files/common/files.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -284,11 +284,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// Bring window to front
 		window.focus();
 
-		if (openConfig.cli.agent) {
-			window.sendWhenReady('vscode:subcommand', CancellationToken.None, {
-				type: 'agent',
-				args: openConfig.cli.agent
-			});
+		// Forward subcommands
+		for (const subcommand of SUBCOMMANDS) {
+			const subcommandArgs = openConfig.cli[subcommand as keyof NativeParsedArgs];
+			if (subcommandArgs) {
+				window.sendWhenReady('vscode:subcommand', CancellationToken.None, {
+					type: subcommand,
+					args: subcommandArgs
+				});
+			}
 		}
 
 		// Handle --wait
