@@ -760,7 +760,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		let isRestoringPaths = false;
 
 		// Extract paths: current working directory for agent subcommand
-		if (openConfig.cli.agent) {
+		if (openConfig.initialStartup && openConfig.cli.agent) {
 			const res = await this.doResolveFilePath(cwd(), {});
 			if (res) {
 				return [res];
