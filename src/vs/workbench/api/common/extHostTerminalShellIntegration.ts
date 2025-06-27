@@ -146,7 +146,9 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 
 	private _convertCwdToUri(cwd: string | undefined): URI | undefined {
 		// IMPORTANT: cwd is provided to the exthost as a string from the renderer and only
-		// converted to a URI on the machine in which the pty is hosted on.
+		// converted to a URI on the machine in which the pty is hosted on. The string version of
+		// the cwd is used from the renderer such that it's access is synchronous and its event
+		// comes through in order relative to other shell integration events.
 		return cwd ? URI.file(cwd) : undefined;
 	}
 }
