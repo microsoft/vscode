@@ -746,7 +746,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return {
 				title: localize('chatDescription', "Ask about your code."),
 				message: new MarkdownString(baseMessage),
-				icon: Codicon.commentDiscussion,
+				icon: Codicon.chatSparkle,
 				//tips: new MarkdownString('$(attach) or type # to attach context\n\n$(mention) to chat with extensions\n\nType / to use commands', { supportThemeIcons: true })
 			};
 		} else if (this.input.currentMode === ChatMode.Edit) {
@@ -754,7 +754,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				title: localize('editsTitle', "Edit in context."),
 				message: new MarkdownString(localize('editsMessage', //"Start by defining a set of files that you want to work with. Then ask for the changes you want to make. \n\n
 					"AI responses may be inaccurate.")),
-				icon: Codicon.commentDiscussion,
+				icon: Codicon.chatSparkle,
 				//tips: new MarkdownString('$(attach) or type # to attach context', { supportThemeIcons: true })
 			};
 		} else {
@@ -762,7 +762,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				title: localize('agentTitle', "Build with agent mode."),
 				message: new MarkdownString(localize('agentMessage', //"Let AI autonomously reason about the request, plan the work needed, and apply the changes to your codebase. \n\n
 					"AI responses may be inaccurate.")),
-				icon: Codicon.commentDiscussion,
+				icon: Codicon.chatSparkle,
 				//tips: new MarkdownString('$(attach) or type # to attach context', { supportThemeIcons: true })
 			};
 		}
