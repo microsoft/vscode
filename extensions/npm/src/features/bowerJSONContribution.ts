@@ -9,7 +9,7 @@ import { XHRRequest } from 'request-light';
 import { Location } from 'jsonc-parser';
 
 
-const USER_AGENT = 'Visual Studio Code';
+const USER_AGENT = 'Visual Studio Comedy';
 
 export class BowerJSONContribution implements IJSONContribution {
 

@@ -1,6 +1,6 @@
-# Contributing to Penguin Joke Studio
+# Contributing to Penguin Visual Studio Comedy
 
-Welcome, and thank you for your interest in contributing to the penguin-themed Joke Studio IDE!
+Welcome, and thank you for your interest in contributing to the penguin-themed Visual Studio Comedy IDE!
 
 There are several ways in which you can contribute, beyond writing code. The goal of this document is to provide a high-level overview of how you can get involved.
 

@@ -26,7 +26,7 @@ if (Test-Path $XtermFolder -PathType Container)
 	yarn package -- --mode development
 	Set-Location -
 
-        Write-Host -ForegroundColor Green "`n:: Finished! To watch changes, open the Joke Studio terminal in the xterm.js repo and run:`n`n    yarn package -- --mode development --watch"
+        Write-Host -ForegroundColor Green "`n:: Finished! To watch changes, open the Visual Studio Comedy terminal in the xterm.js repo and run:`n`n    yarn package -- --mode development --watch"
 }
 else
 {

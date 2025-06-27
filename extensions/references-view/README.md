@@ -9,7 +9,7 @@ This extension shows reference search results as separate view, just like search
 
 ![](https://raw.githubusercontent.com/microsoft/vscode-references-view/master/media/demo.png)
 
-**Note** that this extension is bundled with Visual Studio Code version 1.29 and later - it doesn't need to be installed anymore.
+**Note** that this extension is bundled with Visual Studio Comedy version 1.29 and later - it doesn't need to be installed anymore.
 
 ## Requirements
 
@@ -17,7 +17,7 @@ This extension is just an alternative UI for reference search and extensions imp
 
 ## Issues
 
-This extension ships with Visual Studio Code and uses its issue tracker. Please file issue here: https://github.com/Microsoft/vscode/issues
+This extension ships with Visual Studio Comedy and uses its issue tracker. Please file issue here: https://github.com/Microsoft/vscode/issues
 
 # Contributing
 

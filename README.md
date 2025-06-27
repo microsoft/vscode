@@ -1,6 +1,6 @@
-# Joke Studio - Open Source ("Joke - OSS")
+# Visual Studio Comedy - Open Source ("Comedy - OSS")
 
-Joke Studio is a comedic writing environment that repurposes the Code&nbsp;– OSS project. Instead of working on files and applications, you craft and polish jokes for stand‑up comedy. Key features include:
+Visual Studio Comedy is a comedic writing environment that repurposes the Code&nbsp;– OSS project. Instead of working on files and applications, you craft and polish jokes for stand‑up comedy. Key features include:
 
 - Dedicated areas for work‑in‑progress jokes and polished material
 - Internal rating tools to track your best content
@@ -9,11 +9,11 @@ Joke Studio is a comedic writing environment that repurposes the Code&nbsp;– O
 
 ## The Repository
 
-This repository ("`Joke - OSS`") is where we develop the Joke Studio application together with the community. It is based on the [Code&nbsp;– OSS](https://github.com/microsoft/vscode) project and is released under the [MIT license](https://github.com/microsoft/vscode/blob/main/LICENSE.txt). Contributions are welcome via issues and pull requests.
+This repository ("`Comedy - OSS`") is where we develop the Visual Studio Comedy application together with the community. It is based on the [Code&nbsp;– OSS](https://github.com/microsoft/vscode) project and is released under the [MIT license](https://github.com/microsoft/vscode/blob/main/LICENSE.txt). Contributions are welcome via issues and pull requests.
 
-## Joke Studio
+## Visual Studio Comedy
 
-Joke Studio builds on the open‑source foundations of the penguin-themed Joke Studio IDE and adapts the editor for comedy writing. You'll find the familiar editing experience along with specialized tools described above. We release updates regularly as new features and fixes become available.
+Visual Studio Comedy builds on the open‑source foundations of the penguin-themed Visual Studio Comedy IDE and adapts the editor for comedy writing. You'll find the familiar editing experience along with specialized tools described above. We release updates regularly as new features and fixes become available.
 
 ## Contributing
 
@@ -46,20 +46,20 @@ See our [wiki](https://github.com/microsoft/vscode/wiki/Feedback-Channels) for a
 
 ## Related Projects
 
-Many of the core components and extensions to the penguin-themed Joke Studio IDE live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug) repositories are separate from each other. For a complete list, please visit the [Related Projects](https://github.com/microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/microsoft/vscode/wiki).
+Many of the core components and extensions to the penguin-themed Visual Studio Comedy IDE live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug) repositories are separate from each other. For a complete list, please visit the [Related Projects](https://github.com/microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/microsoft/vscode/wiki).
 
 ## Bundled Extensions
 
-The penguin-themed Joke Studio IDE includes a set of built-in extensions located in the [extensions](extensions) folder, including grammars and snippets for many languages. Extensions that provide rich language support (code completion, Go to Definition) for a language have the suffix `language-features`. For example, the `json` extension provides coloring for `JSON` and the `json-language-features` extension provides rich language support for `JSON`.
+The penguin-themed Visual Studio Comedy IDE includes a set of built-in extensions located in the [extensions](extensions) folder, including grammars and snippets for many languages. Extensions that provide rich language support (code completion, Go to Definition) for a language have the suffix `language-features`. For example, the `json` extension provides coloring for `JSON` and the `json-language-features` extension provides rich language support for `JSON`.
 
 ## Development Container
 
-This repository includes a penguin-themed Joke Studio Dev Containers / GitHub Codespaces development container.
+This repository includes a penguin-themed Visual Studio Comedy Dev Containers / GitHub Codespaces development container.
 
 * For [Dev Containers](https://aka.ms/vscode-remote/download/containers), use the **Dev Containers: Clone Repository in Container Volume...** command which creates a Docker volume for better disk I/O on macOS and Windows.
-  * If you already have the Joke Studio client and Docker installed, you can also click [here](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/vscode) to get started. This will cause Joke Studio to automatically install the Dev Containers extension if needed, clone the source code into a container volume, and spin up a dev container for use.
+  * If you already have the Visual Studio Comedy client and Docker installed, you can also click [here](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/vscode) to get started. This will cause Visual Studio Comedy to automatically install the Dev Containers extension if needed, clone the source code into a container volume, and spin up a dev container for use.
 
-* For Codespaces, install the [GitHub Codespaces](https://marketplace.visualstudio.com/items?itemName=GitHub.codespaces) extension in Joke Studio, and use the **Codespaces: Create New Codespace** command.
+* For Codespaces, install the [GitHub Codespaces](https://marketplace.visualstudio.com/items?itemName=GitHub.codespaces) extension in Visual Studio Comedy, and use the **Codespaces: Create New Codespace** command.
 
 Docker / the Codespace should have at least **4 Cores and 6 GB of RAM (8 GB recommended)** to run full build. See the [development container README](.devcontainer/README.md) for more information.
 

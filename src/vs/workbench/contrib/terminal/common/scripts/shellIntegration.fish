@@ -3,7 +3,7 @@
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
 #
-# Visual Studio Code terminal integration for fish
+# Visual Studio Comedy terminal integration for fish
 #
 # Manual installation:
 #

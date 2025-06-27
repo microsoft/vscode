@@ -1,6 +1,6 @@
 # Language Features for CSS, SCSS, and LESS files
 
-**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
+**Notice:** This extension is bundled with Visual Studio Comedy. It can be disabled but not uninstalled.
 
 ## Features
 
