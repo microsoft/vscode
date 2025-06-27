@@ -35,7 +35,7 @@ import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
-import { TextModelEditReason } from '../../../../editor/common/textModelEditReason.js';
+import { TextModelEditReason, EditReasons } from '../../../../editor/common/textModelEditReason.js';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -536,7 +536,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Update Existing Model
 		if (this.textEditorModel) {
-			this.doUpdateTextModel(content.value, new TextModelEditReason({ source: 'reloadFromDisk' }));
+			this.doUpdateTextModel(content.value, EditReasons.reloadFromDisk());
 		}
 
 		// Create New Model
