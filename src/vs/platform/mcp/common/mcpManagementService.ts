@@ -9,6 +9,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
+import { equals } from '../../../base/common/objects.js';
 import { URI } from '../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
@@ -47,13 +48,16 @@ export abstract class AbstractMcpResourceManagementService extends Disposable im
 
 	private initializePromise: Promise<void> | undefined;
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
-	private local: ILocalMcpServer[] = [];
+	private local = new Map<string, ILocalMcpServer>();
 
 	protected readonly _onInstallMcpServer = this._register(new Emitter<InstallMcpServerEvent>());
 	readonly onInstallMcpServer = this._onInstallMcpServer.event;
 
 	protected readonly _onDidInstallMcpServers = this._register(new Emitter<InstallMcpServerResult[]>());
 	get onDidInstallMcpServers() { return this._onDidInstallMcpServers.event; }
+
+	protected readonly _onDidUpdateMcpServers = this._register(new Emitter<InstallMcpServerResult[]>());
+	get onDidUpdateMcpServers() { return this._onDidUpdateMcpServers.event; }
 
 	protected readonly _onUninstallMcpServer = this._register(new Emitter<UninstallMcpServerEvent>());
 	get onUninstallMcpServer() { return this._onUninstallMcpServer.event; }
@@ -77,24 +81,29 @@ export abstract class AbstractMcpResourceManagementService extends Disposable im
 	private initialize(): Promise<void> {
 		if (!this.initializePromise) {
 			this.initializePromise = (async () => {
-				this.local = await this.getLocal();
+				this.local = await this.populateLocalServer();
 				this.startWatching();
 			})();
 		}
 		return this.initializePromise;
 	}
 
-	private async getLocal(): Promise<ILocalMcpServer[]> {
+	private async populateLocalServer(): Promise<Map<string, ILocalMcpServer>> {
+		const local = new Map<string, ILocalMcpServer>();
 		this.logService.info('MCP Management Service: fetchInstalled', this.mcpResource.toString());
 		try {
 			const scannedMcpServers = await this.mcpResourceScannerService.scanMcpServers(this.mcpResource, this.target);
 			if (scannedMcpServers.servers) {
-				return Promise.all(Object.entries(scannedMcpServers.servers).map(([, scannedServer]) => this.scanServer(scannedServer)));
+				await Promise.allSettled(Object.entries(scannedMcpServers.servers).map(async ([name, scannedServer]) => {
+					const server = await this.scanServer(scannedServer);
+					local.set(name, server);
+				}));
 			}
 		} catch (error) {
 			this.logService.debug('Could not read user MCP servers:', error);
+			throw error;
 		}
-		return [];
+		return local;
 	}
 
 	private startWatching(): void {
@@ -108,17 +117,42 @@ export abstract class AbstractMcpResourceManagementService extends Disposable im
 
 	private async updateLocal(): Promise<void> {
 		try {
-			const current = await this.getLocal();
-			const previous = this.local;
-			const added = current.filter(server => !previous.some(prev => prev.name === server.name));
-			const removed = previous.filter(server => !current.some(curr => curr.name === server.name));
-			this.local = current;
+			const current = await this.populateLocalServer();
+
+			const added: ILocalMcpServer[] = [];
+			const updated: ILocalMcpServer[] = [];
+			const removed = [...this.local.keys()].filter(name => !current.has(name));
+
+			for (const server of removed) {
+				this.local.delete(server);
+			}
+
+			for (const [name, server] of current) {
+				const previous = this.local.get(name);
+				if (previous) {
+					if (!equals(previous, server)) {
+						updated.push(server);
+						this.local.set(name, server);
+					}
+				} else {
+					added.push(server);
+					this.local.set(name, server);
+				}
+			}
+
+			for (const server of removed) {
+				this.local.delete(server);
+				this._onDidUninstallMcpServer.fire({ name: server, mcpResource: this.mcpResource });
+			}
+
+			if (updated.length) {
+				this._onDidUpdateMcpServers.fire(updated.map(server => ({ name: server.name, local: server, mcpResource: this.mcpResource })));
+			}
+
 			if (added.length) {
 				this._onDidInstallMcpServers.fire(added.map(server => ({ name: server.name, local: server, mcpResource: this.mcpResource })));
 			}
-			for (const server of removed) {
-				this._onDidUninstallMcpServer.fire({ name: server.name, mcpResource: this.mcpResource });
-			}
+
 		} catch (error) {
 			this.logService.error('Failed to load installed MCP servers:', error);
 		}
@@ -126,7 +160,7 @@ export abstract class AbstractMcpResourceManagementService extends Disposable im
 
 	async getInstalled(): Promise<ILocalMcpServer[]> {
 		await this.initialize();
-		return this.local;
+		return Array.from(this.local.values());
 	}
 
 	protected async scanServer(scannedMcpServer: IScannedMcpServer): Promise<ILocalMcpServer> {
@@ -464,6 +498,9 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 	private readonly _onDidInstallMcpServers = this._register(new Emitter<readonly InstallMcpServerResult[]>());
 	readonly onDidInstallMcpServers = this._onDidInstallMcpServers.event;
 
+	private readonly _onDidUpdateMcpServers = this._register(new Emitter<readonly InstallMcpServerResult[]>());
+	readonly onDidUpdateMcpServers = this._onDidUpdateMcpServers.event;
+
 	private readonly _onUninstallMcpServer = this._register(new Emitter<UninstallMcpServerEvent>());
 	readonly onUninstallMcpServer = this._onUninstallMcpServer.event;
 
@@ -486,6 +523,7 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 			const service = disposables.add(this.instantiationService.createInstance(McpUserResourceManagementService, mcpResource));
 			disposables.add(service.onInstallMcpServer(e => this._onInstallMcpServer.fire(e)));
 			disposables.add(service.onDidInstallMcpServers(e => this._onDidInstallMcpServers.fire(e)));
+			disposables.add(service.onDidUpdateMcpServers(e => this._onDidUpdateMcpServers.fire(e)));
 			disposables.add(service.onUninstallMcpServer(e => this._onUninstallMcpServer.fire(e)));
 			disposables.add(service.onDidUninstallMcpServer(e => this._onDidUninstallMcpServer.fire(e)));
 			this.mcpResourceManagementServices.set(mcpResource, mcpResourceManagementService = { service, dispose: () => disposables.dispose() });
