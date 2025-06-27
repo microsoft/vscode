@@ -118,7 +118,6 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 				reserveWidth: 19,
 				verticalPadding: 5,
 				editorOptions: {
-					wordWrap: 'on',
 					tabFocusMode: true,
 					ariaLabel: typeof title === 'string' ? title : title.value
 				},

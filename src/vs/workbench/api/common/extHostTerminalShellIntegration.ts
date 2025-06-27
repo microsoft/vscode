@@ -11,7 +11,7 @@ import { MainContext, type ExtHostTerminalShellIntegrationShape, type MainThread
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { IExtHostTerminalService } from './extHostTerminalService.js';
 import { Emitter, type Event } from '../../../base/common/event.js';
-import { URI, type UriComponents } from '../../../base/common/uri.js';
+import { URI } from '../../../base/common/uri.js';
 import { AsyncIterableObject, Barrier, type AsyncIterableEmitter } from '../../../base/common/async.js';
 
 export interface IExtHostTerminalShellIntegration extends ExtHostTerminalShellIntegrationShape {
@@ -104,7 +104,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		});
 	}
 
-	public $shellExecutionStart(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, cwd: UriComponents | undefined): void {
+	public $shellExecutionStart(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, cwd: string | undefined): void {
 		// Force shellIntegration creation if it hasn't been created yet, this could when events
 		// don't come through on startup
 		if (!this._activeShellIntegrations.has(instanceId)) {
@@ -115,7 +115,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 			confidence: commandLineConfidence,
 			isTrusted
 		};
-		this._activeShellIntegrations.get(instanceId)?.startShellExecution(commandLine, URI.revive(cwd));
+		this._activeShellIntegrations.get(instanceId)?.startShellExecution(commandLine, this._convertCwdToUri(cwd));
 	}
 
 	public $shellExecutionEnd(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, exitCode: number | undefined): void {
@@ -135,13 +135,21 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		this._activeShellIntegrations.get(instanceId)?.setEnv(shellEnvKeys, shellEnvValues, isTrusted);
 	}
 
-	public $cwdChange(instanceId: number, cwd: UriComponents | undefined): void {
-		this._activeShellIntegrations.get(instanceId)?.setCwd(URI.revive(cwd));
+	public $cwdChange(instanceId: number, cwd: string | undefined): void {
+		this._activeShellIntegrations.get(instanceId)?.setCwd(this._convertCwdToUri(cwd));
 	}
 
 	public $closeTerminal(instanceId: number): void {
 		this._activeShellIntegrations.get(instanceId)?.dispose();
 		this._activeShellIntegrations.delete(instanceId);
+	}
+
+	private _convertCwdToUri(cwd: string | undefined): URI | undefined {
+		// IMPORTANT: cwd is provided to the exthost as a string from the renderer and only
+		// converted to a URI on the machine in which the pty is hosted on. The string version of
+		// the cwd is used from the renderer such that it's access is synchronous and its event
+		// comes through in order relative to other shell integration events.
+		return cwd ? URI.file(cwd) : undefined;
 	}
 }
 

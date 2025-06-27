@@ -46,10 +46,25 @@ export function getLanguageIdForPromptsType(type: PromptsType): string {
 		default:
 			throw new Error(`Unknown prompt type: ${type}`);
 	}
-}/**
+}
+
+export function getPromptsTypeForLanguageId(languageId: string): PromptsType | undefined {
+	switch (languageId) {
+		case PROMPT_LANGUAGE_ID:
+			return PromptsType.prompt;
+		case INSTRUCTIONS_LANGUAGE_ID:
+			return PromptsType.instructions;
+		case MODE_LANGUAGE_ID:
+			return PromptsType.mode;
+		default:
+			return undefined;
+	}
+}
+
+
+/**
  * What the prompt is used for.
  */
-
 export enum PromptsType {
 	instructions = 'instructions',
 	prompt = 'prompt',

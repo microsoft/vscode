@@ -334,6 +334,10 @@ declare module 'vscode' {
 		copiedCharacters: number;
 		totalCharacters: number;
 		copiedText: string;
+		totalLines: number;
+		copiedLines: number;
+		modelId: string;
+		languageId?: string;
 	}
 
 	export interface ChatInsertAction {
@@ -341,6 +345,9 @@ declare module 'vscode' {
 		kind: 'insert';
 		codeBlockIndex: number;
 		totalCharacters: number;
+		totalLines: number;
+		languageId?: string;
+		modelId: string;
 		newFile?: boolean;
 	}
 
@@ -349,6 +356,9 @@ declare module 'vscode' {
 		kind: 'apply';
 		codeBlockIndex: number;
 		totalCharacters: number;
+		totalLines: number;
+		languageId?: string;
+		modelId: string;
 		newFile?: boolean;
 		codeMapper?: string;
 	}

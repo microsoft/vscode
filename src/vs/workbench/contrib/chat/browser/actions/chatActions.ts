@@ -59,7 +59,7 @@ import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
+import { ChatEditorInput, shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
@@ -105,6 +105,8 @@ export interface IChatViewOpenRequestEntry {
 	response: string;
 }
 
+export const CHAT_CONFIG_MENU_ID = new MenuId('workbench.chat.menu.config');
+
 const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
 
 abstract class OpenChatGlobalAction extends Action2 {
@@ -146,7 +148,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 
 		let switchToMode = opts?.mode ?? this.mode;
 		if (!switchToMode) {
-			switchToMode = opts?.query.startsWith('@') ? ChatMode.Ask : undefined;
+			switchToMode = opts?.query?.startsWith('@') ? ChatMode.Ask : undefined;
 		}
 		if (switchToMode && validateChatMode(switchToMode)) {
 			await this.handleSwitchToMode(switchToMode, chatWidget, instaService, commandService);
@@ -476,7 +478,12 @@ export function registerChatActions() {
 				title: localize2('interactiveSession.open', "New Chat Editor"),
 				f1: true,
 				category: CHAT_CATEGORY,
-				precondition: ChatContextKeys.enabled
+				precondition: ChatContextKeys.enabled,
+				keybinding: {
+					weight: KeybindingWeight.WorkbenchContrib + 1,
+					primary: KeyMod.CtrlCmd | KeyCode.KeyN,
+					when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.inChatEditor)
+				}
 			});
 		}
 
@@ -495,12 +502,12 @@ export function registerChatActions() {
 				icon: Codicon.mention,
 				f1: false,
 				category: CHAT_CATEGORY,
-				menu: {
+				menu: [{
 					id: MenuId.ChatExecute,
 					when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
 					group: 'navigation',
 					order: 1
-				}
+				}]
 			});
 		}
 
@@ -796,6 +803,60 @@ export function registerChatActions() {
 			accessor.get(INotificationService).info(localize('resetTrustedToolsSuccess', "Tool confirmation preferences have been reset."));
 		}
 	});
+
+	registerAction2(class UpdateInstructionsAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.updateInstructions',
+				title: localize2('updateInstructions', "Automatically Update Instructions"),
+				shortTitle: localize2('updateInstructions.short', "Auto-update Instructions"),
+				category: CHAT_CATEGORY,
+				icon: Codicon.sparkle,
+				f1: true,
+				precondition: ChatContextKeys.enabled,
+				menu: {
+					id: CHAT_CONFIG_MENU_ID,
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
+					order: 13,
+					group: '1_level'
+				}
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const commandService = accessor.get(ICommandService);
+
+			// Use chat command to open and send the query
+			const query = `Analyze this workspace and create or update \`.github/copilot-instructions.md\`. The file guides future AI coding agents here.
+
+Add:
+- Core commands, especially build, lint, test (incl. single-test run), docs, migrations, etc.
+- High-level architecture, including major packages, services, data stores, external APIs, etc.
+- Repo-specific style rules, including formatting, imports, typing, naming, error handling, etc.
+- Relevant agent rules detected in \`.cursor/**\`, \`.cursorrules\`, \`AGENTS.md\`, \`AGENT.md\`, \`CLAUDE.md\`, \`.windsurfrules\`, existing Copilot file, etc.
+- Summarize important parts of README or other docs instead of copying them.
+
+Guidelines (read more at https://aka.ms/vscode-instructions-docs):
+- If \`.github/copilot-instructions.md\` exists, patch/merge. Never overwrite blindly.
+- Be concise; skip boilerplate, generic advice, or exhaustive file listings.
+- Use Markdown headings + bullets; keep prose minimal and non-repetitive.
+- Cite only facts found in the repo (don't invent information).`;
+
+			await commandService.executeCommand('workbench.action.chat.open', {
+				mode: 'agent',
+				query: query,
+			});
+		}
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+		submenu: CHAT_CONFIG_MENU_ID,
+		title: localize2('config.label', "Configure Chat..."),
+		group: 'navigation',
+		when: ContextKeyExpr.equals('view', ChatViewId),
+		icon: Codicon.settings,
+		order: 6
+	});
 }
 
 export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewModel, includeName = true): string {
@@ -990,52 +1051,6 @@ export interface IClearEditingSessionConfirmationOptions {
 	messageOverride?: string;
 }
 
-export async function showClearEditingSessionConfirmation(editingSession: IChatEditingSession, dialogService: IDialogService, options?: IClearEditingSessionConfirmationOptions): Promise<boolean> {
-	const defaultPhrase = localize('chat.startEditing.confirmation.pending.message.default', "Starting a new chat will end your current edit session.");
-	const defaultTitle = localize('chat.startEditing.confirmation.title', "Start new chat?");
-	const phrase = options?.messageOverride ?? defaultPhrase;
-	const title = options?.titleOverride ?? defaultTitle;
-
-	const currentEdits = editingSession.entries.get();
-	const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
-
-	const { result } = await dialogService.prompt({
-		title,
-		message: phrase + ' ' + localize('chat.startEditing.confirmation.pending.message.2', "Do you want to keep pending edits to {0} files?", undecidedEdits.length),
-		type: 'info',
-		cancelButton: true,
-		buttons: [
-			{
-				label: localize('chat.startEditing.confirmation.acceptEdits', "Keep & Continue"),
-				run: async () => {
-					await editingSession.accept();
-					return true;
-				}
-			},
-			{
-				label: localize('chat.startEditing.confirmation.discardEdits', "Undo & Continue"),
-				run: async () => {
-					await editingSession.reject();
-					return true;
-				}
-			}
-		],
-	});
-
-	return Boolean(result);
-}
-
-export function shouldShowClearEditingSessionConfirmation(editingSession: IChatEditingSession): boolean {
-	const currentEdits = editingSession.entries.get();
-	const currentEditCount = currentEdits.length;
-
-	if (currentEditCount) {
-		const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
-		return !!undecidedEdits.length;
-	}
-
-	return false;
-}
 
 // --- Chat Submenus in various Components
 

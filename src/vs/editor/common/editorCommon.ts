@@ -153,7 +153,7 @@ export interface IContentSizeChangedEvent {
 export interface ITriggerEditorOperationEvent {
 	source: string | null | undefined;
 	handlerId: string;
-	payload: any;
+	payload: unknown;
 }
 
 export interface INewScrollPosition {

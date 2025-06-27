@@ -159,6 +159,7 @@ export interface IChatViewViewContext {
 
 export interface IChatResourceViewContext {
 	isQuickChat?: boolean;
+	isInlineChat?: boolean;
 }
 
 export type IChatWidgetViewContext = IChatViewViewContext | IChatResourceViewContext | {};
@@ -199,6 +200,8 @@ export interface IChatWidget {
 	refreshParsedInput(): void;
 	logInputHistory(): void;
 	acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined>;
+	startEditing(requestId: string): void;
+	finishedEditing(): void;
 	rerunLastRequest(): Promise<void>;
 	setInputPlaceholder(placeholder: string): void;
 	resetInputPlaceholder(): void;

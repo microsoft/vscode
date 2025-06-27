@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
-import { CHAT_CATEGORY } from '../actions/chatActions.js';
+import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from '../actions/chatActions.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
@@ -16,7 +16,7 @@ import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ChatContextPick, IChatContextPickerItem, IChatContextPickerPickItem } from '../chatContextPickService.js';
+import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../chatContextPickService.js';
 import { IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
@@ -24,12 +24,13 @@ import { INSTRUCTIONS_LANGUAGE_ID, PromptsType } from '../../common/promptSyntax
 import { compare } from '../../../../../base/common/strings.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { dirname } from '../../../../../base/common/resources.js';
-import { IPromptFileVariableEntry } from '../../common/chatModel.js';
+import { IPromptFileVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/chatVariableEntries.js';
 import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 /**
  * Action ID for the `Attach Instruction` action.
@@ -117,7 +118,7 @@ class AttachInstructionsAction extends Action2 {
 		}
 
 		if (skipSelectionDialog && resource) {
-			widget.attachmentModel.promptInstructions.add(resource);
+			widget.attachmentModel.addContext(toPromptFileVariableEntry(resource, PromptFileVariableKind.Instruction));
 			widget.focusInput();
 			return;
 		}
@@ -130,7 +131,7 @@ class AttachInstructionsAction extends Action2 {
 		const result = await pickers.selectPromptFile({ resource, placeholder, type: PromptsType.instructions });
 
 		if (result !== undefined) {
-			widget.attachmentModel.promptInstructions.add(result.promptFile);
+			widget.attachmentModel.addContext(toPromptFileVariableEntry(result.promptFile, PromptFileVariableKind.Instruction));
 			widget.focusInput();
 		}
 	}
@@ -140,19 +141,18 @@ class ManageInstructionsFilesAction extends Action2 {
 	constructor() {
 		super({
 			id: CONFIGURE_INSTRUCTIONS_ACTION_ID,
-			title: localize2('configure-instructions', "Configure Instructions"),
+			title: localize2('configure-instructions', "Configure Instructions..."),
+			shortTitle: localize2('configure-instructions.short', "Instructions"),
 			icon: Codicon.bookmark,
 			f1: true,
 			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
 			category: CHAT_CATEGORY,
 			menu: {
-				id: MenuId.ViewTitle,
-
-				when: ContextKeyExpr.equals('view', ChatViewId),
+				id: CHAT_CONFIG_MENU_ID,
+				when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
 				order: 11,
-				group: '2_manage'
-			},
-
+				group: '0_level'
+			}
 		});
 	}
 
@@ -224,14 +224,15 @@ export class ChatInstructionsPickerPick implements IChatContextPickerItem {
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
 	isEnabled(widget: IChatWidget): Promise<boolean> | boolean {
-		return widget.attachmentModel.promptInstructions.featureEnabled;
+		return PromptsConfig.enabled(this.configurationService);
 	}
 
-	asPicker(): { readonly placeholder: string; readonly picks: Promise<ChatContextPick[]> } {
+	asPicker(): IChatContextPicker {
 
 		const picks = this.promptsService.listPromptFiles(PromptsType.instructions, CancellationToken.None).then(value => {
 
@@ -256,12 +257,7 @@ export class ChatInstructionsPickerPick implements IChatContextPickerItem {
 				result.push({
 					label: getCleanPromptName(uri),
 					asAttachment: (): IPromptFileVariableEntry => {
-						return {
-							kind: 'promptFile',
-							id: uri.toString(),
-							value: uri,
-							name: this.labelService.getUriBasenameLabel(uri),
-						};
+						return toPromptFileVariableEntry(uri, PromptFileVariableKind.Instruction);
 					}
 				});
 			}
@@ -270,8 +266,13 @@ export class ChatInstructionsPickerPick implements IChatContextPickerItem {
 
 		return {
 			placeholder: localize('placeholder', 'Select instructions files to attach'),
-			picks
+			picks,
+			configure: {
+				label: localize('configureInstructions', 'Configure Instructions...'),
+				commandId: CONFIGURE_INSTRUCTIONS_ACTION_ID
+			}
 		};
 	}
+
 
 }

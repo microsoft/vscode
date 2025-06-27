@@ -308,6 +308,13 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('window.clickThroughInactive', "If enabled, clicking on an inactive window will both activate the window and trigger the element under the mouse if it is clickable. If disabled, clicking anywhere on an inactive window will activate it only and a second click is required on the element."),
 				'included': isMacintosh
+			},
+			'window.border': {
+				'type': 'string',
+				'scope': ConfigurationScope.APPLICATION,
+				'default': 'default',
+				'markdownDescription': localize('window.border', "Controls the border color of the window. Set to `off` to disable or to a specific color in Hex, RGB, RGBA, HSL, HSLA format. This requires Windows to have the 'Show accent color on title bars and window borders' enabled and is ignored when {0} is set to {1}.", '`#window.titleBarStyle#`', '`native`'),
+				'included': isWindows
 			}
 		}
 	});

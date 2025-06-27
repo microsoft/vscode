@@ -91,6 +91,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { TerminalContribCommandId } from '../terminalContribExports.js';
 import type { IProgressState } from '@xterm/addon-progress';
 import { refreshShellIntegrationInfoStatus } from './terminalTooltip.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 
 const enum Constants {
 	/**
@@ -361,6 +362,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}));
 	readonly onLineData = this._onLineData.event;
 
+	readonly sessionId = generateUuid();
+
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
 		private _shellLaunchConfig: IShellLaunchConfig,
@@ -370,6 +373,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IPathService private readonly _pathService: IPathService,
+		@IFileService private readonly _fileService: IFileService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
@@ -792,7 +796,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			capabilities: this.capabilities,
 			shellIntegrationNonce: this._processManager.shellIntegrationNonce,
 			disableShellIntegrationReporting,
-		});
+		}, this.onDidExecuteText);
 		this.xterm = xterm;
 		this._resizeDebouncer = this._register(new TerminalResizeDebouncer(
 			() => this._isVisible,
@@ -2213,13 +2217,30 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._initialCwd;
 	}
 
-	async getCwd(): Promise<string> {
+	async getSpeculativeCwd(): Promise<string> {
 		if (this.capabilities.has(TerminalCapability.CwdDetection)) {
 			return this.capabilities.get(TerminalCapability.CwdDetection)!.getCwd();
 		} else if (this.capabilities.has(TerminalCapability.NaiveCwdDetection)) {
 			return this.capabilities.get(TerminalCapability.NaiveCwdDetection)!.getCwd();
 		}
 		return this._processManager.initialCwd;
+	}
+
+	async getCwdResource(): Promise<URI | undefined> {
+		const cwd = this.capabilities.get(TerminalCapability.CwdDetection)?.getCwd();
+		if (!cwd) {
+			return undefined;
+		}
+		let resource: URI;
+		if (this.remoteAuthority) {
+			resource = await this._pathService.fileURI(cwd);
+		} else {
+			resource = URI.file(cwd);
+		}
+		if (await this._fileService.exists(resource)) {
+			return resource;
+		}
+		return undefined;
 	}
 
 	private async _refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]> {

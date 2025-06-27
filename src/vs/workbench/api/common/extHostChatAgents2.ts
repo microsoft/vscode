@@ -757,6 +757,16 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		const history = await this.prepareHistoryTurns(agent.extension, agent.id, { history: context });
 		return await agent.provideTitle({ history }, token);
 	}
+
+	async $provideChatSummary(handle: number, context: IChatAgentHistoryEntryDto[], token: CancellationToken): Promise<string | undefined> {
+		const agent = this._agents.get(handle);
+		if (!agent) {
+			return;
+		}
+
+		const history = await this.prepareHistoryTurns(agent.extension, agent.id, { history: context });
+		return await agent.provideSummary({ history }, token);
+	}
 }
 
 class ExtHostParticipantDetector {
@@ -786,6 +796,7 @@ class ExtHostChatAgent {
 	private _agentVariableProvider?: { provider: vscode.ChatParticipantCompletionItemProvider; triggerCharacters: string[] };
 	private _additionalWelcomeMessage?: string | vscode.MarkdownString | undefined;
 	private _titleProvider?: vscode.ChatTitleProvider | undefined;
+	private _summarizer?: vscode.ChatSummarizer | undefined;
 	private _requester: vscode.ChatRequesterInformation | undefined;
 	private _pauseStateEmitter = new Emitter<vscode.ChatParticipantPauseStateEvent>();
 
@@ -839,6 +850,14 @@ class ExtHostChatAgent {
 		}
 
 		return await this._titleProvider.provideChatTitle(context, token) ?? undefined;
+	}
+
+	async provideSummary(context: vscode.ChatContext, token: CancellationToken): Promise<string | undefined> {
+		if (!this._summarizer) {
+			return;
+		}
+
+		return await this._summarizer.provideChatSummary(context, token) ?? undefined;
 	}
 
 	get apiAgent(): vscode.ChatParticipant {
@@ -973,6 +992,14 @@ class ExtHostChatAgent {
 			get titleProvider() {
 				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				return that._titleProvider;
+			},
+			set summarizer(v) {
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
+				that._summarizer = v;
+			},
+			get summarizer() {
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
+				return that._summarizer;
 			},
 			get onDidChangePauseState() {
 				checkProposedApiEnabled(that.extension, 'chatParticipantAdditions');

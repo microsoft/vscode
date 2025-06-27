@@ -322,6 +322,8 @@ async function ensureStableCode(): Promise<void> {
 			// VSCode/Code.exe (Windows) | VSCode/code (Linux)
 			stableCodePath = path.dirname(stableCodeExecutable);
 		}
+
+		opts['stable-version'] = parseVersion(stableVersion);
 	}
 
 	if (!fs.existsSync(stableCodePath)) {
@@ -352,6 +354,7 @@ before(async function () {
 
 	this.defaultOptions = {
 		quality,
+		version: parseVersion(version ?? '0.0.0'),
 		codePath: opts.build,
 		workspacePath,
 		userDataDir,
@@ -396,7 +399,7 @@ after(async function () {
 });
 
 describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
-	if (!opts.web) { setupDataLossTests(() => opts['stable-build'] /* Do not change, deferred for a reason! */, logger); }
+	if (!opts.web) { setupDataLossTests(() => { return { stableCodePath: opts['stable-build'], stableCodeVersion: opts['stable-version'] } /* Do not change, deferred for a reason! */; }, logger); }
 	setupPreferencesTests(logger);
 	setupSearchTests(logger);
 	if (!opts.web) { setupNotebookTests(logger); }
