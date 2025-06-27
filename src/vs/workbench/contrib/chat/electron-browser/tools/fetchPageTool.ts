@@ -8,15 +8,16 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/languageModelToolsService.js';
 import { InternalFetchWebPageToolId } from '../../common/tools/tools.js';
 
 export const FetchWebPageToolData: IToolData = {
 	id: InternalFetchWebPageToolId,
-	displayName: 'Fetch Web Page',
+	displayName: 'Fetch Content',
 	canBeReferencedInPrompt: false,
-	modelDescription: localize('fetchWebPage.modelDescription', 'Fetches the main content from a web page. This tool is useful for summarizing or analyzing the content of a webpage.'),
+	modelDescription: localize('fetchWebPage.modelDescription', 'Fetches content from web pages (HTTP/HTTPS) or file resources. This tool is useful for summarizing or analyzing content from various sources.'),
 	source: ToolDataSource.Internal,
 	inputSchema: {
 		type: 'object',
@@ -26,7 +27,7 @@ export const FetchWebPageToolData: IToolData = {
 				items: {
 					type: 'string',
 				},
-				description: localize('fetchWebPage.urlsDescription', 'An array of URLs to fetch content from.')
+				description: localize('fetchWebPage.urlsDescription', 'An array of URLs to fetch content from. Supports HTTP/HTTPS web pages and file resources.')
 			}
 		},
 		required: ['urls']
@@ -38,12 +39,14 @@ export class FetchWebPageTool implements IToolImpl {
 
 	constructor(
 		@IWebContentExtractorService private readonly _readerModeService: IWebContentExtractorService,
+		@IFileService private readonly _fileService: IFileService,
 	) { }
 
-	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {
-		const parsedUriResults = this._parseUris((invocation.parameters as { urls?: string[] }).urls);
-		const validUris = Array.from(parsedUriResults.values()).filter((uri): uri is URI => !!uri);
-		if (!validUris.length) {
+	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
+		const { webUris, fileUris, invalidUris } = this._parseUris((invocation.parameters as { urls?: string[] }).urls);
+		const allValidUris = [...webUris.values(), ...fileUris.values()];
+		
+		if (!allValidUris.length && invalidUris.size === 0) {
 			return {
 				content: [{ kind: 'text', value: localize('fetchWebPage.noValidUrls', 'No valid URLs provided.') }]
 			};
@@ -51,42 +54,58 @@ export class FetchWebPageTool implements IToolImpl {
 
 		// We approved these via confirmation, so mark them as "approved" in this session
 		// if they are not approved via the trusted domain service.
-		for (const uri of validUris) {
+		for (const uri of webUris.values()) {
 			this._alreadyApprovedDomains.add(uri);
 		}
 
-		const contents = await this._readerModeService.extract(validUris);
-		// Make an array that contains either the content or undefined for invalid URLs
-		const contentsWithUndefined: (string | undefined)[] = [];
-		let indexInContents = 0;
-		parsedUriResults.forEach((uri) => {
-			if (uri) {
-				contentsWithUndefined.push(contents[indexInContents]);
-				indexInContents++;
-			} else {
-				contentsWithUndefined.push(undefined);
+		// Get contents from web URIs
+		const webContents = webUris.size > 0 ? await this._readerModeService.extract([...webUris.values()]) : [];
+		
+		// Get contents from file URIs
+		const fileContents: (string | undefined)[] = [];
+		for (const uri of fileUris.values()) {
+			try {
+				const fileContent = await this._fileService.readFile(uri, undefined, token);
+				// Convert VSBuffer to string
+				fileContents.push(fileContent.value.toString());
+			} catch (error) {
+				// If file service can't read it, treat as invalid
+				fileContents.push(undefined);
 			}
-		});
+		}
+
+		// Build results array in original order
+		const urls = (invocation.parameters as { urls?: string[] }).urls || [];
+		const results: (string | undefined)[] = [];
+		let webIndex = 0;
+		let fileIndex = 0;
+
+		for (const url of urls) {
+			if (invalidUris.has(url)) {
+				results.push(undefined);
+			} else if (webUris.has(url)) {
+				results.push(webContents[webIndex]);
+				webIndex++;
+			} else if (fileUris.has(url)) {
+				results.push(fileContents[fileIndex]);
+				fileIndex++;
+			} else {
+				results.push(undefined);
+			}
+		}
 
 		return {
-			content: this._getPromptPartsForResults(contentsWithUndefined),
+			content: this._getPromptPartsForResults(results),
 			// Have multiple results show in the dropdown
-			toolResultDetails: validUris.length > 1 ? validUris : undefined
+			toolResultDetails: allValidUris.length > 1 ? allValidUris : undefined
 		};
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
-		const map = this._parseUris(context.parameters.urls);
-		const invalid = new Array<string>();
-		const valid = new Array<URI>();
-		map.forEach((uri, url) => {
-			if (!uri) {
-				invalid.push(url);
-			} else {
-				valid.push(uri);
-			}
-		});
-		const urlsNeedingConfirmation = valid.filter(url => !this._alreadyApprovedDomains.has(url));
+		const { webUris, fileUris, invalidUris } = this._parseUris(context.parameters.urls);
+		const invalid = Array.from(invalidUris);
+		const valid = [...webUris.values(), ...fileUris.values()];
+		const urlsNeedingConfirmation = webUris.size > 0 ? [...webUris.values()].filter(url => !this._alreadyApprovedDomains.has(url)) : [];
 
 		const pastTenseMessage = invalid.length
 			? invalid.length > 1
@@ -94,22 +113,22 @@ export class FetchWebPageTool implements IToolImpl {
 				? new MarkdownString(
 					localize(
 						'fetchWebPage.pastTenseMessage.plural',
-						'Fetched {0} web pages, but the following were invalid URLs:\n\n{1}\n\n', valid.length, invalid.map(url => `- ${url}`).join('\n')
+						'Fetched {0} resources, but the following were invalid URLs:\n\n{1}\n\n', valid.length, invalid.map(url => `- ${url}`).join('\n')
 					))
 				// If there is only one invalid URL, show it
 				: new MarkdownString(
 					localize(
 						'fetchWebPage.pastTenseMessage.singular',
-						'Fetched web page, but the following was an invalid URL:\n\n{0}\n\n', invalid[0]
+						'Fetched resource, but the following was an invalid URL:\n\n{0}\n\n', invalid[0]
 					))
 			// No invalid URLs
 			: new MarkdownString();
 
 		const invocationMessage = new MarkdownString();
 		if (valid.length > 1) {
-			pastTenseMessage.appendMarkdown(localize('fetchWebPage.pastTenseMessageResult.plural', 'Fetched {0} web pages', valid.length));
-			invocationMessage.appendMarkdown(localize('fetchWebPage.invocationMessage.plural', 'Fetching {0} web pages', valid.length));
-		} else {
+			pastTenseMessage.appendMarkdown(localize('fetchWebPage.pastTenseMessageResult.plural', 'Fetched {0} resources', valid.length));
+			invocationMessage.appendMarkdown(localize('fetchWebPage.invocationMessage.plural', 'Fetching {0} resources', valid.length));
+		} else if (valid.length === 1) {
 			const url = valid[0].toString();
 			// If the URL is too long, show it as a link... otherwise, show it as plain text
 			if (url.length > 400) {
@@ -119,14 +138,14 @@ export class FetchWebPageTool implements IToolImpl {
 						// Make sure the link syntax is correct
 						'{Locked="]({0})"}',
 					]
-				}, 'Fetched [web page]({0})', url));
+				}, 'Fetched [resource]({0})', url));
 				invocationMessage.appendMarkdown(localize({
 					key: 'fetchWebPage.invocationMessage.singularAsLink',
 					comment: [
 						// Make sure the link syntax is correct
 						'{Locked="]({0})"}',
 					]
-				}, 'Fetching [web page]({0})', url));
+				}, 'Fetching [resource]({0})', url));
 			} else {
 				pastTenseMessage.appendMarkdown(localize('fetchWebPage.pastTenseMessageResult.singular', 'Fetched {0}', url));
 				invocationMessage.appendMarkdown(localize('fetchWebPage.invocationMessage.singular', 'Fetching {0}', url));
@@ -157,22 +176,26 @@ export class FetchWebPageTool implements IToolImpl {
 		return result;
 	}
 
-	private _parseUris(urls?: string[]): Map<string, URI | undefined> {
-		const results = new Map<string, URI | undefined>();
-		urls?.forEach(uri => {
+	private _parseUris(urls?: string[]): { webUris: Map<string, URI>; fileUris: Map<string, URI>; invalidUris: Set<string> } {
+		const webUris = new Map<string, URI>();
+		const fileUris = new Map<string, URI>();
+		const invalidUris = new Set<string>();
+
+		urls?.forEach(url => {
 			try {
-				const uriObj = URI.parse(uri);
-				// Only accept http and https schemes for web content extraction
+				const uriObj = URI.parse(url);
 				if (uriObj.scheme === 'http' || uriObj.scheme === 'https') {
-					results.set(uri, uriObj);
+					webUris.set(url, uriObj);
 				} else {
-					results.set(uri, undefined);
+					// Try to handle other schemes via file service
+					fileUris.set(url, uriObj);
 				}
 			} catch (e) {
-				results.set(uri, undefined);
+				invalidUris.add(url);
 			}
 		});
-		return results;
+
+		return { webUris, fileUris, invalidUris };
 	}
 
 	private _getPromptPartsForResults(results: (string | undefined)[]): IToolResultTextPart[] {
