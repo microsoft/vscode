@@ -31,7 +31,7 @@ export interface ILaunchMainService {
 
 	readonly _serviceBrand: undefined;
 
-	start(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void>;
+	start(args: NativeParsedArgs, userEnv: IProcessEnvironment, cwd: string): Promise<void>;
 
 	getMainProcessId(): Promise<number>;
 }
@@ -47,7 +47,7 @@ export class LaunchMainService implements ILaunchMainService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
-	async start(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
+	async start(args: NativeParsedArgs, userEnv: IProcessEnvironment, cwd: string): Promise<void> {
 		this.logService.trace('Received data from other instance: ', args, userEnv);
 
 		// macOS: Electron > 7.x changed its behaviour to not
@@ -86,6 +86,12 @@ export class LaunchMainService implements ILaunchMainService {
 
 		// Otherwise handle in windows service
 		else {
+			if (args.agent) {
+				// If we are started with agent subcommand, the current working
+				// directory is always the path to open
+				args._ = [cwd];
+			}
+
 			return this.startOpenWindow(args, userEnv);
 		}
 	}
