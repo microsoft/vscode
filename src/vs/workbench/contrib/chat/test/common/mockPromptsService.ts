@@ -8,16 +8,13 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { TextModelPromptParser } from '../../common/promptSyntax/parsers/textModelPromptParser.js';
-import { IChatPromptSlashCommand, ICustomChatMode, IMetadata, IPromptParserResult, IPromptPath, IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { IChatPromptSlashCommand, ICustomChatMode, IPromptParserResult, IPromptPath, IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 
 export class MockPromptsService implements IPromptsService {
 
 	_serviceBrand: undefined;
 
-	getAllMetadata(_files: readonly URI[]): Promise<readonly IMetadata[]> {
-		throw new Error('Method not implemented.');
-	}
 	getSyntaxParserFor(_model: ITextModel): TextModelPromptParser & { isDisposed: false } {
 		throw new Error('Method not implemented.');
 	}
@@ -40,7 +37,7 @@ export class MockPromptsService implements IPromptsService {
 	getCustomChatModes(token: CancellationToken): Promise<readonly ICustomChatMode[]> {
 		throw new Error('Method not implemented.');
 	}
-	parse(uri: URI, token: CancellationToken): Promise<IPromptParserResult> {
+	parse(uri: URI, type: PromptsType, token: CancellationToken): Promise<IPromptParserResult> {
 		throw new Error('Method not implemented.');
 	}
 	getPromptFileType(resource: URI): PromptsType | undefined {

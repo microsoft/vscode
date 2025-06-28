@@ -181,7 +181,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
 
-		const result = await this._textModelChangeService.acceptAgentEdits(resource, textEdits, isLastEdits);
+		const result = await this._textModelChangeService.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel);
 
 		transaction((tx) => {
 			this._waitsForLastEdits.set(!isLastEdits, tx);

@@ -7,7 +7,6 @@ import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { assertDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { randomBoolean } from '../../../../../../base/test/common/testUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -24,12 +23,11 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { NullPolicyService } from '../../../../../../platform/policy/common/policy.js';
 import { ChatMode } from '../../../common/constants.js';
-import { FolderReference, NotPromptFile, OpenFailed, RecursiveReference } from '../../../common/promptFileReferenceErrors.js';
 import { MarkdownLink } from '../../../common/promptSyntax/codecs/base/markdownCodec/tokens/markdownLink.js';
 import { FileReference } from '../../../common/promptSyntax/codecs/tokens/fileReference.js';
 import { getPromptFileType } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { IPromptParserOptions, type TErrorCondition } from '../../../common/promptSyntax/parsers/basePromptParser.js';
+import { type TErrorCondition } from '../../../common/promptSyntax/parsers/basePromptParser.js';
 import { FilePromptParser } from '../../../common/promptSyntax/parsers/filePromptParser.js';
 import { type TPromptReference } from '../../../common/promptSyntax/parsers/types.js';
 import { IMockFolder, MockFilesystem } from './testUtils/mockFilesystem.js';
@@ -91,7 +89,6 @@ class TestPromptFileReference extends Disposable {
 	 * Run the test.
 	 */
 	public async run(
-		options: Partial<IPromptParserOptions> = {},
 	): Promise<FilePromptParser> {
 		// create the files structure on the disk
 		await (this.instantiationService.createInstance(MockFilesystem, this.fileStructure)).mock();
@@ -107,7 +104,7 @@ class TestPromptFileReference extends Disposable {
 			this.instantiationService.createInstance(
 				FilePromptParser,
 				this.rootFileUri,
-				options,
+				{ seenReferences: [], allowNonPromptFiles: true, languageId: undefined },
 			),
 		).start();
 
@@ -159,24 +156,6 @@ class TestPromptFileReference extends Disposable {
 				].join(', '),
 			);
 
-			if (expectedReference.errorCondition === undefined) {
-				assert(
-					resolvedReference.errorCondition === undefined,
-					[
-						`Expected ${i}th error condition to be 'undefined'`,
-						`got '${resolvedReference.errorCondition}'.`,
-					].join(', '),
-				);
-				continue;
-			}
-
-			assert(
-				expectedReference.errorCondition.equal(resolvedReference.errorCondition),
-				[
-					`Expected ${i}th error condition to be '${expectedReference.errorCondition}'`,
-					`got '${resolvedReference.errorCondition}'.`,
-				].join(', '),
-			);
 		}
 
 		assert.strictEqual(
@@ -313,386 +292,18 @@ suite('PromptFileReference', function () {
 					createTestFileReference('folder1/file3.prompt.md', 2, 14),
 				),
 				new ExpectedReference(
-					URI.joinPath(rootUri, './folder1'),
-					new MarkdownLink(
-						2, 1,
-						'[]', '(./some-other-folder/non-existing-folder)',
-					),
-					new OpenFailed(
-						URI.joinPath(rootUri, './folder1/some-other-folder/non-existing-folder'),
-						'Reference to non-existing file cannot be opened.',
-					),
-				),
-				new ExpectedReference(
-					URI.joinPath(rootUri, './folder1'),
-					createTestFileReference(
-						`/${rootFolderName}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md`,
-						3,
-						26,
-					),
-				),
-				new ExpectedReference(
-					URI.joinPath(rootUri, './folder1/some-other-folder'),
-					new MarkdownLink(
-						1, 1,
-						'[caption]', `(/${rootFolderName}/folder1/some-other-folder)`,
-					),
-					new FolderReference(
-						URI.joinPath(rootUri, './folder1/some-other-folder'),
-						'This folder is not a prompt file!',
-					),
-				),
-				new ExpectedReference(
-					URI.joinPath(rootUri, './folder1/some-other-folder/yetAnotherFolder🤭'),
-					new MarkdownLink(
-						2, 34,
-						'[#file:file.txt]', '(../file.txt)',
-					),
-					new NotPromptFile(
-						URI.joinPath(rootUri, './folder1/some-other-folder/file.txt'),
-						'Ughh oh, that is not a prompt file!',
-					),
-				),
-				new ExpectedReference(
 					rootUri,
 					new MarkdownLink(
 						3, 14,
 						'[file4.prompt.md]', '(./folder1/some-other-folder/file4.prompt.md)',
 					),
 				),
-				new ExpectedReference(
-					URI.joinPath(rootUri, './folder1/some-other-folder'),
-					createTestFileReference('./some-non-existing/file.prompt.md', 1, 30),
-					new OpenFailed(
-						URI.joinPath(rootUri, './folder1/some-other-folder/some-non-existing/file.prompt.md'),
-						'Failed to open non-existing prompt snippets file',
-					),
-				),
-				new ExpectedReference(
-					URI.joinPath(rootUri, './folder1/some-other-folder'),
-					createTestFileReference('./some-non-prompt-file.md', 5, 13),
-					new OpenFailed(
-						URI.joinPath(rootUri, './folder1/some-other-folder/some-non-prompt-file.md'),
-						'Oh no!',
-					),
-				),
-				new ExpectedReference(
-					URI.joinPath(rootUri, './folder1/some-other-folder'),
-					new MarkdownLink(
-						5, 48,
-						'[]', '(../../folder1/)',
-					),
-					new FolderReference(
-						URI.joinPath(rootUri, './folder1/'),
-						'Uggh ohh!',
-					),
-				),
 			]
 		));
 
 		await test.run();
 	});
 
-	test('does not fall into infinite reference recursion', async function () {
-		const rootFolderName = 'infinite-recursion';
-		const rootFolder = `/${rootFolderName}`;
-		const rootUri = URI.file(rootFolder);
-
-		const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
-			/**
-			 * The file structure to be created on the disk for the test.
-			 */
-			[{
-				name: rootFolderName,
-				children: [
-					{
-						name: 'file1.md',
-						contents: '## Some Header\nsome contents\n ',
-					},
-					{
-						name: 'file2.prompt.md',
-						contents: `## Files\n\t- this file #file:folder1/file3.prompt.md \n\t- also this #file:./folder1/some-other-folder/file4.prompt.md\n\n#file:${rootFolder}/folder1/some-other-folder/file5.prompt.md\t please!\n\t[some (snippet!) #name))](./file1.md)`,
-					},
-					{
-						name: 'folder1',
-						children: [
-							{
-								name: 'file3.prompt.md',
-								contents: `\n\n\t- some seemingly random [another-file.prompt.md](${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md) contents\n some more\t content`,
-							},
-							{
-								name: 'some-other-folder',
-								children: [
-									{
-										name: 'file4.prompt.md',
-										contents: 'this file has a non-existing #file:../some-non-existing/file.prompt.md\t\treference',
-									},
-									{
-										name: 'file5.prompt.md',
-										contents: 'this file has a relative recursive #file:../../file2.prompt.md\nreference\n ',
-									},
-									{
-										name: 'yetAnotherFolder🤭',
-										children: [
-											{
-												name: 'another-file.prompt.md',
-												// absolute path with recursion
-												contents: `some test goes\t\nhere #file:${rootFolder}/file2.prompt.md`,
-											},
-											{
-												name: 'one_more_file_just_in_case.prompt.md',
-												contents: 'one_more_file_just_in_case.prompt.md contents',
-											},
-										],
-									},
-								],
-							},
-						],
-					},
-				],
-			}],
-			/**
-			 * The root file path to start the resolve process from.
-			 */
-			URI.file(`/${rootFolderName}/file2.prompt.md`),
-			/**
-			 * The expected references to be resolved.
-			 */
-			[
-				new ExpectedReference(
-					rootUri,
-					createTestFileReference('folder1/file3.prompt.md', 2, 14),
-				),
-				new ExpectedReference(
-					URI.joinPath(rootUri, './folder1'),
-					new MarkdownLink(
-						3, 26,
-						'[another-file.prompt.md]', `(${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md)`,
-					),
-				),
-				/**
-				 * This reference should be resolved with a recursive
-				 * reference error condition. (the absolute reference case)
-				 */
-				new ExpectedReference(
-					URI.joinPath(rootUri, './folder1/some-other-folder/yetAnotherFolder🤭'),
-					createTestFileReference(`${rootFolder}/file2.prompt.md`, 2, 6),
-					new RecursiveReference(
-						URI.joinPath(rootUri, './file2.prompt.md'),
-						[
-							'/infinite-recursion/file2.prompt.md',
-							'/infinite-recursion/folder1/file3.prompt.md',
-							'/infinite-recursion/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md',
-							'/infinite-recursion/file2.prompt.md',
-						],
-					),
-				),
-				new ExpectedReference(
-					rootUri,
-					createTestFileReference('./folder1/some-other-folder/file4.prompt.md', 3, 14),
-					undefined,
-				),
-				new ExpectedReference(
-					URI.joinPath(rootUri, './folder1/some-other-folder'),
-					createTestFileReference('../some-non-existing/file.prompt.md', 1, 30),
-					new OpenFailed(
-						URI.joinPath(rootUri, './folder1/some-non-existing/file.prompt.md'),
-						'Uggh ohh!',
-					),
-				),
-				new ExpectedReference(
-					rootUri,
-					createTestFileReference(
-						`${rootFolder}/folder1/some-other-folder/file5.prompt.md`,
-						5,
-						1,
-					),
-					undefined,
-				),
-				/**
-				 * This reference should be resolved with a recursive
-				 * reference error condition. (the relative reference case)
-				 */
-				new ExpectedReference(
-					URI.joinPath(rootUri, './folder1/some-other-folder'),
-					createTestFileReference('../../file2.prompt.md', 1, 36),
-					new RecursiveReference(
-						URI.joinPath(rootUri, './file2.prompt.md'),
-						[
-							'/infinite-recursion/file2.prompt.md',
-							'/infinite-recursion/folder1/some-other-folder/file5.prompt.md',
-							'/infinite-recursion/file2.prompt.md',
-						],
-					),
-				),
-				new ExpectedReference(
-					rootUri,
-					new MarkdownLink(
-						6, 2,
-						'[some (snippet!) #name))]', '(./file1.md)',
-					),
-					new NotPromptFile(
-						URI.joinPath(rootUri, './file1.md'),
-						'Uggh oh!',
-					),
-				),
-			]
-		));
-
-		await test.run();
-	});
-
-	suite('options', () => {
-		test('allowNonPromptFiles', async function () {
-			const rootFolderName = 'resolves-nested-file-references';
-			const rootFolder = `/${rootFolderName}`;
-			const rootUri = URI.file(rootFolder);
-
-			const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
-				/**
-				 * The file structure to be created on the disk for the test.
-				 */
-				[{
-					name: rootFolderName,
-					children: [
-						{
-							name: 'file1.prompt.md',
-							contents: '## Some Header\nsome contents\n ',
-						},
-						{
-							name: 'file2.md',
-							contents: '## Files\n\t- this file #file:folder1/file3.prompt.md \n\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!\n ',
-						},
-						{
-							name: 'folder1',
-							children: [
-								{
-									name: 'file3.prompt.md',
-									contents: `\n[](./some-other-folder/non-existing-folder)\n\t- some seemingly random #file:${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md contents\n some more\t content`,
-								},
-								{
-									name: 'some-other-folder',
-									children: [
-										{
-											name: 'file4.prompt.md',
-											contents: 'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference\n\n\nand some\n non-prompt #file:./some-non-prompt-file.md\t\t \t[](../../folder1/)\t',
-										},
-										{
-											name: 'file.txt',
-											contents: 'contents of a non-prompt-snippet file',
-										},
-										{
-											name: 'yetAnotherFolder🤭',
-											children: [
-												{
-													name: 'another-file.prompt.md',
-													contents: `[](${rootFolder}/folder1/some-other-folder)\nanother-file.prompt.md contents\t [#file:file.txt](../file.txt)`,
-												},
-												{
-													name: 'one_more_file_just_in_case.prompt.md',
-													contents: 'one_more_file_just_in_case.prompt.md contents',
-												},
-											],
-										},
-									],
-								},
-							],
-						},
-					],
-				}],
-				/**
-				 * The root file path to start the resolve process from.
-				 */
-				URI.file(`/${rootFolderName}/file2.md`),
-				/**
-				 * The expected references to be resolved.
-				 */
-				[
-					new ExpectedReference(
-						rootUri,
-						createTestFileReference('folder1/file3.prompt.md', 2, 14),
-					),
-					new ExpectedReference(
-						URI.joinPath(rootUri, './folder1'),
-						new MarkdownLink(
-							2, 1,
-							'[]', '(./some-other-folder/non-existing-folder)',
-						),
-						new OpenFailed(
-							URI.joinPath(rootUri, './folder1/some-other-folder/non-existing-folder'),
-							'Reference to non-existing file cannot be opened.',
-						),
-					),
-					new ExpectedReference(
-						URI.joinPath(rootUri, './folder1'),
-						createTestFileReference(
-							`/${rootFolderName}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md`,
-							3,
-							26,
-						),
-					),
-					new ExpectedReference(
-						URI.joinPath(rootUri, './folder1/some-other-folder'),
-						new MarkdownLink(
-							1, 1,
-							'[]', `(/${rootFolderName}/folder1/some-other-folder)`,
-						),
-						new FolderReference(
-							URI.joinPath(rootUri, './folder1/some-other-folder'),
-							'This folder is not a prompt file!',
-						),
-					),
-					new ExpectedReference(
-						URI.joinPath(rootUri, './folder1/some-other-folder/yetAnotherFolder🤭'),
-						new MarkdownLink(
-							2, 34,
-							'[#file:file.txt]', '(../file.txt)',
-						),
-						new NotPromptFile(
-							URI.joinPath(rootUri, './folder1/some-other-folder/file.txt'),
-							'Ughh oh, that is not a prompt file!',
-						),
-					),
-					new ExpectedReference(
-						rootUri,
-						new MarkdownLink(
-							3, 14,
-							'[file4.prompt.md]', '(./folder1/some-other-folder/file4.prompt.md)',
-						),
-					),
-					new ExpectedReference(
-						URI.joinPath(rootUri, './folder1/some-other-folder'),
-						createTestFileReference('./some-non-existing/file.prompt.md', 1, 30),
-						new OpenFailed(
-							URI.joinPath(rootUri, './folder1/some-other-folder/some-non-existing/file.prompt.md'),
-							'Failed to open non-existing prompt snippets file',
-						),
-					),
-					new ExpectedReference(
-						URI.joinPath(rootUri, './folder1/some-other-folder/'),
-						createTestFileReference('./some-non-prompt-file.md', 5, 13),
-						new OpenFailed(
-							URI.joinPath(rootUri, './folder1/some-other-folder/some-non-prompt-file.md'),
-							'Oh no!',
-						),
-					),
-					new ExpectedReference(
-						URI.joinPath(rootUri, './some-other-folder/folder1/'),
-						new MarkdownLink(
-							5, 48,
-							'[]', '(../../folder1/)',
-						),
-						new FolderReference(
-							URI.joinPath(rootUri, './folder1'),
-							'Uggh ohh!',
-						),
-					),
-				]
-			));
-
-			await test.run({ allowNonPromptFiles: true });
-		});
-	});
 
 	suite('metadata', () => {
 		test('tools', async function () {
@@ -804,77 +415,10 @@ suite('PromptFileReference', function () {
 						createTestFileReference('folder1/file3.prompt.md', 7, 14),
 					),
 					new ExpectedReference(
-						URI.joinPath(rootUri, './folder1'),
-						new MarkdownLink(
-							5, 1,
-							'[]', '(./some-other-folder/non-existing-folder)',
-						),
-						new OpenFailed(
-							URI.joinPath(rootUri, './folder1/some-other-folder/non-existing-folder'),
-							'Reference to non-existing file cannot be opened.',
-						),
-					),
-					new ExpectedReference(
-						URI.joinPath(rootUri, './folder1'),
-						createTestFileReference(
-							`/${rootFolderName}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md`,
-							6, 26,
-						),
-					),
-					new ExpectedReference(
-						URI.joinPath(rootUri, './folder1/some-other-folder'),
-						new MarkdownLink(
-							4, 1,
-							'[]', `(/${rootFolderName}/folder1/some-other-folder)`,
-						),
-						new FolderReference(
-							URI.joinPath(rootUri, './folder1/some-other-folder'),
-							'This folder is not a prompt file!',
-						),
-					),
-					new ExpectedReference(
-						URI.joinPath(rootUri, './folder1/some-other-folder/yetAnotherFolder🤭'),
-						new MarkdownLink(
-							5, 34,
-							'[#file:file.txt]', '(../file.txt)',
-						),
-						new NotPromptFile(
-							URI.joinPath(rootUri, './folder1/some-other-folder/file.txt'),
-							'Ughh oh, that is not a prompt file!',
-						),
-					),
-					new ExpectedReference(
 						rootUri,
 						new MarkdownLink(
 							8, 14,
 							'[file4.prompt.md]', '(./folder1/some-other-folder/file4.prompt.md)',
-						),
-					),
-					new ExpectedReference(
-						URI.joinPath(rootUri, './folder1/some-other-folder'),
-						createTestFileReference('./some-non-existing/file.prompt.md', 6, 30),
-						new OpenFailed(
-							URI.joinPath(rootUri, './folder1/some-other-folder/some-non-existing/file.prompt.md'),
-							'Failed to open non-existing prompt snippets file',
-						),
-					),
-					new ExpectedReference(
-						URI.joinPath(rootUri, './folder1/some-other-folder'),
-						createTestFileReference('./some-non-prompt-file.md', 10, 13),
-						new OpenFailed(
-							URI.joinPath(rootUri, './folder1/some-other-folder/some-non-prompt-file.md'),
-							'Oh no!',
-						),
-					),
-					new ExpectedReference(
-						URI.joinPath(rootUri, './some-other-folder/folder1'),
-						new MarkdownLink(
-							10, 48,
-							'[]', '(../../folder1/)',
-						),
-						new FolderReference(
-							URI.joinPath(rootUri, './folder1'),
-							'Uggh ohh!',
 						),
 					),
 				]
@@ -882,7 +426,7 @@ suite('PromptFileReference', function () {
 
 			const rootReference = await test.run();
 
-			const { metadata, allToolsMetadata } = rootReference;
+			const { metadata } = rootReference;
 
 			assert.deepStrictEqual(
 				metadata,
@@ -895,15 +439,6 @@ suite('PromptFileReference', function () {
 				'Must have correct metadata.',
 			);
 
-			assertDefined(
-				allToolsMetadata,
-				'All tools metadata must be defined.',
-			);
-			assert.deepStrictEqual(
-				allToolsMetadata,
-				['my-tool1', 'my-tool3', 'my-tool2'],
-				'Must have correct all tools metadata.',
-			);
 		});
 
 		suite('applyTo', () => {
@@ -999,7 +534,7 @@ suite('PromptFileReference', function () {
 
 				const rootReference = await test.run();
 
-				const { metadata, allToolsMetadata } = rootReference;
+				const { metadata } = rootReference;
 
 				assert.deepStrictEqual(
 					metadata,
@@ -1012,16 +547,6 @@ suite('PromptFileReference', function () {
 					'Must have correct metadata.',
 				);
 
-				assert.deepStrictEqual(
-					allToolsMetadata,
-					[
-						'my-tool12',
-						'my-tool1',
-						'my-tool2',
-						'my-tool3',
-					],
-					'Must have correct all tools metadata.',
-				);
 			});
 
 
@@ -1117,7 +642,7 @@ suite('PromptFileReference', function () {
 
 				const rootReference = await test.run();
 
-				const { metadata, allToolsMetadata } = rootReference;
+				const { metadata } = rootReference;
 
 				assert.deepStrictEqual(
 					metadata,
@@ -1127,12 +652,6 @@ suite('PromptFileReference', function () {
 						description: 'Description of my instructions file.',
 					},
 					'Must have correct metadata.',
-				);
-
-				assert.strictEqual(
-					allToolsMetadata,
-					null,
-					'Must have correct all tools metadata.',
 				);
 			});
 		});
@@ -1230,7 +749,7 @@ suite('PromptFileReference', function () {
 
 				const rootReference = await test.run();
 
-				const { metadata, allToolsMetadata } = rootReference;
+				const { metadata } = rootReference;
 
 				assert.deepStrictEqual(
 					metadata,
@@ -1240,12 +759,6 @@ suite('PromptFileReference', function () {
 						description: 'Description of my prompt.',
 					},
 					'Must have correct metadata.',
-				);
-
-				assert.strictEqual(
-					allToolsMetadata,
-					null,
-					'Must have correct all tools metadata.',
 				);
 			});
 
@@ -1340,7 +853,7 @@ suite('PromptFileReference', function () {
 
 				const rootReference = await test.run();
 
-				const { metadata, allToolsMetadata } = rootReference;
+				const { metadata } = rootReference;
 
 				assert.deepStrictEqual(
 					metadata,
@@ -1352,11 +865,6 @@ suite('PromptFileReference', function () {
 					'Must have correct metadata.',
 				);
 
-				assert.strictEqual(
-					allToolsMetadata,
-					null,
-					'Must have correct all tools metadata.',
-				);
 			});
 
 			test('tools are not ignored if root prompt is in the agent mode', async function () {
@@ -1450,7 +958,7 @@ suite('PromptFileReference', function () {
 
 				const rootReference = await test.run();
 
-				const { metadata, allToolsMetadata } = rootReference;
+				const { metadata } = rootReference;
 
 				assert.deepStrictEqual(
 					metadata,
@@ -1462,15 +970,6 @@ suite('PromptFileReference', function () {
 					'Must have correct metadata.',
 				);
 
-				assert.deepStrictEqual(
-					allToolsMetadata,
-					[
-						'my-tool1',
-						'my-tool2',
-						'my-tool3',
-					],
-					'Must have correct all tools metadata.',
-				);
 			});
 
 			test('tools are not ignored if root prompt implicitly in the agent mode', async function () {
@@ -1564,7 +1063,7 @@ suite('PromptFileReference', function () {
 
 				const rootReference = await test.run();
 
-				const { metadata, allToolsMetadata } = rootReference;
+				const { metadata, } = rootReference;
 
 				assert.deepStrictEqual(
 					metadata,
@@ -1577,16 +1076,6 @@ suite('PromptFileReference', function () {
 					'Must have correct metadata.',
 				);
 
-				assert.deepStrictEqual(
-					allToolsMetadata,
-					[
-						'my-tool12',
-						'my-tool1',
-						'my-tool2',
-						'my-tool3',
-					],
-					'Must have correct all tools metadata.',
-				);
 			});
 		});
 	});

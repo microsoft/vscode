@@ -18,6 +18,7 @@ export namespace ChatContextKeys {
 	export const responseHasError = new RawContextKey<boolean>('chatSessionResponseError', false, { type: 'boolean', description: localize('chatResponseErrored', "True when the chat response resulted in an error.") });
 	export const requestInProgress = new RawContextKey<boolean>('chatSessionRequestInProgress', false, { type: 'boolean', description: localize('interactiveSessionRequestInProgress', "True when the current request is still in progress.") });
 	export const currentlyEditing = new RawContextKey<boolean>('chatSessionCurrentlyEditing', false, { type: 'boolean', description: localize('interactiveSessionCurrentlyEditing', "True when the current request is being edited.") });
+	export const currentlyEditingInput = new RawContextKey<boolean>('chatSessionCurrentlyEditingInput', false, { type: 'boolean', description: localize('interactiveSessionCurrentlyEditingInput', "True when the current request input at the bottom is being edited.") });
 	export const isRequestPaused = new RawContextKey<boolean>('chatRequestIsPaused', false, { type: 'boolean', description: localize('chatRequestIsPaused', "True when the current request is paused.") });
 	export const canRequestBePaused = new RawContextKey<boolean>('chatCanRequestBePaused', false, { type: 'boolean', description: localize('chatCanRequestBePaused', "True when the current request can be paused.") });
 
@@ -59,7 +60,8 @@ export namespace ChatContextKeys {
 	export const Setup = {
 		hidden: new RawContextKey<boolean>('chatSetupHidden', false, true), 		// True when chat setup is explicitly hidden.
 		installed: new RawContextKey<boolean>('chatSetupInstalled', false, true),  	// True when the chat extension is installed and enabled.
-		disabled: new RawContextKey<boolean>('chatSetupDisabled', false, true),  	// True when the chat extension is disabled.
+		disabled: new RawContextKey<boolean>('chatSetupDisabled', false, true),  	// True when the chat extension is disabled due to any other reason than workspace trust.
+		untrusted: new RawContextKey<boolean>('chatSetupUntrusted', false, true),  	// True when the chat extension is disabled due to workspace trust.
 		later: new RawContextKey<boolean>('chatSetupLater', false, true)  			// True when the user wants to finish setup later.
 	};
 

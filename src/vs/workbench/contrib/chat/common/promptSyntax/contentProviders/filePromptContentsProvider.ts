@@ -27,6 +27,10 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 	}
 
 	public override get languageId(): string {
+		if (this.options.languageId) {
+			return this.options.languageId;
+		}
+
 		const model = this.modelService.getModel(this.uri);
 
 		if (model !== null) {
@@ -46,7 +50,7 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 
 	constructor(
 		public readonly uri: URI,
-		options: Partial<IPromptContentsProviderOptions>,
+		options: IPromptContentsProviderOptions,
 		@IFileService private readonly fileService: IFileService,
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
@@ -140,7 +144,7 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 
 	public override createNew(
 		promptContentsSource: { uri: URI },
-		options: Partial<IPromptContentsProviderOptions> = {},
+		options: IPromptContentsProviderOptions,
 	): IPromptContentsProvider {
 		return new FilePromptContentProvider(
 			promptContentsSource.uri,

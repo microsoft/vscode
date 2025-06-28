@@ -230,9 +230,6 @@ class ToggleChatModeAction extends Action2 {
 		context.chatWidget.input.setChatMode2(switchToMode);
 
 		if (chatModeCheck.needToClearSession) {
-			if (context.chatWidget.viewModel?.editing) {
-				context.chatWidget.input.dispose();
-			}
 			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}
 	}
@@ -463,6 +460,12 @@ class SubmitWithoutDispatchingAction extends Action2 {
 export class CreateRemoteAgentJobAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.createRemoteAgentJob';
 
+	static readonly markdownStringTrustedOptions = {
+		isTrusted: {
+			enabledCommands: [] as string[],
+		},
+	};
+
 	constructor() {
 		const precondition = ContextKeyExpr.and(
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
@@ -483,7 +486,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			menu: {
 				id: MenuId.ChatExecute,
 				group: 'navigation',
-				order: 3.9,
+				order: 3.4,
 				when: ChatContextKeys.hasRemoteCodingAgent
 			}
 		});
@@ -545,11 +548,13 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			if (defaultAgent && chatRequests.length > 0) {
 				chatModel.acceptResponseProgress(addedRequest, {
 					kind: 'progressMessage',
-					content: new MarkdownString(localize('analyzingChatHistory', "Analyzing chat history"))
+					content: new MarkdownString(
+						localize('analyzingChatHistory', "Analyzing chat history"),
+						CreateRemoteAgentJobAction.markdownStringTrustedOptions
+					)
 				});
 
 				const historyEntries: IChatAgentHistoryEntry[] = chatRequests
-					.filter(req => req.response) // Only include completed requests
 					.map(req => ({
 						request: {
 							sessionId: session,
@@ -571,7 +576,10 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			// Show progress for job creation
 			chatModel.acceptResponseProgress(addedRequest, {
 				kind: 'progressMessage',
-				content: new MarkdownString(localize('creatingRemoteJob', "Pushing state to coding agent"))
+				content: new MarkdownString(
+					localize('creatingRemoteJob', "Pushing state to coding agent"),
+					CreateRemoteAgentJobAction.markdownStringTrustedOptions
+				)
 			});
 
 			// Execute the remote command
@@ -580,9 +588,15 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				summary: summary || userPrompt
 			});
 
-			let content = new MarkdownString(resultMarkdown, true);
+			let content = new MarkdownString(
+				resultMarkdown,
+				CreateRemoteAgentJobAction.markdownStringTrustedOptions
+			);
 			if (!resultMarkdown) {
-				content = new MarkdownString(localize('remoteAgentError', "Coding agent session cancelled."));
+				content = new MarkdownString(
+					localize('remoteAgentError', "Coding agent session cancelled."),
+					CreateRemoteAgentJobAction.markdownStringTrustedOptions
+				);
 			}
 
 			chatModel.acceptResponseProgress(addedRequest, { content, kind: 'markdownContent' });
@@ -751,12 +765,22 @@ export class CancelEdit extends Action2 {
 			title: localize2('interactive.cancelEdit.label', "Cancel Edit"),
 			f1: false,
 			category: CHAT_CATEGORY,
+			icon: Codicon.x,
+			menu: [
+				{
+					id: MenuId.ChatMessageTitle,
+					group: 'navigation',
+					order: 1,
+					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.currentlyEditing, ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input'))
+				}
+			],
 			keybinding: {
 				primary: KeyCode.Escape,
 				when: ContextKeyExpr.and(ChatContextKeys.inChatInput,
 					EditorContextKeys.hoverVisible.toNegated(),
 					EditorContextKeys.hasNonEmptySelection.toNegated(),
-					EditorContextKeys.hasMultipleSelections.toNegated()),
+					EditorContextKeys.hasMultipleSelections.toNegated(),
+					ContextKeyExpr.or(ChatContextKeys.currentlyEditing, ChatContextKeys.currentlyEditingInput)),
 				weight: KeybindingWeight.EditorContrib - 5
 			}
 		});
@@ -770,7 +794,7 @@ export class CancelEdit extends Action2 {
 		if (!widget) {
 			return;
 		}
-		widget.input.dispose();
+		widget.finishedEditing();
 	}
 }
 

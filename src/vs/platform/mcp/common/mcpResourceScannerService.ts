@@ -16,8 +16,13 @@ import { FileOperationResult, IFileService, toFileOperationResult } from '../../
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
-import { IScannedMcpServers, IScannedMcpServer } from './mcpManagement.js';
+import { IScannedMcpServer } from './mcpManagement.js';
 import { IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration } from './mcpPlatformTypes.js';
+
+interface IScannedMcpServers {
+	servers?: IStringDictionary<Mutable<IScannedMcpServer>>;
+	inputs?: IMcpServerVariable[];
+}
 
 interface IScannedWorkspaceFolderMcpServers {
 	servers?: IStringDictionary<IMcpServerConfiguration>;
@@ -112,7 +117,7 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 					}
 
 					if (target === ConfigurationTarget.USER) {
-						scannedMcpServers = result;
+						scannedMcpServers = this.fromUserMcpServers(result);
 					} else if (target === ConfigurationTarget.WORKSPACE_FOLDER) {
 						scannedMcpServers = this.fromWorkspaceFolderMcpServers(result);
 					} else if (target === ConfigurationTarget.WORKSPACE) {
@@ -181,6 +186,20 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 		await this.fileService.writeFile(mcpResource, VSBuffer.fromString(JSON.stringify(scannedWorkspaceMcpServers, null, '\t')));
 	}
 
+	private fromUserMcpServers(scannedMcpServers: IScannedMcpServers): IScannedMcpServers {
+		const userMcpServers: IScannedMcpServers = {
+			inputs: scannedMcpServers.inputs
+		};
+		const servers = Object.entries(scannedMcpServers.servers ?? {});
+		if (servers.length > 0) {
+			userMcpServers.servers = {};
+			for (const [serverName, server] of servers) {
+				userMcpServers.servers[serverName] = this.sanitizeServer(serverName, server);
+			}
+		}
+		return userMcpServers;
+	}
+
 	private fromWorkspaceFolderMcpServers(scannedWorkspaceFolderMcpServers: IScannedWorkspaceFolderMcpServers): IScannedMcpServers {
 		const scannedMcpServers: IScannedMcpServers = {
 			inputs: scannedWorkspaceFolderMcpServers.inputs
@@ -189,18 +208,32 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 		if (servers.length > 0) {
 			scannedMcpServers.servers = {};
 			for (const [serverName, config] of servers) {
-				if (config.type === undefined) {
-					(<Mutable<IMcpServerConfiguration>>config).type = (<IMcpStdioServerConfiguration>config).command ? 'stdio' : 'http';
-				}
-				scannedMcpServers.servers[serverName] = {
-					id: serverName,
-					name: serverName,
-					version: '0.0.1',
-					config
-				};
+				scannedMcpServers.servers[serverName] = this.sanitizeServer(serverName, config);
 			}
 		}
 		return scannedMcpServers;
+	}
+
+	private sanitizeServer(name: string, serverOrConfig: Mutable<IScannedMcpServer> | IMcpServerConfiguration): IScannedMcpServer {
+		let server: Mutable<IScannedMcpServer>;
+		if (!(<IScannedMcpServer>serverOrConfig).config) {
+			server = {
+				id: name,
+				name: name,
+				version: '0.0.1',
+				config: serverOrConfig as IMcpServerConfiguration
+			};
+		} else {
+			server = serverOrConfig as IScannedMcpServer;
+		}
+
+		if (server.config.type === undefined || (server.config.type !== 'http' && server.config.type !== 'stdio')) {
+			server.config = {
+				...server.config as any,
+				type: (<IMcpStdioServerConfiguration>server.config).command ? 'stdio' : 'http'
+			};
+		}
+		return server;
 	}
 
 	private toWorkspaceFolderMcpServers(scannedMcpServers: IScannedMcpServers): IScannedWorkspaceFolderMcpServers {

@@ -12,7 +12,6 @@ import { Range } from '../../../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { OpenFailed } from '../../../../common/promptFileReferenceErrors.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { randomBoolean } from '../../../../../../../base/test/common/testUtils.js';
 import { PROMPT_LANGUAGE_ID, INSTRUCTIONS_LANGUAGE_ID, MODE_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
@@ -70,7 +69,7 @@ class TextModelPromptParserTest extends Disposable {
 
 		// create the parser instance
 		this.parser = this._register(
-			instantiationService.createInstance(TextModelPromptParser, this.model, {}),
+			instantiationService.createInstance(TextModelPromptParser, this.model, { seenReferences: [], allowNonPromptFiles: true, languageId: undefined }),
 		).start();
 	}
 
@@ -204,7 +203,6 @@ suite('TextModelPromptParser', () => {
 				startLine: 1,
 				startColumn: 27,
 				pathStartColumn: 33,
-				childrenOrError: new OpenFailed(URI.file('/abs/path/to/file.md'), 'File not found.'),
 			}),
 			new ExpectedReference({
 				uri: URI.file('/foo/folder/binary.file'),
@@ -213,7 +211,6 @@ suite('TextModelPromptParser', () => {
 				startLine: 7,
 				startColumn: 10,
 				pathStartColumn: 16,
-				childrenOrError: new OpenFailed(URI.file('/foo/folder/binary.file'), 'File not found.'),
 			}),
 			new ExpectedReference({
 				uri: URI.file('/etc/hosts/random-file.txt'),
@@ -222,7 +219,6 @@ suite('TextModelPromptParser', () => {
 				startLine: 7,
 				startColumn: 81,
 				pathStartColumn: 91,
-				childrenOrError: new OpenFailed(URI.file('/etc/hosts/random-file.txt'), 'File not found.'),
 			}),
 		]);
 	});
@@ -257,7 +253,6 @@ suite('TextModelPromptParser', () => {
 				startLine: 3,
 				startColumn: 43,
 				pathStartColumn: 55,
-				childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
 			}),
 			new ExpectedReference({
 				uri: URI.file('/absolute/c/file_name.prompt.md'),
@@ -266,7 +261,6 @@ suite('TextModelPromptParser', () => {
 				startLine: 6,
 				startColumn: 7,
 				pathStartColumn: 17,
-				childrenOrError: new OpenFailed(URI.file('/absolute/c/file_name.prompt.md'), 'File not found.'),
 			}),
 			new ExpectedReference({
 				uri: URI.file('/absolute/folder/main.rs'),
@@ -275,7 +269,6 @@ suite('TextModelPromptParser', () => {
 				startLine: 11,
 				startColumn: 36,
 				pathStartColumn: 42,
-				childrenOrError: new OpenFailed(URI.file('/absolute/folder/main.rs'), 'File not found.'),
 			}),
 			new ExpectedReference({
 				uri: URI.file('/absolute/folder/and/a/samefile.jpeg'),
@@ -284,7 +277,6 @@ suite('TextModelPromptParser', () => {
 				startLine: 11,
 				startColumn: 56,
 				pathStartColumn: 62,
-				childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/samefile.jpeg'), 'File not found.'),
 			}),
 		]);
 	});
@@ -316,7 +308,6 @@ suite('TextModelPromptParser', () => {
 							startLine: 5,
 							startColumn: 43,
 							pathStartColumn: 50,
-							childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
 						}),
 					]);
 
@@ -365,7 +356,6 @@ suite('TextModelPromptParser', () => {
 							startLine: 11,
 							startColumn: 43,
 							pathStartColumn: 50,
-							childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
 						}),
 					]);
 
@@ -417,7 +407,6 @@ suite('TextModelPromptParser', () => {
 							startLine: 5,
 							startColumn: 43,
 							pathStartColumn: 50,
-							childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
 						}),
 					]);
 
@@ -466,7 +455,6 @@ suite('TextModelPromptParser', () => {
 							startLine: 11,
 							startColumn: 43,
 							pathStartColumn: 50,
-							childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
 						}),
 					]);
 
@@ -519,7 +507,6 @@ suite('TextModelPromptParser', () => {
 							startLine: 5,
 							startColumn: 43,
 							pathStartColumn: 50,
-							childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
 						}),
 					]);
 
@@ -567,7 +554,6 @@ suite('TextModelPromptParser', () => {
 							startLine: 10,
 							startColumn: 43,
 							pathStartColumn: 50,
-							childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
 						}),
 					]);
 
@@ -621,7 +607,6 @@ suite('TextModelPromptParser', () => {
 						startLine: 10,
 						startColumn: 43,
 						pathStartColumn: 50,
-						childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
 					}),
 				]);
 

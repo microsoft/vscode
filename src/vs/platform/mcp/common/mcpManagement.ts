@@ -4,17 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { IStringDictionary } from '../../../base/common/collections.js';
 import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
 import { SortBy, SortOrder } from '../../extensionManagement/common/extensionManagement.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IMcpServerConfiguration, IMcpServerVariable } from './mcpPlatformTypes.js';
-
-export interface IScannedMcpServers {
-	servers?: IStringDictionary<IScannedMcpServer>;
-	inputs?: IMcpServerVariable[];
-}
 
 export interface IScannedMcpServer {
 	readonly id: string;
@@ -197,6 +191,7 @@ export interface IMcpManagementService {
 	readonly _serviceBrand: undefined;
 	readonly onInstallMcpServer: Event<InstallMcpServerEvent>;
 	readonly onDidInstallMcpServers: Event<readonly InstallMcpServerResult[]>;
+	readonly onDidUpdateMcpServers: Event<readonly InstallMcpServerResult[]>;
 	readonly onUninstallMcpServer: Event<UninstallMcpServerEvent>;
 	readonly onDidUninstallMcpServer: Event<DidUninstallMcpServerEvent>;
 	getInstalled(mcpResource?: URI): Promise<ILocalMcpServer[]>;

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './promptSyntax/promptToolsCodeLensProvider.js';
+import './promptSyntax/promptCodingAgentActionContribution.js';
 import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
@@ -247,10 +248,11 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental']
 		},
 		'chat.editRequests': {
-			default: true,
 			markdownDescription: nls.localize('chat.editRequests', "Enables editing of requests in the chat. This allows you to change the request content and resubmit it to the model."),
-			type: 'boolean',
-			tags: ['experimental']
+			type: 'string',
+			enum: ['inline', 'hover', 'input', 'none'],
+			default: 'inline',
+			tags: ['experimental'],
 		},
 		[mcpEnabledSection]: {
 			type: 'boolean',

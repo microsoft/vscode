@@ -709,7 +709,8 @@ export function registerChatActions() {
 				title: localize2('configureCompletions', "Configure Code Completions..."),
 				precondition: ContextKeyExpr.and(
 					ChatContextKeys.Setup.installed,
-					ChatContextKeys.Setup.disabled.negate()
+					ChatContextKeys.Setup.disabled.negate(),
+					ChatContextKeys.Setup.untrusted.negate()
 				),
 				menu: {
 					id: MenuId.ChatTitleBarMenu,
@@ -808,8 +809,8 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.updateInstructions',
-				title: localize2('updateInstructions', "Automatically Update Instructions"),
-				shortTitle: localize2('updateInstructions.short', "Auto-update Instructions"),
+				title: localize2('updateInstructions', "Generate Instructions"),
+				shortTitle: localize2('updateInstructions.short', "Generate Instructions"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.sparkle,
 				f1: true,
@@ -827,20 +828,25 @@ export function registerChatActions() {
 			const commandService = accessor.get(ICommandService);
 
 			// Use chat command to open and send the query
-			const query = `Analyze this workspace and create or update \`.github/copilot-instructions.md\`. The file guides future AI coding agents here.
+			const query = `Analyze this codebase to generate or update \`.github/copilot-instructions.md\` for guiding AI coding agents.
 
-Add:
-- Core commands, especially build, lint, test (incl. single-test run), docs, migrations, etc.
-- High-level architecture, including major packages, services, data stores, external APIs, etc.
-- Repo-specific style rules, including formatting, imports, typing, naming, error handling, etc.
-- Relevant agent rules detected in \`.cursor/**\`, \`.cursorrules\`, \`AGENTS.md\`, \`AGENT.md\`, \`CLAUDE.md\`, \`.windsurfrules\`, existing Copilot file, etc.
-- Summarize important parts of README or other docs instead of copying them.
+Focus on discovering the essential knowledge that would help an AI agents be immediately productive in this codebase. Consider aspects like:
+- The "big picture" architecture that requires reading multiple files to understand - major components, service boundaries, data flows, and the "why" behind structural decisions
+- Critical developer workflows (builds, tests, debugging) especially commands that aren't obvious from file inspection alone
+- Project-specific conventions and patterns that differ from common practices
+- Integration points, external dependencies, and cross-component communication patterns
+
+Source existing AI conventions from: \`**/{.github/copilot-instructions.md,AGENT.md,AGENTS.md,CLAUDE.md,.cursorrules,.windsurfrules,.clinerules,.cursor/rules/**,.windsurf/rules/**,.clinerules/**,README.md}\`.
 
 Guidelines (read more at https://aka.ms/vscode-instructions-docs):
-- If \`.github/copilot-instructions.md\` exists, patch/merge. Never overwrite blindly.
-- Be concise; skip boilerplate, generic advice, or exhaustive file listings.
-- Use Markdown headings + bullets; keep prose minimal and non-repetitive.
-- Cite only facts found in the repo (don't invent information).`;
+- If \`.github/copilot-instructions.md\` exists, merge intelligently - preserve valuable content while updating outdated sections
+- Write concise, actionable instructions (~20-50 lines) using markdown structure
+- Include specific examples from the codebase when describing patterns
+- Avoid generic advice ("write tests", "handle errors") - focus on THIS project's specific approaches
+- Document only discoverable patterns, not aspirational practices
+- Reference key files/directories that exemplify important patterns
+
+After generating the initial instructions (in less than 20 tool calls, count down after each tool call), ask for feedback on any unclear or incomplete sections and iterate on the instructions based on their input.`;
 
 			await commandService.executeCommand('workbench.action.chat.open', {
 				mode: 'agent',

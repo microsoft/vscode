@@ -50,7 +50,7 @@ import { ILayoutService } from '../../../platform/layout/browser/layoutService.j
 import { StandaloneServicesNLS } from '../../common/standaloneStrings.js';
 import { basename } from '../../../base/common/resources.js';
 import { ICodeEditorService } from '../../browser/services/codeEditorService.js';
-import { ConsoleLogger, ILogService } from '../../../platform/log/common/log.js';
+import { ConsoleLogger, ILoggerService, ILogService, NullLoggerService } from '../../../platform/log/common/log.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo } from '../../../platform/workspace/common/workspaceTrust.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
 import { ICodeEditor, IDiffEditor } from '../../browser/editorBrowser.js';
@@ -1128,6 +1128,7 @@ export interface IEditorOverrideServices {
 	[index: string]: any;
 }
 
+
 registerSingleton(ILogService, StandaloneLogService, InstantiationType.Eager);
 registerSingleton(IConfigurationService, StandaloneConfigurationService, InstantiationType.Eager);
 registerSingleton(ITextResourceConfigurationService, StandaloneResourceConfigurationService, InstantiationType.Eager);
@@ -1163,6 +1164,7 @@ registerSingleton(IContextMenuService, StandaloneContextMenuService, Instantiati
 registerSingleton(IMenuService, MenuService, InstantiationType.Eager);
 registerSingleton(IAccessibilitySignalService, StandaloneAccessbilitySignalService, InstantiationType.Eager);
 registerSingleton(ITreeSitterLibraryService, StandaloneTreeSitterLibraryService, InstantiationType.Eager);
+registerSingleton(ILoggerService, NullLoggerService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance
