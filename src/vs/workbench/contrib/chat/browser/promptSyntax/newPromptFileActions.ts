@@ -54,7 +54,6 @@ class AbstractNewPromptFileAction extends Action2 {
 		const commandService = accessor.get(ICommandService);
 		const notificationService = accessor.get(INotificationService);
 		const userDataSyncEnablementService = accessor.get(IUserDataSyncEnablementService);
-		const snippetService = accessor.get(ISnippetsService);
 		const editorService = accessor.get(IEditorService);
 		const fileService = accessor.get(IFileService);
 		const instaService = accessor.get(IInstantiationService);
@@ -80,15 +79,10 @@ class AbstractNewPromptFileAction extends Action2 {
 
 		const editor = getCodeEditor(editorService.activeTextEditorControl);
 		if (editor && editor.hasModel() && isEqual(editor.getModel().uri, promptUri)) {
-			const languageId = getLanguageIdForPromptsType(this.type);
-
-			const snippets = await snippetService.getSnippets(languageId, { fileTemplateSnippets: true, noRecencySort: true, includeNoPrefixSnippets: true });
-			if (snippets.length > 0) {
-				SnippetController2.get(editor)?.apply([{
-					range: editor.getModel().getFullModelRange(),
-					template: snippets[0].body
-				}]);
-			}
+			SnippetController2.get(editor)?.apply([{
+				range: editor.getModel().getFullModelRange(),
+				template: getDefaultContentSnippet(this.type),
+			}]);
 		}
 
 		if (selectedFolder.storage !== 'user') {
@@ -145,6 +139,33 @@ class AbstractNewPromptFileAction extends Action2 {
 	}
 }
 
+function getDefaultContentSnippet(promptType: PromptsType): string {
+	switch (promptType) {
+		case PromptsType.prompt:
+			return [
+				`---`,
+				`mode: \${1|ask,edit,agent|}`,
+				`---`,
+				`\${2:Expected output and any relevant constraints for this task.}`,
+			].join('\n');
+		case PromptsType.instructions:
+			return [
+				`---`,
+				`applyTo: '\${1|**,**/*.ts|}'`,
+				`---`,
+				`\${2:Coding standards, domain knowledge, and preferences that AI should follow.}`,
+			].join('\n');
+		case PromptsType.mode:
+			return [
+				`---`,
+				`description: '\${1:Description of the custom chat mode.}'`,
+				`tools: [ '\${2:tool1}', '\${3:tool2}' ]`,
+				`---`,
+			].join('\n');
+		default:
+			throw new Error(`Unknown prompt type: ${promptType}`);
+	}
+}
 
 export const NEW_PROMPT_COMMAND_ID = 'workbench.command.new.prompt';
 export const NEW_INSTRUCTIONS_COMMAND_ID = 'workbench.command.new.instructions';
