@@ -192,7 +192,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			const completionsQuotaExceeded = this.chatEntitlementService.quotas.completions?.percentRemaining === 0;
 
 			// Disabled
-			if (this.chatEntitlementService.sentiment.disabled) {
+			if (this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted) {
 				text = `$(copilot-unavailable)`;
 				ariaLabel = localize('copilotDisabledStatus', "Copilot Disabled");
 			}
@@ -255,7 +255,7 @@ function isNewUser(chatEntitlementService: IChatEntitlementService): boolean {
 
 function canUseCopilot(chatEntitlementService: IChatEntitlementService): boolean {
 	const newUser = isNewUser(chatEntitlementService);
-	const disabled = chatEntitlementService.sentiment.disabled;
+	const disabled = chatEntitlementService.sentiment.disabled || chatEntitlementService.sentiment.untrusted;
 	const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 	const free = chatEntitlementService.entitlement === ChatEntitlement.Free;
 	const allFreeQuotaReached = free && chatEntitlementService.quotas.chat?.percentRemaining === 0 && chatEntitlementService.quotas.completions?.percentRemaining === 0;
@@ -410,7 +410,7 @@ class ChatStatusDashboard extends Disposable {
 		// Settings
 		{
 			const chatSentiment = this.chatEntitlementService.sentiment;
-			addSeparator(localize('settingsTitle', "Settings"), chatSentiment.installed && !chatSentiment.disabled ? toAction({
+			addSeparator(localize('settingsTitle', "Settings"), chatSentiment.installed && !chatSentiment.disabled && !chatSentiment.untrusted ? toAction({
 				id: 'workbench.action.openChatSettings',
 				label: localize('settingsLabel', "Settings"),
 				tooltip: localize('settingsTooltip', "Open Settings"),
@@ -424,7 +424,7 @@ class ChatStatusDashboard extends Disposable {
 		// New to Copilot / Signed out
 		{
 			const newUser = isNewUser(this.chatEntitlementService);
-			const disabled = this.chatEntitlementService.sentiment.disabled;
+			const disabled = this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted;
 			const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 			if (newUser || signedOut || disabled) {
 				addSeparator();

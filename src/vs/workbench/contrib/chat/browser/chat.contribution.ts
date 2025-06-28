@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './promptSyntax/promptToolsCodeLensProvider.js';
+import './promptSyntax/promptCodingAgentActionContribution.js';
 import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';

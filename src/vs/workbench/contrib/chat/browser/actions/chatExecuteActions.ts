@@ -460,6 +460,12 @@ class SubmitWithoutDispatchingAction extends Action2 {
 export class CreateRemoteAgentJobAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.createRemoteAgentJob';
 
+	static readonly markdownStringTrustedOptions = {
+		isTrusted: {
+			enabledCommands: [] as string[],
+		},
+	};
+
 	constructor() {
 		const precondition = ContextKeyExpr.and(
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
@@ -480,7 +486,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			menu: {
 				id: MenuId.ChatExecute,
 				group: 'navigation',
-				order: 3.9,
+				order: 3.4,
 				when: ChatContextKeys.hasRemoteCodingAgent
 			}
 		});
@@ -542,11 +548,13 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			if (defaultAgent && chatRequests.length > 0) {
 				chatModel.acceptResponseProgress(addedRequest, {
 					kind: 'progressMessage',
-					content: new MarkdownString(localize('analyzingChatHistory', "Analyzing chat history"))
+					content: new MarkdownString(
+						localize('analyzingChatHistory', "Analyzing chat history"),
+						CreateRemoteAgentJobAction.markdownStringTrustedOptions
+					)
 				});
 
 				const historyEntries: IChatAgentHistoryEntry[] = chatRequests
-					.filter(req => req.response) // Only include completed requests
 					.map(req => ({
 						request: {
 							sessionId: session,
@@ -568,7 +576,10 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			// Show progress for job creation
 			chatModel.acceptResponseProgress(addedRequest, {
 				kind: 'progressMessage',
-				content: new MarkdownString(localize('creatingRemoteJob', "Pushing state to coding agent"))
+				content: new MarkdownString(
+					localize('creatingRemoteJob', "Pushing state to coding agent"),
+					CreateRemoteAgentJobAction.markdownStringTrustedOptions
+				)
 			});
 
 			// Execute the remote command
@@ -577,9 +588,15 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				summary: summary || userPrompt
 			});
 
-			let content = new MarkdownString(resultMarkdown, true);
+			let content = new MarkdownString(
+				resultMarkdown,
+				CreateRemoteAgentJobAction.markdownStringTrustedOptions
+			);
 			if (!resultMarkdown) {
-				content = new MarkdownString(localize('remoteAgentError', "Coding agent session cancelled."));
+				content = new MarkdownString(
+					localize('remoteAgentError', "Coding agent session cancelled."),
+					CreateRemoteAgentJobAction.markdownStringTrustedOptions
+				);
 			}
 
 			chatModel.acceptResponseProgress(addedRequest, { content, kind: 'markdownContent' });

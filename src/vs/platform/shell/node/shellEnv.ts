@@ -5,24 +5,22 @@
 
 import { spawn } from 'child_process';
 import { homedir } from 'os';
-import { basename, dirname, extname, isAbsolute, join } from '../../../base/common/path.js';
-import { localize } from '../../../nls.js';
+import { first, Promises } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
+import { clamp } from '../../../base/common/numbers.js';
+import { basename, join } from '../../../base/common/path.js';
 import { IProcessEnvironment, isMacintosh, isWindows, OS } from '../../../base/common/platform.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { StreamSplitter } from '../../../base/node/nodeStreams.js';
+import { Promises as FSPromises } from '../../../base/node/pfs.js';
 import { getSystemShell } from '../../../base/node/shell.js';
+import { localize } from '../../../nls.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { NativeParsedArgs } from '../../environment/common/argv.js';
 import { isLaunchedFromCli } from '../../environment/node/argvHelper.js';
 import { ILogService } from '../../log/common/log.js';
-import { first, Promises } from '../../../base/common/async.js';
-import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { clamp } from '../../../base/common/numbers.js';
-import { findExecutable, getWindowPathExtensions } from '../../../base/node/processes.js';
-import { equalsIgnoreCase } from '../../../base/common/strings.js';
-import { Promises as FSPromises } from '../../../base/node/pfs.js';
-import { StreamSplitter } from '../../../base/node/nodeStreams.js';
 
 let shellEnvPromise: Promise<typeof process.env> | undefined = undefined;
 
@@ -35,6 +33,13 @@ let shellEnvPromise: Promise<typeof process.env> | undefined = undefined;
  * - any other error from spawning a shell to figure out the environment
  */
 export async function getResolvedShellEnv(configurationService: IConfigurationService, logService: ILogService, args: NativeParsedArgs, env: IProcessEnvironment): Promise<typeof process.env> {
+
+	// Skip on windows
+	if (isWindows) {
+		logService.trace('resolveShellEnv(): skipped (Windows)');
+
+		return {};
+	}
 
 	// Skip if --force-disable-user-env
 	if (args['force-disable-user-env']) {
@@ -113,21 +118,13 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 	};
 
 	logService.trace('doResolveShellEnv#env', env);
-	const systemShell = await getSystemShell(OS, env); // note: windows always resolves a powershell instance
+	const systemShell = await getSystemShell(OS, env);
 	logService.trace('doResolveShellEnv#shell', systemShell);
 
-	let name = basename(systemShell);
-	if (isWindows) {
-		const nameExt = extname(name);
-		if (getWindowPathExtensions().some(e => equalsIgnoreCase(e, nameExt))) {
-			name = name.substring(0, name.length - nameExt.length); // remove any .exe/.cmd/... from the name for matching logic on Windows
-		}
-	}
-
+	const name = basename(systemShell);
 	let command: string, shellArgs: Array<string>;
-	const extraArgs = '';
 	if (/^(?:pwsh|powershell)(?:-preview)?$/.test(name)) {
-		const profilePaths = await getPowershellProfilePaths(systemShell);
+		const profilePaths = getPowershellProfilePaths();
 		const profilePathThatExists = await first(profilePaths.map(profilePath => async () => (await FSPromises.exists(profilePath)) ? profilePath : undefined));
 		if (!profilePathThatExists) {
 			logService.trace('doResolveShellEnv#noPowershellProfile after testing paths', profilePaths);
@@ -141,25 +138,15 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 		// so we use "double single quotes" which is how you escape single
 		// quotes inside of a single quoted string.
 		command = `Write-Output '${mark}'; [System.Environment]::GetEnvironmentVariables() | ConvertTo-Json -Compress; Write-Output '${mark}'`;
-
-		// Improve unicode support on Windows by setting the code page to UTF-8
-		if (isWindows) {
-			command = `chcp 65001; ${command}`;
-		}
-
-		// -Login is not a supported argument on PowerShell 5, which is a version of
-		// powershell that is exclusive to Windows. Providing it would error. Also,
-		// -Login is documented as a no-op on Windows on Powershell 7, so simply omit
-		// it to avoid causing errors or requiring a version check.
-		shellArgs = isWindows ? ['-Command'] : ['-Login', '-Command'];
+		shellArgs = ['-Login', '-Command'];
 	} else if (name === 'nu') { // nushell requires ^ before quoted path to treat it as a command
-		command = `^'${process.execPath}' ${extraArgs} -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
+		command = `^'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
 		shellArgs = ['-i', '-l', '-c'];
 	} else if (name === 'xonsh') { // #200374: native implementation is shorter
 		command = `import os, json; print("${mark}", json.dumps(dict(os.environ)), "${mark}")`;
 		shellArgs = ['-i', '-l', '-c'];
 	} else {
-		command = `'${process.execPath}' ${extraArgs} -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
+		command = `'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
 
 		if (name === 'tcsh' || name === 'csh') {
 			shellArgs = ['-ic'];
@@ -296,37 +283,11 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
  *
  * @see https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_profiles?view=powershell-7.5
  */
-async function getPowershellProfilePaths(psExecutable: string) {
+function getPowershellProfilePaths() {
 	const paths: string[] = [];
 	const userHome = homedir();
-	if (isWindows) {
 
-		// "The $PSHOME variable stores the installation directory for PowerShell" --
-		// but this is not set ambiently on the operating system.
-		let pshome = process.env.PSHOME;
-		if (!pshome) {
-			if (!isAbsolute(psExecutable)) {
-				const found = await findExecutable(psExecutable);
-				if (!found) {
-					return [];
-				}
-
-				pshome = dirname(found);
-			} else {
-				pshome = dirname(psExecutable);
-			}
-		}
-
-		paths.push(
-			join(pshome, 'Profile.ps1'), 													// All Users, All Hosts
-			join(pshome, 'Microsoft.PowerShell_profile.ps1'), 								// All Users, Current Host
-			join(userHome, 'Documents', 'PowerShell', 'Profile.ps1'), 						// Current User, All Hosts
-			join(userHome, 'Documents', 'PowerShell', 'Microsoft.PowerShell_profile.ps1'), 	// Current User, Current Host
-
-			join(userHome, 'Documents', 'WindowsPowerShell', 'Profile.ps1'), 						// (Powershell 5) Current User, All Hosts
-			join(userHome, 'Documents', 'WindowsPowerShell', 'Microsoft.PowerShell_profile.ps1'), 	// (Powershell 5) Current User, Current Host
-		);
-	} else if (isMacintosh) {
+	if (isMacintosh) {
 
 		// note: powershell 7 is the first (and yet only) powershell version on posix,
 		// so no need to look for any extra paths yet.
