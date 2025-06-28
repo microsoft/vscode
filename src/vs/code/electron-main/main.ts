@@ -392,7 +392,7 @@ class CodeMain {
 
 			// Send environment over...
 			logService.trace('Sending env to running instance...');
-			await otherInstanceLaunchMainService.start(environmentMainService.args, process.env as IProcessEnvironment);
+			await otherInstanceLaunchMainService.start(environmentMainService.args, process.env, cwd());
 
 			// Cleanup
 			client.dispose();

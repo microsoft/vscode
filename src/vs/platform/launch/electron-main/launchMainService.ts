@@ -31,7 +31,7 @@ export interface ILaunchMainService {
 
 	readonly _serviceBrand: undefined;
 
-	start(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void>;
+	start(args: NativeParsedArgs, userEnv: IProcessEnvironment, cwd: string): Promise<void>;
 
 	getMainProcessId(): Promise<number>;
 }
@@ -47,7 +47,7 @@ export class LaunchMainService implements ILaunchMainService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
-	async start(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
+	async start(args: NativeParsedArgs, userEnv: IProcessEnvironment, cwd: string): Promise<void> {
 		this.logService.trace('Received data from other instance: ', args, userEnv);
 
 		// macOS: Electron > 7.x changed its behaviour to not
@@ -86,7 +86,7 @@ export class LaunchMainService implements ILaunchMainService {
 
 		// Otherwise handle in windows service
 		else {
-			return this.startOpenWindow(args, userEnv);
+			return this.startOpenWindow(args, userEnv, cwd);
 		}
 	}
 
@@ -109,12 +109,18 @@ export class LaunchMainService implements ILaunchMainService {
 		return [];
 	}
 
-	private async startOpenWindow(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
+	private async startOpenWindow(args: NativeParsedArgs, userEnv: IProcessEnvironment, cwd: string): Promise<void> {
 		const context = isLaunchedFromCli(userEnv) ? OpenContext.CLI : OpenContext.DESKTOP;
 		let usedWindows: ICodeWindow[] = [];
 
 		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
 		const remoteAuthority = args.remote || undefined;
+
+		// When agent subcommand is used, always take the current
+		// working directory as folder to open for the flow.
+		if (args.agent) {
+			args._ = [cwd];
+		}
 
 		const baseConfig: IOpenConfiguration = {
 			context,
