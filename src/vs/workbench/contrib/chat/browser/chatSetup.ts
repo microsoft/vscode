@@ -68,7 +68,6 @@ import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from './acti
 import { ChatViewId, IChatWidgetService, showCopilotView } from './chat.js';
 import { CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { coalesce } from '../../../../base/common/arrays.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IButton } from '../../../../base/browser/ui/button/button.js';
 import { ChatMode2 } from '../common/chatModes.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
@@ -592,7 +591,7 @@ class ChatSetup {
 		let instance = ChatSetup.instance;
 		if (!instance) {
 			instance = ChatSetup.instance = instantiationService.invokeFunction(accessor => {
-				return new ChatSetup(context, controller, instantiationService, accessor.get(ITelemetryService), accessor.get(IWorkbenchLayoutService), accessor.get(IKeybindingService), accessor.get(IChatEntitlementService) as ChatEntitlementService, accessor.get(ILogService), accessor.get(IConfigurationService), accessor.get(IViewsService), accessor.get(IProductService), accessor.get(IOpenerService));
+				return new ChatSetup(context, controller, instantiationService, accessor.get(ITelemetryService), accessor.get(IWorkbenchLayoutService), accessor.get(IKeybindingService), accessor.get(IChatEntitlementService) as ChatEntitlementService, accessor.get(ILogService), accessor.get(IConfigurationService), accessor.get(IViewsService), accessor.get(IOpenerService));
 			});
 		}
 
@@ -614,7 +613,6 @@ class ChatSetup {
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IViewsService private readonly viewsService: IViewsService,
-		@IProductService private readonly productService: IProductService,
 		@IOpenerService private readonly openerService: IOpenerService,
 	) { }
 
@@ -691,40 +689,20 @@ class ChatSetup {
 	}
 
 	private async showDialog(): Promise<ChatSetupStrategy> {
-		let dialogVariant = this.configurationService.getValue<'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'account-create' | unknown>('chat.setup.signInDialogVariant');
-		if (this.context.state.entitlement !== ChatEntitlement.Unknown && dialogVariant === 'account-create') {
-			dialogVariant = 'default'; // fallback to modern/default for users that are signed in already
-		}
-
 		const disposables = new DisposableStore();
 
+		const dialogVariant = this.configurationService.getValue<'default' | 'alternate-first' | 'alternate-color' | 'alternate-monochrome' | unknown>('chat.setup.signInDialogVariant');
 		const buttons = this.getButtons(dialogVariant);
-
-		let icon: ThemeIcon;
-		switch (dialogVariant) {
-			case 'brand-gh':
-				icon = Codicon.github;
-				break;
-			case 'brand-vsc':
-				icon = this.productService.quality === 'stable' ? Codicon.vscode : this.productService.quality === 'insider' ? Codicon.vscodeInsiders : Codicon.codeOss;
-				break;
-			default:
-				icon = Codicon.copilotLarge;
-				break;
-		}
 
 		const dialog = disposables.add(new Dialog(
 			this.layoutService.activeContainer,
-			this.getDialogTitle(dialogVariant),
+			this.getDialogTitle(),
 			buttons.map(button => button[0]),
 			createWorkbenchDialogOptions({
 				type: 'none',
-				extraClasses: coalesce([
-					'chat-setup-dialog',
-					dialogVariant === 'style-glow' ? 'chat-setup-glow' : undefined
-				]),
+				extraClasses: ['chat-setup-dialog'],
 				detail: ' ', // workaround allowing us to render the message in large
-				icon,
+				icon: Codicon.copilotLarge,
 				alignment: DialogContentsAlignment.Vertical,
 				cancelId: buttons.length - 1,
 				disableCloseButton: true,
@@ -739,76 +717,53 @@ class ChatSetup {
 		return buttons[button]?.[1] ?? ChatSetupStrategy.Canceled;
 	}
 
-	private getButtons(variant: unknown): Array<[string, ChatSetupStrategy, { styleButton?: (button: IButton) => void } | undefined]> {
+	private getButtons(variant: 'default' | 'alternate-first' | 'alternate-color' | 'alternate-monochrome' | unknown): Array<[string, ChatSetupStrategy, { styleButton?: (button: IButton) => void } | undefined]> {
 		let buttons: Array<[string, ChatSetupStrategy, { styleButton?: (button: IButton) => void } | undefined]>;
 
 		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
 			let alternateProvider: 'off' | 'monochrome' | 'colorful' | 'first' = 'off';
-			const alternateProviderSetting: unknown = this.configurationService.getValue('chat.setup.signInWithAlternateProvider');
-			if (alternateProviderSetting === true) {
-				alternateProvider = 'colorful';
-			} else if (alternateProviderSetting === 'monochrome' || alternateProviderSetting === 'colorful' || alternateProviderSetting === 'first') {
-				alternateProvider = alternateProviderSetting;
+			if (defaultChat.alternativeProviderId) {
+				switch (variant) {
+					case 'alternate-first':
+						alternateProvider = 'first';
+						break;
+					case 'alternate-color':
+						alternateProvider = 'colorful';
+						break;
+					case 'alternate-monochrome':
+						alternateProvider = 'monochrome';
+						break;
+				}
 			}
-
-			const enableAlternateProvider = alternateProvider !== 'off' && defaultChat.alternativeProviderId;
 
 			if (ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId) {
 				buttons = coalesce([
 					[localize('continueWith', "Continue with {0}", defaultChat.enterpriseProviderName), ChatSetupStrategy.SetupWithEnterpriseProvider, {
-						styleButton: button => {
-							button.element.classList.add('continue-button', 'default');
-						}
+						styleButton: button => button.element.classList.add('continue-button', 'default')
 					}],
-					enableAlternateProvider ? [localize('continueWith', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.SetupWithAlternateProvider, {
-						styleButton: button => {
-							button.element.classList.add('continue-button', 'alternate', alternateProvider);
-						}
+					alternateProvider !== 'off' ? [localize('continueWith', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.SetupWithAlternateProvider, {
+						styleButton: button => button.element.classList.add('continue-button', 'alternate', alternateProvider)
 					}] : undefined,
-					[variant !== 'account-create' ? localize('signInWithProvider', "Sign in with a {0} account", defaultChat.providerName) : localize('continueWithProvider', "Continue with {0}", defaultChat.providerName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, {
-						styleButton: button => {
-							if (variant !== 'account-create') {
-								button.element.classList.add('link-button');
-							} else {
-								button.element.classList.add('continue-button', 'default');
-							}
-						}
+					[localize('signInWithProvider', "Sign in with a {0} account", defaultChat.providerName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, {
+						styleButton: button => button.element.classList.add('link-button')
 					}]
 				]);
 			} else {
 				buttons = coalesce([
 					[localize('continueWith', "Continue with {0}", defaultChat.providerName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, {
-						styleButton: button => {
-							button.element.classList.add('continue-button', 'default');
-						}
+						styleButton: button => button.element.classList.add('continue-button', 'default')
 					}],
-					enableAlternateProvider ? [localize('continueWith', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.SetupWithAlternateProvider, {
-						styleButton: button => {
-							button.element.classList.add('continue-button', 'alternate', alternateProvider);
-						}
+					alternateProvider !== 'off' ? [localize('continueWith', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.SetupWithAlternateProvider, {
+						styleButton: button => button.element.classList.add('continue-button', 'alternate', alternateProvider)
 					}] : undefined,
-					[variant !== 'account-create' ? localize('signInWithProvider', "Sign in with a {0} account", defaultChat.enterpriseProviderName) : localize('continueWithProvider', "Continue with {0}", defaultChat.enterpriseProviderName), ChatSetupStrategy.SetupWithEnterpriseProvider, {
-						styleButton: button => {
-							if (variant !== 'account-create') {
-								button.element.classList.add('link-button');
-							} else {
-								button.element.classList.add('continue-button', 'default');
-							}
-						}
+					[localize('signInWithProvider', "Sign in with a {0} account", defaultChat.enterpriseProviderName), ChatSetupStrategy.SetupWithEnterpriseProvider, {
+						styleButton: button => button.element.classList.add('link-button')
 					}]
 				]);
 			}
 
-			if (enableAlternateProvider && alternateProvider === 'first') {
+			if (alternateProvider === 'first') {
 				[buttons[0], buttons[1]] = [buttons[1], buttons[0]];
-			}
-
-			if (variant === 'account-create') {
-				buttons.push([localize('createAccount', "Create a New Account"), ChatSetupStrategy.SetupWithAccountCreate, {
-					styleButton: button => {
-						button.element.classList.add('link-button');
-					}
-				}]);
 			}
 		} else {
 			buttons = [[localize('setupCopilotButton', "Set up Copilot"), ChatSetupStrategy.DefaultSetup, undefined]];
@@ -819,26 +774,12 @@ class ChatSetup {
 		return buttons;
 	}
 
-	private getDialogTitle(variant: unknown): string {
+	private getDialogTitle(): string {
 		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
-			switch (variant) {
-				case 'brand-gh':
-					return localize('signInGH', "Sign in to use {0} Copilot", defaultChat.providerName);
-				case 'brand-vsc':
-					return localize('signInVSC', "Sign in to use AI");
-				default:
-					return localize('signIn', "Sign in to use Copilot");
-			}
+			return localize('signIn', "Sign in to use Copilot");
 		}
 
-		switch (variant) {
-			case 'brand-gh':
-				return localize('startUsingGh', "Start using {0} Copilot", defaultChat.providerName);
-			case 'brand-vsc':
-				return localize('startUsingVSC', "Start using AI");
-			default:
-				return localize('startUsing', "Start using Copilot");
-		}
+		return localize('startUsing', "Start using Copilot");
 	}
 
 	private createDialogFooter(disposables: DisposableStore): HTMLElement {
