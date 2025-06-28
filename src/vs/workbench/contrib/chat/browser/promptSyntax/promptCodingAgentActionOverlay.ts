@@ -39,7 +39,7 @@ export class PromptCodingAgentActionOverlayWidget extends Disposable implements 
 			title: localize('runPromptWithCodingAgent', "Run with Coding Agent")
 		}));
 
-		this._button.label = `$(cloud-upload) Run with Coding Agent`;
+		this._button.label = localize('runWithCodingAgent.label', "{0} Run with Coding Agent", '$(cloud-upload)');
 
 		this._register(this._button.onDidClick(async () => {
 			await this._execute();
