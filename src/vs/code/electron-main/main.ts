@@ -392,7 +392,7 @@ class CodeMain {
 
 			// Send environment over...
 			logService.trace('Sending env to running instance...');
-			await otherInstanceLaunchMainService.start(environmentMainService.args, process.env, cwd());
+			await otherInstanceLaunchMainService.start(environmentMainService.args, process.env);
 
 			// Cleanup
 			client.dispose();
@@ -505,6 +505,10 @@ class CodeMain {
 				addArg(process.argv, '--waitMarkerFilePath', waitMarkerFilePath);
 				args.waitMarkerFilePath = waitMarkerFilePath;
 			}
+		}
+
+		if (args.agent) {
+			args._ = [cwd()];
 		}
 
 		return args;

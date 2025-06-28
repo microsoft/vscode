@@ -755,14 +755,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		let isCommandLineOrAPICall = false;
 		let isRestoringPaths = false;
 
-		// Extract paths: current working directory for agent subcommand (only on fresh windows)
-		if (openConfig.initialStartup && openConfig.cli.agent) {
-			const res = await this.doResolveFilePath(cwd(), {});
-			if (res) {
-				return [res];
-			}
-		}
-
 		// Extract paths: from API
 		if (openConfig.urisToOpen && openConfig.urisToOpen.length > 0) {
 			pathsToOpen = await this.doExtractPathsFromAPI(openConfig);
