@@ -18,7 +18,6 @@ import { CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/ch
 import { ChatMode } from '../common/constants.js';
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 
 class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -43,8 +42,7 @@ class ChatAgentCommandLineHandler extends Disposable {
 	constructor(
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService
 	) {
 		super();
 
@@ -68,10 +66,6 @@ class ChatAgentCommandLineHandler extends Disposable {
 
 		if (!trusted) {
 			return;
-		}
-
-		if (args.maximize) {
-			this.layoutService.setAuxiliaryBarMaximized(true);
 		}
 
 		const opts: IChatViewOpenOptions = {

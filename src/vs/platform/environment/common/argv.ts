@@ -26,7 +26,6 @@ export interface NativeParsedArgs {
 	'serve-web'?: INativeCliOptions;
 	agent?: {
 		_: string[];
-		maximize?: boolean;
 		help?: boolean;
 	};
 
