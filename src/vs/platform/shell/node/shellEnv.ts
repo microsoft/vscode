@@ -4,25 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn } from 'child_process';
-import { homedir } from 'os';
-import { first, Promises } from '../../../base/common/async.js';
+import { basename } from '../../../base/common/path.js';
+import { localize } from '../../../nls.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
-import { clamp } from '../../../base/common/numbers.js';
-import { basename, join } from '../../../base/common/path.js';
-import { IProcessEnvironment, isMacintosh, isWindows, OS } from '../../../base/common/platform.js';
+import { IProcessEnvironment, isWindows, OS } from '../../../base/common/platform.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { StreamSplitter } from '../../../base/node/nodeStreams.js';
-import { Promises as FSPromises } from '../../../base/node/pfs.js';
 import { getSystemShell } from '../../../base/node/shell.js';
-import { localize } from '../../../nls.js';
-import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { NativeParsedArgs } from '../../environment/common/argv.js';
 import { isLaunchedFromCli } from '../../environment/node/argvHelper.js';
 import { ILogService } from '../../log/common/log.js';
+import { Promises } from '../../../base/common/async.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { clamp } from '../../../base/common/numbers.js';
 
-let shellEnvPromise: Promise<typeof process.env> | undefined = undefined;
+let unixShellEnvPromise: Promise<typeof process.env> | undefined = undefined;
 
 /**
  * Resolves the shell environment by spawning a shell. This call will cache
@@ -34,16 +31,16 @@ let shellEnvPromise: Promise<typeof process.env> | undefined = undefined;
  */
 export async function getResolvedShellEnv(configurationService: IConfigurationService, logService: ILogService, args: NativeParsedArgs, env: IProcessEnvironment): Promise<typeof process.env> {
 
-	// Skip on windows
-	if (isWindows) {
-		logService.trace('resolveShellEnv(): skipped (Windows)');
+	// Skip if --force-disable-user-env
+	if (args['force-disable-user-env']) {
+		logService.trace('resolveShellEnv(): skipped (--force-disable-user-env)');
 
 		return {};
 	}
 
-	// Skip if --force-disable-user-env
-	if (args['force-disable-user-env']) {
-		logService.trace('resolveShellEnv(): skipped (--force-disable-user-env)');
+	// Skip on windows
+	else if (isWindows) {
+		logService.trace('resolveShellEnv(): skipped (Windows)');
 
 		return {};
 	}
@@ -55,19 +52,19 @@ export async function getResolvedShellEnv(configurationService: IConfigurationSe
 		return {};
 	}
 
-	// Otherwise resolve
+	// Otherwise resolve (macOS, Linux)
 	else {
 		if (isLaunchedFromCli(env)) {
 			logService.trace('resolveShellEnv(): running (--force-user-env)');
 		} else {
-			logService.trace('resolveShellEnv(): running');
+			logService.trace('resolveShellEnv(): running (macOS/Linux)');
 		}
 
 		// Call this only once and cache the promise for
 		// subsequent calls since this operation can be
 		// expensive (spawns a process).
-		if (!shellEnvPromise) {
-			shellEnvPromise = Promises.withAsyncBody<NodeJS.ProcessEnv>(async (resolve, reject) => {
+		if (!unixShellEnvPromise) {
+			unixShellEnvPromise = Promises.withAsyncBody<NodeJS.ProcessEnv>(async (resolve, reject) => {
 				const cts = new CancellationTokenSource();
 
 				let timeoutValue = 10000; // default to 10 seconds
@@ -84,7 +81,7 @@ export async function getResolvedShellEnv(configurationService: IConfigurationSe
 
 				// Resolve shell env and handle errors
 				try {
-					resolve(await doResolveShellEnv(logService, cts.token));
+					resolve(await doResolveUnixShellEnv(logService, cts.token));
 				} catch (error) {
 					if (!isCancellationError(error) && !cts.token.isCancellationRequested) {
 						reject(new Error(localize('resolveShellEnvError', "Unable to resolve your shell environment: {0}", toErrorMessage(error))));
@@ -98,18 +95,20 @@ export async function getResolvedShellEnv(configurationService: IConfigurationSe
 			});
 		}
 
-		return shellEnvPromise;
+		return unixShellEnvPromise;
 	}
 }
 
-async function doResolveShellEnv(logService: ILogService, token: CancellationToken): Promise<typeof process.env> {
+async function doResolveUnixShellEnv(logService: ILogService, token: CancellationToken): Promise<typeof process.env> {
 	const runAsNode = process.env['ELECTRON_RUN_AS_NODE'];
-	logService.trace('doResolveShellEnv#runAsNode', runAsNode);
+	logService.trace('getUnixShellEnvironment#runAsNode', runAsNode);
 
 	const noAttach = process.env['ELECTRON_NO_ATTACH_CONSOLE'];
-	logService.trace('doResolveShellEnv#noAttach', noAttach);
+	logService.trace('getUnixShellEnvironment#noAttach', noAttach);
 
 	const mark = generateUuid().replace(/-/g, '').substr(0, 12);
+	const regex = new RegExp(mark + '({.*})' + mark);
+
 	const env = {
 		...process.env,
 		ELECTRON_RUN_AS_NODE: '1',
@@ -117,75 +116,83 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 		VSCODE_RESOLVING_ENVIRONMENT: '1'
 	};
 
-	logService.trace('doResolveShellEnv#env', env);
-	const systemShell = await getSystemShell(OS, env);
-	logService.trace('doResolveShellEnv#shell', systemShell);
-
-	const name = basename(systemShell);
-	let command: string, shellArgs: Array<string>;
-	if (/^(?:pwsh|powershell)(?:-preview)?$/.test(name)) {
-		const profilePaths = getPowershellProfilePaths();
-		const profilePathThatExists = await first(profilePaths.map(profilePath => async () => (await FSPromises.exists(profilePath)) ? profilePath : undefined));
-		if (!profilePathThatExists) {
-			logService.trace('doResolveShellEnv#noPowershellProfile after testing paths', profilePaths);
-
-			return {};
-		}
-
-		logService.trace('doResolveShellEnv#powershellProfile found in', profilePathThatExists);
-
-		// Older versions of PowerShell removes double quotes sometimes
-		// so we use "double single quotes" which is how you escape single
-		// quotes inside of a single quoted string.
-		command = `Write-Output '${mark}'; [System.Environment]::GetEnvironmentVariables() | ConvertTo-Json -Compress; Write-Output '${mark}'`;
-		shellArgs = ['-Login', '-Command'];
-	} else if (name === 'nu') { // nushell requires ^ before quoted path to treat it as a command
-		command = `^'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
-		shellArgs = ['-i', '-l', '-c'];
-	} else if (name === 'xonsh') { // #200374: native implementation is shorter
-		command = `import os, json; print("${mark}", json.dumps(dict(os.environ)), "${mark}")`;
-		shellArgs = ['-i', '-l', '-c'];
-	} else {
-		command = `'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
-
-		if (name === 'tcsh' || name === 'csh') {
-			shellArgs = ['-ic'];
-		} else {
-			shellArgs = ['-i', '-l', '-c'];
-		}
-	}
+	logService.trace('getUnixShellEnvironment#env', env);
+	const systemShellUnix = await getSystemShell(OS, env);
+	logService.trace('getUnixShellEnvironment#shell', systemShellUnix);
 
 	return new Promise<typeof process.env>((resolve, reject) => {
 		if (token.isCancellationRequested) {
 			return reject(new CancellationError());
 		}
 
-		logService.trace('doResolveShellEnv#spawn', JSON.stringify(shellArgs), command);
+		// handle popular non-POSIX shells
+		const name = basename(systemShellUnix);
+		let command: string, shellArgs: Array<string>;
+		const extraArgs = '';
+		if (/^(?:pwsh|powershell)(?:-preview)?$/.test(name)) {
+			// Older versions of PowerShell removes double quotes sometimes so we use "double single quotes" which is how
+			// you escape single quotes inside of a single quoted string.
+			command = `& '${process.execPath}' ${extraArgs} -p '''${mark}'' + JSON.stringify(process.env) + ''${mark}'''`;
+			shellArgs = ['-Login', '-Command'];
+		} else if (name === 'nu') { // nushell requires ^ before quoted path to treat it as a command
+			command = `^'${process.execPath}' ${extraArgs} -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
+			shellArgs = ['-i', '-l', '-c'];
+		} else if (name === 'xonsh') { // #200374: native implementation is shorter
+			command = `import os, json; print("${mark}", json.dumps(dict(os.environ)), "${mark}")`;
+			shellArgs = ['-i', '-l', '-c'];
+		} else {
+			command = `'${process.execPath}' ${extraArgs} -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
 
-		const child = spawn(systemShell, [...shellArgs, command], {
-			detached: !isWindows,
+			if (name === 'tcsh' || name === 'csh') {
+				shellArgs = ['-ic'];
+			} else {
+				shellArgs = ['-i', '-l', '-c'];
+			}
+		}
+
+		logService.trace('getUnixShellEnvironment#spawn', JSON.stringify(shellArgs), command);
+
+		const child = spawn(systemShellUnix, [...shellArgs, command], {
+			detached: true,
 			stdio: ['ignore', 'pipe', 'pipe'],
 			env
 		});
 
 		token.onCancellationRequested(() => {
-			logService.error('doResolveShellEnv#timeout', 'Shell environment resolution timed out, buffers so far:');
-			logService.error('doResolveShellEnv#stdout', Buffer.concat(buffers).toString('utf8') || '<empty>');
-			logService.error('doResolveShellEnv#stderr', Buffer.concat(stderr).toString('utf8') || '<empty>');
 			child.kill();
 
 			return reject(new CancellationError());
 		});
 
 		child.on('error', err => {
-			logService.error('doResolveShellEnv#errorChildProcess', toErrorMessage(err));
+			logService.error('getUnixShellEnvironment#errorChildProcess', toErrorMessage(err));
 			reject(err);
 		});
 
-		let didResolve = false;
-		function tryParseEnvironment(data: string) {
+		const buffers: Buffer[] = [];
+		child.stdout.on('data', b => buffers.push(b));
+
+		const stderr: Buffer[] = [];
+		child.stderr.on('data', b => stderr.push(b));
+
+		child.on('close', (code, signal) => {
+			const raw = Buffer.concat(buffers).toString('utf8');
+			logService.trace('getUnixShellEnvironment#raw', raw);
+
+			const stderrStr = Buffer.concat(stderr).toString('utf8');
+			if (stderrStr.trim()) {
+				logService.trace('getUnixShellEnvironment#stderr', stderrStr);
+			}
+
+			if (code || signal) {
+				return reject(new Error(localize('resolveShellEnvExitError', "Unexpected exit code from spawned shell (code {0}, signal {1})", code, signal)));
+			}
+
+			const match = regex.exec(raw);
+			const rawStripped = match ? match[1] : '{}';
+
 			try {
-				const env = JSON.parse(data);
+				const env = JSON.parse(rawStripped);
 
 				if (runAsNode) {
 					env['ELECTRON_RUN_AS_NODE'] = runAsNode;
@@ -204,108 +211,12 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 				// https://github.com/microsoft/vscode/issues/22593#issuecomment-336050758
 				delete env['XDG_RUNTIME_DIR'];
 
-				logService.trace('doResolveShellEnv#result', env);
-				didResolve = true;
+				logService.trace('getUnixShellEnvironment#result', env);
 				resolve(env);
 			} catch (err) {
-				logService.error('doResolveShellEnv#errorCaught', toErrorMessage(err));
+				logService.error('getUnixShellEnvironment#errorCaught', toErrorMessage(err));
 				reject(err);
 			}
-		}
-
-		const buffers: Buffer[] = [];
-		let accumulator: string | undefined;
-
-		child.stdout
-			.on('data', d => buffers.push(d))
-			.pipe(new StreamSplitter(mark))
-			.on('data', (data: Buffer) => {
-				if (accumulator === undefined || didResolve) {
-					// The first chunk will be the data leading up to the opening mark.
-					// Ignore that by only setting the accumulator once we see it, and
-					// also ignore any further data if we already resolved.
-					accumulator = '';
-					return;
-				}
-
-				accumulator += data.toString('utf8').trim();
-				// Wait to start accumulating until we see the start of the JSON
-				// object to avoid issues with `ps` in profile scripts (#251650)
-				if (!accumulator.startsWith('{')) {
-					accumulator = '';
-					return;
-				}
-
-				logService.trace('doResolveShellEnv#tryEagerParse', accumulator);
-				tryParseEnvironment(accumulator.slice(0, -mark.length));
-				if (didResolve) {
-					child.kill();
-				}
-			});
-
-		child.stdout.on('data', b => buffers.push(b));
-
-		const stderr: Buffer[] = [];
-		child.stderr.on('data', b => stderr.push(b));
-
-		child.on('close', (code, signal) => {
-			if (didResolve) {
-				return;
-			}
-
-			// Although we try to parse the environment eagerly, we still check one
-			// more time when the process closes in case the data was oddly written
-			// to stderr instead of stdout, and so we can do final debug logging as needed.
-			const raw = Buffer.concat(buffers).toString('utf8');
-			logService.trace('doResolveShellEnv#raw', raw);
-
-			const stderrStr = Buffer.concat(stderr).toString('utf8');
-			if (stderrStr.trim()) {
-				logService.trace('doResolveShellEnv#stderr', stderrStr);
-			}
-
-			if (code || signal) {
-				return reject(new Error(localize('resolveShellEnvExitError', "Unexpected exit code from spawned shell (code {0}, signal {1})", code, signal)));
-			}
-
-			const startIndex = raw.indexOf(mark);
-			const endIndex = raw.lastIndexOf(mark);
-			const rawStripped = startIndex !== -1 && endIndex !== -1 && startIndex < endIndex ? raw.substring(startIndex + mark.length, endIndex).trim() : '{}';
-			tryParseEnvironment(rawStripped);
 		});
 	});
-}
-
-/**
- * Returns powershell profile paths that are used to source its environment.
- * This is used to determine whether we should resolve a powershell environment,
- * potentially saving us from spawning a powershell process.
- *
- * @see https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_profiles?view=powershell-7.5
- */
-function getPowershellProfilePaths() {
-	const paths: string[] = [];
-	const userHome = homedir();
-
-	if (isMacintosh) {
-
-		// note: powershell 7 is the first (and yet only) powershell version on posix,
-		// so no need to look for any extra paths yet.
-
-		paths.push(
-			'/usr/local/microsoft/powershell/7/profile.ps1', 								// All Users, All Hosts
-			'/usr/local/microsoft/powershell/7/Microsoft.PowerShell_profile.ps1', 			// All Users, Current Host
-			join(userHome, '.config', 'powershell', 'profile.ps1'), 						// Current User, All Hosts
-			join(userHome, '.config', 'powershell', 'Microsoft.PowerShell_profile.ps1'), 	// Current User, Current Host
-		);
-	} else {
-		paths.push(
-			'/opt/microsoft/powershell/7/profile.ps1', 										// All Users, All Hosts
-			'/opt/microsoft/powershell/7/Microsoft.PowerShell_profile.ps1', 				// All Users, Current Host
-			join(userHome, '.config', 'powershell', 'profile.ps1'),							// Current User, All Hosts
-			join(userHome, '.config', 'powershell', 'Microsoft.PowerShell_profile.ps1'), 	// Current User, Current Host
-		);
-	}
-
-	return paths;
 }
