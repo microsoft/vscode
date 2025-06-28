@@ -27,6 +27,7 @@ export interface NativeParsedArgs {
 	agent?: {
 		_: string[];
 		maximize?: boolean;
+		help?: boolean;
 	};
 
 	// arguments

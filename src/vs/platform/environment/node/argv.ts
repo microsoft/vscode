@@ -83,7 +83,8 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 		description: 'Pass in a prompt to run in a chat agent session in the current working directory.',
 		options: {
 			'_': { type: 'string[]', description: localize('agentPrompt', "The prompt to send to the agent.") },
-			'maximize': { type: 'boolean', description: localize('agentMaximize', "Whether to maximize the agent window.") }
+			'maximize': { type: 'boolean', cat: 'o', alias: 'm', description: localize('agentMaximize', "Whether to maximize the agent window.") },
+			'help': { type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") }
 		}
 	},
 
@@ -436,13 +437,13 @@ function wrapText(text: string, columns: number): string[] {
 	return lines;
 }
 
-export function buildHelpMessage(productName: string, executableName: string, version: string, options: OptionDescriptions<any>, capabilities?: { noPipe?: boolean; noInputFiles: boolean }): string {
+export function buildHelpMessage(productName: string, executableName: string, version: string, options: OptionDescriptions<any>, capabilities?: { noPipe?: boolean; inputFilesLabel?: string }): string {
 	const columns = (process.stdout).isTTY && (process.stdout).columns || 80;
-	const inputFiles = capabilities?.noInputFiles !== true ? `[${localize('paths', 'paths')}...]` : '';
+	const inputFiles = capabilities?.inputFilesLabel ? `[${capabilities.inputFilesLabel}]` : `[${localize('paths', 'paths')}...]`;
 
 	const help = [`${productName} ${version}`];
 	help.push('');
-	help.push(`${localize('usage', "Usage")}: ${executableName} [${localize('options', "options")}]${inputFiles}`);
+	help.push(`${localize('usage', "Usage")}: ${executableName} [${localize('options', "options")}] ${inputFiles}`);
 	help.push('');
 	if (capabilities?.noPipe !== true) {
 		if (isWindows) {
