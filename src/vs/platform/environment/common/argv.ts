@@ -9,8 +9,6 @@ export interface INativeCliOptions {
 	'telemetry-level'?: string;
 }
 
-export const SUBCOMMANDS = ['tunnel', 'serve-web', 'agent'];
-
 /**
  * A list of command line arguments we support natively.
  */
@@ -26,7 +24,10 @@ export interface NativeParsedArgs {
 		};
 	};
 	'serve-web'?: INativeCliOptions;
-	agent?: { _: string[] };
+	agent?: {
+		_: string[];
+		maximize?: boolean;
+	};
 
 	// arguments
 	_: string[];

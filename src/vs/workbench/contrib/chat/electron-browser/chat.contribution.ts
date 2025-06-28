@@ -18,6 +18,7 @@ import { CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/ch
 import { ChatMode } from '../common/constants.js';
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 
 class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -35,36 +36,33 @@ class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchCon
 	}
 }
 
-class ChatCommandLineSupportContribution extends Disposable {
+class ChatAgentSubcommandHandler extends Disposable {
 
-	static readonly ID = 'workbench.contrib.chatCommandLineSupport';
+	static readonly ID = 'workbench.contrib.chatAgentSubcommandHandler';
 
 	constructor(
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super();
 
 		if (this.environmentService.window.isInitialStartup) {
-			this.promptAgentic(this.environmentService.args.agent?._);
+			this.promptAgentic(this.environmentService.args.agent);
 		}
 
 		this.registerListeners();
 	}
 
 	private registerListeners() {
-		ipcRenderer.on('vscode:subcommand', (_, subcommand: { type: string; args: { _: string[] } }) => {
-			if (subcommand.type !== 'agent') {
-				return;
-			}
-
-			this.promptAgentic(subcommand.args._);
+		ipcRenderer.on('vscode:handleAgentSubcommand', (_, args: typeof this.environmentService.args.agent) => {
+			this.promptAgentic(args);
 		});
 	}
 
-	private async promptAgentic(agentArgs: string[] | undefined): Promise<void> {
-		if (!Array.isArray(agentArgs) || agentArgs.length === 0) {
+	private async promptAgentic(args: typeof this.environmentService.args.agent): Promise<void> {
+		if (!Array.isArray(args?._) || args._.length === 0) {
 			return;
 		}
 
@@ -76,8 +74,12 @@ class ChatCommandLineSupportContribution extends Disposable {
 			return;
 		}
 
+		if (args.maximize) {
+			this.layoutService.setAuxiliaryBarMaximized(true);
+		}
+
 		const opts: IChatViewOpenOptions = {
-			query: agentArgs.join(' '),
+			query: args._.join(' '),
 			mode: ChatMode.Agent
 		};
 		this.commandService.executeCommand(CHAT_OPEN_ACTION_ID, opts);
@@ -103,4 +105,4 @@ registerChatDeveloperActions();
 
 registerWorkbenchContribution2(KeywordActivationContribution.ID, KeywordActivationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(NativeBuiltinToolsContribution.ID, NativeBuiltinToolsContribution, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(ChatCommandLineSupportContribution.ID, ChatCommandLineSupportContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatAgentSubcommandHandler.ID, ChatAgentSubcommandHandler, WorkbenchPhase.AfterRestored);
