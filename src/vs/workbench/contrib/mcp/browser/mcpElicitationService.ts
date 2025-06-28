@@ -272,10 +272,13 @@ export class McpElicitationService implements IMcpElicitationService {
 
 	private _validateStringFormat(value: string, format: string): { isValid: boolean; message?: string } {
 		switch (format) {
-			case 'email':
-				return !value.includes('@')
+			case 'email': {
+				// Basic email validation: checks for one or more chars, @, one or more chars, ., one or more chars
+				const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+				return emailRegex.test(value)
 					? { isValid: true }
 					: { isValid: false, message: localize('mcp.elicit.validation.email', 'Please enter a valid email address') };
+			}
 			case 'uri':
 				if (URL.canParse(value)) {
 					return { isValid: true };
