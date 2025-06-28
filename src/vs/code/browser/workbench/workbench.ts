@@ -276,6 +276,11 @@ export class LocalStorageSecretStorageProvider implements ISecretStorageProvider
 		this.save();
 	}
 
+	async keys(): Promise<string[]> {
+		const secrets = await this.secretsPromise;
+		return Object.keys(secrets) || [];
+	}
+
 	private async save(): Promise<void> {
 		try {
 			const encrypted = await this.crypto.seal(JSON.stringify(await this.secretsPromise));
