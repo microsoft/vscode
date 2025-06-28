@@ -217,6 +217,7 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 		syncResults: IFileMatch<URI>[];
 	} {
 		this.cancelSearch(true);
+		this.cancelAISearch(true);
 
 		this._searchQuery = query;
 		if (!this.searchConfig.searchOnType) {

@@ -1349,6 +1349,7 @@ export class SearchView extends ViewPane {
 			this.searchWidget.clear();
 		}
 		this.viewModel.cancelSearch();
+		this.viewModel.cancelAISearch();
 		this.tree.ariaLabel = nls.localize('emptySearch', "Empty Search");
 
 		this.accessibilitySignalService.playSignal(AccessibilitySignal.clear);
