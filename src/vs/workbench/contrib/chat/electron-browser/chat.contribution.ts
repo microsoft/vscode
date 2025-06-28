@@ -62,6 +62,10 @@ class ChatAgentSubcommandHandler extends Disposable {
 	}
 
 	private async promptAgentic(args: typeof this.environmentService.args.agent): Promise<void> {
+		if (!Array.isArray(args?._)) {
+			return;
+		}
+
 		const trusted = await this.workspaceTrustRequestService.requestWorkspaceTrust({
 			message: localize('copilotWorkspaceTrust', "Copilot is currently only supported in trusted workspaces.")
 		});
@@ -70,12 +74,12 @@ class ChatAgentSubcommandHandler extends Disposable {
 			return;
 		}
 
-		if (args?.maximize) {
+		if (args.maximize) {
 			this.layoutService.setAuxiliaryBarMaximized(true);
 		}
 
 		const opts: IChatViewOpenOptions = {
-			query: Array.isArray(args?._) && args._.length > 0 ? args._.join(' ') : '',
+			query: args._.length > 0 ? args._.join(' ') : '',
 			mode: ChatMode.Agent
 		};
 		this.commandService.executeCommand(CHAT_OPEN_ACTION_ID, opts);
