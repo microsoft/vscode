@@ -465,16 +465,9 @@ configurationRegistry.registerConfiguration({
 				},
 			],
 		},
-		'chat.setup.signInWithAlternateProvider': { // TODO@bpasero remove me eventually
-			type: 'string',
-			enum: ['off', 'monochrome', 'colorful', 'first'],
-			description: nls.localize('chat.signInWithAlternateProvider', "Enable alternative sign-in provider."),
-			default: 'off',
-			tags: ['onExp', 'experimental'],
-		},
 		'chat.setup.signInDialogVariant': { // TODO@bpasero remove me eventually
 			type: 'string',
-			enum: ['default', 'brand-gh', 'brand-vsc', 'style-glow', 'account-create'],
+			enum: ['default', 'alternate-first', 'alternate-color', 'alternate-monochrome'],
 			description: nls.localize('chat.signInDialogVariant', "Control variations of the sign-in dialog."),
 			default: 'default',
 			tags: ['onExp', 'experimental']

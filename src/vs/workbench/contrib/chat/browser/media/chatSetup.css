@@ -3,30 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Glowing Animation */
-
-@property --chat-setup-dialog-glow-angle {
-	syntax: '<angle>';
-	initial-value: 0deg;
-	inherits: false;
-}
-
-@keyframes chat-setup-dialog-glow-angle-animation {
-	0% {
-		--chat-setup-dialog-glow-angle: 0deg;
-	}
-
-	100% {
-		--chat-setup-dialog-glow-angle: 360deg;
-	}
-}
-
-.chat-setup-dialog.chat-setup-glow {
-	border: 2px solid !important;
-	border-image: linear-gradient(var(--chat-setup-dialog-glow-angle), var(--vscode-button-background) 0, var(--vscode-editorGutter-addedBackground)) 1 !important;
-	animation: 3s chat-setup-dialog-glow-angle-animation linear infinite;
-}
-
 .chat-setup-dialog {
 
 	/* Continue Buttons */
