@@ -284,15 +284,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// Bring window to front
 		window.focus();
 
-		// Forward agent request
-		if (openConfig.cli.agent) {
-			window.sendWhenReady('vscode:handleAgentSubcommand', CancellationToken.None, openConfig.cli.agent);
-		}
+		// Handle `<app> --wait`
+		this.handleWaitMarkerFile(openConfig, [window]);
 
-		// Handle --wait
-		else {
-			this.handleWaitMarkerFile(openConfig, [window]);
-		}
+		// Handle `<app> agent`
+		this.handleAgentRequest(openConfig, [window]);
 	}
 
 	async open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]> {
@@ -450,8 +446,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			this.workspacesHistoryMainService.addRecentlyOpened(recents);
 		}
 
-		// Handle --wait
+		// Handle `<app> --wait`
 		this.handleWaitMarkerFile(openConfig, usedWindows);
+
+		// Handle `<app> agent`
+		this.handleAgentRequest(openConfig, usedWindows);
 
 		return usedWindows;
 	}
@@ -472,6 +471,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					// ignore - could have been deleted from the window already
 				}
 			})();
+		}
+	}
+
+	private handleAgentRequest(openConfig: IOpenConfiguration, usedWindows: ICodeWindow[]): void {
+		if (openConfig.context === OpenContext.CLI && openConfig.cli.agent && usedWindows.length === 1 && usedWindows[0]) {
+			usedWindows[0].sendWhenReady('vscode:handleAgentRequest', CancellationToken.None, openConfig.cli.agent);
 		}
 	}
 

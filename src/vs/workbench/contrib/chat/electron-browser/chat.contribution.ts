@@ -36,9 +36,9 @@ class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchCon
 	}
 }
 
-class ChatAgentSubcommandHandler extends Disposable {
+class ChatAgentCommandLineHandler extends Disposable {
 
-	static readonly ID = 'workbench.contrib.chatAgentSubcommandHandler';
+	static readonly ID = 'workbench.contrib.chatAgentCommandLineHandler';
 
 	constructor(
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
@@ -48,15 +48,11 @@ class ChatAgentSubcommandHandler extends Disposable {
 	) {
 		super();
 
-		if (this.environmentService.window.isInitialStartup) {
-			this.promptAgentic(this.environmentService.args.agent);
-		}
-
 		this.registerListeners();
 	}
 
 	private registerListeners() {
-		ipcRenderer.on('vscode:handleAgentSubcommand', (_, args: typeof this.environmentService.args.agent) => {
+		ipcRenderer.on('vscode:handleAgentRequest', (_, args: typeof this.environmentService.args.agent) => {
 			this.promptAgentic(args);
 		});
 	}
@@ -105,4 +101,4 @@ registerChatDeveloperActions();
 
 registerWorkbenchContribution2(KeywordActivationContribution.ID, KeywordActivationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(NativeBuiltinToolsContribution.ID, NativeBuiltinToolsContribution, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(ChatAgentSubcommandHandler.ID, ChatAgentSubcommandHandler, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatAgentCommandLineHandler.ID, ChatAgentCommandLineHandler, WorkbenchPhase.BlockRestore);
