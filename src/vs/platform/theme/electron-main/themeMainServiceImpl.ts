@@ -32,7 +32,6 @@ const THEME_WINDOW_SPLASH_KEY = 'windowSplash';
 const THEME_WINDOW_SPLASH_OVERRIDE_KEY = 'windowSplashWorkspaceOverride';
 
 const AUXILIARYBAR_DEFAULT_VISIBILITY = 'workbench.secondarySideBar.defaultVisibility';
-const AUXILIARYBAR_OPEN_MAXIMIZED = 'workbench.secondarySideBar.opensMaximized';
 
 namespace ThemeSettings {
 	export const DETECT_COLOR_SCHEME = 'window.autoDetectColorScheme';
@@ -352,18 +351,6 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 			}
 		} else {
 			auxiliaryBarWidth = 0; // technically not true if configured 'visible', but we never store splash per empty window, so we decide on a default here
-		}
-
-		const auxiliaryBarOpenMaximized = this.configurationService.getValue(AUXILIARYBAR_OPEN_MAXIMIZED);
-		switch (auxiliaryBarOpenMaximized) {
-			case 'always':
-				auxiliaryBarWidth = Number.MAX_SAFE_INTEGER; // marker for a maximised auxiliary bar
-				break;
-			case 'never':
-				if (auxiliaryBarWidth === Number.MAX_SAFE_INTEGER) {
-					auxiliaryBarWidth = ThemeMainService.DEFAULT_BAR_WIDTH; // reset marker for a maximized auxiliary bar if we never restore
-				}
-				break;
 		}
 
 		return {
