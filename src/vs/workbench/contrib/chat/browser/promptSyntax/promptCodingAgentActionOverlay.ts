@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/promptCodingAgentActionOverlay.css';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../../../editor/browser/editorBrowser.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -40,7 +39,7 @@ export class PromptCodingAgentActionOverlayWidget extends Disposable implements 
 			title: localize('runPromptWithCodingAgent', "Run with Coding Agent")
 		}));
 
-		this._button.label = `$(cloud-upload)`;
+		this._button.label = localize('runWithCodingAgent.label', "{0} Run with Coding Agent", '$(cloud-upload)');
 
 		this._register(this._button.onDidClick(async () => {
 			await this._execute();
