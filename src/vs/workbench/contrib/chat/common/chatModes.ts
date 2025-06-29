@@ -24,8 +24,8 @@ export interface IChatModeService {
 
 	// TODO expose an observable list of modes
 	onDidChangeChatModes: Event<void>;
-	getModes(): { builtin: readonly IChatMode2[]; custom: readonly IChatMode2[] };
-	findModeById(id: string): IChatMode2 | undefined;
+	getModes(): { builtin: readonly IChatMode[]; custom: readonly IChatMode[] };
+	findModeById(id: string): IChatMode | undefined;
 }
 
 export class ChatModeService extends Disposable implements IChatModeService {
@@ -158,11 +158,11 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		}
 	}
 
-	getModes(): { builtin: readonly IChatMode2[]; custom: readonly IChatMode2[] } {
+	getModes(): { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } {
 		return { builtin: this.getBuiltinModes(), custom: Array.from(this._customModeInstances.values()) };
 	}
 
-	findModeById(id: string | ChatModeKind): IChatMode2 | undefined {
+	findModeById(id: string | ChatModeKind): IChatMode | undefined {
 		const allModes = this.getModes();
 		const builtinMode = allModes.builtin.find(mode => mode.id === id);
 		if (builtinMode) {
@@ -171,27 +171,17 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		return allModes.custom.find(mode => mode.id === id);
 	}
 
-	private getBuiltinModes(): IChatMode2[] {
-		const builtinModes: IChatMode2[] = [
-			ChatMode2.Ask,
+	private getBuiltinModes(): IChatMode[] {
+		const builtinModes: IChatMode[] = [
+			ChatMode.Ask,
 		];
 
 		if (this.chatAgentService.hasToolsAgent) {
-			builtinModes.push(ChatMode2.Agent);
+			builtinModes.push(ChatMode.Agent);
 		}
-		builtinModes.push(ChatMode2.Edit);
+		builtinModes.push(ChatMode.Edit);
 		return builtinModes;
 	}
-}
-
-export interface IChatMode {
-	readonly id: string;
-	readonly name: string;
-	readonly description?: string;
-	readonly kind: ChatModeKind;
-	readonly customTools?: readonly string[];
-	readonly body?: string;
-	readonly uri?: URI;
 }
 
 export interface IChatModeData {
@@ -204,7 +194,7 @@ export interface IChatModeData {
 	readonly uri?: URI;
 }
 
-export interface IChatMode2 {
+export interface IChatMode {
 	readonly id: string;
 	readonly name: string;
 	readonly description: IObservable<string | undefined>;
@@ -212,16 +202,6 @@ export interface IChatMode2 {
 	readonly customTools?: IObservable<readonly string[] | undefined>;
 	readonly body?: IObservable<string>;
 	readonly uri?: IObservable<URI>;
-}
-
-export function isIChatMode(mode: unknown): mode is IChatMode {
-	if (typeof mode === 'object' && mode !== null) {
-		const chatMode = mode as IChatMode;
-		return typeof chatMode.id === 'string' &&
-			typeof chatMode.kind === 'string';
-	}
-
-	return false;
 }
 
 function isCachedChatModeData(data: unknown): data is IChatModeData {
@@ -239,7 +219,7 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 		(mode.uri === undefined || (typeof mode.uri === 'object' && mode.uri !== null));
 }
 
-export class CustomChatMode implements IChatMode2 {
+export class CustomChatMode implements IChatMode {
 	private readonly _descriptionObservable: ISettableObservable<string | undefined>;
 	private readonly _customToolsObservable: ISettableObservable<readonly string[] | undefined>;
 	private readonly _bodyObservable: ISettableObservable<string>;
@@ -303,7 +283,7 @@ export class CustomChatMode implements IChatMode2 {
 	}
 }
 
-export class BuiltinChatMode implements IChatMode2 {
+export class BuiltinChatMode implements IChatMode {
 	public readonly description: IObservable<string>;
 	public readonly name: string;
 
@@ -323,7 +303,7 @@ export class BuiltinChatMode implements IChatMode2 {
 	/**
 	 * Getters are not json-stringified
 	 */
-	toJSON(): IChatMode {
+	toJSON(): IChatModeData {
 		return {
 			id: this.id,
 			name: this.name,
@@ -333,14 +313,14 @@ export class BuiltinChatMode implements IChatMode2 {
 	}
 }
 
-export namespace ChatMode2 {
+export namespace ChatMode {
 	export const Ask = new BuiltinChatMode(ChatModeKind.Ask, localize('chatDescription', "Ask Copilot"));
 	export const Edit = new BuiltinChatMode(ChatModeKind.Edit, localize('editsDescription', "Edit files in your workspace"));
 	export const Agent = new BuiltinChatMode(ChatModeKind.Agent, localize('agentDescription', "Edit files in your workspace in agent mode"));
 }
 
-export function isBuiltinChatMode(mode: IChatMode2): boolean {
-	return mode.id === ChatMode2.Ask.id ||
-		mode.id === ChatMode2.Edit.id ||
-		mode.id === ChatMode2.Agent.id;
+export function isBuiltinChatMode(mode: IChatMode): boolean {
+	return mode.id === ChatMode.Ask.id ||
+		mode.id === ChatMode.Edit.id ||
+		mode.id === ChatMode.Agent.id;
 }

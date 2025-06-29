@@ -5,20 +5,20 @@
 
 
 import { Event } from '../../../../../base/common/event.js';
-import { ChatMode2, IChatMode2, IChatModeService } from '../../common/chatModes.js';
+import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
 
 export class MockChatModeService implements IChatModeService {
 	readonly _serviceBrand: undefined;
 
-	private _modes: { builtin: readonly IChatMode2[]; custom: readonly IChatMode2[] } = { builtin: [ChatMode2.Ask], custom: [] };
+	private _modes: { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } = { builtin: [ChatMode.Ask], custom: [] };
 
 	public readonly onDidChangeChatModes = Event.None;
 
-	getModes(): { builtin: readonly IChatMode2[]; custom: readonly IChatMode2[] } {
+	getModes(): { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } {
 		return this._modes;
 	}
 
-	findModeById(id: string): IChatMode2 | undefined {
+	findModeById(id: string): IChatMode | undefined {
 		const allModes = this.getModes();
 		const builtinMode = allModes.builtin.find(mode => mode.id === id);
 		if (builtinMode) {

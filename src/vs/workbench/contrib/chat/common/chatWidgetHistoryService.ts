@@ -9,9 +9,8 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Memento } from '../../../common/memento.js';
 import { ModifiedFileEntryState } from './chatEditingService.js';
-import { IChatRequestVariableEntry } from './chatVariableEntries.js';
-import { IChatMode } from './chatModes.js';
 import { CHAT_PROVIDER_ID } from './chatParticipantContribTypes.js';
+import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
 
 export interface IChatHistoryEntry {
@@ -27,9 +26,9 @@ export interface IChatInputState {
 
 	/**
 	 * This should be a mode id (ChatMode | string).
-	 * IChatMode is deprecated but may still be in persisted data.
+	 * { id: string } is the old IChatMode. This is deprecated but may still be in persisted data.
 	 */
-	chatMode?: ChatModeKind | string | IChatMode;
+	chatMode?: ChatModeKind | string | { id: string };
 }
 
 export const IChatWidgetHistoryService = createDecorator<IChatWidgetHistoryService>('IChatWidgetHistoryService');

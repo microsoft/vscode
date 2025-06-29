@@ -15,7 +15,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
-import { ChatMode2, ChatModeService } from '../../common/chatModes.js';
+import { ChatMode, ChatModeService } from '../../common/chatModes.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { ICustomChatMode, IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from './mockPromptsService.js';
@@ -94,7 +94,7 @@ suite('ChatModeService', () => {
 	test('should find builtin modes by id', () => {
 		const agentMode = chatModeService.findModeById(ChatModeKind.Agent);
 		assert.ok(agentMode);
-		assert.strictEqual(agentMode.id, ChatMode2.Agent.id);
+		assert.strictEqual(agentMode.id, ChatMode.Agent.id);
 		assert.strictEqual(agentMode.kind, ChatModeKind.Agent);
 	});
 

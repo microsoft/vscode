@@ -50,7 +50,7 @@ import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
-import { ChatMode2, IChatMode2 } from '../../common/chatModes.js';
+import { ChatMode, IChatMode } from '../../common/chatModes.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
@@ -249,12 +249,12 @@ class PrimaryOpenChatGlobalAction extends OpenChatGlobalAction {
 	}
 }
 
-export function getOpenChatActionIdForMode(mode: IChatMode2): string {
+export function getOpenChatActionIdForMode(mode: IChatMode): string {
 	return `workbench.action.chat.open${mode.name}`;
 }
 
 abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
-	constructor(mode: IChatMode2, keybinding?: ICommandPaletteOptions['keybinding']) {
+	constructor(mode: IChatMode, keybinding?: ICommandPaletteOptions['keybinding']) {
 		super({
 			id: getOpenChatActionIdForMode(mode),
 			title: localize2('openChatMode', "Open Chat ({0})", mode.name),
@@ -266,11 +266,11 @@ abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
 export function registerChatActions() {
 	registerAction2(PrimaryOpenChatGlobalAction);
 	registerAction2(class extends ModeOpenChatGlobalAction {
-		constructor() { super(ChatMode2.Ask); }
+		constructor() { super(ChatMode.Ask); }
 	});
 	registerAction2(class extends ModeOpenChatGlobalAction {
 		constructor() {
-			super(ChatMode2.Agent, {
+			super(ChatMode.Agent, {
 				when: ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,
@@ -281,7 +281,7 @@ export function registerChatActions() {
 		}
 	});
 	registerAction2(class extends ModeOpenChatGlobalAction {
-		constructor() { super(ChatMode2.Edit); }
+		constructor() { super(ChatMode.Edit); }
 	});
 
 	registerAction2(class ToggleChatAction extends Action2 {

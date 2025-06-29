@@ -17,13 +17,13 @@ import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActi
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
-import { IChatMode2, IChatModeService } from '../../common/chatModes.js';
+import { IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { getOpenChatActionIdForMode } from '../actions/chatActions.js';
 import { IToggleChatModeArgs } from '../actions/chatExecuteActions.js';
 
 export interface IModePickerDelegate {
-	readonly currentMode: IObservable<IChatMode2>;
+	readonly currentMode: IObservable<IChatMode>;
 }
 
 export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
@@ -37,7 +37,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		@IChatModeService chatModeService: IChatModeService,
 		@IMenuService private readonly menuService: IMenuService
 	) {
-		const makeAction = (mode: IChatMode2, includeCategory: boolean, currentMode: IChatMode2): IActionWidgetDropdownAction => ({
+		const makeAction = (mode: IChatMode, includeCategory: boolean, currentMode: IChatMode): IActionWidgetDropdownAction => ({
 			...action,
 			id: getOpenChatActionIdForMode(mode),
 			label: mode.name,
@@ -53,7 +53,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 			category: includeCategory ? { label: localize('built-in', "Built-In"), order: 0 } : undefined
 		});
 
-		const makeActionFromCustomMode = (mode: IChatMode2, currentMode: IChatMode2): IActionWidgetDropdownAction => ({
+		const makeActionFromCustomMode = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => ({
 			...action,
 			id: getOpenChatActionIdForMode(mode),
 			label: mode.name,
@@ -107,7 +107,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		return menuContributions;
 	}
 
-	protected override renderLabel(element: HTMLElement, mode: IChatMode2 = this.delegate.currentMode.get()): IDisposable | null {
+	protected override renderLabel(element: HTMLElement, mode: IChatMode = this.delegate.currentMode.get()): IDisposable | null {
 		if (!this.element) {
 			return null;
 		}

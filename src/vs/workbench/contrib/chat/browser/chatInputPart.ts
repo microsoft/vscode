@@ -76,7 +76,7 @@ import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatEditingSession } from '../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../common/chatEntitlementService.js';
-import { ChatMode2, IChatMode2, IChatModeService } from '../common/chatModes.js';
+import { ChatMode, IChatMode, IChatModeService } from '../common/chatModes.js';
 import { IChatFollowup } from '../common/chatService.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
@@ -286,7 +286,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidChangeCurrentChatMode: Emitter<void>;
 	readonly onDidChangeCurrentChatMode: Event<void>;
 
-	private readonly _currentModeObservable = observableValue<IChatMode2>('currentMode', ChatMode2.Ask);
+	private readonly _currentModeObservable = observableValue<IChatMode>('currentMode', ChatMode.Ask);
 	public get currentModeKind(): ChatModeKind {
 		const mode = this._currentModeObservable.get();
 		return mode.kind === ChatModeKind.Agent && !this.agentService.hasToolsAgent ?
@@ -294,7 +294,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			mode.kind;
 	}
 
-	public get currentModeObs(): IObservable<IChatMode2> {
+	public get currentModeObs(): IObservable<IChatMode> {
 		return this._currentModeObservable;
 	}
 
@@ -392,7 +392,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._onDidChangeCurrentLanguageModel = this._register(new Emitter<ILanguageModelChatMetadataAndIdentifier>());
 		this._onDidChangeCurrentChatMode = this._register(new Emitter<void>());
 		this.onDidChangeCurrentChatMode = this._onDidChangeCurrentChatMode.event;
-		this._currentModeObservable.set(ChatMode2.Ask, undefined);
+		this._currentModeObservable.set(ChatMode.Ask, undefined);
 		this.inputUri = URI.parse(`${Schemas.vscodeChatInput}:input-${ChatInputPart._counter++}`);
 		this._chatEditsActionsDisposables = this._register(new DisposableStore());
 		this._chatEditsDisposables = this._register(new DisposableStore());
@@ -539,11 +539,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const mode2 = this.chatModeService.findModeById(mode) ??
 			this.chatModeService.findModeById(ChatModeKind.Agent) ??
-			ChatMode2.Ask;
+			ChatMode.Ask;
 		this.setChatMode2(mode2, storeSelection);
 	}
 
-	private setChatMode2(mode: IChatMode2, storeSelection = true): void {
+	private setChatMode2(mode: IChatMode, storeSelection = true): void {
 		if (!this.options.supportsChangingModes) {
 			return;
 		}
@@ -647,7 +647,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const currentMode = this._currentModeObservable.get();
 		const validMode = this.chatModeService.findModeById(currentMode.id);
 		if (!validMode) {
-			this.setChatMode2(ChatMode2.Agent);
+			this.setChatMode2(ChatMode.Agent);
 			return;
 		}
 	}
