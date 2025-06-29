@@ -102,7 +102,7 @@ export class PromptFilesLocator extends Disposable {
 			}
 		}));
 		disposables.add(this.fileService.onDidFilesChange(e => {
-			if (e.affects(userDataFolder)) {
+			if (e.contains(userDataFolder)) {
 				eventEmitter.fire();
 				return;
 			}
