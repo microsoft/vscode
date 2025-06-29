@@ -99,7 +99,6 @@ const defaultChat = {
 
 const ToolsAgentContextKey = ContextKeyExpr.and(
 	ContextKeyExpr.equals(`config.${ChatConfiguration.AgentEnabled}`, true),
-	ChatContextKeys.Editing.agentModeDisallowed.negate(),
 	ContextKeyExpr.not(`previewFeaturesDisabled`) // Set by extension
 );
 
