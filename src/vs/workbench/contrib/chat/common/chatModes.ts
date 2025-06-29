@@ -15,7 +15,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatAgentService } from './chatAgents.js';
 import { ChatContextKeys } from './chatContextKeys.js';
-import { ChatMode, modeToString } from './constants.js';
+import { ChatModeKind, modeToString } from './constants.js';
 import { ICustomChatMode, IPromptsService } from './promptSyntax/service/promptsService.js';
 
 export const IChatModeService = createDecorator<IChatModeService>('chatModeService');
@@ -157,7 +157,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		return { builtin: this.getBuiltinModes(), custom: Array.from(this._customModeInstances.values()) };
 	}
 
-	findModeById(id: string | ChatMode): IChatMode2 | undefined {
+	findModeById(id: string | ChatModeKind): IChatMode2 | undefined {
 		const allModes = this.getModes();
 		const builtinMode = allModes.builtin.find(mode => mode.id === id);
 		if (builtinMode) {
@@ -183,7 +183,7 @@ export interface IChatMode {
 	readonly id: string;
 	readonly name: string;
 	readonly description?: string;
-	readonly kind: ChatMode;
+	readonly kind: ChatModeKind;
 	readonly customTools?: readonly string[];
 	readonly body?: string;
 	readonly uri?: URI;
@@ -193,7 +193,7 @@ export interface IChatModeData {
 	readonly id: string;
 	readonly name: string;
 	readonly description?: string;
-	readonly kind: ChatMode;
+	readonly kind: ChatModeKind;
 	readonly customTools?: readonly string[];
 	readonly body?: string;
 	readonly uri?: URI;
@@ -203,7 +203,7 @@ export interface IChatMode2 {
 	readonly id: string;
 	readonly name: string;
 	readonly description: IObservable<string | undefined>;
-	readonly kind: ChatMode;
+	readonly kind: ChatModeKind;
 	readonly customTools?: IObservable<readonly string[] | undefined>;
 	readonly body?: IObservable<string>;
 	readonly uri?: IObservable<URI>;
@@ -259,7 +259,7 @@ export class CustomChatMode implements IChatMode2 {
 		return this._uriObservable;
 	}
 
-	public readonly kind = ChatMode.Agent;
+	public readonly kind = ChatModeKind.Agent;
 
 	constructor(
 		customChatMode: ICustomChatMode
@@ -303,7 +303,7 @@ export class BuiltinChatMode implements IChatMode2 {
 	public readonly name: string;
 
 	constructor(
-		public readonly kind: ChatMode,
+		public readonly kind: ChatModeKind,
 		description: string
 	) {
 		this.name = modeToString(this.kind);
@@ -329,9 +329,9 @@ export class BuiltinChatMode implements IChatMode2 {
 }
 
 export namespace ChatMode2 {
-	export const Ask = new BuiltinChatMode(ChatMode.Ask, localize('chatDescription', "Ask Copilot"));
-	export const Edit = new BuiltinChatMode(ChatMode.Edit, localize('editsDescription', "Edit files in your workspace"));
-	export const Agent = new BuiltinChatMode(ChatMode.Agent, localize('agentDescription', "Edit files in your workspace in agent mode"));
+	export const Ask = new BuiltinChatMode(ChatModeKind.Ask, localize('chatDescription', "Ask Copilot"));
+	export const Edit = new BuiltinChatMode(ChatModeKind.Edit, localize('editsDescription', "Edit files in your workspace"));
+	export const Agent = new BuiltinChatMode(ChatModeKind.Agent, localize('agentDescription', "Edit files in your workspace in agent mode"));
 }
 
 export function isBuiltinChatMode(mode: IChatMode2): boolean {

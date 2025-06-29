@@ -85,7 +85,7 @@ import { IPreferencesService } from '../../../services/preferences/common/prefer
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { IChatService } from '../../chat/common/chatService.js';
-import { ChatAgentLocation, ChatMode } from '../../chat/common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
 import { CHAT_OPEN_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
 import { IChatAgentService } from '../../chat/common/chatAgents.js';
 
@@ -718,7 +718,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								label: nls.localize('troubleshootWithChat', "Fix with {0}", providerName),
 								run: async () => {
 									this._commandService.executeCommand(CHAT_OPEN_ACTION_ID, {
-										mode: ChatMode.Agent,
+										mode: ChatModeKind.Agent,
 										query: `Fix this task configuration error: ${customMessage}`
 									});
 								}

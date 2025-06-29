@@ -15,7 +15,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatToolInvocation } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
-import { ChatMode } from '../../common/constants.js';
+import { ChatModeKind } from '../../common/constants.js';
 import { IToolData, ToolSet } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ToolsScope } from '../chatSelectedTools.js';
@@ -79,9 +79,9 @@ class ConfigureToolsAction extends Action2 {
 			icon: Codicon.tools,
 			f1: false,
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
+			precondition: ChatContextKeys.chatMode.isEqualTo(ChatModeKind.Agent),
 			menu: [{
-				when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
+				when: ChatContextKeys.chatMode.isEqualTo(ChatModeKind.Agent),
 				id: MenuId.ChatExecute,
 				group: 'navigation',
 				order: 1,

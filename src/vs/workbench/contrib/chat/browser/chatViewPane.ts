@@ -30,7 +30,7 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatModel } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatService } from '../common/chatService.js';
-import { ChatAgentLocation, ChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
 
@@ -86,7 +86,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					this.viewState.inputValue = lastEditsState.inputValue;
 					this.viewState.inputState = {
 						...lastEditsState.inputState,
-						chatMode: lastEditsState.inputState?.chatMode ?? ChatMode.Edit
+						chatMode: lastEditsState.inputState?.chatMode ?? ChatModeKind.Edit
 					};
 					this.viewState.hasMigratedCurrentSession = true;
 				}
@@ -163,7 +163,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		return !!shouldShow;
 	}
 
-	private getTransferredOrPersistedSessionInfo(): { sessionId?: string; inputValue?: string; mode?: ChatMode } {
+	private getTransferredOrPersistedSessionInfo(): { sessionId?: string; inputValue?: string; mode?: ChatModeKind } {
 		if (this.chatService.transferredSessionData?.location === this.chatOptions.location) {
 			const sessionId = this.chatService.transferredSessionData.sessionId;
 			return {
@@ -192,7 +192,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				this.chatOptions.location,
 				{ viewId: this.id },
 				{
-					autoScroll: mode => mode !== ChatMode.Ask,
+					autoScroll: mode => mode !== ChatModeKind.Ask,
 					renderFollowups: this.chatOptions.location === ChatAgentLocation.Panel,
 					supportsFileReferences: true,
 					rendererOptions: {
@@ -200,7 +200,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 							return true;
 						},
 						referencesExpandedWhenEmptyResponse: false,
-						progressMessageAtBottomOfResponse: mode => mode !== ChatMode.Ask,
+						progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
 					},
 					editorOverflowWidgetsDomNode: editorOverflowNode,
 					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel,

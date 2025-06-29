@@ -51,7 +51,7 @@ import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
 import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { IChatInputState } from '../common/chatWidgetHistoryService.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
-import { ChatAgentLocation, ChatConfiguration, ChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ILanguageModelToolsService, ToolSet } from '../common/languageModelToolsService.js';
 import { type TPromptMetadata } from '../common/promptSyntax/parsers/promptHeader/promptHeader.js';
 import { IPromptParserResult, IPromptsService } from '../common/promptSyntax/service/promptsService.js';
@@ -719,7 +719,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!numItems) {
 			const welcomeContent = this.getWelcomeViewContent();
 			dom.clearNode(this.welcomeMessageContainer);
-			const tips = this.input.currentMode === ChatMode.Ask
+			const tips = this.input.currentMode === ChatModeKind.Ask
 				? new MarkdownString(localize('chatWidget.tips', "{0} or type {1} to attach context\n\n{2} to chat with extensions\n\nType {3} to use commands", '$(attach)', '#', '$(mention)', '/'), { supportThemeIcons: true })
 				: new MarkdownString(localize('chatWidget.tips.withoutParticipants', "{0} or type {1} to attach context", '$(attach)', '#'), { supportThemeIcons: true });
 			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentMode);
@@ -729,7 +729,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				{ ...welcomeContent, tips, additionalMessage },
 				{
 					location: this.location,
-					isWidgetAgentWelcomeViewContent: this.input?.currentMode === ChatMode.Agent
+					isWidgetAgentWelcomeViewContent: this.input?.currentMode === ChatModeKind.Agent
 				}
 			);
 			dom.append(this.welcomeMessageContainer, this.welcomePart.value.element);
@@ -743,13 +743,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private getWelcomeViewContent(): IChatWelcomeMessageContent {
 		const baseMessage = localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.");
-		if (this.input.currentMode === ChatMode.Ask) {
+		if (this.input.currentMode === ChatModeKind.Ask) {
 			return {
 				title: localize('chatDescription', "Ask Copilot"),
 				message: new MarkdownString(baseMessage),
 				icon: Codicon.copilotLarge
 			};
-		} else if (this.input.currentMode === ChatMode.Edit) {
+		} else if (this.input.currentMode === ChatModeKind.Edit) {
 			return {
 				title: localize('editsTitle', "Edit with Copilot"),
 				message: new MarkdownString(localize('editsMessage', "Start your editing session by defining a set of files that you want to work with. Then ask Copilot for the changes you want to make.") + `\n\n${baseMessage}`),
@@ -776,7 +776,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private async renderFollowups(): Promise<void> {
-		if (this.lastItem && isResponseVM(this.lastItem) && this.lastItem.isComplete && this.input.currentMode === ChatMode.Ask) {
+		if (this.lastItem && isResponseVM(this.lastItem) && this.lastItem.isComplete && this.input.currentMode === ChatModeKind.Ask) {
 			this.input.renderFollowups(this.lastItem.replyFollowups, this.lastItem);
 		} else {
 			this.input.renderFollowups(undefined, undefined);
@@ -1505,7 +1505,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				await this._autoAttachInstructions(requestInputs);
 			}
 
-			if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentMode === ChatMode.Edit && !this.chatService.edits2Enabled) {
+			if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentMode === ChatModeKind.Edit && !this.chatService.edits2Enabled) {
 				const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
 				const editingSessionAttachedContext: ChatRequestVariableSet = requestInputs.attachedContext;
 
@@ -1820,7 +1820,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// sanity check on the logic of the `getPromptFilesMetadata` method
 		// and the code above in case this block is moved around somewhere else:
 		// if we have some tools present, the mode must have been equal to `agent`
-		assert(this.input.currentMode === ChatMode.Agent, `Chat mode must be 'agent' when there are 'tools' defined, got ${this.input.currentMode}.`);
+		assert(this.input.currentMode === ChatModeKind.Agent, `Chat mode must be 'agent' when there are 'tools' defined, got ${this.input.currentMode}.`);
 
 		const enablementMap = this.toolsService.toToolAndToolSetEnablementMap(new Set(tools));
 		this.input.selectedToolsModel.set(enablementMap, true);

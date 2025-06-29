@@ -18,7 +18,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { IChatMode2, IChatModeService } from '../../common/chatModes.js';
-import { ChatAgentLocation, ChatMode, modeToString } from '../../common/constants.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 import { getOpenChatActionIdForMode } from '../actions/chatActions.js';
 import { IToggleChatModeArgs } from '../actions/chatExecuteActions.js';
 
@@ -37,16 +37,16 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		@IChatModeService chatModeService: IChatModeService,
 		@IMenuService private readonly menuService: IMenuService
 	) {
-		const makeAction = (mode: ChatMode, includeCategory: boolean, currentMode: IChatMode2): IActionWidgetDropdownAction => ({
+		const makeAction = (mode: IChatMode2, includeCategory: boolean, currentMode: IChatMode2): IActionWidgetDropdownAction => ({
 			...action,
 			id: getOpenChatActionIdForMode(mode),
-			label: modeToString(mode),
+			label: mode.name,
 			class: undefined,
 			enabled: true,
-			checked: currentMode.id === mode,
-			tooltip: chatAgentService.getDefaultAgent(ChatAgentLocation.Panel, mode)?.description ?? action.tooltip,
+			checked: currentMode.id === mode.id,
+			tooltip: chatAgentService.getDefaultAgent(ChatAgentLocation.Panel, mode.kind)?.description ?? action.tooltip,
 			run: async () => {
-				const result = await action.run({ modeId: mode } satisfies IToggleChatModeArgs);
+				const result = await action.run({ modeId: mode.id } satisfies IToggleChatModeArgs);
 				this.renderLabel(this.element!);
 				return result;
 			},
@@ -55,7 +55,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 
 		const makeActionFromCustomMode = (mode: IChatMode2, currentMode: IChatMode2): IActionWidgetDropdownAction => ({
 			...action,
-			id: getOpenChatActionIdForMode(mode.name),
+			id: getOpenChatActionIdForMode(mode),
 			label: mode.name,
 			class: undefined,
 			enabled: true,
@@ -74,7 +74,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 				const modes = chatModeService.getModes();
 				const hasCustomModes = modes.custom && modes.custom.length > 0;
 				const currentMode = delegate.currentMode.get();
-				const agentStateActions: IActionWidgetDropdownAction[] = modes.builtin.map(mode => makeAction(mode.kind, !!hasCustomModes, currentMode));
+				const agentStateActions: IActionWidgetDropdownAction[] = modes.builtin.map(mode => makeAction(mode, !!hasCustomModes, currentMode));
 				if (modes.custom) {
 					agentStateActions.push(...modes.custom.map(mode => makeActionFromCustomMode(mode, currentMode)));
 				}

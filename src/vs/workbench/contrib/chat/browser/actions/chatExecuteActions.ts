@@ -24,11 +24,11 @@ import { IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/r
 import { IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { toChatHistoryContent } from '../../common/chatModel.js';
-import { ChatMode2, IChatMode2, IChatModeService } from '../../common/chatModes.js';
+import { IChatMode2, IChatModeService } from '../../common/chatModes.js';
 import { chatVariableLeader } from '../../common/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatService } from '../../common/chatService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatMode, } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
@@ -127,7 +127,7 @@ export class ChatSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.chat.submit';
 
 	constructor() {
-		const precondition = ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask);
+		const precondition = ChatContextKeys.chatMode.isEqualTo(ChatModeKind.Ask);
 
 		super({
 			id: ChatSubmitAction.ID,
@@ -164,7 +164,7 @@ export class ChatSubmitAction extends SubmitAction {
 export const ToggleAgentModeActionId = 'workbench.action.chat.toggleAgentMode';
 
 export interface IToggleChatModeArgs {
-	modeId: ChatMode | string;
+	modeId: ChatModeKind | string;
 }
 
 class ToggleChatModeAction extends Action2 {
@@ -217,7 +217,7 @@ class ToggleChatModeAction extends Action2 {
 		const arg = args.at(0) as IToggleChatModeArgs | undefined;
 		const chatSession = context.chatWidget.viewModel?.model;
 		const requestCount = chatSession?.getRequests().length ?? 0;
-		const switchToMode = (arg && modeService.findModeById(arg.modeId)) ?? this.getNextMode(context.chatWidget, requestCount, configurationService);
+		const switchToMode = (arg && modeService.findModeById(arg.modeId)) ?? this.getNextMode(context.chatWidget, requestCount, configurationService, modeService);
 
 		if (switchToMode.id === context.chatWidget.input.currentMode2.get().id) {
 			return;
@@ -235,15 +235,17 @@ class ToggleChatModeAction extends Action2 {
 		}
 	}
 
-	private getNextMode(chatWidget: IChatWidget, requestCount: number, configurationService: IConfigurationService): IChatMode2 {
-		const modes = [ChatMode2.Ask];
-		if (configurationService.getValue(ChatConfiguration.Edits2Enabled) || requestCount === 0) {
-			modes.push(ChatMode2.Edit);
-		}
-		modes.push(ChatMode2.Agent);
+	private getNextMode(chatWidget: IChatWidget, requestCount: number, configurationService: IConfigurationService, modeService: IChatModeService): IChatMode2 {
+		const modes = modeService.getModes();
+		const flat = [
+			...modes.builtin.filter(mode => {
+				return mode.kind !== ChatModeKind.Edit || configurationService.getValue(ChatConfiguration.Edits2Enabled) || requestCount === 0;
+			}),
+			...(modes.custom ?? []),
+		];
 
-		const modeIndex = modes.findIndex(mode => mode.id === chatWidget.input.currentMode2.get().id);
-		const newMode = modes[(modeIndex + 1) % modes.length];
+		const curModeIndex = flat.findIndex(mode => mode.id === chatWidget.input.currentMode2.get().id);
+		const newMode = flat[(curModeIndex + 1) % flat.length];
 		return newMode;
 	}
 }
@@ -270,7 +272,7 @@ export class ToggleRequestPausedAction extends Action2 {
 					order: 3.5,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.canRequestBePaused,
-						ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
+						ChatContextKeys.chatMode.isEqualTo(ChatModeKind.Agent),
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
 						ContextKeyExpr.or(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.inputHasText.negate()),
 					),
@@ -379,7 +381,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.edits.submit';
 
 	constructor() {
-		const precondition = ChatContextKeys.chatMode.notEqualsTo(ChatMode.Ask);
+		const precondition = ChatContextKeys.chatMode.notEqualsTo(ChatModeKind.Ask);
 
 		super({
 			id: ChatEditingSessionSubmitAction.ID,
@@ -424,7 +426,7 @@ class SubmitWithoutDispatchingAction extends Action2 {
 			// without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
 			whenNotInProgressOrPaused,
-			ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
+			ChatContextKeys.chatMode.isEqualTo(ChatModeKind.Ask),
 		);
 
 		super({
@@ -443,7 +445,7 @@ class SubmitWithoutDispatchingAction extends Action2 {
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_1',
 					order: 2,
-					when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
+					when: ChatContextKeys.chatMode.isEqualTo(ChatModeKind.Ask),
 				}
 			]
 		});

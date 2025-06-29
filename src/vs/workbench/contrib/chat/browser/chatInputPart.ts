@@ -81,7 +81,7 @@ import { IChatFollowup } from '../common/chatService.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatMode, validateChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } from '../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
@@ -268,7 +268,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Context key is set when prompt instructions are attached.
 	 */
 	private promptFileAttached: IContextKey<boolean>;
-	private chatModeKindKey: IContextKey<ChatMode>;
+	private chatModeKindKey: IContextKey<ChatModeKind>;
 
 	private modelWidget: ModelPickerActionItem | undefined;
 	private readonly _waitForPersistedLanguageModel: MutableDisposable<IDisposable>;
@@ -288,10 +288,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private readonly _currentModeObservable = observableValue<IChatMode2>('currentMode', ChatMode2.Ask);
 	// TODO "mode kind"
-	public get currentMode(): ChatMode {
+	public get currentMode(): ChatModeKind {
 		const mode = this._currentModeObservable.get();
-		return mode.kind === ChatMode.Agent && !this.agentService.hasToolsAgent ?
-			ChatMode.Edit :
+		return mode.kind === ChatModeKind.Agent && !this.agentService.hasToolsAgent ?
+			ChatModeKind.Edit :
 			mode.kind;
 	}
 
@@ -533,13 +533,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * By ID- prefer this method
 	 */
-	setChatMode(mode: ChatMode | string, storeSelection = true): void {
+	setChatMode(mode: ChatModeKind | string, storeSelection = true): void {
 		if (!this.options.supportsChangingModes) {
 			return;
 		}
 
 		const mode2 = this.chatModeService.findModeById(mode) ??
-			this.chatModeService.findModeById(ChatMode.Agent) ??
+			this.chatModeService.findModeById(ChatModeKind.Agent) ??
 			ChatMode2.Ask;
 		this.setChatMode2(mode2, storeSelection);
 	}
@@ -560,7 +560,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private modelSupportedForDefaultAgent(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 		// Probably this logic could live in configuration on the agent, or somewhere else, if it gets more complex
-		if (this.currentMode === ChatMode.Agent || (this.currentMode === ChatMode.Edit && this.configurationService.getValue(ChatConfiguration.Edits2Enabled))) {
+		if (this.currentMode === ChatModeKind.Agent || (this.currentMode === ChatModeKind.Edit && this.configurationService.getValue(ChatConfiguration.Edits2Enabled))) {
 			const supportsToolsAgent = typeof model.metadata.capabilities?.agentMode === 'undefined' || model.metadata.capabilities.agentMode;
 
 			// Filter out models that don't support tool calling, and models that don't support enough context to have a good experience with the tools agent
@@ -624,13 +624,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		let modeLabel = '';
 		switch (this.currentMode) {
-			case ChatMode.Agent:
+			case ChatModeKind.Agent:
 				modeLabel = localize('chatInput.mode.agent', "(Agent Mode), edit files in your workspace.");
 				break;
-			case ChatMode.Edit:
+			case ChatModeKind.Edit:
 				modeLabel = localize('chatInput.mode.edit', "(Edit Mode), edit files in your workspace.");
 				break;
-			case ChatMode.Ask:
+			case ChatModeKind.Ask:
 			default:
 				modeLabel = localize('chatInput.mode.ask', "(Ask Mode), ask questions or type / for topics.");
 				break;
@@ -701,7 +701,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						}
 					}
 
-					if (typeof defaultLanguageModelTreatment === 'string' && this._currentModeObservable.get().kind === ChatMode.Agent) {
+					if (typeof defaultLanguageModelTreatment === 'string' && this._currentModeObservable.get().kind === ChatModeKind.Agent) {
 						this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 						this.logService.trace(`Applying default language model from experiment: ${defaultLanguageModelTreatment}`);
 						this.setExpModelOrWait(defaultLanguageModelTreatment);
@@ -907,8 +907,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	validateAgentMode(): void {
-		if (!this.agentService.hasToolsAgent && this._currentModeObservable.get().kind === ChatMode.Agent) {
-			this.setChatMode(ChatMode.Edit);
+		if (!this.agentService.hasToolsAgent && this._currentModeObservable.get().kind === ChatModeKind.Agent) {
+			this.setChatMode(ChatModeKind.Edit);
 		}
 	}
 

@@ -12,7 +12,7 @@ import { ModifiedFileEntryState } from './chatEditingService.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { IChatMode } from './chatModes.js';
 import { CHAT_PROVIDER_ID } from './chatParticipantContribTypes.js';
-import { ChatAgentLocation, ChatMode } from './constants.js';
+import { ChatAgentLocation, ChatModeKind } from './constants.js';
 
 export interface IChatHistoryEntry {
 	text: string;
@@ -29,7 +29,7 @@ export interface IChatInputState {
 	 * This should be a mode id (ChatMode | string).
 	 * IChatMode is deprecated but may still be in persisted data.
 	 */
-	chatMode?: ChatMode | string | IChatMode;
+	chatMode?: ChatModeKind | string | IChatMode;
 }
 
 export const IChatWidgetHistoryService = createDecorator<IChatWidgetHistoryService>('IChatWidgetHistoryService');
