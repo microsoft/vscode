@@ -82,12 +82,17 @@ export class InlineCompletionsView extends Disposable {
 
 		this._register(createStyleSheetFromObservable(derived(reader => {
 			const fontFamily = this._fontFamily.read(reader);
-			if (fontFamily === '' || fontFamily === 'default') { return ''; }
+			let fontSize: string = this._editor.getOption(EditorOption.fontSize) + 'px';
+			const cursorSelection = this._editorObs.cursorSelection.read(reader);
+			if (cursorSelection) {
+				fontSize = this._editor.getFontSizeAtPosition(cursorSelection.getEndPosition()) ?? fontSize;
+			}
 			return `
 .monaco-editor .ghost-text-decoration,
 .monaco-editor .ghost-text-decoration-preview,
 .monaco-editor .ghost-text {
 	font-family: ${fontFamily};
+	font-size: ${fontSize};
 }`;
 		})));
 
