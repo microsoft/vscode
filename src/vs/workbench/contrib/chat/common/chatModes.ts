@@ -22,9 +22,9 @@ export const IChatModeService = createDecorator<IChatModeService>('chatModeServi
 export interface IChatModeService {
 	readonly _serviceBrand: undefined;
 
+	// TODO expose an observable list of modes
 	onDidChangeChatModes: Event<void>;
 	getModes(): { builtin: readonly IChatMode2[]; custom: readonly IChatMode2[] };
-	getModesAsync(): Promise<{ builtin: readonly IChatMode2[]; custom: readonly IChatMode2[] }>;
 	findModeById(id: string): IChatMode2 | undefined;
 }
 

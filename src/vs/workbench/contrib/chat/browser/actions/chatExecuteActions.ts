@@ -219,7 +219,7 @@ class ToggleChatModeAction extends Action2 {
 		const requestCount = chatSession?.getRequests().length ?? 0;
 		const switchToMode = (arg && modeService.findModeById(arg.modeId)) ?? this.getNextMode(context.chatWidget, requestCount, configurationService);
 
-		if (switchToMode.id === context.chatWidget.input.currentMode2.id) {
+		if (switchToMode.id === context.chatWidget.input.currentMode2.get().id) {
 			return;
 		}
 
@@ -242,7 +242,7 @@ class ToggleChatModeAction extends Action2 {
 		}
 		modes.push(ChatMode2.Agent);
 
-		const modeIndex = modes.findIndex(mode => mode.id === chatWidget.input.currentMode2.id);
+		const modeIndex = modes.findIndex(mode => mode.id === chatWidget.input.currentMode2.get().id);
 		const newMode = modes[(modeIndex + 1) % modes.length];
 		return newMode;
 	}

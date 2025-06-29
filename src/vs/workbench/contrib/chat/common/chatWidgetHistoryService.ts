@@ -26,7 +26,8 @@ export interface IChatInputState {
 	chatWorkingSet?: ReadonlyArray<{ uri: URI; state: ModifiedFileEntryState }>;
 
 	/**
-	 * This should be a mode id (ChatMode | string). IChatMode is deprecated but may still be in persisted data.
+	 * This should be a mode id (ChatMode | string).
+	 * IChatMode is deprecated but may still be in persisted data.
 	 */
 	chatMode?: ChatMode | string | IChatMode;
 }

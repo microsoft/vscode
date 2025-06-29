@@ -65,7 +65,7 @@ class InputEditorDecorations extends Disposable {
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.updateInputEditorDecorations()));
 		this._register(autorun(reader => {
 			// Watch for changes to the current mode and its properties
-			const currentMode = this.widget.input.currentMode2Observable.read(reader);
+			const currentMode = this.widget.input.currentMode2.read(reader);
 			if (currentMode) {
 				// Also watch the mode's description to react to any changes
 				currentMode.description.read(reader);
@@ -126,7 +126,7 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		if (!inputValue) {
-			const description = this.widget.input.currentMode2.description.get();
+			const description = this.widget.input.currentMode2.get().description.get();
 			const decoration: IDecorationOptions[] = [
 				{
 					range: {
