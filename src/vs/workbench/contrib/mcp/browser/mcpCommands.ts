@@ -35,7 +35,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { ChatMode } from '../../chat/common/constants.js';
+import { ChatModeKind } from '../../chat/common/constants.js';
 import { ILanguageModelsService } from '../../chat/common/languageModels.js';
 import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
@@ -64,7 +64,7 @@ export class ListMcpServerCommand extends Action2 {
 			menu: [{
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.or(McpContextKeys.hasUnknownTools, McpContextKeys.hasServersWithErrors),
-					ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
+					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent)
 				),
 				id: MenuId.ChatExecute,
 				group: 'navigation',
@@ -803,5 +803,3 @@ export class McpStartPromptingServerCommand extends Action2 {
 		SuggestController.get(editor)?.triggerSuggest();
 	}
 }
-
-

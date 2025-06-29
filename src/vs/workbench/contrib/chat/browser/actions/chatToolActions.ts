@@ -15,7 +15,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatToolInvocation } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
-import { ChatMode } from '../../common/constants.js';
+import { ChatModeKind } from '../../common/constants.js';
 import { IToolData, ToolSet } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ToolsScope } from '../chatSelectedTools.js';
@@ -79,9 +79,9 @@ class ConfigureToolsAction extends Action2 {
 			icon: Codicon.tools,
 			f1: false,
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
+			precondition: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 			menu: [{
-				when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
+				when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 				id: MenuId.ChatExecute,
 				group: 'navigation',
 				order: 1,
@@ -121,7 +121,7 @@ class ConfigureToolsAction extends Action2 {
 				break;
 			case ToolsScope.Mode:
 				placeholder = localize('chat.tools.placeholder.mode', "Select tools for this chat mode");
-				description = localize('chat.tools.description.mode', "The selected tools are configured by the '{0}' chat mode.", widget.input.currentMode2.name);
+				description = localize('chat.tools.description.mode', "The selected tools are configured by the '{0}' chat mode.", widget.input.currentModeObs.get().name);
 				break;
 			case ToolsScope.Global:
 				placeholder = localize('chat.tools.placeholder.global', "Select tools that are available to chat");
