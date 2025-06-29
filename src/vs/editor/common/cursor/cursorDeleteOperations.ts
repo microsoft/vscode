@@ -170,11 +170,41 @@ export class DeleteOperations {
 	}
 
 	private static getDeleteRange(selection: Selection, model: ICursorSimpleModel, config: CursorConfiguration,): Range {
+		const position = selection.getPosition();
+		const startPosition = selection.getSelectionStart();
+
+		const startLineNumber = Math.min(startPosition.lineNumber, position.lineNumber);
+		const endLineNumber = Math.max(startPosition.lineNumber, position.lineNumber);
+		let startColumn = position.column;
+		let endColumn = startPosition.column;
+		if (startLineNumber === startPosition.lineNumber) {
+			//top down deletion
+			startColumn = startPosition.column;
+			endColumn = position.column;
+		}
+		let firstNonWhiteSpaceColumn = model.getLineFirstNonWhitespaceColumn(endLineNumber);
+		let lastNonWhiteSpaceColumn = model.getLineLastNonWhitespaceColumn(startLineNumber);
+		//deleting new line character + trimming white space
+		if (startLineNumber !== endLineNumber && model.getLineContent(startLineNumber).length > 0) {
+			//expand delete range to include extra white space (last non whitespace char to first non white char on following line)
+			if (startColumn < lastNonWhiteSpaceColumn) {
+				lastNonWhiteSpaceColumn = startColumn;
+			}
+			if (endColumn > firstNonWhiteSpaceColumn) {
+				firstNonWhiteSpaceColumn = endColumn;
+			}
+			if (/^[ \t]*$/.test(model.getLineContent(startLineNumber))) {
+				//if line with '\n' character has only spaces/tabs -- no need to trim left side
+				return Range.fromPositions(new Position(startLineNumber, startColumn),
+					new Position(endLineNumber, firstNonWhiteSpaceColumn));
+			}
+			return Range.fromPositions(new Position(startLineNumber, lastNonWhiteSpaceColumn),
+				new Position(endLineNumber, firstNonWhiteSpaceColumn));
+		}
+
 		if (!selection.isEmpty()) {
 			return selection;
 		}
-
-		const position = selection.getPosition();
 
 		// Unintend when using tab stops and cursor is within indentation
 		if (config.useTabStops && position.column > 1) {
