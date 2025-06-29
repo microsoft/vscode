@@ -12,6 +12,7 @@ import { localize } from '../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatAgentService } from './chatAgents.js';
 import { ChatContextKeys } from './chatContextKeys.js';
 import { ChatMode, modeToString } from './constants.js';
@@ -30,6 +31,8 @@ export interface IChatModeService {
 export class ChatModeService extends Disposable implements IChatModeService {
 	declare readonly _serviceBrand: undefined;
 
+	private static readonly CUSTOM_MODES_STORAGE_KEY = 'chat.customModes';
+
 	private readonly hasCustomModes: IContextKey<boolean>;
 	private readonly _customModeInstances = new Map<string, CustomChatMode>();
 
@@ -41,14 +44,67 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILogService private readonly logService: ILogService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
+
+		// Load cached modes from storage first
+		this.loadCachedModes();
 
 		void this.refreshCustomPromptModes(true);
 		this.hasCustomModes = ChatContextKeys.Modes.hasCustomChatModes.bindTo(contextKeyService);
 		this._register(this.promptsService.onDidChangeCustomChatModes(() => {
 			void this.refreshCustomPromptModes(true);
 		}));
+		this._register(this.storageService.onWillSaveState(() => this.saveCachedModes()));
+	}
+
+	private loadCachedModes(): void {
+		try {
+			const cachedCustomModes = this.storageService.getObject(ChatModeService.CUSTOM_MODES_STORAGE_KEY, StorageScope.WORKSPACE);
+			if (cachedCustomModes) {
+				this.deserializeCachedModes(cachedCustomModes);
+			}
+		} catch (error) {
+			this.logService.error(error, 'Failed to load cached custom chat modes');
+		}
+	}
+
+	private deserializeCachedModes(cachedCustomModes: any): void {
+		if (!Array.isArray(cachedCustomModes)) {
+			this.logService.error('Invalid cached custom modes data: expected array');
+			return;
+		}
+
+		for (const cachedMode of cachedCustomModes) {
+			if (isCachedChatModeData(cachedMode) && cachedMode.uri) {
+				try {
+					const uri = URI.revive(cachedMode.uri);
+					const customChatMode: ICustomChatMode = {
+						uri,
+						name: cachedMode.name,
+						description: cachedMode.description,
+						tools: cachedMode.customTools,
+						body: cachedMode.body || ''
+					};
+					const instance = new CustomChatMode(customChatMode);
+					this._customModeInstances.set(uri.toString(), instance);
+				} catch (error) {
+					this.logService.error(error, 'Failed to create custom chat mode instance from cached data');
+				}
+			}
+		}
+
+		this.hasCustomModes.set(this._customModeInstances.size > 0);
+	}
+
+	private saveCachedModes(): void {
+		try {
+			const modesToCache = Array.from(this._customModeInstances.values());
+			this.storageService.store(ChatModeService.CUSTOM_MODES_STORAGE_KEY, modesToCache, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		} catch (error) {
+			this.logService.warn('Failed to save cached custom chat modes', error);
+		}
 	}
 
 	private async refreshCustomPromptModes(fireChangeEvent?: boolean): Promise<void> {
@@ -163,6 +219,21 @@ export function isIChatMode(mode: unknown): mode is IChatMode {
 	return false;
 }
 
+function isCachedChatModeData(data: unknown): data is IChatModeData {
+	if (typeof data !== 'object' || data === null) {
+		return false;
+	}
+
+	const mode = data as any;
+	return typeof mode.id === 'string' &&
+		typeof mode.name === 'string' &&
+		typeof mode.kind === 'string' &&
+		(mode.description === undefined || typeof mode.description === 'string') &&
+		(mode.customTools === undefined || Array.isArray(mode.customTools)) &&
+		(mode.body === undefined || typeof mode.body === 'string') &&
+		(mode.uri === undefined || (typeof mode.uri === 'object' && mode.uri !== null));
+}
+
 export class CustomChatMode implements IChatMode2 {
 	private readonly _nameObservable: ISettableObservable<string>;
 	private readonly _descriptionObservable: ISettableObservable<string | undefined>;
@@ -225,7 +296,8 @@ export class CustomChatMode implements IChatMode2 {
 			description: this.description.get(),
 			kind: this.kind,
 			customTools: this.customTools.get(),
-			body: this.body.get()
+			body: this.body.get(),
+			uri: this.uri.get()
 		};
 	}
 }
