@@ -95,6 +95,7 @@ export interface IChatMode {
 	readonly description?: string;
 	readonly kind: ChatMode;
 	readonly customTools?: readonly string[];
+	readonly model?: string;
 	readonly body?: string;
 	readonly uri?: URI;
 }
@@ -126,6 +127,10 @@ export class CustomChatMode implements IChatMode {
 		return this.customChatMode.tools;
 	}
 
+	get model(): string | undefined {
+		return this.customChatMode.model;
+	}
+
 	get body(): string {
 		return this.customChatMode.body;
 	}
@@ -150,6 +155,7 @@ export class CustomChatMode implements IChatMode {
 			description: this.description,
 			kind: this.kind,
 			customTools: this.customTools,
+			model: this.model,
 			body: this.body
 		};
 	}

@@ -554,6 +554,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._currentMode = mode;
 		this.chatMode.set(mode.kind);
+		if (mode.model) {
+			this.switchModelByName(mode.model);
+		}
+
 		this._onDidChangeCurrentChatMode.fire();
 
 		if (storeSelection) {
