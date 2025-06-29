@@ -107,7 +107,7 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 		return this.getResourceAccessQueue(mcpResource)
 			.queue(async () => {
 				target = target ?? ConfigurationTarget.USER;
-				let scannedMcpServers: IScannedMcpServers | undefined;
+				let scannedMcpServers: IScannedMcpServers = {};
 				try {
 					const content = await this.fileService.readFile(mcpResource);
 					const errors: ParseError[] = [];
