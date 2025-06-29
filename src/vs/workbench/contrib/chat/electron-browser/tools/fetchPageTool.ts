@@ -12,6 +12,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/languageModelToolsService.js';
 import { InternalFetchWebPageToolId } from '../../common/tools/tools.js';
+import { detectEncodingFromBuffer } from '../../../../services/textfile/common/encoding.js';
 
 export const FetchWebPageToolData: IToolData = {
 	id: InternalFetchWebPageToolId,
@@ -43,9 +44,10 @@ export class FetchWebPageTool implements IToolImpl {
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		const { webUris, fileUris, invalidUris } = this._parseUris((invocation.parameters as { urls?: string[] }).urls);
+		const urls = (invocation.parameters as { urls?: string[] }).urls || [];
+		const { webUris, fileUris, invalidUris } = this._parseUris(urls);
 		const allValidUris = [...webUris.values(), ...fileUris.values()];
-		
+
 		if (!allValidUris.length && invalidUris.size === 0) {
 			return {
 				content: [{ kind: 'text', value: localize('fetchWebPage.noValidUrls', 'No valid URLs provided.') }]
@@ -60,14 +62,27 @@ export class FetchWebPageTool implements IToolImpl {
 
 		// Get contents from web URIs
 		const webContents = webUris.size > 0 ? await this._readerModeService.extract([...webUris.values()]) : [];
-		
+
 		// Get contents from file URIs
 		const fileContents: (string | undefined)[] = [];
+		const successfulFileUris: URI[] = [];
 		for (const uri of fileUris.values()) {
 			try {
 				const fileContent = await this._fileService.readFile(uri, undefined, token);
-				// Convert VSBuffer to string
-				fileContents.push(fileContent.value.toString());
+
+				// Check if the content is binary
+				const detected = detectEncodingFromBuffer({ buffer: fileContent.value, bytesRead: fileContent.value.byteLength });
+
+				if (detected.seemsBinary) {
+					// For binary files, return a message indicating they're not supported
+					// We do this for now until the tools that leverage this internal tool can support binary content
+					fileContents.push(localize('fetchWebPage.binaryNotSupported', 'Binary files are not supported at the moment.'));
+				} else {
+					// For text files, convert to string
+					fileContents.push(fileContent.value.toString());
+				}
+
+				successfulFileUris.push(uri);
 			} catch (error) {
 				// If file service can't read it, treat as invalid
 				fileContents.push(undefined);
@@ -75,11 +90,9 @@ export class FetchWebPageTool implements IToolImpl {
 		}
 
 		// Build results array in original order
-		const urls = (invocation.parameters as { urls?: string[] }).urls || [];
 		const results: (string | undefined)[] = [];
 		let webIndex = 0;
 		let fileIndex = 0;
-
 		for (const url of urls) {
 			if (invalidUris.has(url)) {
 				results.push(undefined);
@@ -94,17 +107,34 @@ export class FetchWebPageTool implements IToolImpl {
 			}
 		}
 
+		// Only include URIs that actually had content successfully fetched
+		const actuallyValidUris = [...webUris.values(), ...successfulFileUris];
+
 		return {
 			content: this._getPromptPartsForResults(results),
 			// Have multiple results show in the dropdown
-			toolResultDetails: allValidUris.length > 1 ? allValidUris : undefined
+			toolResultDetails: actuallyValidUris.length > 1 ? actuallyValidUris : undefined
 		};
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const { webUris, fileUris, invalidUris } = this._parseUris(context.parameters.urls);
-		const invalid = Array.from(invalidUris);
-		const valid = [...webUris.values(), ...fileUris.values()];
+
+		// Check which file URIs can actually be read
+		const validFileUris: URI[] = [];
+		const additionalInvalidUrls: string[] = [];
+		for (const [originalUrl, uri] of fileUris.entries()) {
+			try {
+				await this._fileService.stat(uri);
+				validFileUris.push(uri);
+			} catch (error) {
+				// If file service can't stat it, treat as invalid
+				additionalInvalidUrls.push(originalUrl);
+			}
+		}
+
+		const invalid = [...Array.from(invalidUris), ...additionalInvalidUrls];
+		const valid = [...webUris.values(), ...validFileUris];
 		const urlsNeedingConfirmation = webUris.size > 0 ? [...webUris.values()].filter(url => !this._alreadyApprovedDomains.has(url)) : [];
 
 		const pastTenseMessage = invalid.length
