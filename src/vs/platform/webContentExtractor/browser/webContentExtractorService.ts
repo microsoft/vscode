@@ -16,7 +16,7 @@ export class FileServiceWebContentExtractorService implements IWebContentExtract
 
 	async extract(uris: URI[]): Promise<string[]> {
 		const results: string[] = [];
-		
+
 		for (const uri of uris) {
 			try {
 				// Try to read the content via file service
@@ -28,7 +28,7 @@ export class FileServiceWebContentExtractorService implements IWebContentExtract
 				results.push('');
 			}
 		}
-		
+
 		return results;
 	}
 }
