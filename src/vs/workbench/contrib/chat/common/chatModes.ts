@@ -56,10 +56,16 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		this._register(this.promptsService.onDidChangeCustomChatModes(() => {
 			void this.refreshCustomPromptModes(true);
 		}));
-		this._register(this.chatAgentService.onDidChangeAgents(() => {
-			this._onDidChangeChatModes.fire();
-		}));
 		this._register(this.storageService.onWillSaveState(() => this.saveCachedModes()));
+
+		// Sort of a hack- ideally we can get rid of the setting to disable agent mode
+		let didHaveToolsAgent = this.chatAgentService.hasToolsAgent;
+		this._register(this.chatAgentService.onDidChangeAgents(() => {
+			if (didHaveToolsAgent !== this.chatAgentService.hasToolsAgent) {
+				didHaveToolsAgent = this.chatAgentService.hasToolsAgent;
+				this._onDidChangeChatModes.fire();
+			}
+		}));
 	}
 
 	private loadCachedModes(): void {
