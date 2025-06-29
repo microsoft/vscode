@@ -399,7 +399,3 @@ function firstNonGlobParentAndPattern(location: URI): { parent: URI; filePattern
 		filePattern: segments.slice(i).join('/')
 	};
 }
-
-
-
-

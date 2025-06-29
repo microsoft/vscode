@@ -19,7 +19,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { timeout } from '../../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ChatMode2 } from '../../common/chatModes.js';
+import { ChatMode } from '../../common/chatModes.js';
 
 suite('ChatSelectedTools', () => {
 
@@ -40,7 +40,7 @@ suite('ChatSelectedTools', () => {
 
 		store.add(instaService);
 		toolsService = instaService.get(ILanguageModelToolsService);
-		selectedTools = store.add(instaService.createInstance(ChatSelectedTools, constObservable(ChatMode2.Agent)));
+		selectedTools = store.add(instaService.createInstance(ChatSelectedTools, constObservable(ChatMode.Agent)));
 	});
 
 	teardown(function () {
