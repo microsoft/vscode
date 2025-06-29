@@ -48,17 +48,18 @@ export class ChatModeService extends Disposable implements IChatModeService {
 	) {
 		super();
 
+		this.hasCustomModes = ChatContextKeys.Modes.hasCustomChatModes.bindTo(contextKeyService);
+
 		// Load cached modes from storage first
 		this.loadCachedModes();
 
 		void this.refreshCustomPromptModes(true);
-		this.hasCustomModes = ChatContextKeys.Modes.hasCustomChatModes.bindTo(contextKeyService);
 		this._register(this.promptsService.onDidChangeCustomChatModes(() => {
 			void this.refreshCustomPromptModes(true);
 		}));
 		this._register(this.storageService.onWillSaveState(() => this.saveCachedModes()));
 
-		// Sort of a hack- ideally we can get rid of the setting to disable agent mode
+		// Ideally we can get rid of the setting to disable agent mode?
 		let didHaveToolsAgent = this.chatAgentService.hasToolsAgent;
 		this._register(this.chatAgentService.onDidChangeAgents(() => {
 			if (didHaveToolsAgent !== this.chatAgentService.hasToolsAgent) {
