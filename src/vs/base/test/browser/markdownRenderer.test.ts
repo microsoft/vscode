@@ -511,6 +511,15 @@ suite('MarkdownRenderer', () => {
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
+			test(`${name} with trailing space`, () => {
+				const incomplete = `some text and ${delimiter}some code `;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete.trimEnd() + delimiter);
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
 			test(`single loose "${delimiter}"`, () => {
 				const text = `some text and ${delimiter}by itself\nmore text here`;
 				const tokens = marked.marked.lexer(text);
@@ -714,8 +723,17 @@ suite('MarkdownRenderer', () => {
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
-			test('text with start of list', () => {
+			test('text with start of list is not a heading', () => {
 				const incomplete = `hello\n- `;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ' &nbsp;');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('even more text with start of list is not a heading', () => {
+				const incomplete = `# hello\n\ntext\n-`;
 				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
@@ -777,6 +795,16 @@ suite('MarkdownRenderer', () => {
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				const completeTokens = marked.marked.lexer(text + '**');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			// TODO trim these patterns from end
+			test.skip(`ending in doublestar`, () => {
+				const incomplete = `some text and **`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete.trimEnd() + '**');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 		});
