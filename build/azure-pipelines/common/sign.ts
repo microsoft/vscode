@@ -99,6 +99,14 @@ function getParams(type: string): Params[] {
 				toolName: 'sign',
 				toolVersion: '1.0'
 			}];
+		case 'sign-pgp-500207':
+			return [{
+				keyCode: 'CP-500207-pgp',
+				operationSetCode: 'LinuxSign',
+				parameters: [],
+				toolName: 'sign',
+				toolVersion: '1.0'
+			}];
 		case 'sign-darwin':
 			return [{
 				keyCode: 'CP-401337-Apple',
