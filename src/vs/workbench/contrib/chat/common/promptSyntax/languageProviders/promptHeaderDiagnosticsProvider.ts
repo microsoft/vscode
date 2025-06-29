@@ -95,7 +95,12 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 		if (!modelNode || modelNode.value === undefined) {
 			return;
 		}
-		const modelMetadata = this.findModelByName(modelNode.value);
+		const languageModes = this.languageModelsService.getLanguageModelIds();
+		if (languageModes.length === 0) {
+			// likely the service is not initialized yet
+			return;
+		}
+		const modelMetadata = this.findModelByName(languageModes, modelNode.value);
 		if (!modelMetadata) {
 			markers.push({
 				message: localize('promptHeaderDiagnosticsProvider.modelNotFound', "Unknown model '{0}'", modelNode.value),
@@ -111,8 +116,8 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 		}
 
 	}
-	findModelByName(modelName: string): ILanguageModelChatMetadata | undefined {
-		for (const model of this.languageModelsService.getLanguageModelIds()) {
+	findModelByName(languageModes: string[], modelName: string): ILanguageModelChatMetadata | undefined {
+		for (const model of languageModes) {
 			const metadata = this.languageModelsService.lookupLanguageModel(model);
 			if (metadata && metadata.isUserSelectable !== false && metadata.name === modelName) {
 				return metadata;
