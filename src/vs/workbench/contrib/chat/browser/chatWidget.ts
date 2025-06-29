@@ -40,7 +40,7 @@ import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHo
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { checkModeOption } from '../common/chat.js';
-import { IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent } from '../common/chatAgents.js';
+import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { ChatPauseState, IChatModel, IChatResponseModel } from '../common/chatModel.js';
@@ -65,12 +65,13 @@ import { ChatEditorOptions } from './chatOptions.js';
 import './media/chat.css';
 import './media/chatAgentHover.css';
 import './media/chatViewWelcome.css';
-import { ChatViewWelcomePart } from './viewsWelcome/chatViewWelcomeController.js';
+import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
 import { IChatRequestVariableEntry, ChatRequestVariableSet as ChatRequestVariableSet, isPromptFileVariableEntry, toPromptFileVariableEntry, PromptFileVariableKind } from '../common/chatVariableEntries.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
+import { startupExpContext, StartupExperimentGroup } from '../../../services/coreExperimentation/common/coreExperimentationService.js';
 
 const $ = dom.$;
 
@@ -711,22 +712,43 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private renderWelcomeViewContentIfNeeded() {
+
+		// reset the input in welcome view if it was rendered in experimental mode
+		if (this.container.classList.contains('experimental-welcome-view')) {
+			this.container.classList.remove('experimental-welcome-view');
+			const renderFollowups = this.viewOptions.renderFollowups ?? false;
+			const renderStyle = this.viewOptions.renderStyle;
+			this.createInput(this.container, { renderFollowups, renderStyle });
+		}
+
 		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal') {
 			return;
 		}
 
 		const numItems = this.viewModel?.getItems().length ?? 0;
 		if (!numItems) {
-			const welcomeContent = this.getWelcomeViewContent();
 			dom.clearNode(this.welcomeMessageContainer);
-			const tips = this.input.currentModeKind === ChatModeKind.Ask
-				? new MarkdownString(localize('chatWidget.tips', "{0} or type {1} to attach context\n\n{2} to chat with extensions\n\nType {3} to use commands", '$(attach)', '#', '$(mention)', '/'), { supportThemeIcons: true })
-				: new MarkdownString(localize('chatWidget.tips.withoutParticipants', "{0} or type {1} to attach context", '$(attach)', '#'), { supportThemeIcons: true });
 			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
 			const additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
+
+			const startupExpValue = startupExpContext.getValue(this.contextKeyService);
+			let welcomeContent: IChatViewWelcomeContent;
+			if (startupExpValue === StartupExperimentGroup.MaximizedChat
+				|| startupExpValue === StartupExperimentGroup.SplitEmptyEditorChat
+				|| startupExpValue === StartupExperimentGroup.SplitWelcomeChat) {
+				welcomeContent = this.getExpWelcomeViewContent();
+				this.container.classList.add('experimental-welcome-view');
+			}
+			else {
+				const tips = this.input.currentModeKind === ChatModeKind.Ask
+					? new MarkdownString(localize('chatWidget.tips', "{0} or type {1} to attach context\n\n{2} to chat with extensions\n\nType {3} to use commands", '$(attach)', '#', '$(mention)', '/'), { supportThemeIcons: true })
+					: new MarkdownString(localize('chatWidget.tips.withoutParticipants', "{0} or type {1} to attach context", '$(attach)', '#'), { supportThemeIcons: true });
+				welcomeContent = this.getWelcomeViewContent();
+				welcomeContent.tips = tips;
+			}
 			this.welcomePart.value = this.instantiationService.createInstance(
 				ChatViewWelcomePart,
-				{ ...welcomeContent, tips, additionalMessage },
+				{ ...welcomeContent, additionalMessage },
 				{
 					location: this.location,
 					isWidgetAgentWelcomeViewContent: this.input?.currentModeKind === ChatModeKind.Agent
@@ -741,7 +763,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private getWelcomeViewContent(): IChatWelcomeMessageContent {
+	private getWelcomeViewContent(): IChatViewWelcomeContent {
 		const baseMessage = localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.");
 		if (this.input.currentModeKind === ChatModeKind.Ask) {
 			return {
@@ -763,6 +785,35 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			};
 		}
 	}
+
+	private getExpWelcomeViewContent(): IChatViewWelcomeContent {
+		const baseMessage = localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.");
+		const welcomeContent = {
+			title: 'Get Started with VS Code',
+			message: new MarkdownString(baseMessage),
+			icon: Codicon.copilotLarge,
+			suggestedPrompts: this.getExpSuggestedPrompts(),
+			inputPart: this.inputPart.element,
+		};
+		return welcomeContent;
+	}
+
+	private getExpSuggestedPrompts(): IChatSuggestedPrompts[] {
+
+		return [
+			{
+				icon: Codicon.vscode,
+				label: localize('chatWidget.suggestedPrompts.gettingStarted', "Ask @vscode"),
+				prompt: '@vscode Help me get started with VS Code?',
+			},
+			{
+				icon: Codicon.newFolder,
+				label: localize('chatWidget.suggestedPrompts.newProject', "Create a #new Project"),
+				prompt: '#new Create a new project for me',
+			}
+		];
+	}
+
 
 	private async renderChatEditingSessionState() {
 		if (!this.input) {
