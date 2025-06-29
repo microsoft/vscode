@@ -22,6 +22,7 @@ export enum TerminalCompletionItemKind {
 	// Kinds only for core
 	InlineSuggestion = 100,
 	InlineSuggestionAlwaysOnTop = 101,
+	VscodeCommand = 102,
 }
 
 // Maps CompletionItemKind from language server based completion to TerminalCompletionItemKind
@@ -71,6 +72,15 @@ export interface ITerminalCompletion extends ISimpleCompletion {
 	 * Whether the completion is a keyword.
 	 */
 	isKeyword?: boolean;
+
+	/**
+	 * A command to execute when this completion is selected.
+	 * This is used for special completion types like tasks that should run commands instead of inserting text.
+	 */
+	command?: {
+		id: string;
+		arguments?: any[];
+	};
 }
 
 export class TerminalCompletionItem extends SimpleCompletionItem {
