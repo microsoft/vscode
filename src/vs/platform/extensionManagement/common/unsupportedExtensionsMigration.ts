@@ -9,6 +9,7 @@ import { areSameExtensions, getExtensionId } from './extensionManagementUtil.js'
 import { IExtensionStorageService } from './extensionStorage.js';
 import { ExtensionType } from '../../extensions/common/extensions.js';
 import { ILogService } from '../../log/common/log.js';
+import * as semver from '../../../base/common/semver/semver.js';
 
 /**
  * Migrates the installed unsupported nightly extension to a supported pre-release extension. It includes following:
@@ -38,6 +39,13 @@ export async function migrateUnsupportedExtensions(extensionManagementService: I
 				continue;
 			}
 
+			// Check if this is a version-specific deprecation
+			if (deprecated.deprecatedVersion) {
+				if (!semver.lte(unsupportedExtension.manifest.version, deprecated.deprecatedVersion)) {
+					continue;
+				}
+			}
+
 			const gallery = (await galleryService.getExtensions([{ id: preReleaseExtensionId, preRelease }], { targetPlatform: await extensionManagementService.getTargetPlatform(), compatible: true }, CancellationToken.None))[0];
 			if (!gallery) {
 				logService.info(`Skipping migrating '${unsupportedExtension.identifier.id}' extension because, the comaptible target '${preReleaseExtensionId}' extension is not found`);
@@ -53,7 +61,7 @@ export async function migrateUnsupportedExtensions(extensionManagementService: I
 
 				let preReleaseExtension = installed.find(i => areSameExtensions(i.identifier, { id: preReleaseExtensionId }));
 				if (!preReleaseExtension || (!preReleaseExtension.isPreReleaseVersion && isUnsupportedExtensionEnabled)) {
-					preReleaseExtension = await extensionManagementService.installFromGallery(gallery, { installPreReleaseVersion: true, isMachineScoped: unsupportedExtension.isMachineScoped, operation: InstallOperation.Migrate, context: { [EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT]: true } });
+					preReleaseExtension = await extensionManagementService.installFromGallery(gallery, { installPreReleaseVersion: preRelease, isMachineScoped: unsupportedExtension.isMachineScoped, operation: InstallOperation.Migrate, context: { [EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT]: true } });
 					logService.info(`Installed the pre-release extension '${preReleaseExtension.identifier.id}'`);
 					if (!isUnsupportedExtensionEnabled) {
 						await extensionEnablementService.disableExtension(preReleaseExtension.identifier);

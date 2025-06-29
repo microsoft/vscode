@@ -34,6 +34,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IHostService } from '../../../services/host/browser/host.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigurationValue, InstallExtensionOptions, ExtensionRuntimeState, ExtensionRuntimeActionType, AutoRestartConfigurationKey, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionsNotification } from '../common/extensions.js';
+import { isExtensionDeprecated } from '../common/extensionDeprecation.js';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IURLService, IURLHandler, IOpenURLOptions } from '../../../../platform/url/common/url.js';
 import { ExtensionsInput, IExtensionEditorOptions } from '../common/extensionsInput.js';
@@ -1485,7 +1486,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			}
 		}
 
-		const deprecatedExtensions = this.local.filter(e => !!e.deprecationInfo && e.local && this.extensionEnablementService.isEnabled(e.local));
+		const deprecatedExtensions = this.local.filter(e => isExtensionDeprecated(e) && e.local && this.extensionEnablementService.isEnabled(e.local));
 		if (deprecatedExtensions.length) {
 			computedNotificiations.push({
 				message: nls.localize('deprecated extensions', "Deprecated extensions detected. Review them and migrate to alternatives."),
