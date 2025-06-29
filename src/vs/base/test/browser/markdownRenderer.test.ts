@@ -511,6 +511,15 @@ suite('MarkdownRenderer', () => {
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
+			test(`${name} with trailing space`, () => {
+				const incomplete = `some text and ${delimiter}some code `;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete.trimEnd() + delimiter);
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
 			test(`single loose "${delimiter}"`, () => {
 				const text = `some text and ${delimiter}by itself\nmore text here`;
 				const tokens = marked.marked.lexer(text);
@@ -777,6 +786,15 @@ suite('MarkdownRenderer', () => {
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				const completeTokens = marked.marked.lexer(text + '**');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test(`double star with trailing space`, () => {
+				const incomplete = `some text and **some code `;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete.trimEnd() + '**');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 		});
