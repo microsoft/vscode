@@ -436,13 +436,13 @@ function wrapText(text: string, columns: number): string[] {
 	return lines;
 }
 
-export function buildHelpMessage(productName: string, executableName: string, version: string, options: OptionDescriptions<any>, capabilities?: { noPipe?: boolean; inputFilesLabel?: string }): string {
+export function buildHelpMessage(productName: string, executableName: string, version: string, options: OptionDescriptions<any>, capabilities?: { noPipe?: boolean; inputFilesLabel?: string | null }): string {
 	const columns = (process.stdout).isTTY && (process.stdout).columns || 80;
-	const inputFiles = capabilities?.inputFilesLabel ? `[${capabilities.inputFilesLabel}]` : `[${localize('paths', 'paths')}...]`;
+	const inputFiles = capabilities?.inputFilesLabel === null ? '' : capabilities?.inputFilesLabel ? ` [${capabilities.inputFilesLabel}]` : ` [${localize('paths', 'paths')}...]`;
 
 	const help = [`${productName} ${version}`];
 	help.push('');
-	help.push(`${localize('usage', "Usage")}: ${executableName} [${localize('options', "options")}] ${inputFiles}`);
+	help.push(`${localize('usage', "Usage")}: ${executableName} [${localize('options', "options")}]${inputFiles}`);
 	help.push('');
 	if (capabilities?.noPipe !== true) {
 		if (isWindows) {
