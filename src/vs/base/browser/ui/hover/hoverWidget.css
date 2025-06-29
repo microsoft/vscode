@@ -149,6 +149,9 @@
 	color: inherit;
 	font-size: inherit;
 	vertical-align: middle;
+	/* Prevent layout shifts during content loading */
+	display: inline-block;
+	line-height: 1;
 }
 
 .monaco-hover .hover-contents a.code-link:hover,
@@ -195,6 +198,9 @@
  */
 .monaco-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) span.codicon {
 	margin-bottom: 2px;
+	/* Prevent codicons from shifting during content loading */
+	display: inline-block;
+	line-height: 1;
 }
 
 .monaco-hover-content .action-container a {
