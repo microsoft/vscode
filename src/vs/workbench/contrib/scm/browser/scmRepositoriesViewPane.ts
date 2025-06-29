@@ -60,16 +60,18 @@ class RepositoryTreeIdentityProvider implements IIdentityProvider<ISCMRepository
 }
 
 class SCMRepositoriesViewModel extends Disposable {
-	readonly onDidChangeRepositoriesSignal = observableSignalFromEvent(this,
-		this.scmViewService.onDidChangeRepositories);
-
-	readonly onDidChangeVisibleRepositoriesSignal = observableSignalFromEvent(this,
-		this.scmViewService.onDidChangeVisibleRepositories);
+	readonly onDidChangeRepositoriesSignal: IObservable<void>;
+	readonly onDidChangeVisibleRepositoriesSignal: IObservable<void>;
 
 	constructor(
 		@ISCMViewService private readonly scmViewService: ISCMViewService
 	) {
 		super();
+
+		this.onDidChangeRepositoriesSignal = observableSignalFromEvent(this,
+			this.scmViewService.onDidChangeRepositories);
+		this.onDidChangeVisibleRepositoriesSignal = observableSignalFromEvent(this,
+			this.scmViewService.onDidChangeVisibleRepositories);
 	}
 
 	get repositories(): ISCMRepository[] {
