@@ -201,7 +201,8 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				}
 
 				try {
-					await this._proxyCustomEditors.$resolveCustomEditor(this._uriIdentityService.asCanonicalUri(resource), handle, viewType, {
+					const actualResource = modelType === CustomEditorModelType.Text ? this._uriIdentityService.asCanonicalUri(resource) : resource;
+					await this._proxyCustomEditors.$resolveCustomEditor(actualResource, handle, viewType, {
 						title: webviewInput.getTitle(),
 						contentOptions: webviewInput.webview.contentOptions,
 						options: webviewInput.webview.options,
