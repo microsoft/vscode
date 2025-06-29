@@ -65,7 +65,7 @@ class InputEditorDecorations extends Disposable {
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.updateInputEditorDecorations()));
 		this._register(autorun(reader => {
 			// Watch for changes to the current mode and its properties
-			const currentMode = this.widget.input.currentMode2.read(reader);
+			const currentMode = this.widget.input.currentModeObs.read(reader);
 			if (currentMode) {
 				// Also watch the mode's description to react to any changes
 				currentMode.description.read(reader);
@@ -126,7 +126,7 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		if (!inputValue) {
-			const description = this.widget.input.currentMode2.get().description.get();
+			const description = this.widget.input.currentModeObs.get().description.get();
 			const decoration: IDecorationOptions[] = [
 				{
 					range: {
@@ -320,7 +320,7 @@ class ChatTokenDeleter extends Disposable {
 
 			// If this was a simple delete, try to find out whether it was inside a token
 			if (!change.text && this.widget.viewModel) {
-				const previousParsedValue = parser.parseChatRequest(this.widget.viewModel.sessionId, previousInputValue, widget.location, { selectedAgent: previousSelectedAgent, mode: this.widget.input.currentMode });
+				const previousParsedValue = parser.parseChatRequest(this.widget.viewModel.sessionId, previousInputValue, widget.location, { selectedAgent: previousSelectedAgent, mode: this.widget.input.currentModeKind });
 
 				// For dynamic variables, this has to happen in ChatDynamicVariableModel with the other bookkeeping
 				const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart || p instanceof ChatRequestSlashPromptPart || p instanceof ChatRequestToolPart);

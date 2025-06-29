@@ -287,15 +287,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	readonly onDidChangeCurrentChatMode: Event<void>;
 
 	private readonly _currentModeObservable = observableValue<IChatMode2>('currentMode', ChatMode2.Ask);
-	// TODO "mode kind"
-	public get currentMode(): ChatModeKind {
+	public get currentModeKind(): ChatModeKind {
 		const mode = this._currentModeObservable.get();
 		return mode.kind === ChatModeKind.Agent && !this.agentService.hasToolsAgent ?
 			ChatModeKind.Edit :
 			mode.kind;
 	}
 
-	public get currentMode2(): IObservable<IChatMode2> {
+	public get currentModeObs(): IObservable<IChatMode2> {
 		return this._currentModeObservable;
 	}
 
@@ -404,7 +403,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 
 		this._attachmentModel = this._register(this.instantiationService.createInstance(ChatAttachmentModel));
-		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, this.currentMode2));
+		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, this.currentModeObs));
 		this.dnd = this._register(this.instantiationService.createInstance(ChatDragAndDrop, this._attachmentModel, styles));
 
 		this.getInputState = (): IChatInputState => {
@@ -420,7 +419,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatCursorAtTop = ChatContextKeys.inputCursorAtTop.bindTo(contextKeyService);
 		this.inputEditorHasFocus = ChatContextKeys.inputHasFocus.bindTo(contextKeyService);
 		this.promptFileAttached = ChatContextKeys.hasPromptFile.bindTo(contextKeyService);
-		this.chatModeKindKey = ChatContextKeys.chatMode.bindTo(contextKeyService);
+		this.chatModeKindKey = ChatContextKeys.chatModeKind.bindTo(contextKeyService);
 
 		this.history = this.loadHistory();
 		this._register(this.historyService.onDidClearHistory(() => this.history = new HistoryNavigator2<IChatHistoryEntry>([{ text: '', state: this.getInputState() }], ChatInputHistoryMaxEntries, historyKeyFn)));
@@ -560,7 +559,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private modelSupportedForDefaultAgent(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 		// Probably this logic could live in configuration on the agent, or somewhere else, if it gets more complex
-		if (this.currentMode === ChatModeKind.Agent || (this.currentMode === ChatModeKind.Edit && this.configurationService.getValue(ChatConfiguration.Edits2Enabled))) {
+		if (this.currentModeKind === ChatModeKind.Agent || (this.currentModeKind === ChatModeKind.Edit && this.configurationService.getValue(ChatConfiguration.Edits2Enabled))) {
 			const supportsToolsAgent = typeof model.metadata.capabilities?.agentMode === 'undefined' || model.metadata.capabilities.agentMode;
 
 			// Filter out models that don't support tool calling, and models that don't support enough context to have a good experience with the tools agent
@@ -623,7 +622,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			kbLabel = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
 		}
 		let modeLabel = '';
-		switch (this.currentMode) {
+		switch (this.currentModeKind) {
 			case ChatModeKind.Agent:
 				modeLabel = localize('chatInput.mode.agent', "(Agent Mode), edit files in your workspace.");
 				break;

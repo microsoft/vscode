@@ -219,7 +219,7 @@ export function registerChatTitleActions() {
 			}
 			const itemIndex = chatRequests?.findIndex(request => request.id === item.requestId);
 			const widget = chatWidgetService.getWidgetBySessionId(item.sessionId);
-			const mode = widget?.input.currentMode;
+			const mode = widget?.input.currentModeKind;
 			if (chatModel && (mode === ChatModeKind.Edit || mode === ChatModeKind.Agent)) {
 				const configurationService = accessor.get(IConfigurationService);
 				const dialogService = accessor.get(IDialogService);
@@ -264,7 +264,7 @@ export function registerChatTitleActions() {
 				userSelectedModelId: languageModelId,
 				userSelectedTools: widget?.getUserSelectedTools(),
 				attempt: (request?.attempt ?? -1) + 1,
-				mode: widget?.input.currentMode,
+				mode: widget?.input.currentModeKind,
 			});
 		}
 	});

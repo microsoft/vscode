@@ -79,9 +79,9 @@ class ConfigureToolsAction extends Action2 {
 			icon: Codicon.tools,
 			f1: false,
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.chatMode.isEqualTo(ChatModeKind.Agent),
+			precondition: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 			menu: [{
-				when: ChatContextKeys.chatMode.isEqualTo(ChatModeKind.Agent),
+				when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 				id: MenuId.ChatExecute,
 				group: 'navigation',
 				order: 1,
@@ -121,7 +121,7 @@ class ConfigureToolsAction extends Action2 {
 				break;
 			case ToolsScope.Mode:
 				placeholder = localize('chat.tools.placeholder.mode', "Select tools for this chat mode");
-				description = localize('chat.tools.description.mode', "The selected tools are configured by the '{0}' chat mode.", widget.input.currentMode2.get().name);
+				description = localize('chat.tools.description.mode', "The selected tools are configured by the '{0}' chat mode.", widget.input.currentModeObs.get().name);
 				break;
 			case ToolsScope.Global:
 				placeholder = localize('chat.tools.placeholder.global', "Select tools that are available to chat");

@@ -11,6 +11,9 @@ export enum ChatConfiguration {
 	EditRequests = 'chat.editRequests',
 }
 
+/**
+ * The "kind" of the chat mode- "Agent" for custom modes.
+ */
 export enum ChatModeKind {
 	Ask = 'ask',
 	Edit = 'edit',

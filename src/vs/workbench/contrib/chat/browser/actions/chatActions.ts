@@ -171,7 +171,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 				chatWidget.setInput(opts.query);
 			} else {
 				await chatWidget.waitForReady();
-				await waitForDefaultAgent(chatAgentService, chatWidget.input.currentMode);
+				await waitForDefaultAgent(chatAgentService, chatWidget.input.currentModeKind);
 				chatWidget.acceptInput(opts.query);
 			}
 		}
@@ -195,7 +195,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 	}
 
 	private async handleSwitchToMode(switchToMode: ChatModeKind, chatWidget: IChatWidget, instaService: IInstantiationService, commandService: ICommandService): Promise<void> {
-		const currentMode = chatWidget.input.currentMode;
+		const currentMode = chatWidget.input.currentModeKind;
 
 		if (switchToMode) {
 			const editingSession = chatWidget.viewModel?.model.editingSession;
@@ -504,7 +504,7 @@ export function registerChatActions() {
 				category: CHAT_CATEGORY,
 				menu: [{
 					id: MenuId.ChatExecute,
-					when: ChatContextKeys.chatMode.isEqualTo(ChatModeKind.Ask),
+					when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
 					group: 'navigation',
 					order: 1
 				}]

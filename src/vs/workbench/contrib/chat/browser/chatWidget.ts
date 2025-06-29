@@ -247,7 +247,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return { text: '', parts: [] };
 			}
 
-			this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel!.sessionId, this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent, mode: this.input.currentMode });
+			this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel!.sessionId, this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent, mode: this.input.currentModeKind });
 			this._onDidChangeParsedInput.fire();
 		}
 
@@ -625,7 +625,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!this.viewModel) {
 			return;
 		}
-		this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel.sessionId, this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent, mode: this.input.currentMode });
+		this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel.sessionId, this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent, mode: this.input.currentModeKind });
 		this._onDidChangeParsedInput.fire();
 	}
 
@@ -719,17 +719,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!numItems) {
 			const welcomeContent = this.getWelcomeViewContent();
 			dom.clearNode(this.welcomeMessageContainer);
-			const tips = this.input.currentMode === ChatModeKind.Ask
+			const tips = this.input.currentModeKind === ChatModeKind.Ask
 				? new MarkdownString(localize('chatWidget.tips', "{0} or type {1} to attach context\n\n{2} to chat with extensions\n\nType {3} to use commands", '$(attach)', '#', '$(mention)', '/'), { supportThemeIcons: true })
 				: new MarkdownString(localize('chatWidget.tips.withoutParticipants', "{0} or type {1} to attach context", '$(attach)', '#'), { supportThemeIcons: true });
-			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentMode);
+			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
 			const additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
 			this.welcomePart.value = this.instantiationService.createInstance(
 				ChatViewWelcomePart,
 				{ ...welcomeContent, tips, additionalMessage },
 				{
 					location: this.location,
-					isWidgetAgentWelcomeViewContent: this.input?.currentMode === ChatModeKind.Agent
+					isWidgetAgentWelcomeViewContent: this.input?.currentModeKind === ChatModeKind.Agent
 				}
 			);
 			dom.append(this.welcomeMessageContainer, this.welcomePart.value.element);
@@ -743,13 +743,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private getWelcomeViewContent(): IChatWelcomeMessageContent {
 		const baseMessage = localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.");
-		if (this.input.currentMode === ChatModeKind.Ask) {
+		if (this.input.currentModeKind === ChatModeKind.Ask) {
 			return {
 				title: localize('chatDescription', "Ask Copilot"),
 				message: new MarkdownString(baseMessage),
 				icon: Codicon.copilotLarge
 			};
-		} else if (this.input.currentMode === ChatModeKind.Edit) {
+		} else if (this.input.currentModeKind === ChatModeKind.Edit) {
 			return {
 				title: localize('editsTitle', "Edit with Copilot"),
 				message: new MarkdownString(localize('editsMessage', "Start your editing session by defining a set of files that you want to work with. Then ask Copilot for the changes you want to make.") + `\n\n${baseMessage}`),
@@ -776,7 +776,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private async renderFollowups(): Promise<void> {
-		if (this.lastItem && isResponseVM(this.lastItem) && this.lastItem.isComplete && this.input.currentMode === ChatModeKind.Ask) {
+		if (this.lastItem && isResponseVM(this.lastItem) && this.lastItem.isComplete && this.input.currentModeKind === ChatModeKind.Ask) {
 			this.input.renderFollowups(this.lastItem.replyFollowups, this.lastItem);
 		} else {
 			this.input.renderFollowups(undefined, undefined);
@@ -814,7 +814,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			getListLength: () => this.tree.getNode(null).visibleChildrenCount,
 			onDidScroll: this.onDidScroll,
 			container: listContainer,
-			currentChatMode: () => this.input.currentMode,
+			currentChatMode: () => this.input.currentModeKind,
 		};
 
 		// Create a dom element to hold UI from editor widgets embedded in chat messages
@@ -868,7 +868,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					attempt: request.attempt + 1,
 					location: this.location,
 					userSelectedModelId: this.input.currentLanguageModel,
-					mode: this.input.currentMode,
+					mode: this.input.currentModeKind,
 				};
 				this.chatService.resendRequest(request, options).catch(e => this.logService.error('FAILED to rerun request', e));
 			}
@@ -974,7 +974,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.inputContainer = dom.$('.chat-edit-input-container');
 				rowContainer.appendChild(this.inputContainer);
 				this.createInput(this.inputContainer);
-				this.input.setChatMode(this.inputPart.currentMode);
+				this.input.setChatMode(this.inputPart.currentModeKind);
 			} else {
 				this.inputPart.element.classList.add('editing');
 			}
@@ -1169,7 +1169,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			let msg = '';
-			if (e.followup.agentId && e.followup.agentId !== this.chatAgentService.getDefaultAgent(this.location, this.input.currentMode)?.id) {
+			if (e.followup.agentId && e.followup.agentId !== this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind)?.id) {
 				const agent = this.chatAgentService.getAgent(e.followup.agentId);
 				if (!agent) {
 					return;
@@ -1487,7 +1487,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (this.viewModel) {
 			this._onDidAcceptInput.fire();
-			this.scrollLock = !!checkModeOption(this.input.currentMode, this.viewOptions.autoScroll);
+			this.scrollLock = !!checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll);
 
 			const editorValue = this.getInput();
 			const requestId = this.chatAccessibilityService.acceptRequest();
@@ -1505,7 +1505,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				await this._autoAttachInstructions(requestInputs);
 			}
 
-			if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentMode === ChatModeKind.Edit && !this.chatService.edits2Enabled) {
+			if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentModeKind === ChatModeKind.Edit && !this.chatService.edits2Enabled) {
 				const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
 				const editingSessionAttachedContext: ChatRequestVariableSet = requestInputs.attachedContext;
 
@@ -1552,15 +1552,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, requestInputs.input, {
-				mode: this.input.currentMode,
+				mode: this.input.currentModeKind,
 				userSelectedModelId: this.input.currentLanguageModel,
 				location: this.location,
 				locationData: this._location.resolveData?.(),
-				parserContext: { selectedAgent: this._lastSelectedAgent, mode: this.input.currentMode },
+				parserContext: { selectedAgent: this._lastSelectedAgent, mode: this.input.currentModeKind },
 				attachedContext: requestInputs.attachedContext.asArray(),
 				noCommandDetection: options?.noCommandDetection,
 				userSelectedTools: this.getUserSelectedTools(),
-				modeInstructions: this.input.currentMode2.get().body?.get()
+				modeInstructions: this.input.currentModeObs.get().body?.get()
 			});
 
 			if (result) {
@@ -1598,9 +1598,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	getModeRequestOptions(): Partial<IChatSendRequestOptions> {
 		return {
-			modeInstructions: this.input.currentMode2.get().body?.get(),
+			modeInstructions: this.input.currentModeObs.get().body?.get(),
 			userSelectedTools: this.getUserSelectedTools(),
-			mode: this.input.currentMode,
+			mode: this.input.currentModeKind,
 		};
 	}
 
@@ -1673,7 +1673,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const lastItem = this.viewModel?.getItems().at(-1);
 		const lastResponseIsRendering = isResponseVM(lastItem) && lastItem.renderData;
-		if (lastElementVisible && (!lastResponseIsRendering || checkModeOption(this.input.currentMode, this.viewOptions.autoScroll))) {
+		if (lastElementVisible && (!lastResponseIsRendering || checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll))) {
 			this.scrollToEnd();
 		}
 		this.listContainer.style.height = `${contentHeight}px`;
@@ -1801,8 +1801,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const { mode, tools } = metadata;
 
 		// switch to appropriate chat mode if needed
-		if (mode && mode !== this.input.currentMode) {
-			const chatModeCheck = await this.instantiationService.invokeFunction(handleModeSwitch, this.input.currentMode, mode, this.viewModel?.model.getRequests().length ?? 0, this.viewModel?.model.editingSession);
+		if (mode && mode !== this.input.currentModeKind) {
+			const chatModeCheck = await this.instantiationService.invokeFunction(handleModeSwitch, this.input.currentModeKind, mode, this.viewModel?.model.getRequests().length ?? 0, this.viewModel?.model.editingSession);
 			if (!chatModeCheck) {
 				return undefined;
 			} else if (chatModeCheck.needToClearSession) {
@@ -1820,7 +1820,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// sanity check on the logic of the `getPromptFilesMetadata` method
 		// and the code above in case this block is moved around somewhere else:
 		// if we have some tools present, the mode must have been equal to `agent`
-		assert(this.input.currentMode === ChatModeKind.Agent, `Chat mode must be 'agent' when there are 'tools' defined, got ${this.input.currentMode}.`);
+		assert(this.input.currentModeKind === ChatModeKind.Agent, `Chat mode must be 'agent' when there are 'tools' defined, got ${this.input.currentModeKind}.`);
 
 		const enablementMap = this.toolsService.toToolAndToolSetEnablementMap(new Set(tools));
 		this.input.selectedToolsModel.set(enablementMap, true);
