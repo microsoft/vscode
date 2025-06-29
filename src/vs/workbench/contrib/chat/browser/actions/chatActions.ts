@@ -248,9 +248,8 @@ class PrimaryOpenChatGlobalAction extends OpenChatGlobalAction {
 	}
 }
 
-export function getOpenChatActionIdForMode(mode: ChatMode): string {
-	const modeStr = modeToString(mode);
-	return `workbench.action.chat.open${modeStr}`;
+export function getOpenChatActionIdForMode(mode: ChatMode | string): string {
+	return `workbench.action.chat.open${mode}`;
 }
 
 abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {

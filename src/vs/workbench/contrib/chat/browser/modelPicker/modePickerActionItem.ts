@@ -6,8 +6,8 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../../base/common/actions.js';
-import { Event } from '../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { getFlatActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -17,15 +17,13 @@ import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActi
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
-import { IChatMode, IChatModeService } from '../../common/chatModes.js';
+import { IChatMode2, IChatModeService } from '../../common/chatModes.js';
 import { ChatAgentLocation, ChatMode, modeToString } from '../../common/constants.js';
-import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { getOpenChatActionIdForMode } from '../actions/chatActions.js';
 import { IToggleChatModeArgs } from '../actions/chatExecuteActions.js';
 
 export interface IModePickerDelegate {
-	onDidChangeMode: Event<void>;
-	getMode(): IChatMode;
+	readonly currentMode: IObservable<IChatMode2>;
 }
 
 export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
@@ -36,36 +34,35 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		@IChatAgentService chatAgentService: IChatAgentService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IPromptsService promptsService: IPromptsService,
 		@IChatModeService chatModeService: IChatModeService,
 		@IMenuService private readonly menuService: IMenuService
 	) {
-		const makeAction = (mode: ChatMode, includeCategory: boolean): IActionWidgetDropdownAction => ({
+		const makeAction = (mode: ChatMode, includeCategory: boolean, currentMode: IChatMode2): IActionWidgetDropdownAction => ({
 			...action,
 			id: getOpenChatActionIdForMode(mode),
 			label: modeToString(mode),
 			class: undefined,
 			enabled: true,
-			checked: delegate.getMode().id === mode,
+			checked: currentMode.id === mode,
 			tooltip: chatAgentService.getDefaultAgent(ChatAgentLocation.Panel, mode)?.description ?? action.tooltip,
 			run: async () => {
-				const result = await action.run({ mode } satisfies IToggleChatModeArgs);
+				const result = await action.run({ modeId: mode } satisfies IToggleChatModeArgs);
 				this.renderLabel(this.element!);
 				return result;
 			},
 			category: includeCategory ? { label: localize('built-in', "Built-In"), order: 0 } : undefined
 		});
 
-		const makeActionFromCustomMode = (mode: IChatMode): IActionWidgetDropdownAction => ({
+		const makeActionFromCustomMode = (mode: IChatMode2, currentMode: IChatMode2): IActionWidgetDropdownAction => ({
 			...action,
-			id: getOpenChatActionIdForMode(mode.name as ChatMode),
+			id: getOpenChatActionIdForMode(mode.name),
 			label: mode.name,
 			class: undefined,
 			enabled: true,
-			checked: delegate.getMode().id === mode.id,
-			tooltip: mode.description ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Panel, mode.kind)?.description ?? action.tooltip,
+			checked: currentMode.id === mode.id,
+			tooltip: mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Panel, mode.kind)?.description ?? action.tooltip,
 			run: async () => {
-				const result = await action.run({ mode } satisfies IToggleChatModeArgs);
+				const result = await action.run({ modeId: mode.id } satisfies IToggleChatModeArgs);
 				this.renderLabel(this.element!);
 				return result;
 			},
@@ -76,9 +73,10 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 			getActions: () => {
 				const modes = chatModeService.getModes();
 				const hasCustomModes = modes.custom && modes.custom.length > 0;
-				const agentStateActions: IActionWidgetDropdownAction[] = modes.builtin.map(mode => makeAction(mode.kind, !!hasCustomModes));
+				const currentMode = delegate.currentMode.get();
+				const agentStateActions: IActionWidgetDropdownAction[] = modes.builtin.map(mode => makeAction(mode.kind, !!hasCustomModes, currentMode));
 				if (modes.custom) {
-					agentStateActions.push(...modes.custom.map(mode => makeActionFromCustomMode(mode)));
+					agentStateActions.push(...modes.custom.map(mode => makeActionFromCustomMode(mode, currentMode)));
 				}
 
 				return agentStateActions;
@@ -95,7 +93,10 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 
 		super(action, modePickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService);
 
-		this._register(delegate.onDidChangeMode(() => this.renderLabel(this.element!)));
+		// Listen to changes in the current mode and its properties
+		this._register(autorun(reader => {
+			this.renderLabel(this.element!, this.delegate.currentMode.read(reader));
+		}));
 	}
 
 	private getModePickerActionBarActions(): IAction[] {
@@ -106,12 +107,12 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		return menuContributions;
 	}
 
-	protected override renderLabel(element: HTMLElement): IDisposable | null {
+	protected override renderLabel(element: HTMLElement, mode: IChatMode2 = this.delegate.currentMode.get()): IDisposable | null {
 		if (!this.element) {
 			return null;
 		}
 		this.setAriaLabelAttributes(element);
-		const state = this.delegate.getMode().name;
+		const state = this.delegate.currentMode.get().name;
 		dom.reset(element, dom.$('span.chat-model-label', undefined, state), ...renderLabelWithIcons(`$(chevron-down)`));
 		return null;
 	}

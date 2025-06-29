@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename } from '../../../../../base/common/resources.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -18,11 +20,13 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/cont
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IChatAgentService, IChatAgentHistoryEntry } from '../../common/chatAgents.js';
+import { IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
+import { IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { toChatHistoryContent } from '../../common/chatModel.js';
-import { ChatMode2, IChatMode, validateChatMode2 } from '../../common/chatModes.js';
+import { ChatMode2, IChatMode2, IChatModeService } from '../../common/chatModes.js';
 import { chatVariableLeader } from '../../common/chatParserTypes.js';
+import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatMode, } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
@@ -30,10 +34,6 @@ import { ILanguageModelToolsService } from '../../common/languageModelToolsServi
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
-import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
-import { ChatRequestParser } from '../../common/chatRequestParser.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -164,7 +164,7 @@ export class ChatSubmitAction extends SubmitAction {
 export const ToggleAgentModeActionId = 'workbench.action.chat.toggleAgentMode';
 
 export interface IToggleChatModeArgs {
-	mode: IChatMode | ChatMode;
+	modeId: ChatMode | string;
 }
 
 class ToggleChatModeAction extends Action2 {
@@ -207,6 +207,7 @@ class ToggleChatModeAction extends Action2 {
 		const commandService = accessor.get(ICommandService);
 		const configurationService = accessor.get(IConfigurationService);
 		const instaService = accessor.get(IInstantiationService);
+		const modeService = accessor.get(IChatModeService);
 
 		const context = getEditingSessionContext(accessor, args);
 		if (!context?.chatWidget) {
@@ -216,7 +217,7 @@ class ToggleChatModeAction extends Action2 {
 		const arg = args.at(0) as IToggleChatModeArgs | undefined;
 		const chatSession = context.chatWidget.viewModel?.model;
 		const requestCount = chatSession?.getRequests().length ?? 0;
-		const switchToMode = validateChatMode2(arg?.mode) ?? this.getNextMode(context.chatWidget, requestCount, configurationService);
+		const switchToMode = (arg && modeService.findModeById(arg.modeId)) ?? this.getNextMode(context.chatWidget, requestCount, configurationService);
 
 		if (switchToMode.id === context.chatWidget.input.currentMode2.id) {
 			return;
@@ -227,14 +228,14 @@ class ToggleChatModeAction extends Action2 {
 			return;
 		}
 
-		context.chatWidget.input.setChatMode2(switchToMode);
+		context.chatWidget.input.setChatMode(switchToMode.id);
 
 		if (chatModeCheck.needToClearSession) {
 			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}
 	}
 
-	private getNextMode(chatWidget: IChatWidget, requestCount: number, configurationService: IConfigurationService): IChatMode {
+	private getNextMode(chatWidget: IChatWidget, requestCount: number, configurationService: IConfigurationService): IChatMode2 {
 		const modes = [ChatMode2.Ask];
 		if (configurationService.getValue(ChatConfiguration.Edits2Enabled) || requestCount === 0) {
 			modes.push(ChatMode2.Edit);

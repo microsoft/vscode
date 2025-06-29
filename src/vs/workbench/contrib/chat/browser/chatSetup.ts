@@ -110,17 +110,17 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 			const chatAgentService = accessor.get(IChatAgentService);
 
 			let id: string;
-			let description = ChatMode2.Ask.description;
+			let description = ChatMode2.Ask.description.get();
 			switch (location) {
 				case ChatAgentLocation.Panel:
 					if (mode === ChatMode.Ask) {
 						id = 'setup.chat';
 					} else if (mode === ChatMode.Edit) {
 						id = 'setup.edits';
-						description = ChatMode2.Edit.description;
+						description = ChatMode2.Edit.description.get();
 					} else {
 						id = 'setup.agent';
-						description = ChatMode2.Agent.description;
+						description = ChatMode2.Agent.description.get();
 					}
 					break;
 				case ChatAgentLocation.Terminal:

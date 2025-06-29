@@ -5,7 +5,6 @@
 
 
 import { Event } from '../../../../../base/common/event.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ChatMode2, IChatMode2, IChatModeService } from '../../common/chatModes.js';
 
 export class MockChatModeService implements IChatModeService {

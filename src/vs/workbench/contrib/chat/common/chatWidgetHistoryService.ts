@@ -24,7 +24,11 @@ export interface IChatInputState {
 	[key: string]: any;
 	chatContextAttachments?: ReadonlyArray<IChatRequestVariableEntry>;
 	chatWorkingSet?: ReadonlyArray<{ uri: URI; state: ModifiedFileEntryState }>;
-	chatMode?: IChatMode | ChatMode;
+
+	/**
+	 * This should be a mode id (ChatMode | string). IChatMode is deprecated but may still be in persisted data.
+	 */
+	chatMode?: ChatMode | string | IChatMode;
 }
 
 export const IChatWidgetHistoryService = createDecorator<IChatWidgetHistoryService>('IChatWidgetHistoryService');

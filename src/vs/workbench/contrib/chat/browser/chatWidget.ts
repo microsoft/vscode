@@ -1560,7 +1560,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				attachedContext: requestInputs.attachedContext.asArray(),
 				noCommandDetection: options?.noCommandDetection,
 				userSelectedTools: this.getUserSelectedTools(),
-				modeInstructions: this.input.currentMode2.body
+				modeInstructions: this.input.currentMode2.body?.get()
 			});
 
 			if (result) {
@@ -1598,7 +1598,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	getModeRequestOptions(): Partial<IChatSendRequestOptions> {
 		return {
-			modeInstructions: this.input.currentMode2.body,
+			modeInstructions: this.input.currentMode2.body?.get(),
 			userSelectedTools: this.getUserSelectedTools(),
 			mode: this.input.currentMode,
 		};
