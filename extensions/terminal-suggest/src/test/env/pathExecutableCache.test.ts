@@ -31,6 +31,8 @@ suite('PathExecutableCache', () => {
 		cache.refresh();
 		const result2 = await cache.getExecutablesInPath(env);
 		strictEqual(result !== result2, true);
+
+		strictEqual(1, 0, 'Test failure...');
 	});
 
 	if (process.platform !== 'win32') {
