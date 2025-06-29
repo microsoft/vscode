@@ -1866,6 +1866,8 @@ export class Repository {
 
 		if (opts.signCommit) {
 			args.push('-S');
+		} else if (opts.signCommit === false) {
+			args.unshift('-c', 'commit.gpgSign=false');
 		}
 
 		if (opts.empty) {
