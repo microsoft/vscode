@@ -26,6 +26,7 @@ export interface NativeParsedArgs {
 	'serve-web'?: INativeCliOptions;
 	agent?: {
 		_: string[];
+		'add-file'?: string[];
 		help?: boolean;
 	};
 

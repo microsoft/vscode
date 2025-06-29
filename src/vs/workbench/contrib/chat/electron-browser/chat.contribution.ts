@@ -14,10 +14,15 @@ import { FetchWebPageTool, FetchWebPageToolData } from './tools/fetchPageTool.js
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
+import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
 import { ChatMode } from '../common/constants.js';
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { URI } from '../../../../base/common/uri.js';
+import { isAbsolute, join } from '../../../../base/common/path.js';
+import { cwd } from '../../../../base/common/process.js';
+import { showChatView } from '../browser/chat.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 
 class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -42,7 +47,8 @@ class ChatAgentCommandLineHandler extends Disposable {
 	constructor(
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IViewsService private readonly viewsService: IViewsService
 	) {
 		super();
 
@@ -70,9 +76,19 @@ class ChatAgentCommandLineHandler extends Disposable {
 
 		const opts: IChatViewOpenOptions = {
 			query: args._.length > 0 ? args._.join(' ') : '',
-			mode: ChatMode.Agent
+			mode: ChatMode.Agent,
+			attachFiles: args['add-file']?.map(file => {
+				if (!isAbsolute(file)) {
+					file = join(cwd(), file);
+				}
+				return URI.file(file);
+			}),
 		};
-		this.commandService.executeCommand(CHAT_OPEN_ACTION_ID, opts);
+
+		const chatWidget = await showChatView(this.viewsService);
+		await chatWidget?.waitForReady();
+		await this.commandService.executeCommand(ACTION_ID_NEW_CHAT);
+		await this.commandService.executeCommand(CHAT_OPEN_ACTION_ID, opts);
 	}
 }
 

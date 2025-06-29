@@ -83,6 +83,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 		description: 'Pass in a prompt to run in a chat agent session in the current working directory.',
 		options: {
 			'_': { type: 'string[]', description: localize('agentPrompt', "The prompt to send to the agent.") },
+			'add-file': { type: 'string[]', cat: 'o', alias: 'a', description: localize('addFile', "Add files as context to the chat agent session.") },
 			'help': { type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") }
 		}
 	},
