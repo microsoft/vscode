@@ -99,4 +99,53 @@ suite('Default Document Colors Computer', () => {
 		assert.strictEqual(colors[0].color.blue, 0, 'Blue component should be 0');
 		assert.strictEqual(colors[0].color.alpha, 1, 'Alpha should be 1 (ff/255)');
 	});
+
+	test('3-digit hex colors should be detected', () => {
+		const model = new TestDocumentModel("const color = '#f00';");
+		const colors = computeDefaultDocumentColors(model);
+
+		assert.strictEqual(colors.length, 1, 'Should detect one 3-digit hex color');
+		assert.strictEqual(colors[0].color.red, 1, 'Red component should be 1 (f = ff)');
+		assert.strictEqual(colors[0].color.green, 0, 'Green component should be 0');
+		assert.strictEqual(colors[0].color.blue, 0, 'Blue component should be 0');
+		assert.strictEqual(colors[0].color.alpha, 1, 'Alpha should be 1');
+	});
+
+	test('4-digit hex colors should be detected', () => {
+		const model = new TestDocumentModel("const color = '#f008';");
+		const colors = computeDefaultDocumentColors(model);
+
+		assert.strictEqual(colors.length, 1, 'Should detect one 4-digit hex color');
+		assert.strictEqual(colors[0].color.red, 1, 'Red component should be 1 (f = ff)');
+		assert.strictEqual(colors[0].color.green, 0, 'Green component should be 0');
+		assert.strictEqual(colors[0].color.blue, 0, 'Blue component should be 0');
+		// 8 in hex = 136/255 ≈ 0.533
+		assert.ok(Math.abs(colors[0].color.alpha - (8 * 17 / 255)) < 0.01, 'Alpha should be approximately 0.533');
+	});
+
+	test('Issue case - hex colors in object properties should work', () => {
+		const testContent = `  contentPrimary: '#FFFFFF',
+  contentSecondary: 'rgba(255, 255, 255, 0.75)',
+  contentError: '#ED4964',`;
+		const model = new TestDocumentModel(testContent);
+		const colors = computeDefaultDocumentColors(model);
+
+		assert.strictEqual(colors.length, 3, 'Should detect three colors (2 hex + 1 rgba)');
+		
+		// Check the first hex color (#FFFFFF)
+		const whiteColor = colors.find(c => 
+			Math.abs(c.color.red - 1) < 0.01 && 
+			Math.abs(c.color.green - 1) < 0.01 && 
+			Math.abs(c.color.blue - 1) < 0.01
+		);
+		assert.ok(whiteColor, 'Should find white hex color #FFFFFF');
+		
+		// Check the second hex color (#ED4964)
+		const redColor = colors.find(c => 
+			Math.abs(c.color.red - (0xED / 255)) < 0.01 && 
+			Math.abs(c.color.green - (0x49 / 255)) < 0.01 && 
+			Math.abs(c.color.blue - (0x64 / 255)) < 0.01
+		);
+		assert.ok(redColor, 'Should find red hex color #ED4964');
+	});
 });
