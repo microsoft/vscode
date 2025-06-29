@@ -23,6 +23,8 @@ import './hover.css';
 import { Emitter } from '../../../../base/common/event.js';
 import { isOnColorDecorator } from '../../colorPicker/browser/hoverColorPicker/hoverColorPicker.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { GotoDefinitionAtPositionEditorContribution } from '../../gotoSymbol/browser/link/goToDefinitionAtPosition.js';
+import * as platform from '../../../../base/common/platform.js';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -239,6 +241,13 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		if (!this._contentWidget) {
 			return;
 		}
+		
+		// Check if Cmd/Ctrl key is pressed while hover is visible (for definition preview)
+		if (this._contentWidget.isVisible && this._isCommandKeyForDefinitionPreview(e)) {
+			this._triggerDefinitionPreviewHover();
+			return;
+		}
+		
 		const isPotentialKeyboardShortcut = this._isPotentialKeyboardShortcut(e);
 		const isModifierKeyPressed = this._isModifierKeyPressed(e);
 		if (isPotentialKeyboardShortcut || isModifierKeyPressed) {
@@ -269,6 +278,29 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			|| e.keyCode === KeyCode.Alt
 			|| e.keyCode === KeyCode.Meta
 			|| e.keyCode === KeyCode.Shift;
+	}
+
+	private _isCommandKeyForDefinitionPreview(e: IKeyboardEvent): boolean {
+		// On Mac, use Cmd (Meta), on other platforms use Ctrl
+		return platform.isMacintosh ? e.keyCode === KeyCode.Meta : e.keyCode === KeyCode.Ctrl;
+	}
+
+	private _triggerDefinitionPreviewHover(): void {
+		const position = this._editor.getPosition();
+		if (!position) {
+			return;
+		}
+
+		const goto = GotoDefinitionAtPositionEditorContribution.get(this._editor);
+		if (!goto) {
+			return;
+		}
+
+		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+		const promise = goto.startFindDefinitionFromCursor(position);
+		promise.then(() => {
+			this.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, false);
+		});
 	}
 
 	public hideContentHover(): void {
