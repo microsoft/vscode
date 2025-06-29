@@ -827,9 +827,9 @@ function completeListItemPattern(list: marked.Tokens.List): marked.Tokens.List |
 	return newList;
 }
 
-function completeHeading(token: marked.Tokens.Heading): marked.TokensList | void {
+function completeHeading(token: marked.Tokens.Heading, fullRawText: string): marked.TokensList | void {
 	if (token.raw.match(/-\s*$/)) {
-		return marked.lexer(token.raw + ' &nbsp;');
+		return marked.lexer(fullRawText + ' &nbsp;');
 	}
 }
 
@@ -887,7 +887,7 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 	}
 
 	if (lastToken?.type === 'heading') {
-		const completeTokens = completeHeading(lastToken as marked.Tokens.Heading);
+		const completeTokens = completeHeading(lastToken as marked.Tokens.Heading, mergeRawTokenText(tokens));
 		if (completeTokens) {
 			return completeTokens;
 		}

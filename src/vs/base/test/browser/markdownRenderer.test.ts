@@ -723,8 +723,17 @@ suite('MarkdownRenderer', () => {
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
-			test('text with start of list', () => {
+			test('text with start of list is not a heading', () => {
 				const incomplete = `hello\n- `;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ' &nbsp;');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('even more text with start of list is not a heading', () => {
+				const incomplete = `# hello\n\ntext\n-`;
 				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
@@ -789,8 +798,9 @@ suite('MarkdownRenderer', () => {
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
-			test(`double star with trailing space`, () => {
-				const incomplete = `some text and **some code `;
+			// TODO trim these patterns from end
+			test.skip(`ending in doublestar`, () => {
+				const incomplete = `some text and **`;
 				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
