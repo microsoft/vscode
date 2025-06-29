@@ -535,27 +535,6 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	}
 
 	/**
-	 * Get a list of all references of the prompt, including
-	 * all possible nested references its children may have.
-	 */
-	public get allReferences(): readonly TPromptReference[] {
-		const result: TPromptReference[] = [];
-
-		for (const reference of this.references) {
-			result.push(reference);
-		}
-
-		return result;
-	}
-
-	/**
-	 * Get list of all valid references.
-	 */
-	public get allValidReferences(): readonly TPromptReference[] {
-		return this.allReferences;
-	}
-
-	/**
 	 * Valid metadata records defined in the prompt header.
 	 */
 	public get metadata(): TMetadata | null {
@@ -568,11 +547,11 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			return { promptType };
 		}
 
-		if (this.header instanceof InstructionsHeader) {
+		if (this.header instanceof InstructionsHeader || this.header instanceof ModeHeader) {
 			return { promptType, ...this.header.metadata };
 		}
 
-		const { tools, mode, description } = this.header.metadata;
+		const { tools, mode, description, model } = this.header.metadata;
 
 		// compute resulting mode based on presence
 		// of `tools` metadata in the prompt header
@@ -588,6 +567,10 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 
 		if (tools !== undefined) {
 			result.tools = tools;
+		}
+
+		if (model !== undefined) {
+			result.model = model;
 		}
 
 		if (resultingMode !== undefined) {
@@ -611,13 +594,6 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		}
 
 		return undefined;
-	}
-
-	/**
-	 * Check if the current reference points to a given resource.
-	 */
-	public sameUri(otherUri: URI): boolean {
-		return this.uri.toString() === otherUri.toString();
 	}
 
 	/**

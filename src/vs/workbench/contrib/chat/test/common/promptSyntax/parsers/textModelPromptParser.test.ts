@@ -436,12 +436,13 @@ suite('TextModelPromptParser', () => {
 					/* 05 */"	tools: [ 'tool_name3', \"tool_name4\" ]", /* duplicate `tools` record is ignored */
 					/* 06 */"	tools: 'tool_name5'", /* duplicate `tools` record with invalid value is ignored */
 					/* 07 */"	mode: 'agent'",
-					/* 07 */"	applyTo: 'frontend/**/*spec.ts'",
-					/* 08 */"---",
-					/* 09 */"The cactus on my desk has a thriving Instagram account.",
-					/* 10 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
-					/* 11 */"In an alternate universe, pigeons deliver sushi by drone.",
-					/* 12 */"Lunar rainbows only appear when you sing in falsetto.",
+					/* 08 */"	applyTo: 'frontend/**/*spec.ts'",
+					/* 09 */"	model: 'Super Finetune Turbo 2.3-o1'",
+					/* 10 */"---",
+					/* 11 */"The cactus on my desk has a thriving Instagram account.",
+					/* 12 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
+					/* 13 */"In an alternate universe, pigeons deliver sushi by drone.",
+					/* 14 */"Lunar rainbows only appear when you sing in falsetto.",
 					/* 13 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
 						],
 						PROMPT_LANGUAGE_ID,
@@ -452,7 +453,7 @@ suite('TextModelPromptParser', () => {
 							uri: URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
 							text: '[text](./foo-bar-baz/another-file.ts)',
 							path: './foo-bar-baz/another-file.ts',
-							startLine: 11,
+							startLine: 12,
 							startColumn: 43,
 							pathStartColumn: 50,
 						}),
@@ -476,6 +477,7 @@ suite('TextModelPromptParser', () => {
 							mode: 'agent',
 							description: 'My prompt.',
 							tools: ['tool_name1', 'tool_name2'],
+							model: 'Super Finetune Turbo 2.3-o1',
 						},
 						'Must have correct metadata.',
 					);
@@ -567,9 +569,40 @@ suite('TextModelPromptParser', () => {
 						metadata,
 						{
 							promptType: PromptsType.mode,
-							mode: 'agent',
 							description: 'My mode.',
 							tools: ['tool_name1', 'tool_name2'],
+						},
+						'Must have correct metadata.',
+					);
+				});
+
+				test(`has model metadata`, async () => {
+					const test = createTest(
+						URI.file('/absolute/folder/and/a/filename1.txt'),
+						[
+					/* 01 */"---",
+					/* 02 */"description: 'My mode.'\t\t",
+					/* 03 */"model: Martin Finetune Turbo",
+					/* 04 */"---",
+					/* 05 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
+						],
+						MODE_LANGUAGE_ID,
+					);
+
+					await test.allSettled();
+
+					const { header, metadata } = test.parser;
+					assertDefined(
+						header,
+						'header must be defined.',
+					);
+
+					assert.deepStrictEqual(
+						metadata,
+						{
+							promptType: PromptsType.mode,
+							description: 'My mode.',
+							model: 'Martin Finetune Turbo',
 						},
 						'Must have correct metadata.',
 					);

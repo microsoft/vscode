@@ -112,7 +112,7 @@ class TestPromptFileReference extends Disposable {
 		await rootReference.allSettled();
 
 		// resolve the root file reference including all nested references
-		const resolvedReferences: readonly (TPromptReference | undefined)[] = rootReference.allReferences;
+		const resolvedReferences: readonly (TPromptReference | undefined)[] = rootReference.references;
 
 		for (let i = 0; i < this.expectedReferences.length; i++) {
 			const expectedReference = this.expectedReferences[i];

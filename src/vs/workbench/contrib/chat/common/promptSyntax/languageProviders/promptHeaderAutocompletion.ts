@@ -13,6 +13,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
 import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList } from '../../../../../../editor/common/languages.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 
 export class PromptHeaderAutocompletion extends Disposable implements CompletionItemProvider {
 	/**
@@ -28,6 +29,7 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ILanguageFeaturesService private readonly languageService: ILanguageFeaturesService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 
 	) {
 		super();
@@ -161,9 +163,9 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 			case PromptsType.instructions:
 				return new Set(['applyTo', 'description']);
 			case PromptsType.prompt:
-				return new Set(['mode', 'tools', 'description']);
+				return new Set(['mode', 'tools', 'description', 'model']);
 			default:
-				return new Set(['tools', 'description']);
+				return new Set(['tools', 'description', 'model']);
 		}
 	}
 
@@ -190,6 +192,22 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 		if (property === 'tools' && (promptType === PromptsType.prompt || promptType === PromptsType.mode)) {
 			return ['[]', `['codebase', 'editFiles', 'fetch']`];
 		}
+		if (property === 'model' && (promptType === PromptsType.prompt || promptType === PromptsType.mode)) {
+			return this.getModelNames(promptType === PromptsType.mode);
+		}
 		return [];
+	}
+
+	private getModelNames(agentModeOnly: boolean): string[] {
+		const result = [];
+		for (const model of this.languageModelsService.getLanguageModelIds()) {
+			const metadata = this.languageModelsService.lookupLanguageModel(model);
+			if (metadata && metadata.isUserSelectable !== false) {
+				if (!agentModeOnly || ILanguageModelChatMetadata.suitableForAgentMode(metadata)) {
+					result.push(metadata.name);
+				}
+			}
+		}
+		return result;
 	}
 }

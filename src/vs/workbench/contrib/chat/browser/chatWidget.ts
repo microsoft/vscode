@@ -1798,7 +1798,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private async _applyPromptMetadata(metadata: TPromptMetadata, requestInput: IChatRequestInputOptions): Promise<void> {
 
-		const { mode, tools } = metadata;
+		const { mode, tools, model } = metadata;
 
 		// switch to appropriate chat mode if needed
 		if (mode && mode !== this.input.currentMode) {
@@ -1813,17 +1813,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		// if not tools to enable are present, we are done
-		if (tools === undefined) {
-			return;
+		if (tools !== undefined) {
+			// sanity check on the logic of the `getPromptFilesMetadata` method
+			// and the code above in case this block is moved around somewhere else:
+			// if we have some tools present, the mode must have been equal to `agent`
+			assert(this.input.currentMode === ChatMode.Agent, `Chat mode must be 'agent' when there are 'tools' defined, got ${this.input.currentMode}.`);
+
+			const enablementMap = this.toolsService.toToolAndToolSetEnablementMap(new Set(tools));
+			this.input.selectedToolsModel.set(enablementMap, true);
 		}
 
-		// sanity check on the logic of the `getPromptFilesMetadata` method
-		// and the code above in case this block is moved around somewhere else:
-		// if we have some tools present, the mode must have been equal to `agent`
-		assert(this.input.currentMode === ChatMode.Agent, `Chat mode must be 'agent' when there are 'tools' defined, got ${this.input.currentMode}.`);
-
-		const enablementMap = this.toolsService.toToolAndToolSetEnablementMap(new Set(tools));
-		this.input.selectedToolsModel.set(enablementMap, true);
+		if (model !== undefined) {
+			this.input.switchModelByName(model);
+		}
 	}
 
 	/**
