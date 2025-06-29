@@ -18,10 +18,6 @@ export class MockChatModeService implements IChatModeService {
 		return this._modes;
 	}
 
-	async getModesAsync(): Promise<{ builtin: readonly IChatMode2[]; custom: readonly IChatMode2[] }> {
-		return this._modes;
-	}
-
 	findModeById(id: string): IChatMode2 | undefined {
 		const allModes = this.getModes();
 		const builtinMode = allModes.builtin.find(mode => mode.id === id);

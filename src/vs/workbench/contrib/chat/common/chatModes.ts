@@ -56,6 +56,9 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		this._register(this.promptsService.onDidChangeCustomChatModes(() => {
 			void this.refreshCustomPromptModes(true);
 		}));
+		this._register(this.chatAgentService.onDidChangeAgents(() => {
+			this._onDidChangeChatModes.fire();
+		}));
 		this._register(this.storageService.onWillSaveState(() => this.saveCachedModes()));
 	}
 
@@ -149,11 +152,6 @@ export class ChatModeService extends Disposable implements IChatModeService {
 	}
 
 	getModes(): { builtin: readonly IChatMode2[]; custom: readonly IChatMode2[] } {
-		return { builtin: this.getBuiltinModes(), custom: Array.from(this._customModeInstances.values()) };
-	}
-
-	async getModesAsync(): Promise<{ builtin: readonly IChatMode2[]; custom: readonly IChatMode2[] }> {
-		await this.refreshCustomPromptModes();
 		return { builtin: this.getBuiltinModes(), custom: Array.from(this._customModeInstances.values()) };
 	}
 
