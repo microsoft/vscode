@@ -553,28 +553,21 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 
 		const { tools, mode, description, model } = this.header.metadata;
 
-		// compute resulting mode based on presence
-		// of `tools` metadata in the prompt header
-		const resultingMode = (tools !== undefined)
-			? ChatModeKind.Agent
-			: mode;
-
 		const result: Partial<TPromptMetadata> = {};
 
 		if (description !== undefined) {
 			result.description = description;
 		}
 
-		if (tools !== undefined) {
+		if (tools !== undefined && mode !== ChatModeKind.Ask && mode !== ChatModeKind.Edit) {
 			result.tools = tools;
+			result.mode = ChatModeKind.Agent;
+		} else if (mode !== undefined) {
+			result.mode = mode;
 		}
 
 		if (model !== undefined) {
 			result.model = model;
-		}
-
-		if (resultingMode !== undefined) {
-			result.mode = resultingMode;
 		}
 
 		return { promptType, ...result };

@@ -70,8 +70,7 @@ export class PromptToolsMetadata extends PromptMetadataRecord<string[]> {
 					valueToken.range,
 					localize(
 						'prompt.header.metadata.tools.diagnostics.invalid-value-type',
-						"The '{0}' metadata must be an array of tool names, got '{2}'.",
-						RECORD_NAME,
+						"Must be an array of tool names, got '{0}'.",
 						valueToken.valueTypeName.toString(),
 					),
 				),
@@ -118,9 +117,8 @@ export class PromptToolsMetadata extends PromptMetadataRecord<string[]> {
 					valueToken.range,
 					localize(
 						'prompt.header.metadata.tools.diagnostics.invalid-tool-name-type',
-						"Unexpected tool name '{0}', expected '{1}'.",
-						valueToken.text,
-						'string',
+						"Unexpected tool name '{0}', expected a string literal.",
+						valueToken.text
 					),
 				),
 			);
