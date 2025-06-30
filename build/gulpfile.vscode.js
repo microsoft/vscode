@@ -362,7 +362,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				repo: 'deepak1556/electron-debug-version',
 				validateChecksum: false,
 				version: '35.5.1',
-				tag: 'v35.5.1-0002'
+				tag: 'v35.5.1-0003'
 			};
 		} else if (platform === 'linux') {
 			all = es.merge(all, gulp.src('resources/linux/code.png', { base: '.' }));
