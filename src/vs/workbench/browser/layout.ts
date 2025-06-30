@@ -15,7 +15,7 @@ import { PanelPart } from './parts/panel/panelPart.js';
 import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart } from '../services/layout/browser/layoutService.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
-import { IConfigurationChangeEvent, IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService, isConfigured } from '../../platform/configuration/common/configuration.js';
 import { ITitleService } from '../services/title/browser/titleService.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { StartupKind, ILifecycleService } from '../services/lifecycle/common/lifecycle.js';
@@ -369,7 +369,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if ([
 				...TITLE_BAR_SETTINGS,
 				LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION,
-				LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE,
+				LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE
 			].some(setting => e.affectsConfiguration(setting))) {
 
 				// Show Command Center if command center actions enabled
@@ -444,6 +444,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this._onDidAddContainer.fire({ container: window.container, disposables: eventDisposables });
 
 			disposables.add(window.onDidLayout(dimension => this.handleContainerDidLayout(window.container, dimension)));
+		}));
+
+		// Auxiliary bar default visibility (TODO@bpasero remove me eventually when experiment concluded)
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY) && e.source === ConfigurationTarget.DEFAULT) {
+				this.storageService.store(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY, this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY), StorageScope.APPLICATION, StorageTarget.MACHINE);
+			}
 		}));
 	}
 
@@ -2867,7 +2874,17 @@ class LayoutStateModel extends Disposable {
 		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = workbenchState === WorkbenchState.EMPTY;
 		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
 		LayoutStateKeys.AUXILIARYBAR_HIDDEN.defaultValue = (() => {
-			switch (this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY)) {
+			const auxiliaryBarDefaultVisibilityState = this.storageService.get(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY, StorageScope.APPLICATION);
+			const auxiliaryBarDefaultVisibilityConfiguration = this.configurationService.inspect(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY);
+
+			let auxiliaryBarDefaultVisibility: unknown;
+			if (isConfigured(auxiliaryBarDefaultVisibilityConfiguration) || !auxiliaryBarDefaultVisibilityState) {
+				auxiliaryBarDefaultVisibility = auxiliaryBarDefaultVisibilityConfiguration.value;
+			} else {
+				auxiliaryBarDefaultVisibility = auxiliaryBarDefaultVisibilityState;
+			}
+
+			switch (auxiliaryBarDefaultVisibility) {
 				case 'visible':
 					return false;
 				case 'visibleInWorkspace':
