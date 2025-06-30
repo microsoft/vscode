@@ -613,5 +613,9 @@
 			"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
 			"SOFTWARE"
 		]
+	},
+	{
+		"name": "gethostname",
+		"fullLicenseTextUri": "https://codeberg.org/swsnr/gethostname.rs/raw/commit/d1a7e1162c20106a1df2cdbba9eb2d5174037b3c/LICENSE"
 	}
 ]
