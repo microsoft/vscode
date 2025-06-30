@@ -722,6 +722,10 @@ class ChatSetup {
 		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
 			let alternateProvider: 'off' | 'monochrome' | 'colorful' | 'first' = 'off';
 			if (defaultChat.alternativeProviderId) {
+				if (this.configurationService.getValue('chat.setup.signInWithAlternateProvider')) {
+					alternateProvider = 'colorful'; // TODO@bpasero remove me soon
+				}
+
 				switch (variant) {
 					case 'alternate-first':
 						alternateProvider = 'first';
