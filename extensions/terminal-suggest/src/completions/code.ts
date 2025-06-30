@@ -798,6 +798,39 @@ export const codeTunnelSubcommands = [
 		],
 	},
 	{
+		name: 'chat',
+		description: 'Pass in a prompt to run in a chat session in the current working directory.',
+		args: {
+			name: 'prompt',
+			description: 'The prompt to use as chat',
+			isVariadic: true,
+			isOptional: true,
+		},
+		options: [
+			{
+				name: ['-m', '--mode'],
+				description: 'The mode to use for the chat session. Defaults to \'agent\'',
+				args: {
+					name: 'mode',
+					suggestions: ['agent', 'ask', 'edit'],
+				},
+			},
+			{
+				name: ['-a', '--add-file'],
+				description: 'Add files as context to the chat session',
+				isRepeatable: true,
+				args: {
+					name: 'file',
+					template: 'filepaths',
+				},
+			},
+			{
+				name: ['-h', '--help'],
+				description: 'Print usage',
+			},
+		],
+	},
+	{
 		name: 'status',
 		description: 'Print process usage and diagnostics information',
 		options: [...globalTunnelOptions, ...tunnelHelpOptions],

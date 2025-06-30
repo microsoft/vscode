@@ -60,6 +60,7 @@ export const codeSpecOptionsAndSubcommands = [
 	'--version',
 	'--wait',
 	'tunnel',
+	'chat',
 	'serve-web',
 	'help',
 	'status',
@@ -119,6 +120,11 @@ export function createCodeTestSpecs(executable: string): ITestSpec[] {
 		{ input: `${executable} --category |`, expectedCompletions: categoryOptions },
 		{ input: `${executable} --category a|`, expectedCompletions: categoryOptions },
 
+		// Chat subcommand tests
+		{ input: `${executable} chat |` },
+		{ input: `${executable} chat --mode |`, expectedCompletions: ['agent', 'ask', 'edit'] },
+		{ input: `${executable} chat --add-file |`, expectedResourceRequests: { type: 'files', cwd: testPaths.cwd } },
+
 		// Middle of command
 		{ input: `${executable} | --locale`, expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 	];
@@ -177,6 +183,7 @@ export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
 		'-s',
 		'-v',
 		'-w',
+		'chat',
 		'ext',
 		'help',
 		'serve-web',
@@ -273,6 +280,9 @@ export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
 		{ input: `${executable} tunnel unregister |`, expectedCompletions: [...commonFlags] },
 		{ input: `${executable} tunnel service |`, expectedCompletions: [...commonFlags, 'help', 'install', 'log', 'uninstall'] },
 		{ input: `${executable} tunnel help |`, expectedCompletions: helpSubcommands },
+		{ input: `${executable} chat |`, expectedCompletions: ['--mode <mode>', '--add-file <file>', '--help', '-m <mode>', '-a <file>', '-h'] },
+		{ input: `${executable} chat --mode |`, expectedCompletions: ['agent', 'ask', 'edit'] },
+		{ input: `${executable} chat --add-file |`, expectedResourceRequests: { type: 'files', cwd: testPaths.cwd } },
 		{ input: `${executable} serve-web |`, expectedCompletions: serveWebSubcommandsAndFlags },
 		{ input: `${executable} ext |`, expectedCompletions: extSubcommands },
 		{ input: `${executable} ext list |`, expectedCompletions: [...commonFlags, '--category [<category>]', '--show-versions'] },
