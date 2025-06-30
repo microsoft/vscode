@@ -5,20 +5,10 @@
 
 import { strictEqual } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { clampTerminalFontSize } from '../../browser/terminal.zoom.contribution.js';
 
 suite('Terminal Mouse Wheel Zoom', () => {
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
-
-	let configurationService: TestConfigurationService;
-
-	setup(() => {
-		const instantiationService = workbenchInstantiationService(undefined, store);
-		configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
-	});
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('clamps font size to minimum value when below bounds', () => {
 		const result = clampTerminalFontSize(3 + (-2)); // 3 - 2 = 1, clamped to 6
