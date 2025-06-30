@@ -164,7 +164,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			isFeatureTerminal: launchConfig.isFeatureTerminal,
 			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal,
 			useShellEnvironment: launchConfig.useShellEnvironment,
-			isTransient: launchConfig.isTransient
+			isTransient: launchConfig.isTransient,
+			shellIntegrationNonce: launchConfig.shellIntegrationNonce
 		};
 		const terminal = Promises.withAsyncBody<ITerminalInstance>(async r => {
 			const terminal = await this._terminalService.createTerminal({

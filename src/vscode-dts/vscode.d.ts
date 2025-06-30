@@ -12464,6 +12464,13 @@ declare module 'vscode' {
 		 * This will only take effect when `terminal.integrated.enablePersistentSessions` is enabled.
 		 */
 		isTransient?: boolean;
+
+		/**
+		 * The nonce to use to verify shell integration sequences are coming from a trusted source.
+		 * If your terminal implements [custom shell integration support](https://code.visualstudio.com/docs/terminal/shell-integration#_supported-escape-sequences)
+		 * this should be set to a random GUID and then passed along in the relevant sequences.
+		 */
+		shellIntegrationNonce?: string;
 	}
 
 	/**
@@ -12503,6 +12510,13 @@ declare module 'vscode' {
 		 * This will only take effect when `terminal.integrated.enablePersistentSessions` is enabled.
 		 */
 		isTransient?: boolean;
+
+		/**
+		 * The nonce to use to verify shell integration sequences are coming from a trusted source.
+		 * If your terminal implements [custom shell integration support](https://code.visualstudio.com/docs/terminal/shell-integration#_supported-escape-sequences)
+		 * this should be set to a random GUID and then passed along in the relevant sequences.
+		 */
+		shellIntegrationNonce?: string;
 	}
 
 	/**
