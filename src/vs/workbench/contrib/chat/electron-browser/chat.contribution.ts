@@ -23,6 +23,7 @@ import { isAbsolute, join } from '../../../../base/common/path.js';
 import { cwd } from '../../../../base/common/process.js';
 import { showChatView } from '../browser/chat.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -48,7 +49,8 @@ class ChatAgentCommandLineHandler extends Disposable {
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@IViewsService private readonly viewsService: IViewsService
+		@IViewsService private readonly viewsService: IViewsService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -57,6 +59,7 @@ class ChatAgentCommandLineHandler extends Disposable {
 
 	private registerListeners() {
 		ipcRenderer.on('vscode:handleAgentRequest', (_, args: typeof this.environmentService.args.agent) => {
+			this.logService.trace('vscode:handleAgentRequest', args);
 			this.promptAgentic(args);
 		});
 	}
