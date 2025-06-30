@@ -96,8 +96,8 @@ export class McpConfigMigrationContribution extends Disposable implements IWorkb
 
 	private showMcpConfigErrorNotification(isRemote: boolean): void {
 		const message = isRemote
-			? localize('mcp.migration.remoteConfigFound', 'MCP servers should not be configured in remote user settings. Use the dedicated MCP configuration instead.')
-			: localize('mcp.migration.userConfigFound', 'MCP servers should not be configured in user settings. Use the dedicated MCP configuration instead.');
+			? localize('mcp.migration.remoteConfigFound', 'MCP servers should no longer be configured in remote user settings. Use the dedicated MCP configuration instead.')
+			: localize('mcp.migration.userConfigFound', 'MCP servers should no longer be configured in user settings. Use the dedicated MCP configuration instead.');
 
 		const openConfigLabel = isRemote
 			? localize('mcp.migration.openRemoteConfig', 'Open Remote User MCP Configuration')
@@ -109,7 +109,14 @@ export class McpConfigMigrationContribution extends Disposable implements IWorkb
 			Severity.Error,
 			message,
 			[{
+				label: localize('mcp.migration.update', 'Update Now'),
+				run: async () => {
+					await this.migrateMcpConfig();
+					await this.commandService.executeCommand(commandId);
+				},
+			}, {
 				label: openConfigLabel,
+				keepOpen: true,
 				run: () => this.commandService.executeCommand(commandId)
 			}]
 		);

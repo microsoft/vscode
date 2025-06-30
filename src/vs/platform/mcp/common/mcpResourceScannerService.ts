@@ -204,7 +204,7 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 
 	private sanitizeServer(serverOrConfig: IOldScannedMcpServer | Mutable<IMcpServerConfiguration>): IMcpServerConfiguration {
 		let server: IMcpServerConfiguration;
-		if (!(<IOldScannedMcpServer>serverOrConfig).config) {
+		if ((<IOldScannedMcpServer>serverOrConfig).config) {
 			const oldScannedMcpServer = <IOldScannedMcpServer>serverOrConfig;
 			server = {
 				...oldScannedMcpServer.config,
