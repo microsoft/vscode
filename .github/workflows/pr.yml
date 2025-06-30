@@ -81,6 +81,33 @@ jobs:
       - name: Compile & Hygiene
         run: npm exec -- npm-run-all -lp core-ci-pr extensions-ci-pr hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check
 
+  linux-electron-tests:
+    name: Linux
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Electron
+      electron_tests: true
+      browser_tests: false
+      remote_tests: false
+
+  linux-browser-tests:
+    name: Linux
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Browser
+      electron_tests: false
+      browser_tests: true
+      remote_tests: false
+
+  linux-remote-tests:
+    name: Linux
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Remote
+      electron_tests: false
+      browser_tests: false
+      remote_tests: true
+
   macos-electron-tests:
     name: macOS
     uses: ./.github/workflows/pr-darwin-test.yml
