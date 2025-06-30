@@ -475,8 +475,19 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	private handleAgentRequest(openConfig: IOpenConfiguration, usedWindows: ICodeWindow[]): void {
-		if (openConfig.context === OpenContext.CLI && openConfig.cli.agent && usedWindows.length === 1 && usedWindows[0]) {
-			usedWindows[0].sendWhenReady('vscode:handleAgentRequest', CancellationToken.None, openConfig.cli.agent);
+		if (openConfig.context !== OpenContext.CLI || !openConfig.cli.agent || usedWindows.length === 0) {
+			return;
+		}
+
+		let windowHandlingAgentRequest: ICodeWindow | undefined;
+		if (usedWindows.length === 1) {
+			windowHandlingAgentRequest = usedWindows[0];
+		} else {
+			windowHandlingAgentRequest = findWindowOnWorkspaceOrFolder(usedWindows, URI.file(openConfig.cli._[0] /* agent request gets cwd() as folder to open */));
+		}
+
+		if (windowHandlingAgentRequest) {
+			windowHandlingAgentRequest.sendWhenReady('vscode:handleAgentRequest', CancellationToken.None, openConfig.cli.agent);
 		}
 	}
 
