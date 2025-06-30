@@ -96,6 +96,10 @@ export interface IChatViewOpenOptions {
 	 */
 	attachScreenshot?: boolean;
 	/**
+	 * A list of file URIs to attach to the chat as context.
+	 */
+	attachFiles?: URI[];
+	/**
 	 * The mode to open the chat in.
 	 */
 	mode?: ChatModeKind;
@@ -164,6 +168,11 @@ abstract class OpenChatGlobalAction extends Action2 {
 			const screenshot = await hostService.getScreenshot();
 			if (screenshot) {
 				chatWidget.attachmentModel.addContext(convertBufferToScreenshotVariable(screenshot));
+			}
+		}
+		if (opts?.attachFiles) {
+			for (const file of opts.attachFiles) {
+				chatWidget.attachmentModel.addFile(file);
 			}
 		}
 		if (opts?.query) {

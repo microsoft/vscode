@@ -78,6 +78,15 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 			'telemetry-level': { type: 'string' },
 		}
 	},
+	'agent': {
+		type: 'subcommand',
+		description: 'Pass in a prompt to run in a chat agent session in the current working directory.',
+		options: {
+			'_': { type: 'string[]', description: localize('agentPrompt', "The prompt to send to the agent.") },
+			'add-file': { type: 'string[]', cat: 'o', alias: 'a', description: localize('addFile', "Add files as context to the chat agent session.") },
+			'help': { type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") }
+		}
+	},
 
 	'diff': { type: 'boolean', cat: 'o', alias: 'd', args: ['file', 'file'], description: localize('diff', "Compare two files with each other.") },
 	'merge': { type: 'boolean', cat: 'o', alias: 'm', args: ['path1', 'path2', 'base', 'result'], description: localize('merge', "Perform a three-way merge by providing paths for two modified versions of a file, the common origin of both modified versions and the output file to save merge results.") },
@@ -428,9 +437,9 @@ function wrapText(text: string, columns: number): string[] {
 	return lines;
 }
 
-export function buildHelpMessage(productName: string, executableName: string, version: string, options: OptionDescriptions<any>, capabilities?: { noPipe?: boolean; noInputFiles: boolean }): string {
+export function buildHelpMessage(productName: string, executableName: string, version: string, options: OptionDescriptions<any>, capabilities?: { noPipe?: boolean; inputFilesLabel?: string | null }): string {
 	const columns = (process.stdout).isTTY && (process.stdout).columns || 80;
-	const inputFiles = capabilities?.noInputFiles !== true ? `[${localize('paths', 'paths')}...]` : '';
+	const inputFiles = capabilities?.inputFilesLabel === null ? '' : capabilities?.inputFilesLabel ? ` [${capabilities.inputFilesLabel}]` : ` [${localize('paths', 'paths')}...]`;
 
 	const help = [`${productName} ${version}`];
 	help.push('');

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../nls.js';
 import { InlineVoiceChatAction, QuickVoiceChatAction, StartVoiceChatAction, VoiceChatInChatViewAction, StopListeningAction, StopListeningAndSubmitAction, KeywordActivationContribution, InstallSpeechProviderForVoiceChatAction, HoldToVoiceChatInChatViewAction, ReadChatResponseAloud, StopReadAloud, StopReadChatItemAloud } from './actions/voiceChatActions.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
@@ -11,6 +12,17 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { FetchWebPageTool, FetchWebPageToolData } from './tools/fetchPageTool.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
+import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
+import { ChatMode } from '../common/constants.js';
+import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
+import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { URI } from '../../../../base/common/uri.js';
+import { isAbsolute, join } from '../../../../base/common/path.js';
+import { cwd } from '../../../../base/common/process.js';
+import { showChatView } from '../browser/chat.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 
 class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -25,6 +37,58 @@ class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchCon
 		const editTool = instantiationService.createInstance(FetchWebPageTool);
 		this._register(toolsService.registerToolData(FetchWebPageToolData));
 		this._register(toolsService.registerToolImplementation(FetchWebPageToolData.id, editTool));
+	}
+}
+
+class ChatAgentCommandLineHandler extends Disposable {
+
+	static readonly ID = 'workbench.contrib.chatAgentCommandLineHandler';
+
+	constructor(
+		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IViewsService private readonly viewsService: IViewsService
+	) {
+		super();
+
+		this.registerListeners();
+	}
+
+	private registerListeners() {
+		ipcRenderer.on('vscode:handleAgentRequest', (_, args: typeof this.environmentService.args.agent) => {
+			this.promptAgentic(args);
+		});
+	}
+
+	private async promptAgentic(args: typeof this.environmentService.args.agent): Promise<void> {
+		if (!Array.isArray(args?._)) {
+			return;
+		}
+
+		const trusted = await this.workspaceTrustRequestService.requestWorkspaceTrust({
+			message: localize('copilotWorkspaceTrust', "Copilot is currently only supported in trusted workspaces.")
+		});
+
+		if (!trusted) {
+			return;
+		}
+
+		const opts: IChatViewOpenOptions = {
+			query: args._.length > 0 ? args._.join(' ') : '',
+			mode: ChatMode.Agent,
+			attachFiles: args['add-file']?.map(file => {
+				if (!isAbsolute(file)) {
+					file = join(cwd(), file);
+				}
+				return URI.file(file);
+			}),
+		};
+
+		const chatWidget = await showChatView(this.viewsService);
+		await chatWidget?.waitForReady();
+		await this.commandService.executeCommand(ACTION_ID_NEW_CHAT);
+		await this.commandService.executeCommand(CHAT_OPEN_ACTION_ID, opts);
 	}
 }
 
@@ -47,3 +111,4 @@ registerChatDeveloperActions();
 
 registerWorkbenchContribution2(KeywordActivationContribution.ID, KeywordActivationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(NativeBuiltinToolsContribution.ID, NativeBuiltinToolsContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatAgentCommandLineHandler.ID, ChatAgentCommandLineHandler, WorkbenchPhase.BlockRestore);

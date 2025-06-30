@@ -63,8 +63,7 @@ class CliMain extends Disposable {
 	}
 
 	private registerListeners(): void {
-		// Dispose on exit
-		process.once('exit', () => this.dispose());
+		process.once('exit', () => this.dispose()); // Dispose on exit
 	}
 
 	async run(): Promise<void> {
@@ -187,15 +186,15 @@ function eventuallyExit(code: number): void {
 export async function run(args: ServerParsedArgs, REMOTE_DATA_FOLDER: string, optionDescriptions: OptionDescriptions<ServerParsedArgs>): Promise<void> {
 	if (args.help) {
 		const executable = product.serverApplicationName + (isWindows ? '.cmd' : '');
-		console.log(buildHelpMessage(product.nameLong, executable, product.version, optionDescriptions, { noInputFiles: true, noPipe: true }));
+		console.log(buildHelpMessage(product.nameLong, executable, product.version, optionDescriptions, { inputFilesLabel: null, noPipe: true }));
 		return;
 	}
+
 	// Version Info
 	if (args.version) {
 		console.log(buildVersionMessage(product.version, product.commit));
 		return;
 	}
-
 
 	const cliMain = new CliMain(args, REMOTE_DATA_FOLDER);
 	try {

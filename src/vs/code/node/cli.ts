@@ -7,6 +7,7 @@ import { ChildProcess, spawn, SpawnOptions, StdioOptions } from 'child_process';
 import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
 import { homedir, release, tmpdir } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
+import { localize } from '../../nls.js';
 import { Event } from '../../base/common/event.js';
 import { isAbsolute, resolve, join, dirname } from '../../base/common/path.js';
 import { IProcessEnvironment, isMacintosh, isWindows } from '../../base/common/platform.js';
@@ -88,10 +89,16 @@ export async function main(argv: string[]): Promise<any> {
 		}
 	}
 
-	// Help
+	// Help (general)
 	if (args.help) {
 		const executable = `${product.applicationName}${isWindows ? '.exe' : ''}`;
 		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS));
+	}
+
+	// Help (agent)
+	else if (args.agent?.help) {
+		const executable = `${product.applicationName}${isWindows ? '.exe' : ''}`;
+		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS.agent.options, { inputFilesLabel: localize('agentPrompt', "prompt") }));
 	}
 
 	// Version Info
@@ -236,7 +243,7 @@ export async function main(argv: string[]): Promise<any> {
 			});
 		}
 
-		const hasReadStdinArg = args._.some(arg => arg === '-');
+		const hasReadStdinArg = args._.some(arg => arg === '-') || args.agent?._.some(arg => arg === '-');
 		if (hasReadStdinArg) {
 			// remove the "-" argument when we read from stdin
 			args._ = args._.filter(a => a !== '-');
@@ -275,9 +282,15 @@ export async function main(argv: string[]): Promise<any> {
 						processCallbacks.push(() => readFromStdinDone.p);
 					}
 
-					// Make sure to open tmp file as editor but ignore it in the "recently open" list
-					addArg(argv, stdinFilePath);
-					addArg(argv, '--skip-add-to-recently-opened');
+					if (args.agent) {
+						// Make sure to add tmp file as context to agent
+						addArg(argv, '--add-file', stdinFilePath);
+					} else {
+						// Make sure to open tmp file as editor but ignore
+						// it in the "recently open" list
+						addArg(argv, stdinFilePath);
+						addArg(argv, '--skip-add-to-recently-opened');
+					}
 
 					console.log(`Reading from stdin via: ${stdinFilePath}`);
 				} catch (e) {
