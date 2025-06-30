@@ -50,11 +50,12 @@ import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
+import { ChatMode, IChatMode } from '../../common/chatModes.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatMode, modeToString, validateChatMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } from '../../common/constants.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
@@ -101,7 +102,7 @@ export interface IChatViewOpenOptions {
 	/**
 	 * The mode to open the chat in.
 	 */
-	mode?: ChatMode;
+	mode?: ChatModeKind;
 }
 
 export interface IChatViewOpenRequestEntry {
@@ -114,7 +115,7 @@ export const CHAT_CONFIG_MENU_ID = new MenuId('workbench.chat.menu.config');
 const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
 
 abstract class OpenChatGlobalAction extends Action2 {
-	constructor(overrides: Pick<ICommandPaletteOptions, 'keybinding' | 'title' | 'id' | 'menu'>, private readonly mode?: ChatMode) {
+	constructor(overrides: Pick<ICommandPaletteOptions, 'keybinding' | 'title' | 'id' | 'menu'>, private readonly mode?: ChatModeKind) {
 		super({
 			...overrides,
 			icon: Codicon.copilot,
@@ -152,7 +153,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 
 		let switchToMode = opts?.mode ?? this.mode;
 		if (!switchToMode) {
-			switchToMode = opts?.query?.startsWith('@') ? ChatMode.Ask : undefined;
+			switchToMode = opts?.query?.startsWith('@') ? ChatModeKind.Ask : undefined;
 		}
 		if (switchToMode && validateChatMode(switchToMode)) {
 			await this.handleSwitchToMode(switchToMode, chatWidget, instaService, commandService);
@@ -179,7 +180,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 				chatWidget.setInput(opts.query);
 			} else {
 				await chatWidget.waitForReady();
-				await waitForDefaultAgent(chatAgentService, chatWidget.input.currentMode);
+				await waitForDefaultAgent(chatAgentService, chatWidget.input.currentModeKind);
 				chatWidget.acceptInput(opts.query);
 			}
 		}
@@ -202,8 +203,8 @@ abstract class OpenChatGlobalAction extends Action2 {
 		chatWidget.focusInput();
 	}
 
-	private async handleSwitchToMode(switchToMode: ChatMode, chatWidget: IChatWidget, instaService: IInstantiationService, commandService: ICommandService): Promise<void> {
-		const currentMode = chatWidget.input.currentMode;
+	private async handleSwitchToMode(switchToMode: ChatModeKind, chatWidget: IChatWidget, instaService: IInstantiationService, commandService: ICommandService): Promise<void> {
+		const currentMode = chatWidget.input.currentModeKind;
 
 		if (switchToMode) {
 			const editingSession = chatWidget.viewModel?.model.editingSession;
@@ -221,7 +222,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 	}
 }
 
-async function waitForDefaultAgent(chatAgentService: IChatAgentService, mode: ChatMode): Promise<void> {
+async function waitForDefaultAgent(chatAgentService: IChatAgentService, mode: ChatModeKind): Promise<void> {
 	const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel, mode);
 	if (defaultAgent) {
 		return;
@@ -257,18 +258,17 @@ class PrimaryOpenChatGlobalAction extends OpenChatGlobalAction {
 	}
 }
 
-export function getOpenChatActionIdForMode(mode: ChatMode): string {
-	const modeStr = modeToString(mode);
-	return `workbench.action.chat.open${modeStr}`;
+export function getOpenChatActionIdForMode(mode: IChatMode): string {
+	return `workbench.action.chat.open${mode.name}`;
 }
 
 abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
-	constructor(mode: ChatMode, keybinding?: ICommandPaletteOptions['keybinding']) {
+	constructor(mode: IChatMode, keybinding?: ICommandPaletteOptions['keybinding']) {
 		super({
 			id: getOpenChatActionIdForMode(mode),
-			title: localize2('openChatMode', "Open Chat ({0})", modeToString(mode)),
+			title: localize2('openChatMode', "Open Chat ({0})", mode.name),
 			keybinding
-		}, mode);
+		}, mode.kind);
 	}
 }
 
@@ -513,7 +513,7 @@ export function registerChatActions() {
 				category: CHAT_CATEGORY,
 				menu: [{
 					id: MenuId.ChatExecute,
-					when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
+					when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
 					group: 'navigation',
 					order: 1
 				}]
@@ -1019,8 +1019,8 @@ export async function handleCurrentEditingSession(currentEditingSession: IChatEd
  */
 export async function handleModeSwitch(
 	accessor: ServicesAccessor,
-	fromMode: ChatMode,
-	toMode: ChatMode,
+	fromMode: ChatModeKind,
+	toMode: ChatModeKind,
 	requestCount: number,
 	editingSession: IChatEditingSession | undefined,
 ): Promise<false | { needToClearSession: boolean }> {
@@ -1030,7 +1030,7 @@ export async function handleModeSwitch(
 
 	const configurationService = accessor.get(IConfigurationService);
 	const dialogService = accessor.get(IDialogService);
-	const needToClearEdits = (!configurationService.getValue(ChatConfiguration.Edits2Enabled) && (fromMode === ChatMode.Edit || toMode === ChatMode.Edit)) && requestCount > 0;
+	const needToClearEdits = (!configurationService.getValue(ChatConfiguration.Edits2Enabled) && (fromMode === ChatModeKind.Edit || toMode === ChatModeKind.Edit)) && requestCount > 0;
 	if (needToClearEdits) {
 		// If not using edits2 and switching into or out of edit mode, ask to discard the session
 		const phrase = localize('switchMode.confirmPhrase', "Switching chat modes will end your current edit session.");

@@ -62,7 +62,7 @@ export class ChatErrorConfirmationContentPart extends Disposable implements ICha
 				const widget = chatWidgetService.getWidgetBySessionId(element.sessionId);
 				options.userSelectedModelId = widget?.input.currentLanguageModel;
 				options.userSelectedTools = widget?.getUserSelectedTools();
-				options.mode = widget?.input.currentMode;
+				options.mode = widget?.input.currentModeKind;
 				if (await chatService.sendRequest(element.sessionId, prompt, options)) {
 					this._onDidChangeHeight.fire();
 				}

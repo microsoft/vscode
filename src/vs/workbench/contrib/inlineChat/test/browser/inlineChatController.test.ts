@@ -63,7 +63,7 @@ import { ChatSlashCommandService, IChatSlashCommandService } from '../../../chat
 import { IChatVariablesService } from '../../../chat/common/chatVariables.js';
 import { IChatResponseViewModel } from '../../../chat/common/chatViewModel.js';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../../../chat/common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatMode } from '../../../chat/common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../chat/common/constants.js';
 import { ILanguageModelsService, LanguageModelsService } from '../../../chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
 import { IPromptPath, IPromptsService } from '../../../chat/common/promptSyntax/service/promptsService.js';
@@ -89,7 +89,7 @@ suite('InlineChatController', function () {
 		name: 'testEditorAgent',
 		isDefault: true,
 		locations: [ChatAgentLocation.Editor],
-		modes: [ChatMode.Ask],
+		modes: [ChatModeKind.Ask],
 		metadata: {},
 		slashCommands: [],
 		disambiguation: [],

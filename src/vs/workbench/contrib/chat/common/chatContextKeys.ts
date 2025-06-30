@@ -8,7 +8,7 @@ import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/c
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { RemoteNameContext } from '../../../common/contextkeys.js';
 import { ViewContainerLocation } from '../../../common/views.js';
-import { ChatAgentLocation, ChatMode } from './constants.js';
+import { ChatAgentLocation, ChatModeKind } from './constants.js';
 
 export namespace ChatContextKeys {
 	export const responseVote = new RawContextKey<string>('chatSessionResponseVote', '', { type: 'string', description: localize('interactiveSessionResponseVote', "When the response has been voted up, is set to 'up'. When voted down, is set to 'down'. Otherwise an empty string.") });
@@ -35,7 +35,7 @@ export namespace ChatContextKeys {
 	export const inChatSession = new RawContextKey<boolean>('inChat', false, { type: 'boolean', description: localize('inChat', "True when focus is in the chat widget, false otherwise.") });
 	export const inChatEditor = new RawContextKey<boolean>('inChatEditor', false, { type: 'boolean', description: localize('inChatEditor', "Whether focus is in a chat editor.") });
 	export const hasPromptFile = new RawContextKey<boolean>('chatPromptFileAttached', false, { type: 'boolean', description: localize('chatPromptFileAttachedContextDescription', "True when the chat has a prompt file attached.") });
-	export const chatMode = new RawContextKey<ChatMode>('chatMode', ChatMode.Ask, { type: 'string', description: localize('chatMode', "The current chat mode.") });
+	export const chatModeKind = new RawContextKey<ChatModeKind>('chatMode', ChatModeKind.Ask, { type: 'string', description: localize('chatMode', "The 'kind' of the current chat mode- Agent for custom modes.") });
 
 	export const supported = ContextKeyExpr.or(IsWebContext.negate(), RemoteNameContext.notEqualsTo(''), ContextKeyExpr.has('config.chat.experimental.serverlessWebEnabled'));
 	export const enabled = new RawContextKey<boolean>('chatIsEnabled', false, { type: 'boolean', description: localize('chatIsEnabled', "True when chat is enabled because a default chat participant is activated with an implementation.") });
@@ -79,7 +79,6 @@ export namespace ChatContextKeys {
 	export const completionsQuotaExceeded = new RawContextKey<boolean>('completionsQuotaExceeded', false, true);
 
 	export const Editing = {
-		agentModeDisallowed: new RawContextKey<boolean>('chatAgentModeDisallowed', undefined, { type: 'boolean', description: localize('chatAgentModeDisallowed', "True when agent mode is not allowed.") }), // experiment-driven disablement
 		hasToolConfirmation: new RawContextKey<boolean>('chatHasToolConfirmation', false, { type: 'boolean', description: localize('chatEditingHasToolConfirmation', "True when a tool confirmation is present.") }),
 	};
 
@@ -96,7 +95,7 @@ export namespace ChatContextKeys {
 
 export namespace ChatContextKeyExprs {
 	export const inEditingMode = ContextKeyExpr.or(
-		ChatContextKeys.chatMode.isEqualTo(ChatMode.Edit),
-		ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
+		ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
+		ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 	);
 }

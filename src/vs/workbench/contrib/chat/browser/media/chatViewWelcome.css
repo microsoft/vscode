@@ -97,4 +97,45 @@ div.chat-welcome-view {
 			}
 		}
 	}
+
+	& > .chat-welcome-view-suggested-prompts {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 10px;
+		justify-content: center;
+		margin-top: 15px;
+
+		> .chat-welcome-view-suggested-prompt {
+			display: flex;
+			align-items: center;
+			padding: 0 4px;
+			border-radius: 8px;
+			background-color: var(--vscode-editorWidget-background);
+			cursor: pointer;
+			border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+			border-radius: 4px;
+			gap: 2px;
+			max-width: 100%;
+			width: fit-content;
+
+			> .chat-welcome-view-suggested-prompt-icon {
+				display: flex;
+				align-items: center;
+				margin-right: 8px;
+				font-size: 4px;
+				color: var(--vscode-icon-foreground) !important;
+				align-items: center;
+			}
+
+			> .chat-welcome-view-suggested-prompt-label {
+				font-size: 14px;
+				color: var(--vscode-editorWidget-foreground);
+			}
+		}
+
+		> .chat-welcome-view-suggested-prompt:hover {
+			background-color: var(--vscode-list-hoverBackground);
+			border-color: var(--vscode-focusBorder);
+		}
+	}
 }
