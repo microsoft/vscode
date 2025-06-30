@@ -133,6 +133,10 @@ export class StandaloneQuickInputService implements IQuickInputService {
 		return this.activeService.createQuickWidget();
 	}
 
+	createQuickTree<T extends import('../../../../platform/quickinput/common/quickInput.js').IQuickTreeItem>(): import('../../../../platform/quickinput/common/quickInput.js').IQuickTree<T> {
+		return this.activeService.createQuickTree<T>();
+	}
+
 	focus(): void {
 		return this.activeService.focus();
 	}
