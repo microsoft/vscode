@@ -124,3 +124,79 @@ jobs:
             echo "Download failed on attempt $i, retrying..."
             sleep 5 # optional: add a small delay between retries
           done
+
+      - name: 🧪 Run unit tests (Electron)
+        if: ${{ inputs.electron_tests }}
+        timeout-minutes: 15
+        run: ./scripts/test.sh --tfs "Unit Tests"
+
+      - name: 🧪 Run unit tests (node.js)
+        if: ${{ inputs.electron_tests }}
+        timeout-minutes: 15
+        run: npm run test-node
+
+      - name: 🧪 Run unit tests (Browser, Webkit)
+        if: ${{ inputs.browser_tests }}
+        timeout-minutes: 30
+        env:
+          DEBUG: "*browser*"
+        run: npm run test-browser-no-install -- --browser webkit --tfs "Browser Unit Tests"
+
+      - name: Build integration tests
+        run: |
+          set -e
+          npm run gulp \
+            compile-extension:configuration-editing \
+            compile-extension:css-language-features-server \
+            compile-extension:emmet \
+            compile-extension:git \
+            compile-extension:github-authentication \
+            compile-extension:html-language-features-server \
+            compile-extension:ipynb \
+            compile-extension:notebook-renderers \
+            compile-extension:json-language-features-server \
+            compile-extension:markdown-language-features \
+            compile-extension-media \
+            compile-extension:microsoft-authentication \
+            compile-extension:typescript-language-features \
+            compile-extension:vscode-api-tests \
+            compile-extension:vscode-colorize-tests \
+            compile-extension:vscode-colorize-perf-tests \
+            compile-extension:vscode-test-resolver
+
+      - name: 🧪 Run integration tests (Electron)
+        if: ${{ inputs.electron_tests }}
+        timeout-minutes: 20
+        run: ./scripts/test-integration.sh --tfs "Integration Tests"
+
+      - name: 🧪 Run integration tests (Browser, Webkit)
+        if: ${{ inputs.browser_tests }}
+        timeout-minutes: 20
+        run: ./scripts/test-web-integration.sh --browser webkit
+
+      - name: 🧪 Run integration tests (Remote)
+        if: ${{ inputs.remote_tests }}
+        timeout-minutes: 20
+        run: ./scripts/test-remote-integration.sh
+
+      - name: Compile smoke tests
+        working-directory: test/smoke
+        run: npm run compile
+
+      - name: Compile extensions for smoke tests
+        run: npm run gulp compile-extension-media
+
+      - name: 🧪 Run smoke tests (Electron)
+        if: ${{ inputs.electron_tests }}
+        timeout-minutes: 20
+        run: npm run smoketest-no-compile -- --tracing
+
+      - name: 🧪 Run smoke tests (Browser, Chromium)
+        if: ${{ inputs.browser_tests }}
+        timeout-minutes: 20
+        run: npm run smoketest-no-compile -- --web --tracing --headless
+
+      - name: 🧪 Run smoke tests (Remote)
+        if: ${{ inputs.remote_tests }}
+        timeout-minutes: 20
+        run: npm run smoketest-no-compile -- --remote --tracing
