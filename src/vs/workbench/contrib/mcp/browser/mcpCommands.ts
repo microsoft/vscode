@@ -50,6 +50,8 @@ import { IUserDataProfileService } from '../../../services/userDataProfile/commo
 import { IRemoteUserDataProfilesService } from '../../../services/userDataProfile/common/remoteUserDataProfiles.js';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from '../../../browser/actions/workspaceCommands.js';
 import { MCP_CONFIGURATION_KEY, WORKSPACE_STANDALONE_CONFIGURATIONS } from '../../../services/configuration/common/configuration.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -712,40 +714,52 @@ export class ShowInstalledMcpServersCommand extends Action2 {
 	}
 }
 
-export class OpenUserMcpResourceCommand extends Action2 {
+abstract class OpenMcpResourceCommand extends Action2 {
+	protected abstract getURI(accessor: ServicesAccessor): Promise<URI>;
+
+	async run(accessor: ServicesAccessor) {
+		const fileService = accessor.get(IFileService);
+		const editorService = accessor.get(IEditorService);
+		const resource = await this.getURI(accessor);
+		if (!(await fileService.exists(resource))) {
+			await fileService.createFile(resource, VSBuffer.fromString(JSON.stringify({ servers: {} }, null, '\t')));
+		}
+		await editorService.openEditor({ resource });
+	}
+}
+
+export class OpenUserMcpResourceCommand extends OpenMcpResourceCommand {
 	constructor() {
 		super({
 			id: McpCommandIds.OpenUserMcp,
-			title: localize2('mcp.command.openUserMcp', "Open User MCP Configuration"),
+			title: localize2('mcp.command.openUserMcp', "Open User Configuration"),
 			category,
 			f1: true
 		});
 	}
 
-	async run(accessor: ServicesAccessor) {
+	protected override getURI(accessor: ServicesAccessor): Promise<URI> {
 		const userDataProfileService = accessor.get(IUserDataProfileService);
-		const editorService = accessor.get(IEditorService);
-		await editorService.openEditor({ resource: userDataProfileService.currentProfile.mcpResource });
+		return Promise.resolve(userDataProfileService.currentProfile.mcpResource);
 	}
 }
 
-export class OpenRemoteUserMcpResourceCommand extends Action2 {
+export class OpenRemoteUserMcpResourceCommand extends OpenMcpResourceCommand {
 	constructor() {
 		super({
 			id: McpCommandIds.OpenRemoteUserMcp,
-			title: localize2('mcp.command.openRemoteUserMcp', "Open Remote User MCP Configuration"),
+			title: localize2('mcp.command.openRemoteUserMcp', "Open Remote User Configuration"),
 			category,
 			f1: true,
 			precondition: RemoteNameContext.notEqualsTo('')
 		});
 	}
 
-	async run(accessor: ServicesAccessor) {
+	protected override async getURI(accessor: ServicesAccessor): Promise<URI> {
 		const userDataProfileService = accessor.get(IUserDataProfileService);
 		const remoteUserDataProfileService = accessor.get(IRemoteUserDataProfilesService);
-		const editorService = accessor.get(IEditorService);
 		const remoteProfile = await remoteUserDataProfileService.getRemoteProfile(userDataProfileService.currentProfile);
-		await editorService.openEditor({ resource: remoteProfile.mcpResource });
+		return remoteProfile.mcpResource;
 	}
 }
 
