@@ -797,7 +797,6 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
-		console.log('getViewportViewLineRenderingData lineNumber', lineNumber, 'visibleRange', visibleRange);
 		const decorationViewportData = this._decorations.getDecorationsViewportData(visibleRange);
 		const allInlineDecorations = decorationViewportData.inlineDecorations;
 		const inlineDecorations = allInlineDecorations[lineNumber - visibleRange.startLineNumber];

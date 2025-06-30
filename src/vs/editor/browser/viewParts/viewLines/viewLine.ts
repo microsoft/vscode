@@ -113,7 +113,6 @@ export class ViewLine implements IVisibleLine {
 		this._isMaybeInvalid = false;
 
 		const lineData = viewportData.getViewLineRenderingData(lineNumber);
-		console.log('lineData.inlineDecorations : ', lineData.inlineDecorations);
 		const options = this._options;
 		const actualInlineDecorations = LineDecoration.filter(lineData.inlineDecorations, lineNumber, lineData.minColumn, lineData.maxColumn);
 		const renderWhitespace = (lineData.hasVariableFonts || options.experimentalWhitespaceRendering === 'off') ? options.renderWhitespace : 'none';
