@@ -986,6 +986,10 @@ export const codeTunnelSubcommands = [
 					}
 				],
 			},
+			{
+				name: 'chat',
+				description: 'Pass in a prompt to run in a chat session in the current working directory.',
+			},
 			extTunnelSubcommand,
 			{
 				name: 'status',
