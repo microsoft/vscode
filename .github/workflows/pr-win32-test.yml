@@ -153,6 +153,7 @@ jobs:
         timeout-minutes: 15
 
       - name: 🧪 Run unit tests (Browser, Chromium)
+        if: ${{ inputs.browser_tests }}
         shell: pwsh
         run: node test/unit/browser/index.js --browser chromium --tfs "Browser Unit Tests"
         env:
@@ -209,6 +210,45 @@ jobs:
         timeout-minutes: 20
 
       - name: Diagnostics after integration test runs
+        shell: pwsh
+        run: .\build\azure-pipelines\win32\listprocesses.bat
+        continue-on-error: true
+        if: always()
+
+      - name: Diagnostics before smoke test run
+        shell: pwsh
+        run: .\build\azure-pipelines\win32\listprocesses.bat
+        continue-on-error: true
+        if: always()
+
+      - name: Compile smoke tests
+        working-directory: test/smoke
+        shell: pwsh
+        run: npm run compile
+
+      - name: Compile extensions for smoke tests
+        shell: pwsh
+        run: npm run gulp compile-extension-media
+
+      - name: 🧪 Run smoke tests (Electron)
+        if: ${{ inputs.electron_tests }}
+        timeout-minutes: 20
+        shell: pwsh
+        run: npm run smoketest-no-compile -- -- --tracing
+
+      - name: 🧪 Run smoke tests (Browser, Chromium)
+        if: ${{ inputs.browser_tests }}
+        timeout-minutes: 20
+        shell: pwsh
+        run: npm run smoketest-no-compile -- -- --web --tracing --headless
+
+      - name: 🧪 Run smoke tests (Remote)
+        if: ${{ inputs.remote_tests }}
+        timeout-minutes: 20
+        shell: pwsh
+        run: npm run smoketest-no-compile -- -- --remote --tracing
+
+      - name: Diagnostics after smoke test run
         shell: pwsh
         run: .\build\azure-pipelines\win32\listprocesses.bat
         continue-on-error: true
