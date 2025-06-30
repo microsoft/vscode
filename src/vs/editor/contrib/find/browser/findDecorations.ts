@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { containsRTL } from '../../../../base/common/strings.js';
 import { IActiveCodeEditor } from '../../../browser/editorBrowser.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
@@ -103,7 +104,10 @@ export class FindDecorations implements IDisposable {
 		const candidates = this._editor.getModel().getDecorationsInRange(desiredRange);
 		for (const candidate of candidates) {
 			const candidateOpts = candidate.options;
-			if (candidateOpts === FindDecorations._FIND_MATCH_DECORATION || candidateOpts === FindDecorations._CURRENT_FIND_MATCH_DECORATION) {
+			if (candidateOpts === FindDecorations._FIND_MATCH_DECORATION || 
+				candidateOpts === FindDecorations._CURRENT_FIND_MATCH_DECORATION ||
+				candidateOpts === FindDecorations._FIND_MATCH_DECORATION_RTL ||
+				candidateOpts === FindDecorations._CURRENT_FIND_MATCH_DECORATION_RTL) {
 				return this._getDecorationIndex(candidate.id);
 			}
 		}
@@ -128,12 +132,30 @@ export class FindDecorations implements IDisposable {
 		if (this._highlightedDecorationId !== null || newCurrentDecorationId !== null) {
 			this._editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 				if (this._highlightedDecorationId !== null) {
-					changeAccessor.changeDecorationOptions(this._highlightedDecorationId, FindDecorations._FIND_MATCH_DECORATION);
+					// When switching away from current match, check if it should use RTL decoration
+					const range = this._editor.getModel().getDecorationRange(this._highlightedDecorationId);
+					if (range) {
+						const matchText = this._editor.getModel().getValueInRange(range);
+						const isRTL = containsRTL(matchText);
+						const decorationOption = isRTL ? FindDecorations._FIND_MATCH_DECORATION_RTL : FindDecorations._FIND_MATCH_DECORATION;
+						changeAccessor.changeDecorationOptions(this._highlightedDecorationId, decorationOption);
+					} else {
+						changeAccessor.changeDecorationOptions(this._highlightedDecorationId, FindDecorations._FIND_MATCH_DECORATION);
+					}
 					this._highlightedDecorationId = null;
 				}
 				if (newCurrentDecorationId !== null) {
 					this._highlightedDecorationId = newCurrentDecorationId;
-					changeAccessor.changeDecorationOptions(this._highlightedDecorationId, FindDecorations._CURRENT_FIND_MATCH_DECORATION);
+					// Check if current match contains RTL text and use appropriate decoration
+					const range = this._editor.getModel().getDecorationRange(newCurrentDecorationId);
+					if (range) {
+						const matchText = this._editor.getModel().getValueInRange(range);
+						const isRTL = containsRTL(matchText);
+						const decorationOption = isRTL ? FindDecorations._CURRENT_FIND_MATCH_DECORATION_RTL : FindDecorations._CURRENT_FIND_MATCH_DECORATION;
+						changeAccessor.changeDecorationOptions(this._highlightedDecorationId, decorationOption);
+					} else {
+						changeAccessor.changeDecorationOptions(this._highlightedDecorationId, FindDecorations._CURRENT_FIND_MATCH_DECORATION);
+					}
 				}
 				if (this._rangeHighlightDecorationId !== null) {
 					changeAccessor.removeDecoration(this._rangeHighlightDecorationId);
@@ -199,9 +221,17 @@ export class FindDecorations implements IDisposable {
 			// Find matches
 			const newFindMatchesDecorations: IModelDeltaDecoration[] = new Array<IModelDeltaDecoration>(findMatches.length);
 			for (let i = 0, len = findMatches.length; i < len; i++) {
+				const findMatch = findMatches[i];
+				
+				// Check if this match contains RTL text and use appropriate decoration
+				let decorationOptions = findMatchesOptions;
+				if (findMatchesOptions === FindDecorations._FIND_MATCH_DECORATION && this._isRTLMatch(findMatch)) {
+					decorationOptions = FindDecorations._FIND_MATCH_DECORATION_RTL;
+				}
+				
 				newFindMatchesDecorations[i] = {
-					range: findMatches[i].range,
-					options: findMatchesOptions
+					range: findMatch.range,
+					options: decorationOptions
 				};
 			}
 			this._decorations = accessor.deltaDecorations(this._decorations, newFindMatchesDecorations);
@@ -283,6 +313,12 @@ export class FindDecorations implements IDisposable {
 		return result;
 	}
 
+	private _isRTLMatch(findMatch: FindMatch): boolean {
+		const model = this._editor.getModel();
+		const matchText = model.getValueInRange(findMatch.range);
+		return containsRTL(matchText);
+	}
+
 	public static readonly _CURRENT_FIND_MATCH_DECORATION = ModelDecorationOptions.register({
 		description: 'current-find-match',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
@@ -344,5 +380,40 @@ export class FindDecorations implements IDisposable {
 		description: 'find-scope',
 		className: 'findScope',
 		isWholeLine: true
+	});
+
+	// RTL-specific decorations without inlineClassName to prevent text flow disruption
+	public static readonly _CURRENT_FIND_MATCH_DECORATION_RTL = ModelDecorationOptions.register({
+		description: 'current-find-match-rtl',
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		zIndex: 13,
+		className: 'currentFindMatch',
+		// No inlineClassName for RTL to preserve text flow
+		showIfCollapsed: true,
+		overviewRuler: {
+			color: themeColorFromId(overviewRulerFindMatchForeground),
+			position: OverviewRulerLane.Center
+		},
+		minimap: {
+			color: themeColorFromId(minimapFindMatch),
+			position: MinimapPosition.Inline
+		}
+	});
+
+	public static readonly _FIND_MATCH_DECORATION_RTL = ModelDecorationOptions.register({
+		description: 'find-match-rtl',
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		zIndex: 10,
+		className: 'findMatch',
+		// No inlineClassName for RTL to preserve text flow
+		showIfCollapsed: true,
+		overviewRuler: {
+			color: themeColorFromId(overviewRulerFindMatchForeground),
+			position: OverviewRulerLane.Center
+		},
+		minimap: {
+			color: themeColorFromId(minimapFindMatch),
+			position: MinimapPosition.Inline
+		}
 	});
 }
