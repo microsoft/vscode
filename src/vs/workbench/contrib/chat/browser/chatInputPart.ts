@@ -23,7 +23,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { assertType } from '../../../../base/common/types.js';
@@ -448,6 +448,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}));
 		this._register(this.chatModeService.onDidChangeChatModes(() => this.validateCurrentChatMode()));
+		this._register(autorun(r => {
+			const mode = this._currentModeObservable.read(r);
+			const model = mode.model?.read(r);
+			if (model) {
+				this.switchModelByName(model);
+			}
+		}));
 	}
 
 	private getSelectedModelStorageKey(): string {
@@ -561,11 +568,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._currentModeObservable.set(mode, undefined);
 		this.chatModeKindKey.set(mode.kind);
 		this._onDidChangeCurrentChatMode.fire();
-
-		const model = mode.model?.get();
-		if (model) {
-			this.switchModelByName(model);
-		}
 
 		if (storeSelection) {
 			this.storageService.store(GlobalLastChatModeKey, mode.kind, StorageScope.APPLICATION, StorageTarget.USER);
