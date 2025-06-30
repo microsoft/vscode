@@ -447,6 +447,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}));
 
 		// Auxiliary bar default visibility (TODO@bpasero remove me eventually when experiment concluded)
+		// This setting is driven by an experiment, which resolves too late for layout to consider it
+		// in time. Specifically, even if the experiment is resolved, the override only applies later.
+		// As such, we keep the override in storage to be able to look it up from there if present.
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY) && e.source === ConfigurationTarget.DEFAULT) {
 				this.storageService.store(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY, this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY), StorageScope.APPLICATION, StorageTarget.MACHINE);
