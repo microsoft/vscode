@@ -40,9 +40,6 @@ import { ILanguageFeaturesService } from '../../../../../editor/common/services/
 import { env } from '../../../../../base/common/process.js';
 import { PYLANCE_DEBUG_DISPLAY_NAME } from './lspTerminalUtil.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { TERMINAL_SUGGEST_DISCOVERABILITY_COUNT_KEY, TERMINAL_SUGGEST_DISCOVERABILITY_KEY } from './terminalSuggestShownTracker.js';
-
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -309,7 +306,7 @@ registerTerminalAction({
 	}
 });
 
-registerTerminalAction({
+registerActiveInstanceAction({
 	id: TerminalSuggestCommandId.ResetDiscoverability,
 	title: localize2('workbench.action.terminal.resetDiscoverability', 'Reset Suggest Discoverability'),
 	f1: true,
@@ -318,10 +315,8 @@ registerTerminalAction({
 		TerminalContextKeys.isOpen,
 		ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.Enabled}`, true)
 	),
-	run: (c, accessor) => {
-		const storageService = accessor.get(IStorageService);
-		storageService.store(TERMINAL_SUGGEST_DISCOVERABILITY_KEY, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
-		storageService.store(TERMINAL_SUGGEST_DISCOVERABILITY_COUNT_KEY, 0, StorageScope.APPLICATION, StorageTarget.MACHINE);
+	run: (activeInstance) => {
+		TerminalSuggestContribution.get(activeInstance)?.addon?.resetDiscoverability();
 	}
 });
 

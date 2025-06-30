@@ -775,6 +775,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._discoverability?.update(this._suggestWidget.element.domNode);
 	}
 
+	resetDiscoverability(): void {
+		this._discoverability?.resetState();
+	}
+
 	selectPreviousSuggestion(): void {
 		this._suggestWidget?.selectPrevious();
 	}

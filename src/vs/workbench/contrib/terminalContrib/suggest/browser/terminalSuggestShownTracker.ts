@@ -17,6 +17,7 @@ const TERMINAL_SUGGEST_DISCOVERABILITY_MIN_MS = 10000;
 interface ITerminalSuggestShownTracker extends IDisposable {
 	getFirstShown(shellType: TerminalShellType): { window: boolean; shell: boolean };
 	updateShown(): void;
+	resetState(): void;
 }
 
 export class TerminalSuggestShownTracker extends Disposable implements ITerminalSuggestShownTracker {
@@ -41,6 +42,13 @@ export class TerminalSuggestShownTracker extends Disposable implements ITerminal
 
 	get done(): boolean {
 		return this._done;
+	}
+
+	resetState(): void {
+		this._done = false;
+		this._count = 0;
+		this._start = undefined;
+		this._firstShownTracker = undefined;
 	}
 
 	update(widgetElt: HTMLElement | undefined): void {
