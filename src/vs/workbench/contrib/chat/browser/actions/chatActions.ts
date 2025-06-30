@@ -872,6 +872,16 @@ After generating the initial instructions (in less than 20 tool calls, count dow
 		icon: Codicon.settings,
 		order: 6
 	});
+
+	MenuRegistry.appendMenuItem(CHAT_CONFIG_MENU_ID, {
+		command: {
+			id: 'workbench.views.mcp.marketplace.focus',
+			title: localize2('mcp.servers', "MCP Servers")
+		},
+		when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
+		order: 14,
+		group: '1_level'
+	});
 }
 
 export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewModel, includeName = true): string {
