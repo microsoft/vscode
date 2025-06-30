@@ -1344,6 +1344,7 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 		@IWorkbenchAssignmentService private readonly workbenchAssignmentService: IWorkbenchAssignmentService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IConfigurationService private readonly configurationService: WorkspaceService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -1354,6 +1355,7 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 	}
 
 	private async updateDefaults(): Promise<void> {
+		this.logService.trace('ConfigurationService#updateDefaults: begin');
 		try {
 			// Check for experiments
 			await this.processExperimentalSettings(Object.keys(this.configurationRegistry.getConfigurationProperties()));
@@ -1362,6 +1364,7 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 			// and after the experiments have been resolved to prevent
 			// resetting the overrides too early.
 			await this.extensionService.whenInstalledExtensionsRegistered();
+			this.logService.trace('ConfigurationService#updateDefaults: resetting the defaults');
 			this.configurationService.reloadConfiguration(ConfigurationTarget.DEFAULT);
 		}
 	}
