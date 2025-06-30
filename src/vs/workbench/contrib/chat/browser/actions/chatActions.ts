@@ -836,7 +836,7 @@ Focus on discovering the essential knowledge that would help an AI agents be imm
 - Project-specific conventions and patterns that differ from common practices
 - Integration points, external dependencies, and cross-component communication patterns
 
-Source existing AI conventions from: \`**/{.github/copilot-instructions.md,AGENT.md,AGENTS.md,CLAUDE.md,.cursorrules,.windsurfrules,.clinerules,.cursor/rules/**,.windsurf/rules/**,.clinerules/**,README.md}\`.
+Source existing AI conventions from: \`**/{.github/copilot-instructions.md,AGENT.md,AGENTS.md,CLAUDE.md,GEMINI.md,.cursorrules,.windsurfrules,.clinerules,.cursor/rules/**,.windsurf/rules/**,.clinerules/**,README.md}\`.
 
 Guidelines (read more at https://aka.ms/vscode-instructions-docs):
 - If \`.github/copilot-instructions.md\` exists, merge intelligently - preserve valuable content while updating outdated sections
