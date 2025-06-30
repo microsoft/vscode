@@ -106,30 +106,30 @@ abstract class SubmitAction extends Action2 {
 					: { confirmed: true };
 
 				if (!confirmation.confirmed) {
-					type StartRequestEvent = { editRequestType: string };
+					type EditCancelledEvent = { editRequestType: string };
 
-					type StartRequestEventClassification = {
+					type EditCancelledEventClassification = {
 						owner: 'justschen';
 						comment: 'Event used to gain insights into when there are pending changes to undo, and edited requests are not applied due to user cancellation from the confirmation dialogue.';
 						editRequestType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Current entry point for editing a request.' };
 					};
 
-					telemetryService.publicLog2<StartRequestEvent, StartRequestEventClassification>('chat.cancelledConfirmationEditingRequests', {
+					telemetryService.publicLog2<EditCancelledEvent, EditCancelledEventClassification>('chat.undoConfirmation.editsCancelled', {
 						editRequestType: configurationService.getValue<string>('chat.editRequests'),
 					});
 					return;
 				}
 
 				if (editsToUndo > 0) {
-					type StartRequestEvent = { editRequestType: string };
+					type EditFinishedEvent = { editRequestType: string };
 
-					type StartRequestEventClassification = {
+					type EditFinishedEventClassification = {
 						owner: 'justschen';
 						comment: 'Event used to gain insights into when there are pending changes to undo, but edited requests are still applied. ';
 						editRequestType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Current entry point for editing a request.' };
 					};
 
-					telemetryService.publicLog2<StartRequestEvent, StartRequestEventClassification>('chat.sentConfirmationEditingRequests', {
+					telemetryService.publicLog2<EditFinishedEvent, EditFinishedEventClassification>('chat.undoConfirmation.editsFinished', {
 						editRequestType: configurationService.getValue<string>('chat.editRequests'),
 					});
 				}
