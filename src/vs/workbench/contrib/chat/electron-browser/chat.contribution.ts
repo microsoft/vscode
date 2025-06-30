@@ -19,8 +19,7 @@ import { ChatModeKind } from '../common/constants.js';
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isAbsolute, join } from '../../../../base/common/path.js';
-import { cwd } from '../../../../base/common/process.js';
+import { resolve } from '../../../../base/common/path.js';
 import { showChatView } from '../browser/chat.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -81,12 +80,7 @@ class ChatAgentCommandLineHandler extends Disposable {
 		const opts: IChatViewOpenOptions = {
 			query: args._.length > 0 ? args._.join(' ') : '',
 			mode: ChatModeKind.Agent,
-			attachFiles: args['add-file']?.map(file => {
-				if (!isAbsolute(file)) {
-					file = join(cwd(), file);
-				}
-				return URI.file(file);
-			}),
+			attachFiles: args['add-file']?.map(file => URI.file(resolve(file))), // use `resolve` to deal with relative paths properly
 		};
 
 		const chatWidget = await showChatView(this.viewsService);
