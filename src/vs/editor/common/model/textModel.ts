@@ -2426,6 +2426,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.blockDoesNotCollapse = options.blockDoesNotCollapse ?? null;
 		this.blockIsAfterEnd = options.blockIsAfterEnd ?? null;
 		this.blockPadding = options.blockPadding ?? null;
+		this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 		this.zIndex = options.zIndex || 0;
 		this.className = options.className ? cleanClassName(options.className) : null;
 		this.shouldFillLineOnLineBreak = options.shouldFillLineOnLineBreak ?? null;
@@ -2435,6 +2436,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.isWholeLine = options.isWholeLine || false;
 		this.lineHeight = options.lineHeight ? Math.min(options.lineHeight, LINE_HEIGHT_CEILING) : null;
 		this.fontSize = options.fontSize || null;
+		this.affectsFont = !!options.fontSize || !!options.fontFamily || !!options.fontWeight || !!options.fontStyle;
 		this.showIfCollapsed = options.showIfCollapsed || false;
 		this.collapseOnReplaceEdit = options.collapseOnReplaceEdit || false;
 		this.overviewRuler = options.overviewRuler ? new ModelDecorationOverviewRulerOptions(options.overviewRuler) : null;
@@ -2454,8 +2456,6 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.before = options.before ? ModelDecorationInjectedTextOptions.from(options.before) : null;
 		this.hideInCommentTokens = options.hideInCommentTokens ?? false;
 		this.hideInStringTokens = options.hideInStringTokens ?? false;
-		this.affectsFont = !!options.fontSize || !!options.fontFamily || !!options.fontWeight || !!options.fontStyle;
-		this.stickiness = this.affectsFont ? model.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges : (options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
 	}
 }
 ModelDecorationOptions.EMPTY = ModelDecorationOptions.register({ description: 'empty' });
