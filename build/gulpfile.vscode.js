@@ -36,7 +36,7 @@ const { promisify } = require('util');
 const glob = promisify(require('glob'));
 const rcedit = promisify(require('rcedit'));
 
-const versionedResourcesFolder = `${packageJson.version}-${commit}`;
+const versionedResourcesFolder = `${commit.substring(0, 10)}`;
 
 // Build
 const vscodeEntryPoints = [

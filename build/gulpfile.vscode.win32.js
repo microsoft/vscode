@@ -20,7 +20,7 @@ const rcedit = require('rcedit');
 
 const repoPath = path.dirname(__dirname);
 const commit = getVersion(repoPath);
-const versionedResourcesFolder = `${pkg.version}-${commit}`;
+const versionedResourcesFolder = `${commit.substring(0, 10)}`;
 const buildPath = (/** @type {string} */ arch) => path.join(path.dirname(repoPath), `VSCode-win32-${arch}`);
 const setupDir = (/** @type {string} */ arch, /** @type {string} */ target) => path.join(repoPath, '.build', `win32-${arch}`, `${target}-setup`);
 const issPath = path.join(__dirname, 'win32', 'code.iss');
