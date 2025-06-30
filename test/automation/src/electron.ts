@@ -94,6 +94,13 @@ export function getDevElectronPath(): string {
 }
 
 function findFilePath(root: string, path: string): string {
+	// First check if the path exists directly in the root
+	const directPath = join(root, path);
+	if (fs.existsSync(directPath)) {
+		return directPath;
+	}
+
+	// If not found directly, search through subdirectories
 	const entries = fs.readdirSync(root, { withFileTypes: true });
 
 	for (const entry of entries) {

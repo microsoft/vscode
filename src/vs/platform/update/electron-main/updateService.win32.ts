@@ -6,6 +6,7 @@
 import { spawn } from 'child_process';
 import * as fs from 'fs';
 import { tmpdir } from 'os';
+import { app } from 'electron';
 import { timeout } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { memoize } from '../../../base/common/decorators.js';
@@ -94,6 +95,11 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			this.setState(State.Disabled(DisablementReason.RunningAsAdmin));
 			this.logService.info('update#ctor - updates are disabled due to running as Admin in user setup');
 			return;
+		}
+
+		// Remove old installation
+		if (this.productService.target === 'user') {
+			await this.gc();
 		}
 
 		await super.initialize();
@@ -280,6 +286,95 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			}
 		} else {
 			this.setState(State.Ready(update));
+		}
+	}
+
+	private async gc(): Promise<void> {
+		try {
+			// 1) Use app.getPath('exe') to get the path to current executable file and store the basename of the exe file
+			const exePath = app.getPath('exe');
+			const exeBasename = path.basename(exePath);
+			const appInstallPath = path.dirname(exePath);
+			this.logService.trace(`update#gc - exe path: ${exePath}, basename: ${exeBasename}, app install path: ${appInstallPath}`);
+
+			// 2) Get current commit via this.productService.commit and store only first 10char in a variable
+			const commitShort = this.productService.commit?.substring(0, 10);
+			if (!commitShort) {
+				this.logService.trace('update#gc - no commit hash available, skipping gc');
+				return;
+			}
+			this.logService.trace('update#gc - commit short:', commitShort);
+
+			// 3) If there is a file called `old_{exe basename}` in the app install folder then perform the following
+			const oldExeFile = path.join(appInstallPath, `old_${exeBasename}`);
+			const oldExeExists = await fs.promises.access(oldExeFile).then(() => true).catch(() => false);
+
+			if (!oldExeExists) {
+				this.logService.trace('update#gc - old exe file does not exist, skipping gc');
+				return;
+			}
+
+			this.logService.trace('update#gc - old exe file found, performing cleanup');
+
+			// 4) Delete all files and folders except for the following
+			const entries = await fs.promises.readdir(appInstallPath, { withFileTypes: true });
+
+			for (const entry of entries) {
+				const entryPath = path.join(appInstallPath, entry.name);
+				let shouldKeep = false;
+
+				// a) current exe file
+				if (entry.isFile() && entry.name === exeBasename) {
+					shouldKeep = true;
+				}
+				// b) bin folder under app install directory (but clean old_ files inside it)
+				else if (entry.isDirectory() && entry.name === 'bin') {
+					shouldKeep = true;
+					// Clean old_ files from bin folder
+					try {
+						const binEntries = await fs.promises.readdir(entryPath, { withFileTypes: true });
+						for (const binEntry of binEntries) {
+							if (binEntry.isFile() && binEntry.name.startsWith('old_')) {
+								const binEntryPath = path.join(entryPath, binEntry.name);
+								try {
+									await fs.promises.unlink(binEntryPath);
+									this.logService.trace('update#gc - removed old file from bin:', binEntryPath);
+								} catch (err) {
+									this.logService.warn('update#gc - failed to remove from bin:', binEntryPath, err);
+								}
+							}
+						}
+					} catch (err) {
+						this.logService.warn('update#gc - failed to read bin directory:', err);
+					}
+				}
+				// c) {Exe basename}.VisualElementsManifest.xml
+				else if (entry.isFile() && entry.name === `${exeBasename}.VisualElementsManifest.xml`) {
+					shouldKeep = true;
+				}
+				// d) unins*.* files
+				else if (entry.isFile() && entry.name.startsWith('unins')) {
+					shouldKeep = true;
+				}
+				// e) directory whose name matches the commit value from 4)
+				else if (entry.isDirectory() && entry.name === commitShort) {
+					shouldKeep = true;
+				}
+
+				if (!shouldKeep) {
+					if (entry.isDirectory()) {
+						await fs.promises.rmdir(entryPath, { recursive: true });
+						this.logService.trace('update#gc - removed directory:', entryPath);
+					} else {
+						await fs.promises.unlink(entryPath);
+						this.logService.trace('update#gc - removed file:', entryPath);
+					}
+				}
+			}
+
+			this.logService.info('update#gc - garbage collection completed successfully');
+		} catch (error) {
+			this.logService.error('update#gc - garbage collection failed:', error);
 		}
 	}
 }
