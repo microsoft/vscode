@@ -50,7 +50,7 @@ export const NATIVE_CLI_COMMANDS = ['tunnel', 'serve-web'] as const;
 export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'tunnel': {
 		type: 'subcommand',
-		description: 'Make the current machine accessible from vscode.dev or other machines through a secure tunnel',
+		description: 'Make the current machine accessible from vscode.dev or other machines through a secure tunnel.',
 		options: {
 			'cli-data-dir': { type: 'string', args: 'dir', description: localize('cliDataDir', "Directory where CLI metadata should be stored.") },
 			'disable-telemetry': { type: 'boolean' },
@@ -76,6 +76,16 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 			'cli-data-dir': { type: 'string', args: 'dir', description: localize('cliDataDir', "Directory where CLI metadata should be stored.") },
 			'disable-telemetry': { type: 'boolean' },
 			'telemetry-level': { type: 'string' },
+		}
+	},
+	'chat': {
+		type: 'subcommand',
+		description: 'Pass in a prompt to run in a chat session in the current working directory.',
+		options: {
+			'_': { type: 'string[]', description: localize('prompt', "The prompt to use as chat.") },
+			'mode': { type: 'string', cat: 'o', alias: 'm', args: 'agent|ask|edit', description: localize('chatMode', "The mode to use for the chat session. Defaults to 'agent'.") },
+			'add-file': { type: 'string[]', cat: 'o', alias: 'a', description: localize('addFile', "Add files as context to the chat session.") },
+			'help': { type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") }
 		}
 	},
 
@@ -428,20 +438,16 @@ function wrapText(text: string, columns: number): string[] {
 	return lines;
 }
 
-export function buildHelpMessage(productName: string, executableName: string, version: string, options: OptionDescriptions<any>, capabilities?: { noPipe?: boolean; noInputFiles: boolean }): string {
+export function buildHelpMessage(productName: string, executableName: string, version: string, options: OptionDescriptions<any>, capabilities?: { noPipe?: boolean; noInputFiles?: boolean; isChat?: boolean }): string {
 	const columns = (process.stdout).isTTY && (process.stdout).columns || 80;
-	const inputFiles = capabilities?.noInputFiles !== true ? `[${localize('paths', 'paths')}...]` : '';
+	const inputFiles = capabilities?.noInputFiles ? '' : capabilities?.isChat ? ` [${localize('cliPrompt', 'prompt')}]` : ` [${localize('paths', 'paths')}...]`;
 
 	const help = [`${productName} ${version}`];
 	help.push('');
 	help.push(`${localize('usage', "Usage")}: ${executableName} [${localize('options', "options")}]${inputFiles}`);
 	help.push('');
 	if (capabilities?.noPipe !== true) {
-		if (isWindows) {
-			help.push(localize('stdinWindows', "To read output from another program, append '-' (e.g. 'echo Hello World | {0} -')", executableName));
-		} else {
-			help.push(localize('stdinUnix', "To read from stdin, append '-' (e.g. 'ps aux | grep code | {0} -')", executableName));
-		}
+		help.push(buildStdinMessage(executableName, capabilities?.isChat));
 		help.push('');
 	}
 	const optionsByCategory: { [P in keyof typeof helpCategories]?: OptionDescriptions<any> } = {};
@@ -479,6 +485,25 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 	}
 
 	return help.join('\n');
+}
+
+export function buildStdinMessage(executableName: string, isChat?: boolean): string {
+	let example: string;
+	if (isWindows) {
+		if (isChat) {
+			example = `echo Hello World | ${executableName} chat <prompt> -`;
+		} else {
+			example = `echo Hello World | ${executableName} -`;
+		}
+	} else {
+		if (isChat) {
+			example = `ps aux | grep code | ${executableName} chat <prompt> -`;
+		} else {
+			example = `ps aux | grep code | ${executableName} -`;
+		}
+	}
+
+	return localize('stdinUsage', "To read from stdin, append '-' (e.g. '{0}')", example);
 }
 
 export function buildVersionMessage(version: string | undefined, commit: string | undefined): string {
