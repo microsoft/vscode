@@ -584,13 +584,14 @@ export class CreateRemoteAgentJobAction extends Action2 {
 					)
 				});
 
-				// Find the last occurrence of the follow-up regex in the chat history
-				followup = agent.followUpRegex
-					? chatRequests
-						.map(req => req.message.text)
+				// Forward useful metadata about conversation to the implementing extension
+				if (agent.followUpRegex) {
+					const regex = new RegExp(agent.followUpRegex);
+					followup = chatRequests
+						.map(req => req.response?.response.toString() ?? '')
 						.reverse()
-						.find(text => agent.followUpRegex ? new RegExp(agent.followUpRegex).test(text) : false)
-					: undefined;
+						.find(text => regex.test(text));
+				}
 
 				const historyEntries: IChatAgentHistoryEntry[] = chatRequests
 					.map(req => ({
