@@ -22,6 +22,7 @@ import { ICommandActionTitle } from '../../../../platform/action/common/action.j
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { SwitchCompositeViewAction } from '../compositeBarActions.js';
 
+const maximizeIcon = registerIcon('panel-maximize', Codicon.screenFull, localize('maximizeIcon', 'Icon to maximize a panel.'));
 export const closeIcon = registerIcon('panel-close', Codicon.close, localize('closeIcon', 'Icon to close a panel.'));
 const panelIcon = registerIcon('panel-layout-icon', Codicon.layoutPanel, localize('togglePanelOffIcon', 'Icon to toggle the panel off when it is on.'));
 const panelOffIcon = registerIcon('panel-layout-icon-off', Codicon.layoutPanelOff, localize('togglePanelOnIcon', 'Icon to toggle the panel on when it is off.'));
@@ -35,6 +36,12 @@ export class TogglePanelAction extends Action2 {
 		super({
 			id: TogglePanelAction.ID,
 			title: TogglePanelAction.LABEL,
+			toggled: {
+				condition: PanelVisibleContext,
+				title: localize('closePanel', 'Hide Panel'),
+				icon: closeIcon,
+				mnemonicTitle: localize({ key: 'miTogglePanelMnemonic', comment: ['&& denotes a mnemonic'] }, "&&Panel"),
+			},
 			icon: closeIcon,
 			f1: true,
 			category: Categories.View,
@@ -51,10 +58,6 @@ export class TogglePanelAction extends Action2 {
 					id: MenuId.LayoutControlMenuSubmenu,
 					group: '0_workbench_layout',
 					order: 4
-				}, {
-					id: MenuId.PanelTitle,
-					group: 'navigation',
-					order: 2
 				}
 			]
 		});
@@ -67,6 +70,16 @@ export class TogglePanelAction extends Action2 {
 }
 
 registerAction2(TogglePanelAction);
+
+MenuRegistry.appendMenuItem(MenuId.PanelTitle, {
+	command: {
+		id: TogglePanelAction.ID,
+		title: localize('closePanel', 'Hide Panel'),
+		icon: closeIcon
+	},
+	group: 'navigation',
+	order: 2
+});
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -152,7 +165,6 @@ function createAlignmentPanelActionConfig(id: string, title: ICommandActionTitle
 	return createPanelActionConfig<PanelAlignment>(id, title, shortLabel, alignment, PanelAlignmentContext.notEqualsTo(alignment));
 }
 
-
 const PositionPanelActionConfigs: PanelActionConfig<Position>[] = [
 	createPositionPanelActionConfig(PositionPanelActionId.TOP, localize2('positionPanelTop', "Move Panel To Top"), localize('positionPanelTopShort', "Top"), Position.TOP),
 	createPositionPanelActionConfig(PositionPanelActionId.LEFT, localize2('positionPanelLeft', "Move Panel Left"), localize('positionPanelLeftShort', "Left"), Position.LEFT),
@@ -167,8 +179,6 @@ const AlignPanelActionConfigs: PanelActionConfig<PanelAlignment>[] = [
 	createAlignmentPanelActionConfig(AlignPanelActionId.CENTER, localize2('alignPanelCenter', "Set Panel Alignment to Center"), localize('alignPanelCenterShort', "Center"), 'center'),
 	createAlignmentPanelActionConfig(AlignPanelActionId.JUSTIFY, localize2('alignPanelJustify', "Set Panel Alignment to Justify"), localize('alignPanelJustifyShort', "Justify"), 'justify'),
 ];
-
-
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	submenu: MenuId.PanelPositionMenu,
@@ -270,10 +280,10 @@ registerAction2(class extends Action2 {
 			tooltip: localize('maximizePanel', "Maximize Panel Size"),
 			category: Categories.View,
 			f1: true,
-			icon: Codicon.screenFull,
+			icon: maximizeIcon,
 			// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
 			precondition: ContextKeyExpr.or(PanelAlignmentContext.isEqualTo('center'), ContextKeyExpr.and(PanelPositionContext.notEqualsTo('bottom'), PanelPositionContext.notEqualsTo('top'))),
-			toggled: { condition: PanelMaximizedContext, icon: Codicon.screenFull, tooltip: localize('minimizePanel', "Restore Panel Size") },
+			toggled: { condition: PanelMaximizedContext, icon: maximizeIcon, tooltip: localize('minimizePanel', "Restore Panel Size") },
 			menu: [{
 				id: MenuId.PanelTitle,
 				group: 'navigation',

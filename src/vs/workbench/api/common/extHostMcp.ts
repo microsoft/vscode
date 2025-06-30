@@ -176,6 +176,9 @@ type HttpModeT =
 	| { value: HttpMode.Http; sessionId: string | undefined }
 	| { value: HttpMode.SSE; endpoint: string };
 
+const MAX_FOLLOW_REDIRECTS = 5;
+const REDIRECT_STATUS_CODES = [301, 302, 303, 307, 308];
+
 /**
  * Implementation of both MCP HTTP Streaming as well as legacy SSE.
  *
@@ -702,21 +705,46 @@ class McpHTTPHandle extends Disposable {
 			}
 			this._log(LogLevel.Trace, `Fetching ${url} with options: ${JSON.stringify(traceObj)}`);
 		}
-		const res = await fetch(url, {
-			...init,
-			signal: this._abortCtrl.signal,
-		});
+
+		let currentUrl = url;
+		let response!: Response;
+		for (let redirectCount = 0; redirectCount < MAX_FOLLOW_REDIRECTS; redirectCount++) {
+			response = await fetch(currentUrl, {
+				...init,
+				signal: this._abortCtrl.signal,
+				redirect: 'manual'
+			});
+
+			// Check for redirect status codes (301, 302, 303, 307, 308)
+			if (!REDIRECT_STATUS_CODES.includes(response.status)) {
+				break;
+			}
+
+			const location = response.headers.get('location');
+			if (!location) {
+				break;
+			}
+
+			const nextUrl = new URL(location, currentUrl).toString();
+			this._log(LogLevel.Trace, `Redirect (${response.status}) from ${currentUrl} to ${nextUrl}`);
+			currentUrl = nextUrl;
+			// Per fetch spec, for 303 always use GET, keep method unless original was POST and 301/302, then GET.
+			if (response.status === 303 || ((response.status === 301 || response.status === 302) && init.method === 'POST')) {
+				init.method = 'GET';
+				delete init.body;
+			}
+		}
 
 		if (canLog(this._logService.getLevel(), LogLevel.Trace)) {
 			const headers: Record<string, string> = {};
-			res.headers.forEach((value, key) => { headers[key] = value; });
-			this._log(LogLevel.Trace, `Fetched ${url}: ${JSON.stringify({
-				status: res.status,
+			response.headers.forEach((value, key) => { headers[key] = value; });
+			this._log(LogLevel.Trace, `Fetched ${currentUrl}: ${JSON.stringify({
+				status: response.status,
 				headers: headers,
 			})}`);
 		}
 
-		return res;
+		return response;
 	}
 }
 

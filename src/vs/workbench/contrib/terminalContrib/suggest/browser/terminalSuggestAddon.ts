@@ -21,7 +21,7 @@ import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalS
 import { LineContext } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import { ITerminalCompletionService } from './terminalCompletionService.js';
-import { TerminalSettingId, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { TerminalSettingId, TerminalShellType, PosixShellType, WindowsShellType, GeneralShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -45,6 +45,17 @@ export interface ISuggestController {
 	selectNextPageSuggestion(): void;
 	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion<TerminalCompletionItem>, 'item' | 'model'>): void;
 	hideSuggestWidget(cancelAnyRequests: boolean, wasClosedByUser?: boolean): void;
+}
+
+export function isInlineCompletionSupported(shellType: TerminalShellType | undefined): boolean {
+	if (!shellType) {
+		return false;
+	}
+	return shellType === PosixShellType.Bash ||
+		shellType === PosixShellType.Zsh ||
+		shellType === PosixShellType.Fish ||
+		shellType === GeneralShellType.PowerShell ||
+		shellType === WindowsShellType.GitBash;
 }
 
 export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggestController {
@@ -583,6 +594,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _refreshInlineCompletion(completions: ITerminalCompletion[]): void {
+		if (!isInlineCompletionSupported(this.shellType)) {
+			// If the shell type is not supported, the inline completion item is invalid
+			return;
+		}
 		const oldIsInvalid = this._inlineCompletionItem.isInvalid;
 		if (!this._currentPromptInputState || this._currentPromptInputState.ghostTextIndex === -1) {
 			this._inlineCompletionItem.isInvalid = true;

@@ -22,12 +22,12 @@ import { HistoryNavigator2 } from '../../../../base/common/history.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
-import { observableFromEvent } from '../../../../base/common/observable.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Schemas } from '../../../../base/common/network.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -76,13 +76,15 @@ import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatEditingSession } from '../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../common/chatEntitlementService.js';
-import { IChatRequestVariableEntry, ChatRequestVariableSet, isPromptFileVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isSCMHistoryItemVariableEntry, isPromptTextVariableEntry } from '../common/chatVariableEntries.js';
-import { ChatMode2, IChatMode, IChatModeService, isBuiltinChatMode, validateChatMode2 } from '../common/chatModes.js';
+import { ChatMode, IChatMode, IChatModeService } from '../common/chatModes.js';
 import { IChatFollowup } from '../common/chatService.js';
+import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatMode, isChatMode, validateChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } from '../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
+import { PromptsType } from '../common/promptSyntax/promptTypes.js';
+import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { CancelAction, ChatEditingSessionSubmitAction, ChatOpenModelPickerActionId, ChatSubmitAction, IChatExecuteActionContext, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { IChatWidget } from './chat.js';
@@ -100,8 +102,6 @@ import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
 import { resizeImage } from './imageUtils.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
-import { PromptsType } from '../common/promptSyntax/promptTypes.js';
-import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 
 const $ = dom.$;
 
@@ -149,9 +149,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _onDidBlur: Emitter<void>;
 	readonly onDidBlur: Event<void>;
-
-	private _onDidDispose: Emitter<void>;
-	readonly onDidDispose: Event<void>;
 
 	private _onDidChangeContext: Emitter<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>;
 	readonly onDidChangeContext: Event<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>;
@@ -266,11 +263,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private inputEditorHasText: IContextKey<boolean>;
 	private chatCursorAtTop: IContextKey<boolean>;
 	private inputEditorHasFocus: IContextKey<boolean>;
+	private currentlyEditingInputKey!: IContextKey<boolean>;
 	/**
 	 * Context key is set when prompt instructions are attached.
 	 */
 	private promptFileAttached: IContextKey<boolean>;
-	private chatMode: IContextKey<ChatMode>;
+	private chatModeKindKey: IContextKey<ChatModeKind>;
 
 	private modelWidget: ModelPickerActionItem | undefined;
 	private readonly _waitForPersistedLanguageModel: MutableDisposable<IDisposable>;
@@ -288,15 +286,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidChangeCurrentChatMode: Emitter<void>;
 	readonly onDidChangeCurrentChatMode: Event<void>;
 
-	private _currentMode: IChatMode;
-	public get currentMode(): ChatMode {
-		return this._currentMode.kind === ChatMode.Agent && !this.agentService.hasToolsAgent ?
-			ChatMode.Edit :
-			this._currentMode.kind;
+	private readonly _currentModeObservable = observableValue<IChatMode>('currentMode', ChatMode.Ask);
+	public get currentModeKind(): ChatModeKind {
+		const mode = this._currentModeObservable.get();
+		return mode.kind === ChatModeKind.Agent && !this.agentService.hasToolsAgent ?
+			ChatModeKind.Edit :
+			mode.kind;
 	}
 
-	public get currentMode2(): IChatMode {
-		return this._currentMode;
+	public get currentModeObs(): IObservable<IChatMode> {
+		return this._currentModeObservable;
 	}
 
 	private cachedDimensions: dom.Dimension | undefined;
@@ -375,8 +374,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.onDidFocus = this._onDidFocus.event;
 		this._onDidBlur = this._register(new Emitter<void>());
 		this.onDidBlur = this._onDidBlur.event;
-		this._onDidDispose = this._register(new Emitter<void>());
-		this.onDidDispose = this._onDidDispose.event;
 		this._onDidChangeContext = this._register(new Emitter<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>());
 		this.onDidChangeContext = this._onDidChangeContext.event;
 		this._onDidAcceptFollowup = this._register(new Emitter<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>());
@@ -395,7 +392,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._onDidChangeCurrentLanguageModel = this._register(new Emitter<ILanguageModelChatMetadataAndIdentifier>());
 		this._onDidChangeCurrentChatMode = this._register(new Emitter<void>());
 		this.onDidChangeCurrentChatMode = this._onDidChangeCurrentChatMode.event;
-		this._currentMode = ChatMode2.Ask;
+		this._currentModeObservable.set(ChatMode.Ask, undefined);
 		this.inputUri = URI.parse(`${Schemas.vscodeChatInput}:input-${ChatInputPart._counter++}`);
 		this._chatEditsActionsDisposables = this._register(new DisposableStore());
 		this._chatEditsDisposables = this._register(new DisposableStore());
@@ -406,14 +403,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 
 		this._attachmentModel = this._register(this.instantiationService.createInstance(ChatAttachmentModel));
-		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, observableFromEvent(this, this.onDidChangeCurrentChatMode, () => this.currentMode2)));
+		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, this.currentModeObs));
 		this.dnd = this._register(this.instantiationService.createInstance(ChatDragAndDrop, this._attachmentModel, styles));
 
 		this.getInputState = (): IChatInputState => {
 			return {
 				...getContribsInputState(),
 				chatContextAttachments: this._attachmentModel.attachments,
-				chatMode: this._currentMode,
+				chatMode: this._currentModeObservable.get().id,
 			};
 		};
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
@@ -422,7 +419,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatCursorAtTop = ChatContextKeys.inputCursorAtTop.bindTo(contextKeyService);
 		this.inputEditorHasFocus = ChatContextKeys.inputHasFocus.bindTo(contextKeyService);
 		this.promptFileAttached = ChatContextKeys.hasPromptFile.bindTo(contextKeyService);
-		this.chatMode = ChatContextKeys.chatMode.bindTo(contextKeyService);
+		this.chatModeKindKey = ChatContextKeys.chatModeKind.bindTo(contextKeyService);
 
 		this.history = this.loadHistory();
 		this._register(this.historyService.onDidClearHistory(() => this.history = new HistoryNavigator2<IChatHistoryEntry>([{ text: '', state: this.getInputState() }], ChatInputHistoryMaxEntries, historyKeyFn)));
@@ -440,7 +437,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.initSelectedModel();
 
 		this._register(this.onDidChangeCurrentChatMode(() => {
-			this.accessibilityService.alert(this._currentMode.kind);
+			this.accessibilityService.alert(this._currentModeObservable.get().name);
 			if (this._inputEditor) {
 				this._inputEditor.updateOptions({ ariaLabel: this._getAriaLabel() });
 			}
@@ -451,10 +448,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}));
 		this._register(this.chatModeService.onDidChangeChatModes(() => this.validateCurrentChatMode()));
-	}
-	public override dispose(): void {
-		this._onDidDispose.fire();
-		super.dispose();
 	}
 
 	private getSelectedModelStorageKey(): string {
@@ -505,12 +498,26 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 	}
 
+	public setEditing(enabled: boolean) {
+		this.currentlyEditingInputKey?.set(enabled);
+	}
+
 	public switchModel(modelMetadata: Pick<ILanguageModelChatMetadata, 'vendor' | 'id' | 'family'>) {
 		const models = this.getModels();
 		const model = models.find(m => m.metadata.vendor === modelMetadata.vendor && m.metadata.id === modelMetadata.id && m.metadata.family === modelMetadata.family);
 		if (model) {
 			this.setCurrentLanguageModel(model);
 		}
+	}
+
+	public switchModelByName(modelName: string): boolean {
+		const models = this.getModels();
+		const model = models.find(m => m.metadata.name === modelName);
+		if (model) {
+			this.setCurrentLanguageModel(model);
+			return true;
+		}
+		return false;
 	}
 
 	public switchToNextModel(): void {
@@ -532,23 +539,33 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	setChatMode(mode: ChatMode, storeSelection = true): void {
+	/**
+	 * By ID- prefer this method
+	 */
+	setChatMode(mode: ChatModeKind | string, storeSelection = true): void {
 		if (!this.options.supportsChangingModes) {
 			return;
 		}
 
-		const mode2 = validateChatMode2(mode) ?? ChatMode2.Ask;
+		const mode2 = this.chatModeService.findModeById(mode) ??
+			this.chatModeService.findModeById(ChatModeKind.Agent) ??
+			ChatMode.Ask;
 		this.setChatMode2(mode2, storeSelection);
 	}
 
-	setChatMode2(mode: IChatMode, storeSelection = true): void {
+	private setChatMode2(mode: IChatMode, storeSelection = true): void {
 		if (!this.options.supportsChangingModes) {
 			return;
 		}
 
-		this._currentMode = mode;
-		this.chatMode.set(mode.kind);
+		this._currentModeObservable.set(mode, undefined);
+		this.chatModeKindKey.set(mode.kind);
 		this._onDidChangeCurrentChatMode.fire();
+
+		const model = mode.model?.get();
+		if (model) {
+			this.switchModelByName(model);
+		}
 
 		if (storeSelection) {
 			this.storageService.store(GlobalLastChatModeKey, mode.kind, StorageScope.APPLICATION, StorageTarget.USER);
@@ -557,11 +574,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private modelSupportedForDefaultAgent(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 		// Probably this logic could live in configuration on the agent, or somewhere else, if it gets more complex
-		if (this.currentMode === ChatMode.Agent || (this.currentMode === ChatMode.Edit && this.configurationService.getValue(ChatConfiguration.Edits2Enabled))) {
-			const supportsToolsAgent = typeof model.metadata.capabilities?.agentMode === 'undefined' || model.metadata.capabilities.agentMode;
-
-			// Filter out models that don't support tool calling, and models that don't support enough context to have a good experience with the tools agent
-			return supportsToolsAgent && !!model.metadata.capabilities?.toolCalling;
+		if (this.currentModeKind === ChatModeKind.Agent || (this.currentModeKind === ChatModeKind.Edit && this.configurationService.getValue(ChatConfiguration.Edits2Enabled))) {
+			return ILanguageModelChatMetadata.suitableForAgentMode(model.metadata);
 		}
 
 		return true;
@@ -620,14 +634,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			kbLabel = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
 		}
 		let modeLabel = '';
-		switch (this.currentMode) {
-			case ChatMode.Agent:
+		switch (this.currentModeKind) {
+			case ChatModeKind.Agent:
 				modeLabel = localize('chatInput.mode.agent', "(Agent Mode), edit files in your workspace.");
 				break;
-			case ChatMode.Edit:
+			case ChatModeKind.Edit:
 				modeLabel = localize('chatInput.mode.edit', "(Edit Mode), edit files in your workspace.");
 				break;
-			case ChatMode.Ask:
+			case ChatModeKind.Ask:
 			default:
 				modeLabel = localize('chatInput.mode.ask', "(Ask Mode), ask questions or type / for topics.");
 				break;
@@ -641,20 +655,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	private async validateCurrentChatMode() {
-		const currentMode = this._currentMode;
-		if (isBuiltinChatMode(currentMode)) {
-			return;
-		}
-
-		const modes = await this.chatModeService.getModesAsync();
-		const validMode = modes.custom?.find(mode => mode.id === currentMode.id);
+	private validateCurrentChatMode() {
+		const currentMode = this._currentModeObservable.get();
+		const validMode = this.chatModeService.findModeById(currentMode.id);
 		if (!validMode) {
-			this.setChatMode2(ChatMode2.Agent);
+			this.setChatMode2(ChatMode.Agent);
 			return;
 		}
-
-		this.setChatMode2(validMode);
 	}
 
 	initForNewChatModel(state: IChatViewState, modelIsEmpty: boolean): void {
@@ -676,12 +683,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (typeof state.inputState.chatMode === 'string') {
 				this.setChatMode(state.inputState.chatMode);
 			} else {
-				this.setChatMode2(state.inputState.chatMode);
-				this.validateCurrentChatMode();
+				// This path is deprecated, but handle old state
+				this.setChatMode(state.inputState.chatMode.id);
 			}
 		} else {
 			const persistedMode = this.storageService.get(GlobalLastChatModeKey, StorageScope.APPLICATION);
-			if (isChatMode(persistedMode)) {
+			if (persistedMode) {
 				this.setChatMode(persistedMode);
 			}
 		}
@@ -705,7 +712,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						}
 					}
 
-					if (typeof defaultLanguageModelTreatment === 'string' && this._currentMode.kind === ChatMode.Agent) {
+					if (typeof defaultLanguageModelTreatment === 'string' && this._currentModeObservable.get().kind === ChatModeKind.Agent) {
 						this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 						this.logService.trace(`Applying default language model from experiment: ${defaultLanguageModelTreatment}`);
 						this.setExpModelOrWait(defaultLanguageModelTreatment);
@@ -911,8 +918,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	validateAgentMode(): void {
-		if (!this.agentService.hasToolsAgent && this._currentMode.kind === ChatMode.Agent) {
-			this.setChatMode(ChatMode.Edit);
+		if (!this.agentService.hasToolsAgent && this._currentModeObservable.get().kind === ChatModeKind.Agent) {
+			this.setChatMode(ChatModeKind.Edit);
 		}
 	}
 
@@ -1036,6 +1043,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
 		ChatContextKeys.inChatInput.bindTo(inputScopedContextKeyService).set(true);
+		this.currentlyEditingInputKey = ChatContextKeys.currentlyEditingInput.bindTo(inputScopedContextKeyService);
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, inputScopedContextKeyService])));
 
 		const { historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this._register(registerAndCreateHistoryNavigationContext(inputScopedContextKeyService, this));
@@ -1137,8 +1145,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 				} else if (action.id === ToggleAgentModeActionId && action instanceof MenuItemAction) {
 					const delegate: IModePickerDelegate = {
-						getMode: () => this.currentMode2,
-						onDidChangeMode: this._onDidChangeCurrentChatMode.event
+						currentMode: this._currentModeObservable
 					};
 					return this.instantiationService.createInstance(ModePickerActionItem, action, delegate);
 				}

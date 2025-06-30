@@ -12,6 +12,7 @@ import { URI } from '../../../base/common/uri.js';
 import { isObject } from '../../../base/common/types.js';
 import { UndoRedoSource } from '../../../platform/undoRedo/common/undoRedo.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { TextModelEditReason } from '../../common/textModelEditReason.js';
 
 export const IBulkEditService = createDecorator<IBulkEditService>('IWorkspaceEditService');
 
@@ -104,6 +105,7 @@ export interface IBulkEditOptions {
 	undoRedoGroupId?: number;
 	confirmBeforeUndo?: boolean;
 	respectAutoSaveConfig?: boolean;
+	reason?: TextModelEditReason;
 }
 
 export interface IBulkEditResult {

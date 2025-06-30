@@ -18,7 +18,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { DidUninstallMcpServerEvent, IGalleryMcpServer, IMcpGalleryService, InstallMcpServerResult, IQueryOptions, IInstallableMcpServer, IMcpServerManifest } from '../../../../platform/mcp/common/mcpManagement.js';
-import { IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -155,6 +155,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	) {
 		super();
 		this._register(this.mcpManagementService.onDidInstallMcpServersInCurrentProfile(e => this.onDidInstallMcpServers(e)));
+		this._register(this.mcpManagementService.onDidUpdateMcpServersInCurrentProfile(e => this.onDidUpdateMcpServers(e)));
 		this._register(this.mcpManagementService.onDidUninstallMcpServerInCurrentProfile(e => this.onDidUninstallMcpServer(e)));
 		this.queryLocal().then(async () => {
 			await this.queryGallery();
@@ -183,6 +184,24 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			let server = this._local.find(server => server.local?.name === result.name);
 			if (server) {
 				server.local = result.local;
+			} else {
+				server = this.instantiationService.createInstance(McpWorkbenchServer, result.local, result.source, undefined);
+				this._local.push(server);
+			}
+			this._onChange.fire(server);
+		}
+	}
+
+	private onDidUpdateMcpServers(e: readonly InstallMcpServerResult[]) {
+		for (const result of e) {
+			if (!result.local) {
+				continue;
+			}
+			const serverIndex = this._local.findIndex(server => server.local?.name === result.name);
+			let server: McpWorkbenchServer;
+			if (serverIndex !== -1) {
+				this._local[serverIndex].local = result.local;
+				server = this._local[serverIndex];
 			} else {
 				server = this.instantiationService.createInstance(McpWorkbenchServer, result.local, result.source, undefined);
 				this._local.push(server);
@@ -361,7 +380,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				this.open(this.instantiationService.createInstance(McpWorkbenchServer, undefined, galleryServer, undefined));
 			} else {
 				if (config.type === undefined) {
-					(<Mutable<IMcpServerConfiguration>>config).type = (<IMcpStdioServerConfiguration>parsed).command ? 'stdio' : 'http';
+					(<Mutable<IMcpServerConfiguration>>config).type = (<IMcpStdioServerConfiguration>parsed).command ? McpServerType.LOCAL : McpServerType.REMOTE;
 				}
 				this.open(this.instantiationService.createInstance(McpWorkbenchServer, undefined, undefined, { name, config, inputs }));
 			}

@@ -146,6 +146,13 @@ export interface ILanguageModelChatMetadata {
 	};
 }
 
+export namespace ILanguageModelChatMetadata {
+	export function suitableForAgentMode(metadata: ILanguageModelChatMetadata): boolean {
+		const supportsToolsAgent = typeof metadata.capabilities?.agentMode === 'undefined' || metadata.capabilities.agentMode;
+		return supportsToolsAgent && !!metadata.capabilities?.toolCalling;
+	}
+}
+
 export interface ILanguageModelChatResponse {
 	stream: AsyncIterable<IChatResponseFragment | IChatResponseFragment[]>;
 	result: Promise<any>;

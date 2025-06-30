@@ -180,7 +180,7 @@ suite('PromptsService', () => {
 
 			await parser1.settled();
 			assertLinks(
-				parser1.allReferences,
+				parser1.references,
 				[
 					new ExpectedLink(
 						URI.file('/Users/vscode/repos/test/file.md'),
@@ -277,7 +277,7 @@ suite('PromptsService', () => {
 			);
 
 			assertLinks(
-				parser2.allReferences,
+				parser2.references,
 				[
 					new ExpectedLink(
 						URI.file('/absolute/path.txt'),
@@ -296,7 +296,7 @@ suite('PromptsService', () => {
 
 			// parser1_1 has the same exact links as before
 			assertLinks(
-				parser1_1.allReferences,
+				parser1_1.references,
 				[
 					new ExpectedLink(
 						URI.file('/Users/vscode/repos/test/file.md'),
@@ -368,7 +368,7 @@ suite('PromptsService', () => {
 
 			// parser1_2 must have the same exact links as before
 			assertLinks(
-				parser1_2.allReferences,
+				parser1_2.references,
 				[
 					new ExpectedLink(
 						URI.file('/Users/vscode/repos/test/file.md'),
@@ -447,7 +447,7 @@ suite('PromptsService', () => {
 
 			// parser2_1 must have 2 links now
 			assertLinks(
-				parser2_1.allReferences,
+				parser2_1.references,
 				[
 					// the first link didn't change
 					new ExpectedLink(
@@ -490,7 +490,7 @@ suite('PromptsService', () => {
 			await parser.settled();
 
 			assertLinks(
-				parser.allReferences,
+				parser.references,
 				[
 					new ExpectedLink(
 						URI.file('/repos/file.md'),
@@ -515,7 +515,7 @@ suite('PromptsService', () => {
 			await parser.settled();
 
 			assertLinks(
-				parser.allReferences,
+				parser.references,
 				[
 					// link1 didn't change
 					new ExpectedLink(
@@ -550,7 +550,7 @@ suite('PromptsService', () => {
 		});
 	});
 
-	suite('getAllMetadata', () => {
+	suite('parse', () => {
 		test('explicit', async function () {
 			const rootFolderName = 'resolves-nested-file-references';
 			const rootFolder = `/${rootFolderName}`;
@@ -659,52 +659,65 @@ suite('PromptsService', () => {
 					],
 				}])).mock();
 
-			const metadata = await service
-				.getAllMetadata([rootFileUri]);
+			const file3 = URI.joinPath(rootFolderUri, 'folder1/file3.prompt.md');
+			const file4 = URI.joinPath(rootFolderUri, 'folder1/some-other-folder/file4.prompt.md');
+			const someOtherFolder = URI.joinPath(rootFolderUri, '/folder1/some-other-folder');
+			const someOtherFolderFile = URI.joinPath(rootFolderUri, '/folder1/some-other-folder/file.txt');
+			const nonExistingFolder = URI.joinPath(rootFolderUri, 'folder1/some-other-folder/non-existing-folder');
+			const yetAnotherFile = URI.joinPath(rootFolderUri, 'folder1/some-other-folder/yetAnotherFolder🤭/another-file.instructions.md');
 
-			assert.deepStrictEqual(
-				metadata,
-				[{
-					uri: rootFileUri,
-					metadata: {
-						promptType: PromptsType.prompt,
-						description: 'Root prompt description.',
-						tools: ['my-tool1'],
-						mode: 'agent',
-					},
-					children: [
-						{
-							uri: URI.joinPath(rootFolderUri, 'folder1/file3.prompt.md'),
-							metadata: {
-								promptType: PromptsType.prompt,
-								tools: ['my-tool1'],
-								mode: 'agent',
-							},
-							children: [
-								{
-									uri: URI.joinPath(rootFolderUri, 'folder1/some-other-folder/yetAnotherFolder🤭/another-file.instructions.md'),
-									metadata: {
-										promptType: PromptsType.instructions,
-										description: 'Another file description.',
-										applyTo: '**/*.tsx',
-									},
-									children: undefined,
-								},
-							],
-						},
-						{
-							uri: URI.joinPath(rootFolderUri, 'folder1/some-other-folder/file4.prompt.md'),
-							metadata: {
-								promptType: PromptsType.prompt,
-								tools: ['my-tool1', 'my-tool2'],
-								description: 'File 4 splendid description.',
-								mode: 'agent',
-							},
-							children: undefined,
-						}
-					],
-				}],
-			);
+
+			const result1 = await service.parse(rootFileUri, PromptsType.prompt, CancellationToken.None);
+			assert.deepStrictEqual(result1, {
+				uri: rootFileUri,
+				metadata: {
+					promptType: PromptsType.prompt,
+					description: 'Root prompt description.',
+					tools: ['my-tool1'],
+					mode: 'agent',
+				},
+				topError: undefined,
+				references: [file3, file4]
+			});
+
+			const result2 = await service.parse(file3, PromptsType.prompt, CancellationToken.None);
+			assert.deepStrictEqual(result2, {
+				uri: file3,
+				metadata: {
+					promptType: PromptsType.prompt,
+					tools: ['my-tool1'],
+					mode: 'agent',
+				},
+				topError: undefined,
+				references: [nonExistingFolder, yetAnotherFile]
+			});
+
+			const result3 = await service.parse(yetAnotherFile, PromptsType.instructions, CancellationToken.None);
+			assert.deepStrictEqual(result3, {
+				uri: yetAnotherFile,
+				metadata: {
+					promptType: PromptsType.instructions,
+					description: 'Another file description.',
+					applyTo: '**/*.tsx',
+				},
+				topError: undefined,
+				references: [someOtherFolder, someOtherFolderFile]
+			});
+
+			const result4 = await service.parse(file4, PromptsType.instructions, CancellationToken.None);
+			assert.deepStrictEqual(result4, {
+				uri: file4,
+				metadata: {
+					promptType: PromptsType.instructions,
+					description: 'File 4 splendid description.',
+				},
+				topError: undefined,
+				references: [
+					URI.joinPath(rootFolderUri, '/folder1/some-other-folder/some-non-existing/file.prompt.md'),
+					URI.joinPath(rootFolderUri, '/folder1/some-other-folder/some-non-prompt-file.md'),
+					URI.joinPath(rootFolderUri, '/folder1/'),
+				]
+			});
 		});
 	});
 

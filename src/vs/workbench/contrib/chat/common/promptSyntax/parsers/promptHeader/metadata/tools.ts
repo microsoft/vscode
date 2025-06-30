@@ -8,6 +8,7 @@ import { localize } from '../../../../../../../../nls.js';
 import { PromptMetadataDiagnostic, PromptMetadataError, PromptMetadataWarning } from '../diagnostics.js';
 import { FrontMatterSequence } from '../../../codecs/base/frontMatterCodec/tokens/frontMatterSequence.js';
 import { FrontMatterArray, FrontMatterRecord, FrontMatterString, FrontMatterToken, FrontMatterValueToken } from '../../../codecs/base/frontMatterCodec/tokens/index.js';
+import { Range } from '../../../../../../../../editor/common/core/range.js';
 
 /**
  * Name of the metadata record in the prompt header.
@@ -28,7 +29,7 @@ export class PromptToolsMetadata extends PromptMetadataRecord<string[]> {
 			return [];
 		}
 
-		return [...this.validToolNames.values()];
+		return [...this.validToolNames.keys()];
 	}
 
 	public override get recordName(): string {
@@ -44,7 +45,9 @@ export class PromptToolsMetadata extends PromptMetadataRecord<string[]> {
 	 * List of all valid tool names that were found in
 	 * this metadata record.
 	 */
-	private validToolNames: Set<string> | undefined;
+	private validToolNames: Map<string, Range> | undefined;
+
+
 
 	constructor(
 		recordToken: FrontMatterRecord,
@@ -81,7 +84,7 @@ export class PromptToolsMetadata extends PromptMetadataRecord<string[]> {
 		this.valueToken = valueToken;
 
 		// validate that all array items
-		this.validToolNames = new Set<string>();
+		this.validToolNames = new Map<string, Range>();
 		for (const item of this.valueToken.items) {
 			this.issues.push(
 				...this.validateToolName(item, this.validToolNames),
@@ -91,13 +94,17 @@ export class PromptToolsMetadata extends PromptMetadataRecord<string[]> {
 		return this.issues;
 	}
 
+	public getToolRange(toolName: string): Range | undefined {
+		return this.validToolNames?.get(toolName);
+	}
+
 	/**
 	 * Validate an individual provided value token that is used
 	 * for a tool name.
 	 */
 	private validateToolName(
 		valueToken: FrontMatterValueToken,
-		validToolNames: Set<string>,
+		validToolNames: Map<string, Range>,
 	): readonly PromptMetadataDiagnostic[] {
 		const issues: PromptMetadataDiagnostic[] = [];
 
@@ -153,7 +160,7 @@ export class PromptToolsMetadata extends PromptMetadataRecord<string[]> {
 			return issues;
 		}
 
-		validToolNames.add(cleanToolName);
+		validToolNames.set(cleanToolName, valueToken.range);
 		return issues;
 	}
 

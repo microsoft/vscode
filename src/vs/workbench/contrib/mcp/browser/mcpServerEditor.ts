@@ -44,6 +44,7 @@ import { McpServerEditorInput } from './mcpServerEditorInput.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ILocalMcpServer, IMcpServerManifest, IMcpServerPackage, PackageType } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 
 const enum McpServerEditorTab {
 	Readme = 'readme',
@@ -624,7 +625,7 @@ export class McpServerEditor extends EditorPane {
 		typeValue.textContent = config.type;
 
 		// Type-specific configuration
-		if (config.type === 'stdio') {
+		if (config.type === McpServerType.LOCAL) {
 			// Command
 			const commandSection = append(container, $('.config-section'));
 			const commandLabel = append(commandSection, $('.config-label'));
@@ -640,7 +641,7 @@ export class McpServerEditor extends EditorPane {
 				const argsValue = append(argsSection, $('code.config-value'));
 				argsValue.textContent = config.args.join(' ');
 			}
-		} else if (config.type === 'http') {
+		} else if (config.type === McpServerType.REMOTE) {
 			// URL
 			const urlSection = append(container, $('.config-section'));
 			const urlLabel = append(urlSection, $('.config-label'));
@@ -827,12 +828,14 @@ class AdditionalDetailsWidget extends Disposable {
 				$('div.more-info-entry-name', undefined, localize('id', "Identifier")),
 				$('code', undefined, extension.name)
 			));
-		append(installInfo,
-			$('.more-info-entry', undefined,
-				$('div.more-info-entry-name', undefined, localize('Version', "Version")),
-				$('code', undefined, extension.version)
-			)
-		);
+		if (extension.version) {
+			append(installInfo,
+				$('.more-info-entry', undefined,
+					$('div.more-info-entry-name', undefined, localize('Version', "Version")),
+					$('code', undefined, extension.version)
+				)
+			);
+		}
 	}
 
 	private renderMarketplaceInfo(container: HTMLElement, extension: IWorkbenchMcpServer): void {
