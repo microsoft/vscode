@@ -40,9 +40,9 @@ class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchCon
 	}
 }
 
-class ChatAgentCommandLineHandler extends Disposable {
+class ChatCommandLineHandler extends Disposable {
 
-	static readonly ID = 'workbench.contrib.chatAgentCommandLineHandler';
+	static readonly ID = 'workbench.contrib.chatCommandLineHandler';
 
 	constructor(
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
@@ -57,14 +57,14 @@ class ChatAgentCommandLineHandler extends Disposable {
 	}
 
 	private registerListeners() {
-		ipcRenderer.on('vscode:handleAgentRequest', (_, args: typeof this.environmentService.args.chat) => {
-			this.logService.trace('vscode:handleAgentRequest', args);
+		ipcRenderer.on('vscode:handleChatRequest', (_, args: typeof this.environmentService.args.chat) => {
+			this.logService.trace('vscode:handleChatRequest', args);
 
-			this.promptAgentic(args);
+			this.prompt(args);
 		});
 	}
 
-	private async promptAgentic(args: typeof this.environmentService.args.chat): Promise<void> {
+	private async prompt(args: typeof this.environmentService.args.chat): Promise<void> {
 		if (!Array.isArray(args?._)) {
 			return;
 		}
@@ -109,4 +109,4 @@ registerChatDeveloperActions();
 
 registerWorkbenchContribution2(KeywordActivationContribution.ID, KeywordActivationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(NativeBuiltinToolsContribution.ID, NativeBuiltinToolsContribution, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(ChatAgentCommandLineHandler.ID, ChatAgentCommandLineHandler, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChatCommandLineHandler.ID, ChatCommandLineHandler, WorkbenchPhase.BlockRestore);

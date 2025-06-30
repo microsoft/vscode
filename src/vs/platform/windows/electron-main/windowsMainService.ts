@@ -287,8 +287,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// Handle `<app> --wait`
 		this.handleWaitMarkerFile(openConfig, [window]);
 
-		// Handle `<app> agent`
-		this.handleAgentRequest(openConfig, [window]);
+		// Handle `<app> chat`
+		this.handleChatRequest(openConfig, [window]);
 	}
 
 	async open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]> {
@@ -449,8 +449,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// Handle `<app> --wait`
 		this.handleWaitMarkerFile(openConfig, usedWindows);
 
-		// Handle `<app> agent`
-		this.handleAgentRequest(openConfig, usedWindows);
+		// Handle `<app> chat`
+		this.handleChatRequest(openConfig, usedWindows);
 
 		return usedWindows;
 	}
@@ -474,21 +474,21 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 	}
 
-	private handleAgentRequest(openConfig: IOpenConfiguration, usedWindows: ICodeWindow[]): void {
+	private handleChatRequest(openConfig: IOpenConfiguration, usedWindows: ICodeWindow[]): void {
 		if (openConfig.context !== OpenContext.CLI || !openConfig.cli.chat || usedWindows.length === 0) {
 			return;
 		}
 
-		let windowHandlingAgentRequest: ICodeWindow | undefined;
+		let windowHandlingChatRequest: ICodeWindow | undefined;
 		if (usedWindows.length === 1) {
-			windowHandlingAgentRequest = usedWindows[0];
+			windowHandlingChatRequest = usedWindows[0];
 		} else {
-			windowHandlingAgentRequest = findWindowOnWorkspaceOrFolder(usedWindows, URI.file(openConfig.cli._[0] /* agent request gets cwd() as folder to open */));
+			windowHandlingChatRequest = findWindowOnWorkspaceOrFolder(usedWindows, URI.file(openConfig.cli._[0] /* chat request gets cwd() as folder to open */));
 		}
 
-		if (windowHandlingAgentRequest) {
-			windowHandlingAgentRequest.sendWhenReady('vscode:handleAgentRequest', CancellationToken.None, openConfig.cli.chat);
-			windowHandlingAgentRequest.focus();
+		if (windowHandlingChatRequest) {
+			windowHandlingChatRequest.sendWhenReady('vscode:handleChatRequest', CancellationToken.None, openConfig.cli.chat);
+			windowHandlingChatRequest.focus();
 		}
 	}
 

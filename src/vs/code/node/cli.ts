@@ -95,10 +95,10 @@ export async function main(argv: string[]): Promise<any> {
 		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS));
 	}
 
-	// Help (agent)
+	// Help (chat)
 	else if (args.chat?.help) {
 		const executable = `${product.applicationName}${isWindows ? '.exe' : ''}`;
-		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS.chat.options, { inputFilesLabel: localize('agentPrompt', "prompt") }));
+		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS.chat.options, { inputFilesLabel: localize('chatPrompt', "prompt") }));
 	}
 
 	// Version Info
@@ -283,7 +283,7 @@ export async function main(argv: string[]): Promise<any> {
 					}
 
 					if (args.chat) {
-						// Make sure to add tmp file as context to agent
+						// Make sure to add tmp file as context to chat
 						addArg(argv, '--add-file', stdinFilePath);
 					} else {
 						// Make sure to open tmp file as editor but ignore
