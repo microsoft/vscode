@@ -38,7 +38,7 @@ import { createTerminalLanguageVirtualUri, LspTerminalModelContentProvider } fro
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { env } from '../../../../../base/common/process.js';
-import { PYLANCE_DEBUG_DISPLAY_NAME } from './lspTerminalUtil.js';
+import { LSP_SUPPORTED_SHELLS, PYLANCE_DEBUG_DISPLAY_NAME } from './lspTerminalUtil.js';
 
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
@@ -160,6 +160,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 	// TODO: Eventually support multiple LSP providers for [non-Python REPLs](https://github.com/microsoft/vscode/issues/249479)
 	private async _loadLspCompletionAddon(xterm: RawXtermTerminal): Promise<void> {
+		// TODO: It should work in wsl
 		const isWsl =
 			isLinux &&
 			(
@@ -172,7 +173,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 
-		if (this._ctx.instance.shellType !== GeneralShellType.Python) {
+		if (!this._ctx.instance.shellType || !LSP_SUPPORTED_SHELLS.includes(this._ctx.instance.shellType)) {
 			this._lspAddon.clear();
 			return;
 		}
@@ -189,17 +190,18 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		const virtualProviders = this._languageFeaturesService.completionProvider.all(textVirtualModel.object.textEditorModel);
 		const provider = virtualProviders.find(p => p._debugDisplayName === PYLANCE_DEBUG_DISPLAY_NAME);
 
-		if (provider) {
-			const lspCompletionProviderAddon = this._lspAddon.value = this._instantiationService.createInstance(LspCompletionProviderAddon, provider, textVirtualModel, this._lspModelProvider.value);
-			xterm.loadAddon(lspCompletionProviderAddon);
-			this.add(lspCompletionProviderAddon);
-			this.add(this._terminalCompletionService.registerTerminalCompletionProvider(
-				'lsp',
-				lspCompletionProviderAddon.id,
-				lspCompletionProviderAddon,
-				...(lspCompletionProviderAddon.triggerCharacters ?? [])
-			));
+		if (!provider) {
+			return;
 		}
+		const lspCompletionProviderAddon = this._lspAddon.value = this._instantiationService.createInstance(LspCompletionProviderAddon, provider, textVirtualModel, this._lspModelProvider.value, this._ctx.instance);
+		xterm.loadAddon(lspCompletionProviderAddon);
+		this.add(lspCompletionProviderAddon);
+		this.add(this._terminalCompletionService.registerTerminalCompletionProvider(
+			'lsp',
+			lspCompletionProviderAddon.id,
+			lspCompletionProviderAddon,
+			...(lspCompletionProviderAddon.triggerCharacters ?? [])
+		));
 	}
 
 	private _loadAddons(xterm: RawXtermTerminal): void {
