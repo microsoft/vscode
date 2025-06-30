@@ -76,7 +76,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _cancellationTokenSource: CancellationTokenSource | undefined;
 
-	private _discoverability: TerminalSuggestShownTracker;
+	private _discoverability: TerminalSuggestShownTracker | undefined;
 
 	isPasting: boolean = false;
 	shellType: TerminalShellType | undefined;
@@ -220,7 +220,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				this._model?.forceRefilterAll();
 			}
 		}));
-		this._discoverability = this._register(this._instantiationService.createInstance(TerminalSuggestShownTracker, this.shellType));
 	}
 
 	activate(xterm: Terminal): void {
@@ -704,7 +703,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// Track the time when completions are shown for the first time
 		if (this._completionRequestTimestamp !== undefined) {
 			const completionLatency = Date.now() - this._completionRequestTimestamp;
-			if (this._suggestTelemetry && this.shellType) {
+			if (this._suggestTelemetry && this.shellType && this._discoverability) {
 				const firstShown = this._discoverability.getFirstShown(this.shellType);
 				this._discoverability.updateShown();
 				this._suggestTelemetry.logCompletionLatency(this._sessionId, completionLatency, firstShown);
@@ -766,10 +765,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _updateDiscoverabilityState(): void {
-		if (!this._suggestWidget || this._discoverability.done) {
+		if (!this._discoverability) {
+			this._discoverability = this._register(this._instantiationService.createInstance(TerminalSuggestShownTracker, this.shellType));
+		}
+
+		if (!this._suggestWidget || this._discoverability?.done) {
 			return;
 		}
-		this._discoverability.update(this._suggestWidget.element.domNode);
+		this._discoverability?.update(this._suggestWidget.element.domNode);
 	}
 
 	selectPreviousSuggestion(): void {
