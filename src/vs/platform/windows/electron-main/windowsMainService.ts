@@ -488,6 +488,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		if (windowHandlingAgentRequest) {
 			windowHandlingAgentRequest.sendWhenReady('vscode:handleAgentRequest', CancellationToken.None, openConfig.cli.chat);
+			windowHandlingAgentRequest.focus();
 		}
 	}
 
