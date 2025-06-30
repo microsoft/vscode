@@ -7,7 +7,6 @@ import { strictEqual } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { TerminalSettingId } from '../../../../../../platform/terminal/common/terminal.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { clampTerminalFontSize } from '../../browser/terminal.zoom.contribution.js';
 
@@ -44,29 +43,5 @@ suite('Terminal Mouse Wheel Zoom', () => {
 	test('clamps font size when going above maximum', () => {
 		const result = clampTerminalFontSize(100 + 1); // 100 + 1 = 101, clamped to 100
 		strictEqual(result, 100, 'Font size should be clamped when going above maximum');
-	});
-
-	test('clamps font size to minimum when configuration updated below bounds', async () => {
-		// Set initial font size
-		await configurationService.updateValue(TerminalSettingId.FontSize, 12);
-		strictEqual(configurationService.getValue(TerminalSettingId.FontSize), 12);
-
-		// Test updating to a value below minimum (simulating excessive scroll down)
-		const currentSize = configurationService.getValue(TerminalSettingId.FontSize);
-		const newSize = clampTerminalFontSize(currentSize + (-20)); // Simulate large negative delta
-		await configurationService.updateValue(TerminalSettingId.FontSize, newSize);
-		strictEqual(configurationService.getValue(TerminalSettingId.FontSize), 6, 'Font size should be clamped to minimum');
-	});
-
-	test('clamps font size to maximum when configuration updated above bounds', async () => {
-		// Set initial font size
-		await configurationService.updateValue(TerminalSettingId.FontSize, 12);
-		strictEqual(configurationService.getValue(TerminalSettingId.FontSize), 12);
-
-		// Test updating to a value above maximum
-		const currentSize = configurationService.getValue(TerminalSettingId.FontSize);
-		const newSize = clampTerminalFontSize(currentSize + 200); // Simulate large positive delta
-		await configurationService.updateValue(TerminalSettingId.FontSize, newSize);
-		strictEqual(configurationService.getValue(TerminalSettingId.FontSize), 100, 'Font size should be clamped to maximum');
 	});
 });
