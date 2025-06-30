@@ -40,6 +40,7 @@ import { DefaultViewsContext, SearchMcpServersContext } from '../../extensions/c
 import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
 import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 
 export interface McpServerListViewOptions {
 	showWelcomeOnEmpty?: boolean;
@@ -337,7 +338,7 @@ export class McpServersViewsContribution extends Disposable implements IWorkbenc
 				id: 'workbench.views.mcp.default.marketplace',
 				name: localize2('mcp', "MCP Servers"),
 				ctorDescriptor: new SyncDescriptor(DefaultBrowseMcpServersView, [{ showWelcomeOnEmpty: true }]),
-				when: ContextKeyExpr.and(DefaultViewsContext, HasInstalledMcpServersContext.toNegated()),
+				when: ContextKeyExpr.and(DefaultViewsContext, HasInstalledMcpServersContext.toNegated(), ChatContextKeys.Setup.hidden.negate()),
 				weight: 40,
 				order: 4,
 				canToggleVisibility: true
