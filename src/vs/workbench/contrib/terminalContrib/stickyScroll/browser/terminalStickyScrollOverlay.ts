@@ -273,6 +273,16 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			return;
 		}
 
+		// Hide sticky scroll if there's insufficient content above the viewport to justify showing it.
+		// This prevents sticky scroll from appearing when there's minimal content, such as after
+		// running 'clear' where the terminal mostly shows empty space.
+		const contentLinesAboveViewport = buffer.viewportY - stickyScrollLineStart;
+		const minContentThreshold = Math.max(1, Math.floor(xterm.rows * 0.25)); // At least 25% of viewport or 1 line
+		if (contentLinesAboveViewport < minContentThreshold) {
+			this._setVisible(false);
+			return;
+		}
+
 		// Hide sticky scroll for the partial command if it looks like there is a pager like `less`
 		// or `git log` active. This is done by checking if the bottom left cell contains the :
 		// character and the cursor is immediately to its right. This improves the behavior of a
