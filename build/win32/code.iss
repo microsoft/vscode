@@ -77,6 +77,8 @@ Type: files; Name: "{app}\{#VersionedResourcesFolder}\resources\app\Credits_45.0
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\_"
+Type: files; Name: "{app}\old_*"
+Type: files; Name: "{app}\new_*"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
