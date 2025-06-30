@@ -1035,6 +1035,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.input.attachmentModel.addContext(...currentContext);
 			}
 
+
 			// rerenders
 			this.inputPart.dnd.setDisabledOverlay(!isInput);
 			this.input.renderAttachedContext();
@@ -1060,9 +1061,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}));
 			}
 		}
+
+		type StartRequestEvent = { editRequestType: string };
+
+		type StartRequestEventClassification = {
+			owner: 'justschen';
+			comment: 'Event used to gain insights into when edits are being pressed.';
+			editRequestType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Current entry point for editing a request.' };
+		};
+
+		this.telemetryService.publicLog2<StartRequestEvent, StartRequestEventClassification>('chat.startEditingRequests', {
+			editRequestType: this.configurationService.getValue<string>('chat.editRequests'),
+		});
 	}
 
-	finishedEditing(currentRequest?: IChatListItemTemplate | undefined): void {
+	finishedEditing(completedEdit?: boolean): void {
 		// reset states
 		const editedRequest = this.renderer.getTemplateDataForRequestId(this.viewModel?.editing?.id);
 		this.viewModel?.model.setCheckpoint(undefined);
@@ -1095,6 +1108,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (editedRequest && editedRequest.currentElement) {
 			this.renderer.updateItemHeightOnRender(editedRequest.currentElement, editedRequest);
 		}
+
+		type CancelRequestEditEvent = {
+			editRequestType: string;
+			editCanceled: boolean;
+		};
+
+		type CancelRequestEventEditClassification = {
+			owner: 'justschen';
+			editRequestType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Current entry point for editing a request.' };
+			editCanceled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Indicates whether the edit was canceled.' };
+			comment: 'Event used to gain insights into when edits are being canceled.';
+		};
+
+		this.telemetryService.publicLog2<CancelRequestEditEvent, CancelRequestEventEditClassification>('chat.editRequestsFinished', {
+			editRequestType: this.configurationService.getValue<string>('chat.editRequests'),
+			editCanceled: !completedEdit
+		});
 
 		this.inputPart.focus();
 	}
@@ -1631,7 +1661,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				});
 
 				if (this.viewModel?.editing) {
-					this.finishedEditing();
+					this.finishedEditing(true);
 				}
 				return result.responseCreatedPromise;
 			}
