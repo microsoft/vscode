@@ -186,6 +186,11 @@ jobs:
       - name: Compile extensions for smoke tests
         run: npm run gulp compile-extension-media
 
+      - name: Diagnostics before smoke test run
+        run: ps -ef
+        continue-on-error: true
+        if: always()
+
       - name: 🧪 Run smoke tests (Electron)
         if: ${{ inputs.electron_tests }}
         timeout-minutes: 20
@@ -200,3 +205,8 @@ jobs:
         if: ${{ inputs.remote_tests }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --remote --tracing
+
+      - name: Diagnostics after smoke test run
+        run: ps -ef
+        continue-on-error: true
+        if: always()

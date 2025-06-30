@@ -233,6 +233,27 @@ jobs:
       - name: Compile extensions for smoke tests
         run: npm run gulp compile-extension-media
 
+      - name: Download node.js for remote smoke tests
+        run: |
+          for i in {1..3}; do
+            npm run gulp node && break
+            if [ $i -eq 3 ]; then
+              echo "Download failed after 3 attempts" >&2
+              exit 1
+            fi
+            echo "Download failed attempt $i, retrying..."
+            sleep 2
+          done
+
+      - name: Diagnostics before smoke test run (processes, max_user_watches, number of opened file handles)
+        run: |
+          set -e
+          ps -ef
+          cat /proc/sys/fs/inotify/max_user_watches
+          lsof | wc -l
+        continue-on-error: true
+        if: always()
+
       - name: 🧪 Run smoke tests (Electron)
         if: ${{ inputs.electron_tests }}
         timeout-minutes: 20
@@ -247,3 +268,12 @@ jobs:
         if: ${{ inputs.remote_tests }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --remote --tracing
+
+      - name: Diagnostics after smoke test run (processes, max_user_watches, number of opened file handles)
+        run: |
+          set -e
+          ps -ef
+          cat /proc/sys/fs/inotify/max_user_watches
+          lsof | wc -l
+        continue-on-error: true
+        if: always()
