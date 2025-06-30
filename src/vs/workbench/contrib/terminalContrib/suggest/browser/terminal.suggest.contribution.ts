@@ -311,11 +311,10 @@ registerTerminalAction({
 
 registerTerminalAction({
 	id: TerminalSuggestCommandId.ResetDiscoverability,
-	title: localize2('workbench.action.terminal.resetDiscoverability', 'Reset Discoverability'),
+	title: localize2('workbench.action.terminal.resetDiscoverability', 'Resetgit Suggest Discoverability'),
 	f1: true,
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		TerminalContextKeys.focus,
 		TerminalContextKeys.isOpen,
 		ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.Enabled}`, true)
 	),
