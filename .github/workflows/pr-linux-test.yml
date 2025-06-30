@@ -142,7 +142,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node build/lib/builtInExtensions.js
 
-      - name: Transpile
+      - name: Transpile client and extensions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run gulp transpile-client-esbuild transpile-extensions

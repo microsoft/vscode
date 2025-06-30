@@ -134,3 +134,30 @@ jobs:
       electron_tests: false
       browser_tests: false
       remote_tests: true
+
+  windows-electron-tests:
+    name: Windows
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      job_name: Electron
+      electron_tests: true
+      browser_tests: false
+      remote_tests: false
+
+  windows-browser-tests:
+    name: Windows
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      job_name: Browser
+      electron_tests: false
+      browser_tests: true
+      remote_tests: false
+
+  windows-remote-tests:
+    name: Windows
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      job_name: Remote
+      electron_tests: false
+      browser_tests: false
+      remote_tests: true
