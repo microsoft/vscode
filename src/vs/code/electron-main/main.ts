@@ -16,7 +16,7 @@ import { IPathWithLineAndColumn, isValidBasename, parseLineAndColumnAware, sanit
 import { Event } from '../../base/common/event.js';
 import { getPathLabel } from '../../base/common/labels.js';
 import { Schemas } from '../../base/common/network.js';
-import { basename, resolve } from '../../base/common/path.js';
+import { basename, dirname, resolve } from '../../base/common/path.js';
 import { mark } from '../../base/common/performance.js';
 import { IProcessEnvironment, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
 import { cwd } from '../../base/common/process.js';
@@ -133,6 +133,12 @@ class CodeMain {
 					logService.warn(`app#startup(): Error writing main lockfile: ${err.stack}`);
 				});
 
+
+				if (isWindows) {
+					// Check for pending updates and apply if found
+					await this.checkAndApplyPendingUpdates(logService, lifecycleMainService);
+				}
+
 				// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
 				bufferLogger.logger = loggerService.createLogger('main', { name: localize('mainLog', "Main") });
 
@@ -147,6 +153,87 @@ class CodeMain {
 			});
 		} catch (error) {
 			instantiationService.invokeFunction(this.quit, error);
+		}
+	}
+
+	private async checkAndApplyPendingUpdates(logService: ILogService, lifecycleMainService: ILifecycleMainService): Promise<void> {
+		try {
+			const exePath = app.getPath('exe');
+			const exeBasename = basename(exePath);
+			const exeBasenameWithoutExt = basename(exePath, '.exe');
+			const appInstallFolder = dirname(exePath);
+			const binFolderPath = resolve(appInstallFolder, 'bin');
+
+			const newExeName = `new_${exeBasename}`;
+			const newExePath = resolve(appInstallFolder, newExeName);
+
+			// Check if pending update exists
+			const newExeExists = await FSPromises.exists(newExePath);
+			if (!newExeExists) {
+				logService.trace('No pending updates found');
+				return;
+			}
+
+			logService.info('Pending update detected, applying update...');
+
+			// 1. Process bin folder files
+			const binFolderExists = await FSPromises.exists(binFolderPath);
+			if (binFolderExists) {
+				const binFiles = await FSPromises.readdir(binFolderPath);
+
+				for (const file of binFiles) {
+					if (file.startsWith('new_')) {
+						const currentFileName = file.substring(4); // Remove 'new_' prefix
+						const currentFilePath = resolve(binFolderPath, currentFileName);
+						const oldFilePath = resolve(binFolderPath, `old_${currentFileName}`);
+						const newFilePath = resolve(binFolderPath, file);
+
+						// Check if current file exists to rename to old_
+						const currentExists = await FSPromises.exists(currentFilePath);
+						if (currentExists) {
+							await FSPromises.rename(currentFilePath, oldFilePath);
+							logService.trace(`Renamed ${currentFileName} to old_${currentFileName}`);
+						}
+
+						// Rename new_ file to current
+						await FSPromises.rename(newFilePath, currentFilePath);
+						logService.trace(`Renamed ${file} to ${currentFileName}`);
+					}
+				}
+			}
+
+			// 2. Process main executable
+			const currentExePath = exePath;
+			const oldExePath = resolve(appInstallFolder, `old_${exeBasename}`);
+
+			await FSPromises.rename(currentExePath, oldExePath);
+			logService.trace(`Renamed main executable to old_${exeBasename}`);
+
+			await FSPromises.rename(newExePath, currentExePath);
+			logService.trace(`Renamed new executable to current`);
+
+			// 3. Process VisualElementsManifest.xml
+			const manifestName = `${exeBasenameWithoutExt}.VisualElementsManifest.xml`;
+			const currentManifestPath = resolve(appInstallFolder, manifestName);
+			const newManifestPath = resolve(appInstallFolder, `new_${manifestName}`);
+			const oldManifestPath = resolve(appInstallFolder, `old_${manifestName}`);
+
+			const newManifestExists = await FSPromises.exists(newManifestPath);
+			if (newManifestExists) {
+				const currentManifestExists = await FSPromises.exists(currentManifestPath);
+				if (currentManifestExists) {
+					await FSPromises.rename(currentManifestPath, oldManifestPath);
+					logService.trace(`Renamed ${manifestName} to old_${manifestName}`);
+				}
+
+				await FSPromises.rename(newManifestPath, currentManifestPath);
+				logService.trace(`Renamed new_${manifestName} to ${manifestName}`);
+			}
+
+			logService.info('Update applied successfully, relaunching...');
+			await lifecycleMainService.relaunch();
+		} catch (error) {
+			logService.error('Failed to apply pending update:', error);
 		}
 	}
 

@@ -294,6 +294,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			// 1) Use app.getPath('exe') to get the path to current executable file and store the basename of the exe file
 			const exePath = app.getPath('exe');
 			const exeBasename = path.basename(exePath);
+			const exeBasenameWithoutExt = path.basename(exePath, '.exe');
 			const appInstallPath = path.dirname(exePath);
 			this.logService.trace(`update#gc - exe path: ${exePath}, basename: ${exeBasename}, app install path: ${appInstallPath}`);
 
@@ -349,7 +350,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 					}
 				}
 				// c) {Exe basename}.VisualElementsManifest.xml
-				else if (entry.isFile() && entry.name === `${exeBasename}.VisualElementsManifest.xml`) {
+				else if (entry.isFile() && entry.name === `${exeBasenameWithoutExt}.VisualElementsManifest.xml`) {
 					shouldKeep = true;
 				}
 				// d) unins*.* files
