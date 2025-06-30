@@ -4302,6 +4302,11 @@ export interface IInlineSuggestOptions {
 		* @internal
 		*/
 		suppressInlineSuggestions?: string;
+
+		/**
+		* @internal
+		*/
+		triggerCommandOnProviderChange?: boolean;
 	};
 }
 
@@ -4335,6 +4340,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			},
 			experimental: {
 				suppressInlineSuggestions: '',
+				triggerCommandOnProviderChange: true,
 			},
 		};
 
@@ -4372,6 +4378,12 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					default: defaults.experimental.suppressInlineSuggestions,
 					tags: ['experimental', 'onExp'],
 					description: nls.localize('inlineSuggest.suppressInlineSuggestions', "Suppresses inline completions for specified extension IDs -- comma separated.")
+				},
+				'editor.inlineSuggest.experimental.triggerCommandOnProviderChange': {
+					type: 'boolean',
+					default: defaults.experimental.triggerCommandOnProviderChange,
+					tags: ['experimental', 'onExp'],
+					description: nls.localize('inlineSuggest.triggerCommandOnProviderChange', "Controls whether to trigger a command when the inline suggestion provider changes.")
 				},
 				'editor.inlineSuggest.fontFamily': {
 					type: 'string',
@@ -4427,6 +4439,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			},
 			experimental: {
 				suppressInlineSuggestions: EditorStringOption.string(input.experimental?.suppressInlineSuggestions, this.defaultValue.experimental.suppressInlineSuggestions),
+				triggerCommandOnProviderChange: boolean(input.experimental?.triggerCommandOnProviderChange, this.defaultValue.experimental.triggerCommandOnProviderChange),
 			},
 		};
 	}
