@@ -8,10 +8,11 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import * as child_process from 'child_process';
 import * as fs from 'fs';
-import { BaseServiceConfigurationProvider } from './configuration';
+import { BaseServiceConfigurationProvider, NodePathInfo } from './configuration';
 import { RelativeWorkspacePathResolver } from '../utils/relativePathResolver';
 
 export class ElectronServiceConfigurationProvider extends BaseServiceConfigurationProvider {
+	private readonly _trustedNodePath = 'node' as const;
 
 	private fixPathPrefixes(inspectValue: string): string {
 		const pathPrefixes = ['~' + path.sep];
@@ -39,8 +40,16 @@ export class ElectronServiceConfigurationProvider extends BaseServiceConfigurati
 		return null;
 	}
 
-	protected readLocalNodePath(configuration: vscode.WorkspaceConfiguration): string | null {
-		return this.validatePath(this.readLocalNodePathWorker(configuration));
+	protected readLocalNodePath(configuration: vscode.WorkspaceConfiguration): NodePathInfo | null {
+		const nodePath = this.validatePath(this.readLocalNodePathWorker(configuration));
+		if (!nodePath) {
+			return null;
+		}
+
+		const inspect = configuration.inspect('typescript.tsserver.nodePath');
+		const isTrusted = typeof inspect?.workspaceValue === 'string' && inspect.workspaceValue === this._trustedNodePath;
+
+		return { path: nodePath, isTrusted };
 	}
 
 	private readLocalNodePathWorker(configuration: vscode.WorkspaceConfiguration): string | null {
@@ -59,8 +68,16 @@ export class ElectronServiceConfigurationProvider extends BaseServiceConfigurati
 		return null;
 	}
 
-	protected readGlobalNodePath(configuration: vscode.WorkspaceConfiguration): string | null {
-		return this.validatePath(this.readGlobalNodePathWorker(configuration));
+	protected readGlobalNodePath(configuration: vscode.WorkspaceConfiguration): NodePathInfo | null {
+		const nodePath = this.validatePath(this.readGlobalNodePathWorker(configuration));
+		if (!nodePath) {
+			return null;
+		}
+
+		const inspect = configuration.inspect('typescript.tsserver.nodePath');
+		const isTrusted = typeof inspect?.workspaceValue === 'string' && inspect.globalValue === this._trustedNodePath;
+
+		return { path: nodePath, isTrusted };
 	}
 
 	private readGlobalNodePathWorker(configuration: vscode.WorkspaceConfiguration): string | null {
