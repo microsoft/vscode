@@ -167,3 +167,58 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run gulp transpile-client-esbuild transpile-extensions
+
+      - name: Download Electron and Playwright
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+
+          for i in {1..3}; do # try 3 times (matching retryCountOnTaskFailure: 3)
+            if npm exec -- npm-run-all -lp "electron ${{ env.VSCODE_ARCH }}" "playwright-install"; then
+              echo "Download successful on attempt $i"
+              break
+            fi
+
+            if [ $i -eq 3 ]; then
+              echo "Download failed after 3 attempts" >&2
+              exit 1
+            fi
+
+            echo "Download failed on attempt $i, retrying..."
+            sleep 5 # optional: add a small delay between retries
+          done
+
+      - name: 🧪 Run unit tests (Electron)
+        timeout-minutes: 15
+        run: ./scripts/test.sh --tfs "Unit Tests"
+
+      - name: 🧪 Run unit tests (node.js)
+        timeout-minutes: 15
+        run: npm run test-node
+
+      - name: Build integration tests
+        run: |
+          set -e
+          npm run gulp \
+            compile-extension:configuration-editing \
+            compile-extension:css-language-features-server \
+            compile-extension:emmet \
+            compile-extension:git \
+            compile-extension:github-authentication \
+            compile-extension:html-language-features-server \
+            compile-extension:ipynb \
+            compile-extension:notebook-renderers \
+            compile-extension:json-language-features-server \
+            compile-extension:markdown-language-features \
+            compile-extension-media \
+            compile-extension:microsoft-authentication \
+            compile-extension:typescript-language-features \
+            compile-extension:vscode-api-tests \
+            compile-extension:vscode-colorize-tests \
+            compile-extension:vscode-colorize-perf-tests \
+            compile-extension:vscode-test-resolver
+
+      - name: 🧪 Run integration tests (Electron)
+        timeout-minutes: 20
+        run: ./scripts/test-integration.sh --tfs "Integration Tests"
