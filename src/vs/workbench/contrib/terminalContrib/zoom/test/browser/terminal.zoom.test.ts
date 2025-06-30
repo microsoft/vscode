@@ -9,11 +9,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TerminalSettingId } from '../../../../../../platform/terminal/common/terminal.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-
-// Helper function to clamp font size (same as in terminal.zoom.contribution.ts)
-function clampTerminalFontSize(fontSize: number): number {
-	return Math.max(6, Math.min(100, fontSize));
-}
+import { clampTerminalFontSize } from '../../browser/terminal.zoom.contribution.js';
 
 suite('Terminal Mouse Wheel Zoom', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

@@ -19,10 +19,6 @@ import { isNumber } from '../../../../../base/common/types.js';
 import { defaultTerminalFontSize } from '../../../terminal/common/terminalConfiguration.js';
 import { TerminalZoomCommandId, TerminalZoomSettingId } from '../common/terminal.zoom.js';
 
-function clampTerminalFontSize(fontSize: number): number {
-	return Math.max(6, Math.min(100, fontSize));
-}
-
 class TerminalMouseWheelZoomContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.mouseWheelZoom';
 
@@ -165,3 +161,7 @@ registerTerminalAction({
 		await configurationService.updateValue(TerminalSettingId.FontSize, defaultTerminalFontSize);
 	}
 });
+
+export function clampTerminalFontSize(fontSize: number): number {
+	return Math.max(6, Math.min(100, fontSize));
+}
