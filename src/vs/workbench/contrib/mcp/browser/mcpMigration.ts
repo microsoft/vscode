@@ -6,7 +6,7 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { mcpConfigurationSection } from '../../../contrib/mcp/common/mcpConfiguration.js';
 import { IWorkbenchMcpManagementService } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
@@ -77,7 +77,7 @@ export class McpConfigMigrationContribution extends Disposable implements IWorkb
 			if (mcpConfiguration && mcpConfiguration.servers) {
 				for (const [, config] of Object.entries(mcpConfiguration.servers)) {
 					if (config.type === undefined) {
-						(<Mutable<IMcpServerConfiguration>>config).type = (<IMcpStdioServerConfiguration>config).command ? 'stdio' : 'http';
+						(<Mutable<IMcpServerConfiguration>>config).type = (<IMcpStdioServerConfiguration>config).command ? McpServerType.LOCAL : McpServerType.REMOTE;
 					}
 				}
 			}
