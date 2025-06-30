@@ -254,13 +254,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
-		// Require a shell type for completions. This will wait a short period after launching to
-		// wait for the shell type to initialize. This prevents user requests sometimes getting lost
-		// if requested shortly after the terminal is created.
+		// Wait for the shell type to initialize. This will wait a short period after launching to
+		// allow the shell type to be set if possible. This prevents user requests sometimes getting lost
+		// if requested shortly after the terminal is created. Completion providers can still work
+		// with undefined shell types (e.g., for pseudoterminal-based terminals).
 		await this._shellTypeInit;
-		if (!this.shellType) {
-			return;
-		}
 
 		let doNotRequestExtensionCompletions = false;
 		// Ensure that a key has been pressed since the last accepted completion in order to prevent
@@ -719,7 +717,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// Track the time when completions are shown for the first time
 		if (this._completionRequestTimestamp !== undefined) {
 			const completionLatency = Date.now() - this._completionRequestTimestamp;
-			if (this._suggestTelemetry && this.shellType) {
+			if (this._suggestTelemetry) {
 				const firstShown = this.getFirstShown(this.shellType);
 				this.updateShown();
 				this._suggestTelemetry.logCompletionLatency(this._sessionId, completionLatency, firstShown);
@@ -901,17 +899,18 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._suggestWidget?.hide();
 	}
 
-	getFirstShown(shellType: TerminalShellType): { window: boolean; shell: boolean } {
+	getFirstShown(shellType: TerminalShellType | undefined): { window: boolean; shell: boolean } {
 		if (!firstShownTracker) {
 			firstShownTracker = {
 				window: true,
-				shell: new Set([shellType])
+				shell: shellType ? new Set([shellType]) : new Set()
 			};
 			return { window: true, shell: true };
 		}
 
 		const isFirstForWindow = firstShownTracker.window;
-		const isFirstForShell = !firstShownTracker.shell.has(shellType);
+		// For undefined shellType, always consider it as first for shell to ensure telemetry is reported
+		const isFirstForShell = shellType ? !firstShownTracker.shell.has(shellType) : true;
 
 		if (isFirstForWindow || isFirstForShell) {
 			this.updateShown();
@@ -924,12 +923,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	updateShown(): void {
-		if (!this.shellType || !firstShownTracker) {
+		if (!firstShownTracker) {
 			return;
 		}
 
 		firstShownTracker.window = false;
-		firstShownTracker.shell.add(this.shellType);
+		// Only add to shell set if shellType is defined
+		if (this.shellType) {
+			firstShownTracker.shell.add(this.shellType);
+		}
 	}
 }
 
