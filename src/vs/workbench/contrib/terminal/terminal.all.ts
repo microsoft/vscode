@@ -30,5 +30,6 @@ import '../terminalContrib/typeAhead/browser/terminal.typeAhead.contribution.js'
 import '../terminalContrib/sendSequence/browser/terminal.sendSequence.contribution.js';
 import '../terminalContrib/sendSignal/browser/terminal.sendSignal.contribution.js';
 import '../terminalContrib/suggest/browser/terminal.suggest.contribution.js';
+import '../terminalContrib/task/browser/terminal.task.contribution.js';
 import '../terminalContrib/chat/browser/terminal.initialHint.contribution.js';
 import '../terminalContrib/wslRecommendation/browser/terminal.wslRecommendation.contribution.js';
