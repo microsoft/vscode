@@ -59,6 +59,8 @@ export const EditReasons = {
 		} as const);
 	},
 
+	rename: () => createEditReason({ source: 'rename' } as const),
+
 	chatApplyEdits(data: { modelId: string | undefined }) {
 		return createEditReason({
 			source: 'Chat.applyEdits',
@@ -79,6 +81,7 @@ export const EditReasons = {
 		return createEditReason({
 			source: 'inlineCompletionPartialAccept',
 			type: data.type,
+			$nes: data.nes,
 			$extensionId: data.extensionId,
 			$$requestUuid: data.requestUuid,
 		} as const);
@@ -106,6 +109,8 @@ export const EditReasons = {
 	applyEdits: () => createEditReason({ source: 'applyEdits' } as const),
 	snippet: () => createEditReason({ source: 'snippet' } as const),
 	suggest: (data: { extensionId: string | undefined }) => createEditReason({ source: 'suggest', $extensionId: data.extensionId } as const),
+
+	codeAction: (data: { kind: string | undefined; extensionId: string | undefined }) => createEditReason({ source: 'codeAction', $kind: data.kind, $extensionId: data.extensionId } as const)
 };
 
 type Values<T> = T[keyof T];

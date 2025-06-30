@@ -827,9 +827,9 @@ function completeListItemPattern(list: marked.Tokens.List): marked.Tokens.List |
 	return newList;
 }
 
-function completeHeading(token: marked.Tokens.Heading): marked.TokensList | void {
+function completeHeading(token: marked.Tokens.Heading, fullRawText: string): marked.TokensList | void {
 	if (token.raw.match(/-\s*$/)) {
-		return marked.lexer(token.raw + ' &nbsp;');
+		return marked.lexer(fullRawText + ' &nbsp;');
 	}
 }
 
@@ -887,7 +887,7 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 	}
 
 	if (lastToken?.type === 'heading') {
-		const completeTokens = completeHeading(lastToken as marked.Tokens.Heading);
+		const completeTokens = completeHeading(lastToken as marked.Tokens.Heading, mergeRawTokenText(tokens));
 		if (completeTokens) {
 			return completeTokens;
 		}
@@ -910,15 +910,15 @@ function completeUnderscore(tokens: marked.Token): marked.Token {
 }
 
 function completeLinkTarget(tokens: marked.Token): marked.Token {
-	return completeWithString(tokens, ')');
+	return completeWithString(tokens, ')', false);
 }
 
 function completeLinkTargetArg(tokens: marked.Token): marked.Token {
-	return completeWithString(tokens, '")');
+	return completeWithString(tokens, '")', false);
 }
 
 function completeLinkText(tokens: marked.Token): marked.Token {
-	return completeWithString(tokens, '](https://microsoft.com)');
+	return completeWithString(tokens, '](https://microsoft.com)', false);
 }
 
 function completeDoublestar(tokens: marked.Token): marked.Token {
@@ -929,12 +929,13 @@ function completeDoubleUnderscore(tokens: marked.Token): marked.Token {
 	return completeWithString(tokens, '__');
 }
 
-function completeWithString(tokens: marked.Token[] | marked.Token, closingString: string): marked.Token {
+function completeWithString(tokens: marked.Token[] | marked.Token, closingString: string, shouldTrim = true): marked.Token {
 	const mergedRawText = mergeRawTokenText(Array.isArray(tokens) ? tokens : [tokens]);
 
 	// If it was completed correctly, this should be a single token.
 	// Expecting either a Paragraph or a List
-	return marked.lexer(mergedRawText + closingString)[0] as marked.Token;
+	const trimmedRawText = shouldTrim ? mergedRawText.trimEnd() : mergedRawText;
+	return marked.lexer(trimmedRawText + closingString)[0] as marked.Token;
 }
 
 function completeTable(tokens: marked.Token[]): marked.Token[] | undefined {

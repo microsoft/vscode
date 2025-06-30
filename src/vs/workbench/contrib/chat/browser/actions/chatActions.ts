@@ -50,11 +50,12 @@ import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
+import { ChatMode, IChatMode } from '../../common/chatModes.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatMode, modeToString, validateChatMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } from '../../common/constants.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
@@ -97,7 +98,7 @@ export interface IChatViewOpenOptions {
 	/**
 	 * The mode to open the chat in.
 	 */
-	mode?: ChatMode;
+	mode?: ChatModeKind;
 }
 
 export interface IChatViewOpenRequestEntry {
@@ -110,7 +111,7 @@ export const CHAT_CONFIG_MENU_ID = new MenuId('workbench.chat.menu.config');
 const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
 
 abstract class OpenChatGlobalAction extends Action2 {
-	constructor(overrides: Pick<ICommandPaletteOptions, 'keybinding' | 'title' | 'id' | 'menu'>, private readonly mode?: ChatMode) {
+	constructor(overrides: Pick<ICommandPaletteOptions, 'keybinding' | 'title' | 'id' | 'menu'>, private readonly mode?: ChatModeKind) {
 		super({
 			...overrides,
 			icon: Codicon.copilot,
@@ -148,7 +149,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 
 		let switchToMode = opts?.mode ?? this.mode;
 		if (!switchToMode) {
-			switchToMode = opts?.query?.startsWith('@') ? ChatMode.Ask : undefined;
+			switchToMode = opts?.query?.startsWith('@') ? ChatModeKind.Ask : undefined;
 		}
 		if (switchToMode && validateChatMode(switchToMode)) {
 			await this.handleSwitchToMode(switchToMode, chatWidget, instaService, commandService);
@@ -170,7 +171,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 				chatWidget.setInput(opts.query);
 			} else {
 				await chatWidget.waitForReady();
-				await waitForDefaultAgent(chatAgentService, chatWidget.input.currentMode);
+				await waitForDefaultAgent(chatAgentService, chatWidget.input.currentModeKind);
 				chatWidget.acceptInput(opts.query);
 			}
 		}
@@ -193,8 +194,8 @@ abstract class OpenChatGlobalAction extends Action2 {
 		chatWidget.focusInput();
 	}
 
-	private async handleSwitchToMode(switchToMode: ChatMode, chatWidget: IChatWidget, instaService: IInstantiationService, commandService: ICommandService): Promise<void> {
-		const currentMode = chatWidget.input.currentMode;
+	private async handleSwitchToMode(switchToMode: ChatModeKind, chatWidget: IChatWidget, instaService: IInstantiationService, commandService: ICommandService): Promise<void> {
+		const currentMode = chatWidget.input.currentModeKind;
 
 		if (switchToMode) {
 			const editingSession = chatWidget.viewModel?.model.editingSession;
@@ -212,7 +213,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 	}
 }
 
-async function waitForDefaultAgent(chatAgentService: IChatAgentService, mode: ChatMode): Promise<void> {
+async function waitForDefaultAgent(chatAgentService: IChatAgentService, mode: ChatModeKind): Promise<void> {
 	const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel, mode);
 	if (defaultAgent) {
 		return;
@@ -248,18 +249,17 @@ class PrimaryOpenChatGlobalAction extends OpenChatGlobalAction {
 	}
 }
 
-export function getOpenChatActionIdForMode(mode: ChatMode): string {
-	const modeStr = modeToString(mode);
-	return `workbench.action.chat.open${modeStr}`;
+export function getOpenChatActionIdForMode(mode: IChatMode): string {
+	return `workbench.action.chat.open${mode.name}`;
 }
 
 abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
-	constructor(mode: ChatMode, keybinding?: ICommandPaletteOptions['keybinding']) {
+	constructor(mode: IChatMode, keybinding?: ICommandPaletteOptions['keybinding']) {
 		super({
 			id: getOpenChatActionIdForMode(mode),
-			title: localize2('openChatMode', "Open Chat ({0})", modeToString(mode)),
+			title: localize2('openChatMode', "Open Chat ({0})", mode.name),
 			keybinding
-		}, mode);
+		}, mode.kind);
 	}
 }
 
@@ -504,7 +504,7 @@ export function registerChatActions() {
 				category: CHAT_CATEGORY,
 				menu: [{
 					id: MenuId.ChatExecute,
-					when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
+					when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
 					group: 'navigation',
 					order: 1
 				}]
@@ -709,7 +709,8 @@ export function registerChatActions() {
 				title: localize2('configureCompletions', "Configure Code Completions..."),
 				precondition: ContextKeyExpr.and(
 					ChatContextKeys.Setup.installed,
-					ChatContextKeys.Setup.disabled.negate()
+					ChatContextKeys.Setup.disabled.negate(),
+					ChatContextKeys.Setup.untrusted.negate()
 				),
 				menu: {
 					id: MenuId.ChatTitleBarMenu,
@@ -808,8 +809,8 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.updateInstructions',
-				title: localize2('updateInstructions', "Automatically Update Instructions"),
-				shortTitle: localize2('updateInstructions.short', "Auto-update Instructions"),
+				title: localize2('updateInstructions', "Generate Instructions"),
+				shortTitle: localize2('updateInstructions.short', "Generate Instructions"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.sparkle,
 				f1: true,
@@ -827,20 +828,25 @@ export function registerChatActions() {
 			const commandService = accessor.get(ICommandService);
 
 			// Use chat command to open and send the query
-			const query = `Analyze this workspace and create or update \`.github/copilot-instructions.md\`. The file guides future AI coding agents here.
+			const query = `Analyze this codebase to generate or update \`.github/copilot-instructions.md\` for guiding AI coding agents.
 
-Add:
-- Core commands, especially build, lint, test (incl. single-test run), docs, migrations, etc.
-- High-level architecture, including major packages, services, data stores, external APIs, etc.
-- Repo-specific style rules, including formatting, imports, typing, naming, error handling, etc.
-- Relevant agent rules detected in \`.cursor/**\`, \`.cursorrules\`, \`AGENTS.md\`, \`AGENT.md\`, \`CLAUDE.md\`, \`.windsurfrules\`, existing Copilot file, etc.
-- Summarize important parts of README or other docs instead of copying them.
+Focus on discovering the essential knowledge that would help an AI agents be immediately productive in this codebase. Consider aspects like:
+- The "big picture" architecture that requires reading multiple files to understand - major components, service boundaries, data flows, and the "why" behind structural decisions
+- Critical developer workflows (builds, tests, debugging) especially commands that aren't obvious from file inspection alone
+- Project-specific conventions and patterns that differ from common practices
+- Integration points, external dependencies, and cross-component communication patterns
+
+Source existing AI conventions from: \`**/{.github/copilot-instructions.md,AGENT.md,AGENTS.md,CLAUDE.md,.cursorrules,.windsurfrules,.clinerules,.cursor/rules/**,.windsurf/rules/**,.clinerules/**,README.md}\`.
 
 Guidelines (read more at https://aka.ms/vscode-instructions-docs):
-- If \`.github/copilot-instructions.md\` exists, patch/merge. Never overwrite blindly.
-- Be concise; skip boilerplate, generic advice, or exhaustive file listings.
-- Use Markdown headings + bullets; keep prose minimal and non-repetitive.
-- Cite only facts found in the repo (don't invent information).`;
+- If \`.github/copilot-instructions.md\` exists, merge intelligently - preserve valuable content while updating outdated sections
+- Write concise, actionable instructions (~20-50 lines) using markdown structure
+- Include specific examples from the codebase when describing patterns
+- Avoid generic advice ("write tests", "handle errors") - focus on THIS project's specific approaches
+- Document only discoverable patterns, not aspirational practices
+- Reference key files/directories that exemplify important patterns
+
+After generating the initial instructions (in less than 20 tool calls, count down after each tool call), ask for feedback on any unclear or incomplete sections and iterate on the instructions based on their input.`;
 
 			await commandService.executeCommand('workbench.action.chat.open', {
 				mode: 'agent',
@@ -1004,8 +1010,8 @@ export async function handleCurrentEditingSession(currentEditingSession: IChatEd
  */
 export async function handleModeSwitch(
 	accessor: ServicesAccessor,
-	fromMode: ChatMode,
-	toMode: ChatMode,
+	fromMode: ChatModeKind,
+	toMode: ChatModeKind,
 	requestCount: number,
 	editingSession: IChatEditingSession | undefined,
 ): Promise<false | { needToClearSession: boolean }> {
@@ -1015,7 +1021,7 @@ export async function handleModeSwitch(
 
 	const configurationService = accessor.get(IConfigurationService);
 	const dialogService = accessor.get(IDialogService);
-	const needToClearEdits = (!configurationService.getValue(ChatConfiguration.Edits2Enabled) && (fromMode === ChatMode.Edit || toMode === ChatMode.Edit)) && requestCount > 0;
+	const needToClearEdits = (!configurationService.getValue(ChatConfiguration.Edits2Enabled) && (fromMode === ChatModeKind.Edit || toMode === ChatModeKind.Edit)) && requestCount > 0;
 	if (needToClearEdits) {
 		// If not using edits2 and switching into or out of edit mode, ask to discard the session
 		const phrase = localize('switchMode.confirmPhrase', "Switching chat modes will end your current edit session.");

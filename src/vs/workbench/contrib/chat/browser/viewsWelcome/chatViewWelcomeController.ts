@@ -17,9 +17,9 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { chatViewsWelcomeRegistry, IChatViewsWelcomeDescriptor } from './chatViewsWelcome.js';
+import { IChatWidgetService } from '../chat.js';
 
 const $ = dom.$;
 
@@ -113,6 +113,14 @@ export interface IChatViewWelcomeContent {
 	message: IMarkdownString | ((disposables: DisposableStore) => HTMLElement);
 	additionalMessage?: string | IMarkdownString;
 	tips?: IMarkdownString;
+	inputPart?: HTMLElement;
+	suggestedPrompts?: IChatSuggestedPrompts[];
+}
+
+export interface IChatSuggestedPrompts {
+	icon?: ThemeIcon;
+	label: string;
+	prompt: string;
 }
 
 export interface IChatViewWelcomeRenderOptions {
@@ -130,7 +138,7 @@ export class ChatViewWelcomePart extends Disposable {
 		@IOpenerService private openerService: IOpenerService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILogService private logService: ILogService,
-		@IChatAgentService chatAgentService: IChatAgentService,
+		@IChatWidgetService private chatWidgetService: IChatWidgetService,
 	) {
 		super();
 		this.element = dom.$('.chat-welcome-view');
@@ -172,6 +180,28 @@ export class ChatViewWelcomePart extends Disposable {
 			} else if (content.additionalMessage) {
 				const additionalMessageResult = this.renderMarkdownMessageContent(renderer, content.additionalMessage, options);
 				dom.append(message, additionalMessageResult.element);
+			}
+
+			if (content.inputPart) {
+				dom.append(this.element, content.inputPart);
+			}
+
+			if (content.suggestedPrompts && content.suggestedPrompts.length) {
+
+				// create a tile with icon and label for each suggested promot
+				const suggestedPromptsContainer = dom.append(this.element, $('.chat-welcome-view-suggested-prompts'));
+				for (const prompt of content.suggestedPrompts) {
+					const promptElement = dom.append(suggestedPromptsContainer, $('.chat-welcome-view-suggested-prompt'));
+					if (prompt.icon) {
+						const iconElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-icon'));
+						iconElement.appendChild(renderIcon(prompt.icon));
+					}
+					const labelElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-label'));
+					labelElement.textContent = prompt.label;
+					this._register(dom.addDisposableListener(promptElement, dom.EventType.CLICK, () => {
+						this.chatWidgetService.lastFocusedWidget?.setInput(prompt.prompt);
+					}));
+				}
 			}
 
 			// Tips
