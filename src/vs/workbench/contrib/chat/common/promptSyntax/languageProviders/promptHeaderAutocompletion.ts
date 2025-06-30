@@ -145,13 +145,14 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 			return undefined;
 		}
 
+		const whilespaceAfterColon = (lineContent.substring(colonPosition.column).match(/^\s*/)?.[0].length) ?? 0;
 		const values = this.getValueSuggestions(promptType, property);
 		for (const value of values) {
 			const item: CompletionItem = {
 				label: value,
 				kind: CompletionItemKind.Value,
 				insertText: value,
-				range: new Range(position.lineNumber, position.column, position.lineNumber, model.getLineMaxColumn(position.lineNumber)),
+				range: new Range(position.lineNumber, colonPosition.column + whilespaceAfterColon + 1, position.lineNumber, model.getLineMaxColumn(position.lineNumber)),
 			};
 			suggestions.push(item);
 		}
