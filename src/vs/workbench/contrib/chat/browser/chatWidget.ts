@@ -6,7 +6,6 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
-import { assert } from '../../../../base/common/assert.js';
 import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -1894,14 +1893,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		// if not tools to enable are present, we are done
-		if (tools !== undefined) {
-
-
-			// sanity check on the logic of the `getPromptFilesMetadata` method
-			// and the code above in case this block is moved around somewhere else:
-			// if we have some tools present, the mode must have been equal to `agent`
-			assert(this.input.currentModeKind === ChatModeKind.Agent, `Chat mode must be 'agent' when there are 'tools' defined, got ${this.input.currentModeKind}.`);
-
+		if (tools !== undefined && this.input.currentModeKind === ChatModeKind.Agent) {
 			const enablementMap = this.toolsService.toToolAndToolSetEnablementMap(new Set(tools));
 			this.input.selectedToolsModel.set(enablementMap, true);
 		}
