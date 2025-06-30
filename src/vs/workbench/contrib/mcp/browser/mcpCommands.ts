@@ -716,7 +716,7 @@ export class OpenUserMcpResourceCommand extends Action2 {
 	constructor() {
 		super({
 			id: McpCommandIds.OpenUserMcp,
-			title: localize2('mcp.command.openUserMcp', "Open User MCP Servers"),
+			title: localize2('mcp.command.openUserMcp', "Open User MCP Configuration"),
 			category,
 			f1: true
 		});
@@ -733,7 +733,7 @@ export class OpenRemoteUserMcpResourceCommand extends Action2 {
 	constructor() {
 		super({
 			id: McpCommandIds.OpenRemoteUserMcp,
-			title: localize2('mcp.command.openRemoteUserMcp', "Open Remote User MCP Servers"),
+			title: localize2('mcp.command.openRemoteUserMcp', "Open Remote User MCP Configuration"),
 			category,
 			f1: true,
 			precondition: RemoteNameContext.notEqualsTo('')
@@ -753,7 +753,7 @@ export class OpenWorkspaceFolderMcpResourceCommand extends Action2 {
 	constructor() {
 		super({
 			id: McpCommandIds.OpenWorkspaceFolderMcp,
-			title: localize2('mcp.command.openWorkspaceFolderMcp', "Open Workspace Folder MCP Servers"),
+			title: localize2('mcp.command.openWorkspaceFolderMcp', "Open Workspace Folder MCP Configuration"),
 			category,
 			f1: true,
 			precondition: WorkspaceFolderCountContext.notEqualsTo(0)
@@ -776,7 +776,7 @@ export class OpenWorkspaceMcpResourceCommand extends Action2 {
 	constructor() {
 		super({
 			id: McpCommandIds.OpenWorkspaceMcp,
-			title: localize2('mcp.command.openWorkspaceMcp', "Open Workspace MCP Servers"),
+			title: localize2('mcp.command.openWorkspaceMcp', "Open Workspace MCP Configuration"),
 			category,
 			f1: true,
 			precondition: WorkbenchStateContext.isEqualTo('workspace')
