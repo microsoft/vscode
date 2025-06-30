@@ -6,13 +6,15 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
+import { extname } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
-import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/languageModelToolsService.js';
-import { InternalFetchWebPageToolId } from '../../common/tools/tools.js';
 import { detectEncodingFromBuffer } from '../../../../services/textfile/common/encoding.js';
+import { ChatImageMimeType } from '../../common/languageModels.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultDataPart, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/languageModelToolsService.js';
+import { InternalFetchWebPageToolId } from '../../common/tools/tools.js';
 
 export const FetchWebPageToolData: IToolData = {
 	id: InternalFetchWebPageToolId,
@@ -64,22 +66,35 @@ export class FetchWebPageTool implements IToolImpl {
 		const webContents = webUris.size > 0 ? await this._readerModeService.extract([...webUris.values()]) : [];
 
 		// Get contents from file URIs
-		const fileContents: (string | undefined)[] = [];
+		const fileContents: (string | IToolResultDataPart | undefined)[] = [];
 		const successfulFileUris: URI[] = [];
 		for (const uri of fileUris.values()) {
 			try {
 				const fileContent = await this._fileService.readFile(uri, undefined, token);
 
-				// Check if the content is binary
-				const detected = detectEncodingFromBuffer({ buffer: fileContent.value, bytesRead: fileContent.value.byteLength });
-
-				if (detected.seemsBinary) {
-					// For binary files, return a message indicating they're not supported
-					// We do this for now until the tools that leverage this internal tool can support binary content
-					fileContents.push(localize('fetchWebPage.binaryNotSupported', 'Binary files are not supported at the moment.'));
+				// Check if this is a supported image type first
+				const imageMimeType = this._getSupportedImageMimeType(uri);
+				if (imageMimeType) {
+					// For supported image files, return as IToolResultDataPart
+					fileContents.push({
+						kind: 'data',
+						value: {
+							mimeType: imageMimeType,
+							data: fileContent.value
+						}
+					});
 				} else {
-					// For text files, convert to string
-					fileContents.push(fileContent.value.toString());
+					// Check if the content is binary
+					const detected = detectEncodingFromBuffer({ buffer: fileContent.value, bytesRead: fileContent.value.byteLength });
+
+					if (detected.seemsBinary) {
+						// For binary files, return a message indicating they're not supported
+						// We do this for now until the tools that leverage this internal tool can support binary content
+						fileContents.push(localize('fetchWebPage.binaryNotSupported', 'Binary files are not supported at the moment.'));
+					} else {
+						// For text files, convert to string
+						fileContents.push(fileContent.value.toString());
+					}
 				}
 
 				successfulFileUris.push(uri);
@@ -90,7 +105,7 @@ export class FetchWebPageTool implements IToolImpl {
 		}
 
 		// Build results array in original order
-		const results: (string | undefined)[] = [];
+		const results: (string | IToolResultDataPart | undefined)[] = [];
 		let webIndex = 0;
 		let fileIndex = 0;
 		for (const url of urls) {
@@ -112,8 +127,7 @@ export class FetchWebPageTool implements IToolImpl {
 
 		return {
 			content: this._getPromptPartsForResults(results),
-			// Have multiple results show in the dropdown
-			toolResultDetails: actuallyValidUris.length > 1 ? actuallyValidUris : undefined
+			toolResultDetails: actuallyValidUris
 		};
 	}
 
@@ -160,8 +174,8 @@ export class FetchWebPageTool implements IToolImpl {
 			invocationMessage.appendMarkdown(localize('fetchWebPage.invocationMessage.plural', 'Fetching {0} resources', valid.length));
 		} else if (valid.length === 1) {
 			const url = valid[0].toString();
-			// If the URL is too long, show it as a link... otherwise, show it as plain text
-			if (url.length > 400) {
+			// If the URL is too long or it's a file url, show it as a link... otherwise, show it as plain text
+			if (url.length > 400 || validFileUris.length === 1) {
 				pastTenseMessage.appendMarkdown(localize({
 					key: 'fetchWebPage.pastTenseMessageResult.singularAsLink',
 					comment: [
@@ -228,10 +242,41 @@ export class FetchWebPageTool implements IToolImpl {
 		return { webUris, fileUris, invalidUris };
 	}
 
-	private _getPromptPartsForResults(results: (string | undefined)[]): IToolResultTextPart[] {
-		return results.map(value => ({
-			kind: 'text',
-			value: value || localize('fetchWebPage.invalidUrl', 'Invalid URL')
-		}));
+	private _getPromptPartsForResults(results: (string | IToolResultDataPart | undefined)[]): (IToolResultTextPart | IToolResultDataPart)[] {
+		return results.map(value => {
+			if (!value) {
+				return {
+					kind: 'text',
+					value: localize('fetchWebPage.invalidUrl', 'Invalid URL')
+				};
+			} else if (typeof value === 'string') {
+				return {
+					kind: 'text',
+					value: value
+				};
+			} else {
+				// This is an IToolResultDataPart
+				return value;
+			}
+		});
+	}
+
+	private _getSupportedImageMimeType(uri: URI): ChatImageMimeType | undefined {
+		const ext = extname(uri.path).toLowerCase();
+		switch (ext) {
+			case '.png':
+				return ChatImageMimeType.PNG;
+			case '.jpg':
+			case '.jpeg':
+				return ChatImageMimeType.JPEG;
+			case '.gif':
+				return ChatImageMimeType.GIF;
+			case '.webp':
+				return ChatImageMimeType.WEBP;
+			case '.bmp':
+				return ChatImageMimeType.BMP;
+			default:
+				return undefined;
+		}
 	}
 }
