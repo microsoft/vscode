@@ -222,3 +222,14 @@ jobs:
       - name: 🧪 Run integration tests (Electron)
         timeout-minutes: 20
         run: ./scripts/test-integration.sh --tfs "Integration Tests"
+
+      - name: Compile smoke tests
+        working-directory: test/smoke
+        run: npm run compile
+
+      - name: Compile extensions for smoke tests
+        run: npm run gulp compile-extension-media
+
+      - name: 🧪 Run smoke tests (Electron)
+        timeout-minutes: 20
+        run: npm run smoketest-no-compile -- --tracing
