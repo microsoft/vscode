@@ -20,6 +20,7 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/cont
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 import { IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
@@ -48,7 +49,7 @@ export interface IChatExecuteActionContext {
 abstract class SubmitAction extends Action2 {
 	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const context: IChatExecuteActionContext | undefined = args[0];
-
+		const telemetryService = accessor.get(ITelemetryService);
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (widget?.viewModel?.editing) {
@@ -105,7 +106,32 @@ abstract class SubmitAction extends Action2 {
 					: { confirmed: true };
 
 				if (!confirmation.confirmed) {
+					type StartRequestEvent = { editRequestType: string };
+
+					type StartRequestEventClassification = {
+						owner: 'justschen';
+						comment: 'Event used to gain insights into when there are pending changes to undo, and edited requests are not applied due to user cancellation from the confirmation dialogue.';
+						editRequestType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Current entry point for editing a request.' };
+					};
+
+					telemetryService.publicLog2<StartRequestEvent, StartRequestEventClassification>('chat.cancelledConfirmationEditingRequests', {
+						editRequestType: configurationService.getValue<string>('chat.editRequests'),
+					});
 					return;
+				}
+
+				if (editsToUndo > 0) {
+					type StartRequestEvent = { editRequestType: string };
+
+					type StartRequestEventClassification = {
+						owner: 'justschen';
+						comment: 'Event used to gain insights into when there are pending changes to undo, but edited requests are still applied. ';
+						editRequestType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Current entry point for editing a request.' };
+					};
+
+					telemetryService.publicLog2<StartRequestEvent, StartRequestEventClassification>('chat.sentConfirmationEditingRequests', {
+						editRequestType: configurationService.getValue<string>('chat.editRequests'),
+					});
 				}
 
 				if (confirmation.checkboxChecked) {
