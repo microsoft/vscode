@@ -120,14 +120,14 @@ abstract class SubmitAction extends Action2 {
 				};
 
 				if (!confirmation.confirmed) {
-					telemetryService.publicLog2<EditUndoEvent, EditUndoEventClassification>('chat.undoConfirmation', {
+					telemetryService.publicLog2<EditUndoEvent, EditUndoEventClassification>('chat.undoEditsConfirmation', {
 						editRequestType: configurationService.getValue<string>('chat.editRequests'),
 						outcome: 'cancelled',
 						editsUndoCount: editsToUndo
 					});
 					return;
 				} else if (editsToUndo > 0) {
-					telemetryService.publicLog2<EditUndoEvent, EditUndoEventClassification>('chat.undoConfirmation', {
+					telemetryService.publicLog2<EditUndoEvent, EditUndoEventClassification>('chat.undoEditsConfirmation', {
 						editRequestType: configurationService.getValue<string>('chat.editRequests'),
 						outcome: 'applied',
 						editsUndoCount: editsToUndo
