@@ -60,6 +60,7 @@ class ChatAgentCommandLineHandler extends Disposable {
 	private registerListeners() {
 		ipcRenderer.on('vscode:handleAgentRequest', (_, args: typeof this.environmentService.args.agent) => {
 			this.logService.trace('vscode:handleAgentRequest', args);
+
 			this.promptAgentic(args);
 		});
 	}
