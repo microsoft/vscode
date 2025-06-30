@@ -79,30 +79,6 @@ jobs:
       - name: Compile & Hygiene
         run: npm exec -- npm-run-all -lp core-ci-pr extensions-ci-pr hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check
 
-      # - name: npm run core-ci-pr
-      #   run: npm run core-ci-pr
-
-      # - name: npm run extensions-ci-pr
-      #   run: npm run extensions-ci-pr
-
-      # - name: npm run hygiene
-      #   run: npm run hygiene
-
-      # - name: npm run eslint
-      #   run: npm run eslint
-
-      # - name: npm run valid-layers-check
-      #   run: npm run valid-layers-check
-
-      # - name: npm run define-class-fields-check
-      #   run: npm run define-class-fields-check
-
-      # - name: npm run vscode-dts-compile-check
-      #   run: npm run vscode-dts-compile-check
-
-      # - name: npm run tsec-compile-check
-      #   run: npm run tsec-compile-check
-
   macos-electron-tests:
     name: macOS (Electron)
     runs-on: macos-14-xlarge
@@ -149,7 +125,7 @@ jobs:
           set -e
           c++ --version
           xcode-select -print-path
-          python3 -m pip install setuptools
+          python3 -m pip install --break-system-packages setuptools
 
           for i in {1..5}; do # try 5 times
             npm ci && break
