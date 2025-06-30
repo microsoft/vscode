@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChatMode } from '../../constants.js';
+import { ChatModeKind } from '../../constants.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { TMetadata } from '../parsers/promptHeader/headerBase.js';
@@ -120,7 +120,7 @@ interface ICombinedAgentToolsMetadata {
 	 * Resulting chat mode of a prompt, based on modes
 	 * used in the entire tree of prompt references.
 	 */
-	readonly mode: ChatMode.Agent;
+	readonly mode: ChatModeKind.Agent;
 }
 
 /**
@@ -138,7 +138,7 @@ interface ICombinedNonAgentToolsMetadata {
 	 * Resulting chat mode of a prompt, based on modes
 	 * used in the entire tree of prompt references.
 	 */
-	readonly mode?: ChatMode.Ask | ChatMode.Edit;
+	readonly mode?: ChatModeKind.Ask | ChatModeKind.Edit;
 }
 
 /**

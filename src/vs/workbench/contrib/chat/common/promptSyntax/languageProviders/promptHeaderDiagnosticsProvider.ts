@@ -17,8 +17,8 @@ import { PromptModelMetadata } from '../parsers/promptHeader/metadata/model.js';
 import { ModeHeader } from '../parsers/promptHeader/modeHeader.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
-import { ChatMode } from '../../constants.js';
 import { localize } from '../../../../../../nls.js';
+import { ChatModeKind } from '../../constants.js';
 
 /**
  * Unique ID of the markers provider class.
@@ -79,8 +79,8 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 			this.validateTools(header.metadataUtility.tools, header.metadata.mode, markers);
 			this.validateModel(header.metadataUtility.model, header.metadata.mode, markers);
 		} else if (header instanceof ModeHeader) {
-			this.validateTools(header.metadataUtility.tools, ChatMode.Agent, markers);
-			this.validateModel(header.metadataUtility.model, ChatMode.Agent, markers);
+			this.validateTools(header.metadataUtility.tools, ChatModeKind.Agent, markers);
+			this.validateModel(header.metadataUtility.model, ChatModeKind.Agent, markers);
 
 		}
 
@@ -91,7 +91,7 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 		);
 		return;
 	}
-	validateModel(modelNode: PromptModelMetadata | undefined, mode: ChatMode | undefined, markers: IMarkerData[]) {
+	validateModel(modelNode: PromptModelMetadata | undefined, modeKind: ChatModeKind | undefined, markers: IMarkerData[]) {
 		if (!modelNode || modelNode.value === undefined) {
 			return;
 		}
@@ -107,7 +107,7 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 				severity: MarkerSeverity.Warning,
 				...modelNode.range,
 			});
-		} else if (mode === ChatMode.Agent && !ILanguageModelChatMetadata.suitableForAgentMode(modelMetadata)) {
+		} else if (modeKind === ChatModeKind.Agent && !ILanguageModelChatMetadata.suitableForAgentMode(modelMetadata)) {
 			markers.push({
 				message: localize('promptHeaderDiagnosticsProvider.modelNotSuited', "Model '{0}' is not suited for agent mode", modelNode.value),
 				severity: MarkerSeverity.Warning,
@@ -126,8 +126,8 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 		return undefined;
 	}
 
-	validateTools(tools: PromptToolsMetadata | undefined, mode: ChatMode | undefined, markers: IMarkerData[]) {
-		if (!tools || tools.value === undefined || mode === ChatMode.Ask || mode === ChatMode.Edit) {
+	validateTools(tools: PromptToolsMetadata | undefined, modeKind: ChatModeKind | undefined, markers: IMarkerData[]) {
+		if (!tools || tools.value === undefined || modeKind === ChatModeKind.Ask || modeKind === ChatModeKind.Edit) {
 			return;
 		}
 		const toolNames = new Set(tools.value);
