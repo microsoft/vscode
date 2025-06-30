@@ -56,7 +56,7 @@ export class TerminalSuggestShownTracker extends Disposable implements ITerminal
 			return;
 		}
 		this._count++;
-		this._storageService.store(TERMINAL_SUGGEST_DISCOVERABILITY_COUNT_KEY, this._count, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this._storageService.store(TERMINAL_SUGGEST_DISCOVERABILITY_COUNT_KEY, this._count, StorageScope.APPLICATION, StorageTarget.USER);
 		if (widgetElt && !widgetElt.classList.contains('increased-discoverability')) {
 			widgetElt.classList.add('increased-discoverability');
 		}
@@ -72,7 +72,7 @@ export class TerminalSuggestShownTracker extends Disposable implements ITerminal
 
 	private _setDone(widgetElt: HTMLElement | undefined) {
 		this._done = true;
-		this._storageService.store(TERMINAL_SUGGEST_DISCOVERABILITY_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this._storageService.store(TERMINAL_SUGGEST_DISCOVERABILITY_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
 		if (widgetElt) {
 			widgetElt.classList.remove('increased-discoverability');
 		}
