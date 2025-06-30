@@ -20,6 +20,7 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/cont
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 import { IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
@@ -48,7 +49,7 @@ export interface IChatExecuteActionContext {
 abstract class SubmitAction extends Action2 {
 	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const context: IChatExecuteActionContext | undefined = args[0];
-
+		const telemetryService = accessor.get(ITelemetryService);
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (widget?.viewModel?.editing) {
@@ -104,8 +105,33 @@ abstract class SubmitAction extends Action2 {
 					})
 					: { confirmed: true };
 
+				type EditUndoEvent = {
+					editRequestType: string;
+					outcome: 'cancelled' | 'applied';
+					editsUndoCount: number;
+				};
+
+				type EditUndoEventClassification = {
+					owner: 'justschen';
+					comment: 'Event used to gain insights into when there are pending changes to undo, and whether edited requests are applied or cancelled.';
+					editRequestType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Current entry point for editing a request.' };
+					outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the edit was cancelled or applied.' };
+					editsUndoCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of edits that would be undone.'; 'isMeasurement': true };
+				};
+
 				if (!confirmation.confirmed) {
+					telemetryService.publicLog2<EditUndoEvent, EditUndoEventClassification>('chat.undoEditsConfirmation', {
+						editRequestType: configurationService.getValue<string>('chat.editRequests'),
+						outcome: 'cancelled',
+						editsUndoCount: editsToUndo
+					});
 					return;
+				} else if (editsToUndo > 0) {
+					telemetryService.publicLog2<EditUndoEvent, EditUndoEventClassification>('chat.undoEditsConfirmation', {
+						editRequestType: configurationService.getValue<string>('chat.editRequests'),
+						outcome: 'applied',
+						editsUndoCount: editsToUndo
+					});
 				}
 
 				if (confirmation.checkboxChecked) {
