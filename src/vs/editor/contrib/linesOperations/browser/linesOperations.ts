@@ -171,23 +171,78 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+
+		const model = editor.getModel();
+		if (!model) {
+			return;
+		}
+
 		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
 
-		const commands: ICommand[] = [];
 		const selections = editor.getSelections() || [];
 		const autoIndent = editor.getOption(EditorOption.autoIndent);
 
+		selections.sort((a, b) => {
+			if (this.down) {
+				if (a.startLineNumber === b.startLineNumber) {
+					return b.endLineNumber - a.endLineNumber;
+				} else {
+					return b.startLineNumber - a.startLineNumber;
+				}
+			} else {
+				if (a.startLineNumber === b.startLineNumber) {
+					return a.endLineNumber - b.endLineNumber;
+				} else {
+					return a.startLineNumber - b.startLineNumber;
+				}
+			}
+		});
+
+		const nonIntersectingSelections: Selection[] = [];
+		const newSelections: Selection[] = [];
+		const lineCount = model.getLineCount();
+
+		let lastStartLineNumber = lineCount;
+		let lastEndLineNumber = 0;
+
 		for (const selection of selections) {
-			commands.push(new MoveLinesCommand(selection, this.down, autoIndent, languageConfigurationService));
+			if (this.down && selection.endLineNumber >= lastStartLineNumber || this.down && selection.endLineNumber === lineCount) {
+				continue;
+			}
+			if (!this.down && selection.startLineNumber <= lastEndLineNumber || !this.down && selection.startLineNumber === 1) {
+				continue;
+			}
+
+			nonIntersectingSelections.push(selection);
+
+			const startPosition = selection.getStartPosition();
+			const startCol = startPosition.column;
+			const startLine = startPosition.lineNumber;
+			const newStartLine = this.down ? startLine + 1 : startLine - 1;
+
+			const endPosition = selection.getEndPosition();
+			const endCol = endPosition.column;
+			const endLine = endPosition.lineNumber;
+			const newEndLine = this.down ? endLine + 1 : endLine - 1;
+
+			newSelections.push(new Selection(newStartLine, startCol, newEndLine, endCol));
+
+			lastEndLineNumber = selection.endLineNumber;
+			lastStartLineNumber = selection.startLineNumber;
 		}
 
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, commands);
+		for (const selection of nonIntersectingSelections) {
+			editor.executeCommands(this.id, [new MoveLinesCommand(selection, this.down, autoIndent, languageConfigurationService)]);
+		}
+		if (newSelections) {
+			editor.setSelections(newSelections);
+		}
 		editor.pushUndoStop();
 	}
 }
 
-class MoveLinesUpAction extends AbstractMoveLinesAction {
+export class MoveLinesUpAction extends AbstractMoveLinesAction {
 	constructor() {
 		super(false, {
 			id: 'editor.action.moveLinesUpAction',
@@ -209,7 +264,7 @@ class MoveLinesUpAction extends AbstractMoveLinesAction {
 	}
 }
 
-class MoveLinesDownAction extends AbstractMoveLinesAction {
+export class MoveLinesDownAction extends AbstractMoveLinesAction {
 	constructor() {
 		super(true, {
 			id: 'editor.action.moveLinesDownAction',
