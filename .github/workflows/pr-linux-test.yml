@@ -15,10 +15,11 @@ on:
         required: true
 
 jobs:
-  macOS-test:
+  linux-test:
     name: ${{ inputs.job_name }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
     env:
+      NPM_ARCH: x64
       VSCODE_ARCH: x64
     steps:
       - name: Checkout microsoft/vscode
