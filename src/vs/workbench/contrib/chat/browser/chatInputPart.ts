@@ -510,6 +510,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
+	public switchModelByName(modelName: string): boolean {
+		const models = this.getModels();
+		const model = models.find(m => m.metadata.name === modelName);
+		if (model) {
+			this.setCurrentLanguageModel(model);
+			return true;
+		}
+		return false;
+	}
+
 	public switchToNextModel(): void {
 		const models = this.getModels();
 		if (models.length > 0) {
@@ -552,6 +562,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatModeKindKey.set(mode.kind);
 		this._onDidChangeCurrentChatMode.fire();
 
+		const model = mode.model?.get();
+		if (model) {
+			this.switchModelByName(model);
+		}
+
 		if (storeSelection) {
 			this.storageService.store(GlobalLastChatModeKey, mode.kind, StorageScope.APPLICATION, StorageTarget.USER);
 		}
@@ -560,10 +575,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private modelSupportedForDefaultAgent(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 		// Probably this logic could live in configuration on the agent, or somewhere else, if it gets more complex
 		if (this.currentModeKind === ChatModeKind.Agent || (this.currentModeKind === ChatModeKind.Edit && this.configurationService.getValue(ChatConfiguration.Edits2Enabled))) {
-			const supportsToolsAgent = typeof model.metadata.capabilities?.agentMode === 'undefined' || model.metadata.capabilities.agentMode;
-
-			// Filter out models that don't support tool calling, and models that don't support enough context to have a good experience with the tools agent
-			return supportsToolsAgent && !!model.metadata.capabilities?.toolCalling;
+			return ILanguageModelChatMetadata.suitableForAgentMode(model.metadata);
 		}
 
 		return true;

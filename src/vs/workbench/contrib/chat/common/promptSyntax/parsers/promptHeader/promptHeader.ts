@@ -12,6 +12,7 @@ import { PromptToolsMetadata, PromptModeMetadata } from './metadata/index.js';
 import { HeaderBase, IHeaderMetadata, type TDehydrated } from './headerBase.js';
 import { PromptsType } from '../../promptTypes.js';
 import { FrontMatterRecord } from '../../codecs/base/frontMatterCodec/tokens/index.js';
+import { PromptModelMetadata } from './metadata/model.js';
 
 /**
  * Metadata utility object for prompt files.
@@ -26,6 +27,11 @@ export interface IPromptMetadata extends IHeaderMetadata {
 	 * Chat mode metadata in the prompt header.
 	 */
 	mode: PromptModeMetadata;
+
+	/**
+	 * Chat model metadata in the prompt header.
+	 */
+	model: PromptModelMetadata;
 }
 
 /**
@@ -59,6 +65,15 @@ export class PromptHeader extends HeaderBase<IPromptMetadata> {
 			this.meta.mode = metadata;
 
 			this.validateToolsAndModeCompatibility();
+			return true;
+		}
+
+		if (PromptModelMetadata.isModelRecord(token)) {
+			const metadata = new PromptModelMetadata(token, this.languageId);
+
+			this.issues.push(...metadata.validate());
+			this.meta.model = metadata;
+
 			return true;
 		}
 

@@ -26,6 +26,7 @@ import { getCleanPromptName, PROMPT_FILE_EXTENSION } from '../config/promptFileL
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { PromptsConfig } from '../config/config.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TModeMetadata } from '../parsers/promptHeader/modeHeader.js';
 
 /**
  * Provides prompt services.
@@ -236,23 +237,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 					await parser.settled();
 
-					const { metadata } = parser;
-					const tools = (metadata && ('tools' in metadata))
-						? metadata.tools
-						: undefined;
-
+					const { description, model, tools } = parser.metadata as TModeMetadata;
 					const body = await parser.getBody();
-					return {
-						uri: uri,
-						name: getCleanPromptName(uri),
-						description: metadata?.description,
-						tools,
-						body
-					};
+					const name = getCleanPromptName(uri);
+					return { uri: uri, name, description, tools, model, body };
 				} finally {
 					parser?.dispose();
 				}
-			}),
+			})
 		);
 
 		return metadataList;
