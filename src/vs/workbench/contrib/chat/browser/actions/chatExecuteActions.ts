@@ -105,32 +105,32 @@ abstract class SubmitAction extends Action2 {
 					})
 					: { confirmed: true };
 
+				type EditUndoEvent = {
+					editRequestType: string;
+					outcome: 'cancelled' | 'applied';
+					editsUndoCount: number;
+				};
+
+				type EditUndoEventClassification = {
+					owner: 'justschen';
+					comment: 'Event used to gain insights into when there are pending changes to undo, and whether edited requests are applied or cancelled.';
+					editRequestType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Current entry point for editing a request.' };
+					outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the edit was cancelled or applied.' };
+					editsUndoCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of edits that would be undone.'; 'isMeasurement': true };
+				};
+
 				if (!confirmation.confirmed) {
-					type EditCancelledEvent = { editRequestType: string };
-
-					type EditCancelledEventClassification = {
-						owner: 'justschen';
-						comment: 'Event used to gain insights into when there are pending changes to undo, and edited requests are not applied due to user cancellation from the confirmation dialogue.';
-						editRequestType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Current entry point for editing a request.' };
-					};
-
-					telemetryService.publicLog2<EditCancelledEvent, EditCancelledEventClassification>('chat.undoConfirmation.editsCancelled', {
+					telemetryService.publicLog2<EditUndoEvent, EditUndoEventClassification>('chat.undoConfirmation', {
 						editRequestType: configurationService.getValue<string>('chat.editRequests'),
+						outcome: 'cancelled',
+						editsUndoCount: editsToUndo
 					});
 					return;
-				}
-
-				if (editsToUndo > 0) {
-					type EditFinishedEvent = { editRequestType: string };
-
-					type EditFinishedEventClassification = {
-						owner: 'justschen';
-						comment: 'Event used to gain insights into when there are pending changes to undo, but edited requests are still applied. ';
-						editRequestType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Current entry point for editing a request.' };
-					};
-
-					telemetryService.publicLog2<EditFinishedEvent, EditFinishedEventClassification>('chat.undoConfirmation.editsFinished', {
+				} else if (editsToUndo > 0) {
+					telemetryService.publicLog2<EditUndoEvent, EditUndoEventClassification>('chat.undoConfirmation', {
 						editRequestType: configurationService.getValue<string>('chat.editRequests'),
+						outcome: 'applied',
+						editsUndoCount: editsToUndo
 					});
 				}
 
