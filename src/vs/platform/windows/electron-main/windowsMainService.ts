@@ -483,7 +483,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		if (usedWindows.length === 1) {
 			windowHandlingChatRequest = usedWindows[0];
 		} else {
-			windowHandlingChatRequest = findWindowOnWorkspaceOrFolder(usedWindows, URI.file(openConfig.cli._[0] /* chat request gets cwd() as folder to open */));
+			const chatRequestFolder = openConfig.cli._[0]; // chat request gets cwd() as folder to open
+			if (chatRequestFolder) {
+				windowHandlingChatRequest = findWindowOnWorkspaceOrFolder(usedWindows, URI.file(chatRequestFolder));
+			}
 		}
 
 		if (windowHandlingChatRequest) {
