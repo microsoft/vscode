@@ -72,6 +72,13 @@ suite('Paths', () => {
 		} else {
 			assert.ok(extpath.isValidBasename('\\test.txt'));
 		}
+
+		// Test invisible characters
+		assert.ok(!extpath.isValidBasename('\ufeffc.txt')); // BOM + c.txt
+		assert.ok(!extpath.isValidBasename('test\u200b.txt')); // zero-width space
+		assert.ok(!extpath.isValidBasename('\u2060file.txt')); // word joiner
+		assert.ok(!extpath.isValidBasename('file\u200d.txt')); // zero-width joiner
+		assert.ok(extpath.isValidBasename('test.txt')); // normal file name should still work
 	});
 
 	test('sanitizeFilePath', () => {
