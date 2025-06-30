@@ -1468,7 +1468,7 @@ end;
 function GetVisualElementsManifest(Value: string): string;
 begin
   if IsBackgroundUpdate() then
-    Result := ExpandConstant('new_{#ExeBasename}.VisualElementsManifest.xml');
+    Result := ExpandConstant('new_{#ExeBasename}.VisualElementsManifest.xml')
   else
     Result := ExpandConstant('{#ExeBasename}.VisualElementsManifest.xml');
 end;
