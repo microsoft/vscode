@@ -1,0 +1,17 @@
+on:
+  workflow_call:
+    inputs:
+      job_name:
+        type: string
+        required: true
+
+jobs:
+  macOS-test:
+  name: ${{ inputs.job_name }}
+  runs-on: macos-14-xlarge
+  env:
+    VSCODE_ARCH: arm64
+  steps:
+    - name: Checkout microsoft/vscode
+      uses: actions/checkout@v4
+
