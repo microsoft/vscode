@@ -168,7 +168,7 @@ export class McpPromptArgumentPick extends Disposable {
 				}));
 				store.add(quickPick.onDidAccept(() => {
 					const item = quickPick.selectedItems[0];
-					if (!quickPick.value && arg.required && (item.action === 'text' || item.action === 'command')) {
+					if (!quickPick.value && arg.required && item && (item.action === 'text' || item.action === 'command')) {
 						quickPick.validationMessage = localize('mcp.arg.required', "This argument is required");
 					} else {
 						resolve(quickPick.selectedItems[0]);
