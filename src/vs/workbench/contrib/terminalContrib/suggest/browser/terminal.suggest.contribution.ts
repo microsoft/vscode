@@ -302,7 +302,7 @@ registerTerminalAction({
 		weight: KeybindingWeight.WorkbenchContrib + 1
 	},
 	run: (c, accessor) => {
-		(accessor.get(IOpenerService)).open('https://aka.ms/vscode-terminal-intellisense');
+		(accessor.get(IOpenerService)).open('https://aka.ms/vscode-terminal-intellisense-preview');
 	}
 });
 
