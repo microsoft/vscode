@@ -10,6 +10,11 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { TerminalSettingId } from '../../../../../../platform/terminal/common/terminal.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
+// Helper function to clamp font size (same as in terminal.zoom.contribution.ts)
+function clampTerminalFontSize(fontSize: number): number {
+	return Math.max(6, Math.min(100, fontSize));
+}
+
 suite('Terminal Mouse Wheel Zoom', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -22,22 +27,22 @@ suite('Terminal Mouse Wheel Zoom', () => {
 
 	test('font size bounds are respected when calculating new font size', () => {
 		// Test minimum bound
-		const minBoundResult = Math.max(6, Math.min(100, 3 + (-2))); // 3 - 2 = 1, clamped to 6
+		const minBoundResult = clampTerminalFontSize(3 + (-2)); // 3 - 2 = 1, clamped to 6
 		strictEqual(minBoundResult, 6, 'Font size should be clamped to minimum value of 6');
 
 		// Test maximum bound
-		const maxBoundResult = Math.max(6, Math.min(100, 99 + 5)); // 99 + 5 = 104, clamped to 100
+		const maxBoundResult = clampTerminalFontSize(99 + 5); // 99 + 5 = 104, clamped to 100
 		strictEqual(maxBoundResult, 100, 'Font size should be clamped to maximum value of 100');
 
 		// Test normal operation within bounds
-		const normalResult = Math.max(6, Math.min(100, 12 + 3)); // 12 + 3 = 15, within bounds
+		const normalResult = clampTerminalFontSize(12 + 3); // 12 + 3 = 15, within bounds
 		strictEqual(normalResult, 15, 'Font size should remain unchanged when within bounds');
 
 		// Test edge cases
-		const exactMinResult = Math.max(6, Math.min(100, 6 + (-1))); // 6 - 1 = 5, clamped to 6
+		const exactMinResult = clampTerminalFontSize(6 + (-1)); // 6 - 1 = 5, clamped to 6
 		strictEqual(exactMinResult, 6, 'Font size should be clamped when going below minimum');
 
-		const exactMaxResult = Math.max(6, Math.min(100, 100 + 1)); // 100 + 1 = 101, clamped to 100
+		const exactMaxResult = clampTerminalFontSize(100 + 1); // 100 + 1 = 101, clamped to 100
 		strictEqual(exactMaxResult, 100, 'Font size should be clamped when going above maximum');
 	});
 
@@ -48,13 +53,13 @@ suite('Terminal Mouse Wheel Zoom', () => {
 
 		// Test updating to a value below minimum (simulating excessive scroll down)
 		const currentSize = configurationService.getValue(TerminalSettingId.FontSize);
-		const newSize = Math.max(6, Math.min(100, currentSize + (-20))); // Simulate large negative delta
+		const newSize = clampTerminalFontSize(currentSize + (-20)); // Simulate large negative delta
 		await configurationService.updateValue(TerminalSettingId.FontSize, newSize);
 		strictEqual(configurationService.getValue(TerminalSettingId.FontSize), 6, 'Font size should be clamped to minimum');
 
 		// Test updating to a value above maximum
 		const currentSize2 = configurationService.getValue(TerminalSettingId.FontSize);
-		const newSize2 = Math.max(6, Math.min(100, currentSize2 + 200)); // Simulate large positive delta
+		const newSize2 = clampTerminalFontSize(currentSize2 + 200); // Simulate large positive delta
 		await configurationService.updateValue(TerminalSettingId.FontSize, newSize2);
 		strictEqual(configurationService.getValue(TerminalSettingId.FontSize), 100, 'Font size should be clamped to maximum');
 	});
