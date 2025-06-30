@@ -87,25 +87,19 @@ jobs:
     with:
       job_name: Electron
       electron_tests: true
-      browser_tests: false
-      remote_tests: false
 
   linux-browser-tests:
     name: Linux
     uses: ./.github/workflows/pr-linux-test.yml
     with:
       job_name: Browser
-      electron_tests: false
       browser_tests: true
-      remote_tests: false
 
   linux-remote-tests:
     name: Linux
     uses: ./.github/workflows/pr-linux-test.yml
     with:
       job_name: Remote
-      electron_tests: false
-      browser_tests: false
       remote_tests: true
 
   macos-electron-tests:
@@ -114,25 +108,19 @@ jobs:
     with:
       job_name: Electron
       electron_tests: true
-      browser_tests: false
-      remote_tests: false
 
   macos-browser-tests:
     name: macOS
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
       job_name: Browser
-      electron_tests: false
       browser_tests: true
-      remote_tests: false
 
   macos-remote-tests:
     name: macOS
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
       job_name: Remote
-      electron_tests: false
-      browser_tests: false
       remote_tests: true
 
   windows-electron-tests:
@@ -141,23 +129,17 @@ jobs:
     with:
       job_name: Electron
       electron_tests: true
-      browser_tests: false
-      remote_tests: false
 
   windows-browser-tests:
     name: Windows
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       job_name: Browser
-      electron_tests: false
       browser_tests: true
-      remote_tests: false
 
   windows-remote-tests:
     name: Windows
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       job_name: Remote
-      electron_tests: false
-      browser_tests: false
       remote_tests: true

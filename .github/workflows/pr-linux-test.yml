@@ -6,13 +6,13 @@ on:
         required: true
       electron_tests:
         type: boolean
-        required: true
+        default: false
       browser_tests:
         type: boolean
-        required: true
+        default: false
       remote_tests:
         type: boolean
-        required: true
+        default: false
 
 jobs:
   linux-test:
