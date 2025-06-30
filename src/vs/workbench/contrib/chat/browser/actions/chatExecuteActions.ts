@@ -574,6 +574,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			}
 
 			let summary: string | undefined;
+			let followup: string | undefined;
 			if (defaultAgent && chatRequests.length > 0) {
 				chatModel.acceptResponseProgress(addedRequest, {
 					kind: 'progressMessage',
@@ -582,6 +583,14 @@ export class CreateRemoteAgentJobAction extends Action2 {
 						CreateRemoteAgentJobAction.markdownStringTrustedOptions
 					)
 				});
+
+				// Find the last occurrence of the follow-up regex in the chat history
+				followup = agent.followUpRegex
+					? chatRequests
+						.map(req => req.message.text)
+						.reverse()
+						.find(text => agent.followUpRegex ? new RegExp(agent.followUpRegex).test(text) : false)
+					: undefined;
 
 				const historyEntries: IChatAgentHistoryEntry[] = chatRequests
 					.map(req => ({
@@ -614,7 +623,8 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			// Execute the remote command
 			const resultMarkdown: string | undefined = await commandService.executeCommand(agent.command, {
 				userPrompt,
-				summary: summary || userPrompt
+				summary: summary || userPrompt,
+				followup,
 			});
 
 			let content = new MarkdownString(
