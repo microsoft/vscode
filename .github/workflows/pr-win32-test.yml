@@ -110,12 +110,106 @@ jobs:
 
       - name: Download built-in extensions
         if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
+        run: node build/lib/builtInExtensions.js
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node build/lib/builtInExtensions.js
 
       - name: Transpile client and extensions
-        shell: powershell
+        shell: pwsh
         run: npm run gulp "transpile-client-esbuild" "transpile-extensions"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download Electron and Playwright
+        shell: pwsh
+        run: |
+          for ($i = 1; $i -le 3; $i++) {
+            try {
+              npm exec -- -- npm-run-all -lp "electron ${{ env.VSCODE_ARCH }}" "playwright-install"
+              break
+            }
+            catch {
+              if ($i -eq 3) {
+                Write-Error "Download failed after 3 attempts"
+                throw
+              }
+              Write-Host "Download failed attempt $i, retrying..."
+              Start-Sleep -Seconds 2
+            }
+          }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🧪 Run unit tests (Electron)
+        if: ${{ inputs.electron_tests }}
+        shell: pwsh
+        run: .\scripts\test.bat --tfs "Unit Tests"
+        timeout-minutes: 15
+
+      - name: 🧪 Run unit tests (node.js)
+        if: ${{ inputs.electron_tests }}
+        shell: pwsh
+        run: npm run test-node
+        timeout-minutes: 15
+
+      - name: 🧪 Run unit tests (Browser, Chromium)
+        shell: pwsh
+        run: node test/unit/browser/index.js --browser chromium --tfs "Browser Unit Tests"
+        env:
+          DEBUG: "*browser*"
+        timeout-minutes: 20
+
+      - name: Build integration tests
+        shell: pwsh
+        run: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          exec { npm run gulp `
+            compile-extension:configuration-editing `
+            compile-extension:css-language-features-server `
+            compile-extension:emmet `
+            compile-extension:git `
+            compile-extension:github-authentication `
+            compile-extension:html-language-features-server `
+            compile-extension:ipynb `
+            compile-extension:notebook-renderers `
+            compile-extension:json-language-features-server `
+            compile-extension:markdown-language-features `
+            compile-extension-media `
+            compile-extension:microsoft-authentication `
+            compile-extension:typescript-language-features `
+            compile-extension:vscode-api-tests `
+            compile-extension:vscode-colorize-tests `
+            compile-extension:vscode-colorize-perf-tests `
+            compile-extension:vscode-test-resolver `
+          }
+
+      - name: Diagnostics before integration test runs
+        shell: pwsh
+        run: .\build\azure-pipelines\win32\listprocesses.bat
+        continue-on-error: true
+        if: always()
+
+      - name: 🧪 Run integration tests (Electron)
+        if: ${{ inputs.electron_tests }}
+        shell: pwsh
+        run: .\scripts\test-integration.bat --tfs "Integration Tests"
+        timeout-minutes: 20
+
+      - name: 🧪 Run integration tests (Browser, Chromium)
+        if: ${{ inputs.browser_tests }}
+        shell: pwsh
+        run: .\scripts\test-web-integration.bat --browser chromium
+        timeout-minutes: 20
+
+      - name: 🧪 Run integration tests (Remote)
+        if: ${{ inputs.remote_tests }}
+        shell: pwsh
+        run: .\scripts\test-remote-integration.bat
+        timeout-minutes: 20
+
+      - name: Diagnostics after integration test runs
+        shell: pwsh
+        run: .\build\azure-pipelines\win32\listprocesses.bat
+        continue-on-error: true
+        if: always()
