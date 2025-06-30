@@ -85,6 +85,12 @@ jobs:
     with:
       job_name: Electron
 
+  macos-browser-tests:
+    name: macOS
+    uses: ./.github/workflows/pr-darwin-test.yml
+    with:
+      job_name: Browser
+
   # macos-electron-tests:
   #   name: macOS (Electron)
   #   runs-on: macos-14-xlarge
