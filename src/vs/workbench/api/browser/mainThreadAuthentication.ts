@@ -27,6 +27,7 @@ import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
 import { IAuthorizationTokenResponse } from '../../../base/common/oauth.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
+import { IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
 
 export interface AuthenticationInteractiveOptions {
 	detail?: string;
@@ -94,7 +95,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@ILogService private readonly logService: ILogService,
 		@IURLService private readonly urlService: IURLService,
 		@IDynamicAuthenticationProviderStorageService private readonly dynamicAuthProviderStorageService: IDynamicAuthenticationProviderStorageService,
-		@IClipboardService private readonly clipboardService: IClipboardService
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
@@ -535,5 +537,21 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			}
 		}
 		return false;
+	}
+
+	async $promptForClientId(authorizationServerUrl: string): Promise<string | undefined> {
+		const result = await this.quickInputService.input({
+			title: nls.localize('clientIdPromptTitle', "OAuth Client ID Required"),
+			prompt: nls.localize('clientIdPrompt', "The authorization server '{0}' does not support automatic client registration. Please enter a client ID that has been registered for VS Code:", authorizationServerUrl),
+			placeHolder: nls.localize('clientIdPlaceholder', "Enter your OAuth client ID"),
+			ignoreFocusLost: true,
+			validateInput: (value: string) => {
+				if (!value || value.trim().length === 0) {
+					return nls.localize('clientIdRequired', "Client ID is required");
+				}
+				return undefined;
+			}
+		});
+		return result?.trim() || undefined;
 	}
 }
