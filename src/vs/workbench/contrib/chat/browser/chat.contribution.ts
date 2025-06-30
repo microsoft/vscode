@@ -252,7 +252,7 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['inline', 'hover', 'input', 'none'],
 			default: 'inline',
-			tags: ['experimental', 'exp'],
+			tags: ['experimental', 'onExp'],
 		},
 		[mcpEnabledSection]: {
 			type: 'boolean',
