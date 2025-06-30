@@ -539,6 +539,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 
 	private async doRunSearch() {
 		this.searchModel.cancelSearch(true);
+		this.searchModel.cancelAISearch(true);
 
 		const startInput = this.getInput();
 		if (!startInput) { return; }
