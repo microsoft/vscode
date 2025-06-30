@@ -10,18 +10,10 @@ import { SortBy, SortOrder } from '../../extensionManagement/common/extensionMan
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IMcpServerConfiguration, IMcpServerVariable } from './mcpPlatformTypes.js';
 
-export interface IScannedMcpServer {
-	readonly id: string;
-	readonly name: string;
-	readonly version?: string;
-	readonly gallery?: boolean;
-	readonly config: IMcpServerConfiguration;
-}
-
 export interface ILocalMcpServer {
 	readonly name: string;
 	readonly config: IMcpServerConfiguration;
-	readonly version: string;
+	readonly version?: string;
 	readonly mcpResource: URI;
 	readonly location?: URI;
 	readonly id?: string;
@@ -181,9 +173,9 @@ export type UninstallOptions = {
 };
 
 export interface IInstallableMcpServer {
-	name: string;
-	config: IMcpServerConfiguration;
-	inputs?: IMcpServerVariable[];
+	readonly name: string;
+	readonly config: IMcpServerConfiguration;
+	readonly inputs?: IMcpServerVariable[];
 }
 
 export const IMcpManagementService = createDecorator<IMcpManagementService>('IMcpManagementService');
