@@ -205,12 +205,23 @@ export class InlineCompletionsModel extends Disposable {
 				return undefined;
 			}
 
+			let reason: string = '';
+			if (changeSummary.provider) {
+				reason += 'providerOnDidChange';
+			} else if (changeSummary.inlineCompletionTriggerKind === InlineCompletionTriggerKind.Explicit) {
+				reason += 'explicit';
+			}
+			if (changeSummary.changeReason) {
+				reason += reason.length > 0 ? `:${changeSummary.changeReason}` : changeSummary.changeReason;
+			}
+
 			const requestInfo: InlineSuggestRequestInfo = {
 				editorType: this.editorType,
 				startTime: Date.now(),
 				languageId: this.textModel.getLanguageId(),
-				reason: changeSummary.inlineCompletionTriggerKind === InlineCompletionTriggerKind.Explicit ? 'Explicit' : changeSummary.changeReason,
+				reason,
 			};
+
 			let context: InlineCompletionContextWithoutUuid = {
 				triggerKind: changeSummary.inlineCompletionTriggerKind,
 				selectedSuggestionInfo: suggestItem?.toSelectedSuggestionInfo(),
