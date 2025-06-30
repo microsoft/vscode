@@ -5012,6 +5012,27 @@ export class LanguageModelTextPart implements vscode.LanguageModelTextPart {
 	}
 }
 
+export class LanguageModelThinkingPart implements vscode.LanguageModelThinkingPart {
+	value: string;
+	id?: string;
+	metadata?: string;
+
+	constructor(value: string, id?: string, metadata?: string) {
+		this.value = value;
+		this.id = id;
+		this.metadata = metadata;
+	}
+
+	toJSON() {
+		return {
+			$mid: MarshalledId.LanguageModelThinkingPart,
+			value: this.value,
+			id: this.id,
+			metadata: this.metadata,
+		};
+	}
+}
+
 export class LanguageModelDataPart implements vscode.LanguageModelDataPart {
 	mimeType: string;
 	data: Uint8Array<ArrayBufferLike>;

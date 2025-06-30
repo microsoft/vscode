@@ -238,6 +238,13 @@ export interface IChatElicitationRequest {
 	reject(): Promise<void>;
 }
 
+export interface IChatThinkingPart {
+	kind: 'thinking';
+	value: string;
+	id?: string;
+	metadata?: string;
+}
+
 export interface IChatTerminalToolInvocationData {
 	kind: 'terminal';
 	command: string;
@@ -321,6 +328,7 @@ export type IChatProgress =
 	| IChatExtensionsContent
 	| IChatUndoStop
 	| IChatPrepareToolInvocationPart
+	| IChatThinkingPart
 	| IChatTaskSerialized
 	| IChatElicitationRequest;
 
