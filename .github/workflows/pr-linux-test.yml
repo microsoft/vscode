@@ -224,6 +224,8 @@ jobs:
       - name: 🧪 Run integration tests (Remote)
         if: ${{ inputs.remote_tests }}
         timeout-minutes: 20
+        env:
+          DISPLAY: ":10"
         run: ./scripts/test-remote-integration.sh
 
       - name: Compile smoke tests
