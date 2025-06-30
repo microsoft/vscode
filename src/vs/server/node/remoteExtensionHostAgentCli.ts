@@ -186,7 +186,7 @@ function eventuallyExit(code: number): void {
 export async function run(args: ServerParsedArgs, REMOTE_DATA_FOLDER: string, optionDescriptions: OptionDescriptions<ServerParsedArgs>): Promise<void> {
 	if (args.help) {
 		const executable = product.serverApplicationName + (isWindows ? '.cmd' : '');
-		console.log(buildHelpMessage(product.nameLong, executable, product.version, optionDescriptions, { inputFilesLabel: null, noPipe: true }));
+		console.log(buildHelpMessage(product.nameLong, executable, product.version, optionDescriptions, { noInputFiles: true, noPipe: true }));
 		return;
 	}
 

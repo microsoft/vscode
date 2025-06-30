@@ -438,20 +438,16 @@ function wrapText(text: string, columns: number): string[] {
 	return lines;
 }
 
-export function buildHelpMessage(productName: string, executableName: string, version: string, options: OptionDescriptions<any>, capabilities?: { noPipe?: boolean; inputFilesLabel?: string | null }): string {
+export function buildHelpMessage(productName: string, executableName: string, version: string, options: OptionDescriptions<any>, capabilities?: { noPipe?: boolean; noInputFiles?: boolean; isChat?: boolean }): string {
 	const columns = (process.stdout).isTTY && (process.stdout).columns || 80;
-	const inputFiles = capabilities?.inputFilesLabel === null ? '' : capabilities?.inputFilesLabel ? ` [${capabilities.inputFilesLabel}]` : ` [${localize('paths', 'paths')}...]`;
+	const inputFiles = capabilities?.noInputFiles ? '' : capabilities?.isChat ? ` [${localize('cliPrompt', 'prompt')}]` : ` [${localize('paths', 'paths')}...]`;
 
 	const help = [`${productName} ${version}`];
 	help.push('');
 	help.push(`${localize('usage', "Usage")}: ${executableName} [${localize('options', "options")}]${inputFiles}`);
 	help.push('');
 	if (capabilities?.noPipe !== true) {
-		if (isWindows) {
-			help.push(localize('stdinWindows', "To read output from another program, append '-' (e.g. 'echo Hello World | {0} -')", executableName));
-		} else {
-			help.push(localize('stdinUnix', "To read from stdin, append '-' (e.g. 'ps aux | grep code | {0} -')", executableName));
-		}
+		help.push(buildStdinMessage(executableName, capabilities?.isChat));
 		help.push('');
 	}
 	const optionsByCategory: { [P in keyof typeof helpCategories]?: OptionDescriptions<any> } = {};
@@ -489,6 +485,25 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 	}
 
 	return help.join('\n');
+}
+
+export function buildStdinMessage(executableName: string, isChat?: boolean): string {
+	let example: string;
+	if (isWindows) {
+		if (isChat) {
+			example = `echo Hello World | ${executableName} chat <prompt> -`;
+		} else {
+			example = `echo Hello World | ${executableName} -`;
+		}
+	} else {
+		if (isChat) {
+			example = `ps aux | grep code | ${executableName} chat <prompt> -`;
+		} else {
+			example = `ps aux | grep code | ${executableName} -`;
+		}
+	}
+
+	return localize('stdinUsage', "To read from stdin, append '-' (e.g. '{0}')", example);
 }
 
 export function buildVersionMessage(version: string | undefined, commit: string | undefined): string {
