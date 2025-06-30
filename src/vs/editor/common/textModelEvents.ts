@@ -319,6 +319,26 @@ export class ModelLineHeightChanged {
 }
 
 /**
+ * An event describing that a line height has changed in the model.
+ * @internal
+ */
+export class ModelFontChanged {
+	/**
+	 * Editor owner ID
+	 */
+	public readonly ownerId: number;
+	/**
+	 * The line that has changed.
+	 */
+	public readonly lineNumber: number;
+
+	constructor(ownerId: number, lineNumber: number) {
+		this.ownerId = ownerId;
+		this.lineNumber = lineNumber;
+	}
+}
+
+/**
  * An event describing that line(s) have been deleted in a model.
  * @internal
  */
@@ -473,6 +493,19 @@ export class ModelLineHeightChangedEvent {
 			}
 			return false;
 		}
+	}
+}
+
+/**
+ * An event describing a change in fonts.
+ * @internal
+ */
+export class ModelFontChangedEvent {
+
+	public readonly changes: ModelFontChanged[];
+
+	constructor(changes: ModelFontChanged[]) {
+		this.changes = changes;
 	}
 }
 
