@@ -196,7 +196,7 @@ suite('ChatModeService', () => {
 			description: 'Updated description',
 			tools: ['tool1', 'tool2'],
 			body: 'Updated body',
-			model: 'gpt-3.5'
+			model: 'Updated model'
 		};
 
 		promptsService.setCustomModes([updatedMode]);
