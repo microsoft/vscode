@@ -77,6 +77,8 @@ Type: files; Name: "{app}\{#VersionedResourcesFolder}\resources\app\Credits_45.0
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\_"
+Type: filesandordirs; Name: "{app}\bin\old_*"
+Type: filesandordirs; Name: "{app}\bin\new_*"
 Type: files; Name: "{app}\old_*"
 Type: files; Name: "{app}\new_*"
 
@@ -1545,7 +1547,7 @@ begin
 
       StopTunnelServiceIfNeeded();
 
-      Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('"{app}\{#ExeBasename}.exe" ' + BoolToStr(LockFileExists()) + ' "{cm:UpdatingVisualStudioCode}"'), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
+      Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('"{app}\{#ExeBasename}.exe" ' + BoolToStr(LockFileExists()) + ' "{cm:UpdatingVisualStudioCode}"'), '', SW_HIDE, ewWaitUntilTerminated, UpdateResultCode);
     end;
 
     if ShouldRestartTunnelService then

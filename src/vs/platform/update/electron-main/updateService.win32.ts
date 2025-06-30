@@ -308,7 +308,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 			// 3) If there is a file called `old_{exe basename}` in the app install folder then perform the following
 			const oldExeFile = path.join(appInstallPath, `old_${exeBasename}`);
-			const oldExeExists = await fs.promises.access(oldExeFile).then(() => true).catch(() => false);
+			const oldExeExists = await pfs.Promises.exists(oldExeFile);
 
 			if (!oldExeExists) {
 				this.logService.trace('update#gc - old exe file does not exist, skipping gc');
@@ -318,7 +318,8 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			this.logService.trace('update#gc - old exe file found, performing cleanup');
 
 			// 4) Delete all files and folders except for the following
-			const entries = await fs.promises.readdir(appInstallPath, { withFileTypes: true });
+			const entries = await pfs.Promises.readdir(appInstallPath, { withFileTypes: true });
+			const entriesToRemove = new Set<string>();
 
 			for (const entry of entries) {
 				const entryPath = path.join(appInstallPath, entry.name);
@@ -333,16 +334,11 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 					shouldKeep = true;
 					// Clean old_ files from bin folder
 					try {
-						const binEntries = await fs.promises.readdir(entryPath, { withFileTypes: true });
+						const binEntries = await pfs.Promises.readdir(entryPath, { withFileTypes: true });
 						for (const binEntry of binEntries) {
 							if (binEntry.isFile() && binEntry.name.startsWith('old_')) {
 								const binEntryPath = path.join(entryPath, binEntry.name);
-								try {
-									await fs.promises.unlink(binEntryPath);
-									this.logService.trace('update#gc - removed old file from bin:', binEntryPath);
-								} catch (err) {
-									this.logService.warn('update#gc - failed to remove from bin:', binEntryPath, err);
-								}
+								entriesToRemove.add(binEntryPath);
 							}
 						}
 					} catch (err) {
@@ -363,13 +359,18 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				}
 
 				if (!shouldKeep) {
-					if (entry.isDirectory()) {
-						await fs.promises.rmdir(entryPath, { recursive: true });
-						this.logService.trace('update#gc - removed directory:', entryPath);
-					} else {
-						await fs.promises.unlink(entryPath);
-						this.logService.trace('update#gc - removed file:', entryPath);
-					}
+					entriesToRemove.add(entryPath);
+				}
+			}
+
+			// Remove collected entries
+			for (const entryPath of entriesToRemove) {
+				this.logService.trace('update#gc - removing:', entryPath);
+				try {
+					await pfs.Promises.rm(entryPath, pfs.RimRafMode.MOVE);
+					this.logService.trace('update#gc - removed:', entryPath);
+				} catch (err) {
+					this.logService.warn('update#gc - failed to remove:', entryPath, err);
 				}
 			}
 
