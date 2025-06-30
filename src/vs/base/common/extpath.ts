@@ -6,7 +6,7 @@
 import { CharCode } from './charCode.js';
 import { isAbsolute, join, normalize, posix, sep } from './path.js';
 import { isWindows } from './platform.js';
-import { equalsIgnoreCase, InvisibleCharacters, rtrim, startsWithIgnoreCase } from './strings.js';
+import { equalsIgnoreCase, rtrim, startsWithIgnoreCase } from './strings.js';
 import { isNumber } from './types.js';
 
 export function isPathSeparator(code: number) {
@@ -196,14 +196,6 @@ export function isValidBasename(name: string | null | undefined, isWindowsOS: bo
 
 	if (name.length > 255) {
 		return false; // most file systems do not allow files > 255 length
-	}
-
-	// Check for invisible characters (but not regular spaces) that can cause issues
-	for (let i = 0; i < name.length; i++) {
-		const codePoint = name.codePointAt(i);
-		if (typeof codePoint === 'number' && InvisibleCharacters.isInvisibleCharacter(codePoint)) {
-			return false;
-		}
 	}
 
 	return true;
