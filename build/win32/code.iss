@@ -93,8 +93,9 @@ Name: "runcode"; Description: "{cm:RunAfter,{#NameShort}}"; GroupDescription: "{
 Name: "{app}"; AfterInstall: DisableAppDirInheritance
 
 [Files]
-Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\appx,\appx\*,\resources\app\product.json,\{#ExeBasename}.exe,\bin,\bin\*"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\appx,\appx\*,\resources\app\product.json,\{#ExeBasename}.exe,\{#ExeBasename}.VisualElementsManifest.xml,\bin,\bin\*"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#ExeBasename}.exe"; DestDir: "{code:GetDestDir}\{code:GetExeBasename}"; Flags: ignoreversion
+Source: "{#ExeBasename}.VisualElementsManifest.xml"; DestDir: "{code:GetDestDir}\{code:GetVisualElementsManifest}"; Flags: ignoreversion
 Source: "tools\*"; DestDir: "{code:GetDestDir}\{#VersionedResourcesFolder}\tools"; Flags: ignoreversion
 Source: "bin\*"; DestDir: "{code:GetDestDir}\{code:GetDestBinDir}"; Flags: ignoreversion
 Source: "{#ProductJsonPath}"; DestDir: "{code:GetDestDir}\{#VersionedResourcesFolder}\resources\app"; Flags: ignoreversion
@@ -1462,6 +1463,14 @@ begin
     Result := ExpandConstant('{#VersionedResourcesFolder}\bin');
   else
     Result := 'bin';
+end;
+
+function GetVisualElementsManifest(Value: string): string;
+begin
+  if IsBackgroundUpdate() then
+    Result := ExpandConstant('new_{#ExeBasename}.VisualElementsManifest.xml');
+  else
+    Result := ExpandConstant('{#ExeBasename}.VisualElementsManifest.xml');
 end;
 
 function GetExeBasename(Value: string): string;
