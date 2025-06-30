@@ -210,7 +210,7 @@ export class ChatViewWelcomePart extends Disposable {
 							suggestedPrompt: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The suggested prompt clicked.' };
 						};
 
-						this.telemetryService.publicLog2<SuggestedPromptClickEvent, SuggestedPromptClickData>('chat.startEditingRequests', {
+						this.telemetryService.publicLog2<SuggestedPromptClickEvent, SuggestedPromptClickData>('chat.clickedSuggestedPrompt', {
 							suggestedPrompt: prompt.prompt,
 						});
 
