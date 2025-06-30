@@ -1995,8 +1995,10 @@ class EffectiveAllowVariableFonts extends ComputedEditorOption<EditorOption.effe
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions): boolean {
 		const accessibilitySupport = env.accessibilitySupport;
 		if (accessibilitySupport === AccessibilitySupport.Enabled) {
+			console.log('options.get(EditorOption.allowVariableFontsInAccessibilityMode) : ', options.get(EditorOption.allowVariableFontsInAccessibilityMode));
 			return options.get(EditorOption.allowVariableFontsInAccessibilityMode);
 		} else {
+			console.log('options.get(EditorOption.allowVariableFonts) : ', options.get(EditorOption.allowVariableFonts));
 			return options.get(EditorOption.allowVariableFonts);
 		}
 	}
