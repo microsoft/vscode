@@ -198,8 +198,12 @@ export function isValidBasename(name: string | null | undefined, isWindowsOS: bo
 		return false; // most file systems do not allow files > 255 length
 	}
 
-	if (InvisibleCharacters.containsInvisibleCharacter(name)) {
-		return false; // check for invisible characters that can cause issues
+	// Check for invisible characters (but not regular spaces) that can cause issues
+	for (let i = 0; i < name.length; i++) {
+		const codePoint = name.codePointAt(i);
+		if (typeof codePoint === 'number' && InvisibleCharacters.isInvisibleCharacter(codePoint)) {
+			return false;
+		}
 	}
 
 	return true;

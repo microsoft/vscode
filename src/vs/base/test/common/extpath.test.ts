@@ -79,6 +79,7 @@ suite('Paths', () => {
 		assert.ok(!extpath.isValidBasename('\u2060file.txt')); // word joiner
 		assert.ok(!extpath.isValidBasename('file\u200d.txt')); // zero-width joiner
 		assert.ok(extpath.isValidBasename('test.txt')); // normal file name should still work
+		assert.ok(extpath.isValidBasename('My Document.txt')); // file names with regular spaces should work
 	});
 
 	test('sanitizeFilePath', () => {
