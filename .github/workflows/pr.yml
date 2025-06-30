@@ -10,6 +10,8 @@ on:
       - main
       - 'release/*'
 
+permissions: {}
+
 jobs:
   compile:
     name: Compile & Hygiene
