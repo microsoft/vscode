@@ -15,7 +15,7 @@ import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js'
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
-import { ChatModeKind } from '../common/constants.js';
+import { ChatModeKind, validateChatMode } from '../common/constants.js';
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -57,14 +57,14 @@ class ChatAgentCommandLineHandler extends Disposable {
 	}
 
 	private registerListeners() {
-		ipcRenderer.on('vscode:handleAgentRequest', (_, args: typeof this.environmentService.args.agent) => {
+		ipcRenderer.on('vscode:handleAgentRequest', (_, args: typeof this.environmentService.args.chat) => {
 			this.logService.trace('vscode:handleAgentRequest', args);
 
 			this.promptAgentic(args);
 		});
 	}
 
-	private async promptAgentic(args: typeof this.environmentService.args.agent): Promise<void> {
+	private async promptAgentic(args: typeof this.environmentService.args.chat): Promise<void> {
 		if (!Array.isArray(args?._)) {
 			return;
 		}
@@ -79,7 +79,7 @@ class ChatAgentCommandLineHandler extends Disposable {
 
 		const opts: IChatViewOpenOptions = {
 			query: args._.length > 0 ? args._.join(' ') : '',
-			mode: ChatModeKind.Agent,
+			mode: validateChatMode(args.mode) ?? ChatModeKind.Agent,
 			attachFiles: args['add-file']?.map(file => URI.file(resolve(file))), // use `resolve` to deal with relative paths properly
 		};
 

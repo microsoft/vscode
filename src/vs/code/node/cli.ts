@@ -96,9 +96,9 @@ export async function main(argv: string[]): Promise<any> {
 	}
 
 	// Help (agent)
-	else if (args.agent?.help) {
+	else if (args.chat?.help) {
 		const executable = `${product.applicationName}${isWindows ? '.exe' : ''}`;
-		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS.agent.options, { inputFilesLabel: localize('agentPrompt', "prompt") }));
+		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS.chat.options, { inputFilesLabel: localize('agentPrompt', "prompt") }));
 	}
 
 	// Version Info
@@ -243,7 +243,7 @@ export async function main(argv: string[]): Promise<any> {
 			});
 		}
 
-		const hasReadStdinArg = args._.some(arg => arg === '-') || args.agent?._.some(arg => arg === '-');
+		const hasReadStdinArg = args._.some(arg => arg === '-') || args.chat?._.some(arg => arg === '-');
 		if (hasReadStdinArg) {
 			// remove the "-" argument when we read from stdin
 			args._ = args._.filter(a => a !== '-');
@@ -282,7 +282,7 @@ export async function main(argv: string[]): Promise<any> {
 						processCallbacks.push(() => readFromStdinDone.p);
 					}
 
-					if (args.agent) {
+					if (args.chat) {
 						// Make sure to add tmp file as context to agent
 						addArg(argv, '--add-file', stdinFilePath);
 					} else {

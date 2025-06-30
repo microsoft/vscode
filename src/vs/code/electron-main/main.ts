@@ -506,7 +506,7 @@ class CodeMain {
 			}
 		}
 
-		if (args.agent) {
+		if (args.chat) {
 			// If we are started with agent subcommand, the current working
 			// directory is always the path to open
 			args._ = [cwd()];

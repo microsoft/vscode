@@ -50,7 +50,7 @@ export const NATIVE_CLI_COMMANDS = ['tunnel', 'serve-web'] as const;
 export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'tunnel': {
 		type: 'subcommand',
-		description: 'Make the current machine accessible from vscode.dev or other machines through a secure tunnel',
+		description: 'Make the current machine accessible from vscode.dev or other machines through a secure tunnel.',
 		options: {
 			'cli-data-dir': { type: 'string', args: 'dir', description: localize('cliDataDir', "Directory where CLI metadata should be stored.") },
 			'disable-telemetry': { type: 'boolean' },
@@ -78,12 +78,13 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 			'telemetry-level': { type: 'string' },
 		}
 	},
-	'agent': {
+	'chat': {
 		type: 'subcommand',
-		description: 'Pass in a prompt to run in a chat agent session in the current working directory.',
+		description: 'Pass in a prompt to run in a chat session in the current working directory.',
 		options: {
-			'_': { type: 'string[]', description: localize('agentPrompt', "The prompt to send to the agent.") },
-			'add-file': { type: 'string[]', cat: 'o', alias: 'a', description: localize('addFile', "Add files as context to the chat agent session.") },
+			'_': { type: 'string[]', description: localize('prompt', "The prompt to use as chat.") },
+			'mode': { type: 'string', cat: 'o', description: localize('chatMode', "The mode to use for the chat session.") },
+			'add-file': { type: 'string[]', cat: 'o', alias: 'a', description: localize('addFile', "Add files as context to the chat session.") },
 			'help': { type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") }
 		}
 	},
