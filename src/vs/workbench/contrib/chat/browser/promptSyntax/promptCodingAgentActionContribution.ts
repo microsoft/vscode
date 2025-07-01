@@ -8,12 +8,12 @@ import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { registerEditorContribution, EditorContributionInstantiation } from '../../../../../editor/browser/editorExtensions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
-import { PromptCodingAgentActionOverlayWidget } from './promptCodingAgentActionOverlay.js';
+import { PromptCodingAgentFloatingMenu } from './promptCodingAgentActionOverlay.js';
 
 export class PromptCodingAgentActionContribution extends Disposable {
 	static readonly ID = 'promptCodingAgentActionContribution';
 
-	private readonly _overlayWidgets = this._register(new DisposableMap<ICodeEditor, PromptCodingAgentActionOverlayWidget>());
+	private readonly _floatingMenus = this._register(new DisposableMap<ICodeEditor, PromptCodingAgentFloatingMenu>());
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -22,21 +22,22 @@ export class PromptCodingAgentActionContribution extends Disposable {
 		super();
 
 		this._register(this._editor.onDidChangeModel(() => {
-			this._updateOverlayWidget();
+			this._updateFloatingMenu();
 		}));
 
-		this._updateOverlayWidget();
+		this._updateFloatingMenu();
 	}
-	private _updateOverlayWidget(): void {
+
+	private _updateFloatingMenu(): void {
 		const model = this._editor.getModel();
 
-		// Remove existing overlay if present
-		this._overlayWidgets.deleteAndDispose(this._editor);
+		// Remove existing floating menu if present
+		this._floatingMenus.deleteAndDispose(this._editor);
 
-		// Add overlay if this is a prompt file
+		// Add floating menu if this is a prompt file
 		if (model && model.getLanguageId() === PROMPT_LANGUAGE_ID) {
-			const widget = this._instantiationService.createInstance(PromptCodingAgentActionOverlayWidget, this._editor);
-			this._overlayWidgets.set(this._editor, widget);
+			const floatingMenu = this._instantiationService.createInstance(PromptCodingAgentFloatingMenu, this._editor);
+			this._floatingMenus.set(this._editor, floatingMenu);
 		}
 	}
 }

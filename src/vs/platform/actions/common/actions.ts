@@ -255,6 +255,7 @@ export class MenuId {
 	static readonly ChatTextEditorMenu = new MenuId('ChatTextEditorMenu');
 	static readonly ChatTerminalMenu = new MenuId('ChatTerminalMenu');
 	static readonly ChatToolOutputResourceContext = new MenuId('ChatToolOutputResourceContext');
+	static readonly ChatFileEditorContent = new MenuId('ChatFileEditorContent');
 	static readonly AccessibleView = new MenuId('AccessibleView');
 	static readonly MultiDiffEditorFileToolbar = new MenuId('MultiDiffEditorFileToolbar');
 	static readonly DiffEditorHunkToolbar = new MenuId('DiffEditorHunkToolbar');

@@ -3,129 +3,108 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../../../editor/browser/editorBrowser.js';
+import { ICodeEditor, isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService, ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
-import { localize } from '../../../../../nls.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { getPromptCommandName } from '../../common/promptSyntax/service/promptsServiceImpl.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
-import { $ } from '../../../../../base/browser/dom.js';
+import { Action2, MenuId, registerAction2, IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { ServicesAccessor, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { AbstractFloatingClickMenu, FloatingClickWidget } from '../../../../../platform/actions/browser/floatingMenu.js';
+import { FloatingEditorClickWidget } from '../../../../browser/codeeditor.js';
+import { EmbeddedCodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
+import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { IAction } from '../../../../../base/common/actions.js';
+import { localize2 } from '../../../../../nls.js';
 
-export class PromptCodingAgentActionOverlayWidget extends Disposable implements IOverlayWidget {
-
-	private static readonly ID = 'promptCodingAgentActionOverlay';
-
-	private readonly _domNode: HTMLElement;
-	private readonly _button: Button;
-	private _isVisible: boolean = false;
+export class PromptCodingAgentFloatingMenu extends AbstractFloatingClickMenu {
+	static readonly ID = 'editor.contrib.promptCodingAgentFloatingMenu';
 
 	constructor(
-		private readonly _editor: ICodeEditor,
-		@ICommandService private readonly _commandService: ICommandService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IRemoteCodingAgentsService private readonly _remoteCodingAgentService: IRemoteCodingAgentsService
+		private readonly editor: ICodeEditor,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super();
+		super(MenuId.ChatFileEditorContent, menuService, contextKeyService);
+		this.render();
+	}
 
-		this._domNode = $('.prompt-coding-agent-action-overlay');
+	protected override createWidget(action: IAction): FloatingClickWidget {
+		return this.instantiationService.createInstance(FloatingEditorClickWidget, this.editor, action.label, action.id);
+	}
 
-		this._button = this._register(new Button(this._domNode, {
-			supportIcons: true,
-			title: localize('runPromptWithCodingAgent', "Run prompt file in a remote coding agent")
-		}));
+	protected override isVisible(): boolean {
+		const model = this.editor.getModel();
+		return !(this.editor instanceof EmbeddedCodeEditorWidget)
+			&& this.editor?.hasModel()
+			&& !this.editor.getOption(EditorOption.inDiffEditor)
+			&& model?.getLanguageId() === PROMPT_LANGUAGE_ID;
+	}
 
-		this._button.element.style.background = 'var(--vscode-button-background)';
-		this._button.element.style.color = 'var(--vscode-button-foreground)';
-		this._button.label = localize('runWithCodingAgent.label', "{0} Push to Copilot coding agent", '$(cloud-upload)');
+	protected override getActionArg(): unknown {
+		return this.editor.getModel()?.uri;
+	}
+}
 
-		this._register(this._button.onDidClick(async () => {
-			await this._execute();
-		}));
-		this._register(this._contextKeyService.onDidChangeContext(() => {
-			this._updateVisibility();
-		}));
-		this._register(this._editor.onDidChangeModel(() => {
-			this._updateVisibility();
-		}));
-		this._register(this._editor.onDidLayoutChange(() => {
-			if (this._isVisible) {
-				this._editor.layoutOverlayWidget(this);
+const PROMPT_CODING_AGENT_ACTION_ID = 'prompt.runWithCodingAgent';
+
+class RunPromptWithCodingAgentAction extends Action2 {
+	constructor() {
+		super({
+			id: PROMPT_CODING_AGENT_ACTION_ID,
+			title: localize2('runWithCodingAgent', 'Run with Coding Agent'),
+			icon: Codicon.cloudUpload,
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.hasRemoteCodingAgent,
+				ContextKeyExpr.equals('resourceLangId', PROMPT_LANGUAGE_ID)
+			),
+			menu: {
+				id: MenuId.ChatFileEditorContent,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.hasRemoteCodingAgent,
+					ContextKeyExpr.equals('resourceLangId', PROMPT_LANGUAGE_ID)
+				),
+				group: 'navigation',
+				order: 1
 			}
-		}));
-
-		// initial visibility
-		this._updateVisibility();
+		});
 	}
 
-	getId(): string {
-		return PromptCodingAgentActionOverlayWidget.ID;
-	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const commandService = accessor.get(ICommandService);
+		const remoteCodingAgentService = accessor.get(IRemoteCodingAgentsService);
 
-	getDomNode(): HTMLElement {
-		return this._domNode;
-	}
-
-	getPosition(): IOverlayWidgetPosition | null {
-		if (!this._isVisible) {
-			return null;
-		}
-
-		return {
-			preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER,
-		};
-	}
-
-	private _updateVisibility(): void {
-		const hasRemoteCodingAgent = ChatContextKeys.hasRemoteCodingAgent.getValue(this._contextKeyService);
-		const model = this._editor.getModel();
-		const isPromptFile = model?.getLanguageId() === PROMPT_LANGUAGE_ID;
-		const shouldBeVisible = !!(hasRemoteCodingAgent && isPromptFile);
-
-		if (shouldBeVisible !== this._isVisible) {
-			this._isVisible = shouldBeVisible;
-			if (this._isVisible) {
-				this._editor.addOverlayWidget(this);
-			} else {
-				this._editor.removeOverlayWidget(this);
-			}
-		}
-	}
-
-	private async _execute(): Promise<void> {
-		const model = this._editor.getModel();
-		if (!model) {
+		const activeEditor = editorService.activeTextEditorControl;
+		if (!isCodeEditor(activeEditor)) {
 			return;
 		}
 
-		this._button.enabled = false;
-		try {
-			const promptContent = model.getValue();
-			const promptName = getPromptCommandName(model.uri.path);
-
-			const agents = this._remoteCodingAgentService.getAvailableAgents();
-			const agent = agents[0]; // Use the first available agent
-			if (!agent) {
-				return;
-			}
-
-			await this._commandService.executeCommand(agent.command, {
-				userPrompt: promptName,
-				summary: promptContent,
-				source: 'prompt',
-			});
-		} finally {
-			this._button.enabled = true;
+		const model = activeEditor.getModel();
+		if (!model || model.getLanguageId() !== PROMPT_LANGUAGE_ID) {
+			return;
 		}
-	}
 
-	override dispose(): void {
-		if (this._isVisible) {
-			this._editor.removeOverlayWidget(this);
+		const promptContent = model.getValue();
+		const promptName = getPromptCommandName(model.uri.path);
+
+		const agents = remoteCodingAgentService.getAvailableAgents();
+		const agent = agents[0]; // Use the first available agent
+		if (!agent) {
+			return;
 		}
-		super.dispose();
+
+		await commandService.executeCommand(agent.command, {
+			userPrompt: promptName,
+			summary: promptContent,
+			source: 'prompt',
+		});
 	}
 }
+
+registerAction2(RunPromptWithCodingAgentAction);
