@@ -506,7 +506,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		const findMatchHighlightBorder = theme.getColor(TERMINAL_FIND_MATCH_HIGHLIGHT_BORDER_COLOR);
 		const findMatchHighlightOverviewRuler = theme.getColor(TERMINAL_OVERVIEW_RULER_FIND_MATCH_FOREGROUND_COLOR);
 		searchOptions.decorations = {
-			activeMatchBackground: findMatchBackground?.toString(),
+			// decoration bgs don't support the alpha channel so blend it with the regular bg
+			activeMatchBackground: terminalBackground ? findMatchBackground?.blend(terminalBackground).toString() : findMatchBackground?.toString(),
 			activeMatchBorder: findMatchBorder?.toString() || 'transparent',
 			activeMatchColorOverviewRuler: findMatchOverviewRuler?.toString() || 'transparent',
 			// decoration bgs don't support the alpha channel so blend it with the regular bg
