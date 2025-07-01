@@ -438,6 +438,19 @@ export function registerTerminalActions() {
 	});
 
 	registerTerminalAction({
+		id: TerminalCommandId.ResizePaneLeft,
+		title: localize2('workbench.action.terminal.resizePaneLeft', 'Resize Terminal Left'),
+		keybinding: {
+			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow },
+			mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.LeftArrow },
+			when: TerminalContextKeys.focus,
+			weight: KeybindingWeight.WorkbenchContrib
+		},
+		precondition: sharedWhenClause.terminalAvailable,
+		run: (c) => c.groupService.activeGroup?.resizePane(Direction.Left)
+	});
+
+	registerTerminalAction({
 		id: TerminalCommandId.Focus,
 		title: terminalStrings.focus,
 		keybinding: {
