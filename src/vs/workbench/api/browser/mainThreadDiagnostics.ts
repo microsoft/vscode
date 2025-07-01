@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMarkerService, IMarkerData } from '../../../platform/markers/common/markers.js';
+import { IMarkerService, IMarkerData, type IMarker } from '../../../platform/markers/common/markers.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { MainThreadDiagnosticsShape, MainContext, ExtHostDiagnosticsShape, ExtHostContext } from '../common/extHost.protocol.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
@@ -18,6 +18,9 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 	private readonly _proxy: ExtHostDiagnosticsShape;
 	private readonly _markerListener: IDisposable;
 
+	private static ExtHostCounter: number = 1;
+	private readonly extHostId: string;
+
 	constructor(
 		extHostContext: IExtHostContext,
 		@IMarkerService private readonly _markerService: IMarkerService,
@@ -26,12 +29,28 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDiagnostics);
 
 		this._markerListener = this._markerService.onMarkerChanged(this._forwardMarkers, this);
+		this.extHostId = `extHost${MainThreadDiagnostics.ExtHostCounter++}`;
 	}
 
 	dispose(): void {
 		this._markerListener.dispose();
-		this._activeOwners.forEach(owner => this._markerService.changeAll(owner, []));
-		this._activeOwners.clear();
+		for (const owner of this._activeOwners) {
+			const markersData: Map<string, { resource: URI; local: IMarker[] }> = new Map();
+			for (const marker of this._markerService.read({ owner })) {
+				const resource = marker.resource.toString();
+				let data = markersData.get(resource);
+				if (data === undefined) {
+					data = { resource: marker.resource, local: [] };
+					markersData.set(resource, data);
+				}
+				if (marker.origin !== this.extHostId) {
+					data.local.push(marker);
+				}
+			}
+			for (const { resource, local } of markersData.values()) {
+				this._markerService.changeOne(owner, resource, local);
+			}
+		}
 	}
 
 	private _forwardMarkers(resources: readonly URI[]): void {
@@ -41,9 +60,9 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 			if (allMarkerData.length === 0) {
 				data.push([resource, []]);
 			} else {
-				const forgeinMarkerData = allMarkerData.filter(marker => !this._activeOwners.has(marker.owner));
-				if (forgeinMarkerData.length > 0) {
-					data.push([resource, forgeinMarkerData]);
+				const foreignMarkerData = allMarkerData.filter(marker => marker?.origin !== this.extHostId);
+				if (foreignMarkerData.length > 0) {
+					data.push([resource, foreignMarkerData]);
 				}
 			}
 		}
@@ -64,6 +83,9 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 					}
 					if (marker.code && typeof marker.code !== 'string') {
 						marker.code.target = URI.revive(marker.code.target);
+					}
+					if (marker.origin === undefined) {
+						marker.origin = this.extHostId;
 					}
 				}
 			}
