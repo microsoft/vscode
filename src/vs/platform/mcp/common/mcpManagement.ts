@@ -4,30 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { IStringDictionary } from '../../../base/common/collections.js';
 import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
 import { SortBy, SortOrder } from '../../extensionManagement/common/extensionManagement.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IMcpServerConfiguration, IMcpServerVariable } from './mcpPlatformTypes.js';
 
-export interface IScannedMcpServers {
-	servers?: IStringDictionary<IScannedMcpServer>;
-	inputs?: IMcpServerVariable[];
-}
-
-export interface IScannedMcpServer {
-	readonly id: string;
-	readonly name: string;
-	readonly version?: string;
-	readonly gallery?: boolean;
-	readonly config: IMcpServerConfiguration;
-}
-
 export interface ILocalMcpServer {
 	readonly name: string;
 	readonly config: IMcpServerConfiguration;
-	readonly version: string;
+	readonly version?: string;
 	readonly mcpResource: URI;
 	readonly location?: URI;
 	readonly id?: string;
@@ -187,9 +173,9 @@ export type UninstallOptions = {
 };
 
 export interface IInstallableMcpServer {
-	name: string;
-	config: IMcpServerConfiguration;
-	inputs?: IMcpServerVariable[];
+	readonly name: string;
+	readonly config: IMcpServerConfiguration;
+	readonly inputs?: IMcpServerVariable[];
 }
 
 export const IMcpManagementService = createDecorator<IMcpManagementService>('IMcpManagementService');
@@ -197,6 +183,7 @@ export interface IMcpManagementService {
 	readonly _serviceBrand: undefined;
 	readonly onInstallMcpServer: Event<InstallMcpServerEvent>;
 	readonly onDidInstallMcpServers: Event<readonly InstallMcpServerResult[]>;
+	readonly onDidUpdateMcpServers: Event<readonly InstallMcpServerResult[]>;
 	readonly onUninstallMcpServer: Event<UninstallMcpServerEvent>;
 	readonly onDidUninstallMcpServer: Event<DidUninstallMcpServerEvent>;
 	getInstalled(mcpResource?: URI): Promise<ILocalMcpServer[]>;

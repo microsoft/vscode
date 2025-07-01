@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename } from '../../../../../base/common/resources.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -18,20 +20,21 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/cont
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IChatAgentService, IChatAgentHistoryEntry } from '../../common/chatAgents.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
+import { IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { toChatHistoryContent } from '../../common/chatModel.js';
-import { ChatMode2, IChatMode, validateChatMode2 } from '../../common/chatModes.js';
+import { IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { chatVariableLeader } from '../../common/chatParserTypes.js';
+import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatService } from '../../common/chatService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatMode, } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
-import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -46,7 +49,7 @@ export interface IChatExecuteActionContext {
 abstract class SubmitAction extends Action2 {
 	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const context: IChatExecuteActionContext | undefined = args[0];
-
+		const telemetryService = accessor.get(ITelemetryService);
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (widget?.viewModel?.editing) {
@@ -102,8 +105,33 @@ abstract class SubmitAction extends Action2 {
 					})
 					: { confirmed: true };
 
+				type EditUndoEvent = {
+					editRequestType: string;
+					outcome: 'cancelled' | 'applied';
+					editsUndoCount: number;
+				};
+
+				type EditUndoEventClassification = {
+					owner: 'justschen';
+					comment: 'Event used to gain insights into when there are pending changes to undo, and whether edited requests are applied or cancelled.';
+					editRequestType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Current entry point for editing a request.' };
+					outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the edit was cancelled or applied.' };
+					editsUndoCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of edits that would be undone.'; 'isMeasurement': true };
+				};
+
 				if (!confirmation.confirmed) {
+					telemetryService.publicLog2<EditUndoEvent, EditUndoEventClassification>('chat.undoEditsConfirmation', {
+						editRequestType: configurationService.getValue<string>('chat.editRequests'),
+						outcome: 'cancelled',
+						editsUndoCount: editsToUndo
+					});
 					return;
+				} else if (editsToUndo > 0) {
+					telemetryService.publicLog2<EditUndoEvent, EditUndoEventClassification>('chat.undoEditsConfirmation', {
+						editRequestType: configurationService.getValue<string>('chat.editRequests'),
+						outcome: 'applied',
+						editsUndoCount: editsToUndo
+					});
 				}
 
 				if (confirmation.checkboxChecked) {
@@ -125,7 +153,7 @@ export class ChatSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.chat.submit';
 
 	constructor() {
-		const precondition = ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask);
+		const precondition = ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask);
 
 		super({
 			id: ChatSubmitAction.ID,
@@ -162,7 +190,7 @@ export class ChatSubmitAction extends SubmitAction {
 export const ToggleAgentModeActionId = 'workbench.action.chat.toggleAgentMode';
 
 export interface IToggleChatModeArgs {
-	mode: IChatMode | ChatMode;
+	modeId: ChatModeKind | string;
 }
 
 class ToggleChatModeAction extends Action2 {
@@ -205,6 +233,7 @@ class ToggleChatModeAction extends Action2 {
 		const commandService = accessor.get(ICommandService);
 		const configurationService = accessor.get(IConfigurationService);
 		const instaService = accessor.get(IInstantiationService);
+		const modeService = accessor.get(IChatModeService);
 
 		const context = getEditingSessionContext(accessor, args);
 		if (!context?.chatWidget) {
@@ -214,36 +243,35 @@ class ToggleChatModeAction extends Action2 {
 		const arg = args.at(0) as IToggleChatModeArgs | undefined;
 		const chatSession = context.chatWidget.viewModel?.model;
 		const requestCount = chatSession?.getRequests().length ?? 0;
-		const switchToMode = validateChatMode2(arg?.mode) ?? this.getNextMode(context.chatWidget, requestCount, configurationService);
+		const switchToMode = (arg && modeService.findModeById(arg.modeId)) ?? this.getNextMode(context.chatWidget, requestCount, configurationService, modeService);
 
-		if (switchToMode.id === context.chatWidget.input.currentMode2.id) {
+		if (switchToMode.id === context.chatWidget.input.currentModeObs.get().id) {
 			return;
 		}
 
-		const chatModeCheck = await instaService.invokeFunction(handleModeSwitch, context.chatWidget.input.currentMode, switchToMode.kind, requestCount, context.editingSession);
+		const chatModeCheck = await instaService.invokeFunction(handleModeSwitch, context.chatWidget.input.currentModeKind, switchToMode.kind, requestCount, context.editingSession);
 		if (!chatModeCheck) {
 			return;
 		}
 
-		context.chatWidget.input.setChatMode2(switchToMode);
+		context.chatWidget.input.setChatMode(switchToMode.id);
 
 		if (chatModeCheck.needToClearSession) {
-			if (context.chatWidget.viewModel?.editing) {
-				context.chatWidget.input.dispose();
-			}
 			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}
 	}
 
-	private getNextMode(chatWidget: IChatWidget, requestCount: number, configurationService: IConfigurationService): IChatMode {
-		const modes = [ChatMode2.Ask];
-		if (configurationService.getValue(ChatConfiguration.Edits2Enabled) || requestCount === 0) {
-			modes.push(ChatMode2.Edit);
-		}
-		modes.push(ChatMode2.Agent);
+	private getNextMode(chatWidget: IChatWidget, requestCount: number, configurationService: IConfigurationService, modeService: IChatModeService): IChatMode {
+		const modes = modeService.getModes();
+		const flat = [
+			...modes.builtin.filter(mode => {
+				return mode.kind !== ChatModeKind.Edit || configurationService.getValue(ChatConfiguration.Edits2Enabled) || requestCount === 0;
+			}),
+			...(modes.custom ?? []),
+		];
 
-		const modeIndex = modes.findIndex(mode => mode.id === chatWidget.input.currentMode2.id);
-		const newMode = modes[(modeIndex + 1) % modes.length];
+		const curModeIndex = flat.findIndex(mode => mode.id === chatWidget.input.currentModeObs.get().id);
+		const newMode = flat[(curModeIndex + 1) % flat.length];
 		return newMode;
 	}
 }
@@ -270,7 +298,7 @@ export class ToggleRequestPausedAction extends Action2 {
 					order: 3.5,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.canRequestBePaused,
-						ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
+						ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
 						ContextKeyExpr.or(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.inputHasText.negate()),
 					),
@@ -379,7 +407,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.edits.submit';
 
 	constructor() {
-		const precondition = ChatContextKeys.chatMode.notEqualsTo(ChatMode.Ask);
+		const precondition = ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask);
 
 		super({
 			id: ChatEditingSessionSubmitAction.ID,
@@ -424,7 +452,7 @@ class SubmitWithoutDispatchingAction extends Action2 {
 			// without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
 			whenNotInProgressOrPaused,
-			ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
 		);
 
 		super({
@@ -443,7 +471,7 @@ class SubmitWithoutDispatchingAction extends Action2 {
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_1',
 					order: 2,
-					when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
+					when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
 				}
 			]
 		});
@@ -461,6 +489,12 @@ class SubmitWithoutDispatchingAction extends Action2 {
 export class CreateRemoteAgentJobAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.createRemoteAgentJob';
 
+	static readonly markdownStringTrustedOptions = {
+		isTrusted: {
+			enabledCommands: [] as string[],
+		},
+	};
+
 	constructor() {
 		const precondition = ContextKeyExpr.and(
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
@@ -470,18 +504,19 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 		super({
 			id: CreateRemoteAgentJobAction.ID,
-			title: localize2('actions.chat.createRemoteJob', "Create Remote Job"),
+			// TODO(joshspicer): Generalize title
+			title: localize2('actions.chat.createRemoteJob', "Push to Copilot coding agent"),
 			icon: Codicon.cloudUpload,
 			precondition,
 			toggled: {
 				condition: ChatContextKeys.remoteJobCreating,
 				icon: Codicon.sync,
-				tooltip: localize('remoteJobCreating', "Remote job is being created"),
+				tooltip: localize('remoteJobCreating', "Pushing to Copilot coding agent"),
 			},
 			menu: {
 				id: MenuId.ChatExecute,
 				group: 'navigation',
-				order: 0,
+				order: 3.4,
 				when: ChatContextKeys.hasRemoteCodingAgent
 			}
 		});
@@ -512,19 +547,54 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			widget.setInput();
 
 			const chatModel = widget.viewModel?.model;
+			if (!chatModel) {
+				return;
+			}
 			const chatRequests = chatModel.getRequests();
-			const agents = remoteCodingAgent.getAvailableAgents();
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 
-			const agent = agents[0]; // TODO: We just pick the first one for testing
+			// Complete implementation of adding request back into chat stream
+			const instantiationService = accessor.get(IInstantiationService);
+
+			// Parse the request text to create a structured request
+			const requestParser = instantiationService.createInstance(ChatRequestParser);
+			const parsedRequest = requestParser.parseChatRequest(session, userPrompt, ChatAgentLocation.Panel);
+
+			// Add the request to the model first
+			const addedRequest = chatModel.addRequest(
+				parsedRequest,
+				{ variables: [] },
+				0,
+				defaultAgent,
+			);
+
+			const agents = remoteCodingAgent.getAvailableAgents();
+			const agent = agents[0]; // TODO: We just pick the first one for now
 			if (!agent) {
 				return;
 			}
 
 			let summary: string | undefined;
+			let followup: string | undefined;
 			if (defaultAgent && chatRequests.length > 0) {
+				chatModel.acceptResponseProgress(addedRequest, {
+					kind: 'progressMessage',
+					content: new MarkdownString(
+						localize('analyzingChatHistory', "Analyzing chat history"),
+						CreateRemoteAgentJobAction.markdownStringTrustedOptions
+					)
+				});
+
+				// Forward useful metadata about conversation to the implementing extension
+				if (agent.followUpRegex) {
+					const regex = new RegExp(agent.followUpRegex);
+					followup = chatRequests
+						.map(req => req.response?.response.toString() ?? '')
+						.reverse()
+						.find(text => regex.test(text));
+				}
+
 				const historyEntries: IChatAgentHistoryEntry[] = chatRequests
-					.filter(req => req.response) // Only include completed requests
 					.map(req => ({
 						request: {
 							sessionId: session,
@@ -542,10 +612,37 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 				summary = await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
 			}
-			await commandService.executeCommand(agent.command, {
-				userPrompt,
-				summary: summary || `Chat session with ${chatRequests.length} messages`
+
+			// Show progress for job creation
+			chatModel.acceptResponseProgress(addedRequest, {
+				kind: 'progressMessage',
+				content: new MarkdownString(
+					localize('creatingRemoteJob', "Pushing state to coding agent"),
+					CreateRemoteAgentJobAction.markdownStringTrustedOptions
+				)
 			});
+
+			// Execute the remote command
+			const resultMarkdown: string | undefined = await commandService.executeCommand(agent.command, {
+				userPrompt,
+				summary: summary || userPrompt,
+				followup,
+			});
+
+			let content = new MarkdownString(
+				resultMarkdown,
+				CreateRemoteAgentJobAction.markdownStringTrustedOptions
+			);
+			if (!resultMarkdown) {
+				content = new MarkdownString(
+					localize('remoteAgentError', "Coding agent session cancelled."),
+					CreateRemoteAgentJobAction.markdownStringTrustedOptions
+				);
+			}
+
+			chatModel.acceptResponseProgress(addedRequest, { content, kind: 'markdownContent' });
+			chatModel.setResponse(addedRequest, {});
+			chatModel.completeResponse(addedRequest);
 		} finally {
 			remoteJobCreatingKey.set(false);
 		}
@@ -709,12 +806,22 @@ export class CancelEdit extends Action2 {
 			title: localize2('interactive.cancelEdit.label', "Cancel Edit"),
 			f1: false,
 			category: CHAT_CATEGORY,
+			icon: Codicon.x,
+			menu: [
+				{
+					id: MenuId.ChatMessageTitle,
+					group: 'navigation',
+					order: 1,
+					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.currentlyEditing, ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input'))
+				}
+			],
 			keybinding: {
 				primary: KeyCode.Escape,
 				when: ContextKeyExpr.and(ChatContextKeys.inChatInput,
 					EditorContextKeys.hoverVisible.toNegated(),
 					EditorContextKeys.hasNonEmptySelection.toNegated(),
-					EditorContextKeys.hasMultipleSelections.toNegated()),
+					EditorContextKeys.hasMultipleSelections.toNegated(),
+					ContextKeyExpr.or(ChatContextKeys.currentlyEditing, ChatContextKeys.currentlyEditingInput)),
 				weight: KeybindingWeight.EditorContrib - 5
 			}
 		});
@@ -728,7 +835,7 @@ export class CancelEdit extends Action2 {
 		if (!widget) {
 			return;
 		}
-		widget.input.dispose();
+		widget.finishedEditing();
 	}
 }
 

@@ -605,4 +605,7 @@ export const codiconsLibrary = {
 	copilotInProgress: register('copilot-in-progress', 0xec4c),
 	copilotError: register('copilot-error', 0xec4d),
 	copilotSuccess: register('copilot-success', 0xec4e),
+	chatSparkle: register('chat-sparkle', 0xec4f),
+	searchSparkle: register('search-sparkle', 0xec50),
+	editSparkle: register('edit-sparkle', 0xec51),
 } as const;
