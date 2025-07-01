@@ -10,7 +10,7 @@ import { ExtensionHostKind } from './extensionHostKind.js';
 import { IExtensionDescriptionDelta } from './extensionHostProtocol.js';
 import { IResolveAuthorityResult } from './extensionHostProxy.js';
 import { ExtensionRunningLocation } from './extensionRunningLocation.js';
-import { ActivationKind, ExtensionActivationReason, ExtensionHostStartup } from './extensions.js';
+import { ActivationKind, ExtensionActivationReason, ExtensionHostStartup, IExtensionInspectInfo } from './extensions.js';
 import { ResponsiveState } from './rpcProtocol.js';
 
 export interface IExtensionHostManager {
@@ -29,7 +29,7 @@ export interface IExtensionHostManager {
 	activate(extension: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean>;
 	activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void>;
 	activationEventIsDone(activationEvent: string): boolean;
-	getInspectPort(tryEnableInspector: boolean): Promise<{ port: number; host: string } | undefined>;
+	getInspectPort(tryEnableInspector: boolean): Promise<IExtensionInspectInfo | undefined>;
 	resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult>;
 	/**
 	 * Returns `null` if no resolver for `remoteAuthority` is found.
