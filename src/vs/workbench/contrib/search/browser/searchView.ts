@@ -1657,6 +1657,7 @@ export class SearchView extends ViewPane {
 			this.inputPatternIncludes.onSearchSubmit();
 		});
 
+		this.viewModel.cancelSearch(true);
 		if (!shouldKeepAIResults) {
 			this.clearAIResults();
 		}

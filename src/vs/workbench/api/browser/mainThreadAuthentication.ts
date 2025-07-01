@@ -233,6 +233,20 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		await this.dynamicAuthProviderStorageService.setSessionsForDynamicAuthProvider(authProviderId, clientId, sessions);
 	}
 
+	async $sendDidChangeDynamicProviderInfo({ providerId, clientId, authorizationServer, label }: Partial<{ providerId: string; clientId: string; authorizationServer: UriComponents; label: string }>): Promise<void> {
+		this.logService.info(`Client ID for authentication provider ${providerId} changed to ${clientId}`);
+		const existing = this.dynamicAuthProviderStorageService.getInteractedProviders().find(p => p.providerId === providerId);
+		if (!existing) {
+			throw new Error(`Dynamic authentication provider ${providerId} not found. Has it been registered?`);
+		}
+		this.dynamicAuthProviderStorageService.storeClientId(
+			providerId || existing.providerId,
+			authorizationServer ? URI.revive(authorizationServer).toString(true) : existing.authorizationServer,
+			clientId || existing.clientId,
+			label || existing.label
+		);
+	}
+
 	private async loginPrompt(provider: IAuthenticationProvider, extensionName: string, recreatingSession: boolean, options?: AuthenticationInteractiveOptions): Promise<boolean> {
 		let message: string;
 

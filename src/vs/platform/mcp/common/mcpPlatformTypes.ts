@@ -27,8 +27,19 @@ export interface IMcpServerVariable {
 	readonly serverName?: string;
 }
 
-export interface IMcpStdioServerConfiguration {
-	readonly type: 'stdio';
+export const enum McpServerType {
+	LOCAL = 'stdio',
+	REMOTE = 'http',
+}
+
+export interface ICommonMcpServerConfiguration {
+	readonly type: McpServerType;
+	readonly version?: string;
+	readonly gallery?: boolean;
+}
+
+export interface IMcpStdioServerConfiguration extends ICommonMcpServerConfiguration {
+	readonly type: McpServerType.LOCAL;
 	readonly command: string;
 	readonly args?: readonly string[];
 	readonly env?: Record<string, string | number | null>;
@@ -37,8 +48,8 @@ export interface IMcpStdioServerConfiguration {
 	readonly dev?: IMcpDevModeConfig;
 }
 
-export interface IMcpRemoteServerConfiguration {
-	readonly type: 'http';
+export interface IMcpRemoteServerConfiguration extends ICommonMcpServerConfiguration {
+	readonly type: McpServerType.REMOTE;
 	readonly url: string;
 	readonly headers?: Record<string, string>;
 	readonly dev?: IMcpDevModeConfig;

@@ -22,7 +22,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { NullPolicyService } from '../../../../../../platform/policy/common/policy.js';
-import { ChatMode } from '../../../common/constants.js';
+import { ChatModeKind } from '../../../common/constants.js';
 import { MarkdownLink } from '../../../common/promptSyntax/codecs/base/markdownCodec/tokens/markdownLink.js';
 import { FileReference } from '../../../common/promptSyntax/codecs/tokens/fileReference.js';
 import { getPromptFileType } from '../../../common/promptSyntax/config/promptFileLocations.js';
@@ -112,7 +112,7 @@ class TestPromptFileReference extends Disposable {
 		await rootReference.allSettled();
 
 		// resolve the root file reference including all nested references
-		const resolvedReferences: readonly (TPromptReference | undefined)[] = rootReference.allReferences;
+		const resolvedReferences: readonly (TPromptReference | undefined)[] = rootReference.references;
 
 		for (let i = 0; i < this.expectedReferences.length; i++) {
 			const expectedReference = this.expectedReferences[i];
@@ -540,7 +540,7 @@ suite('PromptFileReference', function () {
 					metadata,
 					{
 						promptType: PromptsType.prompt,
-						mode: ChatMode.Agent,
+						mode: ChatModeKind.Agent,
 						description: 'Description of my prompt.',
 						tools: ['my-tool12'],
 					},
@@ -755,7 +755,7 @@ suite('PromptFileReference', function () {
 					metadata,
 					{
 						promptType: PromptsType.prompt,
-						mode: ChatMode.Ask,
+						mode: ChatModeKind.Ask,
 						description: 'Description of my prompt.',
 					},
 					'Must have correct metadata.',
@@ -859,7 +859,7 @@ suite('PromptFileReference', function () {
 					metadata,
 					{
 						promptType: PromptsType.prompt,
-						mode: ChatMode.Edit,
+						mode: ChatModeKind.Edit,
 						description: 'Description of my prompt.',
 					},
 					'Must have correct metadata.',
@@ -964,7 +964,7 @@ suite('PromptFileReference', function () {
 					metadata,
 					{
 						promptType: PromptsType.prompt,
-						mode: ChatMode.Agent,
+						mode: ChatModeKind.Agent,
 						description: 'Description of my prompt.',
 					},
 					'Must have correct metadata.',
@@ -1069,7 +1069,7 @@ suite('PromptFileReference', function () {
 					metadata,
 					{
 						promptType: PromptsType.prompt,
-						mode: ChatMode.Agent,
+						mode: ChatModeKind.Agent,
 						tools: ['my-tool12'],
 						description: 'Description of the prompt file.',
 					},
