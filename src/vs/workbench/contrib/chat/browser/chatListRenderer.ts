@@ -490,7 +490,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.requestHover.classList.toggle('hidden', !!this.viewModel?.editing && !editing);
 		templateData.requestHover.classList.toggle('expanded', this.configService.getValue<string>('chat.editRequests') === 'hover');
 		templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.CLICK, () => {
-			if (this.viewModel?.editing && element.id !== this.viewModel.editing.id && element === this.templateDataByRequestId.get(element.id)?.currentElement) {
+			const current = templateData.currentElement;
+			if (
+				current &&
+				this.viewModel?.editing &&
+				current.id !== this.viewModel.editing.id
+			) {
 				this._onDidFocusOutside.fire();
 			}
 		}));
@@ -634,6 +639,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				const ev = new StandardKeyboardEvent(e);
 				if (ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) {
 					if (this.viewModel?.editing?.id !== element.id && !this.viewModel?.requestInProgress) {
+						ev.preventDefault();
+						ev.stopPropagation();
 						this._onDidClickRequest.fire(templateData);
 					}
 				}
@@ -1223,6 +1230,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				markdownPart.domNode.classList.add('clickable');
 				markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.CLICK, (e: MouseEvent) => {
 					if (this.viewModel?.editing?.id !== element.id && !this.viewModel?.requestInProgress) {
+						const selection = dom.getWindow(templateData.rowContainer).getSelection();
+						if (selection && !selection.isCollapsed && selection.toString().length > 0) {
+							return;
+						}
+						e.preventDefault();
+						e.stopPropagation();
 						this._onDidClickRequest.fire(templateData);
 					}
 				}));
