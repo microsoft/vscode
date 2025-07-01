@@ -59,6 +59,8 @@ export const EditReasons = {
 		} as const);
 	},
 
+	rename: () => createEditReason({ source: 'rename' } as const),
+
 	chatApplyEdits(data: { modelId: string | undefined }) {
 		return createEditReason({
 			source: 'Chat.applyEdits',
@@ -79,6 +81,7 @@ export const EditReasons = {
 		return createEditReason({
 			source: 'inlineCompletionPartialAccept',
 			type: data.type,
+			$nes: data.nes,
 			$extensionId: data.extensionId,
 			$$requestUuid: data.requestUuid,
 		} as const);
@@ -87,7 +90,7 @@ export const EditReasons = {
 	inlineChatApplyEdit(data: { modelId: string | undefined }) {
 		return createEditReason({
 			source: 'inlineChat.applyEdits',
-			$modelId: data.modelId,
+			$modelId: avoidRedaction(data.modelId),
 		} as const);
 	},
 
@@ -106,7 +109,17 @@ export const EditReasons = {
 	applyEdits: () => createEditReason({ source: 'applyEdits' } as const),
 	snippet: () => createEditReason({ source: 'snippet' } as const),
 	suggest: (data: { extensionId: string | undefined }) => createEditReason({ source: 'suggest', $extensionId: data.extensionId } as const),
+
+	codeAction: (data: { kind: string | undefined; extensionId: string | undefined }) => createEditReason({ source: 'codeAction', $kind: data.kind, $extensionId: data.extensionId } as const)
 };
 
 type Values<T> = T[keyof T];
 type ITextModelEditReasonMetadata = Values<{ [TKey in keyof typeof EditReasons]: ReturnType<typeof EditReasons[TKey]>['metadataT'] }>;
+
+function avoidRedaction(str: string | undefined): string | undefined {
+	if (str === undefined) {
+		return undefined;
+	}
+	// To avoid false-positive file path redaction.
+	return str.replaceAll('/', '|');
+}

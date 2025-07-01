@@ -346,7 +346,7 @@ class WorkspaceMcpResourceManagementService extends AbstractMcpResourceManagemen
 		throw new Error('Not supported');
 	}
 
-	protected override async getLocalMcpServerInfo(): Promise<ILocalMcpServerInfo | undefined> {
+	protected override async getLocalServerInfo(): Promise<ILocalMcpServerInfo | undefined> {
 		return undefined;
 	}
 

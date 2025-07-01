@@ -13,6 +13,7 @@ export interface INativeCliOptions {
  * A list of command line arguments we support natively.
  */
 export interface NativeParsedArgs {
+
 	// subcommands
 	tunnel?: INativeCliOptions & {
 		user: {
@@ -23,6 +24,14 @@ export interface NativeParsedArgs {
 		};
 	};
 	'serve-web'?: INativeCliOptions;
+	chat?: {
+		_: string[];
+		'add-file'?: string[];
+		mode?: string;
+		help?: boolean;
+	};
+
+	// arguments
 	_: string[];
 	'folder-uri'?: string[]; // undefined or array of 1 or more
 	'file-uri'?: string[]; // undefined or array of 1 or more

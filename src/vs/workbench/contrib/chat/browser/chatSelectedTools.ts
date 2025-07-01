@@ -12,7 +12,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ObservableMemento, observableMemento } from '../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatMode } from '../common/chatModes.js';
-import { ChatMode } from '../common/constants.js';
+import { ChatModeKind } from '../common/constants.js';
 import { ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, ToolSet } from '../common/languageModelToolsService.js';
 import { PromptFileRewriter } from './promptSyntax/promptFileRewriter.js';
 
@@ -123,8 +123,8 @@ export class ChatSelectedTools extends Disposable {
 
 			let currentMap = this._sessionStates.get(currentMode.id);
 			let defaultEnablement = false;
-			if (!currentMap && currentMode.kind === ChatMode.Agent && currentMode.customTools) {
-				currentMap = this._toolsService.toToolAndToolSetEnablementMap(new Set(currentMode.customTools));
+			if (!currentMap && currentMode.kind === ChatModeKind.Agent && currentMode.customTools) {
+				currentMap = this._toolsService.toToolAndToolSetEnablementMap(new Set(currentMode.customTools.read(r)));
 			}
 			if (!currentMap) {
 				currentMap = this._selectedTools.read(r);
@@ -150,7 +150,7 @@ export class ChatSelectedTools extends Disposable {
 		if (this._sessionStates.has(mode.id)) {
 			return ToolsScope.Session;
 		}
-		if (mode.kind === ChatMode.Agent && mode.customTools && mode.uri) {
+		if (mode.kind === ChatModeKind.Agent && mode.customTools && mode.uri) {
 			return ToolsScope.Mode;
 		}
 		return ToolsScope.Global;
@@ -175,9 +175,9 @@ export class ChatSelectedTools extends Disposable {
 			this._sessionStates.set(mode.id, enablementMap);
 			return;
 		}
-		if (mode.kind === ChatMode.Agent && mode.customTools && mode.uri) {
-			// apply directly to mode.
-			this.updateCustomModeTools(mode.uri, enablementMap);
+		if (mode.kind === ChatModeKind.Agent && mode.customTools && mode.uri) {
+			// apply directly to mode file.
+			this.updateCustomModeTools(mode.uri.get(), enablementMap);
 			return;
 		}
 		this._selectedTools.set(enablementMap, undefined);

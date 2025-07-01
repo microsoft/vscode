@@ -2568,6 +2568,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 			this._transformDocumentSelector(selector, extension),
 			adapter.supportsHandleEvents,
 			ExtensionIdentifier.toKey(extension.identifier.value),
+			extension.version,
 			metadata?.groupId ? ExtensionIdentifier.toKey(metadata.groupId) : undefined,
 			metadata?.yieldTo?.map(extId => ExtensionIdentifier.toKey(extId)) || [],
 			metadata?.displayName,

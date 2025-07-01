@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { assertDefined } from '../../../../../../base/common/types.js';
 import { IPromptContentsProvider } from '../contentProviders/types.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { BasePromptParser, IPromptParserOptions } from './basePromptParser.js';
@@ -13,7 +12,6 @@ import { TextModelContentsProvider } from '../contentProviders/textModelContents
 import { FilePromptContentProvider } from '../contentProviders/filePromptContentsProvider.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { Schemas } from '../../../../../../base/common/network.js';
 import { IPromptContentsProviderOptions } from '../contentProviders/promptContentsProviderBase.js';
 
 /**
@@ -25,21 +23,11 @@ function getContentsProvider(
 	modelService: IModelService,
 	instaService: IInstantiationService
 ): IPromptContentsProvider {
-	// use text model contents provider for `untitled` documents
-	if (uri.scheme === Schemas.untitled) {
-		const model = modelService.getModel(uri);
-
-		assertDefined(
-			model,
-			`Cannot find model of untitled document '${uri.path}'.`,
-		);
-
-		return instaService
-			.createInstance(TextModelContentsProvider, model, options);
+	const model = modelService.getModel(uri);
+	if (model) {
+		return instaService.createInstance(TextModelContentsProvider, model, options);
 	}
-
-	return instaService
-		.createInstance(FilePromptContentProvider, uri, options);
+	return instaService.createInstance(FilePromptContentProvider, uri, options);
 }
 
 /**
