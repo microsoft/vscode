@@ -545,7 +545,7 @@
 		"removeLabel": "~chat-rate-limiting",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode-copilot-release/issues/2627. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253124. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
 		"type": "label",
@@ -553,7 +553,7 @@
 		"removeLabel": "~chat-request-failed",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode-copilot-release/issues/4332. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253136. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
 		"type": "label",
@@ -561,7 +561,7 @@
 		"removeLabel": "~chat-rai-content-filters",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode-copilot-release/issues/2625. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253130. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
 		"type": "label",
@@ -569,7 +569,7 @@
 		"removeLabel": "~chat-public-code-blocking",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode-copilot-release/issues/2626. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253129. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
 		"type": "label",
@@ -577,7 +577,7 @@
 		"removeLabel": "~chat-lm-unavailable",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode-copilot-release/issues/2116. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253137. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
 		"type": "label",
@@ -585,7 +585,7 @@
 		"removeLabel": "~chat-authentication",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode-copilot-release/issues/11078, if the bug you are experiencing is not there, please comment on this closed issue thread so we can re-open it.",
+		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/253132, if the bug you are experiencing is not there, please comment on this closed issue thread so we can re-open it.",
 		"assign": ["TylerLeonhardt"]
 	},
 	{
@@ -594,7 +594,7 @@
 		"removeLabel": "~chat-no-response-returned",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode-copilot-release/issues/7034. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/253126. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 		{
 		"type": "label",
