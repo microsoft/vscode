@@ -819,9 +819,9 @@ export function registerChatActions() {
 	registerAction2(class UpdateInstructionsAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.updateInstructions',
-				title: localize2('updateInstructions', "Generate Instructions"),
-				shortTitle: localize2('updateInstructions.short', "Generate Instructions"),
+				id: 'workbench.action.chat.generateInstructions',
+				title: localize2('generateInstructions', "Generate Workspace Instructions File"),
+				shortTitle: localize2('generateInstructions.short', "Generate Instructions"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.sparkle,
 				f1: true,
