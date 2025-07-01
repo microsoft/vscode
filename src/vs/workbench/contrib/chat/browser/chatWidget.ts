@@ -1088,13 +1088,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!isInput) {
 			this.inputPart?.toggleChatInputOverlay(false);
 			try {
-				editedRequest?.rowContainer.removeChild(this.inputContainer);
-			} catch (e) {
-				if (this.inputContainer.parentElement) {
+				if (editedRequest?.rowContainer && editedRequest.rowContainer.contains(this.inputContainer)) {
+					editedRequest.rowContainer.removeChild(this.inputContainer);
+				} else if (this.inputContainer.parentElement) {
 					this.inputContainer.parentElement.removeChild(this.inputContainer);
 				}
-				this.inputContainer = null!;
+			} catch (e) {
+				this.logService.error('Error occurred while finishing editing:', e);
 			}
+			this.inputContainer = dom.$('.empty-chat-state');
 		}
 		if (isInput) {
 			this.inputPart.element.classList.remove('editing');

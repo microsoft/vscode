@@ -490,7 +490,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.requestHover.classList.toggle('hidden', !!this.viewModel?.editing && !editing);
 		templateData.requestHover.classList.toggle('expanded', this.configService.getValue<string>('chat.editRequests') === 'hover');
 		templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.CLICK, () => {
-			if (this.viewModel?.editing && element.id !== this.viewModel.editing.id) {
+			if (this.viewModel?.editing && element.id !== this.viewModel.editing.id && element === this.templateDataByRequestId.get(element.id)?.currentElement) {
 				this._onDidFocusOutside.fire();
 			}
 		}));
