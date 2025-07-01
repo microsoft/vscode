@@ -13,6 +13,7 @@ import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../plat
 import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
 import { createDecorator, ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../platform/quickinput/common/quickInput.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
 
 export const IInlineCompletionsService = createDecorator<IInlineCompletionsService>('IInlineCompletionsService');
 
@@ -83,16 +84,9 @@ export class InlineCompletionsService extends Disposable implements IInlineCompl
 
 	setSnoozeDuration(durationMs: number): void {
 		const wasSnoozing = this.isSnoozing();
-
-		if (this._snoozeTimeEnd === undefined) {
-			this._snoozeTimeEnd = Date.now() + durationMs;
-		} else if (this.snoozeTimeLeft > 0) {
-			this._snoozeTimeEnd += durationMs;
-		} else {
-			this._snoozeTimeEnd = Date.now() + durationMs;
-		}
-
+		this._snoozeTimeEnd = Date.now() + durationMs;
 		const isSnoozing = this.isSnoozing();
+
 		if (wasSnoozing !== isSnoozing) {
 			this._onDidChangeIsSnoozing.fire(isSnoozing);
 		}
@@ -128,6 +122,7 @@ registerSingleton(IInlineCompletionsService, InlineCompletionsService, Instantia
 
 const snoozeInlineSuggestId = 'editor.action.inlineSuggest.snooze';
 const cancelSnoozeInlineSuggestId = 'editor.action.inlineSuggest.cancelSnooze';
+const LAST_SNOOZE_DURATION_KEY = 'inlineCompletions.lastSnoozeDuration';
 
 export class SnoozeInlineCompletion extends Action2 {
 	public static ID = snoozeInlineSuggestId;
@@ -140,27 +135,48 @@ export class SnoozeInlineCompletion extends Action2 {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor): Promise<void> {
+	public async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const inlineCompletionsService = accessor.get(IInlineCompletionsService);
+		const storageService = accessor.get(IStorageService);
 
-		const items: IQuickPickItem[] = [
-			{ label: '5 minutes', id: '5', picked: true },
-			{ label: '10 minutes', id: '10' },
-			{ label: '15 minutes', id: '15' },
-			{ label: '30 minutes', id: '30' },
-			{ label: '60 minutes', id: '60' }
+		let durationMinutes: number | undefined;
+		if (args.length > 0 && typeof args[0] === 'number') {
+			durationMinutes = args[0];
+		}
+
+		if (!durationMinutes) {
+			durationMinutes = await this.getDurationFromUser(quickInputService, storageService);
+		}
+
+		if (durationMinutes) {
+			inlineCompletionsService.setSnoozeDuration(durationMinutes);
+		}
+	}
+
+	private async getDurationFromUser(quickInputService: IQuickInputService, storageService: IStorageService): Promise<number | undefined> {
+		const lastSelectedDuration = storageService.getNumber(LAST_SNOOZE_DURATION_KEY, StorageScope.PROFILE, 300_000);
+
+		const items: (IQuickPickItem & { value: number })[] = [
+			{ label: '1 minute', id: '1', value: 60_000 },
+			{ label: '5 minutes', id: '5', value: 300_000 },
+			{ label: '10 minutes', id: '10', value: 600_000 },
+			{ label: '15 minutes', id: '15', value: 900_000 },
+			{ label: '30 minutes', id: '30', value: 1_800_000 },
+			{ label: '60 minutes', id: '60', value: 3_600_000 }
 		];
 
 		const picked = await quickInputService.pick(items, {
-			placeHolder: localize('snooze.placeholder', "Select snooze duration")
+			placeHolder: localize('snooze.placeholder', "Select snooze duration for Code completions and NES"),
+			activeItem: items.find(item => item.value === lastSelectedDuration),
 		});
 
 		if (picked) {
-			const minutes = parseInt(picked.id!, 10);
-			const durationMs = minutes * 60 * 1000;
-			inlineCompletionsService.setSnoozeDuration(durationMs);
+			storageService.store(LAST_SNOOZE_DURATION_KEY, picked.value, StorageScope.PROFILE, StorageTarget.USER);
+			return picked.value;
 		}
+
+		return undefined;
 	}
 }
 
