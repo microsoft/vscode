@@ -426,6 +426,18 @@ export function registerTerminalActions() {
 	});
 
 	registerTerminalAction({
+		id: TerminalCommandId.ResizePaneDown,
+		title: localize2('workbench.action.terminal.resizePaneDown', 'Resize Terminal Down'),
+		keybinding: {
+			mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.DownArrow },
+			when: TerminalContextKeys.focus,
+			weight: KeybindingWeight.WorkbenchContrib
+		},
+		precondition: sharedWhenClause.terminalAvailable,
+		run: (c) => c.groupService.activeGroup?.resizePane(Direction.Down)
+	});
+
+	registerTerminalAction({
 		id: TerminalCommandId.Focus,
 		title: terminalStrings.focus,
 		keybinding: {
