@@ -847,7 +847,7 @@ Focus on discovering the essential knowledge that would help an AI agents be imm
 - Project-specific conventions and patterns that differ from common practices
 - Integration points, external dependencies, and cross-component communication patterns
 
-Source existing AI conventions from (glob search) \`**/{.github/copilot-instructions.md,AGENT.md,AGENTS.md,CLAUDE.md,.cursorrules,.windsurfrules,.clinerules,.cursor/rules/**,.windsurf/rules/**,.clinerules/**,README.md}\`.
+Source existing AI conventions from \`**/{.github/copilot-instructions.md,AGENT.md,AGENTS.md,CLAUDE.md,.cursorrules,.windsurfrules,.clinerules,.cursor/rules/**,.windsurf/rules/**,.clinerules/**,README.md}\` (do one glob search).
 
 Guidelines (read more at https://aka.ms/vscode-instructions-docs):
 - If \`.github/copilot-instructions.md\` exists, merge intelligently - preserve valuable content while updating outdated sections
@@ -857,7 +857,7 @@ Guidelines (read more at https://aka.ms/vscode-instructions-docs):
 - Document only discoverable patterns, not aspirational practices
 - Reference key files/directories that exemplify important patterns
 
-After generating the initial instructions (in less than 20 tool calls, count down after each tool call), ask for feedback on any unclear or incomplete sections and iterate on the instructions based on their input.`;
+Update \`.github/copilot-instructions.md\` for the user, than ask for feedback on any unclear or incomplete sections to iterate.`;
 
 			await commandService.executeCommand('workbench.action.chat.open', {
 				mode: 'agent',
