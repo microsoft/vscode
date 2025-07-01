@@ -46,6 +46,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { McpCommandIds } from '../../../mcp/common/mcpCommandIds.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
@@ -877,12 +878,12 @@ Update \`.github/copilot-instructions.md\` for the user, then ask for feedback o
 
 	MenuRegistry.appendMenuItem(CHAT_CONFIG_MENU_ID, {
 		command: {
-			id: 'workbench.views.mcp.marketplace.focus',
+			id: McpCommandIds.ShowInstalled,
 			title: localize2('mcp.servers', "MCP Servers")
 		},
 		when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
 		order: 14,
-		group: '1_level'
+		group: '0_level'
 	});
 }
 
