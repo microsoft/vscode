@@ -9,6 +9,7 @@ import { MainThreadDiagnosticsShape, MainContext, ExtHostDiagnosticsShape, ExtHo
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
+import { ResourceMap } from '../../../base/common/map.js';
 
 @extHostNamedCustomer(MainContext.MainThreadDiagnostics)
 export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
@@ -35,22 +36,22 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 	dispose(): void {
 		this._markerListener.dispose();
 		for (const owner of this._activeOwners) {
-			const markersData: Map<string, { resource: URI; local: IMarker[] }> = new Map();
+			const markersData: ResourceMap<IMarker[]> = new ResourceMap<IMarker[]>();
 			for (const marker of this._markerService.read({ owner })) {
-				const resource = marker.resource.toString();
-				let data = markersData.get(resource);
+				let data = markersData.get(marker.resource);
 				if (data === undefined) {
-					data = { resource: marker.resource, local: [] };
-					markersData.set(resource, data);
+					data = [];
+					markersData.set(marker.resource, data);
 				}
 				if (marker.origin !== this.extHostId) {
-					data.local.push(marker);
+					data.push(marker);
 				}
 			}
-			for (const { resource, local } of markersData.values()) {
+			for (const [resource, local] of markersData.entries()) {
 				this._markerService.changeOne(owner, resource, local);
 			}
 		}
+		this._activeOwners.clear();
 	}
 
 	private _forwardMarkers(resources: readonly URI[]): void {
