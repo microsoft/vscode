@@ -185,7 +185,8 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 		const cellTop = this._notebookEditor.getAbsoluteTopOfElement(cell);
 
 		const label = document.createElement('div');
-		label.textContent = `cell #${index} (handle: ${cell.handle}) | AbsoluteTopOfElement: ${cellTop}px`;
+		const linefeed = cell.model.textBuffer.getEOL() === '\n' ? 'LF' : 'CRLF';
+		label.textContent = `cell #${index} (handle: ${cell.handle}) | AbsoluteTopOfElement: ${cellTop}px | Linefeed: ${linefeed}`;
 		label.style.position = 'absolute';
 		label.style.top = '0px';
 		label.style.right = '10px';
@@ -214,9 +215,9 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 			// Update overlay when layout changes
 			const updateLayout = () => {
 				const scrollTop = this._notebookEditor.getAbsoluteTopOfElement(cell);
-
+				const linefeed = cell.model.textBuffer.getEOL() === '\n' ? 'LF' : 'CRLF';
 				// Update label text
-				label.textContent = `cell #${index} (handle: ${cell.handle}) | AbsoluteTopOfElement: ${scrollTop}px`;
+				label.textContent = `cell #${index} (handle: ${cell.handle}) | AbsoluteTopOfElement: ${scrollTop}px | Linefeed: ${linefeed}`;
 
 				// Refresh the overlay position
 				if (overlayId) {
