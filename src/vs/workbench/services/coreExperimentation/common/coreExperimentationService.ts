@@ -10,6 +10,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { firstSessionDateStorageKey, ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 
 export const ICoreExperimentationService = createDecorator<ICoreExperimentationService>('coreExperimentationService');
 export const startupExpContext = new RawContextKey<string>('coreExperimentation.startupExpGroup', '');
@@ -83,13 +84,46 @@ export class CoreExperimentationService extends Disposable implements ICoreExper
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IProductService private readonly productService: IProductService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this.initializeExperiments();
 	}
 
+	private getStartupGroupFromString(groupString: string): StartupExperimentGroup | undefined {
+		switch (groupString) {
+			case 'control':
+				return StartupExperimentGroup.Control;
+			case 'maximizedChat':
+				return StartupExperimentGroup.MaximizedChat;
+			case 'splitEmptyEditorChat':
+				return StartupExperimentGroup.SplitEmptyEditorChat;
+			case 'splitWelcomeChat':
+				return StartupExperimentGroup.SplitWelcomeChat;
+			default:
+				return undefined;
+		}
+	}
+
 	private initializeExperiments(): void {
+
+		const startupExpGroupOverride = this.environmentService.startupExperimentGroup;
+		if (startupExpGroupOverride) {
+			const overrideGroup = this.getStartupGroupFromString(startupExpGroupOverride);
+			if (overrideGroup) {
+				const overrideExperiment: IExperiment = {
+					cohort: 1.0, // 100% for testing
+					subCohort: 1.0,
+					experimentGroup: overrideGroup,
+					iteration: 1,
+					isInExperiment: true
+				};
+				this.experiments.set(STARTUP_EXPERIMENT_NAME, overrideExperiment);
+				startupExpContext.bindTo(this.contextKeyService).set(overrideExperiment.experimentGroup);
+				return;
+			}
+		}
 
 		const firstSessionDateString = this.storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION) || new Date().toUTCString();
 		const daysSinceFirstSession = ((+new Date()) - (+new Date(firstSessionDateString))) / 1000 / 60 / 60 / 24;
