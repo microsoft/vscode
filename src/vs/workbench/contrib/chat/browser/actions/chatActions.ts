@@ -857,7 +857,7 @@ Guidelines (read more at https://aka.ms/vscode-instructions-docs):
 - Document only discoverable patterns, not aspirational practices
 - Reference key files/directories that exemplify important patterns
 
-Update \`.github/copilot-instructions.md\` for the user, than ask for feedback on any unclear or incomplete sections to iterate.`;
+Update \`.github/copilot-instructions.md\` for the user, then ask for feedback on any unclear or incomplete sections to iterate.`;
 
 			await commandService.executeCommand('workbench.action.chat.open', {
 				mode: 'agent',
