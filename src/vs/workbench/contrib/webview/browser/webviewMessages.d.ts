@@ -58,6 +58,7 @@ interface UpdateContentEvent {
 
 export type ToWebviewMessage = {
 	'focus': void;
+	'blur-active-element': void;
 	'message': { message: any; transfer?: ArrayBuffer[] };
 	'execCommand': string;
 	'did-load-resource':

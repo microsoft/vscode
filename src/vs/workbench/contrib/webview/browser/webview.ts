@@ -246,6 +246,7 @@ export interface IWebview extends IDisposable {
 	postMessage(message: any, transfer?: readonly ArrayBuffer[]): Promise<boolean>;
 
 	focus(): void;
+	blurActiveElement(): void;
 	reload(): void;
 
 	showFind(animated?: boolean): void;
