@@ -15,7 +15,7 @@ import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js'
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
-import { ChatModeKind, validateChatMode } from '../common/constants.js';
+import { ChatModeKind } from '../common/constants.js';
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -79,7 +79,7 @@ class ChatCommandLineHandler extends Disposable {
 
 		const opts: IChatViewOpenOptions = {
 			query: args._.length > 0 ? args._.join(' ') : '',
-			mode: validateChatMode(args.mode) ?? ChatModeKind.Agent,
+			mode: args.mode ?? ChatModeKind.Agent,
 			attachFiles: args['add-file']?.map(file => URI.file(resolve(file))), // use `resolve` to deal with relative paths properly
 		};
 
