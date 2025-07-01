@@ -19,6 +19,7 @@ jobs:
     name: ${{ inputs.job_name }}
     runs-on: macos-14-xlarge
     env:
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}
       VSCODE_ARCH: arm64
     steps:
       - name: Checkout microsoft/vscode
@@ -210,3 +211,32 @@ jobs:
         run: ps -ef
         continue-on-error: true
         if: always()
+
+      - name: Publish Crash Reports
+        uses: actions/upload-artifact@v4
+        if: failure()
+        continue-on-error: true
+        with:
+          name: ${{ format('crash-dump-macos-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
+          path: .build/crashes
+          if-no-files-found: ignore
+
+      # In order to properly symbolify above crash reports
+      # (if any), we need the compiled native modules too
+      - name: Publish Node Modules
+        uses: actions/upload-artifact@v4
+        if: failure()
+        continue-on-error: true
+        with:
+          name: ${{ format('node-modules-macos-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
+          path: node_modules
+          if-no-files-found: ignore
+
+      - name: Publish Log Files
+        uses: actions/upload-artifact@v4
+        if: always()
+        continue-on-error: true
+        with:
+          name: ${{ format('logs-macos-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
+          path: .build/logs
+          if-no-files-found: ignore
