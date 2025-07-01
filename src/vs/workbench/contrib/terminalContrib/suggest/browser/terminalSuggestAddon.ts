@@ -35,6 +35,7 @@ import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js
 import { localize } from '../../../../../nls.js';
 import { TerminalSuggestTelemetry } from './terminalSuggestTelemetry.js';
 import { terminalSymbolAliasIcon, terminalSymbolArgumentIcon, terminalSymbolEnumMember, terminalSymbolFileIcon, terminalSymbolFlagIcon, terminalSymbolInlineSuggestionIcon, terminalSymbolMethodIcon, terminalSymbolOptionIcon, terminalSymbolFolderIcon, terminalSymbolSymbolicLinkFileIcon, terminalSymbolSymbolicLinkFolderIcon } from './terminalSymbolIcons.js';
+import { TerminalSuggestShownTracker } from './terminalSuggestShownTracker.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -45,9 +46,6 @@ export interface ISuggestController {
 	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion<TerminalCompletionItem>, 'item' | 'model'>): void;
 	hideSuggestWidget(cancelAnyRequests: boolean, wasClosedByUser?: boolean): void;
 }
-
-
-let firstShownTracker: { shell: Set<TerminalShellType>; window: boolean } | undefined = undefined;
 
 export function isInlineCompletionSupported(shellType: TerminalShellType | undefined): boolean {
 	if (!shellType) {
@@ -88,6 +86,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _lastUserDataTimestamp: number = 0;
 
 	private _cancellationTokenSource: CancellationTokenSource | undefined;
+
+	private _discoverability: TerminalSuggestShownTracker | undefined;
 
 	isPasting: boolean = false;
 	shellType: TerminalShellType | undefined;
@@ -161,7 +161,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService
 	) {
 		super();
 
@@ -231,7 +231,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				this._model?.forceRefilterAll();
 			}
 		}));
-		this._register(this._extensionService.onWillStop(() => firstShownTracker = undefined));
 	}
 
 	activate(xterm: Terminal): void {
@@ -719,9 +718,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// Track the time when completions are shown for the first time
 		if (this._completionRequestTimestamp !== undefined) {
 			const completionLatency = Date.now() - this._completionRequestTimestamp;
-			if (this._suggestTelemetry && this.shellType) {
-				const firstShown = this.getFirstShown(this.shellType);
-				this.updateShown();
+			if (this._suggestTelemetry && this.shellType && this._discoverability) {
+				const firstShown = this._discoverability.getFirstShown(this.shellType);
+				this._discoverability.updateShown();
 				this._suggestTelemetry.logCompletionLatency(this._sessionId, completionLatency, firstShown);
 			}
 			this._completionRequestTimestamp = undefined;
@@ -764,6 +763,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				}));
 			}
 
+			this._register(this._suggestWidget.onDidShow(() => this._updateDiscoverabilityState()));
 			this._register(this._suggestWidget.onDidBlurDetails((e) => {
 				const elt = e.relatedTarget as HTMLElement;
 				if (this._terminal?.element?.contains(elt)) {
@@ -777,6 +777,21 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._terminalSuggestWidgetVisibleContextKey.set(false);
 		}
 		return this._suggestWidget;
+	}
+
+	private _updateDiscoverabilityState(): void {
+		if (!this._discoverability) {
+			this._discoverability = this._register(this._instantiationService.createInstance(TerminalSuggestShownTracker, this.shellType));
+		}
+
+		if (!this._suggestWidget || this._discoverability?.done) {
+			return;
+		}
+		this._discoverability?.update(this._suggestWidget.element.domNode);
+	}
+
+	resetDiscoverability(): void {
+		this._discoverability?.resetState();
 	}
 
 	selectPreviousSuggestion(): void {
@@ -901,36 +916,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._suggestWidget?.hide();
 	}
 
-	getFirstShown(shellType: TerminalShellType): { window: boolean; shell: boolean } {
-		if (!firstShownTracker) {
-			firstShownTracker = {
-				window: true,
-				shell: new Set([shellType])
-			};
-			return { window: true, shell: true };
-		}
-
-		const isFirstForWindow = firstShownTracker.window;
-		const isFirstForShell = !firstShownTracker.shell.has(shellType);
-
-		if (isFirstForWindow || isFirstForShell) {
-			this.updateShown();
-		}
-
-		return {
-			window: isFirstForWindow,
-			shell: isFirstForShell
-		};
-	}
-
-	updateShown(): void {
-		if (!this.shellType || !firstShownTracker) {
-			return;
-		}
-
-		firstShownTracker.window = false;
-		firstShownTracker.shell.add(this.shellType);
-	}
 }
 
 class PersistedWidgetSize {

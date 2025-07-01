@@ -23,7 +23,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { assertType } from '../../../../base/common/types.js';
@@ -448,6 +448,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}));
 		this._register(this.chatModeService.onDidChangeChatModes(() => this.validateCurrentChatMode()));
+		this._register(autorun(r => {
+			const mode = this._currentModeObservable.read(r);
+			const model = mode.model?.read(r);
+			if (model) {
+				this.switchModelByName(model);
+			}
+		}));
 	}
 
 	private getSelectedModelStorageKey(): string {
@@ -510,6 +517,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
+	public switchModelByName(modelName: string): boolean {
+		const models = this.getModels();
+		const model = models.find(m => m.metadata.name === modelName);
+		if (model) {
+			this.setCurrentLanguageModel(model);
+			return true;
+		}
+		return false;
+	}
+
 	public switchToNextModel(): void {
 		const models = this.getModels();
 		if (models.length > 0) {
@@ -560,10 +577,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private modelSupportedForDefaultAgent(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 		// Probably this logic could live in configuration on the agent, or somewhere else, if it gets more complex
 		if (this.currentModeKind === ChatModeKind.Agent || (this.currentModeKind === ChatModeKind.Edit && this.configurationService.getValue(ChatConfiguration.Edits2Enabled))) {
-			const supportsToolsAgent = typeof model.metadata.capabilities?.agentMode === 'undefined' || model.metadata.capabilities.agentMode;
-
-			// Filter out models that don't support tool calling, and models that don't support enough context to have a good experience with the tools agent
-			return supportsToolsAgent && !!model.metadata.capabilities?.toolCalling;
+			return ILanguageModelChatMetadata.suitableForAgentMode(model.metadata);
 		}
 
 		return true;

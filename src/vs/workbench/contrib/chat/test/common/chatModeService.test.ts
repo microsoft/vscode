@@ -179,7 +179,8 @@ suite('ChatModeService', () => {
 			name: 'Initial Mode',
 			description: 'Initial description',
 			tools: ['tool1'],
-			body: 'Initial body'
+			body: 'Initial body',
+			model: 'gpt-4'
 		};
 
 		promptsService.setCustomModes([initialMode]);
@@ -194,7 +195,8 @@ suite('ChatModeService', () => {
 			...initialMode,
 			description: 'Updated description',
 			tools: ['tool1', 'tool2'],
-			body: 'Updated body'
+			body: 'Updated body',
+			model: 'Updated model'
 		};
 
 		promptsService.setCustomModes([updatedMode]);
@@ -210,6 +212,7 @@ suite('ChatModeService', () => {
 		assert.strictEqual(updatedCustomMode.description.get(), 'Updated description');
 		assert.deepStrictEqual(updatedCustomMode.customTools?.get(), ['tool1', 'tool2']);
 		assert.strictEqual(updatedCustomMode.body?.get(), 'Updated body');
+		assert.strictEqual(updatedCustomMode.model?.get(), 'Updated model');
 	});
 
 	test('should remove custom modes that no longer exist', async () => {

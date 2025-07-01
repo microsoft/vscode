@@ -3,16 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
-import { IPromptsService } from '../service/promptsService.js';
-import { ITextModel } from '../../../../../../editor/common/model.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { ALL_PROMPTS_LANGUAGE_SELECTOR, getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
-import { Position } from '../../../../../../editor/common/core/position.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
-import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList } from '../../../../../../editor/common/languages.js';
+import { CharCode } from '../../../../../../base/common/charCode.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Position } from '../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList } from '../../../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../../../editor/common/model.js';
+import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
+import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
+import { InstructionsHeader } from '../parsers/promptHeader/instructionsHeader.js';
+import { PromptToolsMetadata } from '../parsers/promptHeader/metadata/tools.js';
+import { ModeHeader } from '../parsers/promptHeader/modeHeader.js';
+import { PromptHeader } from '../parsers/promptHeader/promptHeader.js';
+import { ALL_PROMPTS_LANGUAGE_SELECTOR, getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
+import { IPromptsService } from '../service/promptsService.js';
 
 export class PromptHeaderAutocompletion extends Disposable implements CompletionItemProvider {
 	/**
@@ -28,7 +34,8 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ILanguageFeaturesService private readonly languageService: ILanguageFeaturesService,
-
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 	) {
 		super();
 
@@ -59,10 +66,12 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 			return undefined;
 		}
 
-		if (!parser.header) {
+		const header = parser.header;
+		if (!header) {
 			return undefined;
 		}
-		await parser.header.settled;
+
+		await header.settled;
 
 		const fullHeaderRange = parser.header.range;
 		const headerRange = new Range(fullHeaderRange.startLineNumber + 1, 0, fullHeaderRange.endLineNumber - 1, model.getLineMaxColumn(fullHeaderRange.endLineNumber - 1),);
@@ -79,7 +88,7 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 		if (!colonPosition || position.isBeforeOrEqual(colonPosition)) {
 			return this.providePropertyCompletions(model, position, headerRange, colonPosition, promptType);
 		} else if (colonPosition && colonPosition.isBefore(position)) {
-			return this.provideValueCompletions(model, position, headerRange, colonPosition, promptType);
+			return this.provideValueCompletions(model, position, header, colonPosition, promptType);
 		}
 		return undefined;
 	}
@@ -125,7 +134,7 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 	private async provideValueCompletions(
 		model: ITextModel,
 		position: Position,
-		headerRange: Range,
+		header: PromptHeader | ModeHeader | InstructionsHeader,
 		colonPosition: Position,
 		promptType: string,
 	): Promise<CompletionList | undefined> {
@@ -137,19 +146,33 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 		if (!this.getSupportedProperties(promptType).has(property)) {
 			return undefined;
 		}
+
+		if (header instanceof PromptHeader || header instanceof ModeHeader) {
+			const tools = header.metadataUtility.tools;
+			if (tools) {
+				// if the position is inside the tools metadata, we provide tool name completions
+				const result = this.provideToolCompletions(model, position, tools);
+				if (result) {
+					return result;
+				}
+			}
+		}
+
+
 		const bracketIndex = lineContent.indexOf('[');
 		if (bracketIndex !== -1 && bracketIndex <= position.column - 1) {
 			// if the property is already inside a bracket, we don't provide value completions
 			return undefined;
 		}
 
+		const whilespaceAfterColon = (lineContent.substring(colonPosition.column).match(/^\s*/)?.[0].length) ?? 0;
 		const values = this.getValueSuggestions(promptType, property);
 		for (const value of values) {
 			const item: CompletionItem = {
 				label: value,
 				kind: CompletionItemKind.Value,
 				insertText: value,
-				range: new Range(position.lineNumber, position.column, position.lineNumber, model.getLineMaxColumn(position.lineNumber)),
+				range: new Range(position.lineNumber, colonPosition.column + whilespaceAfterColon + 1, position.lineNumber, model.getLineMaxColumn(position.lineNumber)),
 			};
 			suggestions.push(item);
 		}
@@ -161,9 +184,9 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 			case PromptsType.instructions:
 				return new Set(['applyTo', 'description']);
 			case PromptsType.prompt:
-				return new Set(['mode', 'tools', 'description']);
+				return new Set(['mode', 'tools', 'description', 'model']);
 			default:
-				return new Set(['tools', 'description']);
+				return new Set(['tools', 'description', 'model']);
 		}
 	}
 
@@ -190,6 +213,72 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 		if (property === 'tools' && (promptType === PromptsType.prompt || promptType === PromptsType.mode)) {
 			return ['[]', `['codebase', 'editFiles', 'fetch']`];
 		}
+		if (property === 'model' && (promptType === PromptsType.prompt || promptType === PromptsType.mode)) {
+			return this.getModelNames(promptType === PromptsType.mode);
+		}
 		return [];
 	}
+
+	private getModelNames(agentModeOnly: boolean): string[] {
+		const result = [];
+		for (const model of this.languageModelsService.getLanguageModelIds()) {
+			const metadata = this.languageModelsService.lookupLanguageModel(model);
+			if (metadata && metadata.isUserSelectable !== false) {
+				if (!agentModeOnly || ILanguageModelChatMetadata.suitableForAgentMode(metadata)) {
+					result.push(metadata.name);
+				}
+			}
+		}
+		return result;
+	}
+
+	private provideToolCompletions(model: ITextModel, position: Position, node: PromptToolsMetadata): CompletionList | undefined {
+		const tools = node.value;
+		if (!tools || !node.range.containsPosition(position)) {
+			return undefined;
+		}
+		const getSuggestions = (toolRange: Range) => {
+			const suggestions: CompletionItem[] = [];
+			const addSuggestion = (toolName: string, toolRange: Range) => {
+				let insertText: string;
+				if (!toolRange.isEmpty()) {
+					const firstChar = model.getValueInRange(toolRange).charCodeAt(0);
+					insertText = firstChar === CharCode.SingleQuote ? `'${toolName}'` : firstChar === CharCode.DoubleQuote ? `"${toolName}"` : toolName;
+				} else {
+					insertText = `'${toolName}'`;
+				}
+				suggestions.push({
+					label: toolName,
+					kind: CompletionItemKind.Value,
+					filterText: insertText,
+					insertText: insertText,
+					range: toolRange,
+				});
+			};
+			for (const tool of this.languageModelToolsService.getTools()) {
+				if (tool.canBeReferencedInPrompt) {
+					addSuggestion(tool.toolReferenceName ?? tool.displayName, toolRange);
+				}
+			}
+			for (const toolSet of this.languageModelToolsService.toolSets.get()) {
+				addSuggestion(toolSet.referenceName, toolRange);
+			}
+			return { suggestions };
+		};
+
+		for (const tool of tools) {
+			const toolRange = node.getToolRange(tool);
+			if (toolRange?.containsPosition(position)) {
+				// if the position is inside a tool range, we provide tool name completions
+				return getSuggestions(toolRange);
+			}
+		}
+		const prefix = model.getValueInRange(new Range(position.lineNumber, 1, position.lineNumber, position.column));
+		if (prefix.match(/[,[]\s*$/)) {
+			// if the position is after a comma or bracket
+			return getSuggestions(new Range(position.lineNumber, position.column, position.lineNumber, position.column));
+		}
+		return undefined;
+	}
+
 }

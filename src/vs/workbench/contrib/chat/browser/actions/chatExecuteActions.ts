@@ -504,13 +504,14 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 		super({
 			id: CreateRemoteAgentJobAction.ID,
-			title: localize2('actions.chat.createRemoteJob', "Push to Coding Agent"),
+			// TODO(joshspicer): Generalize title
+			title: localize2('actions.chat.createRemoteJob', "Push to Copilot coding agent"),
 			icon: Codicon.cloudUpload,
 			precondition,
 			toggled: {
 				condition: ChatContextKeys.remoteJobCreating,
 				icon: Codicon.sync,
-				tooltip: localize('remoteJobCreating', "Pushing to Coding Agent"),
+				tooltip: localize('remoteJobCreating', "Pushing to Copilot coding agent"),
 			},
 			menu: {
 				id: MenuId.ChatExecute,
@@ -574,6 +575,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			}
 
 			let summary: string | undefined;
+			let followup: string | undefined;
 			if (defaultAgent && chatRequests.length > 0) {
 				chatModel.acceptResponseProgress(addedRequest, {
 					kind: 'progressMessage',
@@ -582,6 +584,15 @@ export class CreateRemoteAgentJobAction extends Action2 {
 						CreateRemoteAgentJobAction.markdownStringTrustedOptions
 					)
 				});
+
+				// Forward useful metadata about conversation to the implementing extension
+				if (agent.followUpRegex) {
+					const regex = new RegExp(agent.followUpRegex);
+					followup = chatRequests
+						.map(req => req.response?.response.toString() ?? '')
+						.reverse()
+						.find(text => regex.test(text));
+				}
 
 				const historyEntries: IChatAgentHistoryEntry[] = chatRequests
 					.map(req => ({
@@ -614,7 +625,8 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			// Execute the remote command
 			const resultMarkdown: string | undefined = await commandService.executeCommand(agent.command, {
 				userPrompt,
-				summary: summary || userPrompt
+				summary: summary || userPrompt,
+				followup,
 			});
 
 			let content = new MarkdownString(

@@ -19,11 +19,15 @@ export class MockChatModeService implements IChatModeService {
 	}
 
 	findModeById(id: string): IChatMode | undefined {
+		return this.getFlatModes().find(mode => mode.id === id);
+	}
+
+	findModeByName(name: string): IChatMode | undefined {
+		return this.getFlatModes().find(mode => mode.name === name);
+	}
+
+	private getFlatModes(): IChatMode[] {
 		const allModes = this.getModes();
-		const builtinMode = allModes.builtin.find(mode => mode.id === id);
-		if (builtinMode) {
-			return builtinMode;
-		}
-		return allModes.custom.find(mode => mode.id === id);
+		return [...allModes.builtin, ...allModes.custom];
 	}
 }

@@ -176,7 +176,7 @@ export class ChatSelectedTools extends Disposable {
 			return;
 		}
 		if (mode.kind === ChatModeKind.Agent && mode.customTools && mode.uri) {
-			// apply directly to mode.
+			// apply directly to mode file.
 			this.updateCustomModeTools(mode.uri.get(), enablementMap);
 			return;
 		}

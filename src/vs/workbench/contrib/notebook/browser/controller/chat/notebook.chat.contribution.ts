@@ -206,7 +206,11 @@ export class SelectAndInsertKernelVariableAction extends Action2 {
 			});
 		}
 
-		const pickedVariable = await quickInputService.pick(quickPickItems, { placeHolder: localize('selectKernelVariablePlaceholder', "Select a kernel variable") });
+		const placeHolder = quickPickItems.length > 0
+			? localize('selectKernelVariablePlaceholder', "Select a kernel variable")
+			: localize('noKernelVariables', "No kernel variables found");
+
+		const pickedVariable = await quickInputService.pick(quickPickItems, { placeHolder });
 		if (!pickedVariable) {
 			return;
 		}
