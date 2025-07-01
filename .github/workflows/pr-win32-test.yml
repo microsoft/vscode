@@ -114,8 +114,6 @@ jobs:
       - name: Transpile client and extensions
         shell: pwsh
         run: npm run gulp "transpile-client-esbuild" "transpile-extensions"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download Electron and Playwright
         shell: pwsh

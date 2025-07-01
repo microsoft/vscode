@@ -49,17 +49,6 @@ jobs:
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        env:
-          npm_config_arch: ${{ env.NPM_ARCH }}
-          VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
-          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Avoid using dlopen to load Kerberos on macOS which can cause missing libraries
-          # https://github.com/mongodb-js/kerberos/commit/04044d2814ad1d01e77f1ce87f26b03d86692cf2
-          # flipped the default to support legacy linux distros which shouldn't happen
-          # on macOS.
-          GYP_DEFINES: "kerberos_use_rtld=false"
         run: |
           set -e
           c++ --version
@@ -74,6 +63,17 @@ jobs:
             fi
             echo "Npm install failed $i, trying again..."
           done
+        env:
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Avoid using dlopen to load Kerberos on macOS which can cause missing libraries
+          # https://github.com/mongodb-js/kerberos/commit/04044d2814ad1d01e77f1ce87f26b03d86692cf2
+          # flipped the default to support legacy linux distros which shouldn't happen
+          # on macOS.
+          GYP_DEFINES: "kerberos_use_rtld=false"
 
       - name: Create node_modules archive
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -98,18 +98,14 @@ jobs:
 
       - name: Download built-in extensions
         if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
+        run: node build/lib/builtInExtensions.js
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node build/lib/builtInExtensions.js
 
       - name: Transpile client and extensions
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run gulp transpile-client-esbuild transpile-extensions
 
       - name: Download Electron and Playwright
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
 
@@ -127,6 +123,8 @@ jobs:
             echo "Download failed on attempt $i, retrying..."
             sleep 5 # optional: add a small delay between retries
           done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 🧪 Run unit tests (Electron)
         if: ${{ inputs.electron_tests }}
@@ -141,9 +139,9 @@ jobs:
       - name: 🧪 Run unit tests (Browser, Webkit)
         if: ${{ inputs.browser_tests }}
         timeout-minutes: 30
+        run: npm run test-browser-no-install -- --browser webkit --tfs "Browser Unit Tests"
         env:
           DEBUG: "*browser*"
-        run: npm run test-browser-no-install -- --browser webkit --tfs "Browser Unit Tests"
 
       - name: Build integration tests
         run: |
