@@ -114,6 +114,7 @@ class AttachFileToChatAction extends AttachResourceAction {
 			id: AttachFileToChatAction.ID,
 			title: localize2('workbench.action.chat.attachFile.label', "Add File to Chat"),
 			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.enabled,
 			f1: true,
 			menu: [{
 				id: MenuId.SearchContext,
@@ -224,6 +225,7 @@ class AttachSelectionToChatAction extends Action2 {
 			title: localize2('workbench.action.chat.attachSelection.label', "Add Selection to Chat"),
 			category: CHAT_CATEGORY,
 			f1: true,
+			precondition: ChatContextKeys.enabled,
 			menu: {
 				id: MenuId.ChatTextEditorMenu,
 				group: 'zContext',
