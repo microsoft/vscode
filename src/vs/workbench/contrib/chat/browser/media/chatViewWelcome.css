@@ -21,6 +21,10 @@
 	overflow: hidden;
 }
 
+.interactive-session .experimental-welcome-view & > .chat-welcome-view-input-part {
+	max-width: 700px;
+}
+
 /* Container for ChatViewPane welcome view */
 .pane-body > .chat-view-welcome {
 	flex-direction: column;

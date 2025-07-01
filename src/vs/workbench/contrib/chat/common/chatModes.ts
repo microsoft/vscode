@@ -15,7 +15,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatAgentService } from './chatAgents.js';
 import { ChatContextKeys } from './chatContextKeys.js';
-import { ChatModeKind, modeToString } from './constants.js';
+import { ChatModeKind } from './constants.js';
 import { ICustomChatMode, IPromptsService } from './promptSyntax/service/promptsService.js';
 
 export const IChatModeService = createDecorator<IChatModeService>('chatModeService');
@@ -26,6 +26,7 @@ export interface IChatModeService {
 	onDidChangeChatModes: Event<void>;
 	getModes(): { builtin: readonly IChatMode[]; custom: readonly IChatMode[] };
 	findModeById(id: string): IChatMode | undefined;
+	findModeByName(name: string): IChatMode | undefined;
 }
 
 export class ChatModeService extends Disposable implements IChatModeService {
@@ -163,13 +164,19 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		return { builtin: this.getBuiltinModes(), custom: Array.from(this._customModeInstances.values()) };
 	}
 
-	findModeById(id: string | ChatModeKind): IChatMode | undefined {
+	private getFlatModes(): IChatMode[] {
 		const allModes = this.getModes();
-		const builtinMode = allModes.builtin.find(mode => mode.id === id);
-		if (builtinMode) {
-			return builtinMode;
-		}
-		return allModes.custom.find(mode => mode.id === id);
+		return [...allModes.builtin, ...allModes.custom];
+	}
+
+	findModeById(id: string | ChatModeKind): IChatMode | undefined {
+		const allModes = this.getFlatModes();
+		return allModes.find(mode => mode.id === id);
+	}
+
+	findModeByName(name: string): IChatMode | undefined {
+		const allModes = this.getFlatModes();
+		return allModes.find(mode => mode.name === name);
 	}
 
 	private getBuiltinModes(): IChatMode[] {
@@ -298,13 +305,12 @@ export class CustomChatMode implements IChatMode {
 
 export class BuiltinChatMode implements IChatMode {
 	public readonly description: IObservable<string>;
-	public readonly name: string;
 
 	constructor(
 		public readonly kind: ChatModeKind,
+		public readonly name: string,
 		description: string
 	) {
-		this.name = modeToString(this.kind);
 		this.description = observableValue('description', description);
 	}
 
@@ -327,9 +333,9 @@ export class BuiltinChatMode implements IChatMode {
 }
 
 export namespace ChatMode {
-	export const Ask = new BuiltinChatMode(ChatModeKind.Ask, localize('chatDescription', "Ask Copilot"));
-	export const Edit = new BuiltinChatMode(ChatModeKind.Edit, localize('editsDescription', "Edit files in your workspace"));
-	export const Agent = new BuiltinChatMode(ChatModeKind.Agent, localize('agentDescription', "Edit files in your workspace in agent mode"));
+	export const Ask = new BuiltinChatMode(ChatModeKind.Ask, 'Ask', localize('chatDescription', "Ask Copilot"));
+	export const Edit = new BuiltinChatMode(ChatModeKind.Edit, 'Edit', localize('editsDescription', "Edit files in your workspace"));
+	export const Agent = new BuiltinChatMode(ChatModeKind.Agent, 'Agent', localize('agentDescription', "Edit files in your workspace in agent mode"));
 }
 
 export function isBuiltinChatMode(mode: IChatMode): boolean {

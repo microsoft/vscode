@@ -19,6 +19,7 @@ interface IRemoteCodingAgentExtensionPoint {
 	command: string;
 	displayName: string;
 	description?: string;
+	followUpRegex?: string;
 	when?: string;
 }
 
@@ -45,6 +46,10 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IRemoteCodingAg
 				description: {
 					description: localize('remoteCodingAgentsExtPoint.description', 'Description of the remote agent for use in menus and tooltips.'),
 					type: 'string'
+				},
+				followUpRegex: {
+					description: localize('remoteCodingAgentsExtPoint.followUpRegex', 'The last occurrence of pattern in an existing chat conversation is sent to the contributing extension to facilitate follow-up responses.'),
+					type: 'string',
 				},
 				when: {
 					description: localize('remoteCodingAgentsExtPoint.when', 'Condition which must be true to show this item.'),
@@ -81,6 +86,7 @@ export class RemoteCodingAgentsContribution extends Disposable implements IWorkb
 						command: contribution.command,
 						displayName: contribution.displayName,
 						description: contribution.description,
+						followUpRegex: contribution.followUpRegex,
 						when: contribution.when
 					};
 					this.logService.info(`Registering remote coding agent: ${agent.displayName} (${agent.command})`);

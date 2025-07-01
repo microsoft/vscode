@@ -685,8 +685,7 @@ suite('PromptsService', () => {
 				uri: file3,
 				metadata: {
 					promptType: PromptsType.prompt,
-					tools: ['my-tool1'],
-					mode: 'agent',
+					mode: 'edit',
 				},
 				topError: undefined,
 				references: [nonExistingFolder, yetAnotherFile]

@@ -50,12 +50,12 @@ import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
-import { ChatMode, IChatMode } from '../../common/chatModes.js';
+import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
@@ -100,9 +100,9 @@ export interface IChatViewOpenOptions {
 	 */
 	attachFiles?: URI[];
 	/**
-	 * The mode to open the chat in.
+	 * The mode ID or name to open the chat in.
 	 */
-	mode?: ChatModeKind;
+	mode?: ChatModeKind | string;
 }
 
 export interface IChatViewOpenRequestEntry {
@@ -139,6 +139,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const chatAgentService = accessor.get(IChatAgentService);
 		const instaService = accessor.get(IInstantiationService);
 		const commandService = accessor.get(ICommandService);
+		const chatModeService = accessor.get(IChatModeService);
 
 		let chatWidget = widgetService.lastFocusedWidget;
 		// When this was invoked to switch to a mode via keybinding, and some chat widget is focused, use that one.
@@ -151,11 +152,12 @@ abstract class OpenChatGlobalAction extends Action2 {
 			return;
 		}
 
-		let switchToMode = opts?.mode ?? this.mode;
+		const switchToModeInput = opts?.mode ?? this.mode;
+		let switchToMode = switchToModeInput && (chatModeService.findModeById(switchToModeInput) ?? chatModeService.findModeByName(switchToModeInput));
 		if (!switchToMode) {
-			switchToMode = opts?.query?.startsWith('@') ? ChatModeKind.Ask : undefined;
+			switchToMode = opts?.query?.startsWith('@') ? ChatMode.Ask : undefined;
 		}
-		if (switchToMode && validateChatMode(switchToMode)) {
+		if (switchToMode) {
 			await this.handleSwitchToMode(switchToMode, chatWidget, instaService, commandService);
 		}
 
@@ -203,17 +205,17 @@ abstract class OpenChatGlobalAction extends Action2 {
 		chatWidget.focusInput();
 	}
 
-	private async handleSwitchToMode(switchToMode: ChatModeKind, chatWidget: IChatWidget, instaService: IInstantiationService, commandService: ICommandService): Promise<void> {
+	private async handleSwitchToMode(switchToMode: IChatMode, chatWidget: IChatWidget, instaService: IInstantiationService, commandService: ICommandService): Promise<void> {
 		const currentMode = chatWidget.input.currentModeKind;
 
 		if (switchToMode) {
 			const editingSession = chatWidget.viewModel?.model.editingSession;
 			const requestCount = chatWidget.viewModel?.model.getRequests().length ?? 0;
-			const chatModeCheck = await instaService.invokeFunction(handleModeSwitch, currentMode, switchToMode, requestCount, editingSession);
+			const chatModeCheck = await instaService.invokeFunction(handleModeSwitch, currentMode, switchToMode.kind, requestCount, editingSession);
 			if (!chatModeCheck) {
 				return;
 			}
-			chatWidget.input.setChatMode(switchToMode);
+			chatWidget.input.setChatMode(switchToMode.id);
 
 			if (chatModeCheck.needToClearSession) {
 				await commandService.executeCommand(ACTION_ID_NEW_CHAT);
@@ -871,6 +873,16 @@ After generating the initial instructions (in less than 20 tool calls, count dow
 		when: ContextKeyExpr.equals('view', ChatViewId),
 		icon: Codicon.settings,
 		order: 6
+	});
+
+	MenuRegistry.appendMenuItem(CHAT_CONFIG_MENU_ID, {
+		command: {
+			id: 'workbench.views.mcp.marketplace.focus',
+			title: localize2('mcp.servers', "MCP Servers")
+		},
+		when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
+		order: 14,
+		group: '1_level'
 	});
 }
 

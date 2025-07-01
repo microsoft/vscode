@@ -8,11 +8,13 @@ import { localize } from '../../../../../../../nls.js';
 import { PromptMetadataWarning } from './diagnostics.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
-import { PromptToolsMetadata, PromptModeMetadata } from './metadata/index.js';
+
 import { HeaderBase, IHeaderMetadata, type TDehydrated } from './headerBase.js';
 import { PromptsType } from '../../promptTypes.js';
 import { FrontMatterRecord } from '../../codecs/base/frontMatterCodec/tokens/index.js';
 import { PromptModelMetadata } from './metadata/model.js';
+import { PromptToolsMetadata } from './metadata/tools.js';
+import { PromptModeMetadata } from './metadata/mode.js';
 
 /**
  * Metadata utility object for prompt files.
@@ -134,10 +136,8 @@ export class PromptHeader extends HeaderBase<IPromptMetadata> {
 				mode.range,
 				localize(
 					'prompt.header.metadata.mode.diagnostics.incompatible-with-tools',
-					"Record '{0}' is implied to have the '{1}' value if '{2}' record is present so the specified value will be ignored.",
-					mode.recordName,
-					ChatModeKind.Agent,
-					tools.recordName,
+					"Tools can only be used when in 'agent' mode, but the mode is set to '{0}'. The tools will be ignored.",
+					mode.value
 				),
 			),
 		);

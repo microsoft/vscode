@@ -74,6 +74,7 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _suppressedInlineCompletionGroupIds;
 	private readonly _inlineEditsEnabled;
 	private readonly _inlineEditsShowCollapsedEnabled;
+	private readonly _triggerCommandOnProviderChange;
 
 	constructor(
 		public readonly textModel: ITextModel,
@@ -109,6 +110,8 @@ export class InlineCompletionsModel extends Disposable {
 		this._suppressedInlineCompletionGroupIds = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => new Set(v.experimental.suppressInlineSuggestions.split(',')));
 		this._inlineEditsEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.enabled);
 		this._inlineEditsShowCollapsedEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
+		this._triggerCommandOnProviderChange = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.experimental.triggerCommandOnProviderChange);
+
 		this._lastShownInlineCompletionInfo = undefined;
 		this._lastAcceptedInlineCompletionInfo = undefined;
 		this._didUndoInlineEdits = derivedHandleChanges({
@@ -595,6 +598,19 @@ export class InlineCompletionsModel extends Disposable {
 				if (!this._enabled.get()) {
 					return;
 				}
+
+				// Only update the active editor
+				const activeEditor = this._codeEditorService.getFocusedCodeEditor() || this._codeEditorService.getActiveCodeEditor();
+				if (activeEditor !== this._editor) {
+					return;
+				}
+
+				if (this._triggerCommandOnProviderChange.get()) {
+					// TODO@hediet remove this and always do the else branch.
+					this.trigger(undefined, { onlyFetchInlineEdits: true });
+					return;
+				}
+
 
 				// If there is an active suggestion from a different provider, we ignore the update
 				const activeState = this.state.get();

@@ -6,7 +6,6 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
-import { assert } from '../../../../base/common/assert.js';
 import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -789,7 +788,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private getExpWelcomeViewContent(): IChatViewWelcomeContent {
 		const baseMessage = localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.");
 		const welcomeContent = {
-			title: 'Get Started with VS Code',
+			title: localize('expChatTitle', 'Get Started with VS Code'),
 			message: new MarkdownString(baseMessage),
 			icon: Codicon.copilotLarge,
 			suggestedPrompts: this.getExpSuggestedPrompts(),
@@ -1089,13 +1088,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!isInput) {
 			this.inputPart?.toggleChatInputOverlay(false);
 			try {
-				editedRequest?.rowContainer.removeChild(this.inputContainer);
-			} catch (e) {
-				if (this.inputContainer.parentElement) {
+				if (editedRequest?.rowContainer && editedRequest.rowContainer.contains(this.inputContainer)) {
+					editedRequest.rowContainer.removeChild(this.inputContainer);
+				} else if (this.inputContainer.parentElement) {
 					this.inputContainer.parentElement.removeChild(this.inputContainer);
 				}
-				this.inputContainer = null!;
+			} catch (e) {
+				this.logService.error('Error occurred while finishing editing:', e);
 			}
+			this.inputContainer = dom.$('.empty-chat-state');
 		}
 		if (isInput) {
 			this.inputPart.element.classList.remove('editing');
@@ -1724,7 +1725,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewModel?.editing) {
 			this.inlineInputPart?.layout(layoutHeight, width);
 		}
-		this.inputPart.layout(layoutHeight, width);
+
+		if (this.container.classList.contains('experimental-welcome-view')) {
+			this.inputPart.layout(layoutHeight, Math.min(width, 700));
+		}
+		else {
+			this.inputPart.layout(layoutHeight, width);
+		}
+
 		const inputHeight = this.inputPart.inputPartHeight;
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight - 2;
 
@@ -1894,14 +1902,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		// if not tools to enable are present, we are done
-		if (tools !== undefined) {
-
-
-			// sanity check on the logic of the `getPromptFilesMetadata` method
-			// and the code above in case this block is moved around somewhere else:
-			// if we have some tools present, the mode must have been equal to `agent`
-			assert(this.input.currentModeKind === ChatModeKind.Agent, `Chat mode must be 'agent' when there are 'tools' defined, got ${this.input.currentModeKind}.`);
-
+		if (tools !== undefined && this.input.currentModeKind === ChatModeKind.Agent) {
 			const enablementMap = this.toolsService.toToolAndToolSetEnablementMap(new Set(tools));
 			this.input.selectedToolsModel.set(enablementMap, true);
 		}
