@@ -21,6 +21,8 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { IAccountQuery, IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../../chat/browser/actions/chatActions.js';
+import { ChatModeKind } from '../../chat/common/constants.js';
 
 export abstract class McpServerAction extends Action implements IMcpServerContainer {
 
@@ -101,6 +103,7 @@ export class InstallAction extends McpServerAction {
 
 	constructor(
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super('extensions.install', localize('install', "Install"), InstallAction.CLASS, false);
 		this.update();
@@ -125,6 +128,35 @@ export class InstallAction extends McpServerAction {
 			return;
 		}
 		await this.mcpWorkbenchService.install(this.mcpServer);
+
+		// After successful installation, check if the server has a readme and prompt
+		await this.mcpWorkbenchService.queryLocal(); // Refresh local servers to get the updated state
+		const installedServer = this.mcpWorkbenchService.local.find(s => s.name === this.mcpServer!.name);
+
+		if (installedServer) {
+			try {
+				// Open chat with prompt about the installed server
+				let query: string;
+				if (installedServer.local?.readmeUrl) {
+					// If readme exists, reference it
+					query = `Suggest interesting developer workflows I could run with MCP tools from ${installedServer.local.readmeUrl.toString()}`;
+				} else {
+					// Fallback: use the server name
+					const serverName = installedServer.label || installedServer.name;
+					query = `Suggest interesting developer workflows I could run with the ${serverName} MCP tools`;
+				}
+
+				const options: IChatViewOpenOptions = {
+					query,
+					isPartialQuery: true,
+					mode: ChatModeKind.Agent
+				};
+				await this.commandService.executeCommand(CHAT_OPEN_ACTION_ID, options);
+			} catch (error) {
+				// If we can't open the chat, just skip
+				console.debug('Could not open chat for MCP server:', error);
+			}
+		}
 	}
 }
 
