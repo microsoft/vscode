@@ -255,11 +255,21 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		await this.queryLocal(); // Refresh local servers to get the updated state
 		const installedServer = this._local.find(s => s.name === server.name);
 
-		if (installedServer?.local?.readmeUrl) {
+		if (installedServer) {
 			try {
 				// Open chat with prompt about the installed server
+				let query: string;
+				if (installedServer.local?.readmeUrl) {
+					// If readme exists, reference it
+					query = `Suggest interesting developer workflows I could run with MCP tools from ${installedServer.local.readmeUrl.toString()}`;
+				} else {
+					// Fallback: use the server name
+					const serverName = installedServer.label || installedServer.name;
+					query = `Suggest interesting developer workflows I could run with the ${serverName} MCP tools`;
+				}
+
 				const options: IChatViewOpenOptions = {
-					query: `Suggest interesting developer workflows I could run with MCP tools from ${installedServer.local.readmeUrl.toString()}`,
+					query,
 					isPartialQuery: true,
 					mode: ChatModeKind.Agent
 				};
