@@ -20,6 +20,7 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 import { ChatAgentLocation } from '../../common/constants.js';
 import { chatViewsWelcomeRegistry, IChatViewsWelcomeDescriptor } from './chatViewsWelcome.js';
 import { IChatWidgetService } from '../chat.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
 const $ = dom.$;
 
@@ -139,6 +140,7 @@ export class ChatViewWelcomePart extends Disposable {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILogService private logService: ILogService,
 		@IChatWidgetService private chatWidgetService: IChatWidgetService,
+		@ITelemetryService private telemetryService: ITelemetryService,
 	) {
 		super();
 		this.element = dom.$('.chat-welcome-view');
@@ -199,6 +201,19 @@ export class ChatViewWelcomePart extends Disposable {
 					const labelElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-label'));
 					labelElement.textContent = prompt.label;
 					this._register(dom.addDisposableListener(promptElement, dom.EventType.CLICK, () => {
+
+						type SuggestedPromptClickEvent = { suggestedPrompt: string };
+
+						type SuggestedPromptClickData = {
+							owner: 'bhavyaus';
+							comment: 'Event used to gain insights into when suggested prompts are clicked.';
+							suggestedPrompt: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The suggested prompt clicked.' };
+						};
+
+						this.telemetryService.publicLog2<SuggestedPromptClickEvent, SuggestedPromptClickData>('chat.clickedSuggestedPrompt', {
+							suggestedPrompt: prompt.prompt,
+						});
+
 						this.chatWidgetService.lastFocusedWidget?.setInput(prompt.prompt);
 					}));
 				}
