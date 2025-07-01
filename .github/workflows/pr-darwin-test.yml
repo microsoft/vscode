@@ -20,6 +20,7 @@ jobs:
     runs-on: macos-14-xlarge
     env:
       ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}
+      NPM_ARCH: arm64
       VSCODE_ARCH: arm64
     steps:
       - name: Checkout microsoft/vscode
@@ -49,7 +50,8 @@ jobs:
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         env:
-          npm_config_arch: ${{ env.VSCODE_ARCH }}
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

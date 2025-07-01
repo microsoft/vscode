@@ -19,6 +19,7 @@ jobs:
     name: ${{ inputs.job_name }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64 ]
     env:
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
     steps:
@@ -77,8 +78,9 @@ jobs:
             }
           }
         env:
-          npm_config_arch: ${{ env.VSCODE_ARCH }}
+          npm_config_arch: ${{ env.NPM_ARCH }}
           npm_config_foreground_scripts: "true"
+          VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -253,3 +255,32 @@ jobs:
         run: .\build\azure-pipelines\win32\listprocesses.bat
         continue-on-error: true
         if: always()
+
+      - name: Publish Crash Reports
+        uses: actions/upload-artifact@v4
+        if: failure()
+        continue-on-error: true
+        with:
+          name: ${{ format('crash-dump-windows-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
+          path: .build/crashes
+          if-no-files-found: ignore
+
+      # In order to properly symbolify above crash reports
+      # (if any), we need the compiled native modules too
+      - name: Publish Node Modules
+        uses: actions/upload-artifact@v4
+        if: failure()
+        continue-on-error: true
+        with:
+          name: ${{ format('node-modules-windows-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
+          path: node_modules
+          if-no-files-found: ignore
+
+      - name: Publish Log Files
+        uses: actions/upload-artifact@v4
+        if: always()
+        continue-on-error: true
+        with:
+          name: ${{ format('logs-windows-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
+          path: .build/logs
+          if-no-files-found: ignore
