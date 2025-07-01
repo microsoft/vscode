@@ -91,6 +91,12 @@ export type RegisteredEditorOptions = {
 	 * If omitted we assume you can open everything
 	 */
 	canSupportResource?: (resource: URI) => boolean;
+
+	/**
+	* Context when this editor should be available
+	* Uses the same format as other 'when' clauses in VS Code
+	*/
+	when?: string;
 };
 
 export type RegisteredEditorInfo = {
