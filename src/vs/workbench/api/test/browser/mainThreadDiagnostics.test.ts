@@ -15,14 +15,53 @@ import { MainThreadDiagnostics } from '../../browser/mainThreadDiagnostics.js';
 import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
 import { ExtensionHostKind } from '../../../services/extensions/common/extensionHostKind.js';
 import { mock } from '../../../test/common/workbenchTestServices.js';
+import type { IModelService } from '../../../../editor/common/services/model.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import type { ILanguageSelection } from '../../../../editor/common/languages/language.js';
+import type { ITextBufferFactory, ITextModel, ITextModelCreationOptions } from '../../../../editor/common/model.js';
+import type { TextModelEditReason } from '../../../../editor/common/textModelEditReason.js';
 
+
+
+class NullModelService implements IModelService {
+	_serviceBrand: undefined;
+
+	private _onModelAdded = new Emitter<ITextModel>();
+	private _onModelRemoved = new Emitter<ITextModel>();
+	private _onModelLanguageChanged = new Emitter<{ readonly model: ITextModel; readonly oldLanguageId: string }>();
+
+	public onModelAdded: Event<ITextModel> = this._onModelAdded.event;
+	public onModelRemoved: Event<ITextModel> = this._onModelRemoved.event;
+	public onModelLanguageChanged: Event<{ readonly model: ITextModel; readonly oldLanguageId: string }> = this._onModelLanguageChanged.event;
+
+	createModel(value: string | ITextBufferFactory, languageSelection: ILanguageSelection | null, resource?: URI, isForSimpleWidget?: boolean): ITextModel {
+		throw new Error('Method not implemented.');
+	}
+	updateModel(model: ITextModel, value: string | ITextBufferFactory, reason?: TextModelEditReason): void {
+		throw new Error('Method not implemented.');
+	}
+	destroyModel(resource: URI): void {
+		throw new Error('Method not implemented.');
+	}
+	getModels(): ITextModel[] {
+		throw new Error('Method not implemented.');
+	}
+	getCreationOptions(language: string, resource: URI, isForSimpleWidget: boolean): ITextModelCreationOptions {
+		throw new Error('Method not implemented.');
+	}
+	getModel(resource: URI): ITextModel | null {
+		throw new Error('Method not implemented.');
+	}
+}
 
 suite('MainThreadDiagnostics', function () {
 
 	let markerService: MarkerService;
+	let modelService: IModelService;
 
 	setup(function () {
 		markerService = new MarkerService();
+		modelService = new NullModelService();
 	});
 
 	teardown(function () {
@@ -50,7 +89,8 @@ suite('MainThreadDiagnostics', function () {
 			markerService,
 			new class extends mock<IUriIdentityService>() {
 				override asCanonicalUri(uri: URI) { return uri; }
-			}
+			},
+			modelService
 		);
 
 		diag.$changeMany('foo', [[URI.file('a'), [{
@@ -94,7 +134,8 @@ suite('MainThreadDiagnostics', function () {
 				markerService,
 				new class extends mock<IUriIdentityService>() {
 					override asCanonicalUri(uri: URI) { return uri; }
-				}
+				},
+				modelService
 			);
 
 			const markerDataStub = {
@@ -160,7 +201,8 @@ suite('MainThreadDiagnostics', function () {
 				markerService,
 				new class extends mock<IUriIdentityService>() {
 					override asCanonicalUri(uri: URI) { return uri; }
-				}
+				},
+				modelService
 			);
 
 			diag.$clear('bar');
