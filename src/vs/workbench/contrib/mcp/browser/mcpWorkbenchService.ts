@@ -34,6 +34,9 @@ import { IRemoteAgentService } from '../../../services/remote/common/remoteAgent
 import { mcpConfigurationSection } from '../common/mcpConfiguration.js';
 import { HasInstalledMcpServersContext, IMcpConfigPath, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionSortOrder, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../../chat/browser/actions/chatActions.js';
+import { ChatModeKind } from '../../chat/common/constants.js';
 
 class McpWorkbenchServer implements IWorkbenchMcpServer {
 
@@ -151,6 +154,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		@IProductService private readonly productService: IProductService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IURLService urlService: IURLService,
 	) {
 		super();
@@ -241,15 +245,30 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	async install(server: IWorkbenchMcpServer): Promise<void> {
 		if (server.installable) {
 			await this.mcpManagementService.install(server.installable);
-			return;
-		}
-
-		if (server.gallery) {
+		} else if (server.gallery) {
 			await this.mcpManagementService.installFromGallery(server.gallery, { packageType: server.gallery.packageTypes[0] });
-			return;
+		} else {
+			throw new Error('No installable server found');
 		}
 
-		throw new Error('No installable server found');
+		// After successful installation, check if the server has a readme and prompt
+		await this.queryLocal(); // Refresh local servers to get the updated state
+		const installedServer = this._local.find(s => s.name === server.name);
+
+		if (installedServer?.local?.readmeUrl) {
+			try {
+				// Open chat with prompt about the installed server
+				const options: IChatViewOpenOptions = {
+					query: `Suggest interesting developer workflows I could run with MCP tools from ${installedServer.local.readmeUrl.toString()}`,
+					isPartialQuery: true,
+					mode: ChatModeKind.Agent
+				};
+				await this.commandService.executeCommand(CHAT_OPEN_ACTION_ID, options);
+			} catch (error) {
+				// If we can't open the chat, just skip
+				console.debug('Could not open chat for MCP server:', error);
+			}
+		}
 	}
 
 	async uninstall(server: IWorkbenchMcpServer): Promise<void> {
