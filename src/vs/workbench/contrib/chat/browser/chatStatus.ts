@@ -42,7 +42,7 @@ import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IInlineCompletionsService } from '../../../../editor/contrib/inlineCompletions/browser/services/inlineCompletionsService.js';
+import { IInlineCompletionsService } from '../../../../editor/browser/services/inlineCompletionsService.js';
 
 const gaugeBackground = registerColor('gauge.background', {
 	dark: inputValidationInfoBorder,

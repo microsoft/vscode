@@ -37,7 +37,7 @@ import { ObservableContextKeyService } from '../utils.js';
 import { InlineCompletionsView } from '../view/inlineCompletionsView.js';
 import { inlineSuggestCommitId } from './commandIds.js';
 import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
-import { IInlineCompletionsService } from '../services/inlineCompletionsService.js';
+import { IInlineCompletionsService } from '../../../../browser/services/inlineCompletionsService.js';
 
 export class InlineCompletionsController extends Disposable {
 	private static readonly _instances = new Set<InlineCompletionsController>();
