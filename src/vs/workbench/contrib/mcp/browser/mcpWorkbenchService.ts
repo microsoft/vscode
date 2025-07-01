@@ -241,11 +241,15 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	async install(server: IWorkbenchMcpServer): Promise<void> {
 		if (server.installable) {
 			await this.mcpManagementService.install(server.installable);
-		} else if (server.gallery) {
-			await this.mcpManagementService.installFromGallery(server.gallery, { packageType: server.gallery.packageTypes[0] });
-		} else {
-			throw new Error('No installable server found');
+			return;
 		}
+
+		if (server.gallery) {
+			await this.mcpManagementService.installFromGallery(server.gallery, { packageType: server.gallery.packageTypes[0] });
+			return;
+		}
+
+		throw new Error('No installable server found');
 	}
 
 	async uninstall(server: IWorkbenchMcpServer): Promise<void> {
