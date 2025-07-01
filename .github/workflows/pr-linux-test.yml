@@ -236,17 +236,17 @@ jobs:
       - name: Compile extensions for smoke tests
         run: npm run gulp compile-extension-media
 
-      - name: Download node.js for remote smoke tests
-        run: |
-          for i in {1..3}; do
-            npm run gulp node && break
-            if [ $i -eq 3 ]; then
-              echo "Download failed after 3 attempts" >&2
-              exit 1
-            fi
-            echo "Download failed attempt $i, retrying..."
-            sleep 2
-          done
+      # - name: Download node.js for remote smoke tests
+      #   run: |
+      #     for i in {1..3}; do
+      #       npm run gulp node && break
+      #       if [ $i -eq 3 ]; then
+      #         echo "Download failed after 3 attempts" >&2
+      #         exit 1
+      #       fi
+      #       echo "Download failed attempt $i, retrying..."
+      #       sleep 2
+      #     done
 
       - name: Diagnostics before smoke test run (processes, max_user_watches, number of opened file handles)
         run: |
