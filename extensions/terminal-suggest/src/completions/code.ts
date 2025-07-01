@@ -549,7 +549,7 @@ export const extTunnelSubcommand = {
 };
 
 
-export const codeTunnelSubcommands = [
+export const codeTunnelSubcommands: Fig.Subcommand[] = [
 	{
 		name: 'tunnel',
 		description: 'Create a tunnel that\'s accessible on vscode.dev from anywhere. Run`code tunnel --help` for more usage info',
