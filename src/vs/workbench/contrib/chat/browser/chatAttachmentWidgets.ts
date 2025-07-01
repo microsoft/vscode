@@ -85,6 +85,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		this.label = contextResourceLabels.create(this.element, { supportIcons: true, hoverDelegate, hoverTargetOverride: this.element });
 		this._register(this.label);
 		this.element.tabIndex = 0;
+		this.element.role = 'button';
 
 		// Add middle-click support for removal
 		this._register(dom.addDisposableListener(this.element, dom.EventType.AUXCLICK, (e: MouseEvent) => {
