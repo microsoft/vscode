@@ -55,7 +55,7 @@ import { accessibleViewCurrentProviderId, accessibleViewIsShown, accessibleViewO
 import { IRemoteTerminalAttachTarget, ITerminalProfileResolverService, ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../common/terminal.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { terminalStrings } from '../common/terminalStrings.js';
-import { ICreateTerminalOptions, IDetachedTerminalInstance, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService, IXtermTerminal } from './terminal.js';
+import { Direction, ICreateTerminalOptions, IDetachedTerminalInstance, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService, IXtermTerminal } from './terminal.js';
 import { InstanceContext } from './terminalContextMenu.js';
 import { getColorClass, getIconId, getUriClasses } from './terminalIcon.js';
 import { killTerminalIcon, newTerminalIcon } from './terminalIcons.js';
@@ -413,6 +413,17 @@ export function registerTerminalActions() {
 		}
 	});
 
+	registerTerminalAction({
+		id: TerminalCommandId.ResizePaneUp,
+		title: localize2('workbench.action.terminal.resizePaneUp', 'Resize Terminal Up'),
+		keybinding: {
+			mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.UpArrow },
+			when: TerminalContextKeys.focus,
+			weight: KeybindingWeight.WorkbenchContrib
+		},
+		precondition: sharedWhenClause.terminalAvailable,
+		run: (c) => c.groupService.activeGroup?.resizePane(Direction.Up)
+	});
 
 	registerTerminalAction({
 		id: TerminalCommandId.Focus,
