@@ -63,7 +63,7 @@
     "hygiene": "node ./node_modules/gulp/bin/gulp.js hygiene",
     "core-ci": "node ./node_modules/gulp/bin/gulp.js core-ci",
     "core-ci-pr": "node ./node_modules/gulp/bin/gulp.js core-ci-pr",
-    "extensions-ci": "node --report-on-fatalerror --report-filename='stderr' ./node_modules/gulp/bin/gulp.js extensions-ci",
+    "extensions-ci": "node --report-on-fatalerror --report-filename='stderr' --max-old-space-size=8192 ./node_modules/gulp/bin/gulp.js extensions-ci",
     "extensions-ci-pr": "node ./node_modules/gulp/bin/gulp.js extensions-ci-pr",
     "perf": "node scripts/code-perf.js",
     "update-build-ts-version": "npm install typescript@next && tsc -p ./build/tsconfig.build.json"
