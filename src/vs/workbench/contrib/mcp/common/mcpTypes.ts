@@ -569,10 +569,18 @@ export interface IMcpServerContainer extends IDisposable {
 	update(): void;
 }
 
+export const enum McpServerInstallState {
+	Installing,
+	Installed,
+	Uninstalling,
+	Uninstalled
+}
+
 export interface IWorkbenchMcpServer {
 	readonly gallery: IGalleryMcpServer | undefined;
 	readonly local: IWorkbenchLocalMcpServer | undefined;
 	readonly installable: IInstallableMcpServer | undefined;
+	readonly installState: McpServerInstallState;
 	readonly id: string;
 	readonly name: string;
 	readonly label: string;
