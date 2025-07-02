@@ -24,9 +24,7 @@ export class NotebookIndentUsingTabs extends Action2 {
 
 	constructor() {
 		super({
-			id: NotebookIndentUsingTabs.ID,
-			title: nls.localize('indentUsingTabs', "Indent Using Tabs"),
-			precondition: undefined,
+			id: NotebookIndentUsingTabs.ID, title: nls.localize('indentUsingTabs', "Indent Using Tabs"), precondition: undefined,
 		});
 	}
 
