@@ -558,7 +558,7 @@ export class McpServerEditor extends EditorPane {
 
 	private async openConfiguration(mcpServer: IWorkbenchMcpServer, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		const configContainer = append(template.content, $('.configuration'));
-		const content = $('div', { class: 'configuration-content', tabindex: '0' });
+		const content = $('div', { class: 'configuration-content' });
 
 		this.renderConfigurationDetails(content, mcpServer);
 
@@ -573,7 +573,7 @@ export class McpServerEditor extends EditorPane {
 
 	private async openManifest(mcpServer: IWorkbenchMcpServer, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		const manifestContainer = append(template.content, $('.manifest'));
-		const content = $('div', { class: 'manifest-content', tabindex: '0' });
+		const content = $('div', { class: 'manifest-content' });
 
 		try {
 			const manifest = await this.loadContents(() => this.mcpServerManifest!.get(), content);
