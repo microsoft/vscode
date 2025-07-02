@@ -747,7 +747,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.container.classList.add('experimental-welcome-view');
 			}
 			else if (expIsActive) {
-				welcomeContent = this.getWelcomeViewContent();
+				welcomeContent = this.getWelcomeViewContent(expIsActive);
 			}
 			else {
 				const tips = this.input.currentModeKind === ChatModeKind.Ask
@@ -773,9 +773,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private getWelcomeViewContent(): IChatViewWelcomeContent {
-		const configuration = this.configurationService.inspect('workbench.secondarySideBar.defaultVisibility');
-		const expIsActive = configuration.defaultValue !== 'hidden';
+	private getWelcomeViewContent(expIsActive?: boolean): IChatViewWelcomeContent {
 		const disclaimerMessage = expIsActive
 			? localize('chatDisclaimer', "AI responses may be inaccurate.")
 			: localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.");
