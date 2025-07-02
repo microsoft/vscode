@@ -21,6 +21,8 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { IAccountQuery, IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { alert } from '../../../../base/browser/ui/aria/aria.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
 export abstract class McpServerAction extends Action implements IMcpServerContainer {
 
@@ -100,7 +102,9 @@ export class InstallAction extends McpServerAction {
 	private static readonly HIDE = `${this.CLASS} hide`;
 
 	constructor(
+		private readonly editor: boolean,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super('extensions.install', localize('install', "Install"), InstallAction.CLASS, false);
 		this.update();
@@ -124,6 +128,22 @@ export class InstallAction extends McpServerAction {
 		if (!this.mcpServer) {
 			return;
 		}
+
+		if (!this.editor) {
+			this.mcpWorkbenchService.open(this.mcpServer);
+			alert(localize('mcpServerInstallation', "Installing MCP Server {0} started. An editor is now open with more details on this MCP Server", this.mcpServer.label));
+		}
+
+		type McpServerInstallClassification = {
+			owner: 'sandy081';
+			comment: 'Used to understand if the action to install the MCP server is used.';
+			name?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The gallery name of the MCP server being installed' };
+		};
+		type McpServerInstall = {
+			name?: string;
+		};
+		this.telemetryService.publicLog2<McpServerInstall, McpServerInstallClassification>('mcp:action:install', { name: this.mcpServer.gallery?.name });
+
 		await this.mcpWorkbenchService.install(this.mcpServer);
 	}
 }
