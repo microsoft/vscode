@@ -27,6 +27,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { askForPromptFileName } from './pickers/askForPromptName.js';
 import { askForPromptSourceFolder } from './pickers/askForPromptSourceFolder.js';
+import { IChatWidgetService } from '../chat.js';
 
 
 class AbstractNewPromptFileAction extends Action2 {
@@ -233,9 +234,50 @@ class NewUntitledPromptFileAction extends Action2 {
 	}
 }
 
+class ExpandChatInputToPromptFileAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.expandInputToPromptFile',
+			title: localize('commands.chat.expandInputToPromptFile.title', "Expand Chat Input to Prompt File"),
+			f1: false,
+			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled, ChatContextKeys.inChatInput),
+			category: CHAT_CATEGORY,
+		});
+	}
+
+	public override async run(accessor: ServicesAccessor) {
+		const widgetService = accessor.get(IChatWidgetService);
+		const editorService = accessor.get(IEditorService);
+		const widget = widgetService.lastFocusedWidget;
+		if (!widget) {
+			return;
+		}
+
+		const mode = widget.getViewState().inputState?.chatMode;
+
+		const userPrompt = widget.getInput();
+		const languageId = getLanguageIdForPromptsType(PromptsType.prompt);
+		const textContent = mode ? `---\nmode: ${mode}\n---\n\n${userPrompt}` : userPrompt;
+
+		const input = await editorService.openEditor({
+			resource: undefined,
+			languageId,
+			contents: textContent,
+			options: {
+				pinned: true
+			}
+		});
+
+		widget.setInput('');
+
+		return input;
+	}
+}
+
 export function registerNewPromptFileActions(): void {
 	registerAction2(NewPromptFileAction);
 	registerAction2(NewInstructionsFileAction);
 	registerAction2(NewModeFileAction);
 	registerAction2(NewUntitledPromptFileAction);
+	registerAction2(ExpandChatInputToPromptFileAction);
 }
