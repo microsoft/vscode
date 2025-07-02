@@ -42,7 +42,7 @@ import { IProgressService, ProgressLocation } from '../../../../platform/progres
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
-import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
@@ -191,6 +191,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private static readonly SETUP_NEEDED_MESSAGE = new MarkdownString(localize('settingUpCopilotNeeded', "You need to set up Copilot and be signed in to use Chat."));
+	private static readonly TRUST_NEEDED_MESSAGE = new MarkdownString(localize('trustNeeded', "You need to trust this workspace to use Chat."));
 
 	private readonly _onUnresolvableError = this._register(new Emitter<void>());
 	readonly onUnresolvableError = this._onUnresolvableError.event;
@@ -205,7 +206,8 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService
 	) {
 		super();
 	}
@@ -439,7 +441,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		else {
 			progress({
 				kind: 'markdownContent',
-				content: SetupAgent.SETUP_NEEDED_MESSAGE,
+				content: this.workspaceTrustManagementService.isWorkspaceTrusted() ? SetupAgent.SETUP_NEEDED_MESSAGE : SetupAgent.TRUST_NEEDED_MESSAGE
 			});
 		}
 
@@ -590,7 +592,7 @@ class ChatSetup {
 		let instance = ChatSetup.instance;
 		if (!instance) {
 			instance = ChatSetup.instance = instantiationService.invokeFunction(accessor => {
-				return new ChatSetup(context, controller, instantiationService, accessor.get(ITelemetryService), accessor.get(IWorkbenchLayoutService), accessor.get(IKeybindingService), accessor.get(IChatEntitlementService) as ChatEntitlementService, accessor.get(ILogService), accessor.get(IConfigurationService), accessor.get(IViewsService), accessor.get(IOpenerService));
+				return new ChatSetup(context, controller, instantiationService, accessor.get(ITelemetryService), accessor.get(IWorkbenchLayoutService), accessor.get(IKeybindingService), accessor.get(IChatEntitlementService) as ChatEntitlementService, accessor.get(ILogService), accessor.get(IConfigurationService), accessor.get(IViewsService), accessor.get(IOpenerService), accessor.get(IWorkspaceTrustRequestService));
 			});
 		}
 
@@ -613,6 +615,7 @@ class ChatSetup {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService
 	) { }
 
 	skipDialog(): void {
@@ -638,6 +641,16 @@ class ChatSetup {
 
 		const dialogSkipped = this.skipDialogOnce;
 		this.skipDialogOnce = false;
+
+		const trusted = await this.workspaceTrustRequestService.requestWorkspaceTrust({
+			message: localize('copilotWorkspaceTrust', "Copilot is currently only supported in trusted workspaces.")
+		});
+		if (!trusted) {
+			this.context.update({ later: true });
+			this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotTrusted', installDuration: 0, signUpErrorCode: undefined });
+
+			return { dialogSkipped, success: undefined /* canceled */ };
+		}
 
 		let setupStrategy: ChatSetupStrategy;
 		if (dialogSkipped || isProUser(this.chatEntitlementService.entitlement) || this.chatEntitlementService.entitlement === ChatEntitlement.Free) {
@@ -1186,7 +1199,6 @@ class ChatSetupController extends Disposable {
 		@IProgressService private readonly progressService: IProgressService,
 		@IActivityService private readonly activityService: IActivityService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
@@ -1252,15 +1264,7 @@ class ChatSetupController extends Disposable {
 				entitlement = result.entitlement;
 			}
 
-			const trusted = await this.workspaceTrustRequestService.requestWorkspaceTrust({
-				message: localize('copilotWorkspaceTrust', "Copilot is currently only supported in trusted workspaces.")
-			});
-			if (!trusted) {
-				this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotTrusted', installDuration: watch.elapsed(), signUpErrorCode: undefined });
-				return false;
-			}
-
-			// Install
+			// Await Install
 			this.setStep(ChatSetupStep.Installing);
 			success = await this.install(session, entitlement ?? this.context.state.entitlement, providerId, watch, installation);
 		} finally {
