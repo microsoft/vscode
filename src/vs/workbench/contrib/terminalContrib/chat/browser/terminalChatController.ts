@@ -101,7 +101,11 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	private _updatePlaceholder(): void {
 		const inlineChatWidget = this._terminalChatWidget?.value.inlineChatWidget;
 		if (inlineChatWidget) {
-			inlineChatWidget.placeholder = this._getPlaceholderText();
+			// Use forced placeholder if set, otherwise check for existing custom placeholder before setting default
+			const placeholder = this._forcedPlaceholder ||
+				inlineChatWidget.chatWidget.viewModel?.inputPlaceholder ||
+				this._getPlaceholderText();
+			inlineChatWidget.placeholder = placeholder;
 		}
 	}
 

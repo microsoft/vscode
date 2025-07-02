@@ -438,7 +438,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 				}
 			}
 		));
-		inlineChatWidget.placeholder = localize('default.placeholder', "Ask a question");
+		inlineChatWidget.placeholder = inlineChatWidget.chatWidget.viewModel?.inputPlaceholder || localize('default.placeholder', "Ask a question");
 		inlineChatWidget.updateInfo(localize('welcome.1', "AI-generated code may be incorrect"));
 		widgetContainer.appendChild(inlineChatWidget.domNode);
 

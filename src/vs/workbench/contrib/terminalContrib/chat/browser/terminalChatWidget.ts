@@ -228,7 +228,9 @@ export class TerminalChatWidget extends Disposable {
 
 	private _resetPlaceholder() {
 		const defaultAgent = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Terminal);
-		this.inlineChatWidget.placeholder = defaultAgent?.description ?? localize('askAI', 'Ask AI');
+		this.inlineChatWidget.placeholder = this.inlineChatWidget.chatWidget.viewModel?.inputPlaceholder ||
+			defaultAgent?.description ||
+			localize('askAI', 'Ask AI');
 	}
 
 	async reveal(viewState?: IChatViewState): Promise<void> {

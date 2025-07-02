@@ -1040,7 +1040,11 @@ export class InlineChatController1 implements IEditorContribution {
 	}
 
 	private _updatePlaceholder(): void {
-		this._ui.value.widget.placeholder = this._session?.agent.description ?? '';
+		// Only set the agent description as placeholder if no custom placeholder is already set
+		const currentPlaceholder = this._ui.value.widget.chatWidget.viewModel?.inputPlaceholder;
+		if (!currentPlaceholder) {
+			this._ui.value.widget.placeholder = this._session?.agent.description ?? '';
+		}
 	}
 
 	private _updateInput(text: string, selectAll = true): void {

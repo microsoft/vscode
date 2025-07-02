@@ -2034,7 +2034,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 /* Override Copilot icon in header/title bar only to use comment discussion icon */
 .action-container .codicon.codicon-copilot::before {
-	content: "\eac7"; /* comment-discussion codicon */
+	content: "\ec4f"; /* chat-sparkle codicon */
 }
 
 .interactive-item-container .chat-edit-input-container {
