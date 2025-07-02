@@ -347,9 +347,9 @@ class WorkbenchMcpManagementService extends Disposable implements IWorkbenchMcpM
 		if (profile) {
 			profile = await this.remoteUserDataProfilesService.getRemoteProfile(profile);
 		} else {
-			profile = (await this.remoteUserDataProfilesService.getRemoteProfiles()).find(p => this.uriIdentityService.extUri.isEqual(p.extensionsResource, mcpResource));
+			profile = (await this.remoteUserDataProfilesService.getRemoteProfiles()).find(p => this.uriIdentityService.extUri.isEqual(p.mcpResource, mcpResource));
 		}
-		return profile?.extensionsResource;
+		return profile?.mcpResource;
 	}
 }
 
