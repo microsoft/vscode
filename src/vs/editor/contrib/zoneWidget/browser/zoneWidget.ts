@@ -20,6 +20,7 @@ import { TrackedRangeStickiness } from '../../../common/model.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 
 export interface IOptions {
+	showOverlay?: boolean;
 	showFrame?: boolean;
 	showArrow?: boolean;
 	frameWidth?: number;
@@ -41,6 +42,7 @@ export interface IStyles {
 const defaultColor = new Color(new RGBA(0, 122, 204));
 
 const defaultOptions: IOptions = {
+	showOverlay: true,
 	showArrow: true,
 	showFrame: true,
 	className: '',
@@ -383,6 +385,22 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 	}
 
 	private _showImpl(where: Range, heightInLines: number): void {
+		if (this.options.showOverlay) {
+			this._insertOverlayWidget(where, heightInLines);
+		}
+
+		if (!this.options.keepEditorSelection) {
+			this.editor.setSelection(where);
+		}
+
+		const model = this.editor.getModel();
+		if (model) {
+			const range = model.validateRange(new Range(where.startLineNumber, 1, where.endLineNumber + 1, 1));
+			this.revealRange(range, range.startLineNumber === model.getLineCount());
+		}
+	}
+
+	private _insertOverlayWidget(where: Range, heightInLines: number): void {
 		const position = where.getStartPosition();
 		const layoutInfo = this.editor.getLayoutInfo();
 		const width = this._getWidth(layoutInfo);
@@ -456,16 +474,6 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		}
 
 		this._doLayout(containerHeight, width);
-
-		if (!this.options.keepEditorSelection) {
-			this.editor.setSelection(where);
-		}
-
-		const model = this.editor.getModel();
-		if (model) {
-			const range = model.validateRange(new Range(where.startLineNumber, 1, where.endLineNumber + 1, 1));
-			this.revealRange(range, range.startLineNumber === model.getLineCount());
-		}
 	}
 
 	protected revealRange(range: Range, isLastLine: boolean) {
