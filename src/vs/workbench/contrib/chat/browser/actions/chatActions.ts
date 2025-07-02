@@ -29,6 +29,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -141,6 +142,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const instaService = accessor.get(IInstantiationService);
 		const commandService = accessor.get(ICommandService);
 		const chatModeService = accessor.get(IChatModeService);
+		const fileService = accessor.get(IFileService);
 
 		let chatWidget = widgetService.lastFocusedWidget;
 		// When this was invoked to switch to a mode via keybinding, and some chat widget is focused, use that one.
@@ -175,7 +177,9 @@ abstract class OpenChatGlobalAction extends Action2 {
 		}
 		if (opts?.attachFiles) {
 			for (const file of opts.attachFiles) {
-				chatWidget.attachmentModel.addFile(file);
+				if (await fileService.exists(file)) {
+					chatWidget.attachmentModel.addFile(file);
+				}
 			}
 		}
 		if (opts?.query) {
