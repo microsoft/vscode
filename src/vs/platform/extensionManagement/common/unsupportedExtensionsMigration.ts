@@ -5,11 +5,10 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT, IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, InstallOperation } from './extensionManagement.js';
-import { areSameExtensions, getExtensionId } from './extensionManagementUtil.js';
+import { areSameExtensions, getExtensionId, isDeprecated } from './extensionManagementUtil.js';
 import { IExtensionStorageService } from './extensionStorage.js';
 import { ExtensionType } from '../../extensions/common/extensions.js';
 import { ILogService } from '../../log/common/log.js';
-import * as semver from '../../../base/common/semver/semver.js';
 
 /**
  * Migrates the installed unsupported nightly extension to a supported pre-release extension. It includes following:
@@ -39,11 +38,9 @@ export async function migrateUnsupportedExtensions(extensionManagementService: I
 				continue;
 			}
 
-			// Check if this is a version-specific deprecation
-			if (deprecated.deprecatedVersion) {
-				if (!semver.lte(unsupportedExtension.manifest.version, deprecated.deprecatedVersion)) {
-					continue;
-				}
+			// Check if this extension version is deprecated
+			if (!isDeprecated(unsupportedExtension.identifier, unsupportedExtension.manifest.version, deprecated)) {
+				continue;
 			}
 
 			const gallery = (await galleryService.getExtensions([{ id: preReleaseExtensionId, preRelease }], { targetPlatform: await extensionManagementService.getTargetPlatform(), compatible: true }, CancellationToken.None))[0];
