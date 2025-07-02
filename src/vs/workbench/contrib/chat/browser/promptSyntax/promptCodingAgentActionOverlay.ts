@@ -80,10 +80,11 @@ export class PromptCodingAgentActionOverlayWidget extends Disposable implements 
 	}
 
 	private _updateVisibility(): void {
+		const enableRemoteCodingAgentPromptFileOverlay = ChatContextKeys.enableRemoteCodingAgentPromptFileOverlay.getValue(this._contextKeyService);
 		const hasRemoteCodingAgent = ChatContextKeys.hasRemoteCodingAgent.getValue(this._contextKeyService);
 		const model = this._editor.getModel();
 		const isPromptFile = model?.getLanguageId() === PROMPT_LANGUAGE_ID;
-		const shouldBeVisible = !!(hasRemoteCodingAgent && isPromptFile);
+		const shouldBeVisible = !!(isPromptFile && enableRemoteCodingAgentPromptFileOverlay && hasRemoteCodingAgent);
 
 		if (shouldBeVisible !== this._isVisible) {
 			this._isVisible = shouldBeVisible;
