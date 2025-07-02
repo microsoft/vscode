@@ -734,11 +734,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const numItems = this.viewModel?.getItems().length ?? 0;
 		if (!numItems) {
 			dom.clearNode(this.welcomeMessageContainer);
+			// TODO@havyaus remove this startup experiment once settled
 			const startupExpValue = startupExpContext.getValue(this.contextKeyService);
+			const configuration = this.configurationService.inspect('workbench.secondarySideBar.defaultVisibility');
+			const expIsActive = configuration.defaultValue !== 'hidden';
 			let welcomeContent: IChatViewWelcomeContent;
 			if (startupExpValue === StartupExperimentGroup.MaximizedChat
 				|| startupExpValue === StartupExperimentGroup.SplitEmptyEditorChat
-				|| startupExpValue === StartupExperimentGroup.SplitWelcomeChat) {
+				|| startupExpValue === StartupExperimentGroup.SplitWelcomeChat
+				|| expIsActive) {
 				welcomeContent = this.getExpWelcomeViewContent();
 				this.container.classList.add('experimental-welcome-view');
 			}
