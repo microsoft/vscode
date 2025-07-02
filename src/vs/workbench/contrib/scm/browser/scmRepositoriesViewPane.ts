@@ -9,7 +9,7 @@ import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPan
 import { append, $ } from '../../../../base/browser/dom.js';
 import { IListVirtualDelegate, IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
 import { IAsyncDataSource, ITreeEvent, ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
-import { WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
+import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { ISCMRepository, ISCMViewService } from '../common/scm.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -88,6 +88,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 	private readonly visibleCountObs: IObservable<number>;
 	private readonly providerCountBadgeObs: IObservable<'hidden' | 'auto' | 'visible'>;
+	private readonly repositoryExplorerEnabledObs: IObservable<boolean>;
 
 	private readonly visibilityDisposables = new DisposableStore();
 
@@ -107,6 +108,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		super({ ...options, titleMenuId: MenuId.SCMSourceControlTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.visibleCountObs = observableConfigValue('scm.repositories.visible', 10, this.configurationService);
+		this.repositoryExplorerEnabledObs = observableConfigValue('scm.repositoryExplorer.enabled', false, this.configurationService);
 		this.providerCountBadgeObs = observableConfigValue<'hidden' | 'auto' | 'visible'>('scm.providerCountBadge', 'hidden', this.configurationService);
 	}
 
@@ -202,6 +204,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		) as WorkbenchCompressibleAsyncDataTree<SCMRepositoriesViewModel, ISCMRepository, any>;
 		this._register(this.tree);
 
+		this._register(this.tree.onDidOpen(this.onTreeOpen, this));
 		this._register(this.tree.onDidChangeSelection(this.onTreeSelectionChange, this));
 		this._register(this.tree.onDidChangeFocus(this.onTreeDidChangeFocus, this));
 		this._register(this.tree.onContextMenu(this.onTreeContextMenu, this));
@@ -233,8 +236,14 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		});
 	}
 
+	private onTreeOpen(e: IOpenEvent<ISCMRepository | undefined>): void {
+		if (e.element && this.repositoryExplorerEnabledObs.get() === true) {
+			this.scmViewService.focus(e.element);
+		}
+	}
+
 	private onTreeSelectionChange(e: ITreeEvent<ISCMRepository>): void {
-		if (e.browserEvent && e.elements.length > 0) {
+		if (e.browserEvent && e.elements.length > 0 && this.repositoryExplorerEnabledObs.get() === false) {
 			const scrollTop = this.tree.scrollTop;
 			this.scmViewService.visibleRepositories = e.elements;
 			this.tree.scrollTop = scrollTop;

@@ -74,7 +74,7 @@ import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from '../
 import { createActionViewItem, getFlatActionBarActions, getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MarkdownRenderer, openLinkFromMarkdown } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { Button, ButtonWithDescription, ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { RepositoryContextKeys } from './scmViewService.js';
 import { DragAndDropController } from '../../../../editor/contrib/dnd/browser/dnd.js';
 import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
@@ -111,6 +111,7 @@ import { AccessibilityCommandId } from '../../accessibility/common/accessibility
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import product from '../../../../platform/product/common/product.js';
 import { CHAT_SETUP_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>;
 
@@ -1322,6 +1323,33 @@ class ExpandAllRepositoriesAction extends ViewAction<SCMViewPane> {
 registerAction2(CollapseAllRepositoriesAction);
 registerAction2(ExpandAllRepositoriesAction);
 
+registerAction2(class extends ViewAction<SCMViewPane> {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.changes.pickRepository',
+			title: localize('repositoryPicker', "Repository Picker"),
+			viewId: VIEW_PANE_ID,
+			icon: Codicon.repo,
+			f1: false,
+			menu: {
+				id: MenuId.SCMTitle,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('view', VIEW_PANE_ID),
+					ContextKeyExpr.has('scm.providerCount'),
+					ContextKeyExpr.greater('scm.providerCount', 1),
+					ContextKeyExpr.equals('config.scm.repositoryExplorer.enabled', true)),
+				group: 'navigation',
+				order: -1001
+			}
+		});
+	}
+
+	runInView(_: ServicesAccessor, view: SCMViewPane): void {
+		view.pickVisibleRepositories();
+	}
+});
+
+
 const enum SCMInputWidgetCommandId {
 	CancelAction = 'scm.input.cancelAction',
 	SetupAction = 'scm.input.triggerSetup'
@@ -2196,6 +2224,7 @@ export class SCMViewPane extends ViewPane {
 		@ICommandService private readonly commandService: ICommandService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -2889,6 +2918,56 @@ export class SCMViewPane extends ViewPane {
 			this.tree.setFocus([resourceGroupNext]);
 			this.tree.domFocus();
 		}
+	}
+
+	pickVisibleRepositories(): void {
+		if (this.scmViewService.repositories.length === 0) {
+			return;
+		}
+
+		const disposables = new DisposableStore();
+
+		type RepositoryQuickPickItem = IQuickPickItem & { repository: ISCMRepository };
+		const quickPick = disposables.add(this.quickInputService.createQuickPick<RepositoryQuickPickItem>());
+		quickPick.placeholder = localize('selectRepositories', "Select repositories to show in the view");
+		quickPick.canSelectMany = true;
+		quickPick.ignoreFocusOut = true;
+
+		const items = this.scmViewService.repositories.map(repository => ({
+			label: repository.provider.name,
+			description: repository.provider.rootUri?.fsPath,
+			picked: this.scmViewService.isVisible(repository),
+			repository,
+		})) satisfies RepositoryQuickPickItem[];
+
+		quickPick.items = items;
+		quickPick.selectedItems = items.filter(item => item.picked);
+
+		// Validation
+		const validateSelection = () => {
+			if (quickPick.selectedItems.length === 0) {
+				quickPick.severity = Severity.Error;
+				quickPick.validationMessage = localize('noRepositorySelected', "At least one repository must be selected");
+			} else {
+				quickPick.validationMessage = undefined;
+			}
+		};
+
+		disposables.add(quickPick.onDidChangeSelection(e => validateSelection()));
+		validateSelection();
+
+		disposables.add(quickPick.onDidAccept(() => {
+			if (quickPick.selectedItems.length === 0) {
+				return;
+			}
+
+			const selectedRepositories = quickPick.selectedItems.map(item => item.repository);
+			this.scmViewService.visibleRepositories = selectedRepositories;
+			disposables.dispose();
+		}));
+
+		disposables.add(quickPick.onDidHide(() => disposables.dispose()));
+		quickPick.show();
 	}
 
 	override shouldShowWelcome(): boolean {

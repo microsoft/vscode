@@ -396,6 +396,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			],
 			description: localize('scm.graph.badges', "Controls which badges are shown in the Source Control Graph view. The badges are shown on the right side of the graph indicating the names of history item groups."),
 			default: 'filter'
+		},
+		'scm.repositoryExplorer.enabled': {
+			type: 'boolean',
+			description: localize('scm.repositoryExplorer.enabled', "Controls whether the Source Control Repositories view displays repository artifacts."),
+			default: false,
+			tags: ['experimental']
 		}
 	}
 });
