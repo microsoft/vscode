@@ -5732,7 +5732,10 @@ export const EditorOptions = {
 			tags: ['accessibility']
 		})),
 	allowVariableLineHeights: register(new EditorBooleanOption(
-		EditorOption.allowVariableLineHeights, 'allowVariableLineHeights', true
+		EditorOption.allowVariableLineHeights, 'allowVariableLineHeights', true,
+		{
+			description: nls.localize('allowVariableLineHeights', "Controls whether to allow using variable line heights in the editor.")
+		}
 	)),
 	allowVariableFonts: register(new EditorBooleanOption(
 		EditorOption.allowVariableFonts, 'allowVariableFonts', true,
