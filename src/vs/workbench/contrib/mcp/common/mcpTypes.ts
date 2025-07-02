@@ -569,11 +569,22 @@ export interface IMcpServerContainer extends IDisposable {
 	update(): void;
 }
 
+export interface IMcpServerEditorOptions extends IEditorOptions {
+	tab?: McpServerEditorTab;
+	sideByside?: boolean;
+}
+
 export const enum McpServerInstallState {
 	Installing,
 	Installed,
 	Uninstalling,
 	Uninstalled
+}
+
+export const enum McpServerEditorTab {
+	Readme = 'readme',
+	Manifest = 'manifest',
+	Configuration = 'configuration',
 }
 
 export interface IWorkbenchMcpServer {
@@ -615,7 +626,7 @@ export interface IMcpWorkbenchService {
 	uninstall(mcpServer: IWorkbenchMcpServer): Promise<void>;
 	getMcpConfigPath(arg: IWorkbenchLocalMcpServer): IMcpConfigPath | undefined;
 	getMcpConfigPath(arg: URI): Promise<IMcpConfigPath | undefined>;
-	open(extension: IWorkbenchMcpServer | string, options?: IEditorOptions): Promise<void>;
+	open(extension: IWorkbenchMcpServer | string, options?: IMcpServerEditorOptions): Promise<void>;
 }
 
 export class McpServerContainers extends Disposable {
