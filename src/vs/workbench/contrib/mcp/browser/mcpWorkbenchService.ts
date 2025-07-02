@@ -98,8 +98,8 @@ class McpWorkbenchServer implements IWorkbenchMcpServer {
 		return this.local?.config ?? this.installable?.config;
 	}
 
-	hasReadme(): boolean {
-		return !!(this.local?.readmeUrl || this.gallery?.readmeUrl);
+	get readmeUrl(): URI | undefined {
+		return this.local?.readmeUrl ?? (this.gallery?.readmeUrl ? URI.parse(this.gallery.readmeUrl) : undefined);
 	}
 
 	async getReadme(token: CancellationToken): Promise<string> {
@@ -181,15 +181,20 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			if (!result.local) {
 				continue;
 			}
-			let server = this._local.find(server => server.local?.name === result.name);
-			if (server) {
-				server.local = result.local;
-			} else {
-				server = this.instantiationService.createInstance(McpWorkbenchServer, result.local, result.source, undefined);
-				this._local.push(server);
-			}
-			this._onChange.fire(server);
+			this.onDidInstallMcpServer(result.local);
 		}
+	}
+
+	private onDidInstallMcpServer(local: IWorkbenchLocalMcpServer): IWorkbenchMcpServer {
+		let server = this._local.find(server => server.local?.name === local.name);
+		if (server) {
+			server.local = local;
+		} else {
+			server = this.instantiationService.createInstance(McpWorkbenchServer, local, undefined, undefined);
+			this._local.push(server);
+		}
+		this._onChange.fire(server);
+		return server;
 	}
 
 	private onDidUpdateMcpServers(e: readonly InstallMcpServerResult[]) {
@@ -238,15 +243,15 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		return this._local;
 	}
 
-	async install(server: IWorkbenchMcpServer): Promise<void> {
+	async install(server: IWorkbenchMcpServer): Promise<IWorkbenchMcpServer> {
 		if (server.installable) {
-			await this.mcpManagementService.install(server.installable);
-			return;
+			const local = await this.mcpManagementService.install(server.installable);
+			return this.onDidInstallMcpServer(local);
 		}
 
 		if (server.gallery) {
-			await this.mcpManagementService.installFromGallery(server.gallery, { packageType: server.gallery.packageTypes[0] });
-			return;
+			const local = await this.mcpManagementService.installFromGallery(server.gallery, { packageType: server.gallery.packageTypes[0] });
+			return this.onDidInstallMcpServer(local);
 		}
 
 		throw new Error('No installable server found');
