@@ -6,7 +6,7 @@
 import { CharCode } from '../charCode.js';
 import { onUnexpectedError, transformErrorForSerialization } from '../errors.js';
 import { Emitter, Event } from '../event.js';
-import { Disposable, IDisposable } from '../lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../lifecycle.js';
 import { isWeb } from '../platform.js';
 import * as strings from '../strings.js';
 
@@ -346,6 +346,10 @@ export class WebWorkerClient<W extends object> extends Disposable implements IWe
 		this._onModuleLoaded.catch((e) => {
 			this._onError('Worker failed to load ', e);
 		});
+
+		this._register(toDisposable(() => {
+			this._worker.dispose();
+		}));
 	}
 
 	private _handleMessage(channelName: string, method: string, args: any[]): Promise<any> {
