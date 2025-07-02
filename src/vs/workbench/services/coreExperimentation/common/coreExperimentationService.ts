@@ -107,7 +107,15 @@ export class CoreExperimentationService extends Disposable implements ICoreExper
 		const storageKey = `coreExperimentation.${experimentConfig.experimentName}`;
 		const storedExperiment = this.storageService.get(storageKey, StorageScope.APPLICATION);
 		if (storedExperiment) {
-			return;
+			try {
+				const parsedExperiment: IExperiment = JSON.parse(storedExperiment);
+				this.experiments.set(experimentConfig.experimentName, parsedExperiment);
+				startupExpContext.bindTo(this.contextKeyService).set(parsedExperiment.experimentGroup);
+				return;
+			} catch (e) {
+				this.storageService.remove(storageKey, StorageScope.APPLICATION);
+				return;
+			}
 		}
 
 		const experiment = this.createStartupExperiment(experimentConfig.experimentName, experimentConfig);
@@ -196,4 +204,4 @@ export class CoreExperimentationService extends Disposable implements ICoreExper
 	}
 }
 
-registerSingleton(ICoreExperimentationService, CoreExperimentationService, InstantiationType.Delayed);
+registerSingleton(ICoreExperimentationService, CoreExperimentationService, InstantiationType.Eager);
