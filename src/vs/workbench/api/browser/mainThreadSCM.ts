@@ -30,6 +30,7 @@ import { ITextModel } from '../../../editor/common/model.js';
 import { structuralEquals } from '../../../base/common/equals.js';
 import { historyItemBaseRefColor, historyItemRefColor, historyItemRemoteRefColor } from '../../contrib/scm/browser/scmHistory.js';
 import { ColorIdentifier } from '../../../platform/theme/common/colorUtils.js';
+import { ISCMArtifact, ISCMArtifactGroup, ISCMArtifactProvider } from '../../contrib/scm/common/artifact.js';
 
 function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
 	if (iconDto === undefined) {
@@ -171,6 +172,22 @@ class MainThreadSCMResource implements ISCMResource {
 	}
 }
 
+class MainThreadSCMArtifactProvider implements ISCMArtifactProvider {
+	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) { }
+
+	async provideArtifactGroups(token?: CancellationToken): Promise<ISCMArtifactGroup[] | undefined> {
+		return this.proxy.$provideArtifactGroups(this.handle, token ?? CancellationToken.None);
+	}
+
+	async provideArtifacts(group: string, token?: CancellationToken): Promise<ISCMArtifact[] | undefined> {
+		return this.proxy.$provideArtifacts(this.handle, group, token ?? CancellationToken.None);
+	}
+
+	$onDidChangeArtifacts(group: string): void {
+		throw new Error('Method not implemented.');
+	}
+}
+
 class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 	private readonly _historyItemRef = observableValueOpts<ISCMHistoryItemRef | undefined>({
 		owner: this,
@@ -293,6 +310,9 @@ class MainThreadSCMProvider implements ISCMProvider {
 	private _quickDiff: IDisposable | undefined;
 	private _stagedQuickDiff: IDisposable | undefined;
 
+	private readonly _artifactProvider = observableValue<MainThreadSCMArtifactProvider | undefined>(this, undefined);
+	get artifactProvider() { return this._artifactProvider; }
+
 	private readonly _historyProvider = observableValue<MainThreadSCMHistoryProvider | undefined>(this, undefined);
 	get historyProvider() { return this._historyProvider; }
 
@@ -374,6 +394,13 @@ class MainThreadSCMProvider implements ISCMProvider {
 		} else if (features.hasSecondaryQuickDiffProvider === false && this._stagedQuickDiff) {
 			this._stagedQuickDiff.dispose();
 			this._stagedQuickDiff = undefined;
+		}
+
+		if (features.hasArtifactProvider && !this.artifactProvider.get()) {
+			const artifactProvider = new MainThreadSCMArtifactProvider(this.proxy, this.handle);
+			this._artifactProvider.set(artifactProvider, undefined);
+		} else if (features.hasArtifactProvider === false && this.artifactProvider.get()) {
+			this._artifactProvider.set(undefined, undefined);
 		}
 
 		if (features.hasHistoryProvider && !this.historyProvider.get()) {
@@ -510,6 +537,14 @@ class MainThreadSCMProvider implements ISCMProvider {
 		}
 
 		this._historyProvider.get()?.$onDidChangeHistoryItemRefs(historyItemRefs);
+	}
+
+	$onDidChangeArtifacts(group: string): void {
+		if (!this.artifactProvider.get()) {
+			return;
+		}
+
+		this._artifactProvider.get()?.$onDidChangeArtifacts(group);
 	}
 
 	toJSON(): any {
@@ -768,5 +803,17 @@ export class MainThreadSCM implements MainThreadSCMShape {
 
 		const provider = repository.provider as MainThreadSCMProvider;
 		provider.$onDidChangeHistoryProviderHistoryItemRefs(historyItemRefs);
+	}
+
+	async $onDidChangeArtifacts(sourceControlHandle: number, group: string): Promise<void> {
+		await this._repositoryBarriers.get(sourceControlHandle)?.wait();
+		const repository = this._repositories.get(sourceControlHandle);
+
+		if (!repository) {
+			return;
+		}
+
+		const provider = repository.provider as MainThreadSCMProvider;
+		provider.$onDidChangeArtifacts(group);
 	}
 }

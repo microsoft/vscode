@@ -12,7 +12,7 @@ import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ActionRunner, IAction } from '../../../../base/common/actions.js';
-import { connectPrimaryMenu, getRepositoryResourceCount, isSCMRepository, StatusBarAction } from './util.js';
+import { connectPrimaryMenu, getRepositoryResourceCount, isSCMRepository, isSCMArtifactGroupTreeElement, isSCMArtifactTreeElement, StatusBarAction } from './util.js';
 import { ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
@@ -27,6 +27,8 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
+import { SCMArtifactGroupTreeElement, SCMArtifactTreeElement } from '../common/artifact.js';
 
 export class RepositoryActionRunner extends ActionRunner {
 	constructor(private readonly getSelectedRepositories: () => ISCMRepository[]) {

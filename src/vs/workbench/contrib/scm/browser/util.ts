@@ -28,6 +28,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { fromNow, safeIntl } from '../../../../base/common/date.js';
 import { historyItemHoverAdditionsForeground, historyItemHoverDefaultLabelBackground, historyItemHoverDefaultLabelForeground, historyItemHoverDeletionsForeground, historyItemHoverLabelForeground } from './scmHistory.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
+import { SCMArtifactGroupTreeElement, SCMArtifactTreeElement } from '../common/artifact.js';
 
 export function isSCMViewService(element: any): element is ISCMViewService {
 	return Array.isArray((element as ISCMViewService).repositories) && Array.isArray((element as ISCMViewService).visibleRepositories);
@@ -71,6 +72,14 @@ export function isSCMHistoryItemChangeViewModelTreeElement(element: any): elemen
 
 export function isSCMHistoryItemChangeNode(element: any): element is IResourceNode<ISCMHistoryItem, SCMHistoryItemChangeViewModelTreeElement> {
 	return ResourceTree.isResourceNode(element) && isSCMHistoryItemViewModelTreeElement(element.context);
+}
+
+export function isSCMArtifactGroupTreeElement(element: any): element is SCMArtifactGroupTreeElement {
+	return (element as SCMArtifactGroupTreeElement).type === 'artifactGroup';
+}
+
+export function isSCMArtifactTreeElement(element: any): element is SCMArtifactTreeElement {
+	return (element as SCMArtifactTreeElement).type === 'artifact';
 }
 
 const compareActions = (a: IAction, b: IAction) => {
