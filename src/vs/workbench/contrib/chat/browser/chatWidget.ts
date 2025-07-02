@@ -1628,6 +1628,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionId);
 			if (this.currentRequest) {
+				// We have to wait the current request to be properly cancelled so that it has a chance to update the model with its result metadata.
+				// This is awkward, it's basically a limitation of the chat provider-based agent.
 				await Promise.race([this.currentRequest, timeout(1000)]);
 			}
 
