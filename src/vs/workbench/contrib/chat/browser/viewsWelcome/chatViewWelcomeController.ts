@@ -21,6 +21,7 @@ import { ChatAgentLocation } from '../../common/constants.js';
 import { chatViewsWelcomeRegistry, IChatViewsWelcomeDescriptor } from './chatViewsWelcome.js';
 import { IChatWidgetService } from '../chat.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 const $ = dom.$;
 
@@ -141,6 +142,7 @@ export class ChatViewWelcomePart extends Disposable {
 		@ILogService private logService: ILogService,
 		@IChatWidgetService private chatWidgetService: IChatWidgetService,
 		@ITelemetryService private telemetryService: ITelemetryService,
+		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 		super();
 		this.element = dom.$('.chat-welcome-view');
@@ -159,15 +161,16 @@ export class ChatViewWelcomePart extends Disposable {
 			title.textContent = content.title;
 
 			// Preview indicator
-			const pretendSetting = true; // This is a placeholder for the setting that would control the visibility of the preview indicator
-			if (typeof content.message !== 'function' && options?.isWidgetAgentWelcomeViewContent && !pretendSetting) {
+			const configuration = this.configurationService.inspect('workbench.secondarySideBar.defaultVisibility');
+			const expIsActive = configuration.defaultValue !== 'hidden';
+			if (typeof content.message !== 'function' && options?.isWidgetAgentWelcomeViewContent && !expIsActive) {
 				const container = dom.append(this.element, $('.chat-welcome-view-indicator-container'));
 				dom.append(container, $('.chat-welcome-view-subtitle', undefined, localize('agentModeSubtitle', "Agent Mode")));
 			}
 
 			// Message
 			const message = dom.append(this.element, $('.chat-welcome-view-message'));
-			message.classList.toggle('experimental-empty-state', pretendSetting);
+			message.classList.toggle('experimental-empty-state', expIsActive);
 			if (typeof content.message === 'function') {
 				dom.append(message, content.message(this._register(new DisposableStore())));
 			} else {
