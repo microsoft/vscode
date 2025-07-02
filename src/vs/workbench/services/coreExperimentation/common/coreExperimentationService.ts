@@ -52,13 +52,13 @@ export const STARTUP_EXPERIMENT_NAME = 'startup';
 const EXPERIMENT_CONFIGURATIONS: Record<string, ExperimentConfiguration> = {
 	stable: {
 		experimentName: STARTUP_EXPERIMENT_NAME,
-		targetPercentage: 100,
+		targetPercentage: 20,
 		groups: [
 			// Bump the iteration each time we change group allocations
-			{ name: StartupExperimentGroup.Control, min: 0.0, max: 0.0, iteration: 1 },
-			{ name: StartupExperimentGroup.MaximizedChat, min: 0.0, max: 1.0, iteration: 1 },
-			{ name: StartupExperimentGroup.SplitEmptyEditorChat, min: 0.0, max: 0.0, iteration: 1 },
-			{ name: StartupExperimentGroup.SplitWelcomeChat, min: 0.0, max: 0.0, iteration: 1 }
+			{ name: StartupExperimentGroup.Control, min: 0.0, max: 0.25, iteration: 1 },
+			{ name: StartupExperimentGroup.MaximizedChat, min: 0.25, max: 0.5, iteration: 1 },
+			{ name: StartupExperimentGroup.SplitEmptyEditorChat, min: 0.5, max: 0.75, iteration: 1 },
+			{ name: StartupExperimentGroup.SplitWelcomeChat, min: 0.75, max: 1.0, iteration: 1 }
 		]
 	},
 	insider: {
@@ -126,10 +126,10 @@ export class CoreExperimentationService extends Disposable implements ICoreExper
 
 	private getExperimentConfiguration(): ExperimentConfiguration | undefined {
 		const quality = this.productService.quality;
-		// if (!quality) {
-		// 	return undefined;
-		// }
-		return EXPERIMENT_CONFIGURATIONS[quality || 'stable'];
+		if (!quality) {
+			return undefined;
+		}
+		return EXPERIMENT_CONFIGURATIONS[quality];
 	}
 
 	private createStartupExperiment(experimentName: string, experimentConfig: ExperimentConfiguration): IExperiment | undefined {
