@@ -220,7 +220,7 @@ export class McpServerEditor extends EditorPane {
 		const description = append(details, $('.description'));
 
 		const actions = [
-			this.instantiationService.createInstance(InstallAction),
+			this.instantiationService.createInstance(InstallAction, true),
 			this.instantiationService.createInstance(UninstallAction),
 			this.instantiationService.createInstance(ManageMcpServerAction, true),
 		];
@@ -322,7 +322,7 @@ export class McpServerEditor extends EditorPane {
 			this.currentIdentifier = extension.id;
 		}
 
-		if (extension.hasReadme()) {
+		if (extension.readmeUrl) {
 			template.navbar.push(McpServerEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
 		}
 

@@ -87,15 +87,15 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		return galleryServers;
 	}
 
-	async getMcpServer(name: string): Promise<IGalleryMcpServer | undefined> {
+	async getMcpServers(names: string[]): Promise<IGalleryMcpServer[]> {
 		const mcpUrl = this.getMcpGalleryUrl() ?? this.productService.extensionsGallery?.mcpUrl;
 		if (!mcpUrl) {
-			return undefined;
+			return [];
 		}
 
 		const { servers } = await this.fetchGallery(mcpUrl, CancellationToken.None);
-		const server = servers.find(item => item.name === name);
-		return server ? this.toGalleryMcpServer(server) : undefined;
+		const filteredServers = servers.filter(item => names.includes(item.name));
+		return filteredServers.map(item => this.toGalleryMcpServer(item));
 	}
 
 	async getManifest(gallery: IGalleryMcpServer, token: CancellationToken): Promise<IMcpServerManifest> {

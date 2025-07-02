@@ -590,7 +590,7 @@ export interface IWorkbenchMcpServer {
 	readonly url?: string;
 	readonly repository?: string;
 	readonly config?: IMcpServerConfiguration | undefined;
-	hasReadme(): boolean;
+	readonly readmeUrl?: URI;
 	getReadme(token: CancellationToken): Promise<string>;
 	getManifest(token: CancellationToken): Promise<IMcpServerManifest>;
 }
@@ -602,7 +602,7 @@ export interface IMcpWorkbenchService {
 	readonly local: readonly IWorkbenchMcpServer[];
 	queryLocal(): Promise<IWorkbenchMcpServer[]>;
 	queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IWorkbenchMcpServer[]>;
-	install(server: IWorkbenchMcpServer, installOptions?: IWorkbencMcpServerInstallOptions): Promise<void>;
+	install(server: IWorkbenchMcpServer, installOptions?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchMcpServer>;
 	uninstall(mcpServer: IWorkbenchMcpServer): Promise<void>;
 	getMcpConfigPath(arg: IWorkbenchLocalMcpServer): IMcpConfigPath | undefined;
 	getMcpConfigPath(arg: URI): Promise<IMcpConfigPath | undefined>;

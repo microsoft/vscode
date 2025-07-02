@@ -264,7 +264,7 @@ class McpServerRenderer implements IListRenderer<IWorkbenchMcpServer, IMcpServer
 		const actionBarListener = actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
 
 		const actions = [
-			this.instantiationService.createInstance(InstallAction),
+			this.instantiationService.createInstance(InstallAction, false),
 			this.instantiationService.createInstance(ManageMcpServerAction, false),
 		];
 
