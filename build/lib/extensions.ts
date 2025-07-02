@@ -6,6 +6,7 @@
 import es from 'event-stream';
 import fs from 'fs';
 import cp from 'child_process';
+import os from 'os';
 import glob from 'glob';
 import gulp from 'gulp';
 import path from 'path';
@@ -26,6 +27,10 @@ import { IExtensionDefinition, getExtensionStream } from './builtInExtensions';
 import { getVersion } from './getVersion';
 import { fetchUrls, fetchGithub } from './fetch';
 const vzip = require('gulp-vinyl-zip');
+
+console.log(`Constrained memory for ${process.pid} : ${process.constrainedMemory()}`);
+console.log(`Total OS memory: ${os.totalmem()}`);
+console.log(`Free OS memory: ${os.freemem()}`);
 
 const root = path.dirname(path.dirname(__dirname));
 const commit = getVersion(root);

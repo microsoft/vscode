@@ -45,7 +45,7 @@
     "tsec-compile-check": "node node_modules/tsec/bin/tsec -p src/tsconfig.tsec.json",
     "vscode-dts-compile-check": "tsc -p src/tsconfig.vscode-dts.json && tsc -p src/tsconfig.vscode-proposed-dts.json",
     "valid-layers-check": "node build/checker/layersChecker.js && tsc -p build/checker/tsconfig.browser.json && tsc -p build/checker/tsconfig.worker.json && tsc -p build/checker/tsconfig.node.json && tsc -p build/checker/tsconfig.electron-browser.json && tsc -p build/checker/tsconfig.electron-main.json && tsc -p build/checker/tsconfig.electron-utility.json",
-    "define-class-fields-check": "node build/lib/propertyInitOrderChecker.js && tsc -p src/tsconfig.defineClassFields.json",
+    "define-class-fields-check": "node --report-on-fatalerror --report-filename='stderr' build/lib/propertyInitOrderChecker.js && tsc -p src/tsconfig.defineClassFields.json",
     "update-distro": "node build/npm/update-distro.mjs",
     "web": "echo 'npm run web' is replaced by './scripts/code-server' or './scripts/code-web'",
     "compile-cli": "gulp compile-cli",
@@ -63,7 +63,7 @@
     "hygiene": "node ./node_modules/gulp/bin/gulp.js hygiene",
     "core-ci": "node ./node_modules/gulp/bin/gulp.js core-ci",
     "core-ci-pr": "node ./node_modules/gulp/bin/gulp.js core-ci-pr",
-    "extensions-ci": "node ./node_modules/gulp/bin/gulp.js extensions-ci",
+    "extensions-ci": "node --report-on-fatalerror --report-filename='stderr' ./node_modules/gulp/bin/gulp.js extensions-ci",
     "extensions-ci-pr": "node ./node_modules/gulp/bin/gulp.js extensions-ci-pr",
     "perf": "node scripts/code-perf.js",
     "update-build-ts-version": "npm install typescript@next && tsc -p ./build/tsconfig.build.json"

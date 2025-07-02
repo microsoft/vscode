@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import * as ts from 'typescript';
 import * as path from 'path';
 import * as fs from 'fs';
+
+console.log(`Constrained memory for ${process.pid} : ${process.constrainedMemory()}`);
 
 const TS_CONFIG_PATH = path.join(__dirname, '../../', 'src', 'tsconfig.json');
 

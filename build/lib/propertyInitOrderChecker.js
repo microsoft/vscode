@@ -41,6 +41,7 @@ exports.EntryKind = void 0;
 const ts = __importStar(require("typescript"));
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
+console.log(`Constrained memory for ${process.pid} : ${process.constrainedMemory()}`);
 const TS_CONFIG_PATH = path.join(__dirname, '../../', 'src', 'tsconfig.json');
 //
 // #############################################################################################

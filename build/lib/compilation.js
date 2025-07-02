@@ -61,6 +61,9 @@ const task = __importStar(require("./task"));
 const index_1 = require("./mangle/index");
 const ts = require("typescript");
 const watch = require('./watch');
+console.log(`Constrained memory for ${process.pid} : ${process.constrainedMemory()} and ${process.availableMemory()}`);
+console.log(`Total OS memory: ${os_1.default.totalmem()}`);
+console.log(`Free OS memory: ${os_1.default.freemem()}`);
 // --- gulp-tsb: compile and transpile --------------------------------
 const reporter = (0, reporter_1.createReporter)();
 function getTypeScriptCompilerOptions(src) {

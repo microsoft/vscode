@@ -21,6 +21,9 @@ import { RawSourceMap } from 'source-map';
 import ts = require('typescript');
 const watch = require('./watch');
 
+console.log(`Constrained memory for ${process.pid} : ${process.constrainedMemory()} and ${process.availableMemory()}`);
+console.log(`Total OS memory: ${os.totalmem()}`);
+console.log(`Free OS memory: ${os.freemem()}`);
 
 // --- gulp-tsb: compile and transpile --------------------------------
 
