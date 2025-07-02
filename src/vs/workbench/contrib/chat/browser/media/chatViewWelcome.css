@@ -22,7 +22,7 @@
 }
 
 .interactive-session .experimental-welcome-view & > .chat-welcome-view-input-part {
-	max-width: 700px;
+	max-width: 650px;
 }
 
 /* Container for ChatViewPane welcome view */

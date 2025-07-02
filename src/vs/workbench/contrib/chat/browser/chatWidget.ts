@@ -715,9 +715,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// reset the input in welcome view if it was rendered in experimental mode
 		if (this.container.classList.contains('experimental-welcome-view')) {
 			this.container.classList.remove('experimental-welcome-view');
+			// Preserve the current mode before recreating the input
+			const currentMode = this.input?.currentModeKind;
 			const renderFollowups = this.viewOptions.renderFollowups ?? false;
 			const renderStyle = this.viewOptions.renderStyle;
 			this.createInput(this.container, { renderFollowups, renderStyle });
+			// Restore the mode after recreating the input
+			if (currentMode && this.input) {
+				this.input.setChatMode(currentMode, false);
+			}
 		}
 
 		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal') {
@@ -1727,7 +1733,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		if (this.container.classList.contains('experimental-welcome-view')) {
-			this.inputPart.layout(layoutHeight, Math.min(width, 700));
+			this.inputPart.layout(layoutHeight, Math.min(width, 650));
 		}
 		else {
 			this.inputPart.layout(layoutHeight, width);
