@@ -217,15 +217,31 @@ export function findMatchingMaliciousEntry(identifier: IExtensionIdentifier, mal
  *
  * Returns true only if:
  * 1. Extension has deprecation info, AND
- * 2. Current version is less than or equal to the deprecated version (or no version specified)
+ * 2. Current version falls within any of the deprecated version ranges (or no ranges specified)
  */
 export function isDeprecated(_identifier: IExtensionIdentifier, version: string, deprecationInfo: IDeprecationInfo): boolean {
-	// If no deprecated version specified, treat as deprecated (backward compatibility)
-	const deprecatedVersion = deprecationInfo.deprecatedVersion;
-	if (!deprecatedVersion) {
+	if (!deprecationInfo) {
+		return false; // No deprecation info means not deprecated
+	}
+
+	// If no deprecated version ranges specified, treat as deprecated (backward compatibility)
+	const deprecatedVersionRanges = deprecationInfo.deprecatedVersionRanges;
+	if (!deprecatedVersionRanges || deprecatedVersionRanges.length === 0) {
 		return true;
 	}
 
-	// Check if current version is less than or equal to deprecated version
-	return semver.lte(version, deprecatedVersion);
+	// Check if current version falls within any of the deprecated version ranges
+	return deprecatedVersionRanges.some(range => {
+		// If both min and max are specified, check if version is within range
+		if (range.min && range.max) {
+			return semver.gte(version, range.min) && semver.lte(version, range.max);
+		}
+
+		// If only max is specified, check if version is less than or equal to max
+		if (range.max) {
+			return semver.lte(version, range.max);
+		}
+		// If neither min nor max specified, consider this range as matching all versions
+		return true;
+	});
 }
