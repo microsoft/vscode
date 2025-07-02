@@ -743,9 +743,9 @@ class ChatStatusDashboard extends Disposable {
 
 			const timeLeftMs = this.inlineCompletionsService.snoozeTimeLeft;
 			if (!isEnabled || timeLeftMs <= 0) {
-				timerDisplay.textContent = localize('completions.snooze5minutesTitle', "Hide completions for 5 mins");
+				timerDisplay.textContent = localize('completions.snooze5minutesTitle', "Hide completions for 5 min");
 				button.label = label;
-				button.setTitle(localize('completions.snooze5minutes', "Hide completions and NES for 5 mins"));
+				button.setTitle(localize('completions.snooze5minutes', "Hide completions and NES for 5 min"));
 				return true;
 			}
 
@@ -754,8 +754,8 @@ class ChatStatusDashboard extends Disposable {
 			const seconds = timeLeftSeconds % 60;
 
 			timerDisplay.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds} ${localize('completions.remainingTime', "remaining")}`;
-			button.label = localize('completions.plus5mins', "+5 mins");
-			button.setTitle(localize('completions.snoozeAdditional5minutes', "Hide additional 5 mins"));
+			button.label = localize('completions.plus5min', "+5 min");
+			button.setTitle(localize('completions.snoozeAdditional5minutes', "Hide additional 5 min"));
 			toolbar.push([cancelAction], { icon: true, label: false });
 
 			return false;
