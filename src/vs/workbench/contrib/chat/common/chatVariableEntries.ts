@@ -301,7 +301,7 @@ export function toPromptFileVariableEntry(uri: URI, kind: PromptFileVariableKind
 		modelDescription: 'Prompt instructions file',
 		isRoot: kind !== PromptFileVariableKind.InstructionReference,
 		originLabel,
-		isHidden: kind === PromptFileVariableKind.PromptFile
+		isHidden: true
 	};
 }
 
