@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareIgnoreCase } from '../../../base/common/strings.js';
-import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, MaliciousExtensionInfo, getTargetPlatform } from './extensionManagement.js';
+import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, MaliciousExtensionInfo, getTargetPlatform, IDeprecationInfo } from './extensionManagement.js';
 import { ExtensionIdentifier, IExtension, TargetPlatform, UNDEFINED_PUBLISHER } from '../../extensions/common/extensions.js';
 import { IFileService } from '../../files/common/files.js';
 import { isLinux, platform } from '../../../base/common/platform.js';
@@ -14,6 +14,7 @@ import { ILogService } from '../../log/common/log.js';
 import { arch } from '../../../base/common/process.js';
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 import { isString } from '../../../base/common/types.js';
+import * as semver from '../../../base/common/semver/semver.js';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
 	if (a.uuid && b.uuid) {
@@ -209,4 +210,22 @@ export function findMatchingMaliciousEntry(identifier: IExtensionIdentifier, mal
 		}
 		return areSameExtensions(identifier, extensionOrPublisher);
 	});
+}
+
+/**
+ * This is the single source of truth for all deprecation UI decisions.
+ *
+ * Returns true only if:
+ * 1. Extension has deprecation info, AND
+ * 2. Current version is less than or equal to the deprecated version (or no version specified)
+ */
+export function isDeprecated(_identifier: IExtensionIdentifier, version: string, deprecationInfo: IDeprecationInfo): boolean {
+	// If no deprecated version specified, treat as deprecated (backward compatibility)
+	const deprecatedVersion = deprecationInfo.deprecatedVersion;
+	if (!deprecatedVersion) {
+		return true;
+	}
+
+	// Check if current version is less than or equal to deprecated version
+	return semver.lte(version, deprecatedVersion);
 }

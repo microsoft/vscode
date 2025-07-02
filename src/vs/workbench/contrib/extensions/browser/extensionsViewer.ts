@@ -35,14 +35,13 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { getLocationBasedViewColors } from '../../../browser/parts/views/viewPane.js';
 import { DelayedPagedModel, IPagedModel } from '../../../../base/common/paging.js';
 import { ExtensionIconWidget } from './extensionsWidgets.js';
-import { isExtensionDeprecated } from '../common/extensionDeprecation.js';
 
 function getAriaLabelForExtension(extension: IExtension | null): string {
 	if (!extension) {
 		return '';
 	}
 	const publisher = extension.publisherDomain?.verified ? localize('extension.arialabel.verifiedPublisher', "Verified Publisher {0}", extension.publisherDisplayName) : localize('extension.arialabel.publisher', "Publisher {0}", extension.publisherDisplayName);
-	const deprecated = isExtensionDeprecated(extension) ? localize('extension.arialabel.deprecated', "Deprecated") : '';
+	const deprecated = extension.isDeprecated ? localize('extension.arialabel.deprecated', "Deprecated") : '';
 	const rating = extension?.rating ? localize('extension.arialabel.rating', "Rated {0} out of 5 stars by {1} users", extension.rating.toFixed(2), extension.ratingCount) : '';
 	return `${extension.displayName}, ${deprecated ? `${deprecated}, ` : ''}${extension.version}, ${publisher}, ${extension.description} ${rating ? `, ${rating}` : ''}`;
 }

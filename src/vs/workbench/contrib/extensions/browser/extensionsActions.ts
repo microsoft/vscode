@@ -13,7 +13,6 @@ import * as json from '../../../../base/common/json.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { disposeIfDisposable } from '../../../../base/common/lifecycle.js';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, ExtensionEditorTab, ExtensionRuntimeActionType, IExtensionArg, AutoUpdateConfigurationKey } from '../common/extensions.js';
-import { isExtensionDeprecated } from '../common/extensionDeprecation.js';
 import { ExtensionsConfigurationInitialContent } from '../common/extensionsFileTemplate.js';
 import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, ExtensionManagementErrorCode, IAllowedExtensionsService, shouldRequireRepositorySignatureFor } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
@@ -524,7 +523,7 @@ export class InstallAction extends ExtensionAction {
 			}
 		}
 
-		if (this.extension.deprecationInfo && isExtensionDeprecated(this.extension)) {
+		if (this.extension.deprecationInfo && this.extension.isDeprecated) {
 			let detail: string | MarkdownString = localize('deprecated message', "This extension is deprecated as it is no longer being maintained.");
 			enum DeprecationChoice {
 				InstallAnyway = 0,
@@ -1294,7 +1293,7 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 			cksOverlay.push(['galleryExtensionHasPreReleaseVersion', extension.gallery?.hasPreReleaseVersion]);
 			cksOverlay.push(['extensionHasPreReleaseVersion', extension.hasPreReleaseVersion]);
 			cksOverlay.push(['extensionHasReleaseVersion', extension.hasReleaseVersion]);
-			cksOverlay.push(['extensionDisallowInstall', extension.isMalicious || (extension.deprecationInfo?.disallowInstall && isExtensionDeprecated(extension))]);
+			cksOverlay.push(['extensionDisallowInstall', extension.isMalicious || (extension.deprecationInfo?.disallowInstall && extension.isDeprecated)]);
 			cksOverlay.push(['isExtensionAllowed', allowedExtensionsService.isAllowed({ id: extension.identifier.id, publisherDisplayName: extension.publisherDisplayName }) === true]);
 			cksOverlay.push(['isPreReleaseExtensionAllowed', allowedExtensionsService.isAllowed({ id: extension.identifier.id, publisherDisplayName: extension.publisherDisplayName, prerelease: true }) === true]);
 			cksOverlay.push(['extensionIsUnsigned', extension.gallery && !extension.gallery.isSigned]);
@@ -2592,7 +2591,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 			return;
 		}
 
-		if (this.extension.deprecationInfo && isExtensionDeprecated(this.extension)) {
+		if (this.extension.deprecationInfo && this.extension.isDeprecated) {
 			if (this.extension.deprecationInfo.extension) {
 				const link = `[${this.extension.deprecationInfo.extension.displayName}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.deprecationInfo.extension.id]))}`)})`;
 				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated with alternate extension tooltip', "This extension is deprecated. Use the {0} extension instead.", link)) }, true);

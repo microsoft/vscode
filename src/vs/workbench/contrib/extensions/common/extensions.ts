@@ -107,6 +107,7 @@ export interface IExtension {
 	readonly isMalicious: boolean | undefined;
 	readonly maliciousInfoLink: string | undefined;
 	readonly deprecationInfo?: IDeprecationInfo;
+	readonly isDeprecated: boolean;
 	readonly missingFromGallery?: boolean;
 }
 
