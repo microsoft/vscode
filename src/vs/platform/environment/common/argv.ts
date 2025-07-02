@@ -29,6 +29,8 @@ export interface NativeParsedArgs {
 		'add-file'?: string[];
 		mode?: string;
 		maximize?: boolean;
+		'reuse-window'?: boolean;
+		'new-window'?: boolean;
 		help?: boolean;
 	};
 

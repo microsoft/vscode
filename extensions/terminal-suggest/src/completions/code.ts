@@ -829,6 +829,14 @@ export const codeTunnelSubcommands: Fig.Subcommand[] = [
 				description: 'Maximize the chat session view.',
 			},
 			{
+				name: ['-r', '--reuse-window'],
+				description: 'Force to use the last active window for the chat session',
+			},
+			{
+				name: ['-n', '--new-window'],
+				description: 'Force to open an empty window for the chat session',
+			},
+			{
 				name: ['-h', '--help'],
 				description: 'Print usage',
 			},
