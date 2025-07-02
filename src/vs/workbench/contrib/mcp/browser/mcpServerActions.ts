@@ -21,6 +21,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { IAccountQuery, IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
 export abstract class McpServerAction extends Action implements IMcpServerContainer {
