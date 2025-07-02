@@ -7,7 +7,7 @@ import './media/mcpServersView.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IListContextMenuEvent, IListRenderer } from '../../../../base/browser/ui/list/list.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, isDisposable } from '../../../../base/common/lifecycle.js';
 import { DelayedPagedModel, IPagedModel, PagedModel } from '../../../../base/common/paging.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -24,7 +24,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { getLocationBasedViewColors, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IViewDescriptorService, IViewsRegistry, Extensions as ViewExtensions } from '../../../common/views.js';
-import { HasInstalledMcpServersContext, IMcpWorkbenchService, InstalledMcpServersViewId, IWorkbenchMcpServer, McpServerContainers, mcpServerIcon } from '../common/mcpTypes.js';
+import { HasInstalledMcpServersContext, IMcpWorkbenchService, InstalledMcpServersViewId, IWorkbenchMcpServer, McpServerContainers, mcpServerIcon, McpServerInstallState } from '../common/mcpTypes.js';
 import { DropDownAction, InstallAction, ManageMcpServerAction } from './mcpServerActions.js';
 import { PublisherWidget, InstallCountWidget, RatingsWidget, McpServerIconWidget } from './mcpServerWidgets.js';
 import { ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
@@ -47,8 +47,10 @@ export interface McpServerListViewOptions {
 }
 
 interface IQueryResult {
-	showWelcomeContent: boolean;
 	model: IPagedModel<IWorkbenchMcpServer>;
+	disposables: DisposableStore;
+	showWelcomeContent?: boolean;
+	onDidChangeModel?: Event<IPagedModel<IWorkbenchMcpServer>>;
 }
 
 export class McpServersListView extends ViewPane {
@@ -157,18 +159,26 @@ export class McpServersListView extends ViewPane {
 
 	async show(query: string): Promise<IPagedModel<IWorkbenchMcpServer>> {
 		if (this.input) {
+			this.input.disposables.dispose();
 			this.input = undefined;
 		}
 
-		query = query.trim();
-		const servers = query ? await this.mcpWorkbenchService.queryGallery({ text: query.replace('@mcp', '') }) : await this.mcpWorkbenchService.queryLocal();
-		const showWelcomeContent = !this.mcpGalleryService.isEnabled() && servers.length === 0 && !!this.mpcViewOptions.showWelcomeOnEmpty;
-
-		const model = new PagedModel(servers);
-		this.input = { model, showWelcomeContent };
+		this.input = await this.query(query.trim());
+		this.input.showWelcomeContent = !this.mcpGalleryService.isEnabled() && this.input.model.length === 0 && !!this.mpcViewOptions.showWelcomeOnEmpty;
 		this.renderInput();
 
-		return model;
+		if (this.input.onDidChangeModel) {
+			this.input.disposables.add(this.input.onDidChangeModel(model => {
+				if (!this.input) {
+					return;
+				}
+				this.input.model = model;
+				this.input.showWelcomeContent = !this.mcpGalleryService.isEnabled() && this.input.model.length === 0 && !!this.mpcViewOptions.showWelcomeOnEmpty;
+				this.renderInput();
+			}));
+		}
+
+		return this.input.model;
 	}
 
 	private renderInput() {
@@ -178,7 +188,7 @@ export class McpServersListView extends ViewPane {
 		if (this.list) {
 			this.list.model = new DelayedPagedModel(this.input.model);
 		}
-		this.showWelcomeContent(this.input.showWelcomeContent);
+		this.showWelcomeContent(!!this.input.showWelcomeContent);
 	}
 
 	private showWelcomeContent(show: boolean): void {
@@ -210,6 +220,52 @@ export class McpServersListView extends ViewPane {
 			}
 		}));
 		description.appendChild(markdownResult.element);
+	}
+
+	private async query(query: string): Promise<IQueryResult> {
+		const disposables = new DisposableStore();
+		if (query) {
+			const servers = await this.mcpWorkbenchService.queryGallery({ text: query.replace('@mcp', '') });
+			return { model: new PagedModel(servers), disposables };
+		}
+
+		const onDidChangeModel = disposables.add(new Emitter<IPagedModel<IWorkbenchMcpServer>>());
+		let servers = await this.mcpWorkbenchService.queryLocal();
+		disposables.add(Event.debounce(Event.filter(this.mcpWorkbenchService.onChange, e => e?.installState === McpServerInstallState.Installed), () => undefined)(() => {
+			const mergedMcpServers = this.mergeAddedMcpServers(servers, [...this.mcpWorkbenchService.local]);
+			if (mergedMcpServers) {
+				servers = mergedMcpServers;
+				onDidChangeModel.fire(new PagedModel(servers));
+			}
+		}));
+		disposables.add(this.mcpWorkbenchService.onReset(() => onDidChangeModel.fire(new PagedModel([...this.mcpWorkbenchService.local]))));
+		return { model: new PagedModel(servers), onDidChangeModel: onDidChangeModel.event, disposables };
+	}
+
+	private mergeAddedMcpServers(mcpServers: IWorkbenchMcpServer[], newMcpServers: IWorkbenchMcpServer[]): IWorkbenchMcpServer[] | undefined {
+		const oldMcpServers = [...mcpServers];
+		const findPreviousMcpServerIndex = (from: number): number => {
+			let index = -1;
+			const previousMcpServerInNew = newMcpServers[from];
+			if (previousMcpServerInNew) {
+				index = oldMcpServers.findIndex(e => e.name === previousMcpServerInNew.name);
+				if (index === -1) {
+					return findPreviousMcpServerIndex(from - 1);
+				}
+			}
+			return index;
+		};
+
+		let hasChanged: boolean = false;
+		for (let index = 0; index < newMcpServers.length; index++) {
+			const mcpServer = newMcpServers[index];
+			if (mcpServers.every(r => r.name !== mcpServer.name)) {
+				hasChanged = true;
+				mcpServers.splice(findPreviousMcpServerIndex(index - 1) + 1, 0, mcpServer);
+			}
+		}
+
+		return hasChanged ? mcpServers : undefined;
 	}
 
 }
@@ -264,7 +320,7 @@ class McpServerRenderer implements IListRenderer<IWorkbenchMcpServer, IMcpServer
 		const actionBarListener = actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
 
 		const actions = [
-			this.instantiationService.createInstance(InstallAction),
+			this.instantiationService.createInstance(InstallAction, false),
 			this.instantiationService.createInstance(ManageMcpServerAction, false),
 		];
 

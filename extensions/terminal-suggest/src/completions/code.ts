@@ -809,7 +809,7 @@ export const codeTunnelSubcommands: Fig.Subcommand[] = [
 		options: [
 			{
 				name: ['-m', '--mode'],
-				description: 'The mode to use for the chat session. Defaults to \'agent\'',
+				description: 'The mode to use for the chat session. Available options: \'ask\', \'edit\', \'agent\', or the identifier of a custom mode. Defaults to \'agent\'',
 				args: {
 					name: 'mode',
 					suggestions: ['agent', 'ask', 'edit'],

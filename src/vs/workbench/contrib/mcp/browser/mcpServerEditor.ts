@@ -37,11 +37,10 @@ import { IWebview, IWebviewService } from '../../webview/browser/webview.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IWorkbenchMcpServer, McpServerContainers } from '../common/mcpTypes.js';
+import { IMcpServerEditorOptions, IWorkbenchMcpServer, McpServerContainers } from '../common/mcpTypes.js';
 import { InstallCountWidget, McpServerIconWidget, McpServerWidget, onClick, PublisherWidget, RatingsWidget } from './mcpServerWidgets.js';
 import { DropDownAction, InstallAction, ManageMcpServerAction, UninstallAction } from './mcpServerActions.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
-import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ILocalMcpServer, IMcpServerManifest, IMcpServerPackage, PackageType } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -220,7 +219,7 @@ export class McpServerEditor extends EditorPane {
 		const description = append(details, $('.description'));
 
 		const actions = [
-			this.instantiationService.createInstance(InstallAction),
+			this.instantiationService.createInstance(InstallAction, true),
 			this.instantiationService.createInstance(UninstallAction),
 			this.instantiationService.createInstance(ManageMcpServerAction, true),
 		];
@@ -286,7 +285,7 @@ export class McpServerEditor extends EditorPane {
 		};
 	}
 
-	override async setInput(input: McpServerEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: McpServerEditorInput, options: IMcpServerEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		if (this.template) {
 			await this.render(input.mcpServer, this.template, !!options?.preserveFocus);
@@ -313,6 +312,13 @@ export class McpServerEditor extends EditorPane {
 		this.renderNavbar(mcpServer, template, preserveFocus);
 	}
 
+	override setOptions(options: IMcpServerEditorOptions | undefined): void {
+		super.setOptions(options);
+		if (options?.tab) {
+			this.template?.navbar.switch(options.tab);
+		}
+	}
+
 	private renderNavbar(extension: IWorkbenchMcpServer, template: IExtensionEditorTemplate, preserveFocus: boolean): void {
 		template.content.innerText = '';
 		template.navbar.clear();
@@ -322,7 +328,7 @@ export class McpServerEditor extends EditorPane {
 			this.currentIdentifier = extension.id;
 		}
 
-		if (extension.hasReadme()) {
+		if (extension.readmeUrl) {
 			template.navbar.push(McpServerEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
 		}
 
@@ -332,6 +338,10 @@ export class McpServerEditor extends EditorPane {
 
 		if (extension.gallery || extension.local?.manifest) {
 			template.navbar.push(McpServerEditorTab.Manifest, localize('manifest', "Manifest"), localize('manifesttooltip', "Server manifest details"));
+		}
+
+		if ((<IMcpServerEditorOptions | undefined>this.options)?.tab) {
+			template.navbar.switch((<IMcpServerEditorOptions>this.options).tab!);
 		}
 
 		if (template.navbar.currentId) {
@@ -558,7 +568,7 @@ export class McpServerEditor extends EditorPane {
 
 	private async openConfiguration(mcpServer: IWorkbenchMcpServer, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		const configContainer = append(template.content, $('.configuration'));
-		const content = $('div', { class: 'configuration-content', tabindex: '0' });
+		const content = $('div', { class: 'configuration-content' });
 
 		this.renderConfigurationDetails(content, mcpServer);
 
@@ -573,7 +583,7 @@ export class McpServerEditor extends EditorPane {
 
 	private async openManifest(mcpServer: IWorkbenchMcpServer, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		const manifestContainer = append(template.content, $('.manifest'));
-		const content = $('div', { class: 'manifest-content', tabindex: '0' });
+		const content = $('div', { class: 'manifest-content' });
 
 		try {
 			const manifest = await this.loadContents(() => this.mcpServerManifest!.get(), content);

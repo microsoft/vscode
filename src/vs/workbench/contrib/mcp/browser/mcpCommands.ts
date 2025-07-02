@@ -52,6 +52,8 @@ import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from '../../../browser/actions/works
 import { MCP_CONFIGURATION_KEY, WORKSPACE_STANDALONE_CONFIGURATIONS } from '../../../services/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -697,6 +699,27 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		category
 	},
 });
+
+export class BrowseMcpServersPageCommand extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.BrowsePage,
+			title: localize2('mcp.command.open', "Browse MCP Servers"),
+			icon: Codicon.globe,
+			menu: [{
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', InstalledMcpServersViewId),
+				group: 'navigation',
+			}],
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const productService = accessor.get(IProductService);
+		const openerService = accessor.get(IOpenerService);
+		return openerService.open(productService.quality === 'insider' ? 'https://code.visualstudio.com/insider/mcp' : 'https://code.visualstudio.com/mcp');
+	}
+}
 
 export class ShowInstalledMcpServersCommand extends Action2 {
 	constructor() {
