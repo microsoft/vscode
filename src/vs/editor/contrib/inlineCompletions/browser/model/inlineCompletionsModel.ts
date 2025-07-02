@@ -47,6 +47,7 @@ import { TextModelEditReason, EditReasons } from '../../../../common/textModelEd
 import { ICodeEditorService } from '../../../../browser/services/codeEditorService.js';
 import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
 import { IInlineCompletionsService } from '../../../../browser/services/inlineCompletionsService.js';
+import { TypingSpeed } from './typingSpeed.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -113,6 +114,7 @@ export class InlineCompletionsModel extends Disposable {
 		this._inlineEditsEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.enabled);
 		this._inlineEditsShowCollapsedEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
 		this._triggerCommandOnProviderChange = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.experimental.triggerCommandOnProviderChange);
+		const typing = this._register(new TypingSpeed(this.textModel));
 		this._register(inlineCompletionsService.onDidChangeIsSnoozing((isSnoozing) => {
 			if (isSnoozing) {
 				this.stop();
@@ -231,6 +233,7 @@ export class InlineCompletionsModel extends Disposable {
 				startTime: Date.now(),
 				languageId: this.textModel.getLanguageId(),
 				reason,
+				typingSpeed: typing.speed,
 			};
 
 			let context: InlineCompletionContextWithoutUuid = {

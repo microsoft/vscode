@@ -956,6 +956,7 @@ export type LifetimeSummary = {
 	characterCountModified?: number;
 	disjointReplacements?: number;
 	sameShapeReplacements?: boolean;
+	typingSpeed: number;
 };
 
 export interface CodeAction {
