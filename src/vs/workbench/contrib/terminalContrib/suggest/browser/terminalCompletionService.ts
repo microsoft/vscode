@@ -269,9 +269,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		let lastWordFolderResource: URI | string | undefined;
 		const lastWordFolderHasDotPrefix = !!lastWordFolder.match(/^\.\.?[\\\/]/);
 		const lastWordFolderHasTildePrefix = !!lastWordFolder.match(/^~[\\\/]?/);
-		const isAbsolutePath = useWindowsStylePath
-			? /^[a-zA-Z]:[\\\/]/.test(lastWord)
-			: lastWord.startsWith(resourceRequestConfig.pathSeparator);
+		const isAbsolutePath = getIsAbsolutePath(shellType, resourceRequestConfig.pathSeparator, lastWordFolder, useWindowsStylePath);
 		const type = lastWordFolderHasTildePrefix ? 'tilde' : isAbsolutePath ? 'absolute' : 'relative';
 		switch (type) {
 			case 'tilde': {
@@ -403,6 +401,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (child.isDirectory && !label.endsWith(resourceRequestConfig.pathSeparator)) {
 				label += resourceRequestConfig.pathSeparator;
 			}
+
+			label = escapeTerminalCompletionLabel(label, shellType, resourceRequestConfig.pathSeparator);
 
 			if (child.isFile && fileExtensions) {
 				const extension = child.name.split('.').length > 1 ? child.name.split('.').at(-1) : undefined;
@@ -559,4 +559,23 @@ function addPathRelativePrefix(text: string, resourceRequestConfig: Pick<Termina
 		return `.${resourceRequestConfig.pathSeparator}${text}`;
 	}
 	return text;
+}
+
+/**
+ * Escapes special characters in a file/folder label for shell completion.
+ * This ensures that characters like [, ], etc. are properly escaped.
+ */
+export function escapeTerminalCompletionLabel(label: string, shellType: TerminalShellType | undefined, pathSeparator: string): string {
+	// Only escape for bash/zsh/fish; PowerShell and cmd have different rules
+	if (shellType === undefined || shellType === GeneralShellType.PowerShell || shellType === WindowsShellType.CommandPrompt) {
+		return label;
+	}
+	return label.replace(/[\[\]\(\)'"\\\`\*\?;|&<>]/g, '\\$&');
+}
+
+function getIsAbsolutePath(shellType: TerminalShellType | undefined, pathSeparator: string, lastWord: string, useWindowsStylePath: boolean): boolean {
+	if (shellType === WindowsShellType.GitBash) {
+		return lastWord.startsWith(pathSeparator) || /^[a-zA-Z]:\//.test(lastWord);
+	}
+	return useWindowsStylePath ? /^[a-zA-Z]:[\\\/]/.test(lastWord) : lastWord.startsWith(pathSeparator);
 }

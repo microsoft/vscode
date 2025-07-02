@@ -97,7 +97,11 @@ interface IFocusEventFromScroll extends KeyboardEvent {
 const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
 const SEARCH_TOC_BEHAVIOR_KEY = 'workbench.settings.settingsSearchTocBehavior';
 
+const SHOW_AI_RESULTS_ENABLED_LABEL = localize('showAiResultsEnabled', "Show AI-recommended results");
+const SHOW_AI_RESULTS_DISABLED_LABEL = localize('showAiResultsDisabled', "No AI results available at this time...");
+
 const SETTINGS_EDITOR_STATE_KEY = 'settingsEditorState';
+
 export class SettingsEditor2 extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.settings2';
@@ -280,9 +284,8 @@ export class SettingsEditor2 extends EditorPane {
 			.split(this.DISMISSED_EXTENSION_SETTINGS_DELIMITER);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectedKeys.has(WorkbenchSettingsEditorSettings.ShowAISearchToggle)) {
-				const isToggleVisible = this.configurationService.getValue<boolean>(WorkbenchSettingsEditorSettings.ShowAISearchToggle);
-				this.updateAiSearchToggleVisibility(isToggleVisible);
+			if (e.affectedKeys.has(WorkbenchSettingsEditorSettings.ShowAISearchToggle) || e.affectedKeys.has(WorkbenchSettingsEditorSettings.EnableNaturalLanguageSearch)) {
+				this.updateAiSearchToggleVisibility();
 			}
 			if (e.source !== ConfigurationTarget.DEFAULT) {
 				this.onConfigUpdate(e.affectedKeys);
@@ -332,14 +335,26 @@ export class SettingsEditor2 extends EditorPane {
 		});
 	}
 
-	private updateAiSearchToggleVisibility(showToggle: boolean): void {
+	private disableAiSearchToggle(): void {
+		if (this.showAiResultsAction) {
+			this.showAiResultsAction.checked = false;
+			this.showAiResultsAction.enabled = false;
+			this.showAiResultsAction.label = SHOW_AI_RESULTS_DISABLED_LABEL;
+		}
+	}
+
+	private updateAiSearchToggleVisibility(): void {
 		if (!this.searchContainer || !this.showAiResultsAction || !this.searchInputActionBar) {
 			return;
 		}
 
+		const showAiToggle = this.configurationService.getValue<boolean>(WorkbenchSettingsEditorSettings.ShowAISearchToggle);
+		const enableNaturalLanguageSearch = this.configurationService.getValue<boolean>(WorkbenchSettingsEditorSettings.EnableNaturalLanguageSearch);
 		const chatSetupHidden = this.contextKeyService.getContextKeyValue<boolean>('chatSetupHidden');
+		const canShowToggle = showAiToggle && enableNaturalLanguageSearch && !chatSetupHidden;
+
 		const alreadyVisible = this.searchInputActionBar.hasAction(this.showAiResultsAction);
-		if (!alreadyVisible && showToggle && !chatSetupHidden) {
+		if (!alreadyVisible && canShowToggle) {
 			this.searchInputActionBar.push(this.showAiResultsAction, {
 				index: 0,
 				label: false,
@@ -614,7 +629,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	clearSearchResults(): void {
-		this.updateAiSearchToggleVisibility(false);
+		this.disableAiSearchToggle();
 		this.searchWidget.setValue('');
 		this.focusSearch();
 	}
@@ -656,7 +671,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		const showAiResultActionClassNames = ['action-label', ThemeIcon.asClassName(preferencesAiResultsIcon)];
 		this.showAiResultsAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS,
-			localize('showAiResults', "Show AI-recommended results"), showAiResultActionClassNames.join(' '), true
+			SHOW_AI_RESULTS_DISABLED_LABEL, showAiResultActionClassNames.join(' '), true
 		));
 		this._register(this.showAiResultsAction.onDidChange(async () => {
 			await this.onDidToggleAiSearch();
@@ -749,10 +764,16 @@ export class SettingsEditor2 extends EditorPane {
 
 		const actionsToPush = [clearInputAction, filterAction];
 		this.searchInputActionBar.push(actionsToPush, { label: false, icon: true });
+
+		this.disableAiSearchToggle();
+		this.updateAiSearchToggleVisibility();
 	}
 
 	toggleAiSearch(): void {
 		if (this.showAiResultsAction) {
+			if (!this.showAiResultsAction.enabled) {
+				aria.status(localize('noAiResults', "No AI results available at this time."));
+			}
 			this.showAiResultsAction.checked = !this.showAiResultsAction.checked;
 		}
 	}
@@ -760,6 +781,7 @@ export class SettingsEditor2 extends EditorPane {
 	private async onDidToggleAiSearch(): Promise<void> {
 		if (this.searchResultModel && this.showAiResultsAction) {
 			this.searchResultModel.showAiResults = this.showAiResultsAction.checked ?? false;
+			this.renderResultCountMessages(false);
 			this.onDidFinishSearch(true, undefined);
 		}
 	}
@@ -1583,7 +1605,7 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		}
 
-		this.renderResultCountMessages();
+		this.renderResultCountMessages(false);
 
 		if (key) {
 			const elements = this.currentSettingsModel?.getElementsByName(key);
@@ -1722,14 +1744,14 @@ export class SettingsEditor2 extends EditorPane {
 					this.tocTree.expandAll();
 				}
 				this.refreshTOCTree();
-				this.renderResultCountMessages();
+				this.renderResultCountMessages(false);
 				this.refreshTree();
 				this.toggleTocBySearchBehaviorType();
 			} else if (!this.tocTreeDisposed) {
 				// Leaving search mode
 				this.tocTree.collapseAll();
 				this.refreshTOCTree();
-				this.renderResultCountMessages();
+				this.renderResultCountMessages(false);
 				this.refreshTree();
 				this.layoutSplitView(this.dimension);
 			}
@@ -1777,7 +1799,7 @@ export class SettingsEditor2 extends EditorPane {
 			if (searchInProgress.token.isCancellationRequested) {
 				return;
 			}
-			this.updateAiSearchToggleVisibility(false);
+			this.disableAiSearchToggle();
 			const localResults = await this.doLocalSearch(query, searchInProgress.token);
 			if (!this.searchResultModel || searchInProgress.token.isCancellationRequested) {
 				return;
@@ -1804,8 +1826,10 @@ export class SettingsEditor2 extends EditorPane {
 			}
 			this.aiSearchPromise = createCancelablePromise(token => {
 				return this.doAiSearch(query, token).then((results) => {
-					if (results) {
-						this.updateAiSearchToggleVisibility(true);
+					if (results && this.showAiResultsAction) {
+						this.showAiResultsAction.enabled = true;
+						this.showAiResultsAction.label = SHOW_AI_RESULTS_ENABLED_LABEL;
+						this.renderResultCountMessages(true);
 					}
 				}).catch(e => {
 					if (!isCancellationError(e)) {
@@ -1846,14 +1870,20 @@ export class SettingsEditor2 extends EditorPane {
 
 	private async doAiSearch(query: string, token: CancellationToken): Promise<ISearchResult | null> {
 		const aiSearchProvider = this.preferencesSearchService.getAiSearchProvider(query);
+		if (!aiSearchProvider) {
+			return null;
+		}
+
 		const embeddingsResults = await this.searchWithProvider(SearchResultIdx.Embeddings, aiSearchProvider, token);
 		if (!embeddingsResults || token.isCancellationRequested) {
 			return null;
 		}
+
 		const llmResults = await this.getLLMRankedResults(query, token);
 		if (token.isCancellationRequested) {
 			return null;
 		}
+
 		return {
 			filterMatches: embeddingsResults.filterMatches.concat(llmResults?.filterMatches ?? []),
 			exactMatch: false
@@ -1862,10 +1892,15 @@ export class SettingsEditor2 extends EditorPane {
 
 	private async getLLMRankedResults(query: string, token: CancellationToken): Promise<ISearchResult | null> {
 		const aiSearchProvider = this.preferencesSearchService.getAiSearchProvider(query);
+		if (!aiSearchProvider) {
+			return null;
+		}
+
 		const result = await aiSearchProvider.getLLMRankedResults(token);
 		if (!result || token.isCancellationRequested) {
 			return null;
 		}
+
 		this.searchResultModel!.setResult(SearchResultIdx.AiSelected, result);
 		return result;
 	}
@@ -1881,7 +1916,7 @@ export class SettingsEditor2 extends EditorPane {
 		return result;
 	}
 
-	private renderResultCountMessages() {
+	private renderResultCountMessages(showAiResultsMessage: boolean) {
 		if (!this.currentSettingsModel) {
 			return;
 		}
@@ -1905,10 +1940,19 @@ export class SettingsEditor2 extends EditorPane {
 		} else {
 			const count = this.searchResultModel.getUniqueResultsCount();
 			let resultString: string;
-			switch (count) {
-				case 0: resultString = localize('noResults', "No Settings Found"); break;
-				case 1: resultString = localize('oneResult', "1 Setting Found"); break;
-				default: resultString = localize('moreThanOneResult', "{0} Settings Found", count);
+
+			if (showAiResultsMessage) {
+				switch (count) {
+					case 0: resultString = localize('noResultsWithAiAvailable', "No Settings Found. AI Results Available"); break;
+					case 1: resultString = localize('oneResultWithAiAvailable', "1 Setting Found. AI Results Available"); break;
+					default: resultString = localize('moreThanOneResultWithAiAvailable', "{0} Settings Found. AI Results Available", count);
+				}
+			} else {
+				switch (count) {
+					case 0: resultString = localize('noResults', "No Settings Found"); break;
+					case 1: resultString = localize('oneResult', "1 Setting Found"); break;
+					default: resultString = localize('moreThanOneResult', "{0} Settings Found", count);
+				}
 			}
 
 			this.searchResultLabel = resultString;

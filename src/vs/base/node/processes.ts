@@ -83,10 +83,6 @@ async function fileExistsDefault(path: string): Promise<boolean> {
 	return false;
 }
 
-export function getWindowPathExtensions(env = processCommon.env) {
-	return (getCaseInsensitive(env, 'PATHEXT') as string || '.COM;.EXE;.BAT;.CMD').split(';');
-}
-
 export async function findExecutable(command: string, cwd?: string, paths?: string[], env: Platform.IProcessEnvironment = processCommon.env as Platform.IProcessEnvironment, fileExists: (path: string) => Promise<boolean> = fileExistsDefault): Promise<string | undefined> {
 	// If we have an absolute path then we take it.
 	if (path.isAbsolute(command)) {
@@ -123,7 +119,8 @@ export async function findExecutable(command: string, cwd?: string, paths?: stri
 			fullPath = path.join(cwd, pathEntry, command);
 		}
 		if (Platform.isWindows) {
-			const pathExtsFound = getWindowPathExtensions(env).map(async ext => {
+			const pathExt = getCaseInsensitive(env, 'PATHEXT') as string || '.COM;.EXE;.BAT;.CMD';
+			const pathExtsFound = pathExt.split(';').map(async ext => {
 				const withExtension = fullPath + ext;
 				return await fileExists(withExtension) ? withExtension : undefined;
 			});

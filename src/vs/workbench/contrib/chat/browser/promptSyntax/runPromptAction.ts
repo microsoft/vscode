@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChatViewId, IChatWidget, showChatView } from '../chat.js';
-import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY } from '../actions/chatActions.js';
+import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from '../actions/chatActions.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -245,17 +245,17 @@ class ManagePromptFilesAction extends Action2 {
 		super({
 			id: CONFIGURE_PROMPTS_ACTION_ID,
 			title: localize2('configure-prompts', "Configure Prompt Files..."),
+			shortTitle: localize2('configure-prompts.short', "Prompt Files"),
 			icon: Codicon.bookmark,
 			f1: true,
 			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
 			category: CHAT_CATEGORY,
 			menu: {
-				id: MenuId.ViewTitle,
+				id: CHAT_CONFIG_MENU_ID,
 				when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
 				order: 10,
-				group: '2_manage'
+				group: '0_level'
 			},
-
 		});
 	}
 

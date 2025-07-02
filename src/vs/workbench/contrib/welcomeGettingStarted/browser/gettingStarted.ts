@@ -73,7 +73,7 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { AccessibleViewAction } from '../../accessibility/browser/accessibleViewActions.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
-import { IGettingStartedExperimentService } from './gettingStartedExpService.js';
+import { startupExpContext, StartupExperimentGroup } from '../../../services/coreExperimentation/common/coreExperimentationService.js';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -193,7 +193,6 @@ export class GettingStartedPage extends EditorPane {
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@IGettingStartedExperimentService private readonly gettingStartedExperimentService: IGettingStartedExperimentService,
 	) {
 
 		super(GettingStartedPage.ID, group, telemetryService, themeService, storageService);
@@ -960,10 +959,11 @@ export class GettingStartedPage extends EditorPane {
 			const firstSessionDateString = this.storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION) || new Date().toUTCString();
 			const daysSinceFirstSession = ((+new Date()) - (+new Date(firstSessionDateString))) / 1000 / 60 / 60 / 24;
 			const fistContentBehaviour = daysSinceFirstSession < 1 ? 'openToFirstCategory' : 'index';
+			const startupExpValue = startupExpContext.getValue(this.contextService);
 
-			if (fistContentBehaviour === 'openToFirstCategory') {
-				const exp = this.gettingStartedExperimentService.getCurrentExperiment();
-				const first = exp?.walkthroughId ? this.gettingStartedService.getWalkthrough(exp.walkthroughId) : this.gettingStartedCategories.filter(c => !c.when || this.contextService.contextMatchesRules(c.when))[0];
+			if (fistContentBehaviour === 'openToFirstCategory' && ((!startupExpValue || startupExpValue === '' || startupExpValue === StartupExperimentGroup.Control))) {
+				startupExpContext.bindTo(this.contextService).reset();
+				const first = this.gettingStartedCategories.filter(c => !c.when || this.contextService.contextMatchesRules(c.when))[0];
 				if (first) {
 					this.hasScrolledToFirstCategory = true;
 					this.currentWalkthrough = first;
@@ -1265,7 +1265,7 @@ export class GettingStartedPage extends EditorPane {
 
 	private focusSideEditorGroup() {
 		const fullSize = this.groupsService.getPart(this.group).contentDimension;
-		if (!fullSize || fullSize.width <= 700) { return; }
+		if (!fullSize || fullSize.width <= 700 || this.container.classList.contains('width-constrained') || this.container.classList.contains('width-semi-constrained')) { return; }
 		if (this.groupsService.count === 1) {
 			const sideGroup = this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.RIGHT);
 			this.groupsService.activateGroup(sideGroup);
@@ -1669,6 +1669,7 @@ export class GettingStartedPage extends EditorPane {
 
 		// Add next button
 		this.nextButton = $('button.button-link.navigation.next', {
+
 			'aria-label': localize('nextStep', "Next"),
 		}, localize('next', "Next"), $('span.codicon.codicon-arrow-right'));
 

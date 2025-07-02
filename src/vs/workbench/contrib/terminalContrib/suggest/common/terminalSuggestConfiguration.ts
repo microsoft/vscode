@@ -135,10 +135,10 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		markdownDescription: localize('terminal.integrated.selectionMode', "Controls how suggestion selection works in the integrated terminal."),
 		type: 'string',
 		enum: ['partial', 'always', 'never'],
-		enumDescriptions: [
-			localize('terminal.integrated.selectionMode.partial', "Will show a border and only insert the suggestion via Tab until navigation has occurred. After that, it will show selection and insert via Enter or Tab."),
-			localize('terminal.integrated.selectionMode.always', "Always select."),
-			localize('terminal.integrated.selectionMode.never', "No selection will occur until the user explicitly navigates the suggestions."),
+		markdownEnumDescriptions: [
+			localize('terminal.integrated.selectionMode.partial', "Partially select a suggestion when automatically triggering IntelliSense. `Tab` can be used to accept the first suggestion, only after navigating the suggestions via `Down` will `Enter` also accept the active suggestion."),
+			localize('terminal.integrated.selectionMode.always', "Always select a suggestion when automatically triggering IntelliSense. `Enter` or `Tab` can be used to accept the first suggestion."),
+			localize('terminal.integrated.selectionMode.never', "Never select a suggestion when automatically triggering IntelliSense. The list must be navigated via `Down` before `Enter` or `Tab` can be used to accept the active suggestion."),
 		],
 		default: 'partial',
 		tags: ['preview']

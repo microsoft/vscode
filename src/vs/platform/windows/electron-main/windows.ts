@@ -133,7 +133,7 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 	const windowSettings = configurationService.getValue<IWindowSettings | undefined>('window');
 
-	const options: electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
+	const options: electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean; accentColor?: boolean | string } = {
 		backgroundColor: themeMainService.getBackgroundColor(),
 		minWidth: WindowMinimumSize.WIDTH,
 		minHeight: WindowMinimumSize.HEIGHT,
@@ -159,6 +159,17 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		},
 		experimentalDarkMode: true
 	};
+
+	if (isWindows) {
+		const borderSetting = windowSettings?.border || 'default';
+		if (borderSetting !== 'default') {
+			if (borderSetting === 'off') {
+				options.accentColor = false;
+			} else if (typeof borderSetting === 'string') {
+				options.accentColor = borderSetting;
+			}
+		}
+	}
 
 	if (isLinux) {
 		options.icon = join(environmentMainService.appRoot, 'resources/linux/code.png'); // always on Linux

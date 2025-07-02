@@ -1583,6 +1583,81 @@ export class CoverageLastRun extends RunOrDebugLastRun {
 	}
 }
 
+abstract class RunOrDebugFailedFromLastRun extends Action2 {
+	constructor(options: IAction2Options) {
+		super({
+			...options,
+			menu: {
+				id: MenuId.CommandPalette,
+				when: ContextKeyExpr.and(
+					hasAnyTestProvider,
+					TestingContextKeys.hasAnyResults.isEqualTo(true),
+				),
+			},
+		});
+	}
+
+	protected abstract getGroup(): TestRunProfileBitset;
+
+	/** @inheritdoc */
+	public override async run(accessor: ServicesAccessor, runId?: string) {
+		const resultService = accessor.get(ITestResultService);
+		const testService = accessor.get(ITestService);
+		const progressService = accessor.get(IProgressService);
+
+		const lastResult = runId ? resultService.results.find(r => r.id === runId) : resultService.results[0];
+		if (!lastResult) {
+			return;
+		}
+
+		const failedTestIds = new Set<string>();
+		for (const test of lastResult.tests) {
+			if (isFailedState(test.ownComputedState)) {
+				failedTestIds.add(test.item.extId);
+			}
+		}
+
+		if (failedTestIds.size === 0) {
+			return;
+		}
+
+		await discoverAndRunTests(
+			testService.collection,
+			progressService,
+			Array.from(failedTestIds),
+			tests => testService.runTests({ tests, group: this.getGroup() }),
+		);
+	}
+}
+
+export class ReRunFailedFromLastRun extends RunOrDebugFailedFromLastRun {
+	constructor() {
+		super({
+			id: TestCommandId.ReRunFailedFromLastRun,
+			title: localize2('testing.reRunFailedFromLastRun', 'Rerun Failed Tests from Last Run'),
+			category,
+		});
+	}
+
+	protected override getGroup(): TestRunProfileBitset {
+		return TestRunProfileBitset.Run;
+	}
+}
+
+export class DebugFailedFromLastRun extends RunOrDebugFailedFromLastRun {
+	constructor() {
+		super({
+			id: TestCommandId.DebugFailedFromLastRun,
+			title: localize2('testing.debugFailedFromLastRun', 'Debug Failed Tests from Last Run'),
+			category,
+		});
+	}
+
+	protected override getGroup(): TestRunProfileBitset {
+		return TestRunProfileBitset.Debug;
+	}
+}
+
 export class SearchForTestExtension extends Action2 {
 	constructor() {
 		super({
@@ -1962,4 +2037,6 @@ export const allTestActions = [
 	ToggleInlineTestOutput,
 	UnhideAllTestsAction,
 	UnhideTestAction,
+	ReRunFailedFromLastRun,
+	DebugFailedFromLastRun,
 ];

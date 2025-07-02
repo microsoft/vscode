@@ -14,6 +14,7 @@ import { InlineCompletionsHintsWidget } from '../hintsWidget/inlineCompletionsHi
 import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
 import { convertItemsToStableObservables } from '../utils.js';
 import { GhostTextView } from './ghostText/ghostTextView.js';
+import { InlineCompletionViewData, InlineCompletionViewKind } from './inlineEdits/inlineEditsViewInterface.js';
 import { InlineEditsViewAndDiffProducer } from './inlineEdits/inlineEditsViewProducer.js';
 
 export class InlineCompletionsView extends Disposable {
@@ -54,6 +55,13 @@ export class InlineCompletionsView extends Disposable {
 				}),
 				minReservedLineCount: constObservable(0),
 				targetTextModel: this._model.map(v => v?.textModel),
+				handleInlineCompletionShown: this._model.map((model, reader) => {
+					const inlineCompletion = model?.inlineCompletionState.read(reader)?.inlineCompletion;
+					if (inlineCompletion) {
+						return (viewData: InlineCompletionViewData) => model.handleInlineSuggestionShown(inlineCompletion, InlineCompletionViewKind.GhostText, viewData);
+					}
+					return () => { };
+				}),
 			},
 			this._editorObs.getOption(EditorOption.inlineSuggest).map(v => ({ syntaxHighlightingEnabled: v.syntaxHighlightingEnabled })),
 			false,
@@ -74,7 +82,6 @@ export class InlineCompletionsView extends Disposable {
 
 		this._register(createStyleSheetFromObservable(derived(reader => {
 			const fontFamily = this._fontFamily.read(reader);
-			if (fontFamily === '' || fontFamily === 'default') { return ''; }
 			return `
 .monaco-editor .ghost-text-decoration,
 .monaco-editor .ghost-text-decoration-preview,

@@ -68,6 +68,9 @@ import { AllowedExtensionsService } from '../../platform/extensionManagement/com
 import { McpManagementCli } from '../../platform/mcp/common/mcpManagementCli.js';
 import { IExtensionGalleryManifestService } from '../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestService } from '../../platform/extensionManagement/common/extensionGalleryManifestService.js';
+import { IMcpManagementService } from '../../platform/mcp/common/mcpManagement.js';
+import { McpManagementService } from '../../platform/mcp/common/mcpManagementService.js';
+import { IMcpResourceScannerService, McpResourceScannerService } from '../../platform/mcp/common/mcpResourceScannerService.js';
 
 class CliMain extends Disposable {
 
@@ -224,6 +227,10 @@ class CliMain extends Disposable {
 		// Localizations
 		services.set(ILanguagePackService, new SyncDescriptor(NativeLanguagePackService, undefined, false));
 
+		// MCP
+		services.set(IMcpResourceScannerService, new SyncDescriptor(McpResourceScannerService, undefined, true));
+		services.set(IMcpManagementService, new SyncDescriptor(McpManagementService, undefined, true));
+
 		// Telemetry
 		const appenders: ITelemetryAppender[] = [];
 		const isInternal = isInternalTelemetry(productService, configurationService);
@@ -235,7 +242,7 @@ class CliMain extends Disposable {
 			const config: ITelemetryServiceConfig = {
 				appenders,
 				sendErrorTelemetry: false,
-				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, machineId, sqmId, devDeviceId, isInternal),
+				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, machineId, sqmId, devDeviceId, isInternal, productService.date),
 				piiPaths: getPiiPathsFromEnvironment(environmentService)
 			};
 

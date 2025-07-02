@@ -66,7 +66,7 @@ export interface ISelectPromptResult {
 }
 
 /**
- * Button that opems the documentation.
+ * Button that opens the documentation.
  */
 const HELP_BUTTON: IQuickInputButton = Object.freeze({
 	tooltip: localize('help', "Help"),
@@ -80,7 +80,7 @@ interface IPromptPickerQuickPickItem extends IQuickPickItem {
 	commandId?: string;
 
 	/**
-	 * The URU of the prompt file or the documentation to open.
+	 * The URI of the prompt file or the documentation to open.
 	 */
 	value: URI;
 }
@@ -108,13 +108,29 @@ const NEW_INSTRUCTIONS_FILE_OPTION: IPromptPickerQuickPickItem = Object.freeze({
 	type: 'item',
 	label: `$(plus) ${localize(
 		'commands.new-instructionsfile.select-dialog.label',
-		'Create new instruction file...',
+		'New instruction file...',
 	)}`,
 	value: URI.parse(INSTRUCTIONS_DOCUMENTATION_URL),
 	pickable: false,
 	alwaysShow: true,
 	buttons: [HELP_BUTTON],
 	commandId: NEW_INSTRUCTIONS_COMMAND_ID,
+});
+
+/**
+ * A quick pick item that starts the 'Update Instructions' command.
+ */
+const UPDATE_INSTRUCTIONS_OPTION: IPromptPickerQuickPickItem = Object.freeze({
+	type: 'item',
+	label: `$(refresh) ${localize(
+		'commands.update-instructions.select-dialog.label',
+		'Generate instructions...',
+	)}`,
+	value: URI.parse(INSTRUCTIONS_DOCUMENTATION_URL),
+	pickable: false,
+	alwaysShow: true,
+	buttons: [HELP_BUTTON],
+	commandId: 'workbench.action.chat.generateInstructions',
 });
 
 /**
@@ -313,21 +329,21 @@ export class PromptFilePickers {
 			});
 		}
 
-		const newItem = options.optionNew !== false ? this._getNewItem(options.type) : undefined;
-		if (newItem) {
-			fileOptions.splice(0, 0, newItem);
+		const newItems = options.optionNew !== false ? this._getNewItems(options.type) : [];
+		if (newItems.length > 0) {
+			fileOptions.splice(0, 0, ...newItems);
 		}
 		return fileOptions;
 	}
 
-	private _getNewItem(type: PromptsType): IPromptPickerQuickPickItem {
+	private _getNewItems(type: PromptsType): IPromptPickerQuickPickItem[] {
 		switch (type) {
 			case PromptsType.prompt:
-				return NEW_PROMPT_FILE_OPTION;
+				return [NEW_PROMPT_FILE_OPTION];
 			case PromptsType.instructions:
-				return NEW_INSTRUCTIONS_FILE_OPTION;
+				return [NEW_INSTRUCTIONS_FILE_OPTION, UPDATE_INSTRUCTIONS_OPTION];
 			case PromptsType.mode:
-				return NEW_MODE_FILE_OPTION;
+				return [NEW_MODE_FILE_OPTION];
 			default:
 				throw new Error(`Unknown prompt type '${type}'.`);
 		}

@@ -54,6 +54,7 @@ import './browser/parts/statusbar/statusbarPart.js';
 
 import '../platform/actions/common/actions.contribution.js';
 import '../platform/undoRedo/common/undoRedoService.js';
+import '../platform/mcp/common/mcpResourceScannerService.js';
 import './services/workspaces/common/editSessionIdentityService.js';
 import './services/workspaces/common/canonicalUriService.js';
 import './services/extensions/browser/extensionUrlHandler.js';
@@ -82,6 +83,7 @@ import './services/notebook/common/notebookDocumentService.js';
 import './services/commands/common/commandService.js';
 import './services/themes/browser/workbenchThemeService.js';
 import './services/label/common/labelService.js';
+import './services/mcp/common/mcpWorkbenchManagementService.js';
 import './services/extensions/common/extensionManifestPropertiesService.js';
 import './services/extensionManagement/common/extensionGalleryService.js';
 import './services/extensionManagement/browser/extensionEnablementService.js';
@@ -113,6 +115,7 @@ import './services/authentication/browser/authenticationMcpUsageService.js';
 import './services/authentication/browser/authenticationMcpAccessService.js';
 import './services/authentication/browser/authenticationMcpService.js';
 import './services/authentication/browser/dynamicAuthenticationProviderStorageService.js';
+import './services/authentication/browser/authenticationQueryService.js';
 import './services/accounts/common/defaultAccount.js';
 import '../editor/browser/services/hoverService/hoverService.js';
 import './services/assignment/common/assignmentService.js';
@@ -127,6 +130,7 @@ import './services/userActivity/common/userActivityService.js';
 import './services/userActivity/browser/userActivityBrowser.js';
 import './services/editor/browser/editorPaneService.js';
 import './services/editor/common/customEditorLabelService.js';
+import './services/coreExperimentation/common/coreExperimentationService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { GlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionEnablementService.js';
@@ -370,6 +374,9 @@ import './contrib/userDataProfile/browser/userDataProfile.contribution.js';
 
 // Continue Edit Session
 import './contrib/editSessions/browser/editSessions.contribution.js';
+
+// Remote Coding Agents
+import './contrib/remoteCodingAgents/browser/remoteCodingAgents.contribution.js';
 
 // Code Actions
 import './contrib/codeActions/browser/codeActions.contribution.js';

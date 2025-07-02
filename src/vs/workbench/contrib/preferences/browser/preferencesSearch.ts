@@ -72,7 +72,11 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		return this._remoteSearchProvider;
 	}
 
-	getAiSearchProvider(filter: string): IAiSearchProvider {
+	getAiSearchProvider(filter: string): IAiSearchProvider | undefined {
+		if (!this.remoteSearchAllowed) {
+			return undefined;
+		}
+
 		this._aiSearchProvider ??= this.instantiationService.createInstance(AiSearchProvider);
 		this._aiSearchProvider.setFilter(filter);
 		return this._aiSearchProvider;
@@ -399,7 +403,7 @@ class SettingsRecordProvider {
 }
 
 class EmbeddingsSearchProvider implements IRemoteSearchProvider {
-	private static readonly EMBEDDINGS_SETTINGS_SEARCH_MAX_PICKS = 5;
+	private static readonly EMBEDDINGS_SETTINGS_SEARCH_MAX_PICKS = 10;
 
 	private readonly _recordProvider: SettingsRecordProvider;
 	private _filter: string = '';

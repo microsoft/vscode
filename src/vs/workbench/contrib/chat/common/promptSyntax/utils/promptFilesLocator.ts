@@ -102,11 +102,11 @@ export class PromptFilesLocator extends Disposable {
 			}
 		}));
 		disposables.add(this.fileService.onDidFilesChange(e => {
-			if (e.contains(userDataFolder)) {
+			if (e.affects(userDataFolder)) {
 				eventEmitter.fire();
 				return;
 			}
-			if (parentFolders.some(folder => folder.filePattern !== undefined ? e.affects(folder.parent) : e.contains(folder.parent))) {
+			if (parentFolders.some(folder => e.affects(folder.parent))) {
 				eventEmitter.fire();
 				return;
 			}
@@ -399,7 +399,3 @@ function firstNonGlobParentAndPattern(location: URI): { parent: URI; filePattern
 		filePattern: segments.slice(i).join('/')
 	};
 }
-
-
-
-

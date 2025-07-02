@@ -47,6 +47,28 @@ export const enum AuthorizationDeviceCodeErrorType {
 }
 
 /**
+ * Dynamic client registration specific error codes as specified in RFC 7591.
+ */
+export const enum AuthorizationRegistrationErrorType {
+	/**
+	 * The value of one or more redirection URIs is invalid.
+	 */
+	InvalidRedirectUri = 'invalid_redirect_uri',
+	/**
+	 * The value of one of the client metadata fields is invalid and the server has rejected this request.
+	 */
+	InvalidClientMetadata = 'invalid_client_metadata',
+	/**
+	 * The software statement presented is invalid.
+	 */
+	InvalidSoftwareStatement = 'invalid_software_statement',
+	/**
+	 * The software statement presented is not approved for use by this authorization server.
+	 */
+	UnapprovedSoftwareStatement = 'unapproved_software_statement'
+}
+
+/**
  * Metadata about a protected resource.
  */
 export interface IAuthorizationProtectedResourceMetadata {
@@ -458,6 +480,18 @@ export interface IAuthorizationDeviceTokenErrorResponse extends IAuthorizationEr
 	error: AuthorizationErrorType | AuthorizationDeviceCodeErrorType | string;
 }
 
+export interface IAuthorizationRegistrationErrorResponse {
+	/**
+	 * REQUIRED. Error code as specified in OAuth 2.0 or Dynamic Client Registration.
+	 */
+	error: AuthorizationRegistrationErrorType | string;
+
+	/**
+	 * OPTIONAL. Human-readable description of the error.
+	 */
+	error_description?: string;
+}
+
 export interface IAuthorizationJWTClaims {
 	/**
 	 * REQUIRED. JWT ID. Unique identifier for the token.
@@ -653,6 +687,14 @@ export function isAuthorizationErrorResponse(obj: unknown): obj is IAuthorizatio
 	return response.error !== undefined;
 }
 
+export function isAuthorizationRegistrationErrorResponse(obj: unknown): obj is IAuthorizationRegistrationErrorResponse {
+	if (typeof obj !== 'object' || obj === null) {
+		return false;
+	}
+	const response = obj as IAuthorizationRegistrationErrorResponse;
+	return response.error !== undefined;
+}
+
 //#endregion
 
 export function getDefaultMetadataForUrl(authorizationServer: URL): IRequiredAuthorizationServerMetadata & IRequiredAuthorizationServerMetadata {
@@ -719,12 +761,26 @@ export async function fetchDynamicRegistration(serverMetadata: IAuthorizationSer
 				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}/`
 			],
 			scope: scopes?.join(AUTH_SCOPE_SEPARATOR),
-			token_endpoint_auth_method: 'none'
+			token_endpoint_auth_method: 'none',
+			// https://openid.net/specs/openid-connect-registration-1_0.html
+			application_type: 'native'
 		})
 	});
 
 	if (!response.ok) {
-		throw new Error(`Registration failed: ${response.statusText}`);
+		const result = await response.text();
+		let errorDetails: string = result;
+
+		try {
+			const errorResponse = JSON.parse(result);
+			if (isAuthorizationRegistrationErrorResponse(errorResponse)) {
+				errorDetails = `${errorResponse.error}${errorResponse.error_description ? `: ${errorResponse.error_description}` : ''}`;
+			}
+		} catch {
+			// JSON parsing failed, use raw text
+		}
+
+		throw new Error(`Registration to ${serverMetadata.registration_endpoint} failed: ${errorDetails}`);
 	}
 
 	const registration = await response.json();

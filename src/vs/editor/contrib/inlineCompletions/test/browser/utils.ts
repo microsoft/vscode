@@ -32,6 +32,10 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 	private callHistory = new Array<unknown>();
 	private calledTwiceIn50Ms = false;
 
+	constructor(
+		public readonly enableForwardStability = false,
+	) { }
+
 	public setReturnValue(value: InlineCompletion | undefined, delayMs: number = 0): void {
 		this.returnValue = value ? [value] : [];
 		this.delayMs = delayMs;
@@ -56,7 +60,7 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 
 	private lastTimeMs: number | undefined = undefined;
 
-	async provideInlineCompletions(model: ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken) {
+	async provideInlineCompletions(model: ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): Promise<InlineCompletions> {
 		const currentTimeMs = new Date().getTime();
 		if (this.lastTimeMs && currentTimeMs - this.lastTimeMs < 50) {
 			this.calledTwiceIn50Ms = true;
@@ -81,7 +85,7 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 			await timeout(this.delayMs);
 		}
 
-		return { items: result };
+		return { items: result, enableForwardStability: this.enableForwardStability };
 	}
 	disposeInlineCompletions() { }
 	handleItemDidShow() { }
