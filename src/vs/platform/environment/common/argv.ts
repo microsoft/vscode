@@ -28,6 +28,7 @@ export interface NativeParsedArgs {
 		_: string[];
 		'add-file'?: string[];
 		mode?: string;
+		maximize?: boolean;
 		help?: boolean;
 	};
 

@@ -825,6 +825,10 @@ export const codeTunnelSubcommands: Fig.Subcommand[] = [
 				},
 			},
 			{
+				name: ['--maximize'],
+				description: 'Maximize the chat session view.',
+			},
+			{
 				name: ['-h', '--help'],
 				description: 'Print usage',
 			},
