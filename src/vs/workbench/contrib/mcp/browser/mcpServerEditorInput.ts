@@ -14,7 +14,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkbenchMcpServer } from '../common/mcpTypes.js';
 
-const ExtensionEditorIcon = registerIcon('extensions-editor-label-icon', Codicon.extensions, localize('extensionsEditorLabelIcon', 'Icon of the extensions editor label.'));
+const MCPServerEditorIcon = registerIcon('mcp-server-editor-icon', Codicon.mcp, localize('mcpServerEditorLabelIcon', 'Icon of the MCP Server editor.'));
 
 export class McpServerEditorInput extends EditorInput {
 
@@ -42,11 +42,11 @@ export class McpServerEditorInput extends EditorInput {
 	get mcpServer(): IWorkbenchMcpServer { return this._mcpServer; }
 
 	override getName(): string {
-		return localize('extensionsInputName', "Extension: {0}", this._mcpServer.label);
+		return localize('extensionsInputName', "MCP Server: {0}", this._mcpServer.label);
 	}
 
 	override getIcon(): ThemeIcon | undefined {
-		return ExtensionEditorIcon;
+		return MCPServerEditorIcon;
 	}
 
 	override matches(other: EditorInput | IUntypedEditorInput): boolean {
