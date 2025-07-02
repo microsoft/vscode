@@ -220,7 +220,7 @@ export class McpServerEditor extends EditorPane {
 		const description = append(details, $('.description'));
 
 		const actions = [
-			this.instantiationService.createInstance(InstallAction),
+			this.instantiationService.createInstance(InstallAction, true),
 			this.instantiationService.createInstance(UninstallAction),
 			this.instantiationService.createInstance(ManageMcpServerAction, true),
 		];
