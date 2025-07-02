@@ -7,6 +7,7 @@ import es from 'event-stream';
 import fs from 'fs';
 import cp from 'child_process';
 import os from 'os';
+import v8 from 'v8';
 import glob from 'glob';
 import gulp from 'gulp';
 import path from 'path';
@@ -29,6 +30,8 @@ import { fetchUrls, fetchGithub } from './fetch';
 const vzip = require('gulp-vinyl-zip');
 
 console.log(`Constrained memory for ${process.pid} : ${process.constrainedMemory()}`);
+console.log(JSON.stringify(v8.getHeapStatistics(), null, 2));
+console.log(JSON.stringify(v8.getHeapSpaceStatistics(), null, 2));
 console.log(`Total OS memory: ${os.totalmem()}`);
 console.log(`Free OS memory: ${os.freemem()}`);
 
