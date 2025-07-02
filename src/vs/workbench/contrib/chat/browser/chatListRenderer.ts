@@ -430,7 +430,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (templateData.currentElement && templateData.currentElement.id !== element.id) {
 			this.traceLayout('renderChatTreeItem', `Rendering a different element into the template, index=${index}`);
 			this.clearRenderedParts(templateData);
-			this.templateDataByRequestId.delete(templateData.currentElement.id);
+
+			// check for mismatch in the map and remove old template if necessary
+			if (this.templateDataByRequestId.has(templateData.currentElement.id)) {
+				const temp = this.templateDataByRequestId.get(templateData.currentElement.id);
+				if (temp?.currentElement?.id !== templateData.currentElement.id) {
+					this.templateDataByRequestId.delete(templateData.currentElement.id);
+				}
+			}
 		}
 
 		templateData.currentElement = element;
