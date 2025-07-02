@@ -37,7 +37,6 @@ import { ObservableContextKeyService } from '../utils.js';
 import { InlineCompletionsView } from '../view/inlineCompletionsView.js';
 import { inlineSuggestCommitId } from './commandIds.js';
 import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
-import { IInlineCompletionsService } from '../../../../browser/services/inlineCompletionsService.js';
 
 export class InlineCompletionsController extends Disposable {
 	private static readonly _instances = new Set<InlineCompletionsController>();
@@ -96,7 +95,6 @@ export class InlineCompletionsController extends Disposable {
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IInlineCompletionsService private readonly _inlineCompletionsService: IInlineCompletionsService,
 	) {
 		super();
 		this._editorObs = observableCodeEditor(this.editor);
@@ -112,8 +110,7 @@ export class InlineCompletionsController extends Disposable {
 			this._contextKeyService.onDidChangeContext,
 			() => this._contextKeyService.getContext(this.editor.getDomNode()).getValue('editorDictation.inProgress') === true
 		);
-		const isSnoozing = observableFromEvent(this, this._inlineCompletionsService.onDidChangeIsSnoozing, () => this._inlineCompletionsService.isSnoozing());
-		this._enabled = derived(this, reader => this._enabledInConfig.read(reader) && !isSnoozing.read(reader) && (!this._isScreenReaderEnabled.read(reader) || !this._editorDictationInProgress.read(reader)));
+		this._enabled = derived(this, reader => this._enabledInConfig.read(reader) && (!this._isScreenReaderEnabled.read(reader) || !this._editorDictationInProgress.read(reader)));
 		this._debounceValue = this._debounceService.for(
 			this._languageFeaturesService.inlineCompletionsProvider,
 			'InlineCompletionsDebounce',
