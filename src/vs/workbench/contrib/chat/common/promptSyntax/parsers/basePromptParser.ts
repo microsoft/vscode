@@ -61,8 +61,7 @@ export type TErrorCondition = OpenFailed | RecursiveReference | FolderReference 
  */
 export class BasePromptParser<TContentsProvider extends IPromptContentsProvider> extends ObservableDisposable {
 	/**
-	 * Options passed to the constructor, extended with
-	 * value defaults from {@link DEFAULT_OPTIONS}.
+	 * Options passed to the constructor.
 	 */
 	protected readonly options: IBasePromptParserOptions;
 
