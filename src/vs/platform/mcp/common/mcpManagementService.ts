@@ -40,6 +40,7 @@ export interface ILocalMcpServerInfo {
 	manifest?: IMcpServerManifest;
 	readmeUrl?: URI;
 	location?: URI;
+	licenseUrl?: string;
 }
 
 export abstract class AbstractMcpResourceManagementService extends Disposable implements IMcpManagementService {
@@ -184,7 +185,8 @@ export abstract class AbstractMcpResourceManagementService extends Disposable im
 			readmeUrl: mcpServerInfo.readmeUrl,
 			icon: mcpServerInfo.icon,
 			codicon: mcpServerInfo.codicon,
-			manifest: mcpServerInfo.manifest
+			manifest: mcpServerInfo.manifest,
+			source: config.gallery ? 'gallery' : 'local'
 		};
 	}
 
@@ -382,6 +384,7 @@ export abstract class AbstractMcpResourceManagementService extends Disposable im
 	}
 
 	abstract installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
+	abstract updateMetadata(local: ILocalMcpServer, server: IGalleryMcpServer, profileLocation: URI): Promise<ILocalMcpServer>;
 	protected abstract getLocalServerInfo(name: string, mcpServerConfig: IMcpServerConfiguration): Promise<ILocalMcpServerInfo | undefined>;
 }
 
@@ -408,30 +411,8 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 		this._onInstallMcpServer.fire({ name: server.name, mcpResource: this.mcpResource });
 
 		try {
-			const manifest = await this.mcpGalleryService.getManifest(server, CancellationToken.None);
-			const location = this.getLocation(server.name, server.version);
-			const manifestPath = this.uriIdentityService.extUri.joinPath(location, 'manifest.json');
-			await this.fileService.writeFile(manifestPath, VSBuffer.fromString(JSON.stringify({
-				id: server.id,
-				name: server.name,
-				displayName: server.displayName,
-				description: server.description,
-				version: server.version,
-				publisher: server.publisher,
-				publisherDisplayName: server.publisherDisplayName,
-				repository: server.repositoryUrl,
-				licenseUrl: server.licenseUrl,
-				icon: server.icon,
-				codicon: server.codicon,
-				...manifest,
-			})));
-
-			if (server.readmeUrl) {
-				const readme = await this.mcpGalleryService.getReadme(server, CancellationToken.None);
-				await this.fileService.writeFile(this.uriIdentityService.extUri.joinPath(location, 'README.md'), VSBuffer.fromString(readme));
-			}
+			const manifest = await this.updateMetadataFromGallery(server);
 			const { config, inputs } = this.toScannedMcpServerAndInputs(manifest, options?.packageType);
-
 			const installable: IInstallableMcpServer = {
 				name: server.name,
 				config: {
@@ -454,6 +435,44 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 			this._onDidInstallMcpServers.fire([{ name: server.name, source: server, error: e, mcpResource: this.mcpResource }]);
 			throw e;
 		}
+	}
+
+	async updateMetadata(local: ILocalMcpServer, gallery: IGalleryMcpServer): Promise<ILocalMcpServer> {
+		await this.updateMetadataFromGallery(gallery);
+		await this.updateLocal();
+		const updatedLocal = (await this.getInstalled()).find(s => s.name === local.name);
+		if (!updatedLocal) {
+			throw new Error(`Failed to find MCP server: ${local.name}`);
+		}
+		return updatedLocal;
+	}
+
+	private async updateMetadataFromGallery(gallery: IGalleryMcpServer): Promise<IMcpServerManifest> {
+		const manifest = await this.mcpGalleryService.getManifest(gallery, CancellationToken.None);
+		const location = this.getLocation(gallery.name, gallery.version);
+		const manifestPath = this.uriIdentityService.extUri.joinPath(location, 'manifest.json');
+		const local: ILocalMcpServerInfo = {
+			id: gallery.id,
+			name: gallery.name,
+			displayName: gallery.displayName,
+			description: gallery.description,
+			version: gallery.version,
+			publisher: gallery.publisher,
+			publisherDisplayName: gallery.publisherDisplayName,
+			repositoryUrl: gallery.repositoryUrl,
+			licenseUrl: gallery.licenseUrl,
+			icon: gallery.icon,
+			codicon: gallery.codicon,
+			manifest,
+		};
+		await this.fileService.writeFile(manifestPath, VSBuffer.fromString(JSON.stringify(local)));
+
+		if (gallery.readmeUrl) {
+			const readme = await this.mcpGalleryService.getReadme(gallery, CancellationToken.None);
+			await this.fileService.writeFile(this.uriIdentityService.extUri.joinPath(location, 'README.md'), VSBuffer.fromString(readme));
+		}
+
+		return manifest;
 	}
 
 	protected async getLocalServerInfo(name: string, mcpServerConfig: IMcpServerConfiguration): Promise<ILocalMcpServerInfo | undefined> {
@@ -547,6 +566,10 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 	async installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
 		const mcpResourceUri = options?.mcpResource || this.userDataProfilesService.defaultProfile.mcpResource;
 		return this.getMcpResourceManagementService(mcpResourceUri).installFromGallery(server, options);
+	}
+
+	async updateMetadata(local: ILocalMcpServer, gallery: IGalleryMcpServer, mcpResource?: URI): Promise<ILocalMcpServer> {
+		return this.getMcpResourceManagementService(mcpResource || this.userDataProfilesService.defaultProfile.mcpResource).updateMetadata(local, gallery);
 	}
 
 	override dispose(): void {

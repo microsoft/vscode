@@ -298,6 +298,21 @@ class WorkbenchMcpManagementService extends Disposable implements IWorkbenchMcpM
 		return this.mcpManagementService.installFromGallery(server, options);
 	}
 
+	updateMetadata(local: IWorkbenchLocalMcpServer, server: IGalleryMcpServer, profileLocation: URI): Promise<ILocalMcpServer> {
+		if (local.scope === LocalMcpServerScope.Workspace) {
+			return this.workspaceMcpManagementService.updateMetadata(local, server, profileLocation);
+		}
+
+		if (local.scope === LocalMcpServerScope.RemoteUser) {
+			if (!this.remoteMcpManagementService) {
+				throw new Error(`Illegal target: ${local.scope}`);
+			}
+			return this.remoteMcpManagementService.updateMetadata(local, server, profileLocation);
+		}
+
+		return this.mcpManagementService.updateMetadata(local, server, profileLocation);
+	}
+
 	async uninstall(server: IWorkbenchLocalMcpServer): Promise<void> {
 		if (server.scope === LocalMcpServerScope.Workspace) {
 			return this.workspaceMcpManagementService.uninstall(server);
@@ -346,10 +361,13 @@ class WorkspaceMcpResourceManagementService extends AbstractMcpResourceManagemen
 		throw new Error('Not supported');
 	}
 
+	override updateMetadata(): Promise<ILocalMcpServer> {
+		throw new Error('Not supported');
+	}
+
 	protected override async getLocalServerInfo(): Promise<ILocalMcpServerInfo | undefined> {
 		return undefined;
 	}
-
 }
 
 class WorkspaceMcpManagementService extends Disposable implements IMcpManagementService {
@@ -522,7 +540,11 @@ class WorkspaceMcpManagementService extends Disposable implements IMcpManagement
 		return mcpManagementServiceItem.service.uninstall(server, options);
 	}
 
-	async installFromGallery(): Promise<ILocalMcpServer> {
+	installFromGallery(): Promise<ILocalMcpServer> {
+		throw new Error('Not supported');
+	}
+
+	updateMetadata(): Promise<ILocalMcpServer> {
 		throw new Error('Not supported');
 	}
 
