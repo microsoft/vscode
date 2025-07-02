@@ -231,13 +231,14 @@ export class McpServersListView extends ViewPane {
 
 		const onDidChangeModel = disposables.add(new Emitter<IPagedModel<IWorkbenchMcpServer>>());
 		let servers = await this.mcpWorkbenchService.queryLocal();
-		disposables.add(Event.debounce(Event.filter(this.mcpWorkbenchService.onChange, e => e?.installState === McpServerInstallState.Installed), () => undefined)(async () => {
+		disposables.add(Event.debounce(Event.filter(this.mcpWorkbenchService.onChange, e => e?.installState === McpServerInstallState.Installed), () => undefined)(() => {
 			const mergedMcpServers = this.mergeAddedMcpServers(servers, [...this.mcpWorkbenchService.local]);
 			if (mergedMcpServers) {
 				servers = mergedMcpServers;
 				onDidChangeModel.fire(new PagedModel(servers));
 			}
 		}));
+		disposables.add(this.mcpWorkbenchService.onReset(() => onDidChangeModel.fire(new PagedModel([...this.mcpWorkbenchService.local]))));
 		return { model: new PagedModel(servers), onDidChangeModel: onDidChangeModel.event, disposables };
 	}
 

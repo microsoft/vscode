@@ -151,6 +151,9 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	private readonly _onChange = this._register(new Emitter<IWorkbenchMcpServer | undefined>());
 	readonly onChange = this._onChange.event;
 
+	private readonly _onReset = this._register(new Emitter<void>());
+	readonly onReset = this._onReset.event;
+
 	constructor(
 		@IMcpGalleryService private readonly mcpGalleryService: IMcpGalleryService,
 		@IWorkbenchMcpManagementService private readonly mcpManagementService: IWorkbenchMcpManagementService,
@@ -169,8 +172,15 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		this._register(this.mcpManagementService.onDidInstallMcpServersInCurrentProfile(e => this.onDidInstallMcpServers(e)));
 		this._register(this.mcpManagementService.onDidUpdateMcpServersInCurrentProfile(e => this.onDidUpdateMcpServers(e)));
 		this._register(this.mcpManagementService.onDidUninstallMcpServerInCurrentProfile(e => this.onDidUninstallMcpServer(e)));
+		this._register(this.mcpManagementService.onDidChangeProfile(e => this.onDidChangeProfile()));
 		this.queryLocal().then(() => this.syncInstalledMcpServers());
 		urlService.registerHandler(this);
+	}
+
+	private async onDidChangeProfile() {
+		await this.queryLocal();
+		this._onChange.fire(undefined);
+		this._onReset.fire();
 	}
 
 	private onDidUninstallMcpServer(e: DidUninstallMcpServerEvent) {
