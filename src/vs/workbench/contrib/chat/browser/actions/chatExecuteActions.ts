@@ -504,14 +504,14 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 		super({
 			id: CreateRemoteAgentJobAction.ID,
-			// TODO(joshspicer): Generalize title
-			title: localize2('actions.chat.createRemoteJob', "Push to Copilot coding agent"),
+			// TODO(joshspicer): Generalize title, pull from contribution
+			title: localize2('actions.chat.createRemoteJob', "Delegate to coding agent"),
 			icon: Codicon.cloudUpload,
 			precondition,
 			toggled: {
 				condition: ChatContextKeys.remoteJobCreating,
 				icon: Codicon.sync,
-				tooltip: localize('remoteJobCreating', "Pushing to Copilot coding agent"),
+				tooltip: localize('remoteJobCreating', "Delegating to coding agent"),
 			},
 			menu: {
 				id: MenuId.ChatExecute,
@@ -543,13 +543,19 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				return;
 			}
 
-			const userPrompt = widget.getInput();
-			widget.setInput();
 
 			const chatModel = widget.viewModel?.model;
 			if (!chatModel) {
 				return;
 			}
+
+			const userPrompt = widget.getInput();
+			if (!userPrompt) {
+				return;
+			}
+
+			widget.input.acceptInput(true);
+
 			const chatRequests = chatModel.getRequests();
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 
@@ -617,7 +623,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			chatModel.acceptResponseProgress(addedRequest, {
 				kind: 'progressMessage',
 				content: new MarkdownString(
-					localize('creatingRemoteJob', "Pushing state to coding agent"),
+					localize('creatingRemoteJob', "Delegating to coding agent"),
 					CreateRemoteAgentJobAction.markdownStringTrustedOptions
 				)
 			});
@@ -643,6 +649,12 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			chatModel.acceptResponseProgress(addedRequest, { content, kind: 'markdownContent' });
 			chatModel.setResponse(addedRequest, {});
 			chatModel.completeResponse(addedRequest);
+
+			// Clear chat (start a new chat)
+			if (resultMarkdown) {
+				widget.clear();
+			}
+
 		} finally {
 			remoteJobCreatingKey.set(false);
 		}
@@ -769,7 +781,11 @@ export class CancelAction extends Action2 {
 			icon: Codicon.stopCircle,
 			menu: [{
 				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.requestInProgress),
+				when: ContextKeyExpr.and(
+					ChatContextKeys.isRequestPaused.negate(),
+					ChatContextKeys.requestInProgress,
+					ChatContextKeys.remoteJobCreating.negate()
+				),
 				order: 4,
 				group: 'navigation',
 			},

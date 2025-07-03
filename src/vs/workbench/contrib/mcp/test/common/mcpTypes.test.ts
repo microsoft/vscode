@@ -15,7 +15,7 @@ suite('MCP Types', () => {
 			const from = McpResourceURI.fromServer({ label: '', id: 'my-id' }, uri);
 			const to = McpResourceURI.toServer(from);
 			assert.strictEqual(to.definitionId, 'my-id');
-			assert.strictEqual(to.resourceURI.toString(true), uri, `expected to round trip ${uri}`);
+			assert.strictEqual(to.resourceURL.toString(), uri, `expected to round trip ${uri}`);
 		};
 
 		roundTrip('file:///path/to/file.txt');
@@ -23,5 +23,8 @@ suite('MCP Types', () => {
 		roundTrip('custom-scheme://my-path');
 		roundTrip('custom-scheme://my-path/');
 		roundTrip('custom-scheme://my-path/?with=query&params=here');
+
+		roundTrip('custom-scheme:///my-path');
+		roundTrip('custom-scheme:///my-path/foo/?with=query&params=here');
 	});
 });

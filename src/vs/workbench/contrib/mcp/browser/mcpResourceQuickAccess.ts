@@ -130,7 +130,7 @@ export class McpResourcePickHelper {
 			return uri;
 		}
 
-		this._notificationService.warn(localize('mcp.resource.template.notFound', "The resource {0} was not found.", McpResourceURI.toServer(uri).resourceURI.toString()));
+		this._notificationService.warn(localize('mcp.resource.template.notFound', "The resource {0} was not found.", McpResourceURI.toServer(uri).resourceURL.toString()));
 		return undefined;
 	}
 
