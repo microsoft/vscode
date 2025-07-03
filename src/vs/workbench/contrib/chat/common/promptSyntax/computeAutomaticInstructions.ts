@@ -247,7 +247,8 @@ export class ComputeAutomaticInstructions {
 			const result = await this._parseInstructionsFile(next, token);
 			const refsToCheck: { resource: URI }[] = [];
 			for (const ref of result.references) {
-				if (!seen.has(ref) && isPromptOrInstructionsFile(ref)) {
+				if (!seen.has(ref) && (isPromptOrInstructionsFile(ref) || this._workspaceService.getWorkspaceFolder(ref) !== undefined)) {
+					// only add references that are either prompt or instruction files or are part of the workspace
 					refsToCheck.push({ resource: ref });
 					seen.add(ref);
 				}
@@ -258,7 +259,10 @@ export class ComputeAutomaticInstructions {
 					const stat = stats[i];
 					const uri = refsToCheck[i].resource;
 					if (stat.success && stat.stat?.isFile) {
-						todo.push(uri);
+						if (isPromptOrInstructionsFile(uri)) {
+							// only recursivly parse instruction files
+							todo.push(uri);
+						}
 						const reason = localize('instruction.file.reason.referenced', 'Referenced by {0}', basename(next));
 						attachedContext.add(toPromptFileVariableEntry(uri, PromptFileVariableKind.InstructionReference, reason, true));
 					}
