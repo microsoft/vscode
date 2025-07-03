@@ -138,6 +138,8 @@
 	text-overflow: ellipsis;
 	text-wrap: nowrap;
 	padding: 2px 8px;
+	user-select: none;
+	-webkit-user-select: none;
 }
 
 .chat-status-bar-entry-tooltip .snooze-completions .snooze-label {
@@ -147,6 +149,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
 }
 
 .chat-status-bar-entry-tooltip .snooze-completions.disabled .snooze-label {
