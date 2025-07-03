@@ -7,7 +7,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { IExtensionManifest, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
@@ -20,7 +20,6 @@ import { IAuthenticationUsageService } from '../../../services/authentication/br
 import { ManageAccountPreferencesForMcpServerAction } from './actions/manageAccountPreferencesForMcpServerAction.js';
 import { ManageTrustedMcpServersForAccountAction } from './actions/manageTrustedMcpServersForAccountAction.js';
 import { RemoveDynamicAuthenticationProvidersAction } from './actions/manageDynamicAuthenticationProvidersAction.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
 import { IMcpRegistry } from '../../mcp/common/mcpRegistryTypes.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -116,61 +115,61 @@ class AuthenticationUsageContribution implements IWorkbenchContribution {
 	}
 }
 
-class AuthenticationExtensionsContribution extends Disposable implements IWorkbenchContribution {
-	static ID = 'workbench.contrib.authenticationExtensions';
+// class AuthenticationExtensionsContribution extends Disposable implements IWorkbenchContribution {
+// 	static ID = 'workbench.contrib.authenticationExtensions';
 
-	constructor(
-		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IAuthenticationQueryService private readonly _authenticationQueryService: IAuthenticationQueryService,
-		@IAuthenticationService private readonly _authenticationService: IAuthenticationService
-	) {
-		super();
-		void this.run();
-		this._register(this._extensionService.onDidChangeExtensions(this._onDidChangeExtensions, this));
-		this._register(
-			Event.any(
-				this._authenticationService.onDidChangeDeclaredProviders,
-				this._authenticationService.onDidRegisterAuthenticationProvider
-			)(() => this._cleanupRemovedExtensions())
-		);
-	}
+// 	constructor(
+// 		@IExtensionService private readonly _extensionService: IExtensionService,
+// 		@IAuthenticationQueryService private readonly _authenticationQueryService: IAuthenticationQueryService,
+// 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService
+// 	) {
+// 		super();
+// 		void this.run();
+// 		this._register(this._extensionService.onDidChangeExtensions(this._onDidChangeExtensions, this));
+// 		this._register(
+// 			Event.any(
+// 				this._authenticationService.onDidChangeDeclaredProviders,
+// 				this._authenticationService.onDidRegisterAuthenticationProvider
+// 			)(() => this._cleanupRemovedExtensions())
+// 		);
+// 	}
 
-	async run(): Promise<void> {
-		await this._extensionService.whenInstalledExtensionsRegistered();
-		this._cleanupRemovedExtensions();
-	}
+// 	async run(): Promise<void> {
+// 		await this._extensionService.whenInstalledExtensionsRegistered();
+// 		this._cleanupRemovedExtensions();
+// 	}
 
-	private _onDidChangeExtensions(delta: { readonly added: readonly IExtensionDescription[]; readonly removed: readonly IExtensionDescription[] }): void {
-		if (delta.removed.length > 0) {
-			this._cleanupRemovedExtensions(delta.removed);
-		}
-	}
+// 	private _onDidChangeExtensions(delta: { readonly added: readonly IExtensionDescription[]; readonly removed: readonly IExtensionDescription[] }): void {
+// 		if (delta.removed.length > 0) {
+// 			this._cleanupRemovedExtensions(delta.removed);
+// 		}
+// 	}
 
-	private _cleanupRemovedExtensions(removedExtensions?: readonly IExtensionDescription[]): void {
-		const extensionIdsToRemove = removedExtensions
-			? new Set(removedExtensions.map(e => e.identifier.value))
-			: new Set(this._extensionService.extensions.map(e => e.identifier.value));
+// 	private _cleanupRemovedExtensions(removedExtensions?: readonly IExtensionDescription[]): void {
+// 		const extensionIdsToRemove = removedExtensions
+// 			? new Set(removedExtensions.map(e => e.identifier.value))
+// 			: new Set(this._extensionService.extensions.map(e => e.identifier.value));
 
-		// If we are cleaning up specific removed extensions, we only remove those.
-		const isTargetedCleanup = !!removedExtensions;
+// 		// If we are cleaning up specific removed extensions, we only remove those.
+// 		const isTargetedCleanup = !!removedExtensions;
 
-		const providerIds = this._authenticationQueryService.getProviderIds();
-		for (const providerId of providerIds) {
-			this._authenticationQueryService.provider(providerId).forEachAccount(account => {
-				account.extensions().forEach(extension => {
-					const shouldRemove = isTargetedCleanup
-						? extensionIdsToRemove.has(extension.extensionId)
-						: !extensionIdsToRemove.has(extension.extensionId);
+// 		const providerIds = this._authenticationQueryService.getProviderIds();
+// 		for (const providerId of providerIds) {
+// 			this._authenticationQueryService.provider(providerId).forEachAccount(account => {
+// 				account.extensions().forEach(extension => {
+// 					const shouldRemove = isTargetedCleanup
+// 						? extensionIdsToRemove.has(extension.extensionId)
+// 						: !extensionIdsToRemove.has(extension.extensionId);
 
-					if (shouldRemove) {
-						extension.removeUsage();
-						extension.setAccessAllowed(false);
-					}
-				});
-			});
-		}
-	}
-}
+// 					if (shouldRemove) {
+// 						extension.removeUsage();
+// 						extension.setAccessAllowed(false);
+// 					}
+// 				});
+// 			});
+// 		}
+// 	}
+// }
 
 class AuthenticationMcpContribution extends Disposable implements IWorkbenchContribution {
 	static ID = 'workbench.contrib.authenticationMcp';
@@ -216,5 +215,5 @@ class AuthenticationMcpContribution extends Disposable implements IWorkbenchCont
 
 registerWorkbenchContribution2(AuthenticationContribution.ID, AuthenticationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AuthenticationUsageContribution.ID, AuthenticationUsageContribution, WorkbenchPhase.Eventually);
-registerWorkbenchContribution2(AuthenticationExtensionsContribution.ID, AuthenticationExtensionsContribution, WorkbenchPhase.Eventually);
+// registerWorkbenchContribution2(AuthenticationExtensionsContribution.ID, AuthenticationExtensionsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(AuthenticationMcpContribution.ID, AuthenticationMcpContribution, WorkbenchPhase.Eventually);
