@@ -55,6 +55,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { CHAT_CONFIG_MENU_ID } from '../../chat/browser/actions/chatActions.js';
+import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -740,7 +741,12 @@ export class ShowInstalledMcpServersCommand extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor) {
-		accessor.get(IViewsService).openView(InstalledMcpServersViewId, true);
+		const viewsService = accessor.get(IViewsService);
+		const view = await viewsService.openView(InstalledMcpServersViewId, true);
+		if (!view) {
+			await viewsService.openViewContainer(VIEW_CONTAINER.id);
+			await viewsService.openView(InstalledMcpServersViewId, true);
+		}
 	}
 }
 

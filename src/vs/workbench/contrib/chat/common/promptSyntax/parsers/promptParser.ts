@@ -10,9 +10,9 @@ import { BasePromptParser, IPromptParserOptions } from './basePromptParser.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { TextModelContentsProvider } from '../contentProviders/textModelContentsProvider.js';
 import { FilePromptContentProvider } from '../contentProviders/filePromptContentsProvider.js';
-import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IPromptContentsProviderOptions } from '../contentProviders/promptContentsProviderBase.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 
 /**
  * Get prompt contents provider object based on the prompt type.
@@ -46,7 +46,7 @@ export class PromptParser extends BasePromptParser<IPromptContentsProvider> {
 		@ILogService logService: ILogService,
 		@IModelService modelService: IModelService,
 		@IInstantiationService instaService: IInstantiationService,
-		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
+		@IWorkbenchEnvironmentService envService: IWorkbenchEnvironmentService,
 	) {
 		const contentsProvider = getContentsProvider(uri, options, modelService, instaService);
 
@@ -54,7 +54,7 @@ export class PromptParser extends BasePromptParser<IPromptContentsProvider> {
 			contentsProvider,
 			options,
 			instaService,
-			workspaceService,
+			envService,
 			logService,
 		);
 
