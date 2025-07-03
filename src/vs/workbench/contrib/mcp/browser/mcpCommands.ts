@@ -33,7 +33,7 @@ import { IAccountQuery, IAuthenticationQueryService } from '../../../services/au
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { IChatWidgetService } from '../../chat/browser/chat.js';
+import { ChatViewId, IChatWidgetService } from '../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ChatModeKind } from '../../chat/common/constants.js';
 import { ILanguageModelsService } from '../../chat/common/languageModels.js';
@@ -54,6 +54,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { CHAT_CONFIG_MENU_ID } from '../../chat/browser/actions/chatActions.js';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -729,6 +730,12 @@ export class ShowInstalledMcpServersCommand extends Action2 {
 			category,
 			precondition: HasInstalledMcpServersContext,
 			f1: true,
+			menu: {
+				id: CHAT_CONFIG_MENU_ID,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
+				order: 14,
+				group: '0_level'
+			}
 		});
 	}
 
