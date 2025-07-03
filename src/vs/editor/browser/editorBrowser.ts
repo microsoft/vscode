@@ -1098,7 +1098,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getTopForPosition(lineNumber: number, column: number): number;
 
 	/**
-	 * Get the line height for the line number.
+	 * Get the line height for a model position.
 	 */
 	getLineHeightForPosition(position: IPosition): number;
 

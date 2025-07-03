@@ -187,7 +187,7 @@ export interface IPromptFileVariableEntry extends IBaseChatRequestVariableEntry 
 	readonly isRoot: boolean;
 	readonly originLabel?: string;
 	readonly modelDescription: string;
-	readonly isHidden: boolean;
+	readonly automaticallyAdded: boolean;
 }
 
 export interface IPromptTextVariableEntry extends IBaseChatRequestVariableEntry {
@@ -195,7 +195,7 @@ export interface IPromptTextVariableEntry extends IBaseChatRequestVariableEntry 
 	readonly value: string;
 	readonly settingId?: string;
 	readonly modelDescription: string;
-	readonly isHidden: boolean;
+	readonly automaticallyAdded: boolean;
 }
 
 export interface ISCMHistoryItemVariableEntry extends IBaseChatRequestVariableEntry {
@@ -291,7 +291,7 @@ export enum PromptFileVariableKind {
  * @param uri A resource URI that points to a prompt instructions file.
  * @param kind The kind of the prompt file variable entry.
  */
-export function toPromptFileVariableEntry(uri: URI, kind: PromptFileVariableKind, originLabel?: string): IPromptFileVariableEntry {
+export function toPromptFileVariableEntry(uri: URI, kind: PromptFileVariableKind, originLabel?: string, automaticallyAdded = false): IPromptFileVariableEntry {
 	//  `id` for all `prompt files` starts with the well-defined part that the copilot extension(or other chatbot) can rely on
 	return {
 		id: `${kind}__${uri.toString()}`,
@@ -301,11 +301,11 @@ export function toPromptFileVariableEntry(uri: URI, kind: PromptFileVariableKind
 		modelDescription: 'Prompt instructions file',
 		isRoot: kind !== PromptFileVariableKind.InstructionReference,
 		originLabel,
-		isHidden: kind === PromptFileVariableKind.PromptFile
+		automaticallyAdded
 	};
 }
 
-export function toPromptTextVariableEntry(content: string, settingId?: string): IPromptTextVariableEntry {
+export function toPromptTextVariableEntry(content: string, settingId?: string, automaticallyAdded = false): IPromptTextVariableEntry {
 	return {
 		id: `vscode.prompt.instructions.text${settingId ? `.${settingId}` : ''}`,
 		name: `prompt:text`,
@@ -313,7 +313,7 @@ export function toPromptTextVariableEntry(content: string, settingId?: string): 
 		settingId,
 		kind: 'promptText',
 		modelDescription: 'Prompt instructions text',
-		isHidden: true, // do not show in the UI
+		automaticallyAdded
 	};
 }
 

@@ -304,6 +304,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			local.local = i;
 			return local;
 		});
+		this._onChange.fire(undefined);
 		return [...this.local];
 	}
 
