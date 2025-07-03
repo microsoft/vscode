@@ -297,13 +297,13 @@ registerTerminalAction({
 		order: 1
 	},
 	keybinding: {
-		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyL,
-		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyL },
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL,
+		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL },
 		weight: KeybindingWeight.WorkbenchContrib + 1,
 		when: TerminalContextKeys.suggestWidgetVisible
 	},
 	run: (c, accessor) => {
-		(accessor.get(IOpenerService)).open('https://code.visualstudio.com/docs/terminal/shell-integration#_intellisense-preview');
+		(accessor.get(IOpenerService)).open('https://aka.ms/vscode-terminal-intellisense');
 	}
 });
 
