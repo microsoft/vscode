@@ -781,7 +781,11 @@ export class CancelAction extends Action2 {
 			icon: Codicon.stopCircle,
 			menu: [{
 				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.requestInProgress),
+				when: ContextKeyExpr.and(
+					ChatContextKeys.isRequestPaused.negate(),
+					ChatContextKeys.requestInProgress,
+					ChatContextKeys.remoteJobCreating.negate()
+				),
 				order: 4,
 				group: 'navigation',
 			},
