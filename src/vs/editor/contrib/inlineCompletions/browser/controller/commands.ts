@@ -195,6 +195,7 @@ export class AcceptInlineCompletion extends EditorAction {
 							EditorContextKeys.tabMovesFocus.toNegated(),
 							SuggestContext.Visible.toNegated(),
 							EditorContextKeys.hoverFocused.toNegated(),
+							InlineCompletionContextKeys.hasSelection.toNegated(),
 
 							InlineCompletionContextKeys.inlineSuggestionHasIndentationLessThanTabSize,
 						),
