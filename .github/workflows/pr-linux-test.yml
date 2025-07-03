@@ -81,18 +81,18 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download vscode sysroots
-        run: |
-          set -e
-          SYSROOT_ARCH=$VSCODE_ARCH
-          if [ "$SYSROOT_ARCH" == "x64" ]; then
-            SYSROOT_ARCH="amd64"
-          fi
-          export VSCODE_SYSROOT_DIR=${{ github.workspace }}/.build/sysroots/glibc-2.28-gcc-8.5.0
-          SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_PREFIX="-glibc-2.28-gcc-8.5.0" node -e '(async () => { const { getVSCodeSysroot } = require("./build/linux/debian/install-sysroot.js"); await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
-        env:
-          VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # - name: Download vscode sysroots
+      #   run: |
+      #     set -e
+      #     SYSROOT_ARCH=$VSCODE_ARCH
+      #     if [ "$SYSROOT_ARCH" == "x64" ]; then
+      #       SYSROOT_ARCH="amd64"
+      #     fi
+      #     export VSCODE_SYSROOT_DIR=${{ github.workspace }}/.build/sysroots/glibc-2.28-gcc-8.5.0
+      #     SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_PREFIX="-glibc-2.28-gcc-8.5.0" node -e '(async () => { const { getVSCodeSysroot } = require("./build/linux/debian/install-sysroot.js"); await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
+      #   env:
+      #     VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
