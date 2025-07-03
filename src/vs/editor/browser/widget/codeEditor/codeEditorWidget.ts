@@ -607,8 +607,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return -1;
 		}
 		const viewModel = this._modelData.viewModel;
-		if (viewModel.coordinatesConverter.modelPositionIsVisible(Position.lift(position))) {
-			return viewModel.viewLayout.getLineHeightForLineNumber(position.lineNumber);
+		const coordinatesConverter = viewModel.coordinatesConverter;
+		const pos = Position.lift(position);
+		if (coordinatesConverter.modelPositionIsVisible(pos)) {
+			const viewPosition = coordinatesConverter.convertModelPositionToViewPosition(pos);
+			return viewModel.viewLayout.getLineHeightForLineNumber(viewPosition.lineNumber);
 		}
 		return 0;
 	}

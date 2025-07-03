@@ -961,7 +961,7 @@ export class GettingStartedPage extends EditorPane {
 			const fistContentBehaviour = daysSinceFirstSession < 1 ? 'openToFirstCategory' : 'index';
 			const startupExpValue = startupExpContext.getValue(this.contextService);
 
-			if (fistContentBehaviour === 'openToFirstCategory' && ((startupExpValue === '' || startupExpValue === StartupExperimentGroup.Control))) {
+			if (fistContentBehaviour === 'openToFirstCategory' && ((!startupExpValue || startupExpValue === '' || startupExpValue === StartupExperimentGroup.Control))) {
 				startupExpContext.bindTo(this.contextService).reset();
 				const first = this.gettingStartedCategories.filter(c => !c.when || this.contextService.contextMatchesRules(c.when))[0];
 				if (first) {
@@ -1265,7 +1265,7 @@ export class GettingStartedPage extends EditorPane {
 
 	private focusSideEditorGroup() {
 		const fullSize = this.groupsService.getPart(this.group).contentDimension;
-		if (!fullSize || fullSize.width <= 700) { return; }
+		if (!fullSize || fullSize.width <= 700 || this.container.classList.contains('width-constrained') || this.container.classList.contains('width-semi-constrained')) { return; }
 		if (this.groupsService.count === 1) {
 			const sideGroup = this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.RIGHT);
 			this.groupsService.activateGroup(sideGroup);
@@ -1669,6 +1669,7 @@ export class GettingStartedPage extends EditorPane {
 
 		// Add next button
 		this.nextButton = $('button.button-link.navigation.next', {
+
 			'aria-label': localize('nextStep', "Next"),
 		}, localize('next', "Next"), $('span.codicon.codicon-arrow-right'));
 

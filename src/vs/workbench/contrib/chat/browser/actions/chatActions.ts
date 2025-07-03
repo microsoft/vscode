@@ -29,6 +29,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -46,6 +47,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { McpCommandIds } from '../../../mcp/common/mcpCommandIds.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
@@ -140,6 +142,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const instaService = accessor.get(IInstantiationService);
 		const commandService = accessor.get(ICommandService);
 		const chatModeService = accessor.get(IChatModeService);
+		const fileService = accessor.get(IFileService);
 
 		let chatWidget = widgetService.lastFocusedWidget;
 		// When this was invoked to switch to a mode via keybinding, and some chat widget is focused, use that one.
@@ -174,7 +177,9 @@ abstract class OpenChatGlobalAction extends Action2 {
 		}
 		if (opts?.attachFiles) {
 			for (const file of opts.attachFiles) {
-				chatWidget.attachmentModel.addFile(file);
+				if (await fileService.exists(file)) {
+					chatWidget.attachmentModel.addFile(file);
+				}
 			}
 		}
 		if (opts?.query) {
@@ -819,9 +824,9 @@ export function registerChatActions() {
 	registerAction2(class UpdateInstructionsAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.updateInstructions',
-				title: localize2('updateInstructions', "Generate Instructions"),
-				shortTitle: localize2('updateInstructions.short', "Generate Instructions"),
+				id: 'workbench.action.chat.generateInstructions',
+				title: localize2('generateInstructions', "Generate Workspace Instructions File"),
+				shortTitle: localize2('generateInstructions.short', "Generate Instructions"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.sparkle,
 				f1: true,
@@ -847,7 +852,7 @@ Focus on discovering the essential knowledge that would help an AI agents be imm
 - Project-specific conventions and patterns that differ from common practices
 - Integration points, external dependencies, and cross-component communication patterns
 
-Source existing AI conventions from: \`**/{.github/copilot-instructions.md,AGENT.md,AGENTS.md,CLAUDE.md,.cursorrules,.windsurfrules,.clinerules,.cursor/rules/**,.windsurf/rules/**,.clinerules/**,README.md}\`.
+Source existing AI conventions from \`**/{.github/copilot-instructions.md,AGENT.md,AGENTS.md,CLAUDE.md,.cursorrules,.windsurfrules,.clinerules,.cursor/rules/**,.windsurf/rules/**,.clinerules/**,README.md}\` (do one glob search).
 
 Guidelines (read more at https://aka.ms/vscode-instructions-docs):
 - If \`.github/copilot-instructions.md\` exists, merge intelligently - preserve valuable content while updating outdated sections
@@ -857,7 +862,7 @@ Guidelines (read more at https://aka.ms/vscode-instructions-docs):
 - Document only discoverable patterns, not aspirational practices
 - Reference key files/directories that exemplify important patterns
 
-After generating the initial instructions (in less than 20 tool calls, count down after each tool call), ask for feedback on any unclear or incomplete sections and iterate on the instructions based on their input.`;
+Update \`.github/copilot-instructions.md\` for the user, then ask for feedback on any unclear or incomplete sections to iterate.`;
 
 			await commandService.executeCommand('workbench.action.chat.open', {
 				mode: 'agent',
@@ -877,12 +882,12 @@ After generating the initial instructions (in less than 20 tool calls, count dow
 
 	MenuRegistry.appendMenuItem(CHAT_CONFIG_MENU_ID, {
 		command: {
-			id: 'workbench.views.mcp.marketplace.focus',
+			id: McpCommandIds.ShowInstalled,
 			title: localize2('mcp.servers', "MCP Servers")
 		},
 		when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
 		order: 14,
-		group: '1_level'
+		group: '0_level'
 	});
 }
 
@@ -1107,4 +1112,31 @@ MenuRegistry.appendMenuItem(MenuId.TerminalInstanceContext, {
 	group: '2_copilot',
 	title,
 	when: menuContext
+});
+
+// --- Chat Default Visibility
+
+registerAction2(class ToggleDefaultVisibilityAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.toggleDefaultVisibility',
+			title: localize2('chat.toggleDefaultVisibility.label', "Show View by Default"),
+			precondition: ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.AuxiliaryBar),
+			toggled: ContextKeyExpr.equals('config.workbench.secondarySideBar.defaultVisibility', 'hidden').negate(),
+			f1: false,
+			menu: {
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', ChatViewId),
+				order: 0,
+				group: '5_configure'
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const configurationService = accessor.get(IConfigurationService);
+
+		const currentValue = configurationService.getValue<'hidden' | 'visibleInWorkspace' | 'visible'>('workbench.secondarySideBar.defaultVisibility');
+		configurationService.updateValue('workbench.secondarySideBar.defaultVisibility', currentValue !== 'hidden' ? 'hidden' : 'visible');
+	}
 });

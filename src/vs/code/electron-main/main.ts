@@ -507,9 +507,18 @@ class CodeMain {
 		}
 
 		if (args.chat) {
-			// If we are started with chat subcommand, the current working
-			// directory is always the path to open
-			args._ = [cwd()];
+			if (args.chat['new-window']) {
+				// Apply `--new-window` flag to the main arguments
+				args['new-window'] = true;
+			} else if (args.chat['reuse-window']) {
+				// Apply `--reuse-window` flag to the main arguments
+				args['reuse-window'] = true;
+			} else {
+				// Unless we are started with specific instructions about
+				// new windows or reusing existing ones, always take the
+				// current working directory as workspace to open.
+				args._ = [cwd()];
+			}
 		}
 
 		return args;

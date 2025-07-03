@@ -636,7 +636,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService, coreExperimentationService);
 		this.stateModel.load({
 			mainContainerDimension: this._mainContainerDimension,
-			resetLayout: Boolean(this.layoutOptions?.resetLayout)
+			resetLayout: Boolean(this.layoutOptions?.resetLayout),
+			isAuxiliaryBarEmpty: this.viewDescriptorService
+				.getViewContainersByLocation(ViewContainerLocation.AuxiliaryBar)
+				.find(viewContainer => this.hasViews(viewContainer.id))?.id !== undefined
 		});
 
 		this._register(this.stateModel.onDidChangeState(change => {
@@ -2789,6 +2792,7 @@ enum LegacyWorkbenchLayoutSettings {
 interface ILayoutStateLoadConfiguration {
 	readonly mainContainerDimension: IDimension;
 	readonly resetLayout: boolean;
+	readonly isAuxiliaryBarEmpty: boolean;
 }
 
 class LayoutStateModel extends Disposable {
@@ -2867,13 +2871,15 @@ class LayoutStateModel extends Disposable {
 		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = workbenchState === WorkbenchState.EMPTY;
 		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
 		LayoutStateKeys.AUXILIARYBAR_HIDDEN.defaultValue = (() => {
+			if (configuration.isAuxiliaryBarEmpty) {
+				return true; // require a view in the auxiliary bar to show it by default
+			}
+
 			switch (this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY)) {
 				case 'visible':
 					return false;
 				case 'visibleInWorkspace':
 					return workbenchState === WorkbenchState.EMPTY;
-				case 'visibleInNewWorkspace':
-					return workbenchState === WorkbenchState.EMPTY || !this.storageService.isNew(StorageScope.WORKSPACE);
 				default:
 					return true;
 			}
@@ -2952,7 +2958,7 @@ class LayoutStateModel extends Disposable {
 			) {
 				const mainContainerDimension = configuration.mainContainerDimension;
 				this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, false);
-				this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, mainContainerDimension.width / 2);
+				this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, Math.ceil(mainContainerDimension.width / (1.618 * 1.618 /* golden ratio */)));
 			}
 		}
 

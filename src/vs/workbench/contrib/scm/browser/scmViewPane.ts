@@ -93,7 +93,7 @@ import { EditorOption, EditorOptions, IEditorOptions } from '../../../../editor/
 import { IAsyncDataTreeViewState, ITreeCompressionDelegate } from '../../../../base/browser/ui/tree/asyncDataTree.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { EditOperation } from '../../../../editor/common/core/editOperation.js';
-import { IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { HiddenItemStrategy, IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { clamp, rot } from '../../../../base/common/numbers.js';
@@ -1449,7 +1449,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(container, { resetMenu: MenuId.SCMInputBox, ...options }, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
+		super(container, options, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
 
 		this._dropdownAction = new Action(
 			'scmInputMoreActions',
@@ -1561,7 +1561,6 @@ class SCMInputWidgetEditorOptions {
 		return {
 			...getSimpleEditorOptions(this.configurationService),
 			...this.getEditorOptions(),
-			allowVariableLineHeights: false,
 			dragAndDrop: true,
 			dropIntoEditor: { enabled: true },
 			formatOnType: true,
@@ -1947,6 +1946,7 @@ class SCMInputWidget {
 
 				return createActionViewItem(instantiationService, action, options);
 			},
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			menuOptions: {
 				shouldForwardArgs: true
 			}
