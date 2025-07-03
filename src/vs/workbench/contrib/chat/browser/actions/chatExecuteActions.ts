@@ -377,6 +377,28 @@ class OpenModelPickerAction extends Action2 {
 	}
 }
 
+class OpenModePickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.openModePicker';
+
+	constructor() {
+		super({
+			id: OpenModePickerAction.ID,
+			title: localize2('interactive.openModePicker.label', "Open Mode Picker"),
+			category: CHAT_CATEGORY,
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = widgetService.lastFocusedWidget;
+		if (widget) {
+			widget.input.openModePicker();
+		}
+	}
+}
+
 export const ChangeChatModelActionId = 'workbench.action.chat.changeModel';
 class ChangeChatModelAction extends Action2 {
 	static readonly ID = ChangeChatModelActionId;
@@ -852,6 +874,7 @@ export function registerChatExecuteActions() {
 	registerAction2(ToggleRequestPausedAction);
 	registerAction2(SwitchToNextModelAction);
 	registerAction2(OpenModelPickerAction);
+	registerAction2(OpenModePickerAction);
 	registerAction2(ChangeChatModelAction);
 	registerAction2(CancelEdit);
 }
