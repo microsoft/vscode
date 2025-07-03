@@ -25,7 +25,7 @@ import { ICodeEditorService } from '../../../../editor/browser/services/codeEdit
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ITextResourceEditorInput } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -734,11 +734,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const numItems = this.viewModel?.getItems().length ?? 0;
 		if (!numItems) {
 			dom.clearNode(this.welcomeMessageContainer);
+			// TODO@havyaus remove this startup experiment once settled
 			const startupExpValue = startupExpContext.getValue(this.contextKeyService);
+			const configuration = this.configurationService.inspect('workbench.secondarySideBar.defaultVisibility');
+			const expIsActive = configuration.defaultValue !== 'hidden';
+
+			const chatSetupTriggerContext = ContextKeyExpr.or(
+				ChatContextKeys.Setup.installed.negate(),
+				ChatContextKeys.Entitlement.canSignUp
+			);
+
 			let welcomeContent: IChatViewWelcomeContent;
-			if (startupExpValue === StartupExperimentGroup.MaximizedChat
+			if ((startupExpValue === StartupExperimentGroup.MaximizedChat
 				|| startupExpValue === StartupExperimentGroup.SplitEmptyEditorChat
-				|| startupExpValue === StartupExperimentGroup.SplitWelcomeChat) {
+				|| startupExpValue === StartupExperimentGroup.SplitWelcomeChat
+				|| expIsActive) && this.contextKeyService.contextMatchesRules(chatSetupTriggerContext)) {
 				welcomeContent = this.getExpWelcomeViewContent();
 				this.container.classList.add('experimental-welcome-view');
 			}
