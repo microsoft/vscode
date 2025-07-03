@@ -340,8 +340,7 @@ export function getCurrentCommandAndArgs(commandLine: string, cursorPosition: nu
 	let lastResetIndex = -1;
 	for (const char of resetChars) {
 		const idx = beforeCursor.lastIndexOf(char);
-		// Ensure the prior index is a space
-		if (idx > 0 && (beforeCursor[idx - 1] === ' ')) {
+		if (idx > lastResetIndex) {
 			lastResetIndex = idx;
 		}
 	}
