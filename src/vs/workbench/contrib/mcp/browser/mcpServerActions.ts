@@ -12,17 +12,14 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { manageExtensionIcon } from '../../extensions/browser/extensionsIcons.js';
 import { getDomNodePagePosition } from '../../../../base/browser/dom.js';
-import { IMcpSamplingService, IMcpServer, IMcpServerContainer, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCapability, McpConnectionState } from '../common/mcpTypes.js';
-import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { URI } from '../../../../base/common/uri.js';
-import { Location } from '../../../../editor/common/languages.js';
+import { IMcpSamplingService, IMcpServer, IMcpServerContainer, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCapability, McpConnectionState, McpServerEditorTab, McpServerInstallState } from '../common/mcpTypes.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { IAccountQuery, IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
-import { CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../../chat/browser/actions/chatActions.js';
-import { ChatModeKind } from '../../chat/common/constants.js';
+import { alert } from '../../../../base/browser/ui/aria/aria.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
 export abstract class McpServerAction extends Action implements IMcpServerContainer {
 
@@ -102,8 +99,9 @@ export class InstallAction extends McpServerAction {
 	private static readonly HIDE = `${this.CLASS} hide`;
 
 	constructor(
+		private readonly editor: boolean,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
-		@ICommandService private readonly commandService: ICommandService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super('extensions.install', localize('install', "Install"), InstallAction.CLASS, false);
 		this.update();
@@ -118,6 +116,9 @@ export class InstallAction extends McpServerAction {
 		if (!this.mcpServer?.gallery && !this.mcpServer?.installable) {
 			return;
 		}
+		if (this.mcpServer.installState !== McpServerInstallState.Uninstalled) {
+			return;
+		}
 		this.class = InstallAction.CLASS;
 		this.enabled = true;
 		this.label = localize('install', "Install");
@@ -127,36 +128,37 @@ export class InstallAction extends McpServerAction {
 		if (!this.mcpServer) {
 			return;
 		}
-		await this.mcpWorkbenchService.install(this.mcpServer);
 
-		// After successful installation, check if the server has a readme and prompt
-		await this.mcpWorkbenchService.queryLocal(); // Refresh local servers to get the updated state
-		const installedServer = this.mcpWorkbenchService.local.find(s => s.name === this.mcpServer!.name);
-
-		if (installedServer) {
-			try {
-				// Open chat with prompt about the installed server
-				let query: string;
-				if (installedServer.local?.readmeUrl) {
-					// If readme exists, reference it
-					query = `Suggest interesting developer workflows I could run with MCP tools from ${installedServer.local.readmeUrl.toString()}`;
-				} else {
-					// Fallback: use the server name
-					const serverName = installedServer.label || installedServer.name;
-					query = `Suggest interesting developer workflows I could run with the ${serverName} MCP tools`;
-				}
-
-				const options: IChatViewOpenOptions = {
-					query,
-					isPartialQuery: true,
-					mode: ChatModeKind.Agent
-				};
-				await this.commandService.executeCommand(CHAT_OPEN_ACTION_ID, options);
-			} catch (error) {
-				// If we can't open the chat, just skip
-				console.debug('Could not open chat for MCP server:', error);
-			}
+		if (!this.editor) {
+			this.mcpWorkbenchService.open(this.mcpServer);
+			alert(localize('mcpServerInstallation', "Installing MCP Server {0} started. An editor is now open with more details on this MCP Server", this.mcpServer.label));
 		}
+
+		type McpServerInstallClassification = {
+			owner: 'sandy081';
+			comment: 'Used to understand if the action to install the MCP server is used.';
+			name?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The gallery name of the MCP server being installed' };
+		};
+		type McpServerInstall = {
+			name?: string;
+		};
+		this.telemetryService.publicLog2<McpServerInstall, McpServerInstallClassification>('mcp:action:install', { name: this.mcpServer.gallery?.name });
+
+		await this.mcpWorkbenchService.install(this.mcpServer);
+	}
+}
+
+export class InstallingLabelAction extends McpServerAction {
+
+	private static readonly LABEL = localize('installing', "Installing");
+	private static readonly CLASS = `${McpServerAction.LABEL_ACTION_CLASS} install installing`;
+
+	constructor() {
+		super('extension.installing', InstallingLabelAction.LABEL, InstallingLabelAction.CLASS, false);
+	}
+
+	update(): void {
+		this.class = `${InstallingLabelAction.CLASS}${this.mcpServer && this.mcpServer.installState === McpServerInstallState.Installing ? '' : ' hide'}`;
 	}
 }
 
@@ -179,6 +181,10 @@ export class UninstallAction extends McpServerAction {
 			return;
 		}
 		if (!this.mcpServer.local) {
+			return;
+		}
+		if (this.mcpServer.installState !== McpServerInstallState.Installed) {
+			this.enabled = false;
 			return;
 		}
 		this.class = UninstallAction.CLASS;
@@ -552,9 +558,7 @@ export class ShowServerConfigurationAction extends McpServerAction {
 	private static readonly HIDE = `${this.CLASS} hide`;
 
 	constructor(
-		@IMcpService private readonly mcpService: IMcpService,
-		@IMcpRegistry private readonly mcpRegistry: IMcpRegistry,
-		@IEditorService private readonly editorService: IEditorService,
+		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService
 	) {
 		super('extensions.config', localize('config', "Show Configuration"), ShowServerConfigurationAction.CLASS, false);
 		this.update();
@@ -563,8 +567,7 @@ export class ShowServerConfigurationAction extends McpServerAction {
 	update(): void {
 		this.enabled = false;
 		this.class = ShowServerConfigurationAction.HIDE;
-		const configurationTarget = this.getConfigurationTarget();
-		if (!configurationTarget) {
+		if (!this.mcpServer?.local) {
 			return;
 		}
 		this.class = ShowServerConfigurationAction.CLASS;
@@ -573,31 +576,12 @@ export class ShowServerConfigurationAction extends McpServerAction {
 	}
 
 	override async run(): Promise<any> {
-		const configurationTarget = this.getConfigurationTarget();
-		if (!configurationTarget) {
+		if (!this.mcpServer?.local) {
 			return;
 		}
-		this.editorService.openEditor({
-			resource: URI.isUri(configurationTarget) ? configurationTarget : configurationTarget!.uri,
-			options: { selection: URI.isUri(configurationTarget) ? undefined : configurationTarget!.range }
-		});
+		this.mcpWorkbenchService.open(this.mcpServer, { tab: McpServerEditorTab.Configuration });
 	}
 
-	private getConfigurationTarget(): Location | URI | undefined {
-		if (!this.mcpServer) {
-			return;
-		}
-		if (!this.mcpServer.local) {
-			return;
-		}
-		const server = this.mcpService.servers.get().find(s => s.definition.label === this.mcpServer?.name);
-		if (!server) {
-			return;
-		}
-		const collection = this.mcpRegistry.collections.get().find(c => c.id === server.collection.id);
-		const serverDefinition = collection?.serverDefinitions.get().find(s => s.id === server.definition.id);
-		return serverDefinition?.presentation?.origin || collection?.presentation?.origin;
-	}
 }
 
 export class ConfigureModelAccessAction extends McpServerAction {

@@ -52,6 +52,7 @@ export interface IWorkbenchMcpManagementService extends IMcpManagementService {
 	readonly onDidUpdateMcpServersInCurrentProfile: Event<readonly IWorkbenchMcpServerInstallResult[]>;
 	readonly onUninstallMcpServerInCurrentProfile: Event<UninstallMcpServerEvent>;
 	readonly onDidUninstallMcpServerInCurrentProfile: Event<DidUninstallMcpServerEvent>;
+	readonly onDidChangeProfile: Event<void>;
 
 	getInstalled(): Promise<IWorkbenchLocalMcpServer[]>;
 	install(server: IInstallableMcpServer, options?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchLocalMcpServer>;
@@ -92,6 +93,9 @@ class WorkbenchMcpManagementService extends Disposable implements IWorkbenchMcpM
 
 	private readonly _onDidUninstallMcpServerInCurrentProfile = this._register(new Emitter<DidUninstallMcpServerEvent>());
 	readonly onDidUninstallMcpServerInCurrentProfile = this._onDidUninstallMcpServerInCurrentProfile.event;
+
+	private readonly _onDidChangeProfile = this._register(new Emitter<void>());
+	readonly onDidChangeProfile = this._onDidChangeProfile.event;
 
 	private readonly workspaceMcpManagementService: IMcpManagementService;
 	private readonly remoteMcpManagementService: IMcpManagementService | undefined;
@@ -194,6 +198,12 @@ class WorkbenchMcpManagementService extends Disposable implements IWorkbenchMcpM
 				}
 			}));
 		}
+
+		this._register(userDataProfileService.onDidChangeCurrentProfile(e => {
+			if (!this.uriIdentityService.extUri.isEqual(e.previous.mcpResource, e.profile.mcpResource)) {
+				this._onDidChangeProfile.fire();
+			}
+		}));
 	}
 
 	private handleInstallMcpServerResultsFromEvent(e: readonly InstallMcpServerResult[], emitter: Emitter<readonly InstallMcpServerResult[]>, currentProfileEmitter: Emitter<readonly InstallMcpServerResult[]>): void {
@@ -298,6 +308,21 @@ class WorkbenchMcpManagementService extends Disposable implements IWorkbenchMcpM
 		return this.mcpManagementService.installFromGallery(server, options);
 	}
 
+	updateMetadata(local: IWorkbenchLocalMcpServer, server: IGalleryMcpServer, profileLocation: URI): Promise<ILocalMcpServer> {
+		if (local.scope === LocalMcpServerScope.Workspace) {
+			return this.workspaceMcpManagementService.updateMetadata(local, server, profileLocation);
+		}
+
+		if (local.scope === LocalMcpServerScope.RemoteUser) {
+			if (!this.remoteMcpManagementService) {
+				throw new Error(`Illegal target: ${local.scope}`);
+			}
+			return this.remoteMcpManagementService.updateMetadata(local, server, profileLocation);
+		}
+
+		return this.mcpManagementService.updateMetadata(local, server, profileLocation);
+	}
+
 	async uninstall(server: IWorkbenchLocalMcpServer): Promise<void> {
 		if (server.scope === LocalMcpServerScope.Workspace) {
 			return this.workspaceMcpManagementService.uninstall(server);
@@ -322,9 +347,9 @@ class WorkbenchMcpManagementService extends Disposable implements IWorkbenchMcpM
 		if (profile) {
 			profile = await this.remoteUserDataProfilesService.getRemoteProfile(profile);
 		} else {
-			profile = (await this.remoteUserDataProfilesService.getRemoteProfiles()).find(p => this.uriIdentityService.extUri.isEqual(p.extensionsResource, mcpResource));
+			profile = (await this.remoteUserDataProfilesService.getRemoteProfiles()).find(p => this.uriIdentityService.extUri.isEqual(p.mcpResource, mcpResource));
 		}
-		return profile?.extensionsResource;
+		return profile?.mcpResource;
 	}
 }
 
@@ -346,10 +371,13 @@ class WorkspaceMcpResourceManagementService extends AbstractMcpResourceManagemen
 		throw new Error('Not supported');
 	}
 
+	override updateMetadata(): Promise<ILocalMcpServer> {
+		throw new Error('Not supported');
+	}
+
 	protected override async getLocalServerInfo(): Promise<ILocalMcpServerInfo | undefined> {
 		return undefined;
 	}
-
 }
 
 class WorkspaceMcpManagementService extends Disposable implements IMcpManagementService {
@@ -522,7 +550,11 @@ class WorkspaceMcpManagementService extends Disposable implements IMcpManagement
 		return mcpManagementServiceItem.service.uninstall(server, options);
 	}
 
-	async installFromGallery(): Promise<ILocalMcpServer> {
+	installFromGallery(): Promise<ILocalMcpServer> {
+		throw new Error('Not supported');
+	}
+
+	updateMetadata(): Promise<ILocalMcpServer> {
 		throw new Error('Not supported');
 	}
 

@@ -33,7 +33,7 @@ import { IAccountQuery, IAuthenticationQueryService } from '../../../services/au
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { IChatWidgetService } from '../../chat/browser/chat.js';
+import { ChatViewId, IChatWidgetService } from '../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ChatModeKind } from '../../chat/common/constants.js';
 import { ILanguageModelsService } from '../../chat/common/languageModels.js';
@@ -52,6 +52,9 @@ import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from '../../../browser/actions/works
 import { MCP_CONFIGURATION_KEY, WORKSPACE_STANDALONE_CONFIGURATIONS } from '../../../services/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { CHAT_CONFIG_MENU_ID } from '../../chat/browser/actions/chatActions.js';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -698,6 +701,27 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	},
 });
 
+export class BrowseMcpServersPageCommand extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.BrowsePage,
+			title: localize2('mcp.command.open', "Browse MCP Servers"),
+			icon: Codicon.globe,
+			menu: [{
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', InstalledMcpServersViewId),
+				group: 'navigation',
+			}],
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const productService = accessor.get(IProductService);
+		const openerService = accessor.get(IOpenerService);
+		return openerService.open(productService.quality === 'insider' ? 'https://code.visualstudio.com/insider/mcp' : 'https://code.visualstudio.com/mcp');
+	}
+}
+
 export class ShowInstalledMcpServersCommand extends Action2 {
 	constructor() {
 		super({
@@ -706,6 +730,12 @@ export class ShowInstalledMcpServersCommand extends Action2 {
 			category,
 			precondition: HasInstalledMcpServersContext,
 			f1: true,
+			menu: {
+				id: CHAT_CONFIG_MENU_ID,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
+				order: 14,
+				group: '0_level'
+			}
 		});
 	}
 
