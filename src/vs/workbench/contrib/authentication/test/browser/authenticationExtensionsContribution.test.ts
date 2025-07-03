@@ -101,7 +101,7 @@ class MockAuthenticationService implements Partial<IAuthenticationService> {
 }
 
 // Helper to create mock extension descriptions
-function createMockExtension(id: string): IExtensionDescription {
+function createMockExtension(id: string, isBuiltin = false): IExtensionDescription {
 	return {
 		identifier: { value: id },
 		name: id,
@@ -111,7 +111,7 @@ function createMockExtension(id: string): IExtensionDescription {
 		publisher: 'test',
 		engines: { vscode: '*' },
 		extensionLocation: undefined as any,
-		isBuiltin: false,
+		isBuiltin: isBuiltin,
 		isUserBuiltin: false,
 		isUnderDevelopment: false,
 		extensionKind: undefined as any,
@@ -246,8 +246,80 @@ suite('AuthenticationExtensionsContribution', () => {
 		// Call general cleanup
 		contribution._cleanupRemovedExtensions();
 
-		// Verify: all extensions should have access removed since none are installed
-		assert.strictEqual(ext1.accessAllowed, false, 'extension1 should have access removed');
-		assert.strictEqual(ext2.accessAllowed, false, 'extension2 should have access removed');
+		// With the safety check, no extensions should be removed when extension service returns empty list
+		// This prevents incorrect removal during startup/timing issues
+		assert.strictEqual(ext1.accessAllowed, true, 'extension1 should keep access due to safety check');
+		assert.strictEqual(ext2.accessAllowed, true, 'extension2 should keep access due to safety check');
+	});
+
+	test('_cleanupRemovedExtensions should preserve built-in extensions during startup when extension service returns empty list', () => {
+		// Simulate the problematic scenario: extension service temporarily returns no extensions
+		// This can happen during startup or certain timing scenarios
+		mockExtensionService.setExtensions([]);
+
+		// Set up authentication data for both built-in and user extensions
+		const provider = mockAuthQueryService.provider('github');
+		const account = provider.addAccount('user@example.com');
+		const builtinExt = account.addExtension('ms-vscode.microsoft-auth'); // Built-in Microsoft authentication extension
+		const userExt = account.addExtension('some-user-extension'); // User extension
+
+		// Create the contribution instance
+		const contribution = instantiationService.createInstance(AuthenticationExtensionsContribution);
+
+		// Call general cleanup - this demonstrates the current problematic behavior
+		contribution._cleanupRemovedExtensions();
+
+		// With the safety check, both extensions should maintain access when extension service returns empty list
+		assert.strictEqual(builtinExt.accessAllowed, true, 'Built-in extension should maintain access due to safety check');
+		assert.strictEqual(userExt.accessAllowed, true, 'User extension should maintain access due to safety check');
+	});
+
+	test('extension service should include built-in extensions in normal scenarios', () => {
+		// This test documents the expected behavior: built-in extensions should be included
+		// in the extension service's extensions list under normal circumstances
+		const installedExtensions = [
+			createMockExtension('ms-vscode.microsoft-auth', true), // Built-in
+			createMockExtension('github.copilot', false) // User extension
+		];
+		mockExtensionService.setExtensions(installedExtensions);
+
+		// Verify that both built-in and user extensions are present
+		const extensions = mockExtensionService.extensions;
+		assert.strictEqual(extensions.length, 2, 'Extension service should include both built-in and user extensions');
+		
+		const builtinExt = extensions.find(e => e.identifier.value === 'ms-vscode.microsoft-auth');
+		const userExt = extensions.find(e => e.identifier.value === 'github.copilot');
+		
+		assert(builtinExt, 'Built-in Microsoft auth extension should be present');
+		assert(userExt, 'User extension should be present');
+		assert.strictEqual(builtinExt!.isBuiltin, true, 'Microsoft auth extension should be marked as built-in');
+		assert.strictEqual(userExt!.isBuiltin, false, 'User extension should not be marked as built-in');
+	});
+
+	test('_cleanupRemovedExtensions should preserve built-in extensions when they are properly listed', () => {
+		// Set up installed extensions including built-in ones
+		const installedExtensions = [
+			createMockExtension('ms-vscode.microsoft-auth', true), // Built-in
+			createMockExtension('user-extension', false) // User extension
+		];
+		mockExtensionService.setExtensions(installedExtensions);
+
+		// Set up authentication data
+		const provider = mockAuthQueryService.provider('github');
+		const account = provider.addAccount('user@example.com');
+		const builtinExt = account.addExtension('ms-vscode.microsoft-auth');
+		const userExt = account.addExtension('user-extension');
+		const uninstalledExt = account.addExtension('uninstalled-extension');
+
+		// Create the contribution instance
+		const contribution = instantiationService.createInstance(AuthenticationExtensionsContribution);
+
+		// Call general cleanup
+		contribution._cleanupRemovedExtensions();
+
+		// Both installed extensions should keep access, only uninstalled should lose it
+		assert.strictEqual(builtinExt.accessAllowed, true, 'Built-in extension should keep access');
+		assert.strictEqual(userExt.accessAllowed, true, 'User extension should keep access');
+		assert.strictEqual(uninstalledExt.accessAllowed, false, 'Uninstalled extension should lose access');
 	});
 });

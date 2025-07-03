@@ -157,6 +157,14 @@ export class AuthenticationExtensionsContribution extends Disposable implements 
 		} else {
 			// For general cleanup, we need to find stored extensions that are no longer installed
 			const installedExtensionIds = new Set(this._extensionService.extensions.map(e => e.identifier.value));
+			
+			// Safety check: If the extension service returns no extensions, this is likely a timing issue
+			// during startup rather than a legitimate "all extensions uninstalled" scenario.
+			// Skip cleanup to avoid incorrectly removing access for built-in and installed extensions.
+			if (installedExtensionIds.size === 0) {
+				return;
+			}
+			
 			extensionIdsToRemove = new Set<string>();
 			
 			// Find all stored extension IDs that are no longer installed
