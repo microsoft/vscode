@@ -91,7 +91,7 @@
 .monaco-workbench .pane > .pane-body .welcome-view-content {
 	display: flex;
 	flex-direction: column;
-	padding: 0 20px 1em 20px;
+	padding: 0 max(20px, 5%) 1em max(20px, 5%);
 	box-sizing: border-box;
 	align-items: center;
 }
