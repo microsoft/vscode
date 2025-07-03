@@ -543,13 +543,19 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				return;
 			}
 
-			const userPrompt = widget.getInput();
-			widget.setInput();
 
 			const chatModel = widget.viewModel?.model;
 			if (!chatModel) {
 				return;
 			}
+
+			const userPrompt = widget.getInput();
+			if (!userPrompt) {
+				return;
+			}
+
+			widget.input.acceptInput(true);
+
 			const chatRequests = chatModel.getRequests();
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 
@@ -775,7 +781,11 @@ export class CancelAction extends Action2 {
 			icon: Codicon.stopCircle,
 			menu: [{
 				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.requestInProgress),
+				when: ContextKeyExpr.and(
+					ChatContextKeys.isRequestPaused.negate(),
+					ChatContextKeys.requestInProgress,
+					ChatContextKeys.remoteJobCreating.negate()
+				),
 				order: 4,
 				group: 'navigation',
 			},
