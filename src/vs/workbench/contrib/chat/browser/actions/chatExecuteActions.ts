@@ -543,13 +543,19 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				return;
 			}
 
-			const userPrompt = widget.getInput();
-			widget.setInput();
 
 			const chatModel = widget.viewModel?.model;
 			if (!chatModel) {
 				return;
 			}
+
+			const userPrompt = widget.getInput();
+			if (!userPrompt) {
+				return;
+			}
+
+			widget.input.acceptInput(true);
+
 			const chatRequests = chatModel.getRequests();
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 
