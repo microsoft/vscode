@@ -298,7 +298,6 @@ registerTerminalAction({
 	},
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL,
-		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL },
 		weight: KeybindingWeight.WorkbenchContrib + 1,
 		when: TerminalContextKeys.suggestWidgetVisible
 	},
