@@ -185,6 +185,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private isRequestPaused: IContextKey<boolean>;
 	private canRequestBePaused: IContextKey<boolean>;
 	private agentInInput: IContextKey<boolean>;
+	private currentRequest: Promise<void> | undefined;
 
 
 	private _visible = false;
@@ -1626,6 +1627,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionId);
+			if (this.currentRequest) {
+				// We have to wait the current request to be properly cancelled so that it has a chance to update the model with its result metadata.
+				// This is awkward, it's basically a limitation of the chat provider-based agent.
+				await Promise.race([this.currentRequest, timeout(1000)]);
+			}
 
 			this.input.validateAgentMode();
 
@@ -1640,21 +1646,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, requestInputs.input, {
-				mode: this.input.currentModeKind,
 				userSelectedModelId: this.input.currentLanguageModel,
 				location: this.location,
 				locationData: this._location.resolveData?.(),
 				parserContext: { selectedAgent: this._lastSelectedAgent, mode: this.input.currentModeKind },
 				attachedContext: requestInputs.attachedContext.asArray(),
 				noCommandDetection: options?.noCommandDetection,
-				userSelectedTools: this.getUserSelectedTools(),
+				...this.getModeRequestOptions(),
 				modeInstructions: this.input.currentModeObs.get().body?.get()
 			});
 
 			if (result) {
 				this.input.acceptInput(isUserQuery);
 				this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });
-				result.responseCompletePromise.then(() => {
+				this.currentRequest = result.responseCompletePromise.then(() => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
 					this.chatAccessibilityService.acceptResponse(lastResponse, requestId, options?.isVoiceInput);
@@ -1665,6 +1670,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							this.input.setValue(question, false);
 						}
 					}
+
+					this.currentRequest = undefined;
 				});
 
 				if (this.viewModel?.editing) {
@@ -1909,7 +1916,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// if not tools to enable are present, we are done
 		if (tools !== undefined && this.input.currentModeKind === ChatModeKind.Agent) {
-			const enablementMap = this.toolsService.toToolAndToolSetEnablementMap(new Set(tools));
+			const enablementMap = this.toolsService.toToolAndToolSetEnablementMap(tools);
 			this.input.selectedToolsModel.set(enablementMap, true);
 		}
 

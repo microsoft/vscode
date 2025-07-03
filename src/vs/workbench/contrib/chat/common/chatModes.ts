@@ -185,7 +185,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		];
 
 		if (this.chatAgentService.hasToolsAgent) {
-			builtinModes.push(ChatMode.Agent);
+			builtinModes.unshift(ChatMode.Agent);
 		}
 		builtinModes.push(ChatMode.Edit);
 		return builtinModes;
