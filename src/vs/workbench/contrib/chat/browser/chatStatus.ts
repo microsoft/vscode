@@ -119,6 +119,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IInlineCompletionsService private readonly completionsService: IInlineCompletionsService,
 	) {
 		super();
 
@@ -143,6 +144,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.update()));
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.update()));
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.update()));
+		this._register(this.completionsService.onDidChangeIsSnoozing(() => this.update()));
 
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
 
@@ -227,6 +229,12 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			else if (this.editorService.activeTextEditorLanguageId && !isCompletionsEnabled(this.configurationService, this.editorService.activeTextEditorLanguageId)) {
 				text = `$(copilot-unavailable)`;
 				ariaLabel = localize('completionsDisabledStatus', "Code completions disabled");
+			}
+
+			// Completions Snoozed
+			else if (this.completionsService.isSnoozing()) {
+				text = `$(copilot-snooze)`;
+				ariaLabel = localize('completionsSnoozedStatus', "Code completions snoozed");
 			}
 		}
 
@@ -412,7 +420,7 @@ class ChatStatusDashboard extends Disposable {
 		// Settings
 		{
 			const chatSentiment = this.chatEntitlementService.sentiment;
-			addSeparator(localize('completionsAndNES', "Completions"), chatSentiment.installed && !chatSentiment.disabled && !chatSentiment.untrusted ? toAction({
+			addSeparator(localize('codeCompletions', "Code Completions"), chatSentiment.installed && !chatSentiment.disabled && !chatSentiment.untrusted ? toAction({
 				id: 'workbench.action.openChatSettings',
 				label: localize('settingsLabel', "Settings"),
 				tooltip: localize('settingsTooltip', "Open Settings"),
@@ -732,7 +740,7 @@ class ChatStatusDashboard extends Disposable {
 		const toolbar = disposables.add(new ActionBar(actionBar, { hoverDelegate: nativeHoverDelegate }));
 		const cancelAction = toAction({
 			id: 'workbench.action.cancelSnoozeStatusBarLink',
-			label: 'Cancel Snooze',
+			label: localize('cancelSnooze', "Cancel Snooze"),
 			run: () => this.inlineCompletionsService.cancelSnooze(),
 			class: ThemeIcon.asClassName(Codicon.stopCircle)
 		});
@@ -743,9 +751,10 @@ class ChatStatusDashboard extends Disposable {
 
 			const timeLeftMs = this.inlineCompletionsService.snoozeTimeLeft;
 			if (!isEnabled || timeLeftMs <= 0) {
-				timerDisplay.textContent = localize('completions.snooze5minutesTitle', "Hide completions for 5 mins");
+				timerDisplay.textContent = localize('completions.snooze5minutesTitle', "Hide completions for 5 min");
+				timerDisplay.title = '';
 				button.label = label;
-				button.setTitle(localize('completions.snooze5minutes', "Hide completions and NES for 5 mins"));
+				button.setTitle(localize('completions.snooze5minutes', "Hide completions and NES for 5 min"));
 				return true;
 			}
 
@@ -754,8 +763,9 @@ class ChatStatusDashboard extends Disposable {
 			const seconds = timeLeftSeconds % 60;
 
 			timerDisplay.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds} ${localize('completions.remainingTime', "remaining")}`;
-			button.label = localize('completions.plus5mins', "+5 mins");
-			button.setTitle(localize('completions.snoozeAdditional5minutes', "Hide additional 5 mins"));
+			timerDisplay.title = localize('completions.snoozeTimeDescription', "Completions are hidden for the remaining duration");
+			button.label = localize('completions.plus5min', "+5 min");
+			button.setTitle(localize('completions.snoozeAdditional5minutes', "Snooze additional 5 min"));
 			toolbar.push([cancelAction], { icon: true, label: false });
 
 			return false;

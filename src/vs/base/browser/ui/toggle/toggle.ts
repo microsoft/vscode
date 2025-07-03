@@ -132,7 +132,7 @@ export class Toggle extends Widget {
 	readonly domNode: HTMLElement;
 
 	private _checked: boolean;
-	private _hover: IManagedHover;
+	private _hover?: IManagedHover;
 
 	constructor(opts: IToggleOpts) {
 		super();
@@ -153,7 +153,11 @@ export class Toggle extends Widget {
 		}
 
 		this.domNode = document.createElement('div');
-		this._hover = this._register(getBaseLayerHoverDelegate().setupManagedHover(opts.hoverDelegate ?? getDefaultHoverDelegate('mouse'), this.domNode, this._opts.title));
+		if (this._opts.hoverDelegate?.showNativeHover) {
+			this.domNode.title = this._opts.title;
+		} else {
+			this._hover = this._register(getBaseLayerHoverDelegate().setupManagedHover(opts.hoverDelegate ?? getDefaultHoverDelegate('mouse'), this.domNode, this._opts.title));
+		}
 		this.domNode.classList.add(...classes);
 		if (!this._opts.notFocusable) {
 			this.domNode.tabIndex = 0;
@@ -245,7 +249,11 @@ export class Toggle extends Widget {
 	}
 
 	setTitle(newTitle: string): void {
-		this._hover.update(newTitle);
+		if (this._hover) {
+			this._hover.update(newTitle);
+		} else {
+			this.domNode.title = newTitle;
+		}
 		this.domNode.setAttribute('aria-label', newTitle);
 	}
 
