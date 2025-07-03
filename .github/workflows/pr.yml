@@ -77,6 +77,42 @@ jobs:
       - name: Compile & Hygiene
         run: npm exec -- npm-run-all -lp core-ci-pr extensions-ci-pr hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check
 
+  linux-cli:
+    name: Linux (CLI)
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
+    env:
+      RUSTUP_TOOLCHAIN: 1.85
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: |
+          set -e
+          curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal --default-toolchain $RUSTUP_TOOLCHAIN
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Set Rust version
+        run: |
+          set -e
+          rustup default $RUSTUP_TOOLCHAIN
+          rustup update $RUSTUP_TOOLCHAIN
+          rustup component add clippy
+
+      - name: Check Rust versions
+        run: |
+          set -e
+          rustc --version
+          cargo --version
+
+      - name: Clippy lint
+        run: cargo clippy -- -D warnings
+        working-directory: cli
+
+      - name: 🧪 Run unit tests
+        run: cargo test
+        working-directory: cli
+
   linux-electron-tests:
     name: Linux
     uses: ./.github/workflows/pr-linux-test.yml
