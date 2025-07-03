@@ -76,8 +76,9 @@ class TextModelPromptParserTest extends Disposable {
 	/**
 	 * Wait for the prompt parsing/resolve process to finish.
 	 */
-	public allSettled(): Promise<TextModelPromptParser> {
-		return this.parser.allSettled();
+	public async allSettled(): Promise<TextModelPromptParser> {
+		await this.parser.settled();
+		return this.parser;
 	}
 
 	/**
@@ -86,7 +87,7 @@ class TextModelPromptParserTest extends Disposable {
 	public async validateReferences(
 		expectedReferences: readonly ExpectedReference[],
 	) {
-		await this.parser.allSettled();
+		await this.parser.settled();
 
 		const { references } = this.parser;
 		for (let i = 0; i < expectedReferences.length; i++) {
@@ -113,7 +114,7 @@ class TextModelPromptParserTest extends Disposable {
 	public async validateHeaderDiagnostics(
 		expectedDiagnostics: readonly TExpectedDiagnostic[],
 	) {
-		await this.parser.allSettled();
+		await this.parser.settled();
 
 		const { header } = this.parser;
 		assertDefined(

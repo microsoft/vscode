@@ -67,18 +67,22 @@ export abstract class BaseDecoder<
 	 * Promise that resolves when the stream has ended, either by
 	 * receiving the `end` event or by a disposal, but not when
 	 * the `error` event is received alone.
+	 * The promise is true if the stream has ended, and false
+	 * if the stream has been disposed without ending.
 	 */
-	private settledPromise = new DeferredPromise<void>();
+	private settledPromise = new DeferredPromise<boolean>();
 
 	/**
 	 * Promise that resolves when the stream has ended, either by
 	 * receiving the `end` event or by a disposal, but not when
 	 * the `error` event is received alone.
+	 * The promise is true if the stream has ended, and false
+	 * if the stream has been disposed without ending.
 	 *
 	 * @throws If the stream was not yet started to prevent this
 	 * 		   promise to block the consumer calls indefinitely.
 	 */
-	public get settled(): Promise<void> {
+	public get settled(): Promise<boolean> {
 		// if the stream has not started yet, the promise might
 		// block the consumer calls indefinitely if they forget
 		// to call the `start()` method, or if the call happens
@@ -296,7 +300,7 @@ export abstract class BaseDecoder<
 
 		this._ended = true;
 		this._onEnd.fire();
-		this.settledPromise.complete();
+		this.settledPromise.complete(this._ended);
 	}
 
 	/**
@@ -347,7 +351,7 @@ export abstract class BaseDecoder<
 	}
 
 	public override dispose(): void {
-		this.settledPromise.complete();
+		this.settledPromise.complete(this.ended);
 
 		this._listeners.clearAndDisposeAll();
 		this.stream.destroy();

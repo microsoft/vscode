@@ -26,7 +26,7 @@ export class PromptLinkProvider implements LinkProvider {
 	public async provideLinks(
 		model: ITextModel,
 		token: CancellationToken,
-	): Promise<ILinksList> {
+	): Promise<ILinksList | undefined> {
 		assert(
 			!token.isCancellationRequested,
 			new CancellationError(),
@@ -40,15 +40,11 @@ export class PromptLinkProvider implements LinkProvider {
 
 		// start the parser in case it was not started yet,
 		// and wait for it to settle to a final result
-		const { references } = await parser
-			.start(token)
-			.settled();
-
-		// validate that the cancellation was not yet requested
-		assert(
-			!token.isCancellationRequested,
-			new CancellationError(),
-		);
+		const completed = await parser.start(token).settled();
+		if (!completed || token.isCancellationRequested) {
+			return undefined;
+		}
+		const { references } = parser;
 
 		// filter out references that are not valid links
 		const links: ILink[] = references

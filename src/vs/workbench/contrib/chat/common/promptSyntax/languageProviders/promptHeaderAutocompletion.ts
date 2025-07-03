@@ -71,7 +71,10 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 			return undefined;
 		}
 
-		await header.settled;
+		const completed = await header.settled;
+		if (!completed || token.isCancellationRequested) {
+			return undefined;
+		}
 
 		const fullHeaderRange = parser.header.range;
 		const headerRange = new Range(fullHeaderRange.startLineNumber + 1, 0, fullHeaderRange.endLineNumber - 1, model.getLineMaxColumn(fullHeaderRange.endLineNumber - 1),);
