@@ -27,7 +27,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IChatAgent, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, isImageVariableEntry, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, getPromptText } from './chatParserTypes.js';
 import { ChatRequestParser } from './chatRequestParser.js';
 import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
@@ -35,7 +35,8 @@ import { ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { ChatSessionStore, IChatTransfer2 } from './chatSessionStore.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatTransferService } from './chatTransferService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatMode } from './constants.js';
+import { IChatRequestVariableEntry, isImageVariableEntry } from './chatVariableEntries.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from './constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from './languageModels.js';
 import { ILanguageModelToolsService } from './languageModelToolsService.js';
 
@@ -613,7 +614,7 @@ export class ChatService extends Disposable implements IChatService {
 				if (request.shouldBeRemovedOnSend.afterUndoStop) {
 					request.response?.finalizeUndoState();
 				} else {
-					this.removeRequest(sessionId, request.id);
+					await this.removeRequest(sessionId, request.id);
 				}
 			}
 		}
@@ -772,12 +773,11 @@ export class ChatService extends Disposable implements IChatService {
 							userSelectedModelId: options?.userSelectedModelId,
 							userSelectedTools: options?.userSelectedTools,
 							modeInstructions: options?.modeInstructions,
-							toolSelectionIsExclusive: options?.toolSelectionIsExclusive,
 							editedFileEvents: request.editedFileEvents
 						} satisfies IChatAgentRequest;
 					};
 
-					if (this.configurationService.getValue('chat.detectParticipant.enabled') !== false && this.chatAgentService.hasChatParticipantDetectionProviders() && !agentPart && !commandPart && !agentSlashCommandPart && enableCommandDetection && options?.mode !== ChatMode.Agent && options?.mode !== ChatMode.Edit) {
+					if (this.configurationService.getValue('chat.detectParticipant.enabled') !== false && this.chatAgentService.hasChatParticipantDetectionProviders() && !agentPart && !commandPart && !agentSlashCommandPart && enableCommandDetection && options?.mode !== ChatModeKind.Agent && options?.mode !== ChatModeKind.Edit) {
 						// We have no agent or command to scope history with, pass the full history to the participant detection provider
 						const defaultAgentHistory = this.getHistoryEntriesFromModel(requests, model.sessionId, location, defaultAgent.id);
 
@@ -884,6 +884,7 @@ export class ChatService extends Disposable implements IChatService {
 					});
 				}
 			} catch (err) {
+				this.logService.error(`Error while handling chat request: ${toErrorMessage(err, true)}`);
 				const result = 'error';
 				this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
 					timeToFirstProgress: undefined,
@@ -899,10 +900,9 @@ export class ChatService extends Disposable implements IChatService {
 					numCodeBlocks: 0,
 					enableCommandDetection,
 					isParticipantDetected: !!detectedAgent,
-					attachmentKinds: this.attachmentKindsForTelemetry(request.variableData),
+					attachmentKinds: request ? this.attachmentKindsForTelemetry(request.variableData) : [],
 					model: this.resolveModelId(options?.userSelectedModelId)
 				});
-				this.logService.error(`Error while handling chat request: ${toErrorMessage(err, true)}`);
 				if (request) {
 					const rawResult: IChatAgentResult = { errorDetails: { message: err.message } };
 					model.setResponse(request, rawResult);
@@ -952,7 +952,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private async checkAgentAllowed(agent: IChatAgentData): Promise<void> {
-		if (agent.modes.includes(ChatMode.Agent)) {
+		if (agent.modes.includes(ChatModeKind.Agent)) {
 			const enabled = await this.experimentService.getTreatment<boolean>('chatAgentEnabled');
 			if (enabled === false) {
 				throw new Error('Agent is currently disabled');

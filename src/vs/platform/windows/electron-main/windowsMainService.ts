@@ -20,7 +20,7 @@ import { getMarks, mark } from '../../../base/common/performance.js';
 import { IProcessEnvironment, isMacintosh, isWindows, OS } from '../../../base/common/platform.js';
 import { cwd } from '../../../base/common/process.js';
 import { extUriBiasedIgnorePathCase, isEqualAuthority, normalizePath, originalFSPath, removeTrailingPathSeparator } from '../../../base/common/resources.js';
-import { assertIsDefined } from '../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { getNLSLanguage, getNLSMessages, localize } from '../../../nls.js';
 import { IBackupMainService } from '../../backup/electron-main/backup.js';
@@ -284,8 +284,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// Bring window to front
 		window.focus();
 
-		// Handle --wait
+		// Handle `<app> --wait`
 		this.handleWaitMarkerFile(openConfig, [window]);
+
+		// Handle `<app> chat`
+		this.handleChatRequest(openConfig, [window]);
 	}
 
 	async open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]> {
@@ -443,8 +446,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			this.workspacesHistoryMainService.addRecentlyOpened(recents);
 		}
 
-		// Handle --wait
+		// Handle `<app> --wait`
 		this.handleWaitMarkerFile(openConfig, usedWindows);
+
+		// Handle `<app> chat`
+		this.handleChatRequest(openConfig, usedWindows);
 
 		return usedWindows;
 	}
@@ -465,6 +471,27 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					// ignore - could have been deleted from the window already
 				}
 			})();
+		}
+	}
+
+	private handleChatRequest(openConfig: IOpenConfiguration, usedWindows: ICodeWindow[]): void {
+		if (openConfig.context !== OpenContext.CLI || !openConfig.cli.chat || usedWindows.length === 0) {
+			return;
+		}
+
+		let windowHandlingChatRequest: ICodeWindow | undefined;
+		if (usedWindows.length === 1) {
+			windowHandlingChatRequest = usedWindows[0];
+		} else {
+			const chatRequestFolder = openConfig.cli._[0]; // chat request gets cwd() as folder to open
+			if (chatRequestFolder) {
+				windowHandlingChatRequest = findWindowOnWorkspaceOrFolder(usedWindows, URI.file(chatRequestFolder));
+			}
+		}
+
+		if (windowHandlingChatRequest) {
+			windowHandlingChatRequest.sendWhenReady('vscode:handleChatRequest', CancellationToken.None, openConfig.cli.chat);
+			windowHandlingChatRequest.focus();
 		}
 	}
 
@@ -1555,7 +1582,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			disposables.add(createdWindow.onDidLeaveFullScreen(() => this._onDidChangeFullScreen.fire({ window: createdWindow, fullscreen: false })));
 			disposables.add(createdWindow.onDidTriggerSystemContextMenu(({ x, y }) => this._onDidTriggerSystemContextMenu.fire({ window: createdWindow, x, y })));
 
-			const webContents = assertIsDefined(createdWindow.win?.webContents);
+			const webContents = assertReturnsDefined(createdWindow.win?.webContents);
 			webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
 			disposables.add(Event.fromNodeEventEmitter(webContents, 'devtools-reload-page')(() => this.lifecycleMainService.reload(createdWindow)));
 

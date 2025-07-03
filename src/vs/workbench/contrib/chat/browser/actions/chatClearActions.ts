@@ -16,7 +16,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession } from '../../common/chatEditingService.js';
-import { ChatMode } from '../../common/constants.js';
+import { ChatModeKind } from '../../common/constants.js';
 import { ChatViewId, IChatWidget } from '../chat.js';
 import { EditingSessionAction } from '../chatEditing/chatEditingActions.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
@@ -84,10 +84,12 @@ export function registerNewChatActions() {
 					order: -1
 				}],
 				keybinding: {
-					weight: KeybindingWeight.WorkbenchContrib,
-					primary: KeyMod.CtrlCmd | KeyCode.KeyL,
+					weight: KeybindingWeight.WorkbenchContrib + 1,
+					primary: KeyMod.CtrlCmd | KeyCode.KeyN,
+					secondary: [KeyMod.CtrlCmd | KeyCode.KeyL],
 					mac: {
-						primary: KeyMod.WinCtrl | KeyCode.KeyL
+						primary: KeyMod.CtrlCmd | KeyCode.KeyN,
+						secondary: [KeyMod.WinCtrl | KeyCode.KeyL]
 					},
 					when: ChatContextKeys.inChatSession
 				}
@@ -118,7 +120,7 @@ export function registerNewChatActions() {
 			}
 
 			if (typeof context.agentMode === 'boolean') {
-				widget.input.setChatMode(context.agentMode ? ChatMode.Agent : ChatMode.Edit);
+				widget.input.setChatMode(context.agentMode ? ChatModeKind.Agent : ChatModeKind.Edit);
 			}
 
 			if (context.inputValue) {

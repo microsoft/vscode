@@ -4,24 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { assert } from '../../../../../../base/common/assert.js';
 import { isAbsolute } from '../../../../../../base/common/path.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
+import { getPromptFileLocationsConfigKey, PromptsConfig } from '../config/config.js';
 import { basename, dirname, joinPath } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { getPromptFileExtension, getPromptFileLocationsConfigKey, getPromptFileType, PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
+import { getPromptFileExtension, getPromptFileType } from '../config/promptFileLocations.js';
+import { PromptsType } from '../promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { getExcludes, IFileQuery, ISearchConfiguration, ISearchService, QueryType } from '../../../../../services/search/common/search.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
-import { TPromptsStorage } from '../service/types.js';
+import { TPromptsStorage } from '../service/promptsService.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 
 /**
  * Utility class to locate prompt files.
@@ -35,6 +36,7 @@ export class PromptFilesLocator extends Disposable {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ISearchService private readonly searchService: ISearchService,
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 	}
@@ -57,27 +59,61 @@ export class PromptFilesLocator extends Disposable {
 		return files.filter(file => getPromptFileType(file) === type);
 	}
 
-	public getFilesUpdatedEvent(type: PromptsType): Event<void> {
-		const eventEmitter = this._register(new Emitter<void>());
+	public async getCopilotInstructionsFiles(instructionFilePaths: Iterable<string>): Promise<URI[]> {
+		const { folders } = this.workspaceService.getWorkspace();
+		const result: URI[] = [];
+		for (const folder of folders) {
+			for (const instructionFilePath of instructionFilePaths) {
+				const file = joinPath(folder.uri, instructionFilePath);
+				if (await this.fileService.exists(file)) {
+					result.push(file);
+				}
+			}
+		}
+		return result;
+	}
+
+	public createFilesUpdatedEvent(type: PromptsType): { readonly event: Event<void>; dispose: () => void } {
+		const disposables = new DisposableStore();
+		const eventEmitter = disposables.add(new Emitter<void>());
+
+		const userDataFolder = this.userDataService.currentProfile.promptsHome;
+
 		const key = getPromptFileLocationsConfigKey(type);
-		let parentFolders = this.getLocalParentFolders(type).map(folder => folder.parent);
-		this._register(this.configService.onDidChangeConfiguration(e => {
+		let parentFolders = this.getLocalParentFolders(type);
+
+		const externalFolderWatchers = disposables.add(new DisposableStore());
+		const updateExternalFolderWatchers = () => {
+			externalFolderWatchers.clear();
+			for (const folder of parentFolders) {
+				if (!this.workspaceService.getWorkspaceFolder(folder.parent)) {
+					// if the folder is not part of the workspace, we need to watch it
+					const recursive = folder.filePattern !== undefined;
+					externalFolderWatchers.add(this.fileService.watch(folder.parent, { recursive, excludes: [] }));
+				}
+			}
+		};
+		updateExternalFolderWatchers();
+		disposables.add(this.configService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(key)) {
-				parentFolders = this.getLocalParentFolders(type).map(folder => folder.parent);
+				parentFolders = this.getLocalParentFolders(type);
+				updateExternalFolderWatchers();
 				eventEmitter.fire();
 			}
 		}));
-		this._register(this.fileService.onDidFilesChange(e => {
-			if (e.affects(this.userDataService.currentProfile.promptsHome)) {
+		disposables.add(this.fileService.onDidFilesChange(e => {
+			if (e.affects(userDataFolder)) {
 				eventEmitter.fire();
 				return;
 			}
-			if (parentFolders.some(folder => e.affects(folder))) {
+			if (parentFolders.some(folder => e.affects(folder.parent))) {
 				eventEmitter.fire();
 				return;
 			}
 		}));
-		return eventEmitter.event;
+		disposables.add(this.fileService.watch(userDataFolder));
+
+		return { event: eventEmitter.event, dispose: () => disposables.dispose() };
 	}
 
 	/**
@@ -136,10 +172,7 @@ export class PromptFilesLocator extends Disposable {
 	 *
 	 * @returns List of prompt files found in the local source folders.
 	 */
-	private async listFilesInLocal(
-		type: PromptsType,
-		token: CancellationToken
-	): Promise<readonly URI[]> {
+	private async listFilesInLocal(type: PromptsType, token: CancellationToken): Promise<readonly URI[]> {
 		// find all prompt files in the provided locations, then match
 		// the found file paths against (possible) glob patterns
 		const paths = new ResourceSet();
@@ -177,25 +210,24 @@ export class PromptFilesLocator extends Disposable {
 		const { folders } = this.workspaceService.getWorkspace();
 
 		for (const configuredLocation of configuredLocations) {
-			if (isAbsolute(configuredLocation)) {
-				const remoteAuthority = this.environmentService.remoteAuthority;
-				if (remoteAuthority) {
-					// if the location is absolute and we are in a remote environment,
-					// we need to convert it to a file URI with the remote authority
-					result.add(URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuthority, path: configuredLocation }));
+			try {
+				if (isAbsolute(configuredLocation)) {
+					let uri = URI.file(configuredLocation);
+					const remoteAuthority = this.environmentService.remoteAuthority;
+					if (remoteAuthority) {
+						// if the location is absolute and we are in a remote environment,
+						// we need to convert it to a file URI with the remote authority
+						uri = uri.with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
+					}
+					result.add(uri);
 				} else {
-					result.add(URI.file(configuredLocation));
+					for (const workspaceFolder of folders) {
+						const absolutePath = joinPath(workspaceFolder.uri, configuredLocation);
+						result.add(absolutePath);
+					}
 				}
-			} else {
-				for (const workspaceFolder of folders) {
-					const absolutePath = joinPath(workspaceFolder.uri, configuredLocation);
-					// a sanity check on the expected outcome of the `joinPath()` call
-					assert(
-						isAbsolute(absolutePath.path),
-						`Provided location must be an absolute path, got '${absolutePath.path}'.`,
-					);
-					result.add(absolutePath);
-				}
+			} catch (error) {
+				this.logService.error(`Failed to resolve prompt file location: ${configuredLocation}`, error);
 			}
 		}
 
@@ -227,11 +259,7 @@ export class PromptFilesLocator extends Disposable {
 	/**
 	 * Uses the search service to find all files at the provided location
 	 */
-	private async searchFilesInLocation(
-		folder: URI,
-		filePattern: string | undefined,
-		token: CancellationToken | undefined
-	): Promise<URI[]> {
+	private async searchFilesInLocation(folder: URI, filePattern: string | undefined, token: CancellationToken | undefined): Promise<URI[]> {
 		const disregardIgnoreFiles = this.configService.getValue<boolean>('explorer.excludeGitIgnore');
 
 		const workspaceRoot = this.workspaceService.getWorkspaceFolder(folder);
@@ -267,7 +295,7 @@ export class PromptFilesLocator extends Disposable {
 /**
  * Checks if the provided `pattern` could be a valid glob pattern.
  */
-export const isValidGlob = (pattern: string): boolean => {
+export function isValidGlob(pattern: string): boolean {
 	let squareBrackets = false;
 	let squareBracketsCount = 0;
 
@@ -332,7 +360,7 @@ export const isValidGlob = (pattern: string): boolean => {
 	}
 
 	return false;
-};
+}
 
 /**
  * Finds the first parent of the provided location that does not contain a `glob pattern`.
@@ -349,9 +377,7 @@ export const isValidGlob = (pattern: string): boolean => {
  * );
  * ```
  */
-const firstNonGlobParentAndPattern = (
-	location: URI
-): { parent: URI; filePattern?: string } => {
+function firstNonGlobParentAndPattern(location: URI): { parent: URI; filePattern?: string } {
 	const segments = location.path.split('/');
 	let i = 0;
 	while (i < segments.length && isValidGlob(segments[i]) === false) {
@@ -372,8 +398,4 @@ const firstNonGlobParentAndPattern = (
 		parent,
 		filePattern: segments.slice(i).join('/')
 	};
-};
-
-
-
-
+}

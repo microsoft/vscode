@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize2 } from '../../../../../nls.js';
 import { AccessibleViewProviderId } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService, type IContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -17,6 +18,7 @@ import { accessibleViewCurrentProviderId, accessibleViewIsShown } from '../../..
 import type { ITerminalContribution, ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { registerActiveInstanceAction, registerTerminalAction } from '../../../terminal/browser/terminalActions.js';
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
+import { TERMINAL_VIEW_ID } from '../../../terminal/common/terminal.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { clearShellFileHistory, getCommandHistory, getDirectoryHistory } from '../common/history.js';
 import { TerminalHistoryCommandId } from '../common/terminal.history.js';
@@ -115,6 +117,15 @@ registerActiveInstanceAction({
 		when: TerminalContextKeys.focus,
 		weight: KeybindingWeight.WorkbenchContrib
 	},
+	menu: [
+		{
+			id: MenuId.ViewTitle,
+			group: 'shellIntegration',
+			order: 0,
+			when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+			isHiddenByDefault: true
+		}
+	],
 	run: async (activeInstance, c) => {
 		const history = TerminalHistoryContribution.get(activeInstance);
 		if (!history) {
@@ -129,7 +140,7 @@ registerActiveInstanceAction({
 	}
 });
 
-registerActiveInstanceAction({
+registerTerminalAction({
 	id: TerminalHistoryCommandId.RunRecentCommand,
 	title: localize2('workbench.action.terminal.runRecentCommand', 'Run Recent Command...'),
 	precondition,
@@ -146,7 +157,31 @@ registerActiveInstanceAction({
 			weight: KeybindingWeight.WorkbenchContrib
 		}
 	],
-	run: async (activeInstance, c) => {
+	menu: [
+		{
+			id: MenuId.ViewTitle,
+			group: 'shellIntegration',
+			order: 1,
+			when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+			isHiddenByDefault: true
+		}
+	],
+	run: async (c, accessor) => {
+		let activeInstance = c.service.activeInstance;
+		// If an instanec doesn't exist, create one and wait for shell type to be set
+		if (!activeInstance) {
+			const newInstance = activeInstance = await c.service.getActiveOrCreateInstance();
+			await c.service.revealActiveTerminal();
+			const store = new DisposableStore();
+			const wasDisposedPrematurely = await new Promise<boolean>(r => {
+				store.add(newInstance.onDidChangeShellType(() => r(false)));
+				store.add(newInstance.onDisposed(() => r(true)));
+			});
+			store.dispose();
+			if (wasDisposedPrematurely) {
+				return;
+			}
+		}
 		const history = TerminalHistoryContribution.get(activeInstance);
 		if (!history) {
 			return;

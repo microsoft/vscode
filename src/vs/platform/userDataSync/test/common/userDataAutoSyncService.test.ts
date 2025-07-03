@@ -159,6 +159,8 @@ suite('UserDataAutoSyncService', () => {
 				// Tasks
 				{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
 				{ type: 'POST', url: `${target.url}/v1/resource/tasks`, headers: { 'If-Match': '0' } },
+				// Mcp
+				{ type: 'GET', url: `${target.url}/v1/resource/mcp/latest`, headers: {} },
 				// Global state
 				{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 				{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },

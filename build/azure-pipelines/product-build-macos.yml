@@ -1,0 +1,136 @@
+pr: none
+
+trigger: none
+
+parameters:
+  - name: VSCODE_QUALITY
+    displayName: Quality
+    type: string
+    default: insider
+  - name: NPM_REGISTRY
+    displayName: "Custom NPM Registry"
+    type: string
+    default: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
+  - name: CARGO_REGISTRY
+    displayName: "Custom Cargo Registry"
+    type: string
+    default: 'sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/'
+
+variables:
+  - name: NPM_REGISTRY
+    ${{ if in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}: # disable terrapin when in VSCODE_CIBUILD
+      value: none
+    ${{ else }}:
+      value: ${{ parameters.NPM_REGISTRY }}
+  - name: CARGO_REGISTRY
+    value: ${{ parameters.CARGO_REGISTRY }}
+  - name: VSCODE_QUALITY
+    value: ${{ parameters.VSCODE_QUALITY }}
+  - name: VSCODE_CIBUILD
+    value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
+  - name: skipComponentGovernanceDetection
+    value: true
+  - name: ComponentDetection.Timeout
+    value: 600
+  - name: Codeql.SkipTaskAutoInjection
+    value: true
+  - name: ARTIFACT_PREFIX
+    value: ''
+
+name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
+
+resources:
+  repositories:
+    - repository: 1ESPipelines
+      type: git
+      name: 1ESPipelineTemplates/1ESPipelineTemplates
+      ref: refs/tags/release
+
+extends:
+  template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
+  parameters:
+    sdl:
+      tsa:
+        enabled: true
+        configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
+      binskim:
+        analyzeTargetGlob: '+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.exe;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.node;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.dll;-:file|$(Build.SourcesDirectory)/.build/**/system-setup/VSCodeSetup*.exe;-:file|$(Build.SourcesDirectory)/.build/**/user-setup/VSCodeUserSetup*.exe'
+      codeql:
+        runSourceLanguagesInSourceAnalysis: true
+        compiled:
+          enabled: false
+          justificationForDisabling: "CodeQL breaks ESRP CodeSign on macOS (ICM #520035761, githubcustomers/microsoft-codeql-support#198)"
+      credscan:
+        suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
+      eslint:
+        enabled: true
+        enableExclusions: true
+        exclusionsFilePath: $(Build.SourcesDirectory)/.eslint-ignore
+      sourceAnalysisPool: 1es-windows-2022-x64
+      createAdoIssuesForJustificationsForDisablement: false
+    containers:
+      ubuntu-2004-arm64:
+        image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
+    stages:
+      - stage: Compile
+        jobs:
+          - job: Compile
+            timeoutInMinutes: 90
+            pool:
+              name: ACESLabTest
+              os: macOS
+            steps:
+              - template: build/azure-pipelines/product-compile.yml@self
+                parameters:
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+      - stage: macOS
+        dependsOn:
+          - Compile
+        pool:
+          name: ACESLabTest
+          os: macOS
+        variables:
+          BUILDSECMON_OPT_IN: true
+        jobs:
+          - job: macOSElectronTest
+            displayName: Electron Tests
+            timeoutInMinutes: 30
+            variables:
+              VSCODE_ARCH: arm64
+            steps:
+              - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
+                parameters:
+                  VSCODE_ARCH: arm64
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_TEST_ARTIFACT_NAME: electron
+                  VSCODE_RUN_ELECTRON_TESTS: true
+
+          - job: macOSBrowserTest
+            displayName: Browser Tests
+            timeoutInMinutes: 30
+            variables:
+              VSCODE_ARCH: arm64
+            steps:
+              - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
+                parameters:
+                  VSCODE_ARCH: arm64
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_TEST_ARTIFACT_NAME: browser
+                  VSCODE_RUN_BROWSER_TESTS: true
+
+          - job: macOSRemoteTest
+            displayName: Remote Tests
+            timeoutInMinutes: 30
+            variables:
+              VSCODE_ARCH: arm64
+            steps:
+              - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
+                parameters:
+                  VSCODE_ARCH: arm64
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_TEST_ARTIFACT_NAME: remote
+                  VSCODE_RUN_REMOTE_TESTS: true

@@ -897,7 +897,7 @@ export class ListView<T> implements IListView<T> {
 
 	// Render
 
-	protected render(previousRenderRange: IRange, renderTop: number, renderHeight: number, renderLeft: number | undefined, scrollWidth: number | undefined, updateItemsInDOM: boolean = false): void {
+	protected render(previousRenderRange: IRange, renderTop: number, renderHeight: number, renderLeft: number | undefined, scrollWidth: number | undefined, updateItemsInDOM: boolean = false, onScroll: boolean = false): void {
 		const renderRange = this.getRenderRange(renderTop, renderHeight);
 
 		const rangesToInsert = Range.relativeComplement(renderRange, previousRenderRange).reverse();
@@ -914,7 +914,7 @@ export class ListView<T> implements IListView<T> {
 		this.cache.transact(() => {
 			for (const range of rangesToRemove) {
 				for (let i = range.start; i < range.end; i++) {
-					this.removeItemFromDOM(i);
+					this.removeItemFromDOM(i, onScroll);
 				}
 			}
 
@@ -1041,7 +1041,7 @@ export class ListView<T> implements IListView<T> {
 		item.row!.domNode.classList.toggle('drop-target', item.dropTarget);
 	}
 
-	private removeItemFromDOM(index: number): void {
+	private removeItemFromDOM(index: number, onScroll?: boolean): void {
 		const item = this.items[index];
 		item.dragStartDisposable.dispose();
 		item.checkedDisposable.dispose();
@@ -1050,7 +1050,7 @@ export class ListView<T> implements IListView<T> {
 			const renderer = this.renderers.get(item.templateId);
 
 			if (renderer && renderer.disposeElement) {
-				renderer.disposeElement(item.element, index, item.row.templateData, { height: item.size });
+				renderer.disposeElement(item.element, index, item.row.templateData, { height: item.size, onScroll });
 			}
 
 			this.cache.release(item.row);
@@ -1151,7 +1151,7 @@ export class ListView<T> implements IListView<T> {
 	private onScroll(e: ScrollEvent): void {
 		try {
 			const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
-			this.render(previousRenderRange, e.scrollTop, e.height, e.scrollLeft, e.scrollWidth);
+			this.render(previousRenderRange, e.scrollTop, e.height, e.scrollLeft, e.scrollWidth, undefined, true);
 
 			if (this.supportDynamicHeights) {
 				this._rerender(e.scrollTop, e.height, e.inSmoothScrolling);

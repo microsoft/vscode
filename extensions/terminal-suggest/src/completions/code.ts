@@ -30,11 +30,11 @@ export const commonOptions: Fig.Option[] = [
 			'Perform a three-way merge by providing paths for two modified versions of a file, the common origin of both modified versions and the output file to save merge results',
 		args: [
 			{
-				name: 'path1',
+				name: 'file',
 				template: 'filepaths',
 			},
 			{
-				name: 'path2',
+				name: 'file',
 				template: 'filepaths',
 			},
 			{
@@ -50,6 +50,15 @@ export const commonOptions: Fig.Option[] = [
 	{
 		name: ['-a', '--add'],
 		description: 'Add folder(s) to the last active window',
+		args: {
+			name: 'folder',
+			template: 'folders',
+			isVariadic: true,
+		},
+	},
+	{
+		name: '--remove',
+		description: 'Remove folder(s) from the last active window',
 		args: {
 			name: 'folder',
 			template: 'folders',
@@ -129,12 +138,20 @@ export const commonOptions: Fig.Option[] = [
 		description:
 			'Opens the provided folder or workspace with the given profile and associates the profile with the workspace. If the profile does not exist, a new empty one is created. A folder or workspace must be provided for the profile to take effect',
 		args: {
-			name: 'settingsProfileName',
+			name: 'profileName',
 		},
 	},
 	{
 		name: ['-h', '--help'],
 		description: 'Print usage',
+	},
+	{
+		name: '--add-mcp',
+		description: 'Adds a Model Context Protocol server definition to the user profile. Accepts JSON input in the form {"name":"server-name","command":...}',
+		args: {
+			name: 'json',
+			description: 'JSON string for MCP server',
+		},
 	},
 	{
 		name: '--locate-shell-integration-path',
@@ -228,9 +245,18 @@ export const extensionManagementOptions = (cliName: string): Fig.Option[] => [
 		},
 	},
 	{
+		name: '--update-extensions',
+		description: 'Update the installed extensions',
+	},
+	{
 		name: '--enable-proposed-api',
 		description:
 			'Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually',
+		args: {
+			name: 'extension-id',
+			generators: createCodeGenerators(cliName),
+			isVariadic: true,
+		}
 	},
 ];
 
@@ -245,9 +271,11 @@ export const troubleshootingOptions = (cliName: string): Fig.Option[] => [
 	},
 	{
 		name: '--log',
-		description: `Log level to use. Default is 'info' when unspecified`,
+		description: `Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'. You can also configure the log level of an extension by passing extension id and log level in the following format: '{publisher}.{name}:{logLevel}'. For example: 'vscode.csharp:trace'. Can receive one or more such entries.`,
+		isRepeatable: true,
 		args: {
 			name: 'level',
+			description: 'Log level or \'publisher.name:logLevel\'',
 			default: 'info',
 			suggestions: [
 				'critical',
@@ -310,6 +338,14 @@ export const troubleshootingOptions = (cliName: string): Fig.Option[] => [
 		description: 'Disable GPU hardware acceleration',
 	},
 	{
+		name: '--disable-lcd-text',
+		description: 'Disable LCD font rendering',
+	},
+	{
+		name: '--disable-chromium-sandbox',
+		description: 'Use this option only when there is requirement to launch the application as sudo user on Linux or when running as an elevated user in an applocker environment on Windows.',
+	},
+	{
 		name: '--max-memory',
 		description: 'Max memory size for a window (in Mbytes)',
 		args: {
@@ -325,7 +361,7 @@ export const troubleshootingOptions = (cliName: string): Fig.Option[] => [
 
 export function createCodeGenerators(cliName: string): Fig.Generator {
 	return {
-		script: [cliName, '--list-extensions', '--show-versions'],
+		script: [cliName, '--list-extensions', '--show-versions', '--enable-proposed-api'],
 		postProcess: parseInstalledExtensions
 	};
 }
@@ -513,7 +549,7 @@ export const extTunnelSubcommand = {
 };
 
 
-export const codeTunnelSubcommands = [
+export const codeTunnelSubcommands: Fig.Subcommand[] = [
 	{
 		name: 'tunnel',
 		description: 'Create a tunnel that\'s accessible on vscode.dev from anywhere. Run`code tunnel --help` for more usage info',
@@ -762,6 +798,51 @@ export const codeTunnelSubcommands = [
 		],
 	},
 	{
+		name: 'chat',
+		description: 'Pass in a prompt to run in a chat session in the current working directory.',
+		args: {
+			name: 'prompt',
+			description: 'The prompt to use as chat',
+			isVariadic: true,
+			isOptional: true,
+		},
+		options: [
+			{
+				name: ['-m', '--mode'],
+				description: 'The mode to use for the chat session. Available options: \'ask\', \'edit\', \'agent\', or the identifier of a custom mode. Defaults to \'agent\'',
+				args: {
+					name: 'mode',
+					suggestions: ['agent', 'ask', 'edit'],
+				},
+			},
+			{
+				name: ['-a', '--add-file'],
+				description: 'Add files as context to the chat session',
+				isRepeatable: true,
+				args: {
+					name: 'file',
+					template: 'filepaths',
+				},
+			},
+			{
+				name: ['--maximize'],
+				description: 'Maximize the chat session view.',
+			},
+			{
+				name: ['-r', '--reuse-window'],
+				description: 'Force to use the last active window for the chat session',
+			},
+			{
+				name: ['-n', '--new-window'],
+				description: 'Force to open an empty window for the chat session',
+			},
+			{
+				name: ['-h', '--help'],
+				description: 'Print usage',
+			},
+		],
+	},
+	{
 		name: 'status',
 		description: 'Print process usage and diagnostics information',
 		options: [...globalTunnelOptions, ...tunnelHelpOptions],
@@ -916,6 +997,10 @@ export const codeTunnelSubcommands = [
 						],
 					}
 				],
+			},
+			{
+				name: 'chat',
+				description: 'Pass in a prompt to run in a chat session in the current working directory.',
 			},
 			extTunnelSubcommand,
 			{

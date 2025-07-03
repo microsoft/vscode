@@ -19,6 +19,8 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { verifiedPublisherIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
 import { installCountIcon, starEmptyIcon, starFullIcon, starHalfIcon } from '../../extensions/browser/extensionsIcons.js';
 import { IMcpServerContainer, IWorkbenchMcpServer, mcpServerIcon } from '../common/mcpTypes.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ColorScheme } from '../../../../platform/theme/common/theme.js';
 
 export abstract class McpServerWidget extends Disposable implements IMcpServerContainer {
 	private _mcpServer: IWorkbenchMcpServer | null = null;
@@ -47,12 +49,13 @@ export class McpServerIconWidget extends McpServerWidget {
 	private readonly disposables = this._register(new DisposableStore());
 	private readonly element: HTMLElement;
 	private readonly iconElement: HTMLImageElement;
-	private readonly defaultIconElement: HTMLElement;
+	private readonly codiconIconElement: HTMLElement;
 
 	private iconUrl: string | undefined;
 
 	constructor(
 		container: HTMLElement,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		super();
 		this.element = dom.append(container, dom.$('.extension-icon'));
@@ -60,18 +63,20 @@ export class McpServerIconWidget extends McpServerWidget {
 		this.iconElement = dom.append(this.element, dom.$('img.icon', { alt: '' }));
 		this.iconElement.style.display = 'none';
 
-		this.defaultIconElement = dom.append(this.element, dom.$(ThemeIcon.asCSSSelector(mcpServerIcon)));
-		this.defaultIconElement.style.display = 'none';
+		this.codiconIconElement = dom.append(this.element, dom.$(ThemeIcon.asCSSSelector(mcpServerIcon)));
+		this.codiconIconElement.style.display = 'none';
 
 		this.render();
 		this._register(toDisposable(() => this.clear()));
+		this._register(this.themeService.onDidColorThemeChange(() => this.render()));
 	}
 
 	private clear(): void {
 		this.iconUrl = undefined;
 		this.iconElement.src = '';
 		this.iconElement.style.display = 'none';
-		this.defaultIconElement.style.display = 'none';
+		this.codiconIconElement.style.display = 'none';
+		this.codiconIconElement.className = ThemeIcon.asClassName(mcpServerIcon);
 		this.disposables.clear();
 	}
 
@@ -81,14 +86,16 @@ export class McpServerIconWidget extends McpServerWidget {
 			return;
 		}
 
-		if (this.mcpServer.iconUrl) {
+		if (this.mcpServer.icon) {
 			this.iconElement.style.display = 'inherit';
-			this.defaultIconElement.style.display = 'none';
-			if (this.iconUrl !== this.mcpServer.iconUrl) {
-				this.iconUrl = this.mcpServer.iconUrl;
+			this.codiconIconElement.style.display = 'none';
+			const type = this.themeService.getColorTheme().type;
+			const iconUrl = type === ColorScheme.DARK || ColorScheme.HIGH_CONTRAST_DARK ? this.mcpServer.icon.dark : this.mcpServer.icon.light;
+			if (this.iconUrl !== iconUrl) {
+				this.iconUrl = iconUrl;
 				this.disposables.add(dom.addDisposableListener(this.iconElement, 'error', () => {
 					this.iconElement.style.display = 'none';
-					this.defaultIconElement.style.display = 'inherit';
+					this.codiconIconElement.style.display = 'inherit';
 				}, { once: true }));
 				this.iconElement.src = this.iconUrl;
 				if (!this.iconElement.complete) {
@@ -102,7 +109,8 @@ export class McpServerIconWidget extends McpServerWidget {
 			this.iconUrl = undefined;
 			this.iconElement.style.display = 'none';
 			this.iconElement.src = '';
-			this.defaultIconElement.style.display = 'inherit';
+			this.codiconIconElement.className = this.mcpServer.codicon ? `codicon ${this.mcpServer.codicon}` : ThemeIcon.asClassName(mcpServerIcon);
+			this.codiconIconElement.style.display = 'inherit';
 		}
 	}
 }

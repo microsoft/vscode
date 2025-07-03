@@ -64,11 +64,19 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		return undefined;
 	}
 
+	getToolSet(id: string): ToolSet | undefined {
+		return undefined;
+	}
+
 	createToolSet(): ToolSet & IDisposable {
 		throw new Error('Method not implemented.');
 	}
 
-	toEnablementMap(toolOrToolSetNames: Iterable<string>): Record<string, boolean> {
+	toToolEnablementMap(toolOrToolSetNames: Set<string>): Record<string, boolean> {
+		throw new Error('Method not implemented.');
+	}
+
+	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[] | undefined): Map<ToolSet | IToolData, boolean> {
 		throw new Error('Method not implemented.');
 	}
 }

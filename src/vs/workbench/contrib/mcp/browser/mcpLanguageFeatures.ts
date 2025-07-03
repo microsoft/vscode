@@ -20,10 +20,9 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression, IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
-import { IMcpConfigPath, IMcpConfigPathsService } from '../common/mcpConfigPathsService.js';
 import { mcpConfigurationSection } from '../common/mcpConfiguration.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { IMcpService, McpConnectionState } from '../common/mcpTypes.js';
+import { IMcpConfigPath, IMcpService, IMcpWorkbenchService, McpConnectionState } from '../common/mcpTypes.js';
 
 const diagnosticOwner = 'vscode.mcp';
 
@@ -33,7 +32,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 	constructor(
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
-		@IMcpConfigPathsService private readonly _mcpConfigPathsService: IMcpConfigPathsService,
+		@IMcpWorkbenchService private readonly _mcpWorkbenchService: IMcpWorkbenchService,
 		@IMcpService private readonly _mcpService: IMcpService,
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
@@ -41,8 +40,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 		super();
 
 		const patterns = [
-			{ pattern: '**/.vscode/mcp.json' },
-			{ pattern: '**/settings.json' },
+			{ pattern: '**/mcp.json' },
 			{ pattern: '**/workspace.json' },
 		];
 
@@ -60,13 +58,13 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 	}
 
 	/** Simple mechanism to avoid extra json parsing for hints+lenses */
-	private _parseModel(model: ITextModel) {
+	private async _parseModel(model: ITextModel) {
 		if (this._cachedMcpSection.value?.model === model) {
 			return this._cachedMcpSection.value;
 		}
 
 		const uri = model.uri;
-		const inConfig = this._mcpConfigPathsService.paths.get().find(u => isEqual(u.uri, uri));
+		const inConfig = await this._mcpWorkbenchService.getMcpConfigPath(model.uri);
 		if (!inConfig) {
 			return undefined;
 		}
@@ -140,8 +138,8 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 		}
 	}
 
-	private _provideCodeLenses(model: ITextModel, onDidChangeCodeLens: () => void): CodeLensList | undefined {
-		const parsed = this._parseModel(model);
+	private async _provideCodeLenses(model: ITextModel, onDidChangeCodeLens: () => void): Promise<CodeLensList | undefined> {
+		const parsed = await this._parseModel(model);
 		if (!parsed) {
 			return undefined;
 		}
@@ -320,7 +318,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 	}
 
 	private async _provideInlayHints(model: ITextModel, range: Range): Promise<InlayHintList | undefined> {
-		const parsed = this._parseModel(model);
+		const parsed = await this._parseModel(model);
 		if (!parsed) {
 			return undefined;
 		}

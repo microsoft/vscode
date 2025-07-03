@@ -460,7 +460,11 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public afterContentClassName: string | undefined;
 	public glyphMarginClassName: string | undefined;
 	public isWholeLine: boolean;
-	public lineHeight?: number;
+	public lineHeight: number | undefined;
+	public fontSize: string | undefined;
+	public fontFamily: string | undefined;
+	public fontWeight: string | undefined;
+	public fontStyle: string | undefined;
 	public overviewRuler: IModelDecorationOverviewRulerOptions | undefined;
 	public stickiness: TrackedRangeStickiness | undefined;
 	public beforeInjectedText: InjectedTextOptions | undefined;
@@ -522,6 +526,10 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 		const options = providerArgs.options;
 		this.isWholeLine = Boolean(options.isWholeLine);
 		this.lineHeight = options.lineHeight;
+		this.fontFamily = options.fontFamily;
+		this.fontSize = options.fontSize;
+		this.fontWeight = options.fontWeight;
+		this.fontStyle = options.fontStyle;
 		this.stickiness = options.rangeBehavior;
 
 		const lightOverviewRulerColor = options.light && options.light.overviewRulerColor || options.overviewRulerColor;
@@ -552,6 +560,10 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 			glyphMarginClassName: this.glyphMarginClassName,
 			isWholeLine: this.isWholeLine,
 			lineHeight: this.lineHeight,
+			fontFamily: this.fontFamily,
+			fontSize: this.fontSize,
+			fontWeight: this.fontWeight,
+			fontStyle: this.fontStyle,
 			overviewRuler: this.overviewRuler,
 			stickiness: this.stickiness,
 			before: this.beforeInjectedText,
@@ -759,7 +771,7 @@ class DecorationCSSRules {
 			return '';
 		}
 		const cssTextArr: string[] = [];
-		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
+		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'fontFamily', 'fontSize', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
 		if (opts.letterSpacing) {
 			this._hasLetterSpacing = true;
 		}

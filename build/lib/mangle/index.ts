@@ -280,8 +280,6 @@ function isNameTakenInFile(node: ts.Node, name: string): boolean {
 }
 
 const skippedExportMangledFiles = [
-	// Build
-	'css.build',
 
 	// Monaco
 	'editorCommon',

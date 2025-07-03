@@ -11,7 +11,7 @@ export interface IBuiltInExtension {
 	readonly name: string;
 	readonly version: string;
 	readonly repo: string;
-	readonly metadata: any;
+	readonly metadata: unknown;
 }
 
 export interface IProductWalkthrough {
@@ -97,6 +97,7 @@ export interface IProductConfiguration {
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
 		readonly controlUrl: string;
+		readonly mcpUrl: string;
 		readonly extensionUrlTemplate: string;
 		readonly resourceUrlTemplate: string;
 		readonly nlsBaseUrl: string;

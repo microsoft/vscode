@@ -87,6 +87,14 @@ suite('ChatWordCounter', () => {
 			cases.forEach(([str, nWords, result]) => doTest(str, nWords, result));
 		});
 
+		test('codeblocks', () => {
+			const cases: [string, number, string][] = [
+				['hello\n\n```\n```\n\nworld foo', 2, 'hello\n\n```\n```\n\nworld'],
+			];
+
+			cases.forEach(([str, nWords, result]) => doTest(str, nWords, result));
+		});
+
 		test('chinese characters', () => {
 			const cases: [string, number, string][] = [
 				['我喜欢中国菜', 3, '我喜欢'],

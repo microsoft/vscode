@@ -112,6 +112,7 @@ export class McpServerRequestHandler extends Disposable {
 						capabilities: {
 							roots: { listChanged: true },
 							sampling: opts.createMessageRequestHandler ? {} : undefined,
+							elicitation: opts.elicitationRequestHandler ? {} : undefined,
 						},
 						clientInfo: {
 							name: productService.nameLong,
@@ -140,11 +141,13 @@ export class McpServerRequestHandler extends Disposable {
 	private readonly _launch: IMcpMessageTransport;
 	private readonly _requestLogLevel: LogLevel;
 	private readonly _createMessageRequestHandler: IMcpServerRequestHandlerOptions['createMessageRequestHandler'];
+	private readonly _elicitationRequestHandler: IMcpServerRequestHandlerOptions['elicitationRequestHandler'];
 
 	protected constructor({
 		launch,
 		logger,
 		createMessageRequestHandler,
+		elicitationRequestHandler,
 		requestLogLevel = LogLevel.Debug,
 	}: IMcpServerRequestHandlerOptions) {
 		super();
@@ -152,6 +155,7 @@ export class McpServerRequestHandler extends Disposable {
 		this.logger = logger;
 		this._requestLogLevel = requestLogLevel;
 		this._createMessageRequestHandler = createMessageRequestHandler;
+		this._elicitationRequestHandler = elicitationRequestHandler;
 
 		this._register(launch.onDidReceiveMessage(message => this.handleMessage(message)));
 		this._register(autorun(reader => {
@@ -309,6 +313,8 @@ export class McpServerRequestHandler extends Disposable {
 				response = this.handleRootsList(request);
 			} else if (request.method === 'sampling/createMessage' && this._createMessageRequestHandler) {
 				response = await this._createMessageRequestHandler(request.params as MCP.CreateMessageRequest['params']);
+			} else if (request.method === 'elicitation/create' && this._elicitationRequestHandler) {
+				response = await this._elicitationRequestHandler(request.params as MCP.ElicitRequest['params']);
 			} else {
 				throw McpError.methodNotFound(request.method);
 			}
@@ -521,7 +527,7 @@ export class McpServerRequestHandler extends Disposable {
 	/**
 	 * Find completions for an argument
 	 */
-	complete(params: MCP.CompleteRequest2['params'], token?: CancellationToken): Promise<MCP.CompleteResult> {
-		return this.sendRequest<MCP.CompleteRequest2, MCP.CompleteResult>({ method: 'completion/complete', params }, token);
+	complete(params: MCP.CompleteRequest['params'], token?: CancellationToken): Promise<MCP.CompleteResult> {
+		return this.sendRequest<MCP.CompleteRequest, MCP.CompleteResult>({ method: 'completion/complete', params }, token);
 	}
 }

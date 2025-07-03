@@ -76,13 +76,13 @@ export class McpPromptArgumentPick extends Disposable {
 			const restore = backSnapshots.at(i);
 			quickPick.step = i + 1;
 			quickPick.placeholder = arg.required ? arg.description : `${arg.description || ''} (${localize('optional', 'Optional')})`;
-			quickPick.title = localize('mcp.prompt.pick.title', 'Value for: {0}', arg.name);
+			quickPick.title = localize('mcp.prompt.pick.title', 'Value for: {0}', arg.title || arg.name);
 			quickPick.value = restore?.value ?? ((args.hasOwnProperty(arg.name) && args[arg.name]) || '');
 			quickPick.items = restore?.items ?? [];
 			quickPick.activeItems = restore?.activeItems ?? [];
 			quickPick.buttons = i > 0 ? [this._quickInputService.backButton] : [];
 
-			const value = await this._getArg(arg, !!restore, token);
+			const value = await this._getArg(arg, !!restore, args, token);
 			if (value.type === 'back') {
 				i -= 2;
 			} else if (value.type === 'cancel') {
@@ -102,7 +102,7 @@ export class McpPromptArgumentPick extends Disposable {
 		return args;
 	}
 
-	private async _getArg(arg: MCP.PromptArgument, didRestoreState: boolean, token?: CancellationToken): Promise<Action> {
+	private async _getArg(arg: MCP.PromptArgument, didRestoreState: boolean, argsSoFar: Record<string, string | undefined>, token?: CancellationToken): Promise<Action> {
 		const { quickPick } = this;
 		const store = new DisposableStore();
 
@@ -110,7 +110,7 @@ export class McpPromptArgumentPick extends Disposable {
 		const asyncPicks = [
 			{
 				name: localize('mcp.arg.suggestions', 'Suggestions'),
-				observer: this._promptCompletions(arg, input$),
+				observer: this._promptCompletions(arg, input$, argsSoFar),
 			},
 			{
 				name: localize('mcp.arg.files', 'Files'),
@@ -168,10 +168,13 @@ export class McpPromptArgumentPick extends Disposable {
 				}));
 				store.add(quickPick.onDidAccept(() => {
 					const item = quickPick.selectedItems[0];
-					if (!quickPick.value && arg.required && (item.action === 'text' || item.action === 'command')) {
+					if (!quickPick.value && arg.required && (!item || item.action === 'text' || item.action === 'command')) {
 						quickPick.validationMessage = localize('mcp.arg.required', "This argument is required");
+					} else if (!item) {
+						// For optional arguments when no item is selected, return empty text action
+						resolve({ id: 'insert-text', label: '', action: 'text' });
 					} else {
-						resolve(quickPick.selectedItems[0]);
+						resolve(item);
 					}
 				}));
 				store.add(quickPick.onDidTriggerButton(() => {
@@ -218,9 +221,16 @@ export class McpPromptArgumentPick extends Disposable {
 		}
 	}
 
-	private _promptCompletions(arg: MCP.PromptArgument, input: IObservable<string>) {
+	private _promptCompletions(arg: MCP.PromptArgument, input: IObservable<string>, argsSoFar: Record<string, string | undefined>) {
+		const alreadyResolved: Record<string, string> = {};
+		for (const [key, value] of Object.entries(argsSoFar)) {
+			if (value) {
+				alreadyResolved[key] = value;
+			}
+		}
+
 		return this._asyncCompletions(input, async (i, t) => {
-			const items = await this.prompt.complete(arg.name, i, t);
+			const items = await this.prompt.complete(arg.name, i, alreadyResolved, t);
 			return items.map((i): PickItem => ({ id: `suggest:${i}`, label: i, action: 'suggest' }));
 		});
 	}

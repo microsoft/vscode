@@ -121,6 +121,45 @@
 	color: var(--vscode-disabledForeground);
 }
 
+/* Snoozing */
+
+.chat-status-bar-entry-tooltip .snooze-completions {
+	margin-top: 6px;
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: center;
+	gap: 6px;
+}
+
+.chat-status-bar-entry-tooltip .snooze-completions .monaco-button {
+	width: fit-content;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	text-wrap: nowrap;
+	padding: 2px 8px;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+.chat-status-bar-entry-tooltip .snooze-completions .snooze-label {
+	flex: 1;
+	padding-left: 2px;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+
+.chat-status-bar-entry-tooltip .snooze-completions.disabled .snooze-label {
+	color: var(--vscode-disabledForeground);
+}
+
+.chat-status-bar-entry-tooltip .snooze-completions .snooze-action-bar {
+	margin-left: auto;
+}
+
 /* Contributions */
 
 .chat-status-bar-entry-tooltip .contribution .body {

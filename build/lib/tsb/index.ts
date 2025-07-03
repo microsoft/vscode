@@ -36,7 +36,7 @@ const _defaultOnError = (err: string) => console.log(JSON.stringify(err, null, 4
 export function create(
 	projectPath: string,
 	existingOptions: Partial<ts.CompilerOptions>,
-	config: { verbose?: boolean; transpileOnly?: boolean; transpileOnlyIncludesDts?: boolean; transpileWithSwc?: boolean },
+	config: { verbose?: boolean; transpileOnly?: boolean; transpileOnlyIncludesDts?: boolean; transpileWithEsbuild?: boolean },
 	onError: (message: string) => void = _defaultOnError
 ): IncrementalCompiler {
 
@@ -128,7 +128,7 @@ export function create(
 
 	let result: IncrementalCompiler;
 	if (config.transpileOnly) {
-		const transpiler = !config.transpileWithSwc
+		const transpiler = !config.transpileWithEsbuild
 			? new TscTranspiler(logFn, printDiagnostic, projectPath, cmdLine)
 			: new ESBuildTranspiler(logFn, printDiagnostic, projectPath, cmdLine);
 		result = <any>(() => createTranspileStream(transpiler));

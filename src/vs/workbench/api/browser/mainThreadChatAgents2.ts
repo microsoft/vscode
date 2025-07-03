@@ -12,6 +12,7 @@ import { revive } from '../../../base/common/marshalling.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
+import { Schemas } from '../../../base/common/network.js';
 import { Position } from '../../../editor/common/core/position.js';
 import { Range } from '../../../editor/common/core/range.js';
 import { getWordAtText } from '../../../editor/common/core/wordHelper.js';
@@ -23,14 +24,13 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatWidgetService } from '../../contrib/chat/browser/chat.js';
-import { ChatInputPart } from '../../contrib/chat/browser/chatInputPart.js';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/contrib/chatDynamicVariables.js';
 import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/chatAgents.js';
 import { IChatEditingService, IChatRelatedFileProviderMetadata } from '../../contrib/chat/common/chatEditingService.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/chatParserTypes.js';
 import { ChatRequestParser } from '../../contrib/chat/common/chatRequestParser.js';
 import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatTaskSerialized, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
-import { ChatAgentLocation, ChatMode } from '../../contrib/chat/common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../contrib/chat/common/constants.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
@@ -148,7 +148,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 		const inputValue = widget?.inputEditor.getValue() ?? '';
 		const location = widget.location;
-		const mode = widget.input.currentMode;
+		const mode = widget.input.currentModeKind;
 		this._chatService.transferChatSession({ sessionId, inputValue, location, mode }, URI.revive(toWorkspace));
 	}
 
@@ -187,6 +187,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			provideChatTitle: (history, token) => {
 				return this._proxy.$provideChatTitle(handle, history, token);
 			},
+			provideChatSummary: (history, token) => {
+				return this._proxy.$provideChatSummary(handle, history, token);
+			},
 		};
 
 		let disposable: IDisposable;
@@ -206,7 +209,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					slashCommands: [],
 					disambiguation: [],
 					locations: [ChatAgentLocation.Panel], // TODO all dynamic participants are panel only?
-					modes: [ChatMode.Ask]
+					modes: [ChatModeKind.Ask]
 				},
 				impl);
 		} else {
@@ -313,7 +316,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		};
 		this._agentIdsToCompletionProviders.set(id, this._chatAgentService.registerAgentCompletionProvider(id, provide));
 
-		this._agentCompletionProviders.set(handle, this._languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+		this._agentCompletionProviders.set(handle, this._languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'chatAgentCompletions:' + handle,
 			triggerCharacters,
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {

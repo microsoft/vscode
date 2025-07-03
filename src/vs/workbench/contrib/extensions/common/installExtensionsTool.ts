@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
-import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolProgress } from '../../chat/common/languageModelToolsService.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { IExtensionsWorkbenchService } from './extensions.js';
 
 export const InstallExtensionsToolId = 'vscode_installExtensions';
@@ -44,7 +44,8 @@ export class InstallExtensionsTool implements IToolImpl {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) { }
 
-	async prepareToolInvocation(parameters: InputParams, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		const parameters = context.parameters as InputParams;
 		return {
 			confirmationMessages: {
 				title: localize('installExtensionsTool.confirmationTitle', 'Install Extensions'),
@@ -68,4 +69,3 @@ export class InstallExtensionsTool implements IToolImpl {
 		};
 	}
 }
-
