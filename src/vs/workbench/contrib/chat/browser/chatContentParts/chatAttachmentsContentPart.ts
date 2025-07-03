@@ -60,12 +60,12 @@ export class ChatAttachmentsContentPart extends Disposable {
 				attachment.omittedState = isAttachmentPartialOrOmitted ? OmittedState.Full : attachment.omittedState;
 				widget = this.instantiationService.createInstance(ImageAttachmentWidget, resource, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels, hoverDelegate);
 			} else if (isPromptFileVariableEntry(attachment)) {
-				if (attachment.isHidden) {
+				if (attachment.automaticallyAdded) {
 					continue;
 				}
 				widget = this.instantiationService.createInstance(PromptFileAttachmentWidget, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels, hoverDelegate);
 			} else if (isPromptTextVariableEntry(attachment)) {
-				if (attachment.isHidden) {
+				if (attachment.automaticallyAdded) {
 					continue;
 				}
 				widget = this.instantiationService.createInstance(PromptTextAttachmentWidget, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels, hoverDelegate);
