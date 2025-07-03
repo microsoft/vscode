@@ -11,6 +11,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IAuthenticationQueryService } from '../../../../services/authentication/common/authenticationQuery.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { AuthenticationExtensionsContribution } from '../../browser/authentication.contribution.js';
 
 // Mock classes for testing
 class MockExtensionService implements Partial<IExtensionService> {
@@ -117,54 +118,6 @@ function createMockExtension(id: string): IExtensionDescription {
 	};
 }
 
-// Test implementation of the fixed method
-class TestAuthenticationExtensionsContribution {
-	constructor(
-		private _extensionService: IExtensionService,
-		private _authenticationQueryService: IAuthenticationQueryService,
-		private _authenticationService: IAuthenticationService
-	) {}
-
-	_cleanupRemovedExtensions(removedExtensions?: readonly IExtensionDescription[]): void {
-		// Copy the fixed implementation
-		const isTargetedCleanup = !!removedExtensions;
-		
-		let extensionIdsToRemove: Set<string>;
-		if (isTargetedCleanup) {
-			// For targeted cleanup, remove only the specified extensions
-			extensionIdsToRemove = new Set(removedExtensions!.map(e => e.identifier.value));
-		} else {
-			// For general cleanup, we need to find stored extensions that are no longer installed
-			const installedExtensionIds = new Set(this._extensionService.extensions.map(e => e.identifier.value));
-			extensionIdsToRemove = new Set<string>();
-			
-			// Find all stored extension IDs that are no longer installed
-			const providerIds = this._authenticationQueryService.getProviderIds();
-			for (const providerId of providerIds) {
-				this._authenticationQueryService.provider(providerId).forEachAccount(account => {
-					account.extensions().forEach((extension: any) => {
-						if (!installedExtensionIds.has(extension.extensionId)) {
-							extensionIdsToRemove.add(extension.extensionId);
-						}
-					});
-				});
-			}
-		}
-
-		const providerIds = this._authenticationQueryService.getProviderIds();
-		for (const providerId of providerIds) {
-			this._authenticationQueryService.provider(providerId).forEachAccount(account => {
-				account.extensions().forEach((extension: any) => {
-					if (extensionIdsToRemove.has(extension.extensionId)) {
-						extension.removeUsage();
-						extension.setAccessAllowed(false);
-					}
-				});
-			});
-		}
-	}
-}
-
 suite('AuthenticationExtensionsContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -201,11 +154,7 @@ suite('AuthenticationExtensionsContribution', () => {
 		const ext3 = account.addExtension('extension3'); // This extension is NOT installed
 
 		// Create the contribution instance
-		const contribution = new TestAuthenticationExtensionsContribution(
-			mockExtensionService,
-			mockAuthQueryService,
-			mockAuthService
-		);
+		const contribution = instantiationService.createInstance(AuthenticationExtensionsContribution);
 
 		// Call cleanup without parameters (general cleanup)
 		contribution._cleanupRemovedExtensions();
@@ -233,11 +182,7 @@ suite('AuthenticationExtensionsContribution', () => {
 		const ext3 = account.addExtension('extension3');
 
 		// Create the contribution instance
-		const contribution = new TestAuthenticationExtensionsContribution(
-			mockExtensionService,
-			mockAuthQueryService,
-			mockAuthService
-		);
+		const contribution = instantiationService.createInstance(AuthenticationExtensionsContribution);
 
 		// Call cleanup with specific extensions to remove
 		const removedExtensions = [createMockExtension('extension2')];
@@ -271,11 +216,7 @@ suite('AuthenticationExtensionsContribution', () => {
 		const ext4_ms = msAccount.addExtension('extension4'); // not installed
 
 		// Create the contribution instance
-		const contribution = new TestAuthenticationExtensionsContribution(
-			mockExtensionService,
-			mockAuthQueryService,
-			mockAuthService
-		);
+		const contribution = instantiationService.createInstance(AuthenticationExtensionsContribution);
 
 		// Call general cleanup
 		contribution._cleanupRemovedExtensions();
@@ -300,11 +241,7 @@ suite('AuthenticationExtensionsContribution', () => {
 		const ext2 = account.addExtension('extension2');
 
 		// Create the contribution instance
-		const contribution = new TestAuthenticationExtensionsContribution(
-			mockExtensionService,
-			mockAuthQueryService,
-			mockAuthService
-		);
+		const contribution = instantiationService.createInstance(AuthenticationExtensionsContribution);
 
 		// Call general cleanup
 		contribution._cleanupRemovedExtensions();

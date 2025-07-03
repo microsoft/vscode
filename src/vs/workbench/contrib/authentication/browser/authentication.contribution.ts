@@ -116,7 +116,7 @@ class AuthenticationUsageContribution implements IWorkbenchContribution {
 	}
 }
 
-class AuthenticationExtensionsContribution extends Disposable implements IWorkbenchContribution {
+export class AuthenticationExtensionsContribution extends Disposable implements IWorkbenchContribution {
 	static ID = 'workbench.contrib.authenticationExtensions';
 
 	constructor(
@@ -146,7 +146,7 @@ class AuthenticationExtensionsContribution extends Disposable implements IWorkbe
 		}
 	}
 
-	private _cleanupRemovedExtensions(removedExtensions?: readonly IExtensionDescription[]): void {
+	public _cleanupRemovedExtensions(removedExtensions?: readonly IExtensionDescription[]): void {
 		// If we are cleaning up specific removed extensions, we only remove those.
 		const isTargetedCleanup = !!removedExtensions;
 		
