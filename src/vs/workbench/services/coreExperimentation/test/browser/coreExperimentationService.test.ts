@@ -80,7 +80,7 @@ suite('CoreExperimentationService', () => {
 		contextKeyService = new MockContextKeyService();
 	});
 
-	test('should not initialize experiment if user has already seen startup experience (found in storage)', () => {
+	test('should return experiment from storage if it exists', () => {
 		storageService.store(firstSessionDateStorageKey, new Date().toUTCString(), StorageScope.APPLICATION, StorageTarget.MACHINE);
 
 		// Set that user has already seen the experiment
@@ -101,7 +101,7 @@ suite('CoreExperimentationService', () => {
 		));
 
 		// Should not return experiment again
-		assert.strictEqual(service.getExperiment(), undefined);
+		assert.deepStrictEqual(service.getExperiment(), existingExperiment);
 
 		// No telemetry should be sent for new experiment
 		assert.strictEqual(telemetryService.events.length, 0);

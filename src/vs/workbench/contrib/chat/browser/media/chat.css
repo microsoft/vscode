@@ -1975,7 +1975,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	div[data-index="0"] .monaco-tl-contents {
-		.interactive-item-container.interactive-request {
+		.interactive-item-container.interactive-request:not(.editing) {
 			padding-top: 19px;
 		}
 
