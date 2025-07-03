@@ -336,21 +336,6 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				// 		type: 'svg', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.svg'
 				// 	}
 				// },
-				{
-					id: 'quickOpen',
-					title: localize('gettingStarted.quickOpen.title', "Quickly navigate between your files"),
-					description: localize('gettingStarted.quickOpen.description.interpolated', "Navigate between files in an instant with one keystroke. Tip: Open multiple files by pressing the right arrow key.\n{0}", Button(localize('quickOpen', "Quick Open a File"), 'command:toSide:workbench.action.quickOpen')),
-					when: 'workspaceFolderCount != 0',
-					media: {
-						type: 'svg', altText: 'Go to file in quick search.', path: 'search.svg'
-					}
-				},
-				{
-					id: 'videoTutorial',
-					title: localize('gettingStarted.videoTutorial.title', "Watch video tutorials"),
-					description: localize('gettingStarted.videoTutorial.description.interpolated', "Watch the first in a series of short & practical video tutorials for VS Code's key features.\n{0}", Button(localize('watch', "Watch Tutorial"), 'https://aka.ms/vscode-getting-started-video')),
-					media: { type: 'svg', altText: 'VS Code Settings', path: 'learn.svg' },
-				}
 			]
 		}
 	},
