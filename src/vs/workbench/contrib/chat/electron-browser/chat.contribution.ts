@@ -23,6 +23,10 @@ import { resolve } from '../../../../base/common/path.js';
 import { showChatView } from '../browser/chat.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
+import { ViewContainerLocation } from '../../../common/views.js';
 
 class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -49,7 +53,9 @@ class ChatCommandLineHandler extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IViewsService private readonly viewsService: IViewsService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -84,6 +90,16 @@ class ChatCommandLineHandler extends Disposable {
 		};
 
 		const chatWidget = await showChatView(this.viewsService);
+
+		if (args.maximize) {
+			const location = this.contextKeyService.getContextKeyValue<ViewContainerLocation>(ChatContextKeys.panelLocation.key);
+			if (location === ViewContainerLocation.AuxiliaryBar) {
+				this.layoutService.setAuxiliaryBarMaximized(true);
+			} else if (location === ViewContainerLocation.Panel && !this.layoutService.isPanelMaximized()) {
+				this.layoutService.toggleMaximizedPanel();
+			}
+		}
+
 		await chatWidget?.waitForReady();
 		await this.commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		await this.commandService.executeCommand(CHAT_OPEN_ACTION_ID, opts);
