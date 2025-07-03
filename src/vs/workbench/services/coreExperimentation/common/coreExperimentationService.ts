@@ -7,7 +7,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { firstSessionDateStorageKey, ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
@@ -91,46 +91,7 @@ export class CoreExperimentationService extends Disposable implements ICoreExper
 		this.initializeExperiments();
 	}
 
-	private getStartupGroupFromString(groupString: string): StartupExperimentGroup | undefined {
-		switch (groupString) {
-			case 'control':
-				return StartupExperimentGroup.Control;
-			case 'maximizedChat':
-				return StartupExperimentGroup.MaximizedChat;
-			case 'splitEmptyEditorChat':
-				return StartupExperimentGroup.SplitEmptyEditorChat;
-			case 'splitWelcomeChat':
-				return StartupExperimentGroup.SplitWelcomeChat;
-			default:
-				return undefined;
-		}
-	}
-
 	private initializeExperiments(): void {
-
-		const startupExpGroupOverride = this.environmentService.startupExperimentGroup;
-		if (startupExpGroupOverride) {
-			const overrideGroup = this.getStartupGroupFromString(startupExpGroupOverride);
-			if (overrideGroup) {
-				const overrideExperiment: IExperiment = {
-					cohort: 1.0, // 100% for testing
-					subCohort: 1.0,
-					experimentGroup: overrideGroup,
-					iteration: 1,
-					isInExperiment: true
-				};
-				this.experiments.set(STARTUP_EXPERIMENT_NAME, overrideExperiment);
-				startupExpContext.bindTo(this.contextKeyService).set(overrideExperiment.experimentGroup);
-				return;
-			}
-		}
-
-		const firstSessionDateString = this.storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION) || new Date().toUTCString();
-		const daysSinceFirstSession = ((+new Date()) - (+new Date(firstSessionDateString))) / 1000 / 60 / 60 / 24;
-		if (daysSinceFirstSession > 1) {
-			// not a startup exp candidate.
-			return;
-		}
 
 		const experimentConfig = this.getExperimentConfiguration();
 		if (!experimentConfig) {
@@ -175,6 +136,22 @@ export class CoreExperimentationService extends Disposable implements ICoreExper
 	}
 
 	private createStartupExperiment(experimentName: string, experimentConfig: ExperimentConfiguration): IExperiment | undefined {
+		const startupExpGroupOverride = this.environmentService.startupExperimentGroup;
+		if (startupExpGroupOverride) {
+			// If the user has an override, we use that directly
+			const group = experimentConfig.groups.find(g => g.name === startupExpGroupOverride);
+			if (group) {
+				return {
+					cohort: 1,
+					subCohort: 1,
+					experimentGroup: group.name,
+					iteration: group.iteration,
+					isInExperiment: true
+				};
+			}
+			return undefined;
+		}
+
 		const cohort = Math.random();
 
 		if (cohort >= experimentConfig.targetPercentage / 100) {
