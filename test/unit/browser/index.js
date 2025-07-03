@@ -89,12 +89,13 @@ const isDebug = !!args.debug;
 const withReporter = (function () {
 	if (args.tfs) {
 		{
+			const testResultsRoot = process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE;
 			return (browserType, runner) => {
 				new mocha.reporters.Spec(runner);
 				new MochaJUnitReporter(runner, {
 					reporterOptions: {
 						testsuitesTitle: `${args.tfs} ${process.platform}`,
-						mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${browserType}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
+						mochaFile: testResultsRoot ? path.join(testResultsRoot, `test-results/${process.platform}-${process.arch}-${browserType}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
 					}
 				});
 			};
@@ -249,7 +250,7 @@ async function runTestsInBrowser(testModules, browserType, browserChannel) {
 	if (args.build) {
 		target.searchParams.set('build', 'true');
 	}
-	if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
+	if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE) {
 		target.searchParams.set('ci', 'true');
 	}
 
