@@ -25,7 +25,7 @@ import { getLocationBasedViewColors, ViewPane } from '../../../browser/parts/vie
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IViewDescriptorService, IViewsRegistry, Extensions as ViewExtensions } from '../../../common/views.js';
 import { HasInstalledMcpServersContext, IMcpWorkbenchService, InstalledMcpServersViewId, IWorkbenchMcpServer, McpServerContainers, mcpServerIcon, McpServerInstallState } from '../common/mcpTypes.js';
-import { DropDownAction, InstallAction, ManageMcpServerAction } from './mcpServerActions.js';
+import { DropDownAction, InstallAction, InstallingLabelAction, ManageMcpServerAction } from './mcpServerActions.js';
 import { PublisherWidget, InstallCountWidget, RatingsWidget, McpServerIconWidget } from './mcpServerWidgets.js';
 import { ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -321,6 +321,7 @@ class McpServerRenderer implements IListRenderer<IWorkbenchMcpServer, IMcpServer
 
 		const actions = [
 			this.instantiationService.createInstance(InstallAction, false),
+			this.instantiationService.createInstance(InstallingLabelAction),
 			this.instantiationService.createInstance(ManageMcpServerAction, false),
 		];
 
