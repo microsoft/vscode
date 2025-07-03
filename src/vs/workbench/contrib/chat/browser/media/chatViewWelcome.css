@@ -58,7 +58,7 @@ div.chat-welcome-view {
 		font-weight: 500;
 		text-align: center;
 		line-height: normal;
-		padding: 0 max(8px, 3%);
+		padding: 0 8px;
 	}
 
 	& > .chat-welcome-view-indicator-container {
@@ -72,7 +72,7 @@ div.chat-welcome-view {
 	& > .chat-welcome-view-message {
 		text-align: center;
 		max-width: 350px;
-		padding: 0 max(20px, 5%);
+		padding: 0 20px;
 		margin-top: 10px;
 
 		a {
@@ -88,7 +88,7 @@ div.chat-welcome-view {
 
 	& > .chat-welcome-view-tips {
 		max-width: 250px;
-		margin: 10px max(5px, 2%) 0px;
+		margin: 10px 5px 0px;
 
 		.rendered-markdown {
 			gap: 6px;
@@ -111,7 +111,7 @@ div.chat-welcome-view {
 	& > .chat-welcome-experimental-view-message {
 		text-align: center;
 		max-width: 350px;
-		padding: 0 max(20px, 5%) 32px;
+		padding: 0 20px 32px;
 		font-size: 16px;
 
 		a {
