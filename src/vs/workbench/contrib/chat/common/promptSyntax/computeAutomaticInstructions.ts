@@ -74,7 +74,7 @@ export class ComputeAutomaticInstructions {
 		const instructionsWithPatternsList = await this._getInstructionsWithPatternsList(instructionFiles, variables, token);
 		if (instructionsWithPatternsList.length > 0) {
 			const text = instructionsWithPatternsList.join('\n');
-			variables.add(toPromptTextVariableEntry(text, PromptsConfig.COPILOT_INSTRUCTIONS));
+			variables.add(toPromptTextVariableEntry(text, PromptsConfig.COPILOT_INSTRUCTIONS, true));
 		}
 		// add all instructions for all instruction files that are in the context
 		await this._addReferencedInstructions(variables, token);
@@ -114,7 +114,7 @@ export class ComputeAutomaticInstructions {
 					localize('instruction.file.reason.specificFile', 'Automatically attached as pattern {0} matches {1}', applyTo, this._labelService.getUriLabel(match.file, { relative: true }));
 
 
-				autoAddedInstructions.push(toPromptFileVariableEntry(uri, PromptFileVariableKind.Instruction, reason));
+				autoAddedInstructions.push(toPromptFileVariableEntry(uri, PromptFileVariableKind.Instruction, reason, true));
 			} else {
 				this._logService.trace(`[InstructionsContextComputer] No match for ${uri} with ${applyTo}`);
 			}
@@ -153,7 +153,7 @@ export class ComputeAutomaticInstructions {
 			for (const instructionFilePath of instructionFiles) {
 				const file = joinPath(folder.uri, instructionFilePath);
 				if (await this._fileService.exists(file)) {
-					entries.push(toPromptFileVariableEntry(file, PromptFileVariableKind.Instruction, localize('instruction.file.reason.copilot', 'Automatically attached as setting {0} is enabled', PromptsConfig.USE_COPILOT_INSTRUCTION_FILES)));
+					entries.push(toPromptFileVariableEntry(file, PromptFileVariableKind.Instruction, localize('instruction.file.reason.copilot', 'Automatically attached as setting {0} is enabled', PromptsConfig.USE_COPILOT_INSTRUCTION_FILES), true));
 				}
 			}
 		}
@@ -260,7 +260,7 @@ export class ComputeAutomaticInstructions {
 					if (stat.success && stat.stat?.isFile) {
 						todo.push(uri);
 						const reason = localize('instruction.file.reason.referenced', 'Referenced by {0}', basename(next));
-						attachedContext.add(toPromptFileVariableEntry(uri, PromptFileVariableKind.InstructionReference, reason));
+						attachedContext.add(toPromptFileVariableEntry(uri, PromptFileVariableKind.InstructionReference, reason, true));
 					}
 				}
 			}
