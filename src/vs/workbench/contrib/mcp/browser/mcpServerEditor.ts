@@ -37,7 +37,7 @@ import { IWebview, IWebviewService } from '../../webview/browser/webview.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IMcpServerEditorOptions, IWorkbenchMcpServer, McpServerContainers } from '../common/mcpTypes.js';
+import { IMcpServerEditorOptions, IMcpWorkbenchService, IWorkbenchMcpServer, McpServerContainers } from '../common/mcpTypes.js';
 import { InstallCountWidget, McpServerIconWidget, McpServerWidget, onClick, PublisherWidget, RatingsWidget } from './mcpServerWidgets.js';
 import { DropDownAction, InstallAction, InstallingLabelAction, ManageMcpServerAction, UninstallAction } from './mcpServerActions.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
@@ -73,16 +73,31 @@ class NavBar extends Disposable {
 		this.actionbar = this._register(new ActionBar(element));
 	}
 
-	push(id: string, label: string, tooltip: string): void {
+	push(id: string, label: string, tooltip: string, index?: number): void {
 		const action = new Action(id, label, undefined, true, () => this.update(id, true));
 
 		action.tooltip = tooltip;
 
-		this.actions.push(action);
-		this.actionbar.push(action);
+		if (typeof index === 'number') {
+			this.actions.splice(index, 0, action);
+		} else {
+			this.actions.push(action);
+		}
+		this.actionbar.push(action, { index });
 
 		if (this.actions.length === 1) {
 			this.update(id);
+		}
+	}
+
+	remove(id: string): void {
+		const index = this.actions.findIndex(action => action.id === id);
+		if (index !== -1) {
+			this.actions.splice(index, 1);
+			this.actionbar.pull(index);
+			if (this._currentId === id) {
+				this.switch(this.actions[0]?.id);
+			}
 		}
 	}
 
@@ -98,6 +113,10 @@ class NavBar extends Disposable {
 			return true;
 		}
 		return false;
+	}
+
+	has(id: string): boolean {
+		return this.actions.some(action => action.id === id);
 	}
 
 	private update(id: string, focus?: boolean): void {
@@ -165,6 +184,7 @@ export class McpServerEditor extends EditorPane {
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(McpServerEditor.ID, group, telemetryService, themeService, storageService);
@@ -340,6 +360,17 @@ export class McpServerEditor extends EditorPane {
 		if (extension.gallery || extension.local?.manifest) {
 			template.navbar.push(McpServerEditorTab.Manifest, localize('manifest', "Manifest"), localize('manifesttooltip', "Server manifest details"));
 		}
+
+		this.transientDisposables.add(this.mcpWorkbenchService.onChange(e => {
+			if (e === extension) {
+				if (e.config && !template.navbar.has(McpServerEditorTab.Configuration)) {
+					template.navbar.push(McpServerEditorTab.Configuration, localize('configuration', "Configuration"), localize('configurationtooltip', "Server configuration details"), extension.readmeUrl ? 1 : 0);
+				}
+				if (!e.config && template.navbar.has(McpServerEditorTab.Configuration)) {
+					template.navbar.remove(McpServerEditorTab.Configuration);
+				}
+			}
+		}));
 
 		if ((<IMcpServerEditorOptions | undefined>this.options)?.tab) {
 			template.navbar.switch((<IMcpServerEditorOptions>this.options).tab!);
