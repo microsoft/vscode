@@ -42,6 +42,10 @@ import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
 import { ICustomLineHeightData } from '../viewLayout/lineHeights.js';
 import { TextModelEditReason } from '../textModelEditReason.js';
+import { FontMeasurements } from '../../browser/config/fontMeasurements.js';
+import { BareFontInfo } from '../config/fontInfo.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { PixelRatio } from '../../../base/browser/pixelRatio.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -537,20 +541,70 @@ export class ViewModel extends Disposable implements IViewModel {
 	private readonly hiddenAreasModel = new HiddenAreasModel();
 	private previousHiddenAreas: readonly Range[] = [];
 
-	public getFontSizeAtPosition(position: IPosition): string | null {
+	public getFontSizeAtPosition(position: IPosition): string {
+		return this._getFontDataAtPosition(position).fontSize;
+	}
+
+	public getFontFamilyAtPosition(position: IPosition): string {
+		return this._getFontDataAtPosition(position).fontFamily;
+	}
+
+	public getFontWeightAtPosition(position: IPosition): string {
+		return this._getFontDataAtPosition(position).fontWeight;
+	}
+
+	private _getFontDataAtPosition(position: IPosition): { fontSize: string; fontFamily: string; fontWeight: string } {
+		const fontInfo = this._configuration.options.get(EditorOption.fontInfo);
 		const allowVariableFonts = this._configuration.options.get(EditorOption.effectiveAllowVariableFonts);
 		if (!allowVariableFonts) {
-			return null;
+			return {
+				fontSize: fontInfo.fontSize + 'px',
+				fontFamily: fontInfo.fontFamily,
+				fontWeight: fontInfo.fontWeight
+			};
 		}
+		let fontSize: string | null = null;
+		let fontFamily: string | null = null;
+		let fontWeight: string | null = null;
 		const fontDecorations = this.model.getFontDecorationsInRange(Range.fromPositions(position), this._editorId);
-		let fontSize: string = this._configuration.options.get(EditorOption.fontInfo).fontSize + 'px';
 		for (const fontDecoration of fontDecorations) {
 			if (fontDecoration.options.fontSize) {
 				fontSize = fontDecoration.options.fontSize;
-				break;
+			}
+			if (fontDecoration.options.fontFamily) {
+				fontFamily = fontDecoration.options.fontFamily;
+			}
+			if (fontDecoration.options.fontWeight) {
+				fontWeight = fontDecoration.options.fontWeight;
 			}
 		}
-		return fontSize;
+		return {
+			fontSize: fontSize ?? fontInfo.fontSize + 'px',
+			fontFamily: fontFamily ?? fontInfo.fontFamily,
+			fontWeight: fontWeight ?? fontInfo.fontWeight
+		};
+	}
+
+	public getFonInfoAtPosition(position: IPosition): BareFontInfo | null {
+		const viewPosition = this.coordinatesConverter.convertModelPositionToViewPosition(Position.lift(position));
+		const fontData = this._getFontDataAtPosition(viewPosition);
+		const fontSize = fontData.fontSize;
+		const fontFamily = fontData.fontFamily;
+		const fontWeight = fontData.fontWeight;
+		const fontLigatures = this._configuration.options.get(EditorOption.fontLigatures);
+		const fontVariations = this._configuration.options.get(EditorOption.fontVariations);
+		const letterSpacing = this._configuration.options.get(EditorOption.letterSpacing);
+		const lineHeight = this.viewLayout.getLineHeightForLineNumber(viewPosition.lineNumber);
+		const bareFontInfo = BareFontInfo.createFromRawSettings({
+			fontFamily,
+			fontWeight,
+			fontSize,
+			fontLigatures,
+			fontVariations,
+			letterSpacing,
+			lineHeight,
+		}, PixelRatio.getInstance(mainWindow).value);
+		return FontMeasurements.readFontInfo(mainWindow, bareFontInfo);
 	}
 
 	/**
