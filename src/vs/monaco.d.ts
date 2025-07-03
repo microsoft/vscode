@@ -4359,7 +4359,7 @@ declare namespace monaco.editor {
 		/**
 		 * Control the rendering of minimap.
 		 */
-		autohide?: boolean;
+		autohide?: 'none' | 'mouseover' | 'scroll';
 		/**
 		 * Control the side of the minimap in editor.
 		 * Defaults to 'right'.

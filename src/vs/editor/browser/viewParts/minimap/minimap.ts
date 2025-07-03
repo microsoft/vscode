@@ -37,6 +37,8 @@ import { MinimapPosition, MinimapSectionHeaderStyle, TextModelResolvedOptions } 
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 
 /**
  * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
@@ -54,7 +56,7 @@ class MinimapOptions {
 	public readonly paddingTop: number;
 	public readonly paddingBottom: number;
 	public readonly showSlider: 'always' | 'mouseover';
-	public readonly autohide: boolean;
+	public readonly autohide: 'none' | 'mouseover' | 'scroll';
 	public readonly pixelRatio: number;
 	public readonly typicalHalfwidthCharacterWidth: number;
 	public readonly lineHeight: number;
@@ -837,6 +839,11 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		this._shouldCheckSampling = false;
 
 		this._actual = new InnerMinimap(context.theme, this);
+
+		this._register(this._actual.onScroll(() => {
+			this._actual.show();
+			this._actual.hide();
+		}));
 	}
 
 	public override dispose(): void {
@@ -1148,6 +1155,8 @@ export class Minimap extends ViewPart implements IMinimapModel {
 }
 
 class InnerMinimap extends Disposable {
+	private readonly _onScroll = new Emitter<void>();
+	public readonly onScroll = this._onScroll.event;
 
 	private readonly _theme: EditorTheme;
 	private readonly _model: IMinimapModel;
@@ -1171,6 +1180,8 @@ class InnerMinimap extends Disposable {
 	private _renderDecorations: boolean = false;
 	private _gestureInProgress: boolean = false;
 	private _buffers: MinimapBuffers | null;
+	private _isMouseIn: boolean = false;
+	private hideDelayedScheduler: RunOnceScheduler;
 
 	constructor(
 		theme: EditorTheme,
@@ -1220,6 +1231,17 @@ class InnerMinimap extends Disposable {
 		this._slider.appendChild(this._sliderHorizontal);
 
 		this._applyLayout();
+
+		this.hideDelayedScheduler = this._register(new RunOnceScheduler(() => this._doHide(), 500));
+
+		this._register(dom.addStandardDisposableListener(this._domNode.domNode, dom.EventType.MOUSE_OVER, () => {
+			this._isMouseIn = true;
+		}));
+
+		this._register(dom.addStandardDisposableListener(this._domNode.domNode, dom.EventType.MOUSE_LEAVE, () => {
+			this._isMouseIn = false;
+		}));
+
 
 		this._pointerDownListener = dom.addStandardDisposableListener(this._domNode.domNode, dom.EventType.POINTER_DOWN, (e) => {
 			e.preventDefault();
@@ -1287,6 +1309,32 @@ class InnerMinimap extends Disposable {
 		});
 	}
 
+	public show() {
+		if (this._model.options.autohide === 'scroll') {
+			this.hideDelayedScheduler.cancel();
+			this._domNode.toggleClassName('active', true);
+		}
+	}
+
+	public hide(immediately?: boolean) {
+		this.hideDelayedScheduler.cancel();
+		if (!immediately) {
+			this.hideDelayedScheduler.schedule();
+		} else {
+			this._doHide();
+		}
+	}
+
+	private _doHide() {
+		if (this._isMouseIn) {
+			this.hide();
+			return;
+		}
+		if (this._domNode.domNode.classList.contains('active')) {
+			this._domNode.toggleClassName('active', false);
+		}
+	}
+
 	private _startSliderDragging(e: PointerEvent, initialPosY: number, initialSliderState: MinimapLayout): void {
 		if (!e.target || !(e.target instanceof Element)) {
 			return;
@@ -1352,8 +1400,11 @@ class InnerMinimap extends Disposable {
 		} else {
 			class_.push('slider-mouseover');
 		}
-		if (this._model.options.autohide) {
-			class_.push('autohide');
+
+		if (this._model.options.autohide === 'mouseover') {
+			class_.push('minimap-mouseover');
+		} else if (this._model.options.autohide === 'scroll') {
+			class_.push('minimap-scroll');
 		}
 
 		return class_.join(' ');
@@ -1495,6 +1546,11 @@ class InnerMinimap extends Disposable {
 		this._sliderHorizontal.setHeight(layout.sliderHeight);
 
 		this.renderDecorations(layout);
+
+		if (this._lastRenderData && !this._lastRenderData.scrollEquals(layout)) {
+			this._onScroll.fire();
+		}
+
 		this._lastRenderData = this.renderLines(layout);
 	}
 
