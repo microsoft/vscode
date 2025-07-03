@@ -18,7 +18,6 @@ import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDi
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
-import { CancellationTokenSource } from '../../../../base/common/observableInternal/commonFacade/cancellation.js';
 import { basename, extUri, isEqual } from '../../../../base/common/resources.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -31,7 +30,7 @@ import { InlineCompletionContext, InlineCompletionTriggerKind } from '../../../.
 import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry.js';
 import { IModelDeltaDecoration } from '../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
-import { provideInlineCompletions } from '../../../../editor/contrib/inlineCompletions/browser/model/provideInlineCompletions.js';
+import { InlineCompletionEditorType, InlineSuggestRequestInfo, provideInlineCompletions } from '../../../../editor/contrib/inlineCompletions/browser/model/provideInlineCompletions.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -203,7 +202,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private currentRequest: Promise<void> | undefined;
 
 	private promptCompletionState: PromptCompletionState | undefined;
-	private promptCompletionTimeout: NodeJS.Timeout | undefined;
+	private promptCompletionTimeout: Timeout | undefined;
 	private ignorePromptCompletions: boolean = false;
 
 	private _visible = false;
@@ -1951,7 +1950,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (!this.promptCompletionState) {
 				return;
 			}
-			const source = new CancellationTokenSource();
 			const requests = this.viewModel?.model.getRequests() ?? [];
 			const resolvedRequests = requests.map(r => r.message.text);
 			const context: InlineCompletionContext = {
@@ -1959,26 +1957,41 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				includeInlineEdits: true,
 				includeInlineCompletions: true,
 				selectedSuggestionInfo: undefined,
-				requests: resolvedRequests
+				requests: resolvedRequests,
+				requestUuid: ''
 			};
 			const model = this.inputEditor.getModel();
 			const position = this.inputEditor.getPosition();
 			if (!model || !position) {
 				return;
 			}
-			const updatedCompletions = await provideInlineCompletions(
-				this.languageFeaturesService.inlineCompletionsProvider,
+			const requestInfo: InlineSuggestRequestInfo = {
+				editorType: InlineCompletionEditorType.TextEditor,
+				startTime: Date.now(),
+				languageId: model.getLanguageId(),
+				reason: '',
+			};
+			const updatedCompletions = provideInlineCompletions(
+				this.languageFeaturesService.inlineCompletionsProvider.all(model),
 				position,
 				model,
 				context,
-				source.token,
+				requestInfo,
 				this.languageConfigurationService
 			);
-			const completion = updatedCompletions.completions[0];
-			if (!completion) {
+			const completions = updatedCompletions.lists;
+			if (!completions) {
 				return;
 			}
-			this.setPromptCompletionState({ position, insertText: completion.insertText });
+			for await (const completion of completions) {
+				const inlineSuggestions = completion.inlineSuggestions;
+				const items = inlineSuggestions.items;
+				for (const item of items) {
+					const insertText = typeof item.insertText === 'string' ? item.insertText : item.insertText.snippet;
+					this.setPromptCompletionState({ position, insertText });
+					return;
+				}
+			}
 		}, 500);
 	}
 
