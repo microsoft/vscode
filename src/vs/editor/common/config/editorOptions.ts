@@ -3305,8 +3305,8 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 					enum: ['none', 'mouseover', 'scroll'],
 					enumDescriptions: [
 						nls.localize('minimap.autohide.none', "The minimap is always shown."),
-						nls.localize('minimap.autohide.mouseover', "The minimap is hidden when the mouse is not over the editor and shown when the mouse is over the editor."),
-						nls.localize('minimap.autohide.scroll', "The minimap is hidden when scrolling and shown when not scrolling.")
+						nls.localize('minimap.autohide.mouseover', "The minimap is hidden when mouse is not over the minimap and shown when mouse is over the minimap."),
+						nls.localize('minimap.autohide.scroll', "The minimap is only shown when the editor is scrolled"),
 					],
 					default: defaults.autohide,
 					description: nls.localize('minimap.autohide', "Controls whether the minimap is hidden automatically.")
