@@ -213,7 +213,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 	const destination = path.join(path.dirname(root), destinationFolderName);
 	platform = platform || process.platform;
 
-	return () => {
+	const task = () => {
 		const electron = require('@vscode/gulp-electron');
 		const json = require('gulp-json-editor');
 
@@ -422,6 +422,8 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		return result.pipe(vfs.dest(destination));
 	};
+	task.taskName = `package-${platform}-${arch}`;
+	return task;
 }
 
 function patchWin32DependenciesTask(destinationFolderName) {
