@@ -24,6 +24,8 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 
 // example URL: code-oss:chat-prompt/install?url=https://gist.githubusercontent.com/aeschli/43fe78babd5635f062aef0195a476aad/raw/dfd71f60058a4dd25f584b55de3e20f5fd580e63/filterEvenNumbers.prompt.md
 
@@ -43,6 +45,7 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
 		this._register(urlService.registerHandler(this));
@@ -67,37 +70,39 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 		try {
 			const query = decodeURIComponent(uri.query);
 			if (!query || !query.startsWith('url=')) {
-				return false;
+				return true;
 			}
 
 			const urlString = query.substring(4);
 			const url = URI.parse(urlString);
 			if (url.scheme !== Schemas.https && url.scheme !== Schemas.http) {
 				this.logService.error(`[PromptUrlHandler] Invalid URL: ${urlString}`);
-				return false;
+				return true;
 			}
 
+			await this.hostService.focus(mainWindow);
+
 			if (await this.shouldBlockInstall(promptType, url)) {
-				return false;
+				return true;
 			}
 
 			const result = await this.requestService.request({ type: 'GET', url: urlString }, CancellationToken.None);
 			if (result.res.statusCode !== 200) {
 				this.logService.error(`[PromptUrlHandler] Failed to fetch URL: ${urlString}`);
 				this.notificationService.error(localize('failed', 'Failed to fetch URL: {0}', urlString));
-				return false;
+				return true;
 			}
 
 			const responseData = (await streamToBuffer(result.stream)).toString();
 
 			const newFolder = await this.instantiationService.invokeFunction(askForPromptSourceFolder, promptType);
 			if (!newFolder) {
-				return false;
+				return true;
 			}
 
 			const newName = await this.instantiationService.invokeFunction(askForPromptFileName, promptType, newFolder.uri, getCleanPromptName(url));
 			if (!newName) {
-				return false;
+				return true;
 			}
 
 			const promptUri = URI.joinPath(newFolder.uri, newName);
@@ -110,7 +115,7 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 
 		} catch (error) {
 			this.logService.error(`Error handling prompt URL ${uri.toString()}`, error);
-			return false;
+			return true;
 		}
 	}
 
@@ -129,13 +134,12 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 
 		const detail = new MarkdownString('', { supportHtml: true });
 		detail.appendMarkdown(localize('confirmOpenDetail2', "This will access {0}.\n\n", `[${uriLabel}](${url.toString()})`));
-		detail.appendMarkdown(localize('confirmOpenDetail1', "Do you want to continue by selecting a destination folder and name?\n\n"));
 		detail.appendMarkdown(localize('confirmOpenDetail3', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'Cancel'"));
 
 		let message: string;
 		switch (promptType) {
 			case PromptsType.prompt:
-				message = localize('confirmInstallPrompt', "An external application wants to create a prompt file with content from a URL.");
+				message = localize('confirmInstallPrompt', "An external application wants to create a prompt file with content from a URL. Do you want to continue by selecting a destination folder and name?");
 				break;
 			case PromptsType.instructions:
 				message = localize('confirmInstallInstructions', "An external application wants to create an instructions file with content from a URL.");
@@ -147,9 +151,10 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 
 		const { confirmed, checkboxChecked } = await this.dialogService.confirm({
 			type: 'warning',
-			primaryButton: localize({ key: 'confirmOpenButton', comment: ['&& denotes a mnemonic'] }, "&&Continue"),
+			primaryButton: localize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
+			cancelButton: localize('noButton', "No"),
 			message,
-			checkbox: { label: localize('confirmOpenDoNotAskAgain', "Do not show this message again for files from '{0}'", location) },
+			checkbox: { label: localize('confirmOpenDoNotAskAgain', "Allow creating a prompt file without asking from '{0}'", location) },
 			custom: {
 				markdownDetails: [{
 					markdown: detail

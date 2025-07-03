@@ -342,11 +342,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
+		const items = completions.filter(c => !!c.label).map(c => new TerminalCompletionItem(c));
+		if (isInlineCompletionSupported(this.shellType)) {
+			items.push(this._inlineCompletionItem);
+		}
+
 		const model = new TerminalCompletionModel(
-			[
-				...completions.filter(c => !!c.label).map(c => new TerminalCompletionItem(c)),
-				this._inlineCompletionItem,
-			],
+			items,
 			lineContext
 		);
 		if (token.isCancellationRequested) {
