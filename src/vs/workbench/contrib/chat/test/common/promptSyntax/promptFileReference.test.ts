@@ -104,7 +104,7 @@ class TestPromptFileReference extends Disposable {
 			this.instantiationService.createInstance(
 				FilePromptParser,
 				this.rootFileUri,
-				{ seenReferences: [], allowNonPromptFiles: true, languageId: undefined },
+				{ allowNonPromptFiles: true, languageId: undefined },
 			),
 		).start();
 
