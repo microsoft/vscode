@@ -441,7 +441,7 @@ registerActiveInstanceAction({
 	keybinding: [{
 		primary: KeyCode.Tab,
 		// Tab is bound to other workbench keybindings that this needs to beat
-		weight: KeybindingWeight.WorkbenchContrib + 1
+		weight: KeybindingWeight.WorkbenchContrib + 2
 	},
 	{
 		primary: KeyCode.Enter,
