@@ -133,7 +133,7 @@ export class PromptHeader extends HeaderBase<IPromptMetadata> {
 
 		this.issues.push(
 			new PromptMetadataWarning(
-				mode.range,
+				tools.range,
 				localize(
 					'prompt.header.metadata.mode.diagnostics.incompatible-with-tools',
 					"Tools can only be used when in 'agent' mode, but the mode is set to '{0}'. The tools will be ignored.",
