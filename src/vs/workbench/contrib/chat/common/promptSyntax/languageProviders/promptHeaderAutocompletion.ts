@@ -171,7 +171,7 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 			const item: CompletionItem = {
 				label: value,
 				kind: CompletionItemKind.Value,
-				insertText: value,
+				insertText: whilespaceAfterColon === 0 ? ` ${value}` : value,
 				range: new Range(position.lineNumber, colonPosition.column + whilespaceAfterColon + 1, position.lineNumber, model.getLineMaxColumn(position.lineNumber)),
 			};
 			suggestions.push(item);

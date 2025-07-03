@@ -417,6 +417,8 @@ import './contrib/inlineCompletions/browser/inlineCompletions.contribution.js';
 // Drop or paste into
 import './contrib/dropOrPasteInto/browser/dropOrPasteInto.contribution.js';
 
+// Edit Telemetry
+import './contrib/editTelemetry/browser/editTelemetry.contribution.js';
 
 
 //#endregion

@@ -82,16 +82,16 @@ export abstract class AbstractMcpResourceManagementService extends Disposable im
 	private initialize(): Promise<void> {
 		if (!this.initializePromise) {
 			this.initializePromise = (async () => {
-				this.local = await this.populateLocalServer();
+				this.local = await this.populateLocalServers();
 				this.startWatching();
 			})();
 		}
 		return this.initializePromise;
 	}
 
-	private async populateLocalServer(): Promise<Map<string, ILocalMcpServer>> {
+	private async populateLocalServers(): Promise<Map<string, ILocalMcpServer>> {
+		this.logService.trace('AbstractMcpResourceManagementService#populateLocalServers', this.mcpResource.toString());
 		const local = new Map<string, ILocalMcpServer>();
-		this.logService.info('MCP Management Service: fetchInstalled', this.mcpResource.toString());
 		try {
 			const scannedMcpServers = await this.mcpResourceScannerService.scanMcpServers(this.mcpResource, this.target);
 			if (scannedMcpServers.servers) {
@@ -118,7 +118,7 @@ export abstract class AbstractMcpResourceManagementService extends Disposable im
 
 	protected async updateLocal(): Promise<void> {
 		try {
-			const current = await this.populateLocalServer();
+			const current = await this.populateLocalServers();
 
 			const added: ILocalMcpServer[] = [];
 			const updated: ILocalMcpServer[] = [];

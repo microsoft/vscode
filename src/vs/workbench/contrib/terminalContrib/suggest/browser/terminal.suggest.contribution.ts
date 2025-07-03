@@ -307,20 +307,6 @@ registerTerminalAction({
 });
 
 registerActiveInstanceAction({
-	id: TerminalSuggestCommandId.ResetDiscoverability,
-	title: localize2('workbench.action.terminal.resetDiscoverability', 'Reset Suggest Discoverability'),
-	f1: true,
-	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		TerminalContextKeys.isOpen,
-		ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.Enabled}`, true)
-	),
-	run: (activeInstance) => {
-		TerminalSuggestContribution.get(activeInstance)?.addon?.resetDiscoverability();
-	}
-});
-
-registerActiveInstanceAction({
 	id: TerminalSuggestCommandId.RequestCompletions,
 	title: localize2('workbench.action.terminal.requestCompletions', 'Request Completions'),
 	keybinding: {
@@ -441,7 +427,7 @@ registerActiveInstanceAction({
 	keybinding: [{
 		primary: KeyCode.Tab,
 		// Tab is bound to other workbench keybindings that this needs to beat
-		weight: KeybindingWeight.WorkbenchContrib + 1
+		weight: KeybindingWeight.WorkbenchContrib + 2
 	},
 	{
 		primary: KeyCode.Enter,
