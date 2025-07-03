@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Quality } from './application';
 import { Code } from './code';
 import { QuickAccess } from './quickaccess';
 import { QuickInput } from './quickinput';
@@ -47,7 +46,7 @@ export class Notebook {
 
 		await this.code.waitForElement(editor);
 
-		const editContext = `${editor} ${this.code.quality === Quality.Stable ? 'textarea' : '.native-edit-context'}`;
+		const editContext = `${editor} ${!this.code.editContextEnabled ? 'textarea' : '.native-edit-context'}`;
 		await this.code.waitForActiveElement(editContext);
 
 		await this.code.waitForTypeInEditor(editContext, text);

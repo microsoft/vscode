@@ -11,7 +11,7 @@ import { ResourceMap, ResourceSet } from '../../../base/common/map.js';
 import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { IMarker, IMarkerData, IMarkerService, IResourceMarker, MarkerSeverity, MarkerStatistics } from './markers.js';
+import { IMarker, IMarkerData, IMarkerReadOptions, IMarkerService, IResourceMarker, MarkerSeverity, MarkerStatistics } from './markers.js';
 
 export const unsupportedSchemas = new Set([
 	Schemas.inMemory,
@@ -19,6 +19,7 @@ export const unsupportedSchemas = new Set([
 	Schemas.walkThrough,
 	Schemas.walkThroughSnippet,
 	Schemas.vscodeChatCodeBlock,
+	Schemas.vscodeTerminal
 ]);
 
 class DoubleResourceMap<V> {
@@ -231,7 +232,7 @@ export class MarkerService implements IMarkerService {
 			message, source,
 			startLineNumber, startColumn, endLineNumber, endColumn,
 			relatedInformation,
-			tags,
+			tags, origin
 		} = data;
 
 		if (!message) {
@@ -257,6 +258,7 @@ export class MarkerService implements IMarkerService {
 			endColumn,
 			relatedInformation,
 			tags,
+			origin
 		};
 	}
 
@@ -326,7 +328,7 @@ export class MarkerService implements IMarkerService {
 		};
 	}
 
-	read(filter: { owner?: string; resource?: URI; severities?: number; take?: number } = Object.create(null)): IMarker[] {
+	read(filter: IMarkerReadOptions = Object.create(null)): IMarker[] {
 
 		let { owner, resource, severities, take } = filter;
 
@@ -336,7 +338,7 @@ export class MarkerService implements IMarkerService {
 
 		if (owner && resource) {
 			// exactly one owner AND resource
-			const reasons = this._filteredResources.get(resource);
+			const reasons = !filter.ignoreResourceFilters ? this._filteredResources.get(resource) : undefined;
 			if (reasons?.length) {
 				const infoMarker = this._createFilteredMarker(resource, reasons);
 				return [infoMarker];
@@ -352,7 +354,7 @@ export class MarkerService implements IMarkerService {
 				if (take > 0 && result.length === take) {
 					break;
 				}
-				const reasons = this._filteredResources.get(resource);
+				const reasons = !filter.ignoreResourceFilters ? this._filteredResources.get(resource) : undefined;
 				if (reasons?.length) {
 					result.push(this._createFilteredMarker(resource, reasons));
 
@@ -379,7 +381,7 @@ export class MarkerService implements IMarkerService {
 					if (take > 0 && result.length === take) {
 						break;
 					}
-					const reasons = this._filteredResources.get(data.resource);
+					const reasons = !filter.ignoreResourceFilters ? this._filteredResources.get(data.resource) : undefined;
 					if (reasons?.length) {
 						result.push(this._createFilteredMarker(data.resource, reasons));
 						filtered.add(data.resource);

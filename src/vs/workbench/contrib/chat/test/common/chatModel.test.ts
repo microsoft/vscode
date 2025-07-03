@@ -4,26 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { OffsetRange } from '../../../../../editor/common/core/offsetRange.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ChatAgentService, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatModel, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, normalizeSerializableChatData, Response } from '../../common/chatModel.js';
 import { ChatRequestTextPart } from '../../common/chatParserTypes.js';
-import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
-import { TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ChatAgentLocation } from '../../common/constants.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 
 suite('ChatModel', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -40,83 +39,9 @@ suite('ChatModel', () => {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	});
 
-	test('Waits for initialization', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
-
-		let hasInitialized = false;
-		model.waitForInitialization().then(() => {
-			hasInitialized = true;
-		});
-
-		await timeout(0);
-		assert.strictEqual(hasInitialized, false);
-
-		model.startInitialize();
-		model.initialize(undefined);
-		await timeout(0);
-		assert.strictEqual(hasInitialized, true);
-	});
-
-	test('must call startInitialize before initialize', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
-
-		let hasInitialized = false;
-		model.waitForInitialization().then(() => {
-			hasInitialized = true;
-		});
-
-		await timeout(0);
-		assert.strictEqual(hasInitialized, false);
-
-		assert.throws(() => model.initialize(undefined));
-		assert.strictEqual(hasInitialized, false);
-	});
-
-	test('deinitialize/reinitialize', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
-
-		let hasInitialized = false;
-		model.waitForInitialization().then(() => {
-			hasInitialized = true;
-		});
-
-		model.startInitialize();
-		model.initialize(undefined);
-		await timeout(0);
-		assert.strictEqual(hasInitialized, true);
-
-		model.deinitialize();
-		let hasInitialized2 = false;
-		model.waitForInitialization().then(() => {
-			hasInitialized2 = true;
-		});
-
-		model.startInitialize();
-		model.initialize(undefined);
-		await timeout(0);
-		assert.strictEqual(hasInitialized2, true);
-	});
-
-	test('cannot initialize twice', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
-
-		model.startInitialize();
-		model.initialize(undefined);
-		assert.throws(() => model.initialize(undefined));
-	});
-
-	test('Initialization fails when model is disposed', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
-		model.dispose();
-
-		assert.throws(() => model.initialize(undefined));
-	});
-
 	test('removeRequest', async () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
 
-		model.startInitialize();
-		model.initialize(undefined);
 		const text = 'hello';
 		model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
 		const requests = model.getRequests();
@@ -129,12 +54,6 @@ suite('ChatModel', () => {
 	test('adoptRequest', async function () {
 		const model1 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Editor));
 		const model2 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
-
-		model1.startInitialize();
-		model1.initialize(undefined);
-
-		model2.startInitialize();
-		model2.initialize(undefined);
 
 		const text = 'hello';
 		const request1 = model1.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
@@ -158,9 +77,6 @@ suite('ChatModel', () => {
 
 	test('addCompleteRequest', async function () {
 		const model1 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
-
-		model1.startInitialize();
-		model1.initialize(undefined);
 
 		const text = 'hello';
 		const request1 = model1.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, true);

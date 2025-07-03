@@ -113,7 +113,11 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 			},
 			{
 				createEditorInput: ({ resource }) => {
-					const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.inputResource.toString() === resource.toString());
+					const editorInput = editorService.findEditors({
+						resource,
+						editorId: 'interactive',
+						typeId: InteractiveEditorInput.ID
+					}, { order: EditorsOrder.SEQUENTIAL }).at(0);
 					return editorInput!;
 				}
 			}

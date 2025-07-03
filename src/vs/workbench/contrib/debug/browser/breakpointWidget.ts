@@ -42,6 +42,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { editorForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, CONTEXT_IN_BREAKPOINT_WIDGET, BreakpointWidgetContext as Context, DEBUG_SCHEME, IBreakpoint, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugService } from '../common/debug.js';
 import './media/breakpointWidget.css';
@@ -87,7 +88,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	private input!: IActiveCodeEditor;
 	private selectBreakpointBox!: SelectBox;
 	private selectModeBox?: SelectBox;
-	private toDispose: lifecycle.IDisposable[];
+	private store: lifecycle.DisposableStore;
 	private conditionInput = '';
 	private hitCountInput = '';
 	private logMessageInput = '';
@@ -113,7 +114,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	) {
 		super(editor, { showFrame: true, showArrow: false, frameWidth: 1, isAccessible: true });
 
-		this.toDispose = [];
+		this.store = new lifecycle.DisposableStore();
 		const model = this.editor.getModel();
 		if (model) {
 			const uri = model.uri;
@@ -135,7 +136,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			this.context = context;
 		}
 
-		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(e => {
+		this.store.add(this.debugService.getModel().onDidChangeBreakpoints(e => {
 			if (this.breakpoint && e && e.removed && e.removed.indexOf(this.breakpoint) >= 0) {
 				this.dispose();
 			}
@@ -205,12 +206,12 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('breakpoint-widget');
-		const selectBox = new SelectBox([
+		const selectBox = this.store.add(new SelectBox([
 			{ text: nls.localize('expression', "Expression") },
 			{ text: nls.localize('hitCount', "Hit Count") },
 			{ text: nls.localize('logMessage', "Log Message") },
 			{ text: nls.localize('triggeredBy', "Wait for Breakpoint") },
-		] satisfies ISelectOptionItem[], this.context, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
+		] satisfies ISelectOptionItem[], this.context, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type'), useCustomDrawn: !hasNativeContextMenu(this._configurationService) }));
 		this.selectContainer = $('.breakpoint-select-container');
 		selectBox.render(dom.append(container, this.selectContainer));
 		selectBox.onDidSelect(e => {
@@ -222,11 +223,11 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.createModesInput(container);
 
 		this.inputContainer = $('.inputContainer');
-		this.toDispose.push(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.inputContainer, this.placeholder));
+		this.store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.inputContainer, this.placeholder));
 		this.createBreakpointInput(dom.append(container, this.inputContainer));
 
 		this.input.getModel().setValue(this.getInputValue(this.breakpoint));
-		this.toDispose.push(this.input.getModel().onDidChangeContent(() => {
+		this.store.add(this.input.getModel().onDidChangeContent(() => {
 			this.fitHeightToContent();
 		}));
 		this.input.setPosition({ lineNumber: 1, column: this.input.getModel().getLineMaxColumn(1) });
@@ -252,9 +253,10 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			modes.findIndex(m => m.mode === this.breakpoint?.mode) + 1,
 			this.contextViewService,
 			defaultSelectBoxStyles,
+			{ useCustomDrawn: !hasNativeContextMenu(this._configurationService) }
 		);
-		this.toDispose.push(sb);
-		this.toDispose.push(sb.onDidSelect(e => {
+		this.store.add(sb);
+		this.store.add(sb.onDidSelect(e => {
 			this.modeInput = modes[e.index - 1];
 		}));
 
@@ -288,7 +290,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			});
 		}
 
-		const selectBreakpointBox = this.selectBreakpointBox = new SelectBox(breakpointOptions, index + 1, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint') });
+		const selectBreakpointBox = this.selectBreakpointBox = new SelectBox(breakpointOptions, index + 1, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint'), useCustomDrawn: !hasNativeContextMenu(this._configurationService) });
 		selectBreakpointBox.onDidSelect(e => {
 			if (e.index === 0) {
 				this.triggeredByBreakpointInput = undefined;
@@ -296,9 +298,9 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 				this.triggeredByBreakpointInput = breakpoints[e.index - 1];
 			}
 		});
-		this.toDispose.push(selectBreakpointBox);
+		this.store.add(selectBreakpointBox);
 		this.selectBreakpointContainer = $('.select-breakpoint-container');
-		this.toDispose.push(dom.addDisposableListener(this.selectBreakpointContainer, dom.EventType.KEY_DOWN, e => {
+		this.store.add(dom.addDisposableListener(this.selectBreakpointContainer, dom.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Escape)) {
 				this.close(false);
@@ -313,8 +315,8 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 		const closeButton = new Button(this.selectBreakpointContainer, defaultButtonStyles);
 		closeButton.label = nls.localize('ok', "OK");
-		this.toDispose.push(closeButton.onDidClick(() => this.close(true)));
-		this.toDispose.push(closeButton);
+		this.store.add(closeButton.onDidClick(() => this.close(true)));
+		this.store.add(closeButton);
 	}
 
 	private updateContextInput() {
@@ -347,7 +349,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		const scopedInstatiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IPrivateBreakpointWidgetService, this]
 		));
-		this.toDispose.push(scopedInstatiationService);
+		this.store.add(scopedInstatiationService);
 
 		const options = this.createEditorOptions();
 		const codeEditorWidgetOptions = getSimpleCodeEditorWidgetOptions();
@@ -360,7 +362,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		}
 		this.input.setModel(model);
 		this.setInputMode();
-		this.toDispose.push(model);
+		this.store.add(model);
 		const setDecorations = () => {
 			const value = this.input.getModel().getValue();
 			const decorations = !!value ? [] : createDecorations(this.themeService.getColorTheme(), this.placeholder);
@@ -369,7 +371,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.input.getModel().onDidChangeContent(() => setDecorations());
 		this.themeService.onDidColorThemeChange(() => setDecorations());
 
-		this.toDispose.push(this.languageFeaturesService.completionProvider.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
+		this.store.add(this.languageFeaturesService.completionProvider.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'breakpointWidget',
 			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
 				let suggestionsPromise: Promise<CompletionList>;
@@ -403,7 +405,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			}
 		}));
 
-		this.toDispose.push(this._configurationService.onDidChangeConfiguration((e) => {
+		this.store.add(this._configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('editor.fontSize') || e.affectsConfiguration('editor.lineHeight')) {
 				this.input.updateOptions(this.createEditorOptions());
 				this.centerInputVertically();
@@ -508,7 +510,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	override dispose(): void {
 		super.dispose();
 		this.input.dispose();
-		lifecycle.dispose(this.toDispose);
+		lifecycle.dispose(this.store);
 		setTimeout(() => this.editor.focus(), 0);
 	}
 }

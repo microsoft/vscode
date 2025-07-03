@@ -29,6 +29,7 @@ import { ITestCodeEditor, TestCodeEditorInstantiationOptions, createCodeEditorSe
 import { IRelaxedTextModelCreationOptions, createTextModel, instantiateTextModel } from '../../common/testTextModel.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InputMode } from '../../../common/inputMode.js';
+import { EditReasons } from '../../../common/textModelEditReason.js';
 
 // --------- utils
 
@@ -5650,7 +5651,7 @@ suite('Editor Controller', () => {
 		}, (editor, model, viewModel) => {
 			viewModel.setSelections('test', [new Selection(1, 8, 1, 8)]);
 
-			viewModel.executeEdits('snippet', [{ range: new Range(1, 6, 1, 8), text: 'id=""' }], () => [new Selection(1, 10, 1, 10)]);
+			viewModel.executeEdits('snippet', [{ range: new Range(1, 6, 1, 8), text: 'id=""' }], () => [new Selection(1, 10, 1, 10)], EditReasons.unknown({}));
 			assert.strictEqual(model.getLineContent(1), '<div id=""');
 
 			viewModel.type('a', 'keyboard');

@@ -55,6 +55,11 @@ export interface IWorkbenchOptions {
 	 * Extra classes to be added to the workbench container.
 	 */
 	extraClasses?: string[];
+
+	/**
+	 * Whether to reset the workbench parts layout on startup.
+	 */
+	resetLayout?: boolean;
 }
 
 export class Workbench extends Layout {
@@ -71,7 +76,7 @@ export class Workbench extends Layout {
 		private readonly serviceCollection: ServiceCollection,
 		logService: ILogService
 	) {
-		super(parent);
+		super(parent, { resetLayout: Boolean(options?.resetLayout) });
 
 		// Perf: measure workbench startup time
 		mark('code/willStartWorkbench');

@@ -249,7 +249,10 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 		'log-level',
 
 		// Use an in-memory storage for secrets
-		'use-inmemory-secretstorage'
+		'use-inmemory-secretstorage',
+
+		// Enables display tracking to restore maximized windows under RDP: https://github.com/electron/electron/issues/47016
+		'enable-rdp-display-tracking'
 	];
 
 	// Read argv config
@@ -307,14 +310,22 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 						process.argv.push('--use-inmemory-secretstorage');
 					}
 					break;
+
+				case 'enable-rdp-display-tracking':
+					if (argvValue) {
+						process.argv.push('--enable-rdp-display-tracking');
+					}
+					break;
 			}
 		}
 	});
 
 	// Following features are enabled from the runtime:
 	// `DocumentPolicyIncludeJSCallStacksInCrashReports` - https://www.electronjs.org/docs/latest/api/web-frame-main#framecollectjavascriptcallstack-experimental
+	// `EarlyEstablishGpuChannel` - Refs https://issues.chromium.org/issues/40208065
+	// `EstablishGpuChannelAsync` - Refs https://issues.chromium.org/issues/40208065
 	const featuresToEnable =
-		`DocumentPolicyIncludeJSCallStacksInCrashReports, ${app.commandLine.getSwitchValue('enable-features')}`;
+		`DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync,${app.commandLine.getSwitchValue('enable-features')}`;
 	app.commandLine.appendSwitch('enable-features', featuresToEnable);
 
 	// Following features are disabled from the runtime:
@@ -357,6 +368,7 @@ interface IArgvConfig {
 	readonly 'log-level'?: string | string[];
 	readonly 'disable-chromium-sandbox'?: boolean;
 	readonly 'use-inmemory-secretstorage'?: boolean;
+	readonly 'enable-rdp-display-tracking'?: boolean;
 }
 
 function readArgvConfigSync(): IArgvConfig {

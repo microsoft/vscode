@@ -32,6 +32,22 @@ function patchGrammar(grammar) {
 		console.warn(`Expected to patch 2 occurrences of source.js & source.css: Was ${patchCount}`);
 	}
 
+	return grammar;
+}
+
+function patchGrammarDerivative(grammar) {
+	let patchCount = 0;
+
+	let patterns = grammar.patterns;
+	for (let key in patterns) {
+		if (patterns[key]?.name === 'meta.tag.other.unrecognized.html.derivative' && patterns[key]?.begin === '(</?)(\\w[^\\s>]*)(?<!/)') {
+			patterns[key].begin = '(</?)(\\w[^\\s<>]*)(?<!/)';
+			patchCount++;
+		}
+	}
+	if (patchCount !== 1) {
+		console.warn(`Expected to do 1 patch: Was ${patchCount}`);
+	}
 
 	return grammar;
 }
@@ -40,4 +56,6 @@ const tsGrammarRepo = 'textmate/html.tmbundle';
 const grammarPath = 'Syntaxes/HTML.plist';
 vscodeGrammarUpdater.update(tsGrammarRepo, grammarPath, './syntaxes/html.tmLanguage.json', grammar => patchGrammar(grammar));
 
+const grammarDerivativePath = 'Syntaxes/HTML%20%28Derivative%29.tmLanguage';
+vscodeGrammarUpdater.update(tsGrammarRepo, grammarDerivativePath, './syntaxes/html-derivative.tmLanguage.json', grammar => patchGrammarDerivative(grammar));
 

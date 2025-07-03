@@ -251,8 +251,6 @@ function isNameTakenInFile(node, name) {
     return false;
 }
 const skippedExportMangledFiles = [
-    // Build
-    'css.build',
     // Monaco
     'editorCommon',
     'editorOptions',

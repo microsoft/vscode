@@ -11,15 +11,15 @@ import { Selection } from '../../../../editor/common/core/selection.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
-import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
 import { IChatResponseModel } from '../common/chatModel.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
+import { IChatSendRequestOptions } from '../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/chatViewModel.js';
-import { ChatAgentLocation, ChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatInputPart } from './chatInputPart.js';
 import { ChatViewPane } from './chatViewPane.js';
@@ -49,18 +49,6 @@ export async function showChatView(viewsService: IViewsService): Promise<IChatWi
 	return (await viewsService.openView<ChatViewPane>(ChatViewId))?.widget;
 }
 
-export async function showEditsView(viewsService: IViewsService): Promise<IChatWidget | undefined> {
-	return (await viewsService.openView<ChatViewPane>(EditsViewId))?.widget;
-}
-
-export function preferCopilotEditsView(viewsService: IViewsService): boolean {
-	if (viewsService.getFocusedView()?.id === ChatViewId || !!viewsService.getActiveViewWithId(ChatViewId)) {
-		return false;
-	}
-
-	return !!viewsService.getActiveViewWithId(EditsViewId);
-}
-
 export function showCopilotView(viewsService: IViewsService, layoutService: IWorkbenchLayoutService): Promise<IChatWidget | undefined> {
 
 	// Ensure main window is in front
@@ -68,35 +56,7 @@ export function showCopilotView(viewsService: IViewsService, layoutService: IWor
 		layoutService.mainContainer.focus();
 	}
 
-	// Bring up the correct view
-	if (preferCopilotEditsView(viewsService)) {
-		return showEditsView(viewsService);
-	} else {
-		return showChatView(viewsService);
-	}
-}
-
-export function ensureSideBarChatViewSize(viewDescriptorService: IViewDescriptorService, layoutService: IWorkbenchLayoutService, viewsService: IViewsService): void {
-	const viewId = preferCopilotEditsView(viewsService) ? EditsViewId : ChatViewId;
-
-	const location = viewDescriptorService.getViewLocationById(viewId);
-	if (location === ViewContainerLocation.Panel) {
-		return; // panel is typically very wide
-	}
-
-	const viewPart = location === ViewContainerLocation.Sidebar ? Parts.SIDEBAR_PART : Parts.AUXILIARYBAR_PART;
-	const partSize = layoutService.getSize(viewPart);
-
-	let adjustedChatWidth: number | undefined;
-	if (partSize.width < 400 && layoutService.mainContainerDimension.width > 1200) {
-		adjustedChatWidth = 400; // up to 400px if window bounds permit
-	} else if (partSize.width < 300) {
-		adjustedChatWidth = 300; // at minimum 300px
-	}
-
-	if (typeof adjustedChatWidth === 'number') {
-		layoutService.setSize(viewPart, { width: adjustedChatWidth, height: partSize.height });
-	}
+	return showChatView(viewsService);
 }
 
 export const IQuickChatService = createDecorator<IQuickChatService>('quickChatService');
@@ -142,6 +102,7 @@ export interface IChatCodeBlockInfo {
 	readonly uriPromise: Promise<URI | undefined>;
 	codemapperUri: URI | undefined;
 	readonly isStreaming: boolean;
+	readonly chatSessionId: string;
 	focus(): void;
 }
 
@@ -159,17 +120,16 @@ export interface IChatListItemRendererOptions {
 	readonly editableCodeBlock?: boolean;
 	readonly renderDetectedCommandsWithRequest?: boolean;
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
-	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatMode) => boolean);
-	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatMode) => boolean);
+	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatModeKind) => boolean);
+	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatModeKind) => boolean);
 }
 
 export interface IChatWidgetViewOptions {
-	autoScroll?: boolean | ((mode: ChatMode) => boolean);
+	autoScroll?: boolean | ((mode: ChatModeKind) => boolean);
 	renderInputOnTop?: boolean;
 	renderFollowups?: boolean;
 	renderStyle?: 'compact' | 'minimal';
 	supportsFileReferences?: boolean;
-	supportsAdditionalParticipants?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
 	rendererOptions?: IChatListItemRendererOptions;
 	menus?: {
@@ -191,6 +151,7 @@ export interface IChatWidgetViewOptions {
 	enableImplicitContext?: boolean;
 	enableWorkingSet?: 'explicit' | 'implicit';
 	supportsChangingModes?: boolean;
+	dndContainer?: HTMLElement;
 }
 
 export interface IChatViewViewContext {
@@ -199,6 +160,7 @@ export interface IChatViewViewContext {
 
 export interface IChatResourceViewContext {
 	isQuickChat?: boolean;
+	isInlineChat?: boolean;
 }
 
 export type IChatWidgetViewContext = IChatViewViewContext | IChatResourceViewContext | {};
@@ -209,6 +171,7 @@ export interface IChatAcceptInputOptions {
 }
 
 export interface IChatWidget {
+	readonly domNode: HTMLElement;
 	readonly onDidChangeViewModel: Event<void>;
 	readonly onDidAcceptInput: Event<void>;
 	readonly onDidHide: Event<void>;
@@ -226,8 +189,7 @@ export interface IChatWidget {
 	readonly input: ChatInputPart;
 	readonly attachmentModel: ChatAttachmentModel;
 
-	// TODO I don't like this
-	readonly isUnifiedPanelWidget: boolean;
+	readonly supportsChangingModes: boolean;
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined;
 	reveal(item: ChatTreeItem): void;
@@ -239,17 +201,25 @@ export interface IChatWidget {
 	refreshParsedInput(): void;
 	logInputHistory(): void;
 	acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined>;
+	startEditing(requestId: string): void;
+	finishedEditing(completedEdit?: boolean): void;
 	rerunLastRequest(): Promise<void>;
 	setInputPlaceholder(placeholder: string): void;
 	resetInputPlaceholder(): void;
 	focusLastMessage(): void;
 	focusInput(): void;
 	hasInputFocus(): boolean;
+	getModeRequestOptions(): Partial<IChatSendRequestOptions>;
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined;
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[];
 	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[];
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
 	clear(): void;
+	/**
+	 * Wait for this widget to have a VM with a fully initialized model and editing session.
+	 * Sort of a hack. See https://github.com/microsoft/vscode/issues/247484
+	 */
+	waitForReady(): Promise<void>;
 	getViewState(): IChatViewState;
 	togglePaused(): void;
 }
@@ -267,5 +237,3 @@ export interface IChatCodeBlockContextProviderService {
 }
 
 export const ChatViewId = `workbench.panel.chat.view.${CHAT_PROVIDER_ID}`;
-
-export const EditsViewId = 'workbench.panel.chat.view.edits';

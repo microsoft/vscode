@@ -325,6 +325,13 @@ export interface IHoverAppearanceOptions {
 	 * another in the same group so it looks like the hover is moving from one element to the other.
 	 */
 	skipFadeInAnimation?: boolean;
+
+	/**
+	 * The max height of the hover relative to the window height.
+	 * Accepted values: (0,1]
+	 * Default: 0.5
+	 */
+	maxHeightRatio?: number;
 }
 
 export interface IHoverAction {

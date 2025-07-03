@@ -35,7 +35,7 @@ import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMul
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, chatEditingSnapshotScheme, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, chatEditingSnapshotScheme, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, ModifiedFileEntryState, parseChatMultiDiffUri } from '../../common/chatEditingService.js';
 import { ChatModel, IChatResponseModel, isCellTextEditOperation } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
@@ -220,6 +220,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		// multiple times during the process of response streaming.
 		const editsSeen: ({ seen: number; streaming: IStreamingEdits } | undefined)[] = [];
 
+		let editorDidChange = false;
+		const editorListener = Event.once(this._editorService.onDidActiveEditorChange)(() => {
+			editorDidChange = true;
+		});
+
 		const editedFilesExist = new ResourceMap<Promise<void>>();
 		const ensureEditorOpen = (partUri: URI) => {
 			const uri = CellUri.parse(partUri)?.notebook ?? partUri;
@@ -233,8 +238,9 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					return;
 				}
 				const activeUri = this._editorService.activeEditorPane?.input.resource;
-				const inactive = this._editorService.activeEditorPane?.input instanceof ChatEditorInput && this._editorService.activeEditorPane.input.sessionId === session.chatSessionId ||
-					Boolean(activeUri && session.entries.get().find(entry => isEqual(activeUri, entry.modifiedURI)));
+				const inactive = editorDidChange
+					|| this._editorService.activeEditorPane?.input instanceof ChatEditorInput && this._editorService.activeEditorPane.input.sessionId === session.chatSessionId
+					|| Boolean(activeUri && session.entries.get().find(entry => isEqual(activeUri, entry.modifiedURI)));
 				this._editorService.openEditor({ resource: uri, options: { inactive, preserveFocus: true, pinned: true } });
 			}));
 		};
@@ -250,6 +256,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 			editsSeen.length = 0;
 			editedFilesExist.clear();
+			editorListener.dispose();
 		};
 
 		const handleResponseParts = async () => {
@@ -285,18 +292,19 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 				if (newEdits.length > 0 || isFirst) {
 					if (part.kind === 'notebookEditGroup') {
-						newEdits.forEach(edit => {
+						newEdits.forEach((edit, idx) => {
+							const done = part.done ? idx === newEdits.length - 1 : false;
 							if (TextEdit.isTextEdit(edit)) {
 								// Not possible, as Notebooks would have a different type.
 								return;
 							} else if (isCellTextEditOperation(edit)) {
-								entry.streaming.pushNotebookCellText(edit.uri, [edit.edit]);
+								entry.streaming.pushNotebookCellText(edit.uri, [edit.edit], done);
 							} else {
-								entry.streaming.pushNotebook([edit]);
+								entry.streaming.pushNotebook([edit], done);
 							}
 						});
 					} else if (part.kind === 'textEditGroup') {
-						entry.streaming.pushText(newEdits as TextEdit[]);
+						entry.streaming.pushText(newEdits as TextEdit[], part.done ?? false);
 					}
 				}
 
@@ -394,19 +402,20 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 
 	private readonly _modifiedUris = derived<URI[]>(this, (r) => {
 		const uri = this._currentEntries.read(r);
-		return uri.filter(entry => !entry.isCurrentlyBeingModifiedBy.read(r) && entry.state.read(r) === WorkingSetEntryState.Modified).map(entry => entry.modifiedURI);
+		return uri.filter(entry => !entry.isCurrentlyBeingModifiedBy.read(r) && entry.state.read(r) === ModifiedFileEntryState.Modified).map(entry => entry.modifiedURI);
 	});
 
-	public readonly onDidChange = Event.any(
-		observeArrayChanges(this._currentlyEditingUris, compareBy(uri => uri.toString(), compare), this._store),
-		observeArrayChanges(this._modifiedUris, compareBy(uri => uri.toString(), compare), this._store),
-	);
+	readonly onDidChange: Event<URI[]>;
 
 	constructor(
 		private readonly _sessions: IObservable<readonly IChatEditingSession[]>,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService
 	) {
 		super();
+		this.onDidChange = Event.any(
+			observeArrayChanges(this._currentlyEditingUris, compareBy(uri => uri.toString(), compare), this._store),
+			observeArrayChanges(this._modifiedUris, compareBy(uri => uri.toString(), compare), this._store),
+		);
 	}
 
 	provideDecorations(uri: URI, _token: CancellationToken): IDecorationData | undefined {
@@ -420,7 +429,7 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 		}
 		const isModified = this._modifiedUris.get().some(e => e.toString() === uri.toString());
 		if (isModified) {
-			const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.EditingSession)?.fullName;
+			const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.fullName;
 			return {
 				weight: 1000,
 				letter: Codicon.diffModified,
@@ -445,11 +454,12 @@ export class ChatEditingMultiDiffSourceResolver implements IMultiDiffSourceResol
 
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
 
+		const parsed = parseChatMultiDiffUri(uri);
 		const thisSession = derived(this, r => {
-			return this._editingSessionsObs.read(r).find(candidate => candidate.chatSessionId === uri.authority);
+			return this._editingSessionsObs.read(r).find(candidate => candidate.chatSessionId === parsed.chatSessionId);
 		});
 
-		return this._instantiationService.createInstance(ChatEditingMultiDiffSource, thisSession);
+		return this._instantiationService.createInstance(ChatEditingMultiDiffSource, thisSession, parsed.showPreviousChanges);
 	}
 }
 
@@ -461,6 +471,21 @@ class ChatEditingMultiDiffSource implements IResolvedMultiDiffSource {
 		}
 		const entries = currentSession.entries.read(reader);
 		return entries.map((entry) => {
+			if (this._showPreviousChanges) {
+				const entryDiffObs = currentSession.getEntryDiffBetweenStops(entry.modifiedURI, undefined, undefined);
+				const entryDiff = entryDiffObs?.read(reader);
+				if (entryDiff) {
+					return new MultiDiffEditorItem(
+						entryDiff.originalURI,
+						entryDiff.modifiedURI,
+						undefined,
+						{
+							[chatEditingResourceContextKey.key]: entry.entryId,
+						},
+					);
+				}
+			}
+
 			return new MultiDiffEditorItem(
 				entry.originalURI,
 				entry.modifiedURI,
@@ -479,6 +504,7 @@ class ChatEditingMultiDiffSource implements IResolvedMultiDiffSource {
 	};
 
 	constructor(
-		private readonly _currentSession: IObservable<IChatEditingSession | undefined>
+		private readonly _currentSession: IObservable<IChatEditingSession | undefined>,
+		private readonly _showPreviousChanges: boolean
 	) { }
 }
