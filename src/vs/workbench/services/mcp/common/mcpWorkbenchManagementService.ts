@@ -52,6 +52,7 @@ export interface IWorkbenchMcpManagementService extends IMcpManagementService {
 	readonly onDidUpdateMcpServersInCurrentProfile: Event<readonly IWorkbenchMcpServerInstallResult[]>;
 	readonly onUninstallMcpServerInCurrentProfile: Event<UninstallMcpServerEvent>;
 	readonly onDidUninstallMcpServerInCurrentProfile: Event<DidUninstallMcpServerEvent>;
+	readonly onDidChangeProfile: Event<void>;
 
 	getInstalled(): Promise<IWorkbenchLocalMcpServer[]>;
 	install(server: IInstallableMcpServer, options?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchLocalMcpServer>;
@@ -92,6 +93,9 @@ class WorkbenchMcpManagementService extends Disposable implements IWorkbenchMcpM
 
 	private readonly _onDidUninstallMcpServerInCurrentProfile = this._register(new Emitter<DidUninstallMcpServerEvent>());
 	readonly onDidUninstallMcpServerInCurrentProfile = this._onDidUninstallMcpServerInCurrentProfile.event;
+
+	private readonly _onDidChangeProfile = this._register(new Emitter<void>());
+	readonly onDidChangeProfile = this._onDidChangeProfile.event;
 
 	private readonly workspaceMcpManagementService: IMcpManagementService;
 	private readonly remoteMcpManagementService: IMcpManagementService | undefined;
@@ -194,6 +198,12 @@ class WorkbenchMcpManagementService extends Disposable implements IWorkbenchMcpM
 				}
 			}));
 		}
+
+		this._register(userDataProfileService.onDidChangeCurrentProfile(e => {
+			if (!this.uriIdentityService.extUri.isEqual(e.previous.mcpResource, e.profile.mcpResource)) {
+				this._onDidChangeProfile.fire();
+			}
+		}));
 	}
 
 	private handleInstallMcpServerResultsFromEvent(e: readonly InstallMcpServerResult[], emitter: Emitter<readonly InstallMcpServerResult[]>, currentProfileEmitter: Emitter<readonly InstallMcpServerResult[]>): void {
@@ -337,9 +347,9 @@ class WorkbenchMcpManagementService extends Disposable implements IWorkbenchMcpM
 		if (profile) {
 			profile = await this.remoteUserDataProfilesService.getRemoteProfile(profile);
 		} else {
-			profile = (await this.remoteUserDataProfilesService.getRemoteProfiles()).find(p => this.uriIdentityService.extUri.isEqual(p.extensionsResource, mcpResource));
+			profile = (await this.remoteUserDataProfilesService.getRemoteProfiles()).find(p => this.uriIdentityService.extUri.isEqual(p.mcpResource, mcpResource));
 		}
-		return profile?.extensionsResource;
+		return profile?.mcpResource;
 	}
 }
 

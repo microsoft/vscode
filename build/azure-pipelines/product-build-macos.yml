@@ -1,9 +1,6 @@
 pr: none
 
-trigger:
-  batch: true
-  branches:
-    include: ["main"]
+trigger: none
 
 parameters:
   - name: VSCODE_QUALITY

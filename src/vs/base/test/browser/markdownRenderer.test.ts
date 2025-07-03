@@ -958,6 +958,14 @@ suite('MarkdownRenderer', () => {
 				assert.deepStrictEqual(newTokens, tokens);
 			});
 
+			test('square braces in text', () => {
+				const incomplete = 'hello [what] is going on';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+
 			test('complete link', () => {
 				const incomplete = 'text [link](http://microsoft.com)';
 				const tokens = marked.marked.lexer(incomplete);

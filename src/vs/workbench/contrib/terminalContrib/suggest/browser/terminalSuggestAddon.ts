@@ -907,6 +907,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	hideSuggestWidget(cancelAnyRequest: boolean): void {
+		this._discoverability?.resetTimer();
 		if (cancelAnyRequest) {
 			this._cancellationTokenSource?.cancel();
 			this._cancellationTokenSource = undefined;
