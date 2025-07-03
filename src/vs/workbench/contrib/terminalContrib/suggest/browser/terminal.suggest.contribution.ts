@@ -297,9 +297,9 @@ registerTerminalAction({
 		order: 1
 	},
 	keybinding: {
-		primary: KeyMod.CtrlCmd | KeyCode.Slash,
-		mac: { primary: KeyMod.WinCtrl | KeyCode.KeyK },
-		weight: KeybindingWeight.WorkbenchContrib + 1
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL,
+		weight: KeybindingWeight.WorkbenchContrib + 1,
+		when: TerminalContextKeys.suggestWidgetVisible
 	},
 	run: (c, accessor) => {
 		(accessor.get(IOpenerService)).open('https://aka.ms/vscode-terminal-intellisense');
