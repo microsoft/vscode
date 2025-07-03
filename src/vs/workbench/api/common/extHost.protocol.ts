@@ -1669,6 +1669,7 @@ export interface SCMArtifactGroupDto {
 export interface SCMArtifactDto {
 	readonly id: string;
 	readonly name: string;
+	readonly description?: string;
 }
 
 export interface MainThreadSCMShape extends IDisposable {

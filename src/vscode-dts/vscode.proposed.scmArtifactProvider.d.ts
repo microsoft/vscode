@@ -26,5 +26,6 @@ declare module 'vscode' {
 	export interface SourceControlArtifact {
 		readonly id: string;
 		readonly name: string;
+		readonly description?: string;
 	}
 }

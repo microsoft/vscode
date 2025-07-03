@@ -106,8 +106,13 @@ class ArtifactRenderer implements ITreeRenderer<SCMArtifactTreeElement, FuzzySco
 	}
 
 	renderElement(node: ITreeNode<SCMArtifactTreeElement, FuzzyScore>, index: number, templateData: ArtifactTemplate): void {
-		const element = node.element;
-		templateData.label.setLabel(element.artifact.name);
+		const artifact = node.element.artifact;
+
+		const artifactGroup = node.element.group;
+		const artifactGroupIcon = ThemeIcon.isThemeIcon(artifactGroup.icon)
+			? `$(${artifactGroup.icon.id}) ` : '';
+
+		templateData.label.setLabel(`${artifactGroupIcon}${artifact.name}`, artifact.description);
 	}
 
 	disposeTemplate(templateData: ArtifactTemplate): void {
