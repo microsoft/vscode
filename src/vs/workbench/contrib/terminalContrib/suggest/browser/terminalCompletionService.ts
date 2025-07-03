@@ -170,10 +170,21 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				return undefined;
 			}
 			const timeoutMs = explicitlyInvoked ? 30000 : 5000;
-			const completions = await Promise.race([
-				provider.provideCompletions(promptValue, cursorPosition, allowFallbackCompletions, token),
-				timeout(timeoutMs)
-			]);
+			let timedOut = false;
+			let completions;
+			try {
+				completions = await Promise.race([
+					provider.provideCompletions(promptValue, cursorPosition, allowFallbackCompletions, token),
+					(async () => { await timeout(timeoutMs); timedOut = true; return undefined; })()
+				]);
+			} catch (e) {
+				console.trace(`[TerminalCompletionService] Exception from provider '${provider.id}':`, e);
+				return undefined;
+			}
+			if (timedOut) {
+				console.trace(`[TerminalCompletionService] Provider '${provider.id}' timed out after ${timeoutMs}ms. promptValue='${promptValue}', cursorPosition=${cursorPosition}, explicitlyInvoked=${explicitlyInvoked}`);
+				return undefined;
+			}
 			if (!completions) {
 				return undefined;
 			}
