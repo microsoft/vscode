@@ -56,14 +56,19 @@ steps:
       - script: ./scripts/test.sh --build --tfs "Unit Tests"
         displayName: 🧪 Run unit tests (Electron)
         timeoutInMinutes: 15
+        env:
+          VSCODE_RUN_UNIT_TESTS: true
       - script: npm run test-node -- --build
         displayName: 🧪 Run unit tests (node.js)
         timeoutInMinutes: 15
+        env:
+          VSCODE_RUN_UNIT_TESTS: true
 
     - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
       - script: npm run test-browser-no-install -- --build --browser chromium --tfs "Browser Unit Tests"
         env:
           DEBUG: "*browser*"
+          VSCODE_RUN_BROWSER_UNIT_TESTS: true
         displayName: 🧪 Run unit tests (Browser, Chromium)
         timeoutInMinutes: 15
 
@@ -94,16 +99,21 @@ steps:
       - script: ./scripts/test-integration.sh --tfs "Integration Tests"
         env:
           DISPLAY: ":10"
+          VSCODE_RUN_INTEGRATION_TESTS: true
         displayName: 🧪 Run integration tests (Electron)
         timeoutInMinutes: 20
 
     - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
       - script: ./scripts/test-web-integration.sh --browser chromium
+        env:
+          VSCODE_RUN_BROWSER_INTEGRATION_TESTS: true
         displayName: 🧪 Run integration tests (Browser, Chromium)
         timeoutInMinutes: 20
 
     - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
       - script: ./scripts/test-remote-integration.sh
+        env:
+          VSCODE_RUN_REMOTE_INTEGRATION_TESTS: true
         displayName: 🧪 Run integration tests (Remote)
         timeoutInMinutes: 20
 
@@ -121,6 +131,7 @@ steps:
           ./scripts/test-integration.sh --build --tfs "Integration Tests"
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
+          VSCODE_RUN_INTEGRATION_TESTS: true
         displayName: 🧪 Run integration tests (Electron)
         timeoutInMinutes: 20
 
