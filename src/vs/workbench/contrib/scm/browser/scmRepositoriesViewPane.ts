@@ -20,7 +20,7 @@ import { Disposable, DisposableStore, IDisposable } from '../../../../base/commo
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { RepositoryActionRunner, RepositoryRenderer, ArtifactGroupRenderer, ArtifactRenderer } from './scmRepositoryRenderer.js';
+import { RepositoryActionRunner, RepositoryRenderer } from './scmRepositoryRenderer.js';
 import { collectContextMenuActions, getActionViewItemProvider, isSCMArtifactGroupTreeElement, isSCMArtifactTreeElement, isSCMRepository } from './util.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { Iterable } from '../../../../base/common/iterator.js';
@@ -31,6 +31,7 @@ import { autorun, IObservable, observableSignalFromEvent } from '../../../../bas
 import { SCMArtifactGroupTreeElement, SCMArtifactTreeElement } from '../common/artifact.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 type TreeElement = ISCMRepository | SCMArtifactGroupTreeElement | SCMArtifactTreeElement;
 
@@ -73,8 +74,11 @@ class ArtifactGroupRenderer implements ITreeRenderer<SCMArtifactGroupTreeElement
 	}
 
 	renderElement(node: ITreeNode<SCMArtifactGroupTreeElement, FuzzyScore>, index: number, templateData: ArtifactGroupTemplate): void {
-		const element = node.element;
-		templateData.label.setLabel(element.artifactGroup.name);
+		const artifactGroup = node.element.artifactGroup;
+		const artifactGroupIcon = ThemeIcon.isThemeIcon(artifactGroup.icon)
+			? `$(${artifactGroup.icon.id}) ` : '';
+
+		templateData.label.setLabel(`${artifactGroupIcon}${artifactGroup.name}`);
 	}
 
 	disposeTemplate(templateData: ArtifactGroupTemplate): void {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter } from 'vscode';
+import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, ThemeIcon } from 'vscode';
 import { IDisposable } from './util';
 import { Repository } from './repository';
 
@@ -23,14 +23,17 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 			{
 				id: 'branches',
 				name: 'Branches',
+				icon: new ThemeIcon('git-branch')
 			},
 			{
 				id: 'stashes',
 				name: 'Stashes',
+				icon: new ThemeIcon('git-stash')
 			},
 			{
 				id: 'tags',
 				name: 'Tags',
+				icon: new ThemeIcon('tag')
 			}
 		];
 	}

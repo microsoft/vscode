@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from '../../../../base/common/uri.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ISCMRepository } from './scm.js';
 
 export interface ISCMArtifactProvider {
@@ -13,6 +15,7 @@ export interface ISCMArtifactProvider {
 export interface ISCMArtifactGroup {
 	readonly id: string;
 	readonly name: string;
+	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
 }
 
 export interface ISCMArtifact {

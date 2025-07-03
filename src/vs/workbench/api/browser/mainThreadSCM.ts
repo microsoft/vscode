@@ -176,7 +176,8 @@ class MainThreadSCMArtifactProvider implements ISCMArtifactProvider {
 	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) { }
 
 	async provideArtifactGroups(token?: CancellationToken): Promise<ISCMArtifactGroup[] | undefined> {
-		return this.proxy.$provideArtifactGroups(this.handle, token ?? CancellationToken.None);
+		const artifactGroups = await this.proxy.$provideArtifactGroups(this.handle, token ?? CancellationToken.None);
+		return artifactGroups?.map(group => ({ ...group, icon: getIconFromIconDto(group.icon) }));
 	}
 
 	async provideArtifacts(group: string, token?: CancellationToken): Promise<ISCMArtifact[] | undefined> {

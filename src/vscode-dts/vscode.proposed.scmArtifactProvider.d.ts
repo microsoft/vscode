@@ -20,6 +20,7 @@ declare module 'vscode' {
 	export interface SourceControlArtifactGroup {
 		readonly id: string;
 		readonly name: string;
+		readonly icon?: IconPath;
 	}
 
 	export interface SourceControlArtifact {

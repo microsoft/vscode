@@ -1663,6 +1663,7 @@ export interface SCMHistoryItemChangeDto {
 export interface SCMArtifactGroupDto {
 	readonly id: string;
 	readonly name: string;
+	readonly icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
 }
 
 export interface SCMArtifactDto {
