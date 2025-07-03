@@ -124,7 +124,7 @@ export class ChatSelectedTools extends Disposable {
 			let currentMap = this._sessionStates.get(currentMode.id);
 			let defaultEnablement = false;
 			if (!currentMap && currentMode.kind === ChatModeKind.Agent && currentMode.customTools) {
-				currentMap = this._toolsService.toToolAndToolSetEnablementMap(new Set(currentMode.customTools.read(r)));
+				currentMap = this._toolsService.toToolAndToolSetEnablementMap(currentMode.customTools.read(r));
 			}
 			if (!currentMap) {
 				currentMap = this._selectedTools.read(r);

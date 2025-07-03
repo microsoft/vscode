@@ -72,7 +72,7 @@ export function createCodeTestSpecs(executable: string): ITestSpec[] {
 	const categoryOptions = ['azure', 'data science', 'debuggers', 'extension packs', 'education', 'formatters', 'keymaps', 'language packs', 'linters', 'machine learning', 'notebooks', 'programming languages', 'scm providers', 'snippets', 'testing', 'themes', 'visualization', 'other'];
 	const logOptions = ['critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'];
 	const syncOptions = ['on', 'off'];
-	const chatOptions = ['--add-file <file>', '--help', '--mode <mode>', '-a <file>', '-h', '-m <mode>'];
+	const chatOptions = ['--add-file <file>', '--help', '--maximize', '--mode <mode>', '--new-window', '--reuse-window', '-a <file>', '-h', '-m <mode>', '-n', '-r'];
 
 	const typingTests: ITestSpec[] = [];
 	for (let i = 1; i < executable.length; i++) {
@@ -281,7 +281,7 @@ export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
 		{ input: `${executable} tunnel unregister |`, expectedCompletions: [...commonFlags] },
 		{ input: `${executable} tunnel service |`, expectedCompletions: [...commonFlags, 'help', 'install', 'log', 'uninstall'] },
 		{ input: `${executable} tunnel help |`, expectedCompletions: helpSubcommands },
-		{ input: `${executable} chat |`, expectedCompletions: ['--mode <mode>', '--add-file <file>', '--help', '-m <mode>', '-a <file>', '-h'] },
+		{ input: `${executable} chat |`, expectedCompletions: ['--mode <mode>', '--add-file <file>', '--help', '--maximize', '--new-window', '--reuse-window', '-m <mode>', '-a <file>', '-h', '-n', '-r'] },
 		{ input: `${executable} chat --mode |`, expectedCompletions: ['agent', 'ask', 'edit'] },
 		{ input: `${executable} chat --add-file |`, expectedResourceRequests: { type: 'files', cwd: testPaths.cwd } },
 		{ input: `${executable} serve-web |`, expectedCompletions: serveWebSubcommandsAndFlags },

@@ -643,6 +643,12 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			chatModel.acceptResponseProgress(addedRequest, { content, kind: 'markdownContent' });
 			chatModel.setResponse(addedRequest, {});
 			chatModel.completeResponse(addedRequest);
+
+			// Clear chat (start a new chat)
+			if (resultMarkdown) {
+				widget.clear();
+			}
+
 		} finally {
 			remoteJobCreatingKey.set(false);
 		}
