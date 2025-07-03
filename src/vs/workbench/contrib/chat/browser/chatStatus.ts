@@ -420,7 +420,7 @@ class ChatStatusDashboard extends Disposable {
 		// Settings
 		{
 			const chatSentiment = this.chatEntitlementService.sentiment;
-			addSeparator(localize('completionsAndNES', "Completions"), chatSentiment.installed && !chatSentiment.disabled && !chatSentiment.untrusted ? toAction({
+			addSeparator(localize('codeCompletions', "Code Completions"), chatSentiment.installed && !chatSentiment.disabled && !chatSentiment.untrusted ? toAction({
 				id: 'workbench.action.openChatSettings',
 				label: localize('settingsLabel', "Settings"),
 				tooltip: localize('settingsTooltip', "Open Settings"),
