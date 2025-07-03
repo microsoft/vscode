@@ -319,15 +319,6 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				},
 				// Hidden in favor of copilot entry (to be revisited when copilot entry moves, if at all)
 				// {
-				// 	id: 'pickAFolderTask-Mac',
-				// 	title: localize('gettingStarted.setup.OpenFolder.title', "Open up your code"),
-				// 	description: localize('gettingStarted.setup.OpenFolder.description.interpolated', "You're all set to start coding. Open a project folder to get your files into VS Code.\n{0}", Button(localize('pickFolder', "Pick a Folder"), 'command:workbench.action.files.openFileFolder')),
-				// 	when: 'isMac && workspaceFolderCount == 0',
-				// 	media: {
-				// 		type: 'svg', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.svg'
-				// 	}
-				// },
-				// {
 				// 	id: 'pickAFolderTask-Other',
 				// 	title: localize('gettingStarted.setup.OpenFolder.title', "Open up your code"),
 				// 	description: localize('gettingStarted.setup.OpenFolder.description.interpolated', "You're all set to start coding. Open a project folder to get your files into VS Code.\n{0}", Button(localize('pickFolder', "Pick a Folder"), 'command:workbench.action.files.openFolder')),
