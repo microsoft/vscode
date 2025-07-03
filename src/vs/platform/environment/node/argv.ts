@@ -55,7 +55,10 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 			'_': { type: 'string[]', description: localize('prompt', "The prompt to use as chat.") },
 			'mode': { type: 'string', cat: 'o', alias: 'm', args: 'mode', description: localize('chatMode', "The mode to use for the chat session. Available options: 'ask', 'edit', 'agent', or the identifier of a custom mode. Defaults to 'agent'.") },
 			'add-file': { type: 'string[]', cat: 'o', alias: 'a', args: 'path', description: localize('addFile', "Add files as context to the chat session.") },
-			'help': { type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") }
+			'maximize': { type: 'boolean', cat: 'o', description: localize('chatMaximize', "Maximize the chat session view.") },
+			'reuse-window': { type: 'boolean', cat: 'o', alias: 'r', description: localize('reuseWindowForChat', "Force to use the last active window for the chat session.") },
+			'new-window': { type: 'boolean', cat: 'o', alias: 'n', description: localize('newWindowForChat', "Force to open an empty window for the chat session.") },
+			'help': { type: 'boolean', alias: 'h', description: localize('help', "Print usage.") }
 		}
 	},
 	'serve-web': {
