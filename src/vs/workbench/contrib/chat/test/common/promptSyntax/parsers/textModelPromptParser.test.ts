@@ -25,6 +25,8 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ExpectedDiagnosticError, ExpectedDiagnosticWarning, TExpectedDiagnostic } from '../testUtils/expectedDiagnostic.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
+
 
 /**
  * Test helper to run unit tests for the {@link TextModelPromptParser}
@@ -69,7 +71,7 @@ class TextModelPromptParserTest extends Disposable {
 
 		// create the parser instance
 		this.parser = this._register(
-			instantiationService.createInstance(TextModelPromptParser, this.model, { seenReferences: [], allowNonPromptFiles: true, languageId: undefined }),
+			instantiationService.createInstance(TextModelPromptParser, this.model, { allowNonPromptFiles: true, languageId: undefined }),
 		).start();
 	}
 
@@ -156,6 +158,7 @@ suite('TextModelPromptParser', () => {
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IFileService, disposables.add(instantiationService.createInstance(FileService)));
+		instantiationService.stub(IWorkbenchEnvironmentService, {});
 	});
 
 	/**
