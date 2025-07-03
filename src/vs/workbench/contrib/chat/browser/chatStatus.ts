@@ -732,7 +732,7 @@ class ChatStatusDashboard extends Disposable {
 		const toolbar = disposables.add(new ActionBar(actionBar, { hoverDelegate: nativeHoverDelegate }));
 		const cancelAction = toAction({
 			id: 'workbench.action.cancelSnoozeStatusBarLink',
-			label: 'Cancel Snooze',
+			label: localize('cancelSnooze', "Cancel Snooze"),
 			run: () => this.inlineCompletionsService.cancelSnooze(),
 			class: ThemeIcon.asClassName(Codicon.stopCircle)
 		});
