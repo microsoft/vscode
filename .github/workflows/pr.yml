@@ -79,7 +79,7 @@ jobs:
 
   linux-cli-tests:
     name: Linux
-    uses: ./.github/workflows/pr-linux-test.yml
+    uses: ./.github/workflows/pr-linux-cli-test.yml
     with:
       job_name: CLI
       rustup_toolchain: 1.85
