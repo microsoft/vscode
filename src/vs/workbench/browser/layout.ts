@@ -633,10 +633,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService, coreExperimentationService: ICoreExperimentationService): void {
 		this._mainContainerDimension = getClientArea(this.parent, DEFAULT_WINDOW_DIMENSIONS); // running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
 
-		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService, coreExperimentationService, this.environmentService);
+		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService, coreExperimentationService);
 		this.stateModel.load({
 			mainContainerDimension: this._mainContainerDimension,
-			resetLayout: Boolean(this.layoutOptions?.resetLayout)
+			resetLayout: Boolean(this.layoutOptions?.resetLayout),
+			isAuxiliaryBarEmpty: this.viewDescriptorService
+				.getViewContainersByLocation(ViewContainerLocation.AuxiliaryBar)
+				.find(viewContainer => this.hasViews(viewContainer.id))?.id !== undefined
 		});
 
 		this._register(this.stateModel.onDidChangeState(change => {
@@ -2789,6 +2792,7 @@ enum LegacyWorkbenchLayoutSettings {
 interface ILayoutStateLoadConfiguration {
 	readonly mainContainerDimension: IDimension;
 	readonly resetLayout: boolean;
+	readonly isAuxiliaryBarEmpty: boolean;
 }
 
 class LayoutStateModel extends Disposable {
@@ -2804,8 +2808,7 @@ class LayoutStateModel extends Disposable {
 		private readonly storageService: IStorageService,
 		private readonly configurationService: IConfigurationService,
 		private readonly contextService: IWorkspaceContextService,
-		private readonly coreExperimentationService: ICoreExperimentationService,
-		private readonly environmentService: IBrowserWorkbenchEnvironmentService
+		private readonly coreExperimentationService: ICoreExperimentationService
 	) {
 		super();
 
@@ -2868,9 +2871,8 @@ class LayoutStateModel extends Disposable {
 		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = workbenchState === WorkbenchState.EMPTY;
 		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
 		LayoutStateKeys.AUXILIARYBAR_HIDDEN.defaultValue = (() => {
-			const configuration = this.configurationService.inspect(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY);
-			if (configuration.defaultValue !== 'hidden' && isWeb && !this.environmentService.remoteAuthority) {
-				return true; // TODO@bpasero revisit this when Chat is available in serverless web
+			if (configuration.isAuxiliaryBarEmpty) {
+				return true; // require a view in the auxiliary bar to show it by default
 			}
 
 			switch (this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY)) {
