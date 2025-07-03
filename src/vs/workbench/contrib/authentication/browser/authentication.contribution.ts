@@ -147,22 +147,36 @@ class AuthenticationExtensionsContribution extends Disposable implements IWorkbe
 	}
 
 	private _cleanupRemovedExtensions(removedExtensions?: readonly IExtensionDescription[]): void {
-		const extensionIdsToRemove = removedExtensions
-			? new Set(removedExtensions.map(e => e.identifier.value))
-			: new Set(this._extensionService.extensions.map(e => e.identifier.value));
-
 		// If we are cleaning up specific removed extensions, we only remove those.
 		const isTargetedCleanup = !!removedExtensions;
+		
+		let extensionIdsToRemove: Set<string>;
+		if (isTargetedCleanup) {
+			// For targeted cleanup, remove only the specified extensions
+			extensionIdsToRemove = new Set(removedExtensions!.map(e => e.identifier.value));
+		} else {
+			// For general cleanup, we need to find stored extensions that are no longer installed
+			const installedExtensionIds = new Set(this._extensionService.extensions.map(e => e.identifier.value));
+			extensionIdsToRemove = new Set<string>();
+			
+			// Find all stored extension IDs that are no longer installed
+			const providerIds = this._authenticationQueryService.getProviderIds();
+			for (const providerId of providerIds) {
+				this._authenticationQueryService.provider(providerId).forEachAccount(account => {
+					account.extensions().forEach(extension => {
+						if (!installedExtensionIds.has(extension.extensionId)) {
+							extensionIdsToRemove.add(extension.extensionId);
+						}
+					});
+				});
+			}
+		}
 
 		const providerIds = this._authenticationQueryService.getProviderIds();
 		for (const providerId of providerIds) {
 			this._authenticationQueryService.provider(providerId).forEachAccount(account => {
 				account.extensions().forEach(extension => {
-					const shouldRemove = isTargetedCleanup
-						? extensionIdsToRemove.has(extension.extensionId)
-						: !extensionIdsToRemove.has(extension.extensionId);
-
-					if (shouldRemove) {
+					if (extensionIdsToRemove.has(extension.extensionId)) {
 						extension.removeUsage();
 						extension.setAccessAllowed(false);
 					}
