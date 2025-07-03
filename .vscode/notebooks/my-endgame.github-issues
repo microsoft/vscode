@@ -137,7 +137,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS $MILESTONE $MINE is:issue label:bug label:verification-found"
+    "value": "asdfasdfasdf"
   },
   {
     "kind": 1,
