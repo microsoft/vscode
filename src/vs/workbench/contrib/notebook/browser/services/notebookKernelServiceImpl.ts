@@ -299,20 +299,16 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 	}
 
 	preselectKernelForRepl(notebook: INotebookTextModelLike): void {
-		const preferredKernels = this._notebookService.getNotebookTextModel(notebook.uri)?.preferredReplKernels;
-		const preferredId = preferredKernels?.values().next().value;
-		if (preferredId && preferredKernels.size === 1) {
-			const kernel = this._kernels.get(preferredId);
+		const { suggestions } = this.getMatchingKernel(notebook);
+		if (suggestions.length === 1) {
+			const kernel = suggestions[0];
 
 			if (kernel) {
-				this.preselectKernelForNotebook(kernel.kernel, notebook);
-			}
-		}
+				this.preselectKernelForNotebook(kernel, notebook);
 
-		// clear affinity for for the resource path since it was used directly from the notebook instance for the REPL
-		if (notebook.uri.scheme === Schemas.untitled) {
-			for (const kernel in preferredKernels) {
-				this.updateKernelNotebookAffinity(kernel, notebook.uri, undefined);
+				if (notebook.uri.scheme === Schemas.untitled) {
+					this.updateKernelNotebookAffinity(kernel, notebook.uri, undefined);
+				}
 			}
 		}
 	}
@@ -328,16 +324,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		} else {
 			info.notebookPriorities.set(notebook, preference);
 		}
-		this.setReplKernelAffinity(kernelId, notebook, preference);
 		this._onDidChangeNotebookAffinity.fire();
-	}
-
-	setReplKernelAffinity(kernelId: string, notebook: URI, preference: number | undefined): void {
-		if (preference === 2) {
-			this._notebookService.getNotebookTextModel(notebook)?.preferredReplKernels.add(kernelId);
-		} else {
-			this._notebookService.getNotebookTextModel(notebook)?.preferredReplKernels.delete(kernelId);
-		}
 	}
 
 	getRunningSourceActions(notebook: INotebookTextModelLike) {
