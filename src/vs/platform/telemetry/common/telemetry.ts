@@ -53,6 +53,10 @@ export interface ITelemetryService {
 	setExperimentProperty(name: string, value: string): void;
 }
 
+export function telemetryLevelEnabled(service: ITelemetryService, level: TelemetryLevel): boolean {
+	return service.telemetryLevel >= level;
+}
+
 export interface ITelemetryEndpoint {
 	id: string;
 	aiKey: string;
