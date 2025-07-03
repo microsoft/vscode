@@ -359,6 +359,10 @@
 	opacity: 1;
 }
 
+.monaco-workbench .inline-chat .chat-attached-context {
+	padding: 3px 0px;
+}
+
 
 /* HINT */
 

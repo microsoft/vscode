@@ -64,13 +64,14 @@ import { ChatEditorOptions } from './chatOptions.js';
 import './media/chat.css';
 import './media/chatAgentHover.css';
 import './media/chatViewWelcome.css';
-import { ChatViewWelcomePart, IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
+import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
 import { IChatRequestVariableEntry, ChatRequestVariableSet as ChatRequestVariableSet, isPromptFileVariableEntry, toPromptFileVariableEntry, PromptFileVariableKind } from '../common/chatVariableEntries.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
 import { startupExpContext, StartupExperimentGroup } from '../../../services/coreExperimentation/common/coreExperimentationService.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 
 const $ = dom.$;
 
@@ -291,6 +292,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super();
 
@@ -734,7 +736,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const numItems = this.viewModel?.getItems().length ?? 0;
 		if (!numItems) {
 			dom.clearNode(this.welcomeMessageContainer);
-			// TODO@havyaus remove this startup experiment once settled
+			// TODO@bhavyaus remove this startup experiment once settled
 			const startupExpValue = startupExpContext.getValue(this.contextKeyService);
 			const configuration = this.configurationService.inspect('workbench.secondarySideBar.defaultVisibility');
 			const expIsActive = configuration.defaultValue !== 'hidden';
@@ -810,10 +812,43 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			message: new MarkdownString(localize('expchatMessage', "Let's get started")),
 			icon: Codicon.copilotLarge,
 			inputPart: this.inputPart.element,
-			additionalMessage: localize('expChatAdditionalMessage', "Review output carefully before use."),
-			isExperimental: true
+			additionalMessage: localize('expChatAdditionalMessage', "Review AI output carefully before use."),
+			isExperimental: true,
+			suggestedPrompts: this.getExpSuggestedPrompts(),
 		};
 		return welcomeContent;
+	}
+
+	private getExpSuggestedPrompts(): IChatSuggestedPrompts[] {
+		// Check if the workbench is empty
+		const isEmpty = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
+		if (isEmpty) {
+			return [
+				{
+					icon: Codicon.vscode,
+					label: localize('chatWidget.suggestedPrompts.gettingStarted', "Ask @vscode"),
+					prompt: localize('chatWidget.suggestedPrompts.gettingStartedPrompt', "@vscode How do I change the theme to light mode?"),
+				},
+				{
+					icon: Codicon.newFolder,
+					label: localize('chatWidget.suggestedPrompts.newProject', "Create project"),
+					prompt: localize('chatWidget.suggestedPrompts.newProjectPrompt', "Create a #new Hello World project in TypeScript"),
+				}
+			];
+		} else {
+			return [
+				{
+					icon: Codicon.debugAlt,
+					label: localize('chatWidget.suggestedPrompts.buildWorkspace', "Build workspace"),
+					prompt: localize('chatWidget.suggestedPrompts.buildWorkspacePrompt', "How do I build this workspace?"),
+				},
+				{
+					icon: Codicon.gear,
+					label: localize('chatWidget.suggestedPrompts.findConfig', "Show project config"),
+					prompt: localize('chatWidget.suggestedPrompts.findConfigPrompt', "Where is the configuration for this project defined?"),
+				}
+			];
+		}
 	}
 
 	private async renderChatEditingSessionState() {
@@ -1527,7 +1562,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			parseResult = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.slashPromptCommand, CancellationToken.None);
 			if (parseResult) {
 				// add the prompt file to the context, but not sticky
-				requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile));
+				requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true));
 
 				// remove the slash command from the input
 				requestInput.input = this.parsedInput.parts.filter(part => !(part instanceof ChatRequestSlashPromptPart)).map(part => part.text).join('').trim();
