@@ -2888,7 +2888,7 @@ class LayoutStateModel extends Disposable {
 				}
 
 				const location = this.viewDescriptorService.getViewLocationById('workbench.panel.chat.view.copilot');
-				if (location !== ViewContainerLocation.AuxiliaryBar) {
+				if (location === ViewContainerLocation.Sidebar || location === ViewContainerLocation.Panel) {
 					return true; // Chat view is not located in the auxiliary bar
 				}
 			}
