@@ -342,11 +342,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
+		const items = completions.filter(c => !!c.label).map(c => new TerminalCompletionItem(c));
+		if (isInlineCompletionSupported(this.shellType)) {
+			items.push(this._inlineCompletionItem);
+		}
+
 		const model = new TerminalCompletionModel(
-			[
-				...completions.filter(c => !!c.label).map(c => new TerminalCompletionItem(c)),
-				this._inlineCompletionItem,
-			],
+			items,
 			lineContext
 		);
 		if (token.isCancellationRequested) {
@@ -814,8 +816,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!suggestion) {
 			suggestion = this._suggestWidget?.getFocusedItem();
 		}
+
 		const initialPromptInputState = this._mostRecentPromptInputState;
-		if (!suggestion || !initialPromptInputState || this._leadingLineContent === undefined || !this._model) {
+		if (!suggestion?.item || !initialPromptInputState || this._leadingLineContent === undefined || !this._model) {
 			this._suggestTelemetry?.acceptCompletion(this._sessionId, undefined, this._mostRecentPromptInputState?.value);
 			return;
 		}

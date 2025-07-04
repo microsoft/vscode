@@ -209,13 +209,15 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	}
 
 	private onDidInstallMcpServer(local: IWorkbenchLocalMcpServer, gallery?: IGalleryMcpServer): IWorkbenchMcpServer {
-		let server = this._local.find(server => server.local?.name === local.name);
+		let server = this.installing.find(server => server.name === local.name);
+		this.installing = server ? this.installing.filter(e => e !== server) : this.installing;
 		if (server) {
 			server.local = local;
 		} else {
 			server = this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), local, gallery, undefined);
-			this._local.push(server);
 		}
+		this._local = this._local.filter(e => e.name === local.name);
+		this._local.push(server);
 		this._onChange.fire(server);
 		return server;
 	}
@@ -302,6 +304,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			local.local = i;
 			return local;
 		});
+		this._onChange.fire(undefined);
 		return [...this.local];
 	}
 
@@ -333,7 +336,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	private async doInstall(server: McpWorkbenchServer, installTask: () => Promise<IWorkbenchLocalMcpServer>): Promise<IWorkbenchMcpServer> {
 		this.installing.push(server);
 		this._onChange.fire(server);
-		await installTask().finally(() => this.installing = this.installing.filter(s => s !== server));
+		await installTask();
 		return this.waitAndGetInstalledMcpServer(server);
 	}
 

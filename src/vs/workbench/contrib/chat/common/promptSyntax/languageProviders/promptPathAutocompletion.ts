@@ -17,7 +17,7 @@
 import { IPromptsService } from '../service/promptsService.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isOneOf } from '../../../../../../base/common/types.js';
-import { extUri } from '../../../../../../base/common/resources.js';
+import { dirname, extUri } from '../../../../../../base/common/resources.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
@@ -137,28 +137,18 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 
 		// start the parser in case it was not started yet,
 		// and wait for it to settle to a final result
-		const { references } = await parser
-			.start(token)
-			.settled();
-
-		// validate that the cancellation was not yet requested
-		assert(
-			!token.isCancellationRequested,
-			new CancellationError(),
-		);
+		const completed = await parser.start(token).settled();
+		if (!completed || token.isCancellationRequested) {
+			return undefined;
+		}
+		const { references } = parser;
 
 		const fileReference = findFileReference(references, position);
 		if (!fileReference) {
 			return undefined;
 		}
 
-		const { parentFolder } = parser;
-
-		// if didn't find a folder URI to start the suggestions from,
-		// don't provide any suggestions
-		if (parentFolder === null) {
-			return undefined;
-		}
+		const parentFolder = dirname(parser.uri);
 
 		// in the case of the '.' trigger character, we must check if this is the first
 		// dot in the link path, otherwise the dot could be a part of a folder name

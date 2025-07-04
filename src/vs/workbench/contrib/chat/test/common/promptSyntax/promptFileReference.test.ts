@@ -104,12 +104,12 @@ class TestPromptFileReference extends Disposable {
 			this.instantiationService.createInstance(
 				FilePromptParser,
 				this.rootFileUri,
-				{ seenReferences: [], allowNonPromptFiles: true, languageId: undefined },
+				{ allowNonPromptFiles: true, languageId: undefined, updateOnChange: true },
 			),
 		).start();
 
 		// wait until entire prompts tree is resolved
-		await rootReference.allSettled();
+		await rootReference.settled();
 
 		// resolve the root file reference including all nested references
 		const resolvedReferences: readonly (TPromptReference | undefined)[] = rootReference.references;

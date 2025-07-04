@@ -297,26 +297,12 @@ registerTerminalAction({
 		order: 1
 	},
 	keybinding: {
-		primary: KeyMod.CtrlCmd | KeyCode.Slash,
-		mac: { primary: KeyMod.WinCtrl | KeyCode.KeyK },
-		weight: KeybindingWeight.WorkbenchContrib + 1
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL,
+		weight: KeybindingWeight.WorkbenchContrib + 1,
+		when: TerminalContextKeys.suggestWidgetVisible
 	},
 	run: (c, accessor) => {
 		(accessor.get(IOpenerService)).open('https://aka.ms/vscode-terminal-intellisense');
-	}
-});
-
-registerActiveInstanceAction({
-	id: TerminalSuggestCommandId.ResetDiscoverability,
-	title: localize2('workbench.action.terminal.resetDiscoverability', 'Reset Suggest Discoverability'),
-	f1: true,
-	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		TerminalContextKeys.isOpen,
-		ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.Enabled}`, true)
-	),
-	run: (activeInstance) => {
-		TerminalSuggestContribution.get(activeInstance)?.addon?.resetDiscoverability();
 	}
 });
 
@@ -441,7 +427,8 @@ registerActiveInstanceAction({
 	keybinding: [{
 		primary: KeyCode.Tab,
 		// Tab is bound to other workbench keybindings that this needs to beat
-		weight: KeybindingWeight.WorkbenchContrib + 1
+		weight: KeybindingWeight.WorkbenchContrib + 2,
+		when: ContextKeyExpr.and(SimpleSuggestContext.HasFocusedSuggestion)
 	},
 	{
 		primary: KeyCode.Enter,
