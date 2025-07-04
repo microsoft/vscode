@@ -303,6 +303,7 @@ export class InlineCompletionsModel extends Disposable {
 					changeSummary.textChange = true;
 				} else if (ctx.didChange(this._forceUpdateExplicitlySignal)) {
 					changeSummary.preserveCurrentCompletion = true;
+					changeSummary.preserveCurrentCompletion = true;
 					changeSummary.inlineCompletionTriggerKind = InlineCompletionTriggerKind.Explicit;
 				} else if (ctx.didChange(this.dontRefetchSignal)) {
 					changeSummary.dontRefetch = true;
