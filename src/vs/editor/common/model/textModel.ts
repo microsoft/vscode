@@ -838,8 +838,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public getLineTokens(lineNumber: number): LineTokens {
 		const lineTokens = this.tokenization.getLineTokens(lineNumber);
 		const lineInjectedText = this.getLineInjectedText(lineNumber);
-		const injectionOptions = lineInjectedText?.map(t => t.options) ?? null;
-		const injectionOffsets = lineInjectedText?.map(text => text.column - 1) ?? null;
+		const injectionOptions = lineInjectedText.map(t => t.options);
+		const injectionOffsets = lineInjectedText.map(text => text.column - 1);
 		return getLineTokensWithInjections(lineTokens, injectionOptions, injectionOffsets);
 	}
 
@@ -2457,6 +2457,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.blockDoesNotCollapse = options.blockDoesNotCollapse ?? null;
 		this.blockIsAfterEnd = options.blockIsAfterEnd ?? null;
 		this.blockPadding = options.blockPadding ?? null;
+		this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 		this.zIndex = options.zIndex || 0;
 		this.className = options.className ? cleanClassName(options.className) : null;
 		this.shouldFillLineOnLineBreak = options.shouldFillLineOnLineBreak ?? null;
@@ -2486,8 +2487,6 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.before = options.before ? ModelDecorationInjectedTextOptions.from(options.before) : null;
 		this.hideInCommentTokens = options.hideInCommentTokens ?? false;
 		this.hideInStringTokens = options.hideInStringTokens ?? false;
-		this.affectsFont = !!options.fontSize || !!options.fontFamily || !!options.fontWeight || !!options.fontStyle;
-		this.stickiness = this.affectsFont ? model.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges : (options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
 	}
 }
 ModelDecorationOptions.EMPTY = ModelDecorationOptions.register({ description: 'empty' });

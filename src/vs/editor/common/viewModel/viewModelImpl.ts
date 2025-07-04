@@ -91,7 +91,9 @@ export class ViewModel extends Disposable implements IViewModel {
 		this.glyphLanes = new GlyphMarginLanesModel(0);
 
 		if (USE_IDENTITY_LINES_COLLECTION && this.model.isTooLargeForTokenization()) {
+
 			this._lines = new ViewModelLinesFromModelAsIs(this.model);
+
 		} else {
 			const options = this._configuration.options;
 			const fontInfo = options.get(EditorOption.fontInfo);

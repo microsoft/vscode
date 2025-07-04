@@ -739,12 +739,10 @@ class DecorationCSSRules {
 		}
 		if (lightCSS.length > 0) {
 			sheet.insertRule(`.vs${this._unThemedSelector}, .hc-light${this._unThemedSelector}`, lightCSS);
-			sheet.insertRule(this._lineBreaksSelector, lightCSS);
 			hasContent = true;
 		}
 		if (darkCSS.length > 0) {
 			sheet.insertRule(`.vs-dark${this._unThemedSelector}, .hc-black${this._unThemedSelector}`, darkCSS);
-			sheet.insertRule(this._lineBreaksSelector, darkCSS);
 			hasContent = true;
 		}
 		this._hasContent = hasContent;
