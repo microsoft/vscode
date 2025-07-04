@@ -98,7 +98,7 @@ export class InlineCompletionsSource extends Disposable {
 	});
 
 	private _log(entry:
-		{ sourceId: string; kind: 'start'; requestId: number; context: unknown } & IRecordableEditorLogEntry
+		{ sourceId: string; kind: 'start'; requestId: number; context: unknown; provider: string | undefined } & IRecordableEditorLogEntry
 		| { sourceId: string; kind: 'end'; error: unknown; durationMs: number; result: unknown; requestId: number; didAllProvidersReturn: boolean } & IRecordableLogEntry
 	) {
 		if (this._loggingEnabled.get()) {
@@ -110,7 +110,16 @@ export class InlineCompletionsSource extends Disposable {
 	private readonly _loadingCount = observableValue(this, 0);
 	public readonly loading = this._loadingCount.map(this, v => v > 0);
 
-	public fetch(providers: InlineCompletionsProvider[], context: InlineCompletionContextWithoutUuid, activeInlineCompletion: InlineSuggestionIdentity | undefined, withDebounce: boolean, userJumpedToActiveCompletion: IObservable<boolean>, providerhasChangedCompletion: boolean, requestInfo: InlineSuggestRequestInfo): Promise<boolean> {
+	public fetch(
+		providers: InlineCompletionsProvider[],
+		providersLabel: string | undefined,
+		context: InlineCompletionContextWithoutUuid,
+		activeInlineCompletion: InlineSuggestionIdentity | undefined,
+		withDebounce: boolean,
+		userJumpedToActiveCompletion: IObservable<boolean>,
+		providerhasChangedCompletion: boolean,
+		requestInfo: InlineSuggestRequestInfo
+	): Promise<boolean> {
 		const position = this._cursorPosition.get();
 		const request = new UpdateRequest(position, context, this._textModel.getVersionId(), new Set(providers));
 
@@ -150,7 +159,16 @@ export class InlineCompletionsSource extends Disposable {
 
 				const requestId = InlineCompletionsSource._requestId++;
 				if (this._loggingEnabled.get() || this._structuredFetchLogger.isEnabled.get()) {
-					this._log({ sourceId: 'InlineCompletions.fetch', kind: 'start', requestId, modelUri: this._textModel.uri, modelVersion: this._textModel.getVersionId(), context: { triggerKind: context.triggerKind }, time: Date.now() });
+					this._log({
+						sourceId: 'InlineCompletions.fetch',
+						kind: 'start',
+						requestId,
+						modelUri: this._textModel.uri,
+						modelVersion: this._textModel.getVersionId(),
+						context: { triggerKind: context.triggerKind, suggestInfo: context.selectedSuggestionInfo ? true : undefined },
+						time: Date.now(),
+						provider: providersLabel,
+					});
 				}
 
 				const startTime = new Date();

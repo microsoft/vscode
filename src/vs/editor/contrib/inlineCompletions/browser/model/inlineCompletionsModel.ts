@@ -388,11 +388,13 @@ export class InlineCompletionsModel extends Disposable {
 			? itemToPreserveCandidate : undefined;
 		const userJumpedToActiveCompletion = this._jumpedToId.map(jumpedTo => !!jumpedTo && jumpedTo === this._inlineCompletionItems.get()?.inlineEdit?.semanticId);
 
-		const providers = changeSummary.provider ? [changeSummary.provider] : this._languageFeaturesService.inlineCompletionsProvider.all(this.textModel);
+		const providers = changeSummary.provider
+			? { providers: [changeSummary.provider], label: 'single:' + changeSummary.provider.providerId }
+			: { providers: this._languageFeaturesService.inlineCompletionsProvider.all(this.textModel), label: undefined };
 		const suppressedProviderGroupIds = this._suppressedInlineCompletionGroupIds.get();
-		const availableProviders = providers.filter(provider => !(provider.groupId && suppressedProviderGroupIds.has(provider.groupId)));
+		const availableProviders = providers.providers.filter(provider => !(provider.groupId && suppressedProviderGroupIds.has(provider.groupId)));
 
-		return this._source.fetch(availableProviders, context, itemToPreserve?.identity, changeSummary.shouldDebounce, userJumpedToActiveCompletion, !!changeSummary.provider, requestInfo);
+		return this._source.fetch(availableProviders, providers.label, context, itemToPreserve?.identity, changeSummary.shouldDebounce, userJumpedToActiveCompletion, !!changeSummary.provider, requestInfo);
 	});
 
 	public async trigger(tx?: ITransaction, options?: { onlyFetchInlineEdits?: boolean; noDelay?: boolean }): Promise<void> {
