@@ -25,13 +25,14 @@ const options = {
 	grep: opts['f'] || opts['g']
 };
 
-if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
+if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE) {
 	options.reporter = 'mocha-multi-reporters';
 	options.reporterOptions = {
 		reporterEnabled: 'spec, mocha-junit-reporter',
 		mochaJunitReporterReporterOptions: {
 			testsuitesTitle: `${suite} ${process.platform}`,
-			mochaFile: join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${suite.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`)
+			mochaFile: join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE || __dirname,
+				`test-results/${process.platform}-${process.arch}-${suite.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`)
 		}
 	};
 }
@@ -45,7 +46,7 @@ mocha.run(failures => {
 		const rootPath = join(__dirname, '..', '..', '..');
 		const logPath = join(rootPath, '.build', 'logs');
 
-		if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
+		if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE) {
 			console.log(`
 ###################################################################
 #                                                                 #
