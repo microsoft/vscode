@@ -5299,6 +5299,9 @@ suite('Editor Controller', () => {
 				'/* */',
 			],
 			languageId: autoClosingLanguageId,
+			editorOpts: {
+				autoClosingComments: 'languageDefined'
+			}
 		}, (editor, model, viewModel) => {
 			moveTo(editor, viewModel, 1, 3, false);
 			viewModel.type('*', 'keyboard');
@@ -5309,6 +5312,9 @@ suite('Editor Controller', () => {
 				'',
 			],
 			languageId: autoClosingLanguageId,
+			editorOpts: {
+				autoClosingComments: 'languageDefined'
+			}
 		}, (editor, model, viewModel) => {
 			viewModel.type('/', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), '/');
