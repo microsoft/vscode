@@ -5,8 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-DXeP32g8BdMsVuVabYTmznoTH59F7M7UtV0vXemEFqc=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
-
+		content="default-src 'none'; script-src 'sha256-gEAyFzmkyqMoTTnN+3KReFUYoHsK4RAJEb+6eiul+UY=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -36,6 +35,8 @@
 		const onElectron = searchParams.get('platform') === 'electron';
 		const disableServiceWorker = searchParams.has('disableServiceWorker');
 		const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
+		/** @type {MessageChannel | undefined} */
+		let outerIframeMessageChannel;
 
 		/**
 		 * Use polling to track focus of main webview and iframes within the webview
@@ -237,7 +238,7 @@
 			}
 
 			const swPath = encodeURI(`service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}&remoteAuthority=${searchParams.get('remoteAuthority') ?? ''}`);
-			navigator.serviceWorker.register(swPath)
+			navigator.serviceWorker.register(swPath, { type: 'module' })
 				.then(async registration => {
 					/**
 					 * @param {MessageEvent} event
@@ -265,7 +266,8 @@
 					navigator.serviceWorker.addEventListener('message', versionHandler);
 
 					const postVersionMessage = (/** @type {ServiceWorker} */ controller) => {
-						controller.postMessage({ channel: 'version' });
+						outerIframeMessageChannel = new MessageChannel();
+						controller.postMessage({ channel: 'version' }, [outerIframeMessageChannel.port2]);
 					};
 
 					// At this point, either the service worker is ready and
@@ -1202,6 +1204,17 @@
 					contentWindow.addEventListener('drop', handleInnerDropEvent);
 
 					unloadMonitor.onIframeLoaded(newFrame);
+				}
+
+				if (!disableServiceWorker && outerIframeMessageChannel) {
+					outerIframeMessageChannel.port1.onmessage = event => {
+						switch (event.data.channel) {
+							case 'load-resource':
+							case 'load-localhost':
+								hostMessaging.postMessage(event.data.channel, event.data);
+								return;
+						}
+					};
 				}
 			});
 

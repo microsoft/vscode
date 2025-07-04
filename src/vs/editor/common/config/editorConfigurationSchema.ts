@@ -6,7 +6,7 @@
 import type { IJSONSchemaSnippet } from '../../../base/common/jsonSchema.js';
 import { diffEditorDefaultOptions } from './diffEditor.js';
 import { editorOptionsRegistry } from './editorOptions.js';
-import { EDITOR_MODEL_DEFAULTS } from '../core/textModelDefaults.js';
+import { EDITOR_MODEL_DEFAULTS } from '../core/misc/textModelDefaults.js';
 import * as nls from '../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
@@ -117,6 +117,12 @@ const editorConfiguration: IConfigurationNode = {
 			markdownDescription: nls.localize('editor.experimental.treeSitterTelemetry', "Controls whether tree sitter parsing should be turned on and telemetry collected. Setting `editor.experimental.preferTreeSitter` for specific languages will take precedence."),
 			tags: ['experimental', 'onExP']
 		},
+		'editor.experimental.preferTreeSitter.css': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.css', "Controls whether tree sitter parsing should be turned on for css. This will take precedence over `editor.experimental.treeSitterTelemetry` for css."),
+			tags: ['experimental', 'onExP']
+		},
 		'editor.experimental.preferTreeSitter.typescript': {
 			type: 'boolean',
 			default: false,
@@ -127,6 +133,12 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false,
 			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.ini', "Controls whether tree sitter parsing should be turned on for ini. This will take precedence over `editor.experimental.treeSitterTelemetry` for ini."),
+			tags: ['experimental', 'onExP']
+		},
+		'editor.experimental.preferTreeSitter.regex': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.regex', "Controls whether tree sitter parsing should be turned on for regex. This will take precedence over `editor.experimental.treeSitterTelemetry` for regex."),
 			tags: ['experimental', 'onExP']
 		},
 		'editor.language.brackets': {

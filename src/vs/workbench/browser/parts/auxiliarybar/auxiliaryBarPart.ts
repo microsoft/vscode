@@ -21,20 +21,16 @@ import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Po
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { ToggleAuxiliaryBarAction } from './auxiliaryBarActions.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { LayoutPriority } from '../../../../base/browser/ui/splitview/splitview.js';
 import { ToggleSidebarPositionAction } from '../../actions/layoutActions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../paneCompositePart.js';
-import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IPaneCompositeBarOptions } from '../paneCompositeBar.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { $ } from '../../../../base/browser/dom.js';
-import { HiddenItemStrategy, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { CompositeMenuActions } from '../../actions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 interface IAuxiliaryBarPartConfiguration {
@@ -159,7 +155,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	override updateStyles(): void {
 		super.updateStyles();
 
-		const container = assertIsDefined(this.getContainer());
+		const container = assertReturnsDefined(this.getContainer());
 		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND) || '';
 		const borderColor = this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder);
 		const isPositionLeft = this.layoutService.getSideBarPosition() === Position.RIGHT;
@@ -250,35 +246,6 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			case ActivityBarPosition.DEFAULT: return CompositeBarPosition.TITLE;
 			default: return CompositeBarPosition.TITLE;
 		}
-	}
-
-	protected override createHeaderArea() {
-		const headerArea = super.createHeaderArea();
-		const globalHeaderContainer = $('.auxiliary-bar-global-header');
-
-		// Add auxillary header action
-		const menu = this.headerFooterCompositeBarDispoables.add(this.instantiationService.createInstance(CompositeMenuActions, MenuId.AuxiliaryBarHeader, undefined, undefined));
-
-		const toolBar = this.headerFooterCompositeBarDispoables.add(this.instantiationService.createInstance(WorkbenchToolBar, globalHeaderContainer, {
-			actionViewItemProvider: (action, options) => this.headerActionViewItemProvider(action, options),
-			orientation: ActionsOrientation.HORIZONTAL,
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-		}));
-
-		toolBar.setActions(prepareActions(menu.getPrimaryActions()));
-		this.headerFooterCompositeBarDispoables.add(menu.onDidChange(() => toolBar.setActions(prepareActions(menu.getPrimaryActions()))));
-
-		headerArea.appendChild(globalHeaderContainer);
-		return headerArea;
-	}
-
-	private headerActionViewItemProvider(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
-		if (action.id === ToggleAuxiliaryBarAction.ID) {
-			return this.instantiationService.createInstance(ActionViewItem, undefined, action, options);
-		}
-
-		return undefined;
 	}
 
 	override toJSON(): object {

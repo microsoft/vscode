@@ -8,11 +8,10 @@ import { timeout } from '../../../../../base/common/async.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { upcast } from '../../../../../base/common/types.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ILogger, ILoggerService } from '../../../../../platform/log/common/log.js';
+import { ILogger, ILoggerService, LogLevel, NullLogger } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
@@ -21,10 +20,13 @@ import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistry
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
+import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 
 class TestMcpHostDelegate extends Disposable implements IMcpHostDelegate {
 	private readonly _transport: TestMcpMessageTransport;
 	private _canStartValue = true;
+
+	priority = 0;
 
 	constructor() {
 		super();
@@ -85,7 +87,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 			remoteAuthority: null,
 			serverDefinitions: observableValue('serverDefs', []),
 			isTrustedByDefault: true,
-			scope: StorageScope.APPLICATION
+			scope: StorageScope.APPLICATION,
+			configTarget: ConfigurationTarget.USER,
 		};
 
 		// Create server definition
@@ -97,7 +100,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 				command: 'test-command',
 				args: [],
 				env: {},
-				cwd: URI.parse('file:///test')
+				envFile: undefined,
+				cwd: '/test'
 			}
 		};
 	});
@@ -126,12 +130,13 @@ suite('Workbench - MCP - ServerConnection', () => {
 			collection,
 			serverDefinition,
 			delegate,
-			serverDefinition.launch
+			serverDefinition.launch,
+			new NullLogger(),
 		);
 		store.add(connection);
 
 		// Start the connection
-		const startPromise = connection.start();
+		const startPromise = connection.start({});
 
 		// Simulate successful connection
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
@@ -153,12 +158,13 @@ suite('Workbench - MCP - ServerConnection', () => {
 			collection,
 			serverDefinition,
 			delegate,
-			serverDefinition.launch
+			serverDefinition.launch,
+			new NullLogger(),
 		);
 		store.add(connection);
 
 		// Start the connection
-		const state = await connection.start();
+		const state = await connection.start({});
 
 		assert.strictEqual(state.state, McpConnectionState.Kind.Error);
 		assert.ok(state.message);
@@ -171,12 +177,13 @@ suite('Workbench - MCP - ServerConnection', () => {
 			collection,
 			serverDefinition,
 			delegate,
-			serverDefinition.launch
+			serverDefinition.launch,
+			new NullLogger(),
 		);
 		store.add(connection);
 
 		// Start the connection
-		const startPromise = connection.start();
+		const startPromise = connection.start({});
 
 		// Simulate error in transport
 		transport.setConnectionState({
@@ -196,12 +203,13 @@ suite('Workbench - MCP - ServerConnection', () => {
 			collection,
 			serverDefinition,
 			delegate,
-			serverDefinition.launch
+			serverDefinition.launch,
+			new NullLogger(),
 		);
 		store.add(connection);
 
 		// Start the connection
-		const startPromise = connection.start();
+		const startPromise = connection.start({});
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
 		await startPromise;
 
@@ -219,15 +227,16 @@ suite('Workbench - MCP - ServerConnection', () => {
 			collection,
 			serverDefinition,
 			delegate,
-			serverDefinition.launch
+			serverDefinition.launch,
+			new NullLogger(),
 		);
 		store.add(connection);
 
 		// Start the connection
-		const startPromise1 = connection.start();
+		const startPromise1 = connection.start({});
 
 		// Try to start again while starting
-		const startPromise2 = connection.start();
+		const startPromise2 = connection.start({});
 
 		// Simulate successful connection
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
@@ -241,6 +250,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 
 		transport.simulateInitialized();
 		assert.ok(await waitForHandler(connection));
+
+		connection.dispose();
 	});
 
 	test('should clean up when disposed', async () => {
@@ -250,11 +261,12 @@ suite('Workbench - MCP - ServerConnection', () => {
 			collection,
 			serverDefinition,
 			delegate,
-			serverDefinition.launch
+			serverDefinition.launch,
+			new NullLogger(),
 		);
 
 		// Start the connection
-		const startPromise = connection.start();
+		const startPromise = connection.start({});
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
 		await startPromise;
 
@@ -264,86 +276,30 @@ suite('Workbench - MCP - ServerConnection', () => {
 		assert.strictEqual(connection.state.get().state, McpConnectionState.Kind.Stopped);
 	});
 
-	test('showOutput should call logger and output services', () => {
-		let channelShown = false;
-		const outputService = {
-			showChannel: (id: string) => {
-				assert.strictEqual(id, `mcpServer/${serverDefinition.id}`);
-				channelShown = true;
-			}
-		};
-
-		let loggerVisible = false;
-		const loggerService = new class extends TestLoggerService {
-			override setVisibility(id: string, visible: boolean): void {
-				assert.strictEqual(id, `mcpServer/${serverDefinition.id}`);
-				assert.strictEqual(visible, true);
-				loggerVisible = true;
-			}
-		};
-
-		// Override services
-		const services = new ServiceCollection(
-			[ILoggerService, store.add(loggerService)],
-			[IOutputService, upcast(outputService)],
-			[IStorageService, store.add(new TestStorageService())]
-		);
-
-		const localInstantiationService = store.add(new TestInstantiationService(services));
-
-		// Create server connection
-		const connection = localInstantiationService.createInstance(
-			McpServerConnection,
-			collection,
-			serverDefinition,
-			delegate,
-			serverDefinition.launch
-		);
-		store.add(connection);
-
-		// Show output
-		connection.showOutput();
-
-		assert.strictEqual(channelShown, true);
-		assert.strictEqual(loggerVisible, true);
-	});
-
 	test('should log transport messages', async () => {
 		// Track logged messages
 		const loggedMessages: string[] = [];
-		const loggerService = new class extends TestLoggerService {
-			override createLogger(id: string) {
-				return {
-					info: (message: string) => {
-						loggedMessages.push(message);
-					},
-					error: () => { },
-					dispose: () => { }
-				} as Partial<ILogger> as ILogger;
-			}
-		};
-
-		// Override services
-		const services = new ServiceCollection(
-			[ILoggerService, store.add(loggerService)],
-			[IOutputService, upcast({ showChannel: () => { } })],
-			[IStorageService, store.add(new TestStorageService())]
-		);
-
-		const localInstantiationService = store.add(new TestInstantiationService(services));
 
 		// Create server connection
-		const connection = localInstantiationService.createInstance(
+		const connection = instantiationService.createInstance(
 			McpServerConnection,
 			collection,
 			serverDefinition,
 			delegate,
-			serverDefinition.launch
+			serverDefinition.launch,
+			{
+				getLevel: () => LogLevel.Debug,
+				info: (message: string) => {
+					loggedMessages.push(message);
+				},
+				error: () => { },
+				dispose: () => { }
+			} as Partial<ILogger> as ILogger,
 		);
 		store.add(connection);
 
 		// Start the connection
-		const startPromise = connection.start();
+		const startPromise = connection.start({});
 
 		// Simulate log message from transport
 		transport.simulateLog('Test log message');
@@ -354,6 +310,9 @@ suite('Workbench - MCP - ServerConnection', () => {
 
 		// Check that the message was logged
 		assert.ok(loggedMessages.some(msg => msg === 'Test log message'));
+
+		connection.dispose();
+		await timeout(10);
 	});
 
 	test('should correctly handle transitions to and from error state', async () => {
@@ -363,12 +322,13 @@ suite('Workbench - MCP - ServerConnection', () => {
 			collection,
 			serverDefinition,
 			delegate,
-			serverDefinition.launch
+			serverDefinition.launch,
+			new NullLogger(),
 		);
 		store.add(connection);
 
 		// Start the connection
-		const startPromise = connection.start();
+		const startPromise = connection.start({});
 
 		// Transition to error state
 		const errorState: McpConnectionState = {
@@ -384,7 +344,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		transport.setConnectionState({ state: McpConnectionState.Kind.Stopped });
 
 		// Transition back to running state
-		const startPromise2 = connection.start();
+		const startPromise2 = connection.start({});
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
 		state = await startPromise2;
 		assert.deepStrictEqual(state, { state: McpConnectionState.Kind.Running });
@@ -400,12 +360,13 @@ suite('Workbench - MCP - ServerConnection', () => {
 			collection,
 			serverDefinition,
 			delegate,
-			serverDefinition.launch
+			serverDefinition.launch,
+			new NullLogger(),
 		);
 		store.add(connection);
 
 		// First cycle
-		let startPromise = connection.start();
+		let startPromise = connection.start({});
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
 		await startPromise;
 
@@ -413,7 +374,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		assert.deepStrictEqual(connection.state.get(), { state: McpConnectionState.Kind.Stopped });
 
 		// Second cycle
-		startPromise = connection.start();
+		startPromise = connection.start({});
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
 		await startPromise;
 

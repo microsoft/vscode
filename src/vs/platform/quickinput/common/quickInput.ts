@@ -51,6 +51,9 @@ export interface IQuickPickItem {
 	 */
 	disabled?: boolean;
 	alwaysShow?: boolean;
+	indented?: boolean;
+	/** Defauls to true with `IQuickPick.canSelectMany`, can be false to disable picks for a single item */
+	pickable?: boolean;
 }
 
 export interface IQuickPickSeparator {
@@ -105,6 +108,11 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	 * an optional flag to filter the picks based on label. Defaults to true.
 	 */
 	matchOnLabel?: boolean;
+
+	/**
+	 * an optional flag to sort the picks based by the label.
+	 */
+	sortByLabel?: boolean;
 
 	/**
 	 * an optional flag to not close the picker on focus lost

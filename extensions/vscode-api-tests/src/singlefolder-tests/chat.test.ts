@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { ChatContext, ChatRequest, ChatResult, Disposable, Event, EventEmitter, chat, commands, lm } from 'vscode';
+import { ChatContext, ChatRequest, ChatRequestTurn, ChatRequestTurn2, ChatResult, Disposable, Event, EventEmitter, chat, commands, lm } from 'vscode';
 import { DeferredPromise, asPromise, assertNoRpc, closeAllEditors, delay, disposeAll } from '../utils';
 
 suite('chat', () => {
@@ -71,6 +71,7 @@ suite('chat', () => {
 					assert.strictEqual(request.context.history.length, 2);
 					assert.strictEqual(request.context.history[0].participant, 'api-test.participant');
 					assert.strictEqual(request.context.history[0].command, 'hello');
+					assert.ok(request.context.history[0] instanceof ChatRequestTurn && request.context.history[0] instanceof ChatRequestTurn2);
 					deferred.complete();
 				}
 			} catch (e) {

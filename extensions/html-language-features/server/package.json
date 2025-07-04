@@ -10,20 +10,20 @@
   "main": "./out/node/htmlServerMain",
   "dependencies": {
     "@vscode/l10n": "^0.0.18",
-    "vscode-css-languageservice": "^6.3.2",
-    "vscode-html-languageservice": "^5.3.2",
-    "vscode-languageserver": "^10.0.0-next.11",
+    "vscode-css-languageservice": "^6.3.7",
+    "vscode-html-languageservice": "^5.5.1",
+    "vscode-languageserver": "^10.0.0-next.13",
     "vscode-languageserver-textdocument": "^1.0.12",
-    "vscode-uri": "^3.0.8"
+    "vscode-uri": "^3.1.0"
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
-    "@types/node": "20.x"
+    "@types/node": "22.x"
   },
   "scripts": {
     "compile": "npx gulp compile-extension:html-language-features-server",
     "watch": "npx gulp watch-extension:html-language-features-server",
-    "install-service-next": "npm install vscode-css-languageservice@next && npm install vscode-html-languageservice@next",
+    "install-service-next": "npm install vscode-css-languageservice && npm install vscode-html-languageservice",
     "install-service-local": "npm install vscode-css-languageservice && npm install vscode-html-languageservice",
     "install-server-next": "npm install vscode-languageserver@next",
     "install-server-local": "npm install vscode-languageserver",

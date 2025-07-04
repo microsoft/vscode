@@ -4,14 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 export enum ChatConfiguration {
-	UnifiedChatView = 'chat.experimental.unifiedChatView',
 	UseFileStorage = 'chat.useFileStorage',
+	AgentEnabled = 'chat.agent.enabled',
+	Edits2Enabled = 'chat.edits2.enabled',
+	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
+	EditRequests = 'chat.editRequests',
 }
 
-export enum ChatMode {
-	Ask = 'chat',
+/**
+ * The "kind" of the chat mode- "Agent" for custom modes.
+ */
+export enum ChatModeKind {
+	Ask = 'ask',
 	Edit = 'edit',
 	Agent = 'agent'
+}
+
+export function validateChatMode(mode: unknown): ChatModeKind | undefined {
+	switch (mode) {
+		case ChatModeKind.Ask:
+		case ChatModeKind.Edit:
+		case ChatModeKind.Agent:
+			return mode as ChatModeKind;
+		default:
+			return undefined;
+	}
+}
+
+export function isChatMode(mode: unknown): mode is ChatModeKind {
+	return !!validateChatMode(mode);
 }
 
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';
@@ -21,7 +42,6 @@ export enum ChatAgentLocation {
 	Terminal = 'terminal',
 	Notebook = 'notebook',
 	Editor = 'editor',
-	EditingSession = 'editing-session',
 }
 
 export namespace ChatAgentLocation {
@@ -31,7 +51,6 @@ export namespace ChatAgentLocation {
 			case 'terminal': return ChatAgentLocation.Terminal;
 			case 'notebook': return ChatAgentLocation.Notebook;
 			case 'editor': return ChatAgentLocation.Editor;
-			case 'editing-session': return ChatAgentLocation.EditingSession;
 		}
 		return ChatAgentLocation.Panel;
 	}

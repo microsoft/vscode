@@ -5,7 +5,7 @@
 
 import { Range } from '../../../core/range.js';
 import { Length, lengthAdd, lengthDiffNonNegative, lengthLessThanEqual, lengthOfString, lengthToObj, positionToLength, toLength } from './length.js';
-import { TextLength } from '../../../core/textLength.js';
+import { TextLength } from '../../../core/text/textLength.js';
 import { IModelContentChange } from '../../../textModelEvents.js';
 
 export class TextEditInfo {

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/worlpaker/go-syntax/commit/fbdaec061157e98dda185c0ce771ce6a2c793045",
+	"version": "https://github.com/worlpaker/go-syntax/commit/0ce19cdf1cb5dab6aa99ccc933be9bd21e855ed1",
 	"name": "Go",
 	"scopeName": "source.go",
 	"patterns": [
@@ -219,7 +219,7 @@
 					"name": "punctuation.definition.end.bracket.curly.go"
 				},
 				{
-					"begin": "(?:([\\w\\.\\*]+)?(\\[))",
+					"begin": "([\\w\\.\\*]+)?(\\[)",
 					"beginCaptures": {
 						"1": {
 							"patterns": [
@@ -227,7 +227,7 @@
 									"include": "#type-declarations"
 								},
 								{
-									"match": "(?:\\w+)",
+									"match": "\\w+",
 									"name": "entity.name.type.go"
 								}
 							]
@@ -315,7 +315,7 @@
 		},
 		"map_types": {
 			"comment": "map types",
-			"begin": "(?:(\\bmap\\b)(\\[))",
+			"begin": "(\\bmap\\b)(\\[)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.map.go"
@@ -515,7 +515,7 @@
 			"comment": "Note that the order here is very important!",
 			"patterns": [
 				{
-					"match": "((?:\\*|\\&)+)(?:(?!\\d)(?=(?:[\\w\\[\\]])|(?:\\<\\-)))",
+					"match": "(?<!\\w)(?:\\*|\\&)+(?:(?!\\d)(?=(?:[\\w\\[\\]])|(?:\\<\\-)))",
 					"name": "keyword.operator.address.go"
 				},
 				{
@@ -618,6 +618,10 @@
 				{
 					"match": "\\bany\\b",
 					"name": "entity.name.type.any.go"
+				},
+				{
+					"match": "\\bcomparable\\b",
+					"name": "entity.name.type.comparable.go"
 				}
 			]
 		},
@@ -1092,7 +1096,7 @@
 									"include": "#delimiters"
 								},
 								{
-									"match": "(?:\\w+)",
+									"match": "\\w+",
 									"name": "variable.other.import.go"
 								}
 							]
@@ -1176,7 +1180,7 @@
 													"include": "#parameter-variable-types"
 												},
 												{
-													"match": "(?:\\w+)",
+													"match": "\\w+",
 													"name": "entity.name.type.go"
 												}
 											]
@@ -1214,7 +1218,7 @@
 							"include": "#parameter-variable-types"
 						},
 						{
-							"match": "(?:\\w+)",
+							"match": "\\w+",
 							"name": "entity.name.type.go"
 						}
 					]
@@ -1241,7 +1245,7 @@
 					]
 				},
 				{
-					"begin": "(?:([\\w\\.\\*]+)?(\\[))",
+					"begin": "([\\w\\.\\*]+)?(\\[)",
 					"beginCaptures": {
 						"1": {
 							"patterns": [
@@ -1249,7 +1253,7 @@
 									"include": "#type-declarations"
 								},
 								{
-									"match": "(?:\\w+)",
+									"match": "\\w+",
 									"name": "entity.name.type.go"
 								}
 							]
@@ -1365,7 +1369,7 @@
 									"include": "#parameter-variable-types"
 								},
 								{
-									"match": "(?:\\w+)",
+									"match": "\\w+",
 									"name": "entity.name.type.go"
 								}
 							]
@@ -1373,7 +1377,7 @@
 					}
 				},
 				{
-					"begin": "(?:([\\w\\.\\*]+)?(\\[))",
+					"begin": "([\\w\\.\\*]+)?(\\[)",
 					"beginCaptures": {
 						"1": {
 							"patterns": [
@@ -1381,7 +1385,7 @@
 									"include": "#type-declarations"
 								},
 								{
-									"match": "(?:\\w+)",
+									"match": "\\w+",
 									"name": "entity.name.type.go"
 								}
 							]
@@ -1431,7 +1435,7 @@
 									"include": "#type-declarations"
 								},
 								{
-									"match": "(?:\\w+)",
+									"match": "\\w+",
 									"name": "entity.name.type.go"
 								}
 							]
@@ -1513,7 +1517,7 @@
 									"include": "#parameter-variable-types"
 								},
 								{
-									"match": "(?:\\w+)",
+									"match": "\\w+",
 									"name": "entity.name.type.go"
 								}
 							]
@@ -1524,7 +1528,7 @@
 									"include": "#type-declarations"
 								},
 								{
-									"match": "(?:\\w+)",
+									"match": "\\w+",
 									"name": "entity.name.type.go"
 								}
 							]
@@ -1532,7 +1536,7 @@
 					}
 				},
 				{
-					"begin": "(?:([\\w\\.\\*]+)?(\\[))",
+					"begin": "([\\w\\.\\*]+)?(\\[)",
 					"beginCaptures": {
 						"1": {
 							"patterns": [
@@ -1540,7 +1544,7 @@
 									"include": "#type-declarations"
 								},
 								{
-									"match": "(?:\\w+)",
+									"match": "\\w+",
 									"name": "entity.name.type.go"
 								}
 							]
@@ -1582,7 +1586,7 @@
 				},
 				{
 					"comment": "other types",
-					"match": "(?:\\b([\\w\\.]+))",
+					"match": "\\b([\\w\\.]+)",
 					"captures": {
 						"1": {
 							"patterns": [
@@ -1590,7 +1594,7 @@
 									"include": "#type-declarations"
 								},
 								{
-									"match": "(?:\\w+)",
+									"match": "\\w+",
 									"name": "entity.name.type.go"
 								}
 							]
@@ -1604,7 +1608,7 @@
 		},
 		"functions": {
 			"comment": "Functions",
-			"begin": "(?:(\\bfunc\\b)(?=\\())",
+			"begin": "(\\bfunc\\b)(?=\\()",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.function.go"
@@ -1628,7 +1632,7 @@
 							"include": "#parameter-variable-types"
 						},
 						{
-							"match": "(?:\\w+)",
+							"match": "\\w+",
 							"name": "entity.name.type.go"
 						}
 					]
@@ -1691,7 +1695,7 @@
 							"name": "punctuation.definition.end.bracket.curly.go"
 						},
 						{
-							"match": "(?:\\w+)",
+							"match": "\\w+",
 							"name": "entity.name.type.go"
 						}
 					]
@@ -1757,7 +1761,7 @@
 					"include": "#after_control_variables"
 				},
 				{
-					"match": "(\\b[\\w\\.]+)(\\[(?:[^\\]]+)?\\])?(?=\\{)(?<!\\bstruct\\b|\\binterface\\b)",
+					"match": "(\\b[\\w\\.]+)(\\[(?:(?:[\\w\\.\\*\\[\\]\\{\\}]+)(?:(?:\\,\\s*(?:[\\w\\.\\*\\[\\]\\{\\}]+))*))?\\])?(?=\\{)(?<!\\bstruct\\b|\\binterface\\b)",
 					"captures": {
 						"1": {
 							"patterns": [
@@ -1773,30 +1777,27 @@
 						"2": {
 							"patterns": [
 								{
-									"begin": "\\[",
-									"beginCaptures": {
-										"0": {
-											"name": "punctuation.definition.begin.bracket.square.go"
-										}
-									},
-									"end": "\\]",
-									"endCaptures": {
-										"0": {
-											"name": "punctuation.definition.end.bracket.square.go"
-										}
-									},
-									"patterns": [
-										{
-											"include": "#type-declarations"
-										},
-										{
-											"match": "\\w+",
-											"name": "entity.name.type.go"
-										},
-										{
-											"include": "$self"
-										}
-									]
+									"include": "#type-declarations-without-brackets"
+								},
+								{
+									"match": "\\[",
+									"name": "punctuation.definition.begin.bracket.square.go"
+								},
+								{
+									"match": "\\]",
+									"name": "punctuation.definition.end.bracket.square.go"
+								},
+								{
+									"match": "\\{",
+									"name": "punctuation.definition.begin.bracket.curly.go"
+								},
+								{
+									"match": "\\}",
+									"name": "punctuation.definition.end.bracket.curly.go"
+								},
+								{
+									"match": "\\w+",
+									"name": "entity.name.type.go"
 								}
 							]
 						}
@@ -1817,7 +1818,7 @@
 							"include": "#type-declarations"
 						},
 						{
-							"match": "(?:\\w+)",
+							"match": "\\w+",
 							"name": "entity.name.type.go"
 						}
 					]
@@ -1866,7 +1867,7 @@
 									"include": "#type-declarations"
 								},
 								{
-									"match": "(?:\\w+)",
+									"match": "\\w+",
 									"name": "entity.name.type.go"
 								}
 							]
@@ -1883,7 +1884,7 @@
 									"include": "#type-declarations"
 								},
 								{
-									"match": "(?:\\w+)",
+									"match": "\\w+",
 									"name": "variable.other.property.go"
 								}
 							]
@@ -1894,7 +1895,7 @@
 									"include": "#type-declarations"
 								},
 								{
-									"match": "(?:\\w+)",
+									"match": "\\w+",
 									"name": "entity.name.type.go"
 								}
 							]
@@ -1916,7 +1917,7 @@
 													"include": "#type-declarations"
 												},
 												{
-													"match": "(?:\\w+)",
+													"match": "\\w+",
 													"name": "variable.other.property.go"
 												}
 											]
@@ -1927,7 +1928,7 @@
 													"include": "#type-declarations"
 												},
 												{
-													"match": "(?:\\w+)",
+													"match": "\\w+",
 													"name": "entity.name.type.go"
 												}
 											]
@@ -1948,7 +1949,7 @@
 									"include": "#type-declarations"
 								},
 								{
-									"match": "(?:\\w+)",
+									"match": "\\w+",
 									"name": "entity.name.type.go"
 								}
 							]
@@ -1965,7 +1966,7 @@
 									"include": "#type-declarations"
 								},
 								{
-									"match": "(?:\\w+)",
+									"match": "\\w+",
 									"name": "variable.other.property.go"
 								}
 							]
@@ -1979,7 +1980,7 @@
 									"include": "#parameter-variable-types"
 								},
 								{
-									"match": "(?:\\w+)",
+									"match": "\\w+",
 									"name": "entity.name.type.go"
 								}
 							]
@@ -2143,7 +2144,7 @@
 					"include": "#type-declarations-without-brackets"
 				},
 				{
-					"begin": "(?:([\\w\\.\\*]+)?(\\[))",
+					"begin": "([\\w\\.\\*]+)?(\\[)",
 					"beginCaptures": {
 						"1": {
 							"patterns": [
@@ -2151,7 +2152,7 @@
 									"include": "#type-declarations"
 								},
 								{
-									"match": "(?:\\w+)",
+									"match": "\\w+",
 									"name": "entity.name.type.go"
 								}
 							]
@@ -2376,7 +2377,7 @@
 					"include": "#parameter-variable-types"
 				},
 				{
-					"match": "(?:\\w+)",
+					"match": "\\w+",
 					"name": "entity.name.type.go"
 				}
 			],
@@ -2405,7 +2406,7 @@
 							"name": "punctuation.definition.end.bracket.square.go"
 						},
 						{
-							"match": "(?:\\w+)",
+							"match": "\\w+",
 							"name": "variable.other.go"
 						}
 					]
@@ -2439,7 +2440,7 @@
 				},
 				{
 					"comment": "new keyword",
-					"begin": "(?:(\\bnew\\b)(\\())",
+					"begin": "(\\bnew\\b)(\\()",
 					"beginCaptures": {
 						"1": {
 							"name": "entity.name.function.support.builtin.go"
@@ -2468,7 +2469,7 @@
 							"include": "#generic_types"
 						},
 						{
-							"match": "(?:\\w+)",
+							"match": "\\w+",
 							"name": "entity.name.type.go"
 						},
 						{
@@ -2582,7 +2583,7 @@
 					"name": "punctuation.definition.begin.bracket.curly.go"
 				}
 			},
-			"end": "(?:\\})",
+			"end": "\\}",
 			"endCaptures": {
 				"0": {
 					"name": "punctuation.definition.end.bracket.curly.go"
@@ -3037,7 +3038,7 @@
 		},
 		"double_parentheses_types": {
 			"comment": "double parentheses types",
-			"match": "(?:(?<!\\w)(\\((?:[\\w\\.\\[\\]\\*\\&]+)\\))(?=\\())",
+			"match": "(?:(?<!\\w)(\\((?:[\\[\\]\\*]+)?(?:[\\w\\.]+)(?:\\[(?:(?:[\\w\\.\\*\\[\\]\\{\\}]+)(?:(?:\\,\\s*(?:[\\w\\.\\*\\[\\]\\{\\}]+))*))?\\])?\\))(?=\\())",
 			"captures": {
 				"1": {
 					"patterns": [
@@ -3059,6 +3060,14 @@
 						{
 							"match": "\\]",
 							"name": "punctuation.definition.end.bracket.square.go"
+						},
+						{
+							"match": "\\{",
+							"name": "punctuation.definition.begin.bracket.curly.go"
+						},
+						{
+							"match": "\\}",
+							"name": "punctuation.definition.end.bracket.curly.go"
 						},
 						{
 							"match": "\\w+",

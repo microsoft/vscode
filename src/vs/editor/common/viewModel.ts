@@ -44,6 +44,7 @@ export interface IViewModel extends ICursorSimpleModel {
 	onCompositionStart(): void;
 	onCompositionEnd(): void;
 
+	getFontSizeAtPosition(position: IPosition): string | null;
 	getMinimapDecorationsInRange(range: Range): ViewModelDecoration[];
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
 	getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
@@ -133,6 +134,7 @@ export interface IViewLayout {
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
 	getVerticalOffsetForLineNumber(lineNumber: number, includeViewZones?: boolean): number;
 	getVerticalOffsetAfterLineNumber(lineNumber: number, includeViewZones?: boolean): number;
+	getLineHeightForLineNumber(lineNumber: number): number;
 	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;
 
 	/**
@@ -154,6 +156,11 @@ export interface IWhitespaceChangeAccessor {
 	insertWhitespace(afterLineNumber: number, ordinal: number, heightInPx: number, minWidth: number): string;
 	changeOneWhitespace(id: string, newAfterLineNumber: number, newHeight: number): void;
 	removeWhitespace(id: string): void;
+}
+
+export interface ILineHeightChangeAccessor {
+	insertOrChangeCustomLineHeight(decorationId: string, startLineNumber: number, endLineNumber: number, lineHeight: number): void;
+	removeCustomLineHeight(decorationId: string): void;
 }
 
 export interface IPartialViewLinesViewportData {
@@ -343,6 +350,10 @@ export class ViewLineRenderingData {
 	 * The visible column at the start of the line (after the fauxIndent)
 	 */
 	public readonly startVisibleColumn: number;
+	/**
+	 * Whether the line has variable fonts
+	 */
+	public readonly hasVariableFonts: boolean;
 
 	constructor(
 		minColumn: number,
@@ -355,6 +366,7 @@ export class ViewLineRenderingData {
 		inlineDecorations: InlineDecoration[],
 		tabSize: number,
 		startVisibleColumn: number,
+		hasVariableFonts: boolean
 	) {
 		this.minColumn = minColumn;
 		this.maxColumn = maxColumn;
@@ -368,6 +380,7 @@ export class ViewLineRenderingData {
 		this.inlineDecorations = inlineDecorations;
 		this.tabSize = tabSize;
 		this.startVisibleColumn = startVisibleColumn;
+		this.hasVariableFonts = hasVariableFonts;
 	}
 
 	public static isBasicASCII(lineContent: string, mightContainNonBasicASCII: boolean): boolean {

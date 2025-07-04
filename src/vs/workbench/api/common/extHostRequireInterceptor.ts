@@ -27,7 +27,7 @@ interface IAlternativeModuleProvider {
 	alternativeModuleName(name: string): string | undefined;
 }
 
-interface INodeModuleFactory extends Partial<IAlternativeModuleProvider> {
+export interface INodeModuleFactory extends Partial<IAlternativeModuleProvider> {
 	readonly nodeModuleName: string | string[];
 	load(request: string, parent: URI, original: LoadFunction): any;
 }

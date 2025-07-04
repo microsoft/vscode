@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { TreeSitterTextModelService } from '../../../editor/common/services/treeSitter/treeSitterParserService.js';
 import { IModelService } from '../../../editor/common/services/model.js';
 import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
@@ -18,10 +17,7 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { ModelService } from '../../../editor/common/services/modelService.js';
-// eslint-disable-next-line local/code-layering, local/code-import-patterns
-import { TreeSitterTokenizationFeature } from '../../services/treeSitter/browser/treeSitterTokenizationFeature.js';
-import { ITreeSitterImporter, ITreeSitterParserService, TreeSitterImporter, TreeUpdateEvent } from '../../../editor/common/services/treeSitterParserService.js';
-import { ITreeSitterTokenizationSupport, TreeSitterTokenizationRegistry } from '../../../editor/common/languages.js';
+
 import { FileService } from '../../../platform/files/common/fileService.js';
 import { Schemas } from '../../../base/common/network.js';
 import { DiskFileSystemProvider } from '../../../platform/files/node/diskFileSystemProvider.js';
@@ -41,15 +37,20 @@ import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js'
 import { ProbeScope, TokenStyle } from '../../../platform/theme/common/tokenClassificationRegistry.js';
 import { TextMateThemingRuleDefinitions } from '../../services/themes/common/colorThemeData.js';
 import { Color } from '../../../base/common/color.js';
-import { ITreeSitterTokenizationStoreService } from '../../../editor/common/model/treeSitterTokenStoreService.js';
 import { Range } from '../../../editor/common/core/range.js';
+import { TokenUpdate } from '../../../editor/common/model/tokens/treeSitter/tokenStore.js';
+import { ITreeSitterLibraryService } from '../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
+// eslint-disable-next-line local/code-layering, local/code-import-patterns
+import { TreeSitterLibraryService } from '../../services/treeSitter/browser/treeSitterLibraryService.js';
+import { TokenizationTextModelPart } from '../../../editor/common/model/tokens/tokenizationTextModelPart.js';
+import { TreeSitterSyntaxTokenBackend } from '../../../editor/common/model/tokens/treeSitter/treeSitterSyntaxTokenBackend.js';
+import { TreeParseUpdateEvent, TreeSitterTree } from '../../../editor/common/model/tokens/treeSitter/treeSitterTree.js';
 import { ITextModel } from '../../../editor/common/model.js';
-import { TokenQuality, TokenUpdate } from '../../../editor/common/model/tokenStore.js';
+import { TreeSitterTokenizationImpl } from '../../../editor/common/model/tokens/treeSitter/treeSitterTokenizationImpl.js';
+import { autorunHandleChanges, recordChanges, waitForState } from '../../../base/common/observable.js';
+import { ITreeSitterThemeService } from '../../../editor/common/services/treeSitter/treeSitterThemeService.js';
 // eslint-disable-next-line local/code-layering, local/code-import-patterns
-import { ICodeEditorService } from '../../../editor/browser/services/codeEditorService.js';
-// eslint-disable-next-line local/code-layering, local/code-import-patterns
-import { TestCodeEditorService } from '../../../editor/test/browser/editorTestServices.js';
-import { IModelContentChangedEvent } from '../../../editor/common/textModelEvents.js';
+import { TreeSitterThemeService } from '../../services/treeSitter/browser/treeSitterThemeService.js';
 
 class MockTelemetryService implements ITelemetryService {
 	_serviceBrand: undefined;
@@ -72,37 +73,6 @@ class MockTelemetryService implements ITelemetryService {
 	}
 }
 
-class MockTokenStoreService implements ITreeSitterTokenizationStoreService {
-	delete(model: ITextModel): void {
-		throw new Error('Method not implemented.');
-	}
-	handleContentChanged(model: ITextModel, e: IModelContentChangedEvent): void {
-	}
-	rangeHasTokens(model: ITextModel, range: Range, minimumTokenQuality: TokenQuality): boolean {
-		return true;
-	}
-	rangHasAnyTokens(model: ITextModel): boolean {
-		return true;
-	}
-	getNeedsRefresh(model: ITextModel): { range: Range; startOffset: number; endOffset: number }[] {
-		return [];
-	}
-
-	_serviceBrand: undefined;
-	setTokens(model: ITextModel, tokens: TokenUpdate[]): void {
-	}
-	getTokens(model: ITextModel, line: number): Uint32Array | undefined {
-		return undefined;
-	}
-	updateTokens(model: ITextModel, version: number, updates: { oldRangeLength: number; newTokens: TokenUpdate[] }[]): void {
-	}
-	markForRefresh(model: ITextModel, range: Range): void {
-	}
-	hasTokens(model: ITextModel, accurateForRange?: Range): boolean {
-		return true;
-	}
-
-}
 
 class TestTreeSitterColorTheme extends TestColorTheme {
 	public resolveScopes(scopes: ProbeScope[], definitions?: TextMateThemingRuleDefinitions): TokenStyle | undefined {
@@ -120,26 +90,29 @@ suite('Tree Sitter TokenizationFeature', function () {
 	let fileService: IFileService;
 	let textResourcePropertiesService: ITextResourcePropertiesService;
 	let languageConfigurationService: ILanguageConfigurationService;
-	const telemetryService: ITelemetryService = new MockTelemetryService();
-	const logService: ILogService = new NullLogService();
-	const configurationService: IConfigurationService = new TestConfigurationService({ 'editor.experimental.preferTreeSitter.typescript': true });
-	const themeService: IThemeService = new TestThemeService(new TestTreeSitterColorTheme());
+	let telemetryService: ITelemetryService;
+	let logService: ILogService;
+	let configurationService: IConfigurationService;
+	let themeService: IThemeService;
 	let languageService: ILanguageService;
-	const environmentService: IEnvironmentService = {} as IEnvironmentService;
-	const tokenStoreService: ITreeSitterTokenizationStoreService = new MockTokenStoreService();
-	let treeSitterParserService: TreeSitterTextModelService;
-	let treeSitterTokenizationSupport: ITreeSitterTokenizationSupport;
+	let environmentService: IEnvironmentService;
 
 	let disposables: DisposableStore;
 
 	setup(async () => {
 		disposables = new DisposableStore();
 		instantiationService = disposables.add(new TestInstantiationService());
+
+		telemetryService = new MockTelemetryService();
+		logService = new NullLogService();
+		configurationService = new TestConfigurationService({ 'editor.experimental.preferTreeSitter.typescript': true });
+		themeService = new TestThemeService(new TestTreeSitterColorTheme());
+		environmentService = {} as IEnvironmentService;
+
 		instantiationService.set(IEnvironmentService, environmentService);
 		instantiationService.set(IConfigurationService, configurationService);
 		instantiationService.set(ILogService, logService);
 		instantiationService.set(ITelemetryService, telemetryService);
-		instantiationService.set(ITreeSitterTokenizationStoreService, tokenStoreService);
 		languageService = disposables.add(instantiationService.createInstance(LanguageService));
 		instantiationService.set(ILanguageService, languageService);
 		instantiationService.set(IThemeService, themeService);
@@ -147,14 +120,17 @@ suite('Tree Sitter TokenizationFeature', function () {
 		instantiationService.set(ITextResourcePropertiesService, textResourcePropertiesService);
 		languageConfigurationService = disposables.add(instantiationService.createInstance(TestLanguageConfigurationService));
 		instantiationService.set(ILanguageConfigurationService, languageConfigurationService);
-		instantiationService.set(ITreeSitterImporter, instantiationService.createInstance(TreeSitterImporter));
-		instantiationService.set(ICodeEditorService, instantiationService.createInstance(TestCodeEditorService));
 
 		fileService = disposables.add(instantiationService.createInstance(FileService));
 		const diskFileSystemProvider = disposables.add(new DiskFileSystemProvider(logService));
 		disposables.add(fileService.registerProvider(Schemas.file, diskFileSystemProvider));
-
 		instantiationService.set(IFileService, fileService);
+
+		const libraryService = disposables.add(instantiationService.createInstance(TreeSitterLibraryService));
+		libraryService.isTest = true;
+		instantiationService.set(ITreeSitterLibraryService, libraryService);
+
+		instantiationService.set(ITreeSitterThemeService, instantiationService.createInstance(TreeSitterThemeService));
 
 		const dialogService = new TestDialogService();
 		const notificationService = new TestNotificationService();
@@ -167,11 +143,6 @@ suite('Tree Sitter TokenizationFeature', function () {
 			instantiationService
 		);
 		instantiationService.set(IModelService, modelService);
-		treeSitterParserService = disposables.add(instantiationService.createInstance(TreeSitterTextModelService));
-		treeSitterParserService.isTest = true;
-		instantiationService.set(ITreeSitterParserService, treeSitterParserService);
-		disposables.add(instantiationService.createInstance(TreeSitterTokenizationFeature));
-		treeSitterTokenizationSupport = disposables.add(await TreeSitterTokenizationRegistry.getOrCreate('typescript') as (ITreeSitterTokenizationSupport & IDisposable));
 	});
 
 	teardown(() => {
@@ -185,22 +156,18 @@ suite('Tree Sitter TokenizationFeature', function () {
 	}
 
 	let nameNumber = 1;
-	async function getModelAndPrepTree(content: string) {
+	async function getModelAndPrepTree(content: string): Promise<{ model: ITextModel; treeSitterTree: TreeSitterTree; tokenizationImpl: TreeSitterTokenizationImpl }> {
 		const model = disposables.add(modelService.createModel(content, { languageId: 'typescript', onDidChange: Event.None }, URI.file(`file${nameNumber++}.ts`)));
-		const tree = disposables.add(await treeSitterParserService.getTextModelTreeSitter(model));
-		const treeParseResult = new Promise<void>(resolve => {
-			const disposable = treeSitterParserService.onDidUpdateTree(e => {
-				if (e.textModel === model) {
-					disposable.dispose();
-					resolve();
-				}
-			});
-		});
-		await tree.parse();
-		await treeParseResult;
+		const treeSitterTreeObs = disposables.add((model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterSyntaxTokenBackend).tree;
+		const tokenizationImplObs = disposables.add((model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterSyntaxTokenBackend).tokenizationImpl;
+		const treeSitterTree = treeSitterTreeObs.get() ?? await waitForState(treeSitterTreeObs);
+		if (!treeSitterTree.tree.get()) {
+			await waitForState(treeSitterTree.tree);
+		}
+		const tokenizationImpl = tokenizationImplObs.get() ?? await waitForState(tokenizationImplObs);
 
-		assert.ok(tree);
-		return model;
+		assert.ok(treeSitterTree);
+		return { model, treeSitterTree, tokenizationImpl };
 	}
 
 	function verifyTokens(tokens: TokenUpdate[] | undefined) {
@@ -223,16 +190,17 @@ class x {
 
 class y {
 }`;
-		const model = await getModelAndPrepTree(content);
+		const { model, treeSitterTree } = await getModelAndPrepTree(content);
 
 		let updateListener: IDisposable | undefined;
-		let change: TreeUpdateEvent | undefined;
-
-		const updatePromise = new Promise<void>(resolve => {
-			updateListener = treeSitterParserService.onDidUpdateTree(async e => {
-				if (e.textModel === model) {
-					change = e;
-					resolve();
+		const changePromise = new Promise<TreeParseUpdateEvent | undefined>(resolve => {
+			updateListener = autorunHandleChanges({
+				owner: this,
+				changeTracker: recordChanges({ tree: treeSitterTree.tree }),
+			}, (reader, ctx) => {
+				const changeEvent = ctx.changes.at(0)?.change;
+				if (changeEvent) {
+					resolve(changeEvent);
 				}
 			});
 		});
@@ -250,14 +218,14 @@ class y {
 			resolve();
 		});
 		const edits = Promise.all([edit1, edit2, edit3]);
-		await updatePromise;
+		const change = await changePromise;
 		await edits;
 		assert.ok(change);
 
 		assert.strictEqual(change.versionId, 4);
-		assert.strictEqual(change.ranges[0].newRangeStartOffset, 7);
+		assert.strictEqual(change.ranges[0].newRangeStartOffset, 0);
 		assert.strictEqual(change.ranges[0].newRangeEndOffset, 32);
-		assert.strictEqual(change.ranges[0].newRange.startLineNumber, 2);
+		assert.strictEqual(change.ranges[0].newRange.startLineNumber, 1);
 		assert.strictEqual(change.ranges[0].newRange.endLineNumber, 7);
 
 		updateListener?.dispose();
@@ -266,8 +234,8 @@ class y {
 
 	test('File single line file', async () => {
 		const content = `console.log('x');`;
-		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 1, 18), 0, 17);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 1, 18), 0, 17);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 9);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -278,8 +246,8 @@ class y {
 		const content = `
 console.log('x');
 `;
-		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 3, 1), 0, 19);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 3, 1), 0, 19);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 11);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -288,8 +256,8 @@ console.log('x');
 
 	test('File with new lines at beginning and end \\r\\n', async () => {
 		const content = '\r\nconsole.log(\'x\');\r\n';
-		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 3, 1), 0, 21);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 3, 1), 0, 21);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 11);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -302,8 +270,8 @@ console.log('x');
 
 console.log('7');
 `;
-		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 5, 1), 0, 38);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 5, 1), 0, 38);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 21);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -312,8 +280,8 @@ console.log('7');
 
 	test('File with empty lines in the middle \\r\\n', async () => {
 		const content = '\r\nconsole.log(\'x\');\r\n\r\nconsole.log(\'7\');\r\n';
-		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 5, 1), 0, 42);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 5, 1), 0, 42);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 21);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -326,8 +294,8 @@ console.log('7');
 {
 }
 `;
-		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 5, 1), 0, 24);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 5, 1), 0, 24);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 16);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -336,8 +304,8 @@ console.log('7');
 
 	test('File with non-empty lines that match no scopes \\r\\n', async () => {
 		const content = 'console.log(\'x\');\r\n;\r\n{\r\n}\r\n';
-		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 5, 1), 0, 28);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 5, 1), 0, 28);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 16);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -351,8 +319,8 @@ console.log('7');
 console.log('x');
 
 `;
-		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 6, 1), 0, 28);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 6, 1), 0, 28);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 12);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -361,8 +329,8 @@ console.log('x');
 
 	test('File with tree-sitter token that spans multiple lines \\r\\n', async () => {
 		const content = '/**\r\n**/\r\n\r\nconsole.log(\'x\');\r\n\r\n';
-		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 6, 1), 0, 33);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 6, 1), 0, 33);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 12);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -377,8 +345,8 @@ console.log('x');
 class Y {
 	private z = false;
 }`;
-		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 7, 1), 0, 63);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 7, 1), 0, 63);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 30);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -387,8 +355,8 @@ class Y {
 
 	test('File with tabs \\r\\n', async () => {
 		const content = 'function x() {\r\n\treturn true;\r\n}\r\n\r\nclass Y {\r\n\tprivate z = false;\r\n}';
-		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 7, 1), 0, 69);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 7, 1), 0, 69);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 30);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -397,8 +365,8 @@ class Y {
 
 	test('Template string', async () => {
 		const content = '`t ${6}`';
-		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 1, 8), 0, 8);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 1, 8), 0, 8);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 6);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -412,8 +380,8 @@ class Y {
 	// To make sure the translators don't break the link
 	comment: ["{Locked=']({'}"]
 }));`;
-		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 6, 5), 0, 238);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 6, 5), 0, 238);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 65);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);

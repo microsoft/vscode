@@ -30,8 +30,8 @@ export function parseNotebookSnapshotFileURI(resource: URI): ChatEditingSnapshot
 	return { sessionId: data.sessionId ?? '', requestId: data.requestId ?? '', undoStop: data.undoStop ?? '', viewType: data.viewType };
 }
 
-export function createSnapshot(notebook: NotebookTextModel, transientOptions: TransientOptions | undefined, configurationService: IConfigurationService): string {
-	const outputSizeLimit = configurationService.getValue<number>(NotebookSetting.outputBackupSizeLimit) * 1024;
+export function createSnapshot(notebook: NotebookTextModel, transientOptions: TransientOptions | undefined, outputSizeConfig: IConfigurationService | number): string {
+	const outputSizeLimit = (typeof outputSizeConfig === 'number' ? outputSizeConfig : outputSizeConfig.getValue<number>(NotebookSetting.outputBackupSizeLimit)) * 1024;
 	return serializeSnapshot(notebook.createSnapshot({ context: SnapshotContext.Backup, outputSizeLimit, transientOptions }), transientOptions);
 }
 
@@ -41,9 +41,9 @@ export function restoreSnapshot(notebook: NotebookTextModel, snapshot: string): 
 		notebook.restoreSnapshot(data, transientOptions);
 		const edits: ICellEditOperation[] = [];
 		data.cells.forEach((cell, index) => {
-			const cellId = cell.internalMetadata?.cellId;
-			if (cellId) {
-				edits.push({ editType: CellEditType.PartialInternalMetadata, index, internalMetadata: { cellId } });
+			const internalId = cell.internalMetadata?.internalId;
+			if (internalId) {
+				edits.push({ editType: CellEditType.PartialInternalMetadata, index, internalMetadata: { internalId } });
 			}
 		});
 		notebook.applyEdits(edits, true, undefined, () => undefined, undefined, false);

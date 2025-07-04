@@ -9,7 +9,7 @@ import { isWindows } from '../../../../../base/common/platform.js';
 import { localize } from '../../../../../nls.js';
 import { IExtensionManagementService } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService, NeverShowAgainScope, Severity } from '../../../../../platform/notification/common/notification.js';
+import { INotificationService, NeverShowAgainScope, NotificationPriority, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { InstallRecommendedExtensionAction } from '../../../extensions/browser/extensionsActions.js';
@@ -66,7 +66,7 @@ export class TerminalWslRecommendationContribution extends Disposable implements
 					}
 				],
 				{
-					sticky: true,
+					priority: NotificationPriority.OPTIONAL,
 					neverShowAgain: { id: 'terminalConfigHelper/launchRecommendationsIgnore', scope: NeverShowAgainScope.APPLICATION },
 					onCancel: () => { }
 				}

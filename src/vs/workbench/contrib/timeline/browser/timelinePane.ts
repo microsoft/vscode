@@ -35,7 +35,7 @@ import { SideBySideEditor, EditorResourceAccessor } from '../../../common/editor
 import { ICommandService, CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IViewDescriptorService } from '../../../common/views.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -646,21 +646,20 @@ export class TimelinePane extends ViewPane {
 		let response: Timeline | undefined;
 		try {
 			response = await this.progressService.withProgress({ location: this.id }, () => request.result);
+		} catch {
+			// Ignore
 		}
-		finally {
+
+		// If the request was cancelled then it was already deleted from the pendingRequests map
+		if (!request.tokenSource.token.isCancellationRequested) {
 			this.pendingRequests.get(request.source)?.dispose();
 			this.pendingRequests.delete(request.source);
 		}
 
-		if (
-			response === undefined ||
-			request.tokenSource.token.isCancellationRequested ||
-			request.uri !== this.uri
-		) {
+		if (response === undefined || request.uri !== this.uri) {
 			if (this.pendingRequests.size === 0 && this._pendingRefresh) {
 				this.refresh();
 			}
-
 			return;
 		}
 
@@ -927,7 +926,7 @@ export class TimelinePane extends ViewPane {
 		// this.treeElement.classList.add('show-file-icons');
 		container.appendChild(this.$tree);
 
-		this.treeRenderer = this.instantiationService.createInstance(TimelineTreeRenderer, this.commands);
+		this.treeRenderer = this.instantiationService.createInstance(TimelineTreeRenderer, this.commands, this.viewDescriptorService.getViewLocationById(this.id));
 		this._register(this.treeRenderer.onDidScrollToEnd(item => {
 			if (this.pageOnScroll) {
 				this.loadMore(item);
@@ -1166,11 +1165,18 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 
 	constructor(
 		private readonly commands: TimelinePaneCommands,
+		private readonly viewContainerLocation: ViewContainerLocation | null,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService,
+		@IThemeService private themeService: IThemeService
 	) {
 		this.actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
-		this._hoverDelegate = this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, {
+
+		this._hoverDelegate = this.instantiationService.createInstance(
+			WorkbenchHoverDelegate,
+			this.viewContainerLocation === ViewContainerLocation.Panel ? 'mouse' : 'element',
+			{
+				instantHover: this.viewContainerLocation !== ViewContainerLocation.Panel
+			}, {
 			position: {
 				hoverPosition: HoverPosition.RIGHT // Will flip when there's no space
 			}
@@ -1189,8 +1195,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 	renderElement(
 		node: ITreeNode<TreeElement, FuzzyScore>,
 		index: number,
-		template: TimelineElementTemplate,
-		height: number | undefined
+		template: TimelineElementTemplate
 	): void {
 		template.reset();
 
@@ -1242,7 +1247,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		}
 	}
 
-	disposeElement(element: ITreeNode<TreeElement, FuzzyScore>, index: number, templateData: TimelineElementTemplate, height: number | undefined): void {
+	disposeElement(element: ITreeNode<TreeElement, FuzzyScore>, index: number, templateData: TimelineElementTemplate): void {
 		templateData.actionBar.actionRunner.dispose();
 	}
 

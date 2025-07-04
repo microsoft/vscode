@@ -14,7 +14,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IKeyMods } from '../../../../platform/quickinput/common/quickInput.js';
 import { IMarkProperties, ITerminalCapabilityImplMap, ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IMergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
-import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalBackend, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue, type IDecorationAddon } from '../../../../platform/terminal/common/terminal.js';
+import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalBackend, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue, type IDecorationAddon, type ShellIntegrationInjectionFailureReason } from '../../../../platform/terminal/common/terminal.js';
 import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -133,6 +133,7 @@ export interface ITerminalGroup {
 	activeInstance: ITerminalInstance | undefined;
 	terminalInstances: ITerminalInstance[];
 	title: string;
+	readonly hadFocusOnExit: boolean;
 
 	readonly onDidDisposeInstance: Event<ITerminalInstance>;
 	readonly onDisposed: Event<ITerminalGroup>;
@@ -619,6 +620,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	readonly initialCwd?: string;
 	readonly os?: OperatingSystem;
 	readonly usedShellIntegrationInjection: boolean;
+	readonly shellIntegrationInjectionFailureReason: ShellIntegrationInjectionFailureReason | undefined;
 	readonly injectedArgs: string[] | undefined;
 	readonly extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
 
@@ -672,6 +674,11 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * Whether an element within this terminal is focused.
 	 */
 	readonly hasFocus: boolean;
+
+	/**
+	 * The ID of the session that this terminal is connected to
+	 */
+	readonly sessionId: string;
 
 	/**
 	 * Get or set the behavior of the terminal when it closes. This was indented only to be called
@@ -899,6 +906,13 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	sendText(text: string, shouldExecute: boolean, bracketedPasteMode?: boolean): Promise<void>;
 
 	/**
+	 * Sends a signal to the terminal instance's process.
+	 *
+	 * @param signal The signal to send (e.g., 'SIGTERM', 'SIGINT', 'SIGKILL').
+	 */
+	sendSignal(signal: string): Promise<void>;
+
+	/**
 	 * Sends a path to the terminal instance, preparing it as needed based on the detected shell
 	 * running within the terminal. The text is written to the stdin of the underlying pty process
 	 * (shell) of the terminal instance.
@@ -909,7 +923,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 */
 	sendPath(originalPath: string | URI, shouldExecute: boolean): Promise<void>;
 
-	runCommand(command: string, shouldExecute?: boolean): void;
+	runCommand(command: string, shouldExecute?: boolean): Promise<void>;
 
 	/**
 	 * Takes a path and returns the properly escaped path to send to a given shell. On Windows, this
@@ -998,7 +1012,12 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * from the backend. This will return the initial cwd if cwd detection is not available (ie.
 	 * on Windows when shell integration is disabled).
 	 */
-	getCwd(): Promise<string>;
+	getSpeculativeCwd(): Promise<string>;
+
+	/**
+	 * Gets the cwd as a URI that has been validated to exist.
+	 */
+	getCwdResource(): Promise<URI | undefined>;
 
 	/**
 	 * Sets the title of the terminal to the provided string. If no title is provided, it will reset

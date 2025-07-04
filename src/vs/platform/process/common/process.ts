@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandboxTypes.js';
-import { PerformanceInfo, SystemInfo } from '../../diagnostics/common/diagnostics.js';
+import { ProcessItem } from '../../../base/common/processes.js';
+import { IRemoteDiagnosticError, PerformanceInfo, SystemInfo } from '../../diagnostics/common/diagnostics.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 // Since data sent through the service is serialized to JSON, functions will be lost, so Color objects
@@ -29,41 +29,23 @@ export interface ISettingSearchResult {
 	score: number;
 }
 
-export interface ProcessExplorerStyles extends WindowStyles {
-	listHoverBackground?: string;
-	listHoverForeground?: string;
-	listFocusBackground?: string;
-	listFocusForeground?: string;
-	listFocusOutline?: string;
-	listActiveSelectionBackground?: string;
-	listActiveSelectionForeground?: string;
-	listHoverOutline?: string;
-	scrollbarShadowColor?: string;
-	scrollbarSliderBackgroundColor?: string;
-	scrollbarSliderHoverBackgroundColor?: string;
-	scrollbarSliderActiveBackgroundColor?: string;
+export const IProcessService = createDecorator<IProcessService>('processService');
+
+export interface IResolvedProcessInformation {
+	readonly pidToNames: [number, string][];
+	readonly processes: {
+		readonly name: string;
+		readonly rootProcess: ProcessItem | IRemoteDiagnosticError;
+	}[];
 }
 
-export interface ProcessExplorerData extends WindowData {
-	pid: number;
-	styles: ProcessExplorerStyles;
-	platform: string;
-	applicationName: string;
-}
+export interface IProcessService {
 
-export interface ProcessExplorerWindowConfiguration extends ISandboxConfiguration {
-	data: ProcessExplorerData;
-}
-
-export const IProcessMainService = createDecorator<IProcessMainService>('processService');
-
-export interface IProcessMainService {
 	readonly _serviceBrand: undefined;
-	getSystemStatus(): Promise<string>;
-	stopTracing(): Promise<void>;
-	openProcessExplorer(data: ProcessExplorerData): Promise<void>;
 
-	// Used by the process explorer
-	$getSystemInfo(): Promise<SystemInfo>;
-	$getPerformanceInfo(): Promise<PerformanceInfo>;
+	resolveProcesses(): Promise<IResolvedProcessInformation>;
+
+	getSystemStatus(): Promise<string>;
+	getSystemInfo(): Promise<SystemInfo>;
+	getPerformanceInfo(): Promise<PerformanceInfo>;
 }

@@ -38,6 +38,7 @@ import { IConfigurationResolverService } from '../../services/configurationResol
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
 import { ErrorNoTelemetry } from '../../../base/common/errors.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ConfigurationResolverExpression } from '../../services/configurationResolver/common/configurationResolverExpression.js';
 
 namespace TaskExecutionDTO {
 	export function from(value: ITaskExecution): ITaskExecutionDTO {
@@ -477,12 +478,15 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 				const execution = TaskExecutionDTO.from(task.getTaskExecution());
 				let resolvedDefinition: ITaskDefinitionDTO = execution.task!.definition;
 				if (execution.task?.execution && CustomExecutionDTO.is(execution.task.execution) && event.resolvedVariables) {
-					const dictionary: IStringDictionary<string> = {};
-					for (const [key, value] of event.resolvedVariables.entries()) {
-						dictionary[key] = value;
+					const expr = ConfigurationResolverExpression.parse(execution.task.definition);
+					for (const replacement of expr.unresolved()) {
+						const value = event.resolvedVariables.get(replacement.inner);
+						if (value !== undefined) {
+							expr.resolve(replacement, value);
+						}
 					}
-					resolvedDefinition = await this._configurationResolverService.resolveAnyAsync(task.getWorkspaceFolder(),
-						execution.task.definition, dictionary);
+
+					resolvedDefinition = await this._configurationResolverService.resolveAsync(task.getWorkspaceFolder(), expr);
 				}
 				this._proxy.$onDidStartTask(execution, event.terminalId, resolvedDefinition);
 			} else if (event.kind === TaskEventKind.ProcessStarted) {

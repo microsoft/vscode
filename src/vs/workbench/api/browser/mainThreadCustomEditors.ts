@@ -174,7 +174,9 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 					return;
 				}
 
-				webviewInput.webview.onDidDispose(() => {
+				const disposeSub = webviewInput.webview.onDidDispose(() => {
+					disposeSub.dispose();
+
 					// If the model is still dirty, make sure we have time to save it
 					if (modelRef.object.isDirty()) {
 						const sub = modelRef.object.onDidChangeDirty(() => {
@@ -199,7 +201,8 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				}
 
 				try {
-					await this._proxyCustomEditors.$resolveCustomEditor(this._uriIdentityService.asCanonicalUri(resource), handle, viewType, {
+					const actualResource = modelType === CustomEditorModelType.Text ? this._uriIdentityService.asCanonicalUri(resource) : resource;
+					await this._proxyCustomEditors.$resolveCustomEditor(actualResource, handle, viewType, {
 						title: webviewInput.getTitle(),
 						contentOptions: webviewInput.webview.contentOptions,
 						options: webviewInput.webview.options,

@@ -9,7 +9,7 @@ import { Position } from '../../core/position.js';
 import { Range } from '../../core/range.js';
 import { ApplyEditsResult, EndOfLinePreference, FindMatch, IInternalModelContentChange, ISingleEditOperationIdentifier, ITextBuffer, ITextSnapshot, ValidAnnotatedEditOperation, IValidEditOperation, SearchData } from '../../model.js';
 import { PieceTreeBase, StringBuffer } from './pieceTreeBase.js';
-import { countEOL, StringEOL } from '../../core/eolCounter.js';
+import { countEOL, StringEOL } from '../../core/misc/eolCounter.js';
 import { TextChange } from '../../core/textChange.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 

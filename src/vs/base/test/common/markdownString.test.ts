@@ -87,6 +87,13 @@ suite('MarkdownString', () => {
 		assert.deepStrictEqual(mds.uris, dto.uris);
 	});
 
+	test('lift returns new instance', () => {
+		const instance = new MarkdownString('hello');
+		const mds2 = MarkdownString.lift(instance).appendText('world');
+		assert.strictEqual(mds2.value, 'helloworld');
+		assert.strictEqual(instance.value, 'hello');
+	});
+
 	suite('appendCodeBlock', () => {
 		function assertCodeBlock(lang: string, code: string, result: string) {
 			const mds = new MarkdownString();
@@ -183,6 +190,5 @@ suite('MarkdownString', () => {
 			});
 
 		});
-
 	});
 });

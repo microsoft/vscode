@@ -41,7 +41,6 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { DomEmitter } from '../../../../base/browser/event.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { infoIcon } from '../../extensions/browser/extensionsIcons.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -51,6 +50,11 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import Severity from '../../../../base/common/severity.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 
 type ActionGroup = [string, Array<MenuItemAction | SubmenuItemAction>];
 
@@ -149,6 +153,9 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IProductService private readonly productService: IProductService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
@@ -625,14 +632,27 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		return markdownTooltip;
 	}
 
-	private async installExtension(extensionId: string) {
-		const galleryExtension = (await this.extensionGalleryService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
-
-		await this.extensionManagementService.installFromGallery(galleryExtension, {
-			isMachineScoped: false,
-			donotIncludePackAndDependencies: false,
-			context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true }
-		});
+	private async installExtension(extensionId: string, remoteLabel: string): Promise<void> {
+		try {
+			await this.extensionsWorkbenchService.install(extensionId, {
+				isMachineScoped: false,
+				donotIncludePackAndDependencies: false,
+				context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true }
+			});
+		} catch (error) {
+			if (!this.lifecycleService.willShutdown) {
+				const { confirmed } = await this.dialogService.confirm({
+					type: Severity.Error,
+					message: nls.localize('unknownSetupError', "An error occurred while setting up {0}. Would you like to try again?", remoteLabel),
+					detail: error && !isCancellationError(error) ? toErrorMessage(error) : undefined,
+					primaryButton: nls.localize('retry', "Retry")
+				});
+				if (confirmed) {
+					return this.installExtension(extensionId, remoteLabel);
+				}
+			}
+			throw error;
+		}
 	}
 
 	private async runRemoteStartCommand(extensionId: string, startCommand: string) {
@@ -794,8 +814,13 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					quickPick.busy = true;
 					quickPick.placeholder = nls.localize('remote.startActions.installingExtension', 'Installing extension... ');
 
-					await this.installExtension(remoteExtension.id);
-					quickPick.hide();
+					try {
+						await this.installExtension(remoteExtension.id, selectedItems[0].label);
+					} catch (error) {
+						return;
+					} finally {
+						quickPick.hide();
+					}
 					await this.runRemoteStartCommand(remoteExtension.id, remoteExtension.startCommand);
 				}
 				else {

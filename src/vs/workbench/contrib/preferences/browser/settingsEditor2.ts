@@ -4,14 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../base/browser/dom.js';
-import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { Orientation, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
+import { ToggleActionViewItem } from '../../../../base/browser/ui/toggle/toggle.js';
 import { ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
+import { CodeWindow } from '../../../../base/browser/window.js';
 import { Action } from '../../../../base/common/actions.js';
-import { Delayer, raceTimeout } from '../../../../base/common/async.js';
+import { CancelablePromise, createCancelablePromise, Delayer, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Color } from '../../../../base/common/color.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -19,56 +23,52 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, dispose, type IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import * as platform from '../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import './media/settingsEditor2.css';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationUpdateOverrides } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IEditorProgressService, IProgressRunner } from '../../../../platform/progress/common/progress.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { defaultButtonStyles, defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable, badgeBackground, badgeForeground, contrastBorder, editorForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorMemento, IEditorOpenContext, IEditorPane } from '../../../common/editor.js';
-import { SuggestEnabledInput } from '../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
-import { SettingsTarget, SettingsTargetsWidget } from './preferencesWidgets.js';
-import { ITOCEntry, getCommonlyUsedData, tocData } from './settingsLayout.js';
-import { AbstractSettingRenderer, HeightChangeParams, ISettingLinkClickEvent, resolveConfiguredUntrustedSettings, createTocTreeForExtensionSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from './settingsTree.js';
-import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from './settingsTreeModels.js';
-import { createTOCIterator, TOCTree, TOCTreeModel } from './tocTree.js';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, ENABLE_LANGUAGE_FILTER, EXTENSION_FETCH_TIMEOUT_MS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, WORKSPACE_TRUST_SETTING_TAG, getExperimentalExtensionToggleData } from '../common/preferences.js';
-import { settingsHeaderBorder, settingsSashBorder, settingsTextInputBorder } from '../common/settingsEditorColorRegistry.js';
+import { APPLICATION_SCOPES, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IOpenSettingsOptions, IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel, ISettingsEditorOptions, ISettingsGroup, SettingMatchType, SettingValueType, validateSettingsEditorOptions } from '../../../services/preferences/common/preferences.js';
 import { SettingsEditor2Input } from '../../../services/preferences/common/preferencesEditorInput.js';
-import { Settings2EditorModel, nullRange } from '../../../services/preferences/common/preferencesModels.js';
-import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
-import { preferencesClearInputIcon, preferencesFilterIcon } from './preferencesIcons.js';
-import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { APPLICATION_SCOPES, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
-import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { Orientation, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
-import { Color } from '../../../../base/common/color.js';
-import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { SettingsSearchFilterDropdownMenuActionViewItem } from './settingsSearchMenu.js';
-import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { ISettingOverrideClickEvent } from './settingsEditorSettingIndicators.js';
-import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
-import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
-import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
-import { IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
-import { CodeWindow } from '../../../../base/browser/window.js';
+import { nullRange, Settings2EditorModel } from '../../../services/preferences/common/preferencesModels.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
-
+import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
+import { SuggestEnabledInput } from '../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, ENABLE_LANGUAGE_FILTER, EXTENSION_FETCH_TIMEOUT_MS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, getExperimentalExtensionToggleData, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, WorkbenchSettingsEditorSettings, WORKSPACE_TRUST_SETTING_TAG } from '../common/preferences.js';
+import { settingsHeaderBorder, settingsSashBorder, settingsTextInputBorder } from '../common/settingsEditorColorRegistry.js';
+import './media/settingsEditor2.css';
+import { preferencesAiResultsIcon, preferencesClearInputIcon, preferencesFilterIcon } from './preferencesIcons.js';
+import { SettingsTarget, SettingsTargetsWidget } from './preferencesWidgets.js';
+import { ISettingOverrideClickEvent } from './settingsEditorSettingIndicators.js';
+import { getCommonlyUsedData, ITOCEntry, tocData } from './settingsLayout.js';
+import { SettingsSearchFilterDropdownMenuActionViewItem } from './settingsSearchMenu.js';
+import { AbstractSettingRenderer, createTocTreeForExtensionSettings, HeightChangeParams, ISettingLinkClickEvent, resolveConfiguredUntrustedSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from './settingsTree.js';
+import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from './settingsTreeModels.js';
+import { createTOCIterator, TOCTree, TOCTreeModel } from './tocTree.js';
 
 export const enum SettingsFocusContext {
 	Search,
@@ -97,7 +97,11 @@ interface IFocusEventFromScroll extends KeyboardEvent {
 const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
 const SEARCH_TOC_BEHAVIOR_KEY = 'workbench.settings.settingsSearchTocBehavior';
 
+const SHOW_AI_RESULTS_ENABLED_LABEL = localize('showAiResultsEnabled', "Show AI-recommended results");
+const SHOW_AI_RESULTS_DISABLED_LABEL = localize('showAiResultsDisabled', "No AI results available at this time...");
+
 const SETTINGS_EDITOR_STATE_KEY = 'settingsEditorState';
+
 export class SettingsEditor2 extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.settings2';
@@ -163,6 +167,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	private rootElement!: HTMLElement;
 	private headerContainer!: HTMLElement;
+	private searchContainer: HTMLElement | null = null;
 	private bodyContainer!: HTMLElement;
 	private searchWidget!: SuggestEnabledInput;
 	private countElement!: HTMLElement;
@@ -184,6 +189,9 @@ export class SettingsEditor2 extends EditorPane {
 
 	private searchDelayer: Delayer<void>;
 	private searchInProgress: CancellationTokenSource | null = null;
+	private aiSearchPromise: CancelablePromise<void> | null = null;
+
+	private showAiResultsAction: Action | null = null;
 
 	private searchInputDelayer: Delayer<void>;
 	private updatedConfigSchemaDelayer: Delayer<void>;
@@ -226,6 +234,8 @@ export class SettingsEditor2 extends EditorPane {
 
 	private readonly inputChangeListener: MutableDisposable<IDisposable>;
 
+	private searchInputActionBar: ActionBar | null = null;
+
 	constructor(
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -236,7 +246,7 @@ export class SettingsEditor2 extends EditorPane {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IPreferencesSearchService private readonly preferencesSearchService: IPreferencesSearchService,
 		@ILogService private readonly logService: ILogService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
 		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
@@ -251,7 +261,7 @@ export class SettingsEditor2 extends EditorPane {
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		super(SettingsEditor2.ID, group, telemetryService, themeService, storageService);
-		this.searchDelayer = new Delayer(300);
+		this.searchDelayer = new Delayer(200);
 		this.viewState = { settingsTarget: ConfigurationTarget.USER_LOCAL };
 
 		this.settingFastUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_FAST_DEBOUNCE);
@@ -274,6 +284,9 @@ export class SettingsEditor2 extends EditorPane {
 			.split(this.DISMISSED_EXTENSION_SETTINGS_DELIMITER);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectedKeys.has(WorkbenchSettingsEditorSettings.ShowAISearchToggle) || e.affectedKeys.has(WorkbenchSettingsEditorSettings.EnableNaturalLanguageSearch)) {
+				this.updateAiSearchToggleVisibility();
+			}
 			if (e.source !== ConfigurationTarget.DEFAULT) {
 				this.onConfigUpdate(e.affectedKeys);
 			}
@@ -320,6 +333,39 @@ export class SettingsEditor2 extends EditorPane {
 				.split(this.DISMISSED_EXTENSION_SETTINGS_DELIMITER);
 			this.onConfigUpdate(undefined, true);
 		});
+	}
+
+	private disableAiSearchToggle(): void {
+		if (this.showAiResultsAction) {
+			this.showAiResultsAction.checked = false;
+			this.showAiResultsAction.enabled = false;
+			this.showAiResultsAction.label = SHOW_AI_RESULTS_DISABLED_LABEL;
+		}
+	}
+
+	private updateAiSearchToggleVisibility(): void {
+		if (!this.searchContainer || !this.showAiResultsAction || !this.searchInputActionBar) {
+			return;
+		}
+
+		const showAiToggle = this.configurationService.getValue<boolean>(WorkbenchSettingsEditorSettings.ShowAISearchToggle);
+		const enableNaturalLanguageSearch = this.configurationService.getValue<boolean>(WorkbenchSettingsEditorSettings.EnableNaturalLanguageSearch);
+		const chatSetupHidden = this.contextKeyService.getContextKeyValue<boolean>('chatSetupHidden');
+		const canShowToggle = showAiToggle && enableNaturalLanguageSearch && !chatSetupHidden;
+
+		const alreadyVisible = this.searchInputActionBar.hasAction(this.showAiResultsAction);
+		if (!alreadyVisible && canShowToggle) {
+			this.searchInputActionBar.push(this.showAiResultsAction, {
+				index: 0,
+				label: false,
+				icon: true
+			});
+			this.searchContainer.classList.add('with-ai-toggle');
+		} else if (alreadyVisible) {
+			this.searchInputActionBar.pull(0);
+			this.searchContainer.classList.remove('with-ai-toggle');
+			this.showAiResultsAction.checked = false;
+		}
 	}
 
 	override get minimumWidth(): number { return SettingsEditor2.EDITOR_MIN_WIDTH; }
@@ -583,6 +629,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	clearSearchResults(): void {
+		this.disableAiSearchToggle();
 		this.searchWidget.setValue('');
 		this.focusSearch();
 	}
@@ -615,12 +662,26 @@ export class SettingsEditor2 extends EditorPane {
 	 */
 	private createHeader(parent: HTMLElement): void {
 		this.headerContainer = DOM.append(parent, $('.settings-header'));
+		this.searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 
-		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
+		const clearInputAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS,
+			localize('clearInput', "Clear Settings Search Input"), ThemeIcon.asClassName(preferencesClearInputIcon), false,
+			async () => this.clearSearchResults()
+		));
 
-		const clearInputAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Settings Search Input"), ThemeIcon.asClassName(preferencesClearInputIcon), false, async () => this.clearSearchResults()));
-		const filterAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, localize('filterInput', "Filter Settings"), ThemeIcon.asClassName(preferencesFilterIcon)));
-		this.searchWidget = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, searchContainer, {
+		const showAiResultActionClassNames = ['action-label', ThemeIcon.asClassName(preferencesAiResultsIcon)];
+		this.showAiResultsAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS,
+			SHOW_AI_RESULTS_DISABLED_LABEL, showAiResultActionClassNames.join(' '), true
+		));
+		this._register(this.showAiResultsAction.onDidChange(async () => {
+			await this.onDidToggleAiSearch();
+		}));
+
+		const filterAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS,
+			localize('filterInput', "Filter Settings"), ThemeIcon.asClassName(preferencesFilterIcon)
+		));
+
+		this.searchWidget = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, this.searchContainer, {
 			triggerCharacters: ['@', ':'],
 			provideResults: (query: string) => {
 				// Based on testing, the trigger character is always at the end of the query.
@@ -653,7 +714,7 @@ export class SettingsEditor2 extends EditorPane {
 			this._currentFocusContext = SettingsFocusContext.Search;
 		}));
 
-		this.countElement = DOM.append(searchContainer, DOM.$('.settings-count-widget.monaco-count-badge.long'));
+		this.countElement = DOM.append(this.searchContainer, DOM.$('.settings-count-widget.monaco-count-badge.long'));
 
 		this.countElement.style.backgroundColor = asCssVariable(badgeBackground);
 		this.countElement.style.color = asCssVariable(badgeForeground);
@@ -662,7 +723,7 @@ export class SettingsEditor2 extends EditorPane {
 		this._register(this.searchWidget.onInputDidChange(() => {
 			const searchVal = this.searchWidget.getValue();
 			clearInputAction.enabled = !!searchVal;
-			this.searchInputDelayer.trigger(() => this.onSearchInputChanged());
+			this.searchInputDelayer.trigger(() => this.onSearchInputChanged(true));
 		}));
 
 		const headerControlsContainer = DOM.append(this.headerContainer, $('.settings-header-controls'));
@@ -687,18 +748,42 @@ export class SettingsEditor2 extends EditorPane {
 			}));
 		}
 
-		this.controlsElement = DOM.append(searchContainer, DOM.$('.settings-clear-widget'));
+		this.controlsElement = DOM.append(this.searchContainer, DOM.$('.settings-clear-widget'));
 
-		const actionBar = this._register(new ActionBar(this.controlsElement, {
+		this.searchInputActionBar = this._register(new ActionBar(this.controlsElement, {
 			actionViewItemProvider: (action, options) => {
 				if (action.id === filterAction.id) {
 					return this.instantiationService.createInstance(SettingsSearchFilterDropdownMenuActionViewItem, action, options, this.actionRunner, this.searchWidget);
+				}
+				if (this.showAiResultsAction && action.id === this.showAiResultsAction.id) {
+					return new ToggleActionViewItem(null, action, { ...options, keybinding: 'Ctrl+I', toggleStyles: defaultToggleStyles });
 				}
 				return undefined;
 			}
 		}));
 
-		actionBar.push([clearInputAction, filterAction], { label: false, icon: true });
+		const actionsToPush = [clearInputAction, filterAction];
+		this.searchInputActionBar.push(actionsToPush, { label: false, icon: true });
+
+		this.disableAiSearchToggle();
+		this.updateAiSearchToggleVisibility();
+	}
+
+	toggleAiSearch(): void {
+		if (this.showAiResultsAction) {
+			if (!this.showAiResultsAction.enabled) {
+				aria.status(localize('noAiResults', "No AI results available at this time."));
+			}
+			this.showAiResultsAction.checked = !this.showAiResultsAction.checked;
+		}
+	}
+
+	private async onDidToggleAiSearch(): Promise<void> {
+		if (this.searchResultModel && this.showAiResultsAction) {
+			this.searchResultModel.showAiResults = this.showAiResultsAction.checked ?? false;
+			this.renderResultCountMessages(false);
+			this.onDidFinishSearch(true, undefined);
+		}
 	}
 
 	private onDidSettingsTargetChange(target: SettingsTarget): void {
@@ -773,7 +858,7 @@ export class SettingsEditor2 extends EditorPane {
 		if (!recursed && (!targetElement || revealFailed)) {
 			// We'll call this event handler again after clearing the search query,
 			// so that more settings show up in the list.
-			const p = this.triggerSearch('');
+			const p = this.triggerSearch('', true);
 			p.then(() => {
 				this.searchWidget.setValue('');
 				this.onDidClickSetting(evt, true);
@@ -1164,7 +1249,7 @@ export class SettingsEditor2 extends EditorPane {
 				const reportModifiedProps = {
 					key,
 					query,
-					searchResults: this.searchResultModel?.getUniqueResults() ?? null,
+					searchResults: this.searchResultModel?.getUniqueSearchResults() ?? null,
 					rawResults: this.searchResultModel?.getRawResults() ?? null,
 					showConfiguredOnly: !!this.viewState.tagFilters && this.viewState.tagFilters.has(MODIFIED_SETTING_TAG),
 					isReset: typeof value === 'undefined',
@@ -1178,6 +1263,7 @@ export class SettingsEditor2 extends EditorPane {
 		type SettingsEditorModifiedSettingEvent = {
 			key: string;
 			groupId: string | undefined;
+			providerName: string | undefined;
 			nlpIndex: number | undefined;
 			displayIndex: number | undefined;
 			showConfiguredOnly: boolean;
@@ -1187,6 +1273,7 @@ export class SettingsEditor2 extends EditorPane {
 		type SettingsEditorModifiedSettingClassification = {
 			key: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The setting that is being modified.' };
 			groupId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the setting is from the local search or remote search provider, if applicable.' };
+			providerName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the search provider, if applicable.' };
 			nlpIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The index of the setting in the remote search provider results, if applicable.' };
 			displayIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The index of the setting in the combined search results, if applicable.' };
 			showConfiguredOnly: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is in the modified view, which shows configured settings only.' };
@@ -1197,12 +1284,14 @@ export class SettingsEditor2 extends EditorPane {
 		};
 
 		let groupId: string | undefined = undefined;
+		let providerName: string | undefined = undefined;
 		let nlpIndex: number | undefined = undefined;
 		let displayIndex: number | undefined = undefined;
 		if (props.searchResults) {
 			displayIndex = props.searchResults.filterMatches.findIndex(m => m.setting.key === props.key);
 
 			if (this.searchResultModel) {
+				providerName = props.searchResults.filterMatches.find(m => m.setting.key === props.key)?.providerName;
 				const rawResults = this.searchResultModel.getRawResults();
 				if (rawResults[SearchResultIdx.Local] && displayIndex >= 0) {
 					const settingInLocalResults = rawResults[SearchResultIdx.Local].filterMatches.some(m => m.setting.key === props.key);
@@ -1223,6 +1312,7 @@ export class SettingsEditor2 extends EditorPane {
 		const data = {
 			key: props.key,
 			groupId,
+			providerName,
 			nlpIndex,
 			displayIndex,
 			showConfiguredOnly: props.showConfiguredOnly,
@@ -1310,7 +1400,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		const additionalGroups: ISettingsGroup[] = [];
 		let setAdditionalGroups = false;
-		const toggleData = await getExperimentalExtensionToggleData(this.extensionGalleryService, this.productService);
+		const toggleData = await getExperimentalExtensionToggleData(this.contextKeyService, this.extensionGalleryService, this.productService);
 		if (toggleData && groups.filter(g => g.extensionInfo).length) {
 			for (const key in toggleData.settingsEditorRecommendedExtensions) {
 				const extension: IGalleryExtension = toggleData.recommendedExtensionsGalleryInfo[key];
@@ -1434,7 +1524,7 @@ export class SettingsEditor2 extends EditorPane {
 
 			if (schemaChange && this.searchResultModel) {
 				// If an extension's settings were just loaded and a search is active, retrigger the search so it shows up
-				return await this.onSearchInputChanged();
+				return await this.onSearchInputChanged(false);
 			}
 
 			this.refreshTOCTree();
@@ -1446,7 +1536,7 @@ export class SettingsEditor2 extends EditorPane {
 			// Don't restore the cached state if we already have a query value from calling _setOptions().
 			const cachedState = !this.viewState.query ? this.restoreCachedState() : undefined;
 			if (cachedState?.searchQuery || this.searchWidget.getValue()) {
-				await this.onSearchInputChanged();
+				await this.onSearchInputChanged(true);
 			} else {
 				this.refreshTOCTree();
 				this.refreshTree();
@@ -1515,7 +1605,7 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		}
 
-		this.renderResultCountMessages();
+		this.renderResultCountMessages(false);
 
 		if (key) {
 			const elements = this.currentSettingsModel?.getElementsByName(key);
@@ -1572,7 +1662,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 	}
 
-	private async onSearchInputChanged(): Promise<void> {
+	private async onSearchInputChanged(expandResults: boolean): Promise<void> {
 		if (!this.currentSettingsModel) {
 			// Initializing search widget value
 			return;
@@ -1580,7 +1670,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		const query = this.searchWidget.getValue().trim();
 		this.viewState.query = query;
-		await this.triggerSearch(query.replace(/\u203A/g, ' '));
+		await this.triggerSearch(query.replace(/\u203A/g, ' '), expandResults);
 	}
 
 	private parseSettingFromJSON(query: string): string | null {
@@ -1605,7 +1695,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 	}
 
-	private async triggerSearch(query: string): Promise<void> {
+	private async triggerSearch(query: string, expandResults: boolean): Promise<void> {
 		const progressRunner = this.editorProgressService.show(true, 800);
 		this.viewState.tagFilters = new Set<string>();
 		this.viewState.extensionFilters = new Set<string>();
@@ -1626,7 +1716,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		if (query && query !== '@') {
 			query = this.parseSettingFromJSON(query) || query;
-			await this.triggerFilterPreferences(query);
+			await this.triggerFilterPreferences(query, expandResults, progressRunner);
 			this.toggleTocBySearchBehaviorType();
 		} else {
 			if (this.viewState.tagFilters.size || this.viewState.extensionFilters.size || this.viewState.featureFilters.size || this.viewState.idFilters.size || this.viewState.languageFilter) {
@@ -1637,33 +1727,36 @@ export class SettingsEditor2 extends EditorPane {
 
 			this.searchDelayer.cancel();
 			if (this.searchInProgress) {
-				this.searchInProgress.cancel();
-				this.searchInProgress.dispose();
+				this.searchInProgress.dispose(true);
 				this.searchInProgress = null;
 			}
 
-			this.tocTree.setFocus([]);
-			this.viewState.filterToCategory = undefined;
+			if (expandResults) {
+				this.tocTree.setFocus([]);
+				this.viewState.filterToCategory = undefined;
+			}
 			this.tocTreeModel.currentSearchModel = this.searchResultModel;
 
 			if (this.searchResultModel) {
 				// Added a filter model
-				this.tocTree.setSelection([]);
-				this.tocTree.expandAll();
+				if (expandResults) {
+					this.tocTree.setSelection([]);
+					this.tocTree.expandAll();
+				}
 				this.refreshTOCTree();
-				this.renderResultCountMessages();
+				this.renderResultCountMessages(false);
 				this.refreshTree();
 				this.toggleTocBySearchBehaviorType();
 			} else if (!this.tocTreeDisposed) {
 				// Leaving search mode
 				this.tocTree.collapseAll();
 				this.refreshTOCTree();
-				this.renderResultCountMessages();
+				this.renderResultCountMessages(false);
 				this.refreshTree();
 				this.layoutSplitView(this.dimension);
 			}
+			progressRunner.done();
 		}
-		progressRunner.done();
 	}
 
 	/**
@@ -1673,12 +1766,20 @@ export class SettingsEditor2 extends EditorPane {
 		const filterModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.settingsOrderByTocIndex, this.workspaceTrustManagementService.isWorkspaceTrusted());
 
 		const fullResult: ISearchResult = {
-			filterMatches: []
+			filterMatches: [],
+			exactMatch: false,
 		};
 		for (const g of this.defaultSettingsEditorModel.settingsGroups.slice(1)) {
 			for (const sect of g.sections) {
 				for (const setting of sect.settings) {
-					fullResult.filterMatches.push({ setting, matches: [], matchType: SettingMatchType.None, keyMatchScore: 0, score: 0 });
+					fullResult.filterMatches.push({
+						setting,
+						matches: [],
+						matchType: SettingMatchType.None,
+						keyMatchScore: 0,
+						score: 0,
+						providerName: 'filterModel'
+					});
 				}
 			}
 		}
@@ -1687,52 +1788,126 @@ export class SettingsEditor2 extends EditorPane {
 		return filterModel;
 	}
 
-	private async triggerFilterPreferences(query: string): Promise<void> {
+	private async triggerFilterPreferences(query: string, expandResults: boolean, progressRunner: IProgressRunner): Promise<void> {
 		if (this.searchInProgress) {
-			this.searchInProgress.cancel();
+			this.searchInProgress.dispose(true);
 			this.searchInProgress = null;
 		}
 
-		// Trigger the local search. If it didn't find an exact match, trigger the remote search.
 		const searchInProgress = this.searchInProgress = new CancellationTokenSource();
 		return this.searchDelayer.trigger(async () => {
-			if (!searchInProgress.token.isCancellationRequested) {
-				const localResults = await this.localFilterPreferences(query, searchInProgress.token);
-				if (localResults && !localResults.exactMatch && !searchInProgress.token.isCancellationRequested) {
-					await this.remoteSearchPreferences(query, searchInProgress.token);
-				}
-
-				// Update UI only after all the search results are in
-				// ref https://github.com/microsoft/vscode/issues/224946
-				this.onDidFinishSearch();
+			if (searchInProgress.token.isCancellationRequested) {
+				return;
 			}
+			this.disableAiSearchToggle();
+			const localResults = await this.doLocalSearch(query, searchInProgress.token);
+			if (!this.searchResultModel || searchInProgress.token.isCancellationRequested) {
+				return;
+			}
+			this.searchResultModel.showAiResults = false;
+
+			if (localResults && localResults.filterMatches.length > 0) {
+				// The remote results might take a while and
+				// are always appended to the end anyway, so
+				// show some results now.
+				this.onDidFinishSearch(expandResults, undefined);
+			}
+
+			if (!localResults || !localResults.exactMatch) {
+				await this.doRemoteSearch(query, searchInProgress.token);
+			}
+			if (searchInProgress.token.isCancellationRequested) {
+				return;
+			}
+
+			// Kick off an AI search in the background. We purposely do not await it.
+			if (this.aiSearchPromise) {
+				this.aiSearchPromise.cancel();
+			}
+			this.aiSearchPromise = createCancelablePromise(token => {
+				return this.doAiSearch(query, token).then((results) => {
+					if (results && this.showAiResultsAction) {
+						this.showAiResultsAction.enabled = true;
+						this.showAiResultsAction.label = SHOW_AI_RESULTS_ENABLED_LABEL;
+						this.renderResultCountMessages(true);
+					}
+				}).catch(e => {
+					if (!isCancellationError(e)) {
+						this.logService.trace('Error during AI settings search:', e);
+					}
+				});
+			});
+
+			this.onDidFinishSearch(expandResults, progressRunner);
 		});
 	}
 
-	private onDidFinishSearch() {
+	private onDidFinishSearch(expandResults: boolean, progressRunner: IProgressRunner | undefined): void {
 		this.tocTreeModel.currentSearchModel = this.searchResultModel;
-		this.tocTreeModel.update();
-		this.tocTree.setFocus([]);
-		this.viewState.filterToCategory = undefined;
-		this.tocTree.expandAll();
-		this.settingsTree.scrollTop = 0;
+		if (expandResults) {
+			this.tocTree.setFocus([]);
+			this.viewState.filterToCategory = undefined;
+			this.tocTree.expandAll();
+			this.settingsTree.scrollTop = 0;
+		}
 		this.refreshTOCTree();
 		this.renderTree(undefined, true);
+		progressRunner?.done();
 	}
 
-	private localFilterPreferences(query: string, token?: CancellationToken): Promise<ISearchResult | null> {
+	private doLocalSearch(query: string, token: CancellationToken): Promise<ISearchResult | null> {
 		const localSearchProvider = this.preferencesSearchService.getLocalSearchProvider(query);
-		return this.filterOrSearchPreferences(query, SearchResultIdx.Local, localSearchProvider, token);
+		return this.searchWithProvider(SearchResultIdx.Local, localSearchProvider, token);
 	}
 
-	private remoteSearchPreferences(query: string, token?: CancellationToken): Promise<ISearchResult | null> {
+	private doRemoteSearch(query: string, token: CancellationToken): Promise<ISearchResult | null> {
 		const remoteSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(query);
-		return this.filterOrSearchPreferences(query, SearchResultIdx.Remote, remoteSearchProvider, token);
+		if (!remoteSearchProvider) {
+			return Promise.resolve(null);
+		}
+		return this.searchWithProvider(SearchResultIdx.Remote, remoteSearchProvider, token);
 	}
 
-	private async filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider?: ISearchProvider, token?: CancellationToken): Promise<ISearchResult | null> {
-		const result = await this._filterOrSearchPreferencesModel(query, this.defaultSettingsEditorModel, searchProvider, token);
-		if (token?.isCancellationRequested) {
+	private async doAiSearch(query: string, token: CancellationToken): Promise<ISearchResult | null> {
+		const aiSearchProvider = this.preferencesSearchService.getAiSearchProvider(query);
+		if (!aiSearchProvider) {
+			return null;
+		}
+
+		const embeddingsResults = await this.searchWithProvider(SearchResultIdx.Embeddings, aiSearchProvider, token);
+		if (!embeddingsResults || token.isCancellationRequested) {
+			return null;
+		}
+
+		const llmResults = await this.getLLMRankedResults(query, token);
+		if (token.isCancellationRequested) {
+			return null;
+		}
+
+		return {
+			filterMatches: embeddingsResults.filterMatches.concat(llmResults?.filterMatches ?? []),
+			exactMatch: false
+		};
+	}
+
+	private async getLLMRankedResults(query: string, token: CancellationToken): Promise<ISearchResult | null> {
+		const aiSearchProvider = this.preferencesSearchService.getAiSearchProvider(query);
+		if (!aiSearchProvider) {
+			return null;
+		}
+
+		const result = await aiSearchProvider.getLLMRankedResults(token);
+		if (!result || token.isCancellationRequested) {
+			return null;
+		}
+
+		this.searchResultModel!.setResult(SearchResultIdx.AiSelected, result);
+		return result;
+	}
+
+	private async searchWithProvider(type: SearchResultIdx, searchProvider: ISearchProvider, token: CancellationToken): Promise<ISearchResult | null> {
+		const result = await this._searchPreferencesModel(this.defaultSettingsEditorModel, searchProvider, token);
+		if (token.isCancellationRequested) {
 			// Handle cancellation like this because cancellation is lost inside the search provider due to async/await
 			return null;
 		}
@@ -1741,7 +1916,7 @@ export class SettingsEditor2 extends EditorPane {
 		return result;
 	}
 
-	private renderResultCountMessages() {
+	private renderResultCountMessages(showAiResultsMessage: boolean) {
 		if (!this.currentSettingsModel) {
 			return;
 		}
@@ -1765,10 +1940,19 @@ export class SettingsEditor2 extends EditorPane {
 		} else {
 			const count = this.searchResultModel.getUniqueResultsCount();
 			let resultString: string;
-			switch (count) {
-				case 0: resultString = localize('noResults', "No Settings Found"); break;
-				case 1: resultString = localize('oneResult', "1 Setting Found"); break;
-				default: resultString = localize('moreThanOneResult', "{0} Settings Found", count);
+
+			if (showAiResultsMessage) {
+				switch (count) {
+					case 0: resultString = localize('noResultsWithAiAvailable', "No Settings Found. AI Results Available"); break;
+					case 1: resultString = localize('oneResultWithAiAvailable', "1 Setting Found. AI Results Available"); break;
+					default: resultString = localize('moreThanOneResultWithAiAvailable', "{0} Settings Found. AI Results Available", count);
+				}
+			} else {
+				switch (count) {
+					case 0: resultString = localize('noResults', "No Settings Found"); break;
+					case 1: resultString = localize('oneResult', "1 Setting Found"); break;
+					default: resultString = localize('moreThanOneResult', "{0} Settings Found", count);
+				}
 			}
 
 			this.searchResultLabel = resultString;
@@ -1785,31 +1969,16 @@ export class SettingsEditor2 extends EditorPane {
 		}
 	}
 
-	private _filterOrSearchPreferencesModel(filter: string, model: ISettingsEditorModel, provider?: ISearchProvider, token?: CancellationToken): Promise<ISearchResult | null> {
-		const searchP = provider ? provider.searchModel(model, token) : Promise.resolve(null);
-		return searchP
-			.then<ISearchResult, ISearchResult | null>(undefined, err => {
-				if (isCancellationError(err)) {
-					return Promise.reject(err);
-				} else {
-					// type SettingsSearchErrorEvent = {
-					// 	'message': string;
-					// };
-					// type SettingsSearchErrorClassification = {
-					// 	owner: 'rzhao271';
-					// 	comment: 'Helps understand when settings search errors out';
-					// 	'message': { 'classification': 'CallstackOrException'; 'purpose': 'FeatureInsight'; 'owner': 'rzhao271'; 'comment': 'The error message of the search error.' };
-					// };
-
-					// const message = getErrorMessage(err).trim();
-					// if (message && message !== 'Error') {
-					// 	// "Error" = any generic network error
-					// 	this.telemetryService.publicLogError2<SettingsSearchErrorEvent, SettingsSearchErrorClassification>('settingsEditor.searchError', { message });
-					// 	this.logService.info('Setting search error: ' + message);
-					// }
-					return null;
-				}
-			});
+	private async _searchPreferencesModel(model: ISettingsEditorModel, provider: ISearchProvider, token: CancellationToken): Promise<ISearchResult | null> {
+		try {
+			return await provider.searchModel(model, token);
+		} catch (err) {
+			if (isCancellationError(err)) {
+				return Promise.reject(err);
+			} else {
+				return null;
+			}
+		}
 	}
 
 	private layoutSplitView(dimension: DOM.Dimension): void {

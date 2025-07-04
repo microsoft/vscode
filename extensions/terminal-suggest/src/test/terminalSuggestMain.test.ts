@@ -6,12 +6,12 @@
 import { deepStrictEqual, strictEqual } from 'assert';
 import 'mocha';
 import { basename } from 'path';
-import { asArray, getCompletionItemsFromSpecs } from '../terminalSuggestMain';
+import { asArray, getCompletionItemsFromSpecs, getCurrentCommandAndArgs } from '../terminalSuggestMain';
 import { getTokenType } from '../tokens';
 import { cdTestSuiteSpec as cdTestSuite } from './completions/cd.test';
-import { codeSpecOptions, codeTestSuite } from './completions/code.test';
+import { codeSpecOptionsAndSubcommands, codeTestSuite, codeTunnelTestSuite } from './completions/code.test';
 import { testPaths, type ISuiteSpec } from './helpers';
-import { codeInsidersTestSuite } from './completions/code-insiders.test';
+import { codeInsidersTestSuite, codeTunnelInsidersTestSuite } from './completions/code-insiders.test';
 import { lsTestSuiteSpec } from './completions/upstream/ls.test';
 import { echoTestSuiteSpec } from './completions/upstream/echo.test';
 import { mkdirTestSuiteSpec } from './completions/upstream/mkdir.test';
@@ -43,6 +43,8 @@ const testSpecs2: ISuiteSpec[] = [
 	cdTestSuite,
 	codeTestSuite,
 	codeInsidersTestSuite,
+	codeTunnelTestSuite,
+	codeTunnelInsidersTestSuite,
 
 	// completions/upstream/
 	echoTestSuiteSpec,
@@ -65,11 +67,11 @@ if (osIsWindows()) {
 			'code.anything',
 		],
 		testSpecs: [
-			{ input: 'code |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-			{ input: 'code.bat |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-			{ input: 'code.cmd |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-			{ input: 'code.exe |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-			{ input: 'code.anything |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'code |', expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'code.bat |', expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'code.cmd |', expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'code.exe |', expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'code.anything |', expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 		]
 	});
 }
@@ -90,7 +92,7 @@ suite('Terminal Suggest', () => {
 				test(`'${testSpec.input}' -> ${expectedString}`, async () => {
 					const commandLine = testSpec.input.split('|')[0];
 					const cursorPosition = testSpec.input.indexOf('|');
-					const prefix = commandLine.slice(0, cursorPosition).split(' ').at(-1) || '';
+					const currentCommandString = getCurrentCommandAndArgs(commandLine, cursorPosition, undefined);
 					const filesRequested = testSpec.expectedResourceRequests?.type === 'files' || testSpec.expectedResourceRequests?.type === 'both';
 					const foldersRequested = testSpec.expectedResourceRequests?.type === 'folders' || testSpec.expectedResourceRequests?.type === 'both';
 					const terminalContext = { commandLine, cursorPosition, allowFallbackCompletions: true };
@@ -98,7 +100,7 @@ suite('Terminal Suggest', () => {
 						completionSpecs,
 						terminalContext,
 						availableCommands.map(c => { return { label: c }; }),
-						prefix,
+						currentCommandString,
 						getTokenType(terminalContext, undefined),
 						testPaths.cwd,
 						{},
