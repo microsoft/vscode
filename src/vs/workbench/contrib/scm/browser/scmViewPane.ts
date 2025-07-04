@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-
-
 import './media/scm.css';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { basename, dirname } from '../../../../base/common/resources.js';
