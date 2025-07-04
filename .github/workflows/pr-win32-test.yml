@@ -40,7 +40,7 @@ jobs:
           node build/azure-pipelines/common/computeNodeModulesCacheKey.js win32 ${{ env.VSCODE_ARCH }} $(node -p process.arch) > .build/packagelockhash
 
       - name: Restore node_modules cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         id: node-modules-cache
         with:
           path: .build/node_modules_cache
@@ -100,7 +100,7 @@ jobs:
 
       - name: Restore built-in extensions cache
         id: cache-builtin-extensions
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: .build/builtInExtensions
           key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
