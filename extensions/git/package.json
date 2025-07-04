@@ -16,6 +16,8 @@
     "contribMergeEditorMenus",
     "contribMultiDiffEditorMenus",
     "contribDiffEditorGutterToolBarMenus",
+    "contribSourceControlArtifactGroupMenu",
+    "contribSourceControlArtifactMenu",
     "contribSourceControlHistoryItemMenu",
     "contribSourceControlHistoryTitleMenu",
     "contribSourceControlInputBoxMenu",
@@ -530,12 +532,14 @@
       {
         "command": "git.createTag",
         "title": "%command.createTag%",
+        "icon": "$(add)",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
       {
         "command": "git.deleteTag",
         "title": "%command.deleteTag%",
+        "icon": "$(trash)",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -2094,6 +2098,20 @@
           "command": "git.graph.deleteTag",
           "when": "scmProvider == git && scmHistoryItemRef =~ /^refs\\/tags\\//",
           "group": "3_tag@2"
+        }
+      ],
+      "scm/artifactGroup/context": [
+        {
+          "command": "git.createTag",
+          "when": "scmProvider == git && scmArtifactGroup == tags",
+          "group": "inline@1"
+        }
+      ],
+      "scm/artifact/context": [
+        {
+          "command": "git.deleteTag",
+          "when": "scmProvider == git && scmArtifactGroup == tags",
+          "group": "inline@1"
         }
       ],
       "editor/title": [

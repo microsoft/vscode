@@ -26,6 +26,11 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 				icon: new ThemeIcon('git-branch')
 			},
 			{
+				id: 'remotes',
+				name: 'Remotes',
+				icon: new ThemeIcon('remote')
+			},
+			{
 				id: 'stashes',
 				name: 'Stashes',
 				icon: new ThemeIcon('git-stash')
