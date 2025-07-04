@@ -28,6 +28,9 @@ export interface NativeParsedArgs {
 		_: string[];
 		'add-file'?: string[];
 		mode?: string;
+		maximize?: boolean;
+		'reuse-window'?: boolean;
+		'new-window'?: boolean;
 		help?: boolean;
 	};
 
@@ -135,6 +138,7 @@ export interface NativeParsedArgs {
 	'unresponsive-sample-period'?: string;
 	'enable-rdp-display-tracking'?: boolean;
 	'disable-layout-restore'?: boolean;
+	'startup-experiment-group'?: string;
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
 	'no-proxy-server'?: boolean;

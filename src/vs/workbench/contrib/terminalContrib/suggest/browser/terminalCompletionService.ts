@@ -19,6 +19,7 @@ import type { IProcessEnvironment } from '../../../../../base/common/platform.js
 import { timeout } from '../../../../../base/common/async.js';
 import { gitBashToWindowsPath } from './terminalGitBashHelpers.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
 
@@ -98,6 +99,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 	}
@@ -170,10 +172,21 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				return undefined;
 			}
 			const timeoutMs = explicitlyInvoked ? 30000 : 5000;
-			const completions = await Promise.race([
-				provider.provideCompletions(promptValue, cursorPosition, allowFallbackCompletions, token),
-				timeout(timeoutMs)
-			]);
+			let timedOut = false;
+			let completions;
+			try {
+				completions = await Promise.race([
+					provider.provideCompletions(promptValue, cursorPosition, allowFallbackCompletions, token),
+					(async () => { await timeout(timeoutMs); timedOut = true; return undefined; })()
+				]);
+			} catch (e) {
+				this._logService.trace(`[TerminalCompletionService] Exception from provider '${provider.id}':`, e);
+				return undefined;
+			}
+			if (timedOut) {
+				this._logService.trace(`[TerminalCompletionService] Provider '${provider.id}' timed out after ${timeoutMs}ms. promptValue='${promptValue}', cursorPosition=${cursorPosition}, explicitlyInvoked=${explicitlyInvoked}`);
+				return undefined;
+			}
 			if (!completions) {
 				return undefined;
 			}

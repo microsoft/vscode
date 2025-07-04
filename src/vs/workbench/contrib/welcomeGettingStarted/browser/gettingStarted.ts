@@ -962,7 +962,6 @@ export class GettingStartedPage extends EditorPane {
 			const startupExpValue = startupExpContext.getValue(this.contextService);
 
 			if (fistContentBehaviour === 'openToFirstCategory' && ((!startupExpValue || startupExpValue === '' || startupExpValue === StartupExperimentGroup.Control))) {
-				startupExpContext.bindTo(this.contextService).reset();
 				const first = this.gettingStartedCategories.filter(c => !c.when || this.contextService.contextMatchesRules(c.when))[0];
 				if (first) {
 					this.hasScrolledToFirstCategory = true;

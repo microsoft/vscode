@@ -640,7 +640,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.KEY_DOWN, e => {
 				const ev = new StandardKeyboardEvent(e);
 				if (ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) {
-					if (this.viewModel?.editing?.id !== element.id && !this.viewModel?.requestInProgress) {
+					if (this.viewModel?.editing?.id !== element.id) {
 						ev.preventDefault();
 						ev.stopPropagation();
 						this._onDidClickRequest.fire(templateData);
@@ -1231,7 +1231,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (this.configService.getValue<string>('chat.editRequests') === 'inline' && !this.disableEdits) {
 				markdownPart.domNode.classList.add('clickable');
 				markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.CLICK, (e: MouseEvent) => {
-					if (this.viewModel?.editing?.id !== element.id && !this.viewModel?.requestInProgress) {
+					if (this.viewModel?.editing?.id !== element.id) {
 						const selection = dom.getWindow(templateData.rowContainer).getSelection();
 						if (selection && !selection.isCollapsed && selection.toString().length > 0) {
 							return;

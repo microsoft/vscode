@@ -84,7 +84,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const parser: TextModelPromptParser = instantiationService.createInstance(
 					TextModelPromptParser,
 					model,
-					{ seenReferences: [], allowNonPromptFiles: true, languageId: undefined },
+					{ allowNonPromptFiles: true, languageId: undefined, updateOnChange: true },
 				).start();
 
 				// this is a sanity check and the contract of the object cache,
@@ -232,10 +232,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 					parser = this.instantiationService.createInstance(
 						PromptParser,
 						uri,
-						{ seenReferences: [], allowNonPromptFiles: true, languageId: MODE_LANGUAGE_ID },
+						{ allowNonPromptFiles: true, languageId: MODE_LANGUAGE_ID, updateOnChange: false },
 					).start(token);
 
-					await parser.settled();
+					const completed = await parser.settled();
+					if (!completed) {
+						throw new Error(localize('promptParser.notCompleted', "Prompt parser for {0} did not complete.", uri.toString()));
+					}
 
 					const { description, model, tools } = parser.metadata as TModeMetadata;
 					const body = await parser.getBody();
@@ -254,8 +257,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 		let parser: PromptParser | undefined;
 		try {
 			const languageId = getLanguageIdForPromptsType(type);
-			parser = this.instantiationService.createInstance(PromptParser, uri, { seenReferences: [], allowNonPromptFiles: true, languageId }).start(token);
-			await parser.settled();
+			parser = this.instantiationService.createInstance(PromptParser, uri, { allowNonPromptFiles: true, languageId, updateOnChange: false }).start(token);
+			const completed = await parser.settled();
+			if (!completed) {
+				throw new Error(localize('promptParser.notCompleted', "Prompt parser for {0} did not complete.", uri.toString()));
+			}
 			// make a copy, to avoid leaking the parser instance
 			return {
 				uri: parser.uri,

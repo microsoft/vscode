@@ -1311,7 +1311,6 @@ type InlineCompletionEndOfLifeEvent = {
 	superseded: boolean;
 	editorType: string;
 	viewKind: string | undefined;
-	// render info
 	cursorColumnDistance: number | undefined;
 	cursorLineDistance: number | undefined;
 	lineCountOriginal: number | undefined;
