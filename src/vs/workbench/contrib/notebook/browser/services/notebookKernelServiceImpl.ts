@@ -298,10 +298,26 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		}
 	}
 
-	updateKernelNotebookAffinity(kernel: INotebookKernel, notebook: URI, preference: number | undefined): void {
-		const info = this._kernels.get(kernel.id);
+	preselectKernelForRepl(notebook: INotebookTextModelLike): void {
+		const { suggestions } = this.getMatchingKernel(notebook);
+		if (suggestions.length === 1) {
+			const kernel = suggestions[0];
+
+			if (kernel) {
+				this.preselectKernelForNotebook(kernel, notebook);
+
+				if (notebook.uri.scheme === Schemas.untitled) {
+					this.updateKernelNotebookAffinity(kernel, notebook.uri, undefined);
+				}
+			}
+		}
+	}
+
+	updateKernelNotebookAffinity(kernel: INotebookKernel | string, notebook: URI, preference: number | undefined): void {
+		const kernelId = typeof kernel === 'string' ? kernel : kernel.id;
+		const info = this._kernels.get(kernelId);
 		if (!info) {
-			throw new Error(`UNKNOWN kernel '${kernel.id}'`);
+			throw new Error(`UNKNOWN kernel '${kernelId}'`);
 		}
 		if (preference === undefined) {
 			info.notebookPriorities.delete(notebook);
