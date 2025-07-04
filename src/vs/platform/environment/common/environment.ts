@@ -83,8 +83,9 @@ export interface IEnvironmentService {
 	verbose: boolean;
 	isBuilt: boolean;
 
-	// --- telemetry
+	// --- telemetry/exp
 	disableTelemetry: boolean;
+	disableExperiments: boolean;
 	serviceMachineIdResource: URI;
 
 	// --- Policy
