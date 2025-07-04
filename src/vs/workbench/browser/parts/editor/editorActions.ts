@@ -1178,7 +1178,10 @@ export class ToggleMaximizeEditorGroupAction extends Action2 {
 				when: EditorPartMaximizedEditorGroupContext
 			}],
 			icon: Codicon.screenFull,
-			toggled: EditorPartMaximizedEditorGroupContext,
+			toggled: {
+				condition: EditorPartMaximizedEditorGroupContext,
+				title: localize('unmaximizeGroup', "Unmaximize Group")
+			},
 		});
 	}
 
