@@ -53,22 +53,20 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 		_error: Error | undefined,
 		token: CancellationToken,
 	): Promise<void> {
-		// clean up all previously added markers
-		this.markerService.remove(MARKERS_OWNER_ID, [this.model.uri]);
 
 		const { header } = this.parser;
 		if (header === undefined) {
+			this.markerService.remove(MARKERS_OWNER_ID, [this.model.uri]);
 			return;
 		}
 
 		// header parsing process is separate from the prompt parsing one, hence
 		// apply markers only after the header is settled and so has diagnostics
-		await header.settled;
-		// by the time the promise finishes, the token might have been cancelled
-		// already due to a new 'onSettle' event, hence don't apply outdated markers
-		if (token.isCancellationRequested) {
+		const completed = await header.settled;
+		if (!completed || token.isCancellationRequested) {
 			return;
 		}
+		console.log(`Prompt header diagnostics for ${this.model.uri.toString()}:`);
 
 		const markers: IMarkerData[] = [];
 		for (const diagnostic of header.diagnostics) {
@@ -82,6 +80,12 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 			this.validateTools(header.metadataUtility.tools, ChatModeKind.Agent, markers);
 			this.validateModel(header.metadataUtility.model, ChatModeKind.Agent, markers);
 
+		}
+
+		if (markers.length === 0) {
+			console.warn(`No markers for ${this.model.uri.toString()}`);
+			this.markerService.remove(MARKERS_OWNER_ID, [this.model.uri]);
+			return;
 		}
 
 		this.markerService.changeOne(

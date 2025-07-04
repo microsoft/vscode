@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { TimeoutTimer } from '../../../../../base/common/async.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
@@ -23,7 +24,7 @@ interface ITerminalSuggestShownTracker extends IDisposable {
 export class TerminalSuggestShownTracker extends Disposable implements ITerminalSuggestShownTracker {
 	private _done: boolean;
 	private _count: number;
-	private _timeout: Timeout | undefined;
+	private _timeout: TimeoutTimer | undefined;
 	private _start: number | undefined;
 
 	private _firstShownTracker: { shell: Set<TerminalShellType>; window: boolean } | undefined = undefined;
@@ -51,6 +52,14 @@ export class TerminalSuggestShownTracker extends Disposable implements ITerminal
 		this._firstShownTracker = undefined;
 	}
 
+	resetTimer(): void {
+		if (this._timeout) {
+			this._timeout.cancel();
+			this._timeout = undefined;
+		}
+		this._start = undefined;
+	}
+
 	update(widgetElt: HTMLElement | undefined): void {
 		if (this._done) {
 			return;
@@ -63,10 +72,11 @@ export class TerminalSuggestShownTracker extends Disposable implements ITerminal
 		if (this._count >= TERMINAL_SUGGEST_DISCOVERABILITY_MAX_COUNT) {
 			this._setDone(widgetElt);
 		} else if (!this._start) {
+			this.resetTimer();
 			this._start = Date.now();
-			this._timeout = setTimeout(() => {
+			this._timeout = this._register(new TimeoutTimer(() => {
 				this._setDone(widgetElt);
-			}, TERMINAL_SUGGEST_DISCOVERABILITY_MIN_MS);
+			}, TERMINAL_SUGGEST_DISCOVERABILITY_MIN_MS));
 		}
 	}
 
@@ -77,7 +87,7 @@ export class TerminalSuggestShownTracker extends Disposable implements ITerminal
 			widgetElt.classList.remove('increased-discoverability');
 		}
 		if (this._timeout) {
-			clearTimeout(this._timeout);
+			this._timeout.cancel();
 			this._timeout = undefined;
 		}
 		this._start = undefined;

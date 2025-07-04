@@ -46,6 +46,7 @@ import { SuggestItemInfo } from './suggestWidgetAdapter.js';
 import { TextModelEditReason, EditReasons } from '../../../../common/textModelEditReason.js';
 import { ICodeEditorService } from '../../../../browser/services/codeEditorService.js';
 import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
+import { IInlineCompletionsService } from '../../../../browser/services/inlineCompletionsService.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -90,6 +91,7 @@ export class InlineCompletionsModel extends Disposable {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IInlineCompletionsService inlineCompletionsService: IInlineCompletionsService
 	) {
 		super();
 		this.primaryPosition = derived(this, reader => this._positions.read(reader)[0] ?? new Position(1, 1));
@@ -111,6 +113,11 @@ export class InlineCompletionsModel extends Disposable {
 		this._inlineEditsEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.enabled);
 		this._inlineEditsShowCollapsedEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
 		this._triggerCommandOnProviderChange = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.experimental.triggerCommandOnProviderChange);
+		this._register(inlineCompletionsService.onDidChangeIsSnoozing((isSnoozing) => {
+			if (isSnoozing) {
+				this.stop();
+			}
+		}));
 
 		this._lastShownInlineCompletionInfo = undefined;
 		this._lastAcceptedInlineCompletionInfo = undefined;
@@ -183,7 +190,8 @@ export class InlineCompletionsModel extends Disposable {
 			this._onlyRequestInlineEditsSignal.read(reader);
 			this._forceUpdateExplicitlySignal.read(reader);
 			this._fetchSpecificProviderSignal.read(reader);
-			const shouldUpdate = (this._enabled.read(reader) && this._selectedSuggestItem.read(reader)) || this._isActive.read(reader);
+			const shouldUpdate = ((this._enabled.read(reader) && this._selectedSuggestItem.read(reader)) || this._isActive.read(reader))
+				&& (!inlineCompletionsService.isSnoozing() || changeSummary.inlineCompletionTriggerKind === InlineCompletionTriggerKind.Explicit);
 			if (!shouldUpdate) {
 				this._source.cancelUpdate();
 				return undefined;

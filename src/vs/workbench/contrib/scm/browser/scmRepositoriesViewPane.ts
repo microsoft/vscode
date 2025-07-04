@@ -112,7 +112,7 @@ class ArtifactRenderer implements ITreeRenderer<SCMArtifactTreeElement, FuzzySco
 		const artifactGroupIcon = ThemeIcon.isThemeIcon(artifactGroup.icon)
 			? `$(${artifactGroup.icon.id}) ` : '';
 
-		templateData.label.setLabel(`${artifactGroupIcon}${artifact.name}`, artifact.description);
+		templateData.label.setLabel(`${artifactGroupIcon}${artifact.name}`);
 	}
 
 	disposeTemplate(templateData: ArtifactTemplate): void {
@@ -333,7 +333,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	}
 
 	private onTreeContextMenu(e: ITreeContextMenuEvent<TreeElement>): void {
-		if (!e.element) {
+		if (!e.element || !isSCMRepository(e.element)) {
 			return;
 		}
 
@@ -344,7 +344,8 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 		const disposables = new DisposableStore();
 		const actionRunner = new RepositoryActionRunner(() => {
-			return this.tree.getSelection();
+			return this.tree.getSelection()
+				.filter(element => isSCMRepository(element));
 		});
 		disposables.add(actionRunner);
 		disposables.add(actionRunner.onWillRun(() => this.tree.domFocus()));
@@ -359,21 +360,30 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	}
 
 	private onTreeOpen(e: IOpenEvent<TreeElement | undefined>): void {
-		if (e.element && this.repositoryExplorerEnabledObs.get() === true) {
+		if (e.element && isSCMRepository(e.element) && this.repositoryExplorerEnabledObs.get() === true) {
 			this.scmViewService.focus(e.element);
 		}
 	}
 
 	private onTreeSelectionChange(e: ITreeEvent<TreeElement>): void {
-		if (e.browserEvent && e.elements.length > 0 && this.repositoryExplorerEnabledObs.get() === false) {
+		if (this.repositoryExplorerEnabledObs.get() === true) {
+			return;
+		}
+
+		if (e.browserEvent && e.elements.length > 0) {
 			const scrollTop = this.tree.scrollTop;
-			this.scmViewService.visibleRepositories = e.elements;
+			this.scmViewService.visibleRepositories = e.elements
+				.filter(element => isSCMRepository(element));
 			this.tree.scrollTop = scrollTop;
 		}
 	}
 
 	private onTreeDidChangeFocus(e: ITreeEvent<TreeElement>): void {
-		if (e.browserEvent && e.elements.length > 0) {
+		if (this.repositoryExplorerEnabledObs.get() === true) {
+			return;
+		}
+
+		if (e.browserEvent && e.elements.length > 0 && isSCMRepository(e.elements[0])) {
 			this.scmViewService.focus(e.elements[0]);
 		}
 	}
@@ -400,7 +410,12 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	}
 
 	private updateTreeSelection(): void {
-		const oldSelection = this.tree.getSelection();
+		if (this.repositoryExplorerEnabledObs.get() === true) {
+			return;
+		}
+
+		const oldSelection = this.tree.getSelection()
+			.filter(element => isSCMRepository(element));
 		const oldSet = new Set(oldSelection);
 
 		const set = new Set(this.scmViewService.visibleRepositories);

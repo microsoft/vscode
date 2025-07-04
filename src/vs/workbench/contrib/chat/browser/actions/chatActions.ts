@@ -47,7 +47,6 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { McpCommandIds } from '../../../mcp/common/mcpCommandIds.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
@@ -876,18 +875,8 @@ Update \`.github/copilot-instructions.md\` for the user, then ask for feedback o
 		title: localize2('config.label', "Configure Chat..."),
 		group: 'navigation',
 		when: ContextKeyExpr.equals('view', ChatViewId),
-		icon: Codicon.settings,
+		icon: Codicon.settingsGear,
 		order: 6
-	});
-
-	MenuRegistry.appendMenuItem(CHAT_CONFIG_MENU_ID, {
-		command: {
-			id: McpCommandIds.ShowInstalled,
-			title: localize2('mcp.servers', "MCP Servers")
-		},
-		when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-		order: 14,
-		group: '0_level'
 	});
 }
 
@@ -1112,4 +1101,31 @@ MenuRegistry.appendMenuItem(MenuId.TerminalInstanceContext, {
 	group: '2_copilot',
 	title,
 	when: menuContext
+});
+
+// --- Chat Default Visibility
+
+registerAction2(class ToggleDefaultVisibilityAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.toggleDefaultVisibility',
+			title: localize2('chat.toggleDefaultVisibility.label', "Show View by Default"),
+			precondition: ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.AuxiliaryBar),
+			toggled: ContextKeyExpr.equals('config.workbench.secondarySideBar.defaultVisibility', 'hidden').negate(),
+			f1: false,
+			menu: {
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', ChatViewId),
+				order: 0,
+				group: '5_configure'
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const configurationService = accessor.get(IConfigurationService);
+
+		const currentValue = configurationService.getValue<'hidden' | 'visibleInWorkspace' | 'visible'>('workbench.secondarySideBar.defaultVisibility');
+		configurationService.updateValue('workbench.secondarySideBar.defaultVisibility', currentValue !== 'hidden' ? 'hidden' : 'visible');
+	}
 });

@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, ThemeIcon, Uri, workspace } from 'vscode';
+import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, ThemeIcon } from 'vscode';
 import { IDisposable } from './util';
 import { Repository } from './repository';
-import { RefType } from './api/git';
 
 export class GitArtifactProvider implements SourceControlArtifactProvider, IDisposable {
 	constructor(

@@ -12,7 +12,7 @@ import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ActionRunner, IAction } from '../../../../base/common/actions.js';
-import { connectPrimaryMenu, getRepositoryResourceCount, isSCMRepository, isSCMArtifactGroupTreeElement, isSCMArtifactTreeElement, StatusBarAction } from './util.js';
+import { connectPrimaryMenu, getRepositoryResourceCount, isSCMRepository, StatusBarAction } from './util.js';
 import { ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
@@ -27,8 +27,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { SCMArtifactGroupTreeElement, SCMArtifactTreeElement } from '../common/artifact.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export class RepositoryActionRunner extends ActionRunner {
 	constructor(private readonly getSelectedRepositories: () => ISCMRepository[]) {
@@ -68,6 +67,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		private readonly toolbarMenuId: MenuId,
 		private readonly actionViewItemProvider: IActionViewItemProvider,
 		@ICommandService private commandService: ICommandService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IHoverService private hoverService: IHoverService,
@@ -130,13 +130,15 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 			templateData.count.setCount(count);
 		}));
 
-		const repositoryMenus = this.scmViewService.menus.getRepositoryMenus(repository.provider);
-		const menu = this.toolbarMenuId === MenuId.SCMTitle ? repositoryMenus.titleMenu.menu : repositoryMenus.repositoryMenu;
-		templateData.elementDisposables.add(connectPrimaryMenu(menu, (primary, secondary) => {
-			menuPrimaryActions = primary;
-			menuSecondaryActions = secondary;
-			updateToolbar();
-		}));
+		if (this.toolbarMenuId === MenuId.SCMTitle || this.configurationService.getValue<boolean>('scm.repositoryExplorer.enabled') === false) {
+			const repositoryMenus = this.scmViewService.menus.getRepositoryMenus(repository.provider);
+			const menu = this.toolbarMenuId === MenuId.SCMTitle ? repositoryMenus.titleMenu.menu : repositoryMenus.repositoryMenu;
+			templateData.elementDisposables.add(connectPrimaryMenu(menu, (primary, secondary) => {
+				menuPrimaryActions = primary;
+				menuSecondaryActions = secondary;
+				updateToolbar();
+			}));
+		}
 
 		templateData.toolBar.context = repository.provider;
 	}
