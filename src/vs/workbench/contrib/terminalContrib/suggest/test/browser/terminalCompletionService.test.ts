@@ -20,6 +20,7 @@ import { ITerminalCompletion, TerminalCompletionItemKind } from '../../browser/t
 import { count } from '../../../../../../base/common/strings.js';
 import { WindowsShellType } from '../../../../../../platform/terminal/common/terminal.js';
 import { gitBashToWindowsPath, windowsToGitBashPath } from '../../browser/terminalGitBashHelpers.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 
 const pathSeparator = isWindows ? '\\' : '/';
 
@@ -105,6 +106,7 @@ suite('TerminalCompletionService', () => {
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
 		configurationService = new TestConfigurationService();
+		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, {
 			async stat(resource) {

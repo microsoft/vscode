@@ -27,7 +27,7 @@ export { observableFromEventOpts } from './observables/observableFromEvent.js';
 export { observableSignalFromEvent } from './observables/observableSignalFromEvent.js';
 export { asyncTransaction, globalTransaction, subtransaction, transaction, TransactionImpl } from './transaction.js';
 export { observableFromValueWithChangeEvent, ValueWithChangeEventFromObservable } from './utils/valueWithChangeEvent.js';
-export { runOnChange, runOnChangeWithCancellationToken, runOnChangeWithStore } from './utils/runOnChange.js';
+export { runOnChange, runOnChangeWithCancellationToken, runOnChangeWithStore, type RemoveUndefined } from './utils/runOnChange.js';
 export { derivedConstOnceDefined, latestChangedValue } from './experimental/utils.js';
 export { observableFromEvent } from './observables/observableFromEvent.js';
 export { observableValue } from './observables/observableValue.js';

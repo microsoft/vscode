@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PromptToolsMetadata } from './metadata/index.js';
 import { HeaderBase, IHeaderMetadata, type TDehydrated } from './headerBase.js';
 import { PromptsType } from '../../promptTypes.js';
 import { FrontMatterRecord } from '../../codecs/base/frontMatterCodec/tokens/index.js';
 import { PromptModelMetadata } from './metadata/model.js';
+import { PromptToolsMetadata } from './metadata/tools.js';
 
 /**
  * Metadata utility object for mode files.

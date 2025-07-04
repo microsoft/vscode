@@ -1471,6 +1471,7 @@ declare namespace monaco.editor {
 		modelVersionId?: number;
 		relatedInformation?: IRelatedInformation[];
 		tags?: MarkerTag[];
+		origin?: string | undefined;
 	}
 
 	/**
@@ -1491,6 +1492,7 @@ declare namespace monaco.editor {
 		modelVersionId?: number;
 		relatedInformation?: IRelatedInformation[];
 		tags?: MarkerTag[];
+		origin?: string | undefined;
 	}
 
 	/**
@@ -6215,7 +6217,7 @@ declare namespace monaco.editor {
 		 */
 		getTopForPosition(lineNumber: number, column: number): number;
 		/**
-		 * Get the line height for the line number.
+		 * Get the line height for a model position.
 		 */
 		getLineHeightForPosition(position: IPosition): number;
 		/**

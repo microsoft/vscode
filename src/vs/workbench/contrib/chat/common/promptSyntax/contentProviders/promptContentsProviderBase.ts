@@ -29,6 +29,11 @@ export interface IPromptContentsProviderOptions {
 	 * Language ID to use for the prompt contents. If not set, the language ID will be inferred from the file.
 	 */
 	readonly languageId: string | undefined;
+
+	/**
+	 * If set to `true`, the contents provider will listen for updates and retrigger a parse.
+	 */
+	readonly updateOnChange: boolean;
 }
 
 

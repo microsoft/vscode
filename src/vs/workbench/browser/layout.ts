@@ -633,7 +633,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService, coreExperimentationService: ICoreExperimentationService): void {
 		this._mainContainerDimension = getClientArea(this.parent, DEFAULT_WINDOW_DIMENSIONS); // running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
 
-		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService, coreExperimentationService);
+		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService, coreExperimentationService, this.environmentService);
 		this.stateModel.load({
 			mainContainerDimension: this._mainContainerDimension,
 			resetLayout: Boolean(this.layoutOptions?.resetLayout)
@@ -2804,7 +2804,8 @@ class LayoutStateModel extends Disposable {
 		private readonly storageService: IStorageService,
 		private readonly configurationService: IConfigurationService,
 		private readonly contextService: IWorkspaceContextService,
-		private readonly coreExperimentationService: ICoreExperimentationService
+		private readonly coreExperimentationService: ICoreExperimentationService,
+		private readonly environmentService: IBrowserWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -2867,13 +2868,16 @@ class LayoutStateModel extends Disposable {
 		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = workbenchState === WorkbenchState.EMPTY;
 		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
 		LayoutStateKeys.AUXILIARYBAR_HIDDEN.defaultValue = (() => {
+			const configuration = this.configurationService.inspect(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY);
+			if (configuration.defaultValue !== 'hidden' && isWeb && !this.environmentService.remoteAuthority) {
+				return true; // TODO@bpasero revisit this when Chat is available in serverless web
+			}
+
 			switch (this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY)) {
 				case 'visible':
 					return false;
 				case 'visibleInWorkspace':
 					return workbenchState === WorkbenchState.EMPTY;
-				case 'visibleInNewWorkspace':
-					return workbenchState === WorkbenchState.EMPTY || !this.storageService.isNew(StorageScope.WORKSPACE);
 				default:
 					return true;
 			}
@@ -2952,7 +2956,7 @@ class LayoutStateModel extends Disposable {
 			) {
 				const mainContainerDimension = configuration.mainContainerDimension;
 				this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, false);
-				this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, mainContainerDimension.width / 2);
+				this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, Math.ceil(mainContainerDimension.width / (1.618 * 1.618 /* golden ratio */)));
 			}
 		}
 

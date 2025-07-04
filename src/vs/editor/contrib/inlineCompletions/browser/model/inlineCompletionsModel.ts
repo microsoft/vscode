@@ -46,6 +46,7 @@ import { SuggestItemInfo } from './suggestWidgetAdapter.js';
 import { TextModelEditReason, EditReasons } from '../../../../common/textModelEditReason.js';
 import { ICodeEditorService } from '../../../../browser/services/codeEditorService.js';
 import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
+import { IInlineCompletionsService } from '../../../../browser/services/inlineCompletionsService.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -74,6 +75,7 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _suppressedInlineCompletionGroupIds;
 	private readonly _inlineEditsEnabled;
 	private readonly _inlineEditsShowCollapsedEnabled;
+	private readonly _triggerCommandOnProviderChange;
 
 	constructor(
 		public readonly textModel: ITextModel,
@@ -89,6 +91,7 @@ export class InlineCompletionsModel extends Disposable {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IInlineCompletionsService inlineCompletionsService: IInlineCompletionsService
 	) {
 		super();
 		this.primaryPosition = derived(this, reader => this._positions.read(reader)[0] ?? new Position(1, 1));
@@ -109,6 +112,13 @@ export class InlineCompletionsModel extends Disposable {
 		this._suppressedInlineCompletionGroupIds = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => new Set(v.experimental.suppressInlineSuggestions.split(',')));
 		this._inlineEditsEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.enabled);
 		this._inlineEditsShowCollapsedEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
+		this._triggerCommandOnProviderChange = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.experimental.triggerCommandOnProviderChange);
+		this._register(inlineCompletionsService.onDidChangeIsSnoozing((isSnoozing) => {
+			if (isSnoozing) {
+				this.stop();
+			}
+		}));
+
 		this._lastShownInlineCompletionInfo = undefined;
 		this._lastAcceptedInlineCompletionInfo = undefined;
 		this._didUndoInlineEdits = derivedHandleChanges({
@@ -180,7 +190,8 @@ export class InlineCompletionsModel extends Disposable {
 			this._onlyRequestInlineEditsSignal.read(reader);
 			this._forceUpdateExplicitlySignal.read(reader);
 			this._fetchSpecificProviderSignal.read(reader);
-			const shouldUpdate = (this._enabled.read(reader) && this._selectedSuggestItem.read(reader)) || this._isActive.read(reader);
+			const shouldUpdate = ((this._enabled.read(reader) && this._selectedSuggestItem.read(reader)) || this._isActive.read(reader))
+				&& (!inlineCompletionsService.isSnoozing() || changeSummary.inlineCompletionTriggerKind === InlineCompletionTriggerKind.Explicit);
 			if (!shouldUpdate) {
 				this._source.cancelUpdate();
 				return undefined;
@@ -205,12 +216,23 @@ export class InlineCompletionsModel extends Disposable {
 				return undefined;
 			}
 
+			let reason: string = '';
+			if (changeSummary.provider) {
+				reason += 'providerOnDidChange';
+			} else if (changeSummary.inlineCompletionTriggerKind === InlineCompletionTriggerKind.Explicit) {
+				reason += 'explicit';
+			}
+			if (changeSummary.changeReason) {
+				reason += reason.length > 0 ? `:${changeSummary.changeReason}` : changeSummary.changeReason;
+			}
+
 			const requestInfo: InlineSuggestRequestInfo = {
 				editorType: this.editorType,
 				startTime: Date.now(),
 				languageId: this.textModel.getLanguageId(),
-				reason: changeSummary.inlineCompletionTriggerKind === InlineCompletionTriggerKind.Explicit ? 'Explicit' : changeSummary.changeReason,
+				reason,
 			};
+
 			let context: InlineCompletionContextWithoutUuid = {
 				triggerKind: changeSummary.inlineCompletionTriggerKind,
 				selectedSuggestionInfo: suggestItem?.toSelectedSuggestionInfo(),
@@ -584,6 +606,19 @@ export class InlineCompletionsModel extends Disposable {
 				if (!this._enabled.get()) {
 					return;
 				}
+
+				// Only update the active editor
+				const activeEditor = this._codeEditorService.getFocusedCodeEditor() || this._codeEditorService.getActiveCodeEditor();
+				if (activeEditor !== this._editor) {
+					return;
+				}
+
+				if (this._triggerCommandOnProviderChange.get()) {
+					// TODO@hediet remove this and always do the else branch.
+					this.trigger(undefined, { onlyFetchInlineEdits: true });
+					return;
+				}
+
 
 				// If there is an active suggestion from a different provider, we ignore the update
 				const activeState = this.state.get();
