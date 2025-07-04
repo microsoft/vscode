@@ -27,10 +27,15 @@ export class PromptFileRewriter {
 		const model = editor.getModel();
 
 		const parser = this._promptsService.getSyntaxParserFor(model);
-		const { header } = await parser.start(token).settled();
-
-		if ((header === undefined) || token.isCancellationRequested) {
+		await parser.start(token).settled();
+		const { header } = parser;
+		if (header === undefined) {
 			return undefined;
+		}
+
+		const completed = await header.settled;
+		if (!completed || token.isCancellationRequested) {
+			return;
 		}
 
 		if (('tools' in header.metadataUtility) === false) {

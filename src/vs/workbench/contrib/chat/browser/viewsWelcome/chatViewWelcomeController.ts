@@ -16,8 +16,10 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatAgentLocation } from '../../common/constants.js';
+import { IChatWidgetService } from '../chat.js';
 import { chatViewsWelcomeRegistry, IChatViewsWelcomeDescriptor } from './chatViewsWelcome.js';
 
 const $ = dom.$;
@@ -114,6 +116,13 @@ export interface IChatViewWelcomeContent {
 	tips?: IMarkdownString;
 	inputPart?: HTMLElement;
 	isExperimental?: boolean;
+	suggestedPrompts?: IChatSuggestedPrompts[];
+}
+
+export interface IChatSuggestedPrompts {
+	icon?: ThemeIcon;
+	label: string;
+	prompt: string;
 }
 
 export interface IChatViewWelcomeRenderOptions {
@@ -131,6 +140,8 @@ export class ChatViewWelcomePart extends Disposable {
 		@IOpenerService private openerService: IOpenerService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILogService private logService: ILogService,
+		@IChatWidgetService private chatWidgetService: IChatWidgetService,
+		@ITelemetryService private telemetryService: ITelemetryService,
 	) {
 		super();
 		this.element = dom.$('.chat-welcome-view');
@@ -166,12 +177,42 @@ export class ChatViewWelcomePart extends Disposable {
 			if (content.isExperimental && content.inputPart) {
 				content.inputPart.querySelector('.chat-attachments-container')?.remove();
 				dom.append(this.element, content.inputPart);
+
+				if (content.suggestedPrompts && content.suggestedPrompts.length) {
+					// create a tile with icon and label for each suggested promot
+					const suggestedPromptsContainer = dom.append(this.element, $('.chat-welcome-view-suggested-prompts'));
+					for (const prompt of content.suggestedPrompts) {
+						const promptElement = dom.append(suggestedPromptsContainer, $('.chat-welcome-view-suggested-prompt'));
+						if (prompt.icon) {
+							const iconElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-icon'));
+							iconElement.appendChild(renderIcon(prompt.icon));
+						}
+						const labelElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-label'));
+						labelElement.textContent = prompt.label;
+						this._register(dom.addDisposableListener(promptElement, dom.EventType.CLICK, () => {
+
+							type SuggestedPromptClickEvent = { suggestedPrompt: string };
+
+							type SuggestedPromptClickData = {
+								owner: 'bhavyaus';
+								comment: 'Event used to gain insights into when suggested prompts are clicked.';
+								suggestedPrompt: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The suggested prompt clicked.' };
+							};
+
+							this.telemetryService.publicLog2<SuggestedPromptClickEvent, SuggestedPromptClickData>('chat.clickedSuggestedPrompt', {
+								suggestedPrompt: prompt.prompt,
+							});
+
+							this.chatWidgetService.lastFocusedWidget?.setInput(prompt.prompt);
+						}));
+					}
+				}
+
 				if (typeof content.additionalMessage === 'string') {
 					const additionalMsg = $('.chat-welcome-view-experimental-additional-message');
 					additionalMsg.textContent = content.additionalMessage;
 					dom.append(this.element, additionalMsg);
 				}
-				// also append telemetry message if available
 			} else {
 				// Additional message
 				if (typeof content.additionalMessage === 'string') {

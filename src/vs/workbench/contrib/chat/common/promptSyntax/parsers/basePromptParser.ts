@@ -191,7 +191,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * block until the latest prompt contents parsing logic is settled
 	 * (e.g., for every `onContentChanged` event of the prompt source).
 	 */
-	public async settled(): Promise<this> {
+	public async settled(): Promise<boolean> {
 		assert(
 			this.started,
 			'Cannot wait on the parser that did not start yet.',
@@ -200,13 +200,13 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		await this.firstParseResult.promise;
 
 		if (this.errorCondition) {
-			return this;
+			return false;
 		}
 
 		// by the time when the `firstParseResult` promise is resolved,
 		// this object may have been already disposed, hence noop
 		if (this.isDisposed) {
-			return this;
+			return false;
 		}
 
 		assertDefined(
@@ -214,24 +214,17 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			'No stream reference found.',
 		);
 
-		await this.stream.settled;
+		const completed = await this.stream.settled;
 
 		// if prompt header exists, also wait for it to be settled
 		if (this.promptHeader) {
-			await this.promptHeader.settled;
+			const headerCompleted = await this.promptHeader.settled;
+			if (!headerCompleted) {
+				return false;
+			}
 		}
 
-		return this;
-	}
-
-	/**
-	 * Same as {@link settled} but also waits for all possible
-	 * nested child prompt references and their children to be settled.
-	 */
-	public async allSettled(): Promise<this> {
-		await this.settled();
-
-		return this;
+		return completed;
 	}
 
 	constructor(

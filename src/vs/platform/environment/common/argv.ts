@@ -138,6 +138,7 @@ export interface NativeParsedArgs {
 	'unresponsive-sample-period'?: string;
 	'enable-rdp-display-tracking'?: boolean;
 	'disable-layout-restore'?: boolean;
+	'startup-experiment-group'?: string;
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
 	'no-proxy-server'?: boolean;

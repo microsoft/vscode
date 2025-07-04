@@ -14,7 +14,7 @@ export const enum TokenType {
 export const shellTypeResetChars = new Map<TerminalShellType, string[]>([
 	[TerminalShellType.Bash, ['>', '>>', '<', '2>', '2>>', '&>', '&>>', '|', '|&', '&&', '||', '&', ';', '(', '{', '<<']],
 	[TerminalShellType.Zsh, ['>', '>>', '<', '2>', '2>>', '&>', '&>>', '<>', '|', '|&', '&&', '||', '&', ';', '(', '{', '<<', '<<<', '<(']],
-	[TerminalShellType.PowerShell, ['>', '>>', '<', '2>', '2>>', '*>', '*>>', '|', ';', '-and', '-or', '-not', '!', '&', '-eq', '-ne', '-gt', '-lt', '-ge', '-le', '-like', '-notlike', '-match', '-notmatch', '-contains', '-notcontains', '-in', '-notin']]
+	[TerminalShellType.PowerShell, ['>', '>>', '<', '2>', '2>>', '*>', '*>>', '|', ';', ' -and ', ' -or ', ' -not ', '!', '&', ' -eq ', ' -ne ', ' -gt ', ' -lt ', ' -ge ', ' -le ', ' -like ', ' -notlike ', ' -match ', ' -notmatch ', ' -contains ', ' -notcontains ', ' -in ', ' -notin ']]
 ]);
 
 export const defaultShellTypeResetChars = shellTypeResetChars.get(TerminalShellType.Bash)!;
@@ -31,7 +31,7 @@ export function getTokenType(ctx: { commandLine: string; cursorPosition: number 
 
 	// Look for " <reset char> " before the word
 	for (const resetChar of commandResetChars) {
-		const pattern = ` ${resetChar} `;
+		const pattern = shellType === TerminalShellType.PowerShell ? `${resetChar}` : ` ${resetChar} `;
 		if (beforeWord.endsWith(pattern)) {
 			return TokenType.Command;
 		}
