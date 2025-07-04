@@ -678,7 +678,7 @@ export namespace McpResourceURI {
 		});
 	}
 
-	export function toServer(uri: URI | string): { definitionId: string; resourceURI: URI } {
+	export function toServer(uri: URI | string): { definitionId: string; resourceURL: URL } {
 		if (typeof uri === 'string') {
 			uri = URI.parse(uri);
 		}
@@ -690,13 +690,16 @@ export namespace McpResourceURI {
 			throw new Error(`Invalid MCP resource URI: ${uri.toString()}`);
 		}
 		const [, serverScheme, authority, ...path] = parts;
+
+		// URI cannot correctly stringify empty authorities (#250905) so we use URL instead to construct
+		const url = new URL(`${serverScheme}://${authority.toLowerCase() === emptyAuthorityPlaceholder ? '' : authority}`);
+		url.pathname = path.length ? ('/' + path.join('/')) : '';
+		url.search = uri.query;
+		url.hash = uri.fragment;
+
 		return {
 			definitionId: decodeHex(uri.authority).toString(),
-			resourceURI: uri.with({
-				scheme: serverScheme,
-				authority: authority.toLowerCase() === emptyAuthorityPlaceholder ? '' : authority,
-				path: path.length ? ('/' + path.join('/')) : '',
-			}),
+			resourceURL: url,
 		};
 	}
 

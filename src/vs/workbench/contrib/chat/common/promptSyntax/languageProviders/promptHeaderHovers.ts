@@ -70,7 +70,10 @@ export class PromptHeaderHoverProvider extends Disposable implements HoverProvid
 			return undefined;
 		}
 
-		await header.settled;
+		const completed = await header.settled;
+		if (!completed || token.isCancellationRequested) {
+			return undefined;
+		}
 
 		if (header instanceof InstructionsHeader) {
 			const descriptionRange = header.metadataUtility.description?.range;
