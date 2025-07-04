@@ -235,7 +235,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 						{ allowNonPromptFiles: true, languageId: MODE_LANGUAGE_ID, updateOnChange: false },
 					).start(token);
 
-					await parser.settled();
+					const completed = await parser.settled();
+					if (!completed) {
+						throw new Error(localize('promptParser.notCompleted', "Prompt parser for {0} did not complete.", uri.toString()));
+					}
 
 					const { description, model, tools } = parser.metadata as TModeMetadata;
 					const body = await parser.getBody();
@@ -255,7 +258,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 		try {
 			const languageId = getLanguageIdForPromptsType(type);
 			parser = this.instantiationService.createInstance(PromptParser, uri, { allowNonPromptFiles: true, languageId, updateOnChange: false }).start(token);
-			await parser.settled();
+			const completed = await parser.settled();
+			if (!completed) {
+				throw new Error(localize('promptParser.notCompleted', "Prompt parser for {0} did not complete.", uri.toString()));
+			}
 			// make a copy, to avoid leaking the parser instance
 			return {
 				uri: parser.uri,

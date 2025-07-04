@@ -48,11 +48,14 @@ class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider
 
 		const parser = this.promptsService.getSyntaxParserFor(model);
 
-		const { header } = await parser
-			.start(token)
-			.settled();
+		await parser.start(token).settled();
+		const { header } = parser;
+		if (!header) {
+			return undefined;
+		}
 
-		if ((header === undefined) || token.isCancellationRequested) {
+		const completed = await header.settled;
+		if (!completed || token.isCancellationRequested) {
 			return undefined;
 		}
 

@@ -249,7 +249,7 @@ export abstract class HeaderBase<
 	 * Promise that resolves when parsing process of
 	 * the prompt header completes.
 	 */
-	public get settled(): Promise<void> {
+	public get settled(): Promise<boolean> {
 		return this.stream.settled;
 	}
 
