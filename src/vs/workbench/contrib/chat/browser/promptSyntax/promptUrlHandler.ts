@@ -21,7 +21,6 @@ import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { localize } from '../../../../../nls.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
@@ -33,8 +32,6 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 
 	static readonly ID = 'workbench.contrib.promptUrlHandler';
 
-	static readonly CONFIRM_INSTALL_STORAGE_KEY = 'security.promptForPromptProtocolHandling';
-
 	constructor(
 		@IURLService urlService: IURLService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -44,7 +41,7 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IStorageService private readonly storageService: IStorageService,
+
 		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
@@ -120,13 +117,6 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 	}
 
 	private async shouldBlockInstall(promptType: PromptsType, url: URI): Promise<boolean> {
-		const location = url.with({ path: url.path.substring(0, url.path.indexOf('/', 1) + 1), query: undefined, fragment: undefined }).toString();
-		const key = PromptUrlHandler.CONFIRM_INSTALL_STORAGE_KEY + '-' + location;
-
-		if (this.storageService.getBoolean(key, StorageScope.APPLICATION, false)) {
-			return false;
-		}
-
 		let uriLabel = url.toString();
 		if (uriLabel.length > 50) {
 			uriLabel = `${uriLabel.substring(0, 35)}...${uriLabel.substring(uriLabel.length - 15)}`;
@@ -134,7 +124,7 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 
 		const detail = new MarkdownString('', { supportHtml: true });
 		detail.appendMarkdown(localize('confirmOpenDetail2', "This will access {0}.\n\n", `[${uriLabel}](${url.toString()})`));
-		detail.appendMarkdown(localize('confirmOpenDetail3', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'Cancel'"));
+		detail.appendMarkdown(localize('confirmOpenDetail3', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"));
 
 		let message: string;
 		switch (promptType) {
@@ -142,19 +132,18 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 				message = localize('confirmInstallPrompt', "An external application wants to create a prompt file with content from a URL. Do you want to continue by selecting a destination folder and name?");
 				break;
 			case PromptsType.instructions:
-				message = localize('confirmInstallInstructions', "An external application wants to create an instructions file with content from a URL.");
+				message = localize('confirmInstallInstructions', "An external application wants to create an instructions file with content from a URL. Do you want to continue by selecting a destination folder and name?");
 				break;
 			default:
-				message = localize('confirmInstallMode', "An external application wants to create a chat mode with content from a URL.");
+				message = localize('confirmInstallMode', "An external application wants to create a chat mode with content from a URL. Do you want to continue by selecting a destination folder and name?");
 				break;
 		}
 
-		const { confirmed, checkboxChecked } = await this.dialogService.confirm({
+		const { confirmed } = await this.dialogService.confirm({
 			type: 'warning',
 			primaryButton: localize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
 			cancelButton: localize('noButton', "No"),
 			message,
-			checkbox: { label: localize('confirmOpenDoNotAskAgain', "Allow creating a prompt file without asking from '{0}'", location) },
 			custom: {
 				markdownDetails: [{
 					markdown: detail
@@ -162,9 +151,6 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 			}
 		});
 
-		if (checkboxChecked) {
-			this.storageService.store(key, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
-		}
 		return !confirmed;
 
 	}
