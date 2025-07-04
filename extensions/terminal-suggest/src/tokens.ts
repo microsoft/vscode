@@ -31,7 +31,7 @@ export function getTokenType(ctx: { commandLine: string; cursorPosition: number 
 
 	// Look for " <reset char> " before the word
 	for (const resetChar of commandResetChars) {
-		const pattern = ` ${resetChar} `;
+		const pattern = shellType === TerminalShellType.PowerShell ? `${resetChar}` : ` ${resetChar} `;
 		if (beforeWord.endsWith(pattern)) {
 			return TokenType.Command;
 		}
