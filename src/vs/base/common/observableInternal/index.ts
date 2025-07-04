@@ -20,7 +20,7 @@ export {
 	signalFromObservable, wasEventTriggeredRecently,
 } from './utils/utils.js';
 export { type DebugOwner } from './debugName.js';
-export { type IChangeContext, type IChangeTracker, recordChanges } from './changeTracker.js';
+export { type IChangeContext, type IChangeTracker, recordChanges, recordChangesLazy } from './changeTracker.js';
 export { constObservable } from './observables/constObservable.js';
 export { type IObservableSignal, observableSignal } from './observables/observableSignal.js';
 export { observableFromEventOpts } from './observables/observableFromEvent.js';
