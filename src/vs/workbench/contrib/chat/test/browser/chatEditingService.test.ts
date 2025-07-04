@@ -32,7 +32,7 @@ import { ChatService } from '../../common/chatServiceImpl.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { ChatTransferService, IChatTransferService } from '../../common/chatTransferService.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
-import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { NullLanguageModelsService } from '../common/languageModels.js';
 import { MockChatVariablesService } from '../common/mockChatVariables.js';
@@ -52,7 +52,7 @@ function getAgentData(id: string): IChatAgentData {
 		publisherDisplayName: '',
 		extensionDisplayName: '',
 		locations: [ChatAgentLocation.Panel],
-		modes: [ChatMode.Ask],
+		modes: [ChatModeKind.Ask],
 		metadata: {},
 		slashCommands: [],
 		disambiguation: [],

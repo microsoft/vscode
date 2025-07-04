@@ -51,6 +51,7 @@ function isActionableButton(obj: IQuickInputButton): obj is ActionableButton {
 export async function showToolsPicker(
 	accessor: ServicesAccessor,
 	placeHolder: string,
+	description?: string,
 	toolsEntries?: ReadonlyMap<ToolSet | IToolData, boolean>,
 	onUpdate?: (toolsEntries: ReadonlyMap<ToolSet | IToolData, boolean>) => void
 ): Promise<ReadonlyMap<ToolSet | IToolData, boolean> | undefined> {
@@ -243,6 +244,7 @@ export async function showToolsPicker(
 
 	const picker = store.add(quickPickService.createQuickPick<MyPick>({ useSeparators: true }));
 	picker.placeholder = placeHolder;
+	picker.description = description;
 	picker.canSelectMany = true;
 	picker.keepScrollPosition = true;
 	picker.sortByLabel = false;

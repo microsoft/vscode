@@ -25,7 +25,6 @@ export type LogEntryData = IEventFetchEnd;
 export interface IDocumentEventDataSetChangeReason {
 	sourceId: 'TextModel.setChangeReason';
 	source: 'inlineSuggestion.accept' | 'snippet' | string;
-	detailedSource?: string;
 }
 
 interface IDocumentEventFetchStart {

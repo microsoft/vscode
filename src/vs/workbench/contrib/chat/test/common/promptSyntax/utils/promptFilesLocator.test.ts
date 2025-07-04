@@ -292,7 +292,7 @@ suite('PromptFilesLocator', () => {
 					];
 
 					for (const setting of settings) {
-						test(`• '${setting}'`, async () => {
+						test(`'${setting}'`, async () => {
 							const locator = await createPromptsLocator(
 								{ [setting]: true },
 								EMPTY_WORKSPACE,
@@ -350,7 +350,7 @@ suite('PromptFilesLocator', () => {
 					}
 				});
 
-				suite(`• specific`, () => {
+				suite(`specific`, () => {
 					const testSettings = [
 						[
 							'/Users/legomushroom/repos/vscode/**/*specific*',
@@ -443,7 +443,7 @@ suite('PromptFilesLocator', () => {
 					];
 
 					for (const settings of testSettings) {
-						test(`• '${JSON.stringify(settings)}'`, async () => {
+						test(`'${JSON.stringify(settings)}'`, async () => {
 							const vscodeSettings: Record<string, boolean> = {};
 							for (const setting of settings) {
 								vscodeSettings[setting] = true;
@@ -536,7 +536,7 @@ suite('PromptFilesLocator', () => {
 					];
 
 					for (const setting of testSettings) {
-						test(`• '${setting}'`, async () => {
+						test(`'${setting}'`, async () => {
 							const locator = await createPromptsLocator(
 								{ [setting]: true },
 								['/Users/legomushroom/repos/vscode'],
@@ -594,7 +594,7 @@ suite('PromptFilesLocator', () => {
 					}
 				});
 
-				suite(`• specific`, () => {
+				suite(`specific`, () => {
 					const testSettings = [
 						[
 							'**/*specific*',
@@ -687,7 +687,7 @@ suite('PromptFilesLocator', () => {
 					];
 
 					for (const settings of testSettings) {
-						test(`• '${JSON.stringify(settings)}'`, async () => {
+						test(`'${JSON.stringify(settings)}'`, async () => {
 							const vscodeSettings: Record<string, boolean> = {};
 							for (const setting of settings) {
 								vscodeSettings[setting] = true;
@@ -776,7 +776,7 @@ suite('PromptFilesLocator', () => {
 					];
 
 					for (const setting of settings) {
-						test(`• '${setting}'`, async () => {
+						test(`'${setting}'`, async () => {
 							const locator = await createPromptsLocator(
 								{ [setting]: true },
 								['/Users/legomushroom/repos/vscode'],
@@ -834,7 +834,7 @@ suite('PromptFilesLocator', () => {
 					}
 				});
 
-				suite(`• specific`, () => {
+				suite(`specific`, () => {
 					const testSettings = [
 						[
 							'/Users/legomushroom/repos/vscode/**/*specific*',
@@ -927,7 +927,7 @@ suite('PromptFilesLocator', () => {
 					];
 
 					for (const settings of testSettings) {
-						test(`• '${JSON.stringify(settings)}'`, async () => {
+						test(`'${JSON.stringify(settings)}'`, async () => {
 							const vscodeSettings: Record<string, boolean> = {};
 							for (const setting of settings) {
 								vscodeSettings[setting] = true;
@@ -1687,7 +1687,7 @@ suite('PromptFilesLocator', () => {
 					];
 
 					for (const setting of testSettings) {
-						test(`• '${setting}'`, async () => {
+						test(`'${setting}'`, async () => {
 							const locator = await createPromptsLocator(
 								{ [setting]: true },
 								[
@@ -1773,7 +1773,7 @@ suite('PromptFilesLocator', () => {
 					}
 				});
 
-				suite(`• specific`, () => {
+				suite(`specific`, () => {
 					const testSettings = [
 						[
 							'**/my.prompt.md',
@@ -1888,7 +1888,7 @@ suite('PromptFilesLocator', () => {
 					];
 
 					for (const settings of testSettings) {
-						test(`• '${JSON.stringify(settings)}'`, async () => {
+						test(`'${JSON.stringify(settings)}'`, async () => {
 							const vscodeSettings: Record<string, boolean> = {};
 							for (const setting of settings) {
 								vscodeSettings[setting] = true;
@@ -2018,7 +2018,7 @@ suite('PromptFilesLocator', () => {
 					];
 
 					for (const setting of testSettings) {
-						test(`• '${setting}'`, async () => {
+						test(`'${setting}'`, async () => {
 							const locator = await createPromptsLocator(
 								{ [setting]: true },
 								[
@@ -2104,7 +2104,7 @@ suite('PromptFilesLocator', () => {
 					}
 				});
 
-				suite(`• specific`, () => {
+				suite(`specific`, () => {
 					const testSettings = [
 						[
 							'/Users/legomushroom/repos/**/my.prompt.md',
@@ -2249,7 +2249,7 @@ suite('PromptFilesLocator', () => {
 					];
 
 					for (const settings of testSettings) {
-						test(`• '${JSON.stringify(settings)}'`, async () => {
+						test(`'${JSON.stringify(settings)}'`, async () => {
 							const vscodeSettings: Record<string, boolean> = {};
 							for (const setting of settings) {
 								vscodeSettings[setting] = true;

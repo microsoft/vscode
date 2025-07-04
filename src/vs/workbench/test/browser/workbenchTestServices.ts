@@ -635,6 +635,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	onDidChangeNotificationsVisibility = Event.None;
 	onDidAddContainer = Event.None;
 	onDidChangeActiveContainer = Event.None;
+	onDidChangeAuxiliaryBarMaximized = Event.None;
 
 	layout(): void { }
 	isRestored(): boolean { return true; }
@@ -661,6 +662,9 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	async setPanelHidden(_hidden: boolean): Promise<void> { }
 	toggleMaximizedPanel(): void { }
 	isPanelMaximized(): boolean { return false; }
+	toggleMaximizedAuxiliaryBar(): void { }
+	setAuxiliaryBarMaximized(maximized: boolean): boolean { return false; }
+	isAuxiliaryBarMaximized(): boolean { return false; }
 	getMenubarVisibility(): MenuBarVisibility { throw new Error('not implemented'); }
 	toggleMenuBar(): void { }
 	getSideBarPosition() { return 0; }
@@ -1118,6 +1122,10 @@ export class TestFileService implements IFileService {
 
 	stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
 		return this.resolve(resource, { resolveMetadata: true });
+	}
+
+	async realpath(resource: URI): Promise<URI> {
+		return resource;
 	}
 
 	async resolveAll(toResolve: { resource: URI; options?: IResolveFileOptions }[]): Promise<IFileStatResult[]> {

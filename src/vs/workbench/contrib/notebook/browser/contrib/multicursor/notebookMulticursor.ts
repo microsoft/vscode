@@ -96,6 +96,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		position: Position;
 	} | undefined;
 	private trackedCells: TrackedCell[];
+	private totalMatchesCount: number;
 
 	private readonly _onDidChangeAnchorCell;
 	readonly onDidChangeAnchorCell: Event<void>;
@@ -125,6 +126,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		super();
 		this.word = '';
 		this.trackedCells = [];
+		this.totalMatchesCount = 0;
 		this._onDidChangeAnchorCell = this._register(new Emitter<void>());
 		this.onDidChangeAnchorCell = this._onDidChangeAnchorCell.event;
 		this.anchorDisposables = this._register(new DisposableStore());
@@ -478,6 +480,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		this.cursorsDisposables.clear();
 		this.cursorsControllers.clear();
 		this.trackedCells = [];
+		this.totalMatchesCount = 0;
 		this.startPosition = undefined;
 		this.word = '';
 	}
@@ -495,6 +498,13 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				return;
 			}
 			this.word = word.word;
+
+			// Record the total number of matches at the beginning of the selection process for performance
+			const notebookTextModel = this.notebookEditor.textModel;
+			if (notebookTextModel) {
+				const allMatches = notebookTextModel.findMatches(this.word, false, true, USUAL_WORD_SEPARATORS);
+				this.totalMatchesCount = allMatches.reduce((sum, cellMatch) => sum + cellMatch.matches.length, 0);
+			}
 
 			const index = this.notebookEditor.getCellIndex(focusedCell);
 			if (index === undefined) {
@@ -543,6 +553,14 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 
 			if (!this.startPosition) {
 				return; // should not happen
+			}
+
+			// Check if all matches are already covered by selections to avoid infinite looping
+			const totalSelections = this.trackedCells.reduce((sum, trackedCell) => sum + trackedCell.matchSelections.length, 0);
+
+			if (totalSelections >= this.totalMatchesCount) {
+				// All matches are already selected, make this a no-op like in regular editors
+				return;
 			}
 
 			const findResult = notebookTextModel.findNextMatch(

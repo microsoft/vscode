@@ -336,7 +336,8 @@ export enum EditorOption {
 	colorDecoratorsActivatedOn = 159,
 	inlineCompletionsAccessibilityVerbose = 160,
 	effectiveEditContext = 161,
-	effectiveAllowVariableFonts = 162
+	scrollOnMiddleClick = 162,
+	effectiveAllowVariableFonts = 163
 }
 
 /**
@@ -447,11 +448,6 @@ export enum InlineCompletionTriggerKind {
 	 * Return multiple completion items to enable cycling through them.
 	 */
 	Explicit = 1
-}
-
-export enum InlineEditTriggerKind {
-	Invoke = 0,
-	Automatic = 1
 }
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.

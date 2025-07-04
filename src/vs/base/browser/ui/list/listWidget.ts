@@ -856,7 +856,7 @@ export interface IStyleController {
 
 export interface IListAccessibilityProvider<T> extends IListViewAccessibilityProvider<T> {
 	getAriaLabel(element: T): string | IObservable<string> | null;
-	getWidgetAriaLabel(): string;
+	getWidgetAriaLabel(): string | IObservable<string>;
 	getWidgetRole?(): AriaRole;
 	getAriaLevel?(element: T): number | undefined;
 	onDidChangeActiveDescendant?: Event<void>;
@@ -1530,7 +1530,12 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.onDidChangeSelection(this._onSelectionChange, this, this.disposables);
 
 		if (this.accessibilityProvider) {
-			this.ariaLabel = this.accessibilityProvider.getWidgetAriaLabel();
+			const ariaLabel = this.accessibilityProvider.getWidgetAriaLabel();
+			const observable = (ariaLabel && typeof ariaLabel !== 'string') ? ariaLabel : constObservable(ariaLabel);
+
+			this.disposables.add(autorun(reader => {
+				this.ariaLabel = reader.readObservable(observable);
+			}));
 		}
 
 		if (this._options.multipleSelectionSupport !== false) {

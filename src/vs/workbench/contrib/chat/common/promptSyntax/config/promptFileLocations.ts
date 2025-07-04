@@ -34,7 +34,7 @@ export const COPILOT_CUSTOM_INSTRUCTIONS_FILENAME = 'copilot-instructions.md';
 export const PROMPT_DEFAULT_SOURCE_FOLDER = '.github/prompts';
 
 /**
- * Default reusable prompt files source folder.
+ * Default reusable instructions files source folder.
  */
 export const INSTRUCTIONS_DEFAULT_SOURCE_FOLDER = '.github/instructions';
 

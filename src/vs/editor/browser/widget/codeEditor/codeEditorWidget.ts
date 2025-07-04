@@ -61,6 +61,8 @@ import { editorErrorForeground, editorHintForeground, editorInfoForeground, edit
 import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { LineBreaksComputerFactory } from '../../../common/viewModel/lineBreaksComputer.js';
+import { TextModelEditReason, EditReasons } from '../../../common/textModelEditReason.js';
+import { TextEdit } from '../../../common/core/edits/textEdit.js';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -610,8 +612,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return -1;
 		}
 		const viewModel = this._modelData.viewModel;
-		if (viewModel.coordinatesConverter.modelPositionIsVisible(Position.lift(position))) {
-			return viewModel.viewLayout.getLineHeightForLineNumber(position.lineNumber);
+		const coordinatesConverter = viewModel.coordinatesConverter;
+		const pos = Position.lift(position);
+		if (coordinatesConverter.modelPositionIsVisible(pos)) {
+			const viewPosition = coordinatesConverter.convertModelPositionToViewPosition(pos);
+			return viewModel.viewLayout.getLineHeightForLineNumber(viewPosition.lineNumber);
 		}
 		return 0;
 	}
@@ -1247,7 +1252,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return true;
 	}
 
-	public executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean {
+	public edit(edit: TextEdit, reason: TextModelEditReason): boolean {
+		return this.executeEdits(reason, edit.replacements.map<IIdentifiedSingleEditOperation>(e => ({ range: e.range, text: e.text })), undefined);
+	}
+
+	public executeEdits(source: string | null | undefined | TextModelEditReason, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean {
 		if (!this._modelData) {
 			return false;
 		}
@@ -1265,9 +1274,19 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			cursorStateComputer = endCursorState;
 		}
 
-		this._onBeforeExecuteEdit.fire({ source: source ?? undefined });
+		let sourceStr: string | undefined | null;
+		let reason: TextModelEditReason;
 
-		this._modelData.viewModel.executeEdits(source, edits, cursorStateComputer);
+		if (source instanceof TextModelEditReason) {
+			reason = source;
+			sourceStr = source.metadata.source;
+		} else {
+			reason = EditReasons.unknown({ name: sourceStr });
+			sourceStr = source;
+		}
+
+		this._onBeforeExecuteEdit.fire({ source: sourceStr ?? undefined });
+		this._modelData.viewModel.executeEdits(sourceStr, edits, cursorStateComputer, reason);
 		return true;
 	}
 
@@ -1313,15 +1332,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.model.getDecorationsInRange(range, this._id, filterValidationDecorations(options), filterFontDecorations(options));
 	}
 
-	public getFontDecorationsInRange(range: Range): IModelDecoration[] | null {
+	public getFontSizeAtPosition(position: IPosition): string | null {
 		if (!this._modelData) {
 			return null;
 		}
-		const allowVariableFonts = this._configuration.options.get(EditorOption.effectiveAllowVariableFonts);
-		if (!allowVariableFonts) {
-			return [];
-		}
-		return this._modelData.model.getFontDecorationsInRange(range, this._id);
+		return this._modelData.viewModel.getFontSizeAtPosition(position);
 	}
 
 	/**

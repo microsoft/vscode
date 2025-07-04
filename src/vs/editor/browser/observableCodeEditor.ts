@@ -204,6 +204,11 @@ export class ObservableCodeEditor extends Disposable {
 				this._endUpdate();
 			}
 		}));
+
+		this.domNode = derived(reader => {
+			this.model.read(reader);
+			return this.editor.getDomNode();
+		});
 	}
 
 	public forceUpdate(): void;
@@ -272,6 +277,8 @@ export class ObservableCodeEditor extends Disposable {
 
 	public readonly contentWidth;
 	public readonly contentHeight;
+
+	public readonly domNode;
 
 	public getOption<T extends EditorOption>(id: T): IObservable<FindComputedEditorOptionValueById<T>> {
 		return observableFromEvent(this, cb => this.editor.onDidChangeConfiguration(e => {

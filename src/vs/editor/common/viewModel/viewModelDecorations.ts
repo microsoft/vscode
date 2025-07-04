@@ -8,10 +8,24 @@ import { Range } from '../core/range.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { ITextModel } from '../model.js';
 import { IViewModelLines } from './viewModelLines.js';
+import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from '../viewModel.js';
 import { filterFontDecorations, filterValidationDecorations } from '../config/editorOptions.js';
-import { IDecorationsViewportData, IInlineDecorationsComputerContext, InlineDecoration, InlineModelDecorationsComputer } from './inlineDecorations.js';
-import { ICoordinatesConverter } from '../coordinatesConverter.js';
-import { ViewModelDecoration } from './viewModelDecoration.js';
+import { StandardTokenType } from '../encodedTokenAttributes.js';
+
+export interface IDecorationsViewportData {
+	/**
+	 * decorations in the viewport.
+	 */
+	readonly decorations: ViewModelDecoration[];
+	/**
+	 * inline decorations grouped by each line in the viewport.
+	 */
+	readonly inlineDecorations: InlineDecoration[][];
+	/**
+	 * Whether the decorations affects the fonts.
+	 */
+	readonly hasVariableFonts: boolean;
+}
 
 export class ViewModelDecorations implements IDisposable {
 

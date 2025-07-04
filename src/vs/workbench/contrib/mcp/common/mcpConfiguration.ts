@@ -10,8 +10,6 @@ import { mcpSchemaId } from '../../../services/configuration/common/configuratio
 import { inputsSchema } from '../../../services/configurationResolver/common/configurationResolverSchema.js';
 import { IExtensionPointDescriptor } from '../../../services/extensions/common/extensionsRegistry.js';
 
-export type { McpConfigurationServer, IMcpConfigurationStdio, IMcpConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
-
 const mcpActivationEventPrefix = 'onMcpCollection:';
 
 /**
@@ -221,7 +219,7 @@ export const mcpContributionPoint: IExtensionPointDescriptor<IMcpCollectionContr
 		}
 	},
 	jsonSchema: {
-		description: localize('vscode.extension.contributes.mcp', 'Contributes Model Context Protocol servers. Users of this should also use `vscode.lm.registerMcpConfigurationProvider`.'),
+		description: localize('vscode.extension.contributes.mcp', 'Contributes Model Context Protocol servers. Users of this should also use `vscode.lm.registerMcpServerDefinitionProvider`.'),
 		type: 'array',
 		defaultSnippets: [{ body: [{ id: '', label: '' }] }],
 		items: {

@@ -13,6 +13,7 @@ export interface INativeCliOptions {
  * A list of command line arguments we support natively.
  */
 export interface NativeParsedArgs {
+
 	// subcommands
 	tunnel?: INativeCliOptions & {
 		user: {
@@ -23,6 +24,17 @@ export interface NativeParsedArgs {
 		};
 	};
 	'serve-web'?: INativeCliOptions;
+	chat?: {
+		_: string[];
+		'add-file'?: string[];
+		mode?: string;
+		maximize?: boolean;
+		'reuse-window'?: boolean;
+		'new-window'?: boolean;
+		help?: boolean;
+	};
+
+	// arguments
 	_: string[];
 	'folder-uri'?: string[]; // undefined or array of 1 or more
 	'file-uri'?: string[]; // undefined or array of 1 or more
@@ -125,6 +137,9 @@ export interface NativeParsedArgs {
 	'unresponsive-sample-interval'?: string;
 	'unresponsive-sample-period'?: string;
 	'enable-rdp-display-tracking'?: boolean;
+	'disable-layout-restore'?: boolean;
+	'startup-experiment-group'?: string;
+	'disable-experiments'?: boolean;
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
 	'no-proxy-server'?: boolean;

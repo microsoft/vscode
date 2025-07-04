@@ -540,6 +540,7 @@ interface IRawExtensionsControlManifest {
 		additionalInfo?: string;
 	}>;
 	search?: ISearchPrefferedResults[];
+	autoUpdate?: IStringDictionary<string>;
 }
 
 export abstract class AbstractExtensionGalleryService implements IExtensionGalleryService {
@@ -1793,7 +1794,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		}
 
 		if (!this.extensionsControlUrl) {
-			return { malicious: [], deprecated: {}, search: [] };
+			return { malicious: [], deprecated: {}, search: [], autoUpdate: {} };
 		}
 
 		const context = await this.requestService.request({
@@ -1810,6 +1811,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		const malicious: Array<MaliciousExtensionInfo> = [];
 		const deprecated: IStringDictionary<IDeprecationInfo> = {};
 		const search: ISearchPrefferedResults[] = [];
+		const autoUpdate: IStringDictionary<string> = result?.autoUpdate ?? {};
 		if (result) {
 			for (const id of result.malicious) {
 				if (!isString(id)) {
@@ -1847,7 +1849,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			}
 		}
 
-		return { malicious, deprecated, search };
+		return { malicious, deprecated, search, autoUpdate };
 	}
 
 }

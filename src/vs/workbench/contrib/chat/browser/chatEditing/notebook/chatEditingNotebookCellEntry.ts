@@ -83,7 +83,7 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 	}
 
 	async acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
-		const { maxLineNumber } = await this._textModelChangeService.acceptAgentEdits(this.modifiedModel.uri, textEdits, isLastEdits);
+		const { maxLineNumber } = await this._textModelChangeService.acceptAgentEdits(this.modifiedModel.uri, textEdits, isLastEdits, responseModel);
 
 		transaction((tx) => {
 			if (!isLastEdits) {

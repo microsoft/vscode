@@ -746,7 +746,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 
 				// Try to render the textarea with the color/font style to match the text under it
 				const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(startPosition.lineNumber);
-				const fontSize = this._getFontSizeAtPosition(this._primaryCursorPosition);
+				const fontSize = this._context.viewModel.getFontSizeAtPosition(this._primaryCursorPosition);
 				const viewLineData = this._context.viewModel.getViewLineData(startPosition.lineNumber);
 				const startTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(startPosition.column - 1);
 				const endTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(endPosition.column - 1);
@@ -856,6 +856,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 		ta.setHeight(renderData.height);
 		ta.setLineHeight(renderData.height);
 
+		ta.setFontSize(renderData.fontSize ?? this._fontInfo.fontSize);
 		ta.setColor(renderData.color ? Color.Format.CSS.formatHex(renderData.color) : '');
 		ta.setFontStyle(renderData.italic ? 'italic' : '');
 		if (renderData.bold) {
@@ -905,6 +906,7 @@ interface IRenderData {
 	height: number;
 	useCover: boolean;
 
+	fontSize?: string | null;
 	color?: Color | null;
 	italic?: boolean;
 	bold?: boolean;

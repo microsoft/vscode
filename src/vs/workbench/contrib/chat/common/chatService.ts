@@ -23,7 +23,7 @@ import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
-import { ChatAgentLocation, ChatMode } from './constants.js';
+import { ChatAgentLocation, ChatModeKind } from './constants.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult } from './languageModelToolsService.js';
 
 export interface IChatRequest {
@@ -227,6 +227,17 @@ export interface IChatConfirmation {
 	kind: 'confirmation';
 }
 
+export interface IChatElicitationRequest {
+	kind: 'elicitation';
+	title: string | IMarkdownString;
+	message: string | IMarkdownString;
+	originMessage?: string | IMarkdownString;
+	state: 'pending' | 'accepted' | 'rejected';
+	acceptedResult?: Record<string, unknown>;
+	accept(): Promise<void>;
+	reject(): Promise<void>;
+}
+
 export interface IChatTerminalToolInvocationData {
 	kind: 'terminal';
 	command: string;
@@ -310,7 +321,8 @@ export type IChatProgress =
 	| IChatExtensionsContent
 	| IChatUndoStop
 	| IChatPrepareToolInvocationPart
-	| IChatTaskSerialized;
+	| IChatTaskSerialized
+	| IChatElicitationRequest;
 
 export interface IChatFollowup {
 	kind: 'reply';
@@ -357,12 +369,19 @@ export interface IChatCopyAction {
 	copiedCharacters: number;
 	totalCharacters: number;
 	copiedText: string;
+	totalLines: number;
+	copiedLines: number;
+	modelId: string;
+	languageId?: string;
 }
 
 export interface IChatInsertAction {
 	kind: 'insert';
 	codeBlockIndex: number;
 	totalCharacters: number;
+	totalLines: number;
+	languageId?: string;
+	modelId: string;
 	newFile?: boolean;
 }
 
@@ -370,6 +389,9 @@ export interface IChatApplyAction {
 	kind: 'apply';
 	codeBlockIndex: number;
 	totalCharacters: number;
+	totalLines: number;
+	languageId?: string;
+	modelId: string;
 	newFile?: boolean;
 	codeMapper?: string;
 	editsProposed: boolean;
@@ -453,7 +475,7 @@ export interface IChatTransferredSessionData {
 	sessionId: string;
 	inputValue: string;
 	location: ChatAgentLocation;
-	mode: ChatMode;
+	mode: ChatModeKind;
 }
 
 export interface IChatSendRequestResponseState {
@@ -486,7 +508,7 @@ export interface IChatTerminalLocationData {
 export type IChatLocationData = IChatEditorLocationData | IChatNotebookLocationData | IChatTerminalLocationData;
 
 export interface IChatSendRequestOptions {
-	mode?: ChatMode;
+	mode?: ChatModeKind;
 	userSelectedModelId?: string;
 	userSelectedTools?: Record<string, boolean>;
 	modeInstructions?: string;
