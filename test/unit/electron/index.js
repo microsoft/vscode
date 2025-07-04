@@ -326,12 +326,13 @@ app.on('ready', () => {
 	const reporters = [];
 
 	if (args.tfs) {
+		const testResultsRoot = process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE;
 		reporters.push(
 			new mocha.reporters.Spec(runner),
 			new MochaJUnitReporter(runner, {
 				reporterOptions: {
 					testsuitesTitle: `${args.tfs} ${process.platform}`,
-					mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
+					mochaFile: testResultsRoot ? path.join(testResultsRoot, `test-results/${process.platform}-${process.arch}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
 				}
 			}),
 		);

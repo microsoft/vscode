@@ -36,7 +36,7 @@ function fetchUrls(urls, options) {
     }));
 }
 async function fetchUrl(url, options, retries = 10, retryDelay = 1000) {
-    const verbose = !!options.verbose || !!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'];
+    const verbose = !!options.verbose || !!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] || !!process.env['GITHUB_WORKSPACE'];
     try {
         let startTime = 0;
         if (verbose) {
