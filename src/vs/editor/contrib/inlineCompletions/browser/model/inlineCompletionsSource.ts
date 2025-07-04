@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareUndefinedSmallest, numberComparator } from '../../../../../base/common/arrays.js';
+import { booleanComparator, compareBy, compareUndefinedSmallest, numberComparator } from '../../../../../base/common/arrays.js';
 import { findLastMax } from '../../../../../base/common/arraysFind.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { equalsIfDefined, itemEquals } from '../../../../../base/common/equals.js';
@@ -404,7 +404,7 @@ class InlineCompletionsState extends Disposable {
 			// Otherwise: prefer inline completion if there is a visible one
 			: updatedSuggestions.some(i => !i.isInlineEdit && i.isVisible(textModel, cursorPosition));
 
-		const updatedItems: InlineSuggestionItem[] = [];
+		let updatedItems: InlineSuggestionItem[] = [];
 		for (const i of updatedSuggestions) {
 			const oldItem = this._findByHash(i.hash);
 			let item;
@@ -418,12 +418,29 @@ class InlineCompletionsState extends Disposable {
 				updatedItems.push(item);
 			}
 		}
+
+		updatedItems.sort(compareBy(i => i.showInlineEditMenu, booleanComparator));
+		updatedItems = distinctByKey(updatedItems, i => i.semanticId);
+
 		return new InlineCompletionsState(updatedItems, request);
 	}
 
 	public clone(): InlineCompletionsState {
 		return new InlineCompletionsState(this.inlineCompletions, this.request);
 	}
+}
+
+/** Keeps the first item in case of duplicates. */
+function distinctByKey<T>(items: T[], key: (item: T) => unknown): T[] {
+	const seen = new Set();
+	return items.filter(item => {
+		const k = key(item);
+		if (seen.has(k)) {
+			return false;
+		}
+		seen.add(k);
+		return true;
+	});
 }
 
 function moveToFront<T>(item: T, items: T[]): T[] {

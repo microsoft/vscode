@@ -105,11 +105,7 @@ export abstract class BaseStringEdit<T extends BaseStringReplacement<T> = BaseSt
 	}
 
 	public toJson(): ISerializedStringEdit {
-		return this.replacements.map(e => ({
-			txt: e.newText,
-			pos: e.replaceRange.start,
-			len: e.replaceRange.length,
-		}));
+		return this.replacements.map(e => e.toJson());
 	}
 
 	public isNeutralOn(text: string): boolean {
@@ -240,6 +236,14 @@ export abstract class BaseStringReplacement<T extends BaseStringReplacement<T> =
 
 	public toEdit(): StringEdit {
 		return new StringEdit([this]);
+	}
+
+	public toJson(): ISerializedStringReplacement {
+		return ({
+			txt: this.newText,
+			pos: this.replaceRange.start,
+			len: this.replaceRange.length,
+		});
 	}
 }
 
