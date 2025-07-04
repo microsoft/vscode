@@ -11,6 +11,7 @@ jobs:
   compile:
     name: Compile
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
+    steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@v4
 
