@@ -242,6 +242,7 @@ export type InlineSuggestRequestInfo = {
 	editorType: InlineCompletionEditorType;
 	languageId: string;
 	reason: string;
+	typingSpeed: number;
 };
 
 export type InlineSuggestViewData = {
@@ -348,6 +349,7 @@ export class InlineSuggestData {
 				requestReason: this._requestInfo.reason,
 				viewKind: this._viewData.viewKind,
 				error: this._viewData.error,
+				typingSpeed: this._requestInfo.typingSpeed,
 				...this._viewData.renderData,
 			};
 			this.source.provider.handleEndOfLifetime(this.source.inlineSuggestions, this.sourceInlineCompletion, reason, summary);
