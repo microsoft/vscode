@@ -160,6 +160,10 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			return;
 		}
 
+		// Before hiding the webview, ensure any focused elements are properly blurred
+		// to trigger focusout and change events
+		this._blurActiveElements();
+
 		this._scopedContextKeyService.clear();
 
 		this._owner = undefined;
@@ -175,6 +179,24 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		} else {
 			this._webview.clear();
 			this._webviewEvents.clear();
+		}
+	}
+
+	/**
+	 * Ensures any focused elements in the webview are properly blurred
+	 * to trigger focusout and change events before the webview loses visibility
+	 */
+	private _blurActiveElements(): void {
+		const webviewElement = this._webview.value;
+		if (!webviewElement) {
+			return;
+		}
+
+		try {
+			// Call the blurActiveElement method to ensure focusout and change events are properly fired
+			webviewElement.blurActiveElement();
+		} catch (error) {
+			// Ignore errors if webview is already disposing
 		}
 	}
 
@@ -375,6 +397,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	}
 
 	focus(): void { this._webview.value?.focus(); }
+	blurActiveElement(): void { this._webview.value?.blurActiveElement(); }
 	reload(): void { this._webview.value?.reload(); }
 	selectAll(): void { this._webview.value?.selectAll(); }
 	copy(): void { this._webview.value?.copy(); }

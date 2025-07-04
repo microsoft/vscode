@@ -802,6 +802,10 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		});
 	}
 
+	public blurActiveElement(): void {
+		this._send('blur-active-element', undefined);
+	}
+
 	public focus(): void {
 		this._doFocus();
 

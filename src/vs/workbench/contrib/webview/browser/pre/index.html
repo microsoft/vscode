@@ -962,6 +962,28 @@
 				activeFrame.contentWindow.focus();
 			});
 
+			// blur active elements to ensure focusout and change events fire
+			hostMessaging.onMessage('blur-active-element', () => {
+				const activeFrame = getActiveFrame();
+				if (!activeFrame || !activeFrame.contentWindow) {
+					// Blur the top level document if no active frame
+					if (document.activeElement && document.activeElement !== document.body) {
+						/** @type {HTMLElement} */ (document.activeElement).blur();
+					}
+					return;
+				}
+
+				try {
+					const frameDocument = activeFrame.contentWindow.document;
+					const activeElement = frameDocument.activeElement;
+					if (activeElement && activeElement !== frameDocument.body) {
+						/** @type {HTMLElement} */ (activeElement).blur();
+					}
+				} catch (e) {
+					// Handle any cross-origin errors gracefully
+				}
+			});
+
 			// update iframe-contents
 			let updateId = 0;
 			hostMessaging.onMessage('content', async (_event, /** @type {import('../webviewMessages').UpdateContentEvent} */ data) => {
