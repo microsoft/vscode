@@ -757,6 +757,7 @@ export interface InlineCompletionContext {
 
 	readonly includeInlineEdits: boolean;
 	readonly includeInlineCompletions: boolean;
+	readonly requests?: string[];
 }
 
 export class SelectedSuggestionInfo {

@@ -1375,6 +1375,7 @@ class InlineCompletionAdapter {
 					: undefined,
 			triggerKind: this.languageTriggerKindToVSCodeTriggerKind[context.triggerKind],
 			requestUuid: context.requestUuid,
+			requests: context.requests,
 		}, token);
 
 		if (!result) {
