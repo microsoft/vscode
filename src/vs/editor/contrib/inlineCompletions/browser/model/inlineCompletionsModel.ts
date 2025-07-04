@@ -172,6 +172,7 @@ export class InlineCompletionsModel extends Disposable {
 						changeSummary.changeReason = detailedReasons.length > 0 ? detailedReasons[0].getType() : '';
 						changeSummary.textChange = true;
 					} else if (ctx.didChange(this._forceUpdateExplicitlySignal)) {
+						changeSummary.preserveCurrentCompletion = true;
 						changeSummary.inlineCompletionTriggerKind = InlineCompletionTriggerKind.Explicit;
 					} else if (ctx.didChange(this.dontRefetchSignal)) {
 						changeSummary.dontRefetch = true;
