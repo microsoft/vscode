@@ -5,9 +5,8 @@
 
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ILocalMcpServer, IMcpManagementService, IGalleryMcpServer, InstallOptions, InstallMcpServerEvent, UninstallMcpServerEvent, DidUninstallMcpServerEvent, InstallMcpServerResult, IInstallableMcpServer, IMcpGalleryService, UninstallOptions } from '../../../../platform/mcp/common/mcpManagement.js';
-import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMcpResourceScannerService, McpResourceTarget } from '../../../../platform/mcp/common/mcpResourceScannerService.js';
 import { isWorkspaceFolder, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from '../../../../platform/workspace/common/workspace.js';
@@ -43,7 +42,9 @@ export interface IWorkbenchMcpServerInstallResult extends InstallMcpServerResult
 	readonly local?: IWorkbenchLocalMcpServer;
 }
 
+export const IWorkbenchMcpManagementService = refineServiceDecorator<IMcpManagementService, IWorkbenchMcpManagementService>(IMcpManagementService);
 export interface IWorkbenchMcpManagementService extends IMcpManagementService {
+	readonly _serviceBrand: undefined;
 
 	readonly onDidInstallMcpServers: Event<readonly IWorkbenchMcpServerInstallResult[]>;
 
@@ -55,12 +56,10 @@ export interface IWorkbenchMcpManagementService extends IMcpManagementService {
 	readonly onDidChangeProfile: Event<void>;
 
 	getInstalled(): Promise<IWorkbenchLocalMcpServer[]>;
-	install(server: IInstallableMcpServer, options?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchLocalMcpServer>;
+	install(server: IInstallableMcpServer | URI, options?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchLocalMcpServer>;
 }
 
-export const IWorkbenchMcpManagementService = createDecorator<IWorkbenchMcpManagementService>('workbenchMcpManagementService');
-
-class WorkbenchMcpManagementService extends Disposable implements IWorkbenchMcpManagementService {
+export class WorkbenchMcpManagementService extends Disposable implements IWorkbenchMcpManagementService {
 
 	readonly _serviceBrand: undefined;
 
@@ -101,10 +100,10 @@ class WorkbenchMcpManagementService extends Disposable implements IWorkbenchMcpM
 	private readonly remoteMcpManagementService: IMcpManagementService | undefined;
 
 	constructor(
+		private readonly mcpManagementService: IMcpManagementService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IMcpManagementService private readonly mcpManagementService: IMcpManagementService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IRemoteUserDataProfilesService private readonly remoteUserDataProfilesService: IRemoteUserDataProfilesService,
@@ -379,6 +378,10 @@ class WorkspaceMcpResourceManagementService extends AbstractMcpResourceManagemen
 		throw new Error('Not supported');
 	}
 
+	protected override installFromUri(): Promise<ILocalMcpServer> {
+		throw new Error('Not supported');
+	}
+
 	protected override async getLocalServerInfo(): Promise<ILocalMcpServerInfo | undefined> {
 		return undefined;
 	}
@@ -568,5 +571,3 @@ class WorkspaceMcpManagementService extends Disposable implements IMcpManagement
 		super.dispose();
 	}
 }
-
-registerSingleton(IWorkbenchMcpManagementService, WorkbenchMcpManagementService, InstantiationType.Delayed);
