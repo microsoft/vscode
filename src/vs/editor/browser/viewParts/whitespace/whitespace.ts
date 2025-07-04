@@ -139,10 +139,6 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		if (this._options.renderWhitespace === 'trailing' && lineData.continuesWithWrappedLine) {
 			return '';
 		}
-		const hasVariableFonts = ctx.viewportData.getViewLineRenderingData(lineNumber).hasVariableFonts;
-		if (hasVariableFonts) {
-			return '';
-		}
 		const color = this._context.theme.getColor(editorWhitespaces);
 		const USE_SVG = this._options.renderWithSVG;
 

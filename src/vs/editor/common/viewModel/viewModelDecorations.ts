@@ -8,9 +8,10 @@ import { Range } from '../core/range.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { ITextModel } from '../model.js';
 import { IViewModelLines } from './viewModelLines.js';
-import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from '../viewModel.js';
 import { filterFontDecorations, filterValidationDecorations } from '../config/editorOptions.js';
-import { StandardTokenType } from '../encodedTokenAttributes.js';
+import { IInlineDecorationsComputerContext, InlineDecoration, InlineModelDecorationsComputer } from './inlineDecorations.js';
+import { ViewModelDecoration } from './viewModelDecoration.js';
+import { ICoordinatesConverter } from '../coordinatesConverter.js';
 
 export interface IDecorationsViewportData {
 	/**
@@ -72,6 +73,7 @@ export class ViewModelDecorations implements IDisposable {
 
 	public onLineMappingChanged(): void {
 		this._inlineDecorationsComputer.onLineMappingChanged();
+
 		this._clearCachedModelDecorationsResolver();
 	}
 

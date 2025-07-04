@@ -5732,7 +5732,23 @@ export const EditorOptions = {
 			tags: ['accessibility']
 		})),
 	allowVariableLineHeights: register(new EditorBooleanOption(
-		EditorOption.allowVariableLineHeights, 'allowVariableLineHeights', true
+		EditorOption.allowVariableLineHeights, 'allowVariableLineHeights', true,
+		{
+			description: nls.localize('allowVariableLineHeights', "Controls whether to allow using variable line heights in the editor.")
+		}
+	)),
+	allowVariableFonts: register(new EditorBooleanOption(
+		EditorOption.allowVariableFonts, 'allowVariableFonts', true,
+		{
+			description: nls.localize('allowVariableFonts', "Controls whether to allow using variable fonts in the editor.")
+		}
+	)),
+	allowVariableFontsInAccessibilityMode: register(new EditorBooleanOption(
+		EditorOption.allowVariableFontsInAccessibilityMode, 'allowVariableFontsInAccessibilityMode', false,
+		{
+			description: nls.localize('allowVariableFontsInAccessibilityMode', "Controls whether to allow using variable fonts in the editor in the accessibility mode."),
+			tags: ['accessibility']
+		}
 	)),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")

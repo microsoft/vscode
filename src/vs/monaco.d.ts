@@ -1831,10 +1831,6 @@ declare namespace monaco.editor {
 		 */
 		readonly inlineClassNameAffectsLetterSpacing?: boolean;
 		/**
-		 * Whether this decoration affects the font.
-		 */
-		readonly affectsFont?: boolean;
-		/**
 		 * This field allows to attach data to this injected text.
 		 * The data can be read when injected texts at a given position are queried.
 		 */
@@ -2652,10 +2648,6 @@ declare namespace monaco.editor {
 		 * Get a unique id for this editor instance.
 		 */
 		getId(): string;
-		/**
-		 * Get a unique numbered id for this editor instance.
-		 */
-		getNumberId(): number;
 		/**
 		 * Get the editor type. Please see `EditorType`.
 		 * This is to avoid an instanceof check
@@ -5171,6 +5163,8 @@ declare namespace monaco.editor {
 		accessibilitySupport: IEditorOption<EditorOption.accessibilitySupport, AccessibilitySupport>;
 		accessibilityPageSize: IEditorOption<EditorOption.accessibilityPageSize, number>;
 		allowVariableLineHeights: IEditorOption<EditorOption.allowVariableLineHeights, boolean>;
+		allowVariableFonts: IEditorOption<EditorOption.allowVariableFonts, boolean>;
+		allowVariableFontsInAccessibilityMode: IEditorOption<EditorOption.allowVariableFontsInAccessibilityMode, boolean>;
 		ariaLabel: IEditorOption<EditorOption.ariaLabel, string>;
 		ariaRequired: IEditorOption<EditorOption.ariaRequired, boolean>;
 		screenReaderAnnounceInlineSuggestion: IEditorOption<EditorOption.screenReaderAnnounceInlineSuggestion, boolean>;

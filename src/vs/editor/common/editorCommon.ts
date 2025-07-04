@@ -239,11 +239,6 @@ export interface IEditor {
 	getId(): string;
 
 	/**
-	 * Get a unique numbered id for this editor instance.
-	 */
-	getNumberId(): number;
-
-	/**
 	 * Get the editor type. Please see `EditorType`.
 	 * This is to avoid an instanceof check
 	 */
@@ -683,7 +678,7 @@ export interface IContentDecorationRenderOptions {
 	borderRadius?: string;
 	fontStyle?: string;
 	fontWeight?: string;
-	fontSize?: number;
+	fontSize?: string;
 	fontFamily?: string;
 	textDecoration?: string;
 	color?: string | ThemeColor;

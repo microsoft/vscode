@@ -87,7 +87,6 @@ export class InlineCompletionsView extends Disposable {
 .monaco-editor .ghost-text-decoration-preview,
 .monaco-editor .ghost-text {
 	font-family: ${fontFamily};
-	font-size: ${fontSize}px;
 }`;
 		})));
 

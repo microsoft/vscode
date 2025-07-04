@@ -1600,7 +1600,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 		if (affectedFontLines && affectedFontLines.size > 0) {
 			const affectedLines = Array.from(affectedFontLines);
-			const fontChangeEvent = affectedLines.map(fontChange => new ModelFontChanged(fontChange.ownerId, fontChange.versionId, fontChange.lineNumber));
+			const fontChangeEvent = affectedLines.map(fontChange => new ModelFontChanged(fontChange.ownerId, fontChange.lineNumber));
 			this._onDidChangeFont.fire(new ModelFontChangedEvent(fontChangeEvent));
 		}
 	}
@@ -1794,12 +1794,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 		const result = this._decorationsTree.getInjectedTextInInterval(this, startOffset, endOffset, 0);
 		return LineInjectedText.fromDecorations(result).filter(t => t.lineNumber === lineNumber);
-	}
-
-	public getFontDecorationsInRange(range: IRange, ownerId: number = 0): model.IModelDecoration[] {
-		const startOffset = this._buffer.getOffsetAt(range.startLineNumber, range.startColumn);
-		const endOffset = this._buffer.getOffsetAt(range.endLineNumber, range.endColumn);
-		return this._decorationsTree.getFontDecorationsInInterval(this, startOffset, endOffset, ownerId);
 	}
 
 	public getFontDecorationsInRange(range: IRange, ownerId: number = 0): model.IModelDecoration[] {
@@ -2070,10 +2064,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public override toString(): string {
 		return `TextModel(${this.uri.toString()})`;
-	}
-
-	editWithReason<T>(editReason: TextModelEditReason, cb: () => T): T {
-		return TextModelEditReason.editWithReason(editReason, cb);
 	}
 }
 

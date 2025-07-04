@@ -112,7 +112,6 @@ const canUseZeroSizeTextarea = (browser.isFirefox);
 
 export class TextAreaEditContext extends AbstractEditContext {
 
-	private readonly _ownerId: number;
 	private readonly _viewController: ViewController;
 	private readonly _visibleRangeProvider: IVisibleRangeProvider;
 	private _scrollLeft: number;
@@ -147,7 +146,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 	private readonly _textAreaInput: TextAreaInput;
 
 	constructor(
-		ownerId: number,
 		context: ViewContext,
 		overflowGuardContainer: FastDomNode<HTMLElement>,
 		viewController: ViewController,
@@ -157,7 +155,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 	) {
 		super(context);
 
-		this._ownerId = ownerId;
 		this._viewController = viewController;
 		this._visibleRangeProvider = visibleRangeProvider;
 		this._scrollLeft = 0;
@@ -849,7 +846,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 		const tac = this.textAreaCover;
 
 		applyFontInfo(ta, this._fontInfo);
-		ta.setFontSize(renderData.fontSize ?? this._fontInfo.fontSize);
 		ta.setTop(renderData.top);
 		ta.setLeft(renderData.left);
 		ta.setWidth(renderData.width);
@@ -882,20 +878,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 			}
 		}
 	}
-
-	private _getFontSizeAtPosition(position: Position): number {
-		const viewModel = this._context.viewModel;
-		const modelPosition = viewModel.coordinatesConverter.convertViewPositionToModelPosition(position);
-		const fontDecorations = viewModel.model.getFontDecorationsInRange(Range.fromPositions(modelPosition), this._ownerId);
-		let fontSize: number = this._fontInfo.fontSize;
-		for (const fontDecoration of fontDecorations) {
-			if (fontDecoration.options.fontSize) {
-				fontSize = fontDecoration.options.fontSize;
-				break;
-			}
-		}
-		return fontSize;
-	}
 }
 
 interface IRenderData {
@@ -910,7 +892,6 @@ interface IRenderData {
 	color?: Color | null;
 	italic?: boolean;
 	bold?: boolean;
-	fontSize?: number;
 	underline?: boolean;
 	strikethrough?: boolean;
 }

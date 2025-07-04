@@ -68,7 +68,6 @@
 	top: 0;
 	bottom: 0;
 	position: absolute;
-	overflow: hidden;
 }
 
 .monaco-editor .mtkw {

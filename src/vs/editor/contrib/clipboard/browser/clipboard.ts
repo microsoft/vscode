@@ -241,7 +241,7 @@ if (PasteAction) {
 			// execCommand(paste) does not work with edit context
 			const editContextEnabled = focusedEditor.getOption(EditorOption.effectiveEditContext);
 			if (editContextEnabled) {
-				const nativeEditContext = NativeEditContextRegistry.get(focusedEditor.getNumberId());
+				const nativeEditContext = NativeEditContextRegistry.get(focusedEditor.getId());
 				if (nativeEditContext) {
 					nativeEditContext.onWillPaste();
 				}

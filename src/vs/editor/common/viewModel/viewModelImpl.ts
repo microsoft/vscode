@@ -91,9 +91,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		this.glyphLanes = new GlyphMarginLanesModel(0);
 
 		if (USE_IDENTITY_LINES_COLLECTION && this.model.isTooLargeForTokenization()) {
-
 			this._lines = new ViewModelLinesFromModelAsIs(this.model);
-
 		} else {
 			const options = this._configuration.options;
 			const fontInfo = options.get(EditorOption.fontInfo);
@@ -306,6 +304,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	onDidChangeContentOrInjectedText(e: textModelEvents.InternalModelContentChangeEvent | textModelEvents.ModelInjectedTextChangedEvent): void {
+
 		try {
 			const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
 
@@ -446,7 +445,7 @@ export class ViewModel extends Disposable implements IViewModel {
 				let lineMappingHasChanged = false;
 				for (const change of e.changes) {
 					const changedLineBreakData = lineBreakQueue.dequeue()!;
-					const [lineMappingChanged, linesChangedEvent] = this._lines.onModelFontChanged(change.versionId, change.lineNumber, changedLineBreakData);
+					const [lineMappingChanged, linesChangedEvent] = this._lines.onModelFontChanged(change.lineNumber, changedLineBreakData);
 					lineMappingHasChanged = lineMappingChanged;
 					if (linesChangedEvent) {
 						eventsCollector.emitViewEvent(linesChangedEvent);
@@ -848,7 +847,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._getViewLineRenderingData(lineNumber, decorations.inlineDecorations, decorations.hasVariableFonts);
 	}
 
-	private _getViewLineRenderingData(lineNumber: number, modelInlineDecorations: InlineDecoration[], hasVariableFonts: boolean, hasVariableFonts: boolean): ViewLineRenderingData {
+	private _getViewLineRenderingData(lineNumber: number, modelInlineDecorations: InlineDecoration[], hasVariableFonts: boolean): ViewLineRenderingData {
 		const mightContainRTL = this.model.mightContainRTL();
 		const mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
 		const tabSize = this.getTabSize();

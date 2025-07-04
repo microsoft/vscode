@@ -398,11 +398,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public getId(): string {
-		return this.getEditorType() + ':' + this.getNumberId();
-	}
-
-	public getNumberId(): number {
-		return this._id;
+		return this.getEditorType() + ':' + this._id;
 	}
 
 	public getEditorType(): string {
@@ -1938,7 +1934,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		const view = new View(
 			this._domElement,
-			this.getNumberId(),
+			this.getId(),
 			commandDelegate,
 			this._configuration,
 			this._themeService.getColorTheme(),
