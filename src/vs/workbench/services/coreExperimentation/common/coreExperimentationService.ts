@@ -88,6 +88,11 @@ export class CoreExperimentationService extends Disposable implements ICoreExper
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
+
+		if (environmentService.disableExperiments) {
+			return; // explicitly disabled
+		}
+
 		this.initializeExperiments();
 	}
 
