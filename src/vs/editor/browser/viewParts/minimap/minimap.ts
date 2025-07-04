@@ -140,7 +140,7 @@ class MinimapOptions {
 		this.editorHeight = layoutInfo.height;
 		this.fontScale = minimapLayout.minimapScale;
 		this.minimapLineHeight = minimapLayout.minimapLineHeight;
-		this.minimapCharWidth = Constants.BASE_CHAR_WIDTH * this.fontScale;
+		this.minimapCharWidth = this.fontScale / pixelRatio;
 		this.sectionHeaderFontFamily = DEFAULT_FONT_FAMILY;
 		this.sectionHeaderFontSize = minimapOpts.sectionHeaderFontSize * pixelRatio;
 		this.sectionHeaderLetterSpacing = minimapOpts.sectionHeaderLetterSpacing; // intentionally not multiplying by pixelRatio
