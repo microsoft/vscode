@@ -2891,7 +2891,6 @@ class LayoutStateModel extends Disposable {
 				if (location !== ViewContainerLocation.AuxiliaryBar) {
 					return true; // Chat view is not located in the auxiliary bar
 				}
-
 			}
 
 			switch (this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY)) {
