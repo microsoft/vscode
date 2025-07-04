@@ -102,7 +102,7 @@ export class LoopbackAuthServer implements ILoopbackServer {
 		if (this._port === undefined) {
 			throw new Error('Server is not started yet');
 		}
-		return `http://127.0.0.1:${this._port}/`;
+		return `http://localhost:${this._port}/`;
 	}
 
 	private _sendPage(res: http.ServerResponse): void {
@@ -139,7 +139,7 @@ export class LoopbackAuthServer implements ILoopbackServer {
 			if ('code' in err && err.code === 'EADDRINUSE') {
 				this._logger.error('Address in use, retrying with a different port...');
 				// Best effort to use a specific port, but fallback to a random one if it is in use
-				this._server.listen(0, '127.0.0.1');
+				this._server.listen(0, 'localhost');
 				return;
 			}
 			clearTimeout(portTimeout);
@@ -149,7 +149,7 @@ export class LoopbackAuthServer implements ILoopbackServer {
 			deferredPromise.error(new Error('Closed'));
 		});
 		// Best effort to use a specific port, but fallback to a random one if it is in use
-		this._server.listen(DEFAULT_AUTH_FLOW_PORT, '127.0.0.1');
+		this._server.listen(DEFAULT_AUTH_FLOW_PORT, 'localhost');
 		return deferredPromise.p;
 	}
 
