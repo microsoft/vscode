@@ -27,11 +27,11 @@
 }
 
 .monaco-hover .hover-contents:not(.html-hover-contents) {
-	padding: 4px 8px;
+	padding: var(--vscode-hover-tooltip-vertical-spacing) var(--vscode-hover-tooltip-horizontal-spacing);
 }
 
 .monaco-hover .markdown-hover > .hover-contents:not(.code-hover-contents) {
-	max-width: var(--vscode-hover-maxWidth, 500px);
+	max-width: var(--vscode-hover-max-width);
 	word-wrap: break-word;
 }
 
@@ -48,7 +48,7 @@
 .monaco-hover h4,
 .monaco-hover h5,
 .monaco-hover h6 {
-	margin: 8px 0;
+	margin: var(--vscode-hover-content-vertical-spacing) var(--vscode-hover-content-horizontal-spacing);
 }
 
 .monaco-hover h1,
@@ -66,46 +66,46 @@
 
 .monaco-hover hr {
 	box-sizing: border-box;
-	border-left: 0px;
-	border-right: 0px;
-	margin-top: 4px;
-	margin-bottom: -4px;
-	margin-left: -8px;
-	margin-right: -8px;
-	height: 1px;
+	border-left: var(--vscode-static-line-width-none);
+	border-right: var(--vscode-static-line-width-none);
+	margin-top: var(--vscode-hover-spacing-xxs);
+	margin-bottom: calc(var(--vscode-hover-spacing-xxs) * -1px);
+	margin-left: calc(var(--vscode-hover-spacing-s) * -1px);
+	margin-right: calc(var(--vscode-hover-spacing-s) * -1px);
+	height: var(--vscode-hover-line-width);
 }
 
 .monaco-hover p:first-child,
 .monaco-hover .code:first-child,
 .monaco-hover ul:first-child {
-	margin-top: 0;
+	margin-top: var(--vscode-static-spacing-none);
 }
 
 .monaco-hover p:last-child,
 .monaco-hover .code:last-child,
 .monaco-hover ul:last-child {
-	margin-bottom: 0;
+	margin-bottom: var(--vscode-static-spacing-none);
 }
 
 /* MarkupContent Layout */
 .monaco-hover ul {
-	padding-left: 20px;
+	padding-left: var(--vscode-hover-markupcontent-horiztonal-spacing);
 }
 .monaco-hover ol {
-	padding-left: 20px;
+	padding-left: var(--vscode-hover-markupcontent-horiztonal-spacing);
 }
 
 .monaco-hover li > p {
-	margin-bottom: 0;
+	margin-bottom: var(--vscode-static-spacing-none);
 }
 
 .monaco-hover li > ul {
-	margin-top: 0;
+	margin-top: var(--vscode-static-spacing-none);
 }
 
 .monaco-hover code {
-	border-radius: 3px;
-	padding: 0 0.4em;
+	border-radius: var(--vscode-hover-content-corner-radius);
+	padding: var(--vscode-static-spacing-none) 0.4em;
 }
 
 .monaco-hover .monaco-tokenized-source {
@@ -113,23 +113,23 @@
 }
 
 .monaco-hover .hover-row.status-bar {
-	font-size: 12px;
-	line-height: 22px;
+	font-size: var(--vscode-hover-statusbar-font-size);
+	line-height: var(--vscode-hover-statusbar-line-height);
 }
 
 .monaco-hover .hover-row.status-bar .info {
 	font-style: italic;
-	padding: 0px 8px;
+	padding: var(--vscode-static-spacing-none) var(--vscode-hover-statusbar-horizontal-spacing);
 }
 
 .monaco-hover .hover-row.status-bar .actions {
 	display: flex;
-	padding: 0px 8px;
+	padding: var(--vscode-static-spacing-none) var(--vscode-hover-statusbar-horizontal-spacing);
 	width: 100%;
 }
 
 .monaco-hover .hover-row.status-bar .actions .action-container {
-	margin-right: 16px;
+	margin-right: var(--vscode-hover-spacing-l);
 	cursor: pointer;
 	overflow: hidden;
 	text-wrap: nowrap;
@@ -137,7 +137,7 @@
 }
 
 .monaco-hover .hover-row.status-bar .actions .action-container .action .icon {
-	padding-right: 4px;
+	padding-right: var(--vscode-hover-spacing-xs);
 }
 
 .monaco-hover .hover-row.status-bar .actions .action-container a {
@@ -167,7 +167,7 @@
 .monaco-hover .hover-contents a.code-link > span {
 	text-decoration: underline;
 	/** Hack to force underline to show **/
-	border-bottom: 1px solid transparent;
+	border-bottom: var(--vscode-hover-line-width) solid transparent;
 	text-underline-position: under;
 	color: var(--vscode-textLink-foreground);
 }
@@ -185,7 +185,7 @@
  * https://github.com/microsoft/vscode/issues/228136
  */
 .monaco-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) p:last-child [style*="background-color"] {
-	margin-bottom: 4px;
+	margin-bottom: var(--vscode-hover-spacing-xs);
 	display: inline-block;
 }
 
@@ -194,7 +194,7 @@
  * https://github.com/microsoft/vscode/issues/221359
  */
 .monaco-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) span.codicon {
-	margin-bottom: 2px;
+	margin-bottom: var(--vscode-hover-spacing-xxs);
 }
 
 .monaco-hover-content .action-container a {

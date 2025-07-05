@@ -7,6 +7,6 @@
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	overflow: hidden;
-	font-size: 11px;
-	margin: 0;
+	font-size: var(--vscode-paneview-header-title-font-size);
+	margin: var(--vscode-static-spacing-none);
 }
