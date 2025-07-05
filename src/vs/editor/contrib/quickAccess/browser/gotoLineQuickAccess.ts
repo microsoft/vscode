@@ -111,12 +111,21 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 	private parsePosition(editor: IEditor, value: string): IPosition {
 
 		// Support line-col formats of `line,col`, `line:col`, `line#col`
-		const numbers = value.split(/,|:|#/).map(part => parseInt(part, 10)).filter(part => !isNaN(part));
-		const endLine = this.lineCount(editor) + 1;
+		const parts = value.split(/,|:|#/).filter(part => !isNaN(parseInt(part, 10)));
+		const numbers = parts.map(part => parseInt(part, 10));
+
+		// If number starts with + or - we add it to the current cursor position for relative positioning
+		const currentPosition = editor.getPosition() || { lineNumber: 1, column: 1 };
+		const lineNumberRelative = parts.length > 0 && /^[+-]/.test(parts[0]);
+		const columnRelative = parts.length > 1 && /^[+-]/.test(parts[1]);
 
 		return {
-			lineNumber: numbers[0] > 0 ? numbers[0] : endLine + numbers[0],
-			column: numbers[1]
+			lineNumber: lineNumberRelative
+				? (numbers[0] + currentPosition.lineNumber)
+				: numbers[0],
+			column: columnRelative
+				? (numbers[1] + currentPosition.column)
+				: numbers[1]
 		};
 	}
 
