@@ -1403,7 +1403,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._instanceId,
 			this.shellLaunchConfig?.cwd,
 			deserializedCollections,
-			this.shellLaunchConfig.attachPersistentProcess?.shellIntegrationNonce
+			this.shellLaunchConfig.shellIntegrationNonce ?? this.shellLaunchConfig.attachPersistentProcess?.shellIntegrationNonce
 		);
 		this.capabilities.add(processManager.capabilities);
 		this._register(processManager.onProcessReady(async (e) => {
