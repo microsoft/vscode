@@ -17,6 +17,7 @@ suite('CachedResponse', () => {
 
 		assertResult(await response.execute(doc, respondWith('test-0')), 'test-0');
 		assertResult(await response.execute(doc, respondWith('test-1')), 'test-0');
+		assert.strictEqual(1, 0, 'Test failure...');
 	});
 
 	test('should invalidate cache for new document', async () => {
