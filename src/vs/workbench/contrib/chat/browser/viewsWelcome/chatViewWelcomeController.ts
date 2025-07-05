@@ -203,6 +203,7 @@ export class ChatViewWelcomePart extends Disposable {
 								suggestedPrompt: prompt.prompt,
 							});
 
+							this.chatWidgetService.lastFocusedWidget?.focusInput();
 							this.chatWidgetService.lastFocusedWidget?.setInput(prompt.prompt);
 						}));
 					}
