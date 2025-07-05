@@ -9,7 +9,7 @@ import { getCodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorOption, RenderLineNumbersType } from '../../../common/config/editorOptions.js';
 import { IPosition } from '../../../common/core/position.js';
 import { IRange } from '../../../common/core/range.js';
-import { IEditor, ScrollType } from '../../../common/editorCommon.js';
+import { IEditor } from '../../../common/editorCommon.js';
 import { AbstractEditorNavigationQuickAccessProvider, IQuickAccessTextEditorContext } from './editorNavigationQuickAccess.js';
 import { localize } from '../../../../nls.js';
 import { IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
@@ -76,7 +76,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 			// Reveal
 			const range = this.toRange(position.lineNumber, position.column);
-			editor.revealRangeInCenter(range, ScrollType.Smooth);
+			this.revealRangeInCenter(context, range);
 
 			// Decorate
 			this.addDecorations(editor, range);
