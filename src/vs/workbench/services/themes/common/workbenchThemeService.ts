@@ -52,30 +52,30 @@ export enum ThemeSettingDefaults {
 }
 
 export const COLOR_THEME_DARK_INITIAL_COLORS = {
-	'activityBar.activeBorder': '#0078d4',
+	'activityBar.activeBorder': '#0078D4',
 	'activityBar.background': '#181818',
-	'activityBar.border': '#2b2b2b',
-	'activityBar.foreground': '#d7d7d7',
+	'activityBar.border': '#2B2B2B',
+	'activityBar.foreground': '#D7D7D7',
 	'activityBar.inactiveForeground': '#868686',
-	'editorGroup.border': '#ffffff17',
+	'editorGroup.border': '#FFFFFF17',
 	'editorGroupHeader.tabsBackground': '#181818',
-	'editorGroupHeader.tabsBorder': '#2b2b2b',
+	'editorGroupHeader.tabsBorder': '#2B2B2B',
 	'statusBar.background': '#181818',
-	'statusBar.border': '#2b2b2b',
-	'statusBar.foreground': '#cccccc',
-	'statusBar.noFolderBackground': '#1f1f1f',
-	'tab.activeBackground': '#1f1f1f',
-	'tab.activeBorder': '#1f1f1f',
-	'tab.activeBorderTop': '#0078d4',
-	'tab.activeForeground': '#ffffff',
-	'tab.border': '#2b2b2b',
+	'statusBar.border': '#2B2B2B',
+	'statusBar.foreground': '#CCCCCC',
+	'statusBar.noFolderBackground': '#1F1F1F',
+	'tab.activeBackground': '#1F1F1F',
+	'tab.activeBorder': '#1F1F1F',
+	'tab.activeBorderTop': '#0078D4',
+	'tab.activeForeground': '#FFFFFF',
+	'tab.border': '#2B2B2B',
 	'textLink.foreground': '#4daafc',
 	'titleBar.activeBackground': '#181818',
-	'titleBar.activeForeground': '#cccccc',
-	'titleBar.border': '#2b2b2b',
-	'titleBar.inactiveBackground': '#1f1f1f',
-	'titleBar.inactiveForeground': '#9d9d9d',
-	'welcomePage.tileBackground': '#2b2b2b'
+	'titleBar.activeForeground': '#CCCCCC',
+	'titleBar.border': '#2B2B2B',
+	'titleBar.inactiveBackground': '#1F1F1F',
+	'titleBar.inactiveForeground': '#9D9D9D',
+	'welcomePage.tileBackground': '#2B2B2B'
 };
 
 export const COLOR_THEME_LIGHT_INITIAL_COLORS = {
