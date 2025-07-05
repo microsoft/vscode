@@ -207,3 +207,14 @@
 	opacity: 0.4;
 	cursor: default;
 }
+
+/* Prevent text selection in all button-like elements within hovers */
+.monaco-hover .action-container,
+.monaco-hover .action,
+.monaco-hover button,
+.monaco-hover .monaco-button,
+.monaco-hover .monaco-text-button,
+.monaco-hover [role="button"] {
+	-webkit-user-select: none;
+	user-select: none;
+}
