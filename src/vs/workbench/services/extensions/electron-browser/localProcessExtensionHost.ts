@@ -34,7 +34,7 @@ import { IShellEnvironmentService } from '../../environment/electron-browser/she
 import { MessagePortExtHostConnection, writeExtHostConnection } from '../common/extensionHostEnv.js';
 import { IExtensionHostInitData, MessageType, NativeLogMarkers, UIKind, isMessageOfType } from '../common/extensionHostProtocol.js';
 import { LocalProcessRunningLocation } from '../common/extensionRunningLocation.js';
-import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost } from '../common/extensions.js';
+import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost, IExtensionInspectInfo } from '../common/extensions.js';
 import { IHostService } from '../../host/browser/host.js';
 import { ILifecycleService, WillShutdownEvent } from '../../lifecycle/common/lifecycle.js';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions.js';
@@ -109,7 +109,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 	private _terminating: boolean;
 
 	// Resources, in order they get acquired/created when .start() is called:
-	private _inspectListener: { port: number; host: string } | null;
+	private _inspectListener: IExtensionInspectInfo | null;
 	private _extensionHostProcess: ExtensionHostProcess | null;
 	private _messageProtocol: Promise<IMessagePassingProtocol> | null;
 
@@ -264,14 +264,15 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 
 		// Print out extension host output
 		this._toDispose.add(onDebouncedOutput(output => {
-			const inspectorUrlMatch = output.data && output.data.match(/ws:\/\/([^\s]+):(\d+)\/[^\s]+/);
+			const inspectorUrlMatch = output.data && output.data.match(/ws:\/\/([^\s]+):(\d+)\/([^\s]+)/);
 			if (inspectorUrlMatch) {
-				const [, host, port] = inspectorUrlMatch;
+				const [, host, port, auth] = inspectorUrlMatch;
+				const devtoolsUrl = `devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${host}:${port}/${auth}`;
 				if (!this._environmentService.isBuilt && !this._isExtensionDevTestFromCli) {
-					console.log(`%c[Extension Host] %cdebugger inspector at devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${inspectorUrlMatch[1]}`, 'color: blue', 'color:');
+					console.log(`%c[Extension Host] %cdebugger inspector at ${devtoolsUrl}`, 'color: blue', 'color:');
 				}
-				if (!this._inspectListener) {
-					this._inspectListener = { host, port: Number(port) };
+				if (!this._inspectListener || !this._inspectListener.devtoolsUrl) {
+					this._inspectListener = { host, port: Number(port), devtoolsUrl };
 					this._onDidSetInspectPort.fire();
 				}
 			} else {
@@ -580,7 +581,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		return !!this._inspectListener;
 	}
 
-	public getInspectPort(): { port: number; host: string } | undefined {
+	public getInspectPort(): IExtensionInspectInfo | undefined {
 		return this._inspectListener ?? undefined;
 	}
 
