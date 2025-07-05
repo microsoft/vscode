@@ -9,7 +9,7 @@ import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { TextReplacement, TextEdit } from '../../../../common/core/edits/textEdit.js';
 import { LineDecoration } from '../../../../common/viewLayout/lineDecorations.js';
-import { InlineDecoration } from '../../../../common/viewModel.js';
+import { InlineDecoration } from '../../../../common/viewModel/inlineDecorations.js';
 import { ColumnRange } from '../../../../common/core/ranges/columnRange.js';
 import { assertFn, checkAdjacentItems } from '../../../../../base/common/assert.js';
 

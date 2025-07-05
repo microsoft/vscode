@@ -13,7 +13,8 @@ import { ModelLineProjectionData } from '../../../../../common/modelLineProjecti
 import { IViewLineTokens, LineTokens } from '../../../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../../../common/viewLayout/lineDecorations.js';
 import { RenderLineInput, renderViewLine } from '../../../../../common/viewLayout/viewLineRenderer.js';
-import { InlineDecoration, ViewLineRenderingData } from '../../../../../common/viewModel.js';
+import { ViewLineRenderingData } from '../../../../../common/viewModel.js';
+import { InlineDecoration } from '../../../../../common/viewModel/inlineDecorations.js';
 
 const ttPolicy = createTrustedTypesPolicy('diffEditorWidget', { createHTML: value => value });
 

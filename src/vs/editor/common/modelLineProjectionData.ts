@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assertNever } from '../../base/common/assert.js';
-import { WrappingIndent } from './config/editorOptions.js';
-import { FontInfo } from './config/fontInfo.js';
+import { IEditorConfiguration } from './config/editorConfiguration.js';
+import { IComputedEditorOptions } from './config/editorOptions.js';
 import { Position } from './core/position.js';
-import { InjectedTextCursorStops, InjectedTextOptions, PositionAffinity } from './model.js';
+import { InjectedTextCursorStops, InjectedTextOptions, ITextModel, PositionAffinity } from './model.js';
 import { LineInjectedText } from './textModelEvents.js';
+import { LineTokens } from './tokens/lineTokens.js';
+import { InlineDecoration, IdentityInlineDecorationsComputer } from './viewModel/inlineDecorations.js';
 
 /**
  * *input*:
@@ -328,14 +330,48 @@ export class OutputPosition {
 	}
 }
 
+export interface ILineBreaksComputerContext {
+	getLineMaxColumn(lineNumber: number): number;
+	getLineContent(lineNumber: number): string;
+	getLineInjectedText(lineNumber: number): LineInjectedText[] | null;
+	getLineInlineDecorations(lineNumber: number): InlineDecoration[];
+	getLineTokens(lineNumber: number): LineTokens;
+	hasVariableFonts(lineNumber: number): boolean;
+}
+
 export interface ILineBreaksComputerFactory {
-	createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): ILineBreaksComputer;
+	createLineBreaksComputer(context: ILineBreaksComputerContext, options: IEditorConfiguration, tabSize: number): ILineBreaksComputer;
 }
 
 export interface ILineBreaksComputer {
 	/**
 	 * Pass in `previousLineBreakData` if the only difference is in breaking columns!!!
 	 */
-	addRequest(lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null): void;
+	addRequest(lineNumber: number, previousLineBreakData: ModelLineProjectionData | null): void;
 	finalize(): (ModelLineProjectionData | null)[];
+}
+
+export function getLineBreaksComputerContext(ownerId: number, model: ITextModel, options: IComputedEditorOptions): ILineBreaksComputerContext {
+	const inlineDecorationsComputer = new IdentityInlineDecorationsComputer(ownerId, model, options);
+	const context: ILineBreaksComputerContext = {
+		getLineMaxColumn: (lineNumber: number): number => {
+			return model.getLineMaxColumn(lineNumber);
+		},
+		getLineContent: (lineNumber: number): string => {
+			return model.getLineContent(lineNumber);
+		},
+		getLineTokens: (lineNumber: number): LineTokens => {
+			return model.getLineTokens(lineNumber, ownerId);
+		},
+		getLineInjectedText: (lineNumber: number): LineInjectedText[] => {
+			return model.getLineInjectedText(lineNumber, ownerId);
+		},
+		getLineInlineDecorations: (lineNumber: number): InlineDecoration[] => {
+			return inlineDecorationsComputer.getLineInlineDecorations(lineNumber);
+		},
+		hasVariableFonts: (lineNumber: number): boolean => {
+			return inlineDecorationsComputer.hasVariableFonts(lineNumber);
+		}
+	};
+	return context;
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITextModel } from '../model.js';
-import { ICoordinatesConverter } from '../viewModel.js';
+import { ICoordinatesConverter } from '../coordinatesConverter.js';
 import { CursorConfiguration, ICursorSimpleModel } from '../cursorCommon.js';
 
 export class CursorContext {

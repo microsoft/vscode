@@ -29,7 +29,7 @@ import { ILanguageConfigurationService } from '../../../../../../editor/common/l
 import { IModelDeltaDecoration, ITextModel, PositionAffinity } from '../../../../../../editor/common/model.js';
 import { indentOfLine } from '../../../../../../editor/common/model/textModel.js';
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
-import { ICoordinatesConverter } from '../../../../../../editor/common/viewModel.js';
+import { ICoordinatesConverter } from '../../../../../../editor/common/coordinatesConverter.js';
 import { ViewModelEventsCollector } from '../../../../../../editor/common/viewModelEventDispatcher.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';

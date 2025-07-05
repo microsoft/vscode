@@ -5,7 +5,7 @@
 
 import { IKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { IEditorMouseEvent, IMouseTarget, IMouseTargetViewZoneData, IPartialEditorMouseEvent, MouseTargetType } from '../editorBrowser.js';
-import { ICoordinatesConverter } from '../../common/viewModel.js';
+import { ICoordinatesConverter } from '../../common/coordinatesConverter.js';
 import { IMouseWheelEvent } from '../../../base/browser/mouseEvent.js';
 import { Position } from '../../common/core/position.js';
 
