@@ -114,6 +114,9 @@ import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './c
 import { registerLanguageModelActions } from './actions/chatLanguageModelActions.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 
+// Policy constants
+const CHAT_MCP_POLICY_NAME = 'ChatMCP';
+
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -259,7 +262,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.mcp.enabled', "Enables integration with Model Context Protocol servers to provide additional tools and functionality."),
 			default: true,
 			policy: {
-				name: 'ChatMCP',
+				name: CHAT_MCP_POLICY_NAME,
 				minimumVersion: '1.99',
 			}
 		},
