@@ -221,9 +221,9 @@
 							});
 						};
 					})();
-					delete window.parent;
-					delete window.top;
-					delete window.frameElement;
+					window.parent = window;
+					window.top = window;
+					window.frameElement = null;
 				`;
 		}
 
