@@ -16,6 +16,24 @@ import Severity from '../../../base/common/severity.js';
 import { URI } from '../../../base/common/uri.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 
+/**
+ * Collapsible state of a tree item.
+ */
+export enum TreeItemCollapsibleState {
+	/**
+	 * Tree item is not collapsible.
+	 */
+	None = 0,
+	/**
+	 * Tree item is collapsed.
+	 */
+	Collapsed = 1,
+	/**
+	 * Tree item is expanded.
+	 */
+	Expanded = 2
+}
+
 export interface IQuickPickItemHighlights {
 	label?: IMatch[];
 	description?: IMatch[];
@@ -223,7 +241,8 @@ export interface IQuickInputHideEvent {
 export const enum QuickInputType {
 	QuickPick = 'quickPick',
 	InputBox = 'inputBox',
-	QuickWidget = 'quickWidget'
+	QuickWidget = 'quickWidget',
+	QuickTree = 'quickTree'
 }
 
 /**
@@ -950,4 +969,258 @@ export interface IQuickInputService {
 	 * @param alignment either a preset or a custom alignment
 	 */
 	setAlignment(alignment: 'top' | 'center' | { top: number; left: number }): void;
+
+	/**
+	 * Creates a new quick tree input.
+	 * @returns The quick tree instance.
+	 */
+	createQuickTree<T extends IQuickTreeItem>(): IQuickTree<T>;
+}
+
+/**
+ * Represents a tree item in the quick tree.
+ */
+export interface IQuickTreeItem extends IQuickPickItem {
+	/**
+	 * The checked state of the item. Can be true, false, or 'partial' for tri-state.
+	 */
+	checked?: boolean | 'partial';
+
+	/**
+	 * The collapsible state of the tree item.
+	 */
+	collapsibleState?: TreeItemCollapsibleState;
+
+	/**
+	 * The parent item of this tree item.
+	 */
+	parent?: IQuickTreeItem;
+
+	/**
+	 * The children of this tree item.
+	 */
+	children?: readonly IQuickTreeItem[];
+}
+
+/**
+ * Represents an event that occurs when the checkbox state of a tree item changes.
+ * @template T - The type of the tree item.
+ */
+export interface IQuickTreeCheckboxEvent<T extends IQuickTreeItem> {
+	/**
+	 * The tree item whose checkbox state changed.
+	 */
+	item: T;
+
+	/**
+	 * The new checked state.
+	 */
+	checked: boolean | 'partial';
+}
+
+/**
+ * Represents an event that occurs when the expansion state of a tree item changes.
+ * @template T - The type of the tree item.
+ */
+export interface IQuickTreeExpansionEvent<T extends IQuickTreeItem> {
+	/**
+	 * The tree item whose expansion state changed.
+	 */
+	item: T;
+
+	/**
+	 * The new expansion state.
+	 */
+	expanded: boolean;
+}
+
+/**
+ * Represents an event that occurs when a button associated with a quick tree item is clicked.
+ * @template T - The type of the quick tree item.
+ */
+export interface IQuickTreeItemButtonEvent<T extends IQuickTreeItem> {
+	/**
+	 * The button that was clicked.
+	 */
+	button: IQuickInputButton;
+	/**
+	 * The quick tree item associated with the button.
+	 */
+	item: T;
+}
+
+/**
+ * Represents a quick tree control that displays hierarchical data with checkboxes.
+ */
+export interface IQuickTree<T extends IQuickTreeItem> extends IQuickInput {
+
+	/**
+	 * The type of the quick input.
+	 */
+	readonly type: QuickInputType.QuickTree;
+
+	/**
+	 * The current value of the quick tree filter input.
+	 */
+	value: string;
+
+	/**
+	 * The ARIA label for the quick tree input.
+	 */
+	ariaLabel: string | undefined;
+
+	/**
+	 * The placeholder text for the quick tree filter input.
+	 */
+	placeholder: string | undefined;
+
+	/**
+	 * An event that is fired when the filter value changes.
+	 */
+	readonly onDidChangeValue: Event<string>;
+
+	/**
+	 * An event that is fired when the quick tree is about to accept the selected items.
+	 */
+	readonly onWillAccept: Event<void>;
+
+	/**
+	 * An event that is fired when the quick tree has accepted the selected items.
+	 */
+	readonly onDidAccept: Event<void>;
+
+	/**
+	 * Whether multiple items can be selected.
+	 */
+	canSelectMany: boolean;
+
+	/**
+	 * Whether to manually manage checkbox states instead of using automatic tri-state cascading.
+	 * When true, the consumer is responsible for managing parent/child checkbox relationships.
+	 * When false (default), the tree automatically handles tri-state logic.
+	 */
+	manuallyManageCheckboxes: boolean;
+
+	/**
+	 * Whether to hide the "Check All" checkbox that appears to the left of the input.
+	 * When false (default), shows a tri-state checkbox that can check/uncheck/partially check all items.
+	 */
+	hideCheckAll: boolean;
+
+	/**
+	 * Whether to match on the description of the items.
+	 */
+	matchOnDescription: boolean;
+
+	/**
+	 * Whether to match on the detail of the items.
+	 */
+	matchOnDetail: boolean;
+
+	/**
+	 * Whether to match on the label of the items.
+	 */
+	matchOnLabel: boolean;
+
+	/**
+	 * Whether to sort the items by label.
+	 */
+	sortByLabel: boolean;
+
+	/**
+	 * The currently active (focused) item.
+	 */
+	activeItem: T | undefined;
+
+	/**
+	 * An event that is fired when the active item changes.
+	 */
+	readonly onDidChangeActive: Event<T | undefined>;
+
+	/**
+	 * The currently selected items.
+	 */
+	selectedItems: readonly T[];
+
+	/**
+	 * An event that is fired when the selected items change.
+	 */
+	readonly onDidChangeSelection: Event<T[]>;
+
+	/**
+	 * An event that is fired when the checkbox state of an item changes.
+	 */
+	readonly onDidChangeCheckboxState: Event<IQuickTreeCheckboxEvent<T>>;
+
+	/**
+	 * An event that is fired when the expansion state of an item changes.
+	 */
+	readonly onDidChangeExpansion: Event<IQuickTreeExpansionEvent<T>>;
+
+	/**
+	 * An event that is fired when the user navigates out of the tree (e.g., by pressing up arrow at the top).
+	 */
+	readonly onDidLeave: Event<void>;
+
+	/**
+	 * An event that is fired when the number of checked items changes.
+	 */
+	readonly onChangedCheckedCount: Event<number>;
+
+	/**
+	 * An event that is fired when an item button is triggered.
+	 */
+	readonly onDidTriggerItemButton: Event<IQuickTreeItemButtonEvent<T>>;
+
+	/**
+	 * Sets the children for a parent item.
+	 * @param parent The parent item, or null for root items.
+	 * @param children The children to set.
+	 */
+	setChildren(parent: T | null, children: readonly T[]): void;
+
+	/**
+	 * Gets the children of an item.
+	 * @param parent The parent item, or null for root items.
+	 * @returns The children of the parent.
+	 */
+	getChildren(parent: T | null): readonly T[];
+
+	/**
+	 * Gets the checkbox state of an item.
+	 * @param element The item to check.
+	 * @returns The checkbox state.
+	 */
+	getCheckboxState(element: T): boolean | 'partial' | undefined;
+
+	/**
+	 * Sets the checkbox state of an item.
+	 * @param element The item to update.
+	 * @param checked The new checkbox state.
+	 */
+	setCheckboxState(element: T, checked: boolean | 'partial'): void;
+
+	/**
+	 * Expands an item.
+	 * @param element The item to expand.
+	 */
+	expand(element: T): void;
+
+	/**
+	 * Collapses an item.
+	 * @param element The item to collapse.
+	 */
+	collapse(element: T): void;
+
+	/**
+	 * Checks if an item is expanded.
+	 * @param element The item to check.
+	 * @returns True if the item is expanded.
+	 */
+	isExpanded(element: T): boolean;
+
+	/**
+	 * Focuses on the tree input.
+	 */
+	focusOnInput(): void;
 }
