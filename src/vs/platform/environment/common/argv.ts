@@ -107,7 +107,7 @@ export interface NativeParsedArgs {
 	'install-source'?: string;
 	'add-mcp'?: string[];
 	'disable-updates'?: boolean;
-	'no-state'?: boolean;
+	'disable-state'?: boolean;
 	'use-inmemory-secretstorage'?: boolean;
 	'password-store'?: string;
 	'disable-workspace-trust'?: boolean;
