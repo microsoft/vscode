@@ -228,7 +228,7 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 			const metadata = this.languageModelsService.lookupLanguageModel(model);
 			if (metadata && metadata.isUserSelectable !== false) {
 				if (!agentModeOnly || ILanguageModelChatMetadata.suitableForAgentMode(metadata)) {
-					result.push(metadata.name);
+					result.push(ILanguageModelChatMetadata.asQualifiedName(metadata));
 				}
 			}
 		}

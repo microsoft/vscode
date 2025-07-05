@@ -12,7 +12,7 @@ import { Hover, HoverContext, HoverProvider } from '../../../../../../editor/com
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
 import { localize } from '../../../../../../nls.js';
-import { ILanguageModelsService } from '../../languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService, ToolSet } from '../../languageModelToolsService.js';
 import { InstructionsHeader } from '../parsers/promptHeader/instructionsHeader.js';
 import { PromptModelMetadata } from '../parsers/promptHeader/metadata/model.js';
@@ -156,7 +156,7 @@ export class PromptHeaderHoverProvider extends Disposable implements HoverProvid
 		if (modelName) {
 			for (const id of this.languageModelsService.getLanguageModelIds()) {
 				const meta = this.languageModelsService.lookupLanguageModel(id);
-				if (meta && meta.name === modelName) {
+				if (meta && ILanguageModelChatMetadata.asQualifiedName(meta) === modelName) {
 					const lines: string[] = [];
 					lines.push(baseMessage + '\n');
 					lines.push(localize('modelName', '- Name: {0}', meta.name));

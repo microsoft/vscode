@@ -134,7 +134,7 @@ export interface ILanguageModelChatMetadata {
 
 	readonly isDefault?: boolean;
 	readonly isUserSelectable?: boolean;
-	readonly modelPickerCategory: { label: string; order: number };
+	readonly modelPickerCategory: { label: string; order: number } | undefined;
 	readonly auth?: {
 		readonly providerLabel: string;
 		readonly accountLabel?: string;
@@ -150,6 +150,14 @@ export namespace ILanguageModelChatMetadata {
 	export function suitableForAgentMode(metadata: ILanguageModelChatMetadata): boolean {
 		const supportsToolsAgent = typeof metadata.capabilities?.agentMode === 'undefined' || metadata.capabilities.agentMode;
 		return supportsToolsAgent && !!metadata.capabilities?.toolCalling;
+	}
+
+	export function asQualifiedName(metadata: ILanguageModelChatMetadata): string {
+		if (metadata.modelPickerCategory === undefined) {
+			// in the others category
+			return `${metadata.name} (${metadata.family})`;
+		}
+		return metadata.name;
 	}
 }
 
