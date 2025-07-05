@@ -193,7 +193,19 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 				const registration = await fetchDynamicRegistration(serverMetadata, this._initData.environment.appName, resourceMetadata?.scopes_supported);
 				clientId = registration.client_id;
 			} catch (err) {
-				throw new Error(`Dynamic registration failed: ${err.message}`);
+				// When DCR fails, try to prompt the user for a client ID
+				const authorizationServer = URI.revive(authorizationServerComponents);
+				this._logService.info(`Dynamic registration failed for ${authorizationServer.toString()}: ${err.message}. Prompting user for client ID.`);
+				
+				try {
+					clientId = await this._proxy.$promptForClientId(authorizationServer.toString());
+					if (!clientId) {
+						throw new Error('User did not provide a client ID');
+					}
+					this._logService.info(`User provided client ID for ${authorizationServer.toString()}`);
+				} catch (promptErr) {
+					throw new Error(`Dynamic registration failed and user did not provide client ID: ${err.message}`);
+				}
 			}
 		}
 		const provider = new this._dynamicAuthProviderCtor(
@@ -629,8 +641,21 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 			this._clientId = registration.client_id;
 			this._onDidChangeClientId.fire();
 		} catch (err) {
-			this._logger.error(`Failed to fetch new client ID: ${err}`);
-			throw new Error(`Failed to fetch new client ID: ${err}`);
+			// When DCR fails, try to prompt the user for a client ID
+			this._logger.info(`Dynamic registration failed for ${this.authorizationServer.toString()}: ${err}. Prompting user for client ID.`);
+			
+			try {
+				const clientId = await this._proxy.$promptForClientId(this.authorizationServer.toString());
+				if (!clientId) {
+					throw new Error('User did not provide a client ID');
+				}
+				this._clientId = clientId;
+				this._onDidChangeClientId.fire();
+				this._logger.info(`User provided client ID for ${this.authorizationServer.toString()}`);
+			} catch (promptErr) {
+				this._logger.error(`Failed to fetch new client ID and user did not provide one: ${err}`);
+				throw new Error(`Failed to fetch new client ID and user did not provide one: ${err}`);
+			}
 		}
 	}
 }
