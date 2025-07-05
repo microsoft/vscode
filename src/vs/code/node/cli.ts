@@ -242,6 +242,22 @@ export async function main(argv: string[]): Promise<any> {
 			});
 		}
 
+		// Handle --no-state option
+		if (args['no-state']) {
+			const tempUserDataDir = randomPath(tmpdir(), 'vscode-no-state-userdata');
+			const tempExtensionsDir = randomPath(tmpdir(), 'vscode-no-state-extensions');
+
+			addArg(argv, '--user-data-dir', tempUserDataDir);
+			addArg(argv, '--extensions-dir', tempExtensionsDir);
+			addArg(argv, '--disable-updates');
+
+			if (args.verbose) {
+				console.log(`--no-state: Using temporary user data directory: ${tempUserDataDir}`);
+				console.log(`--no-state: Using temporary extensions directory: ${tempExtensionsDir}`);
+				console.log(`--no-state: Updates disabled`);
+			}
+		}
+
 		const hasReadStdinArg = args._.some(arg => arg === '-') || args.chat?._.some(arg => arg === '-');
 		if (hasReadStdinArg) {
 			// remove the "-" argument when we read from stdin

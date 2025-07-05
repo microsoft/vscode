@@ -183,3 +183,19 @@ suite('parseArgs', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
+
+suite('--no-state option', () => {
+	test('should be included in OPTIONS', () => {
+		assert.ok(OPTIONS['no-state']);
+		assert.strictEqual(OPTIONS['no-state'].type, 'boolean');
+		assert.strictEqual(OPTIONS['no-state'].cat, 't');
+		assert.ok(OPTIONS['no-state'].description);
+	});
+
+	test('should parse correctly', () => {
+		const result = parseArgs(['--no-state'], OPTIONS);
+		assert.strictEqual(result['no-state'], true);
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+});
