@@ -355,13 +355,8 @@ function extractSearchFilePattern(fileName: string): string {
 		return fileName;
 	}
 
-	if (parts.length === 2) {
-		return `*.${parts[1]}`;
-	}
-
-	const lastPart = parts[parts.length - 1];
-	const secondLastPart = parts[parts.length - 2];
-	return `*.${secondLastPart}.${lastPart}`;
+	const extensionParts = parts.slice(1);
+	return `*.${extensionParts.join('.')}`;
 }
 
 function mergeSearchPatternIfNotExists(currentPatterns: string, newPattern: string): string {
