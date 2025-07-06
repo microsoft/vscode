@@ -242,8 +242,8 @@ export async function main(argv: string[]): Promise<any> {
 			});
 		}
 
-		// Handle --disable-state option
-		if (args['disable-state']) {
+		// Handle --transient option
+		if (args['transient']) {
 			const tempParentDir = randomPath(tmpdir(), 'vscode');
 			const tempUserDataDir = join(tempParentDir, 'data');
 			const tempExtensionsDir = join(tempParentDir, 'extensions');
