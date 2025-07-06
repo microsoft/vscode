@@ -12,6 +12,9 @@ concurrency:
 
 permissions: {}
 
+env:
+  VSCODE_QUALITY: 'oss'
+
 jobs:
   compile:
     name: Compile & Hygiene
