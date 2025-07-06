@@ -1392,4 +1392,6 @@ export namespace TaskDefinition {
 	}
 }
 
-export const rerunTaskIcon = registerIcon('rerun-task', Codicon.refresh, nls.localize('rerunTaskIcon', 'View icon of the rerun task.')); export const RerunForActiveTerminalCommandId = 'workbench.action.tasks.rerunForActiveTerminal';
+export const rerunTaskIcon = registerIcon('rerun-task', Codicon.refresh, nls.localize('rerunTaskIcon', 'View icon of the rerun task.'));
+export const RerunForActiveTerminalCommandId = 'workbench.action.tasks.rerunForActiveTerminal';
+export const RerunAllRunningTasksCommandId = 'workbench.action.tasks.rerunAllRunningTasks';

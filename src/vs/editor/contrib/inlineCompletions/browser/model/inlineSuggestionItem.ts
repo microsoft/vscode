@@ -24,7 +24,7 @@ import { TextModelText } from '../../../../common/model/textModelText.js';
 import { IDisplayLocation, InlineSuggestData, InlineSuggestionList, SnippetInfo } from './provideInlineCompletions.js';
 import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 import { getPositionOffsetTransformerFromTextModel } from '../../../../common/core/text/getPositionOffsetTransformerFromTextModel.js';
-import { InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
+import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
 
 export type InlineSuggestionItem = InlineEditItem | InlineCompletionItem;
 
@@ -100,8 +100,8 @@ abstract class InlineSuggestionItemBase {
 		this.source.removeRef();
 	}
 
-	public reportInlineEditShown(commandService: ICommandService, viewKind: InlineCompletionViewKind) {
-		this._data.reportInlineEditShown(commandService, this.insertText, viewKind);
+	public reportInlineEditShown(commandService: ICommandService, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData) {
+		this._data.reportInlineEditShown(commandService, this.insertText, viewKind, viewData);
 	}
 
 	public reportPartialAccept(acceptedCharacters: number, info: PartialAcceptInfo) {
@@ -196,17 +196,19 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 		const insertText = data.insertText.replace(/\r\n|\r|\n/g, textModel.getEOL());
 
 		const edit = reshapeInlineCompletion(new StringReplacement(transformer.getOffsetRange(data.range), insertText), textModel);
+		const trimmedEdit = edit.removeCommonSuffixAndPrefix(textModel.getValue());
 		const textEdit = transformer.getSingleTextEdit(edit);
 
 		const displayLocation = data.displayLocation ? InlineSuggestDisplayLocation.create(data.displayLocation, textModel) : undefined;
 
-		return new InlineCompletionItem(edit, textEdit, textEdit.range, data.snippetInfo, data.additionalTextEdits, data, identity, displayLocation);
+		return new InlineCompletionItem(edit, trimmedEdit, textEdit, textEdit.range, data.snippetInfo, data.additionalTextEdits, data, identity, displayLocation);
 	}
 
 	public readonly isInlineEdit = false;
 
 	private constructor(
 		private readonly _edit: StringReplacement,
+		private readonly _trimmedEdit: StringReplacement,
 		private readonly _textEdit: TextReplacement,
 		private readonly _originalRange: Range,
 		public readonly snippetInfo: SnippetInfo | undefined,
@@ -219,11 +221,16 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 		super(data, identity, displayLocation);
 	}
 
+	override get hash(): string {
+		return JSON.stringify(this._trimmedEdit.toJson());
+	}
+
 	override getSingleTextEdit(): TextReplacement { return this._textEdit; }
 
 	override withIdentity(identity: InlineSuggestionIdentity): InlineCompletionItem {
 		return new InlineCompletionItem(
 			this._edit,
+			this._trimmedEdit,
 			this._textEdit,
 			this._originalRange,
 			this.snippetInfo,
@@ -251,8 +258,11 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 			}
 		}
 
+		const trimmedEdit = newEdit.removeCommonSuffixAndPrefix(textModel.getValue());
+
 		return new InlineCompletionItem(
 			newEdit,
+			trimmedEdit,
 			newTextEdit,
 			this._originalRange,
 			this.snippetInfo,
@@ -274,43 +284,49 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 	}
 
 	public isVisible(model: ITextModel, cursorPosition: Position): boolean {
-		const minimizedReplacement = singleTextRemoveCommonPrefix(this.getSingleTextEdit(), model);
-		if (!this.editRange
-			|| !this._originalRange.getStartPosition().equals(this.editRange.getStartPosition())
-			|| cursorPosition.lineNumber !== minimizedReplacement.range.startLineNumber
-			|| minimizedReplacement.isEmpty // if the completion is empty after removing the common prefix of the completion and the model, the completion item would not be visible
-		) {
-			return false;
-		}
-
-		// We might consider comparing by .toLowerText, but this requires GhostTextReplacement
-		const originalValue = model.getValueInRange(minimizedReplacement.range, EndOfLinePreference.LF);
-		const filterText = minimizedReplacement.text;
-
-		const cursorPosIndex = Math.max(0, cursorPosition.column - minimizedReplacement.range.startColumn);
-
-		let filterTextBefore = filterText.substring(0, cursorPosIndex);
-		let filterTextAfter = filterText.substring(cursorPosIndex);
-
-		let originalValueBefore = originalValue.substring(0, cursorPosIndex);
-		let originalValueAfter = originalValue.substring(cursorPosIndex);
-
-		const originalValueIndent = model.getLineIndentColumn(minimizedReplacement.range.startLineNumber);
-		if (minimizedReplacement.range.startColumn <= originalValueIndent) {
-			// Remove indentation
-			originalValueBefore = originalValueBefore.trimStart();
-			if (originalValueBefore.length === 0) {
-				originalValueAfter = originalValueAfter.trimStart();
-			}
-			filterTextBefore = filterTextBefore.trimStart();
-			if (filterTextBefore.length === 0) {
-				filterTextAfter = filterTextAfter.trimStart();
-			}
-		}
-
-		return filterTextBefore.startsWith(originalValueBefore)
-			&& !!matchesSubString(originalValueAfter, filterTextAfter);
+		const singleTextEdit = this.getSingleTextEdit();
+		return inlineCompletionIsVisible(singleTextEdit, this._originalRange, model, cursorPosition);
 	}
+}
+
+export function inlineCompletionIsVisible(singleTextEdit: TextReplacement, originalRange: Range | undefined, model: ITextModel, cursorPosition: Position): boolean {
+	const minimizedReplacement = singleTextRemoveCommonPrefix(singleTextEdit, model);
+	const editRange = singleTextEdit.range;
+	if (!editRange
+		|| (originalRange && !originalRange.getStartPosition().equals(editRange.getStartPosition()))
+		|| cursorPosition.lineNumber !== minimizedReplacement.range.startLineNumber
+		|| minimizedReplacement.isEmpty // if the completion is empty after removing the common prefix of the completion and the model, the completion item would not be visible
+	) {
+		return false;
+	}
+
+	// We might consider comparing by .toLowerText, but this requires GhostTextReplacement
+	const originalValue = model.getValueInRange(minimizedReplacement.range, EndOfLinePreference.LF);
+	const filterText = minimizedReplacement.text;
+
+	const cursorPosIndex = Math.max(0, cursorPosition.column - minimizedReplacement.range.startColumn);
+
+	let filterTextBefore = filterText.substring(0, cursorPosIndex);
+	let filterTextAfter = filterText.substring(cursorPosIndex);
+
+	let originalValueBefore = originalValue.substring(0, cursorPosIndex);
+	let originalValueAfter = originalValue.substring(cursorPosIndex);
+
+	const originalValueIndent = model.getLineIndentColumn(minimizedReplacement.range.startLineNumber);
+	if (minimizedReplacement.range.startColumn <= originalValueIndent) {
+		// Remove indentation
+		originalValueBefore = originalValueBefore.trimStart();
+		if (originalValueBefore.length === 0) {
+			originalValueAfter = originalValueAfter.trimStart();
+		}
+		filterTextBefore = filterTextBefore.trimStart();
+		if (filterTextBefore.length === 0) {
+			filterTextAfter = filterTextAfter.trimStart();
+		}
+	}
+
+	return filterTextBefore.startsWith(originalValueBefore)
+		&& !!matchesSubString(originalValueAfter, filterTextAfter);
 }
 
 export class InlineEditItem extends InlineSuggestionItemBase {

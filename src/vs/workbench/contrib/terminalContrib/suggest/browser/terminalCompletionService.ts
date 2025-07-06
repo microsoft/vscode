@@ -19,6 +19,7 @@ import type { IProcessEnvironment } from '../../../../../base/common/platform.js
 import { timeout } from '../../../../../base/common/async.js';
 import { gitBashToWindowsPath } from './terminalGitBashHelpers.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
 
@@ -98,6 +99,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 	}
@@ -170,10 +172,21 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				return undefined;
 			}
 			const timeoutMs = explicitlyInvoked ? 30000 : 5000;
-			const completions = await Promise.race([
-				provider.provideCompletions(promptValue, cursorPosition, allowFallbackCompletions, token),
-				timeout(timeoutMs)
-			]);
+			let timedOut = false;
+			let completions;
+			try {
+				completions = await Promise.race([
+					provider.provideCompletions(promptValue, cursorPosition, allowFallbackCompletions, token),
+					(async () => { await timeout(timeoutMs); timedOut = true; return undefined; })()
+				]);
+			} catch (e) {
+				this._logService.trace(`[TerminalCompletionService] Exception from provider '${provider.id}':`, e);
+				return undefined;
+			}
+			if (timedOut) {
+				this._logService.trace(`[TerminalCompletionService] Provider '${provider.id}' timed out after ${timeoutMs}ms. promptValue='${promptValue}', cursorPosition=${cursorPosition}, explicitlyInvoked=${explicitlyInvoked}`);
+				return undefined;
+			}
 			if (!completions) {
 				return undefined;
 			}
@@ -269,9 +282,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		let lastWordFolderResource: URI | string | undefined;
 		const lastWordFolderHasDotPrefix = !!lastWordFolder.match(/^\.\.?[\\\/]/);
 		const lastWordFolderHasTildePrefix = !!lastWordFolder.match(/^~[\\\/]?/);
-		const isAbsolutePath = useWindowsStylePath
-			? /^[a-zA-Z]:[\\\/]/.test(lastWord)
-			: lastWord.startsWith(resourceRequestConfig.pathSeparator);
+		const isAbsolutePath = getIsAbsolutePath(shellType, resourceRequestConfig.pathSeparator, lastWordFolder, useWindowsStylePath);
 		const type = lastWordFolderHasTildePrefix ? 'tilde' : isAbsolutePath ? 'absolute' : 'relative';
 		switch (type) {
 			case 'tilde': {
@@ -403,6 +414,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (child.isDirectory && !label.endsWith(resourceRequestConfig.pathSeparator)) {
 				label += resourceRequestConfig.pathSeparator;
 			}
+
+			label = escapeTerminalCompletionLabel(label, shellType, resourceRequestConfig.pathSeparator);
 
 			if (child.isFile && fileExtensions) {
 				const extension = child.name.split('.').length > 1 ? child.name.split('.').at(-1) : undefined;
@@ -559,4 +572,23 @@ function addPathRelativePrefix(text: string, resourceRequestConfig: Pick<Termina
 		return `.${resourceRequestConfig.pathSeparator}${text}`;
 	}
 	return text;
+}
+
+/**
+ * Escapes special characters in a file/folder label for shell completion.
+ * This ensures that characters like [, ], etc. are properly escaped.
+ */
+export function escapeTerminalCompletionLabel(label: string, shellType: TerminalShellType | undefined, pathSeparator: string): string {
+	// Only escape for bash/zsh/fish; PowerShell and cmd have different rules
+	if (shellType === undefined || shellType === GeneralShellType.PowerShell || shellType === WindowsShellType.CommandPrompt) {
+		return label;
+	}
+	return label.replace(/[\[\]\(\)'"\\\`\*\?;|&<>]/g, '\\$&');
+}
+
+function getIsAbsolutePath(shellType: TerminalShellType | undefined, pathSeparator: string, lastWord: string, useWindowsStylePath: boolean): boolean {
+	if (shellType === WindowsShellType.GitBash) {
+		return lastWord.startsWith(pathSeparator) || /^[a-zA-Z]:\//.test(lastWord);
+	}
+	return useWindowsStylePath ? /^[a-zA-Z]:[\\\/]/.test(lastWord) : lastWord.startsWith(pathSeparator);
 }

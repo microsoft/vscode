@@ -76,7 +76,7 @@ export class McpPromptArgumentPick extends Disposable {
 			const restore = backSnapshots.at(i);
 			quickPick.step = i + 1;
 			quickPick.placeholder = arg.required ? arg.description : `${arg.description || ''} (${localize('optional', 'Optional')})`;
-			quickPick.title = localize('mcp.prompt.pick.title', 'Value for: {0}', arg.name);
+			quickPick.title = localize('mcp.prompt.pick.title', 'Value for: {0}', arg.title || arg.name);
 			quickPick.value = restore?.value ?? ((args.hasOwnProperty(arg.name) && args[arg.name]) || '');
 			quickPick.items = restore?.items ?? [];
 			quickPick.activeItems = restore?.activeItems ?? [];
@@ -168,10 +168,13 @@ export class McpPromptArgumentPick extends Disposable {
 				}));
 				store.add(quickPick.onDidAccept(() => {
 					const item = quickPick.selectedItems[0];
-					if (!quickPick.value && arg.required && (item.action === 'text' || item.action === 'command')) {
+					if (!quickPick.value && arg.required && (!item || item.action === 'text' || item.action === 'command')) {
 						quickPick.validationMessage = localize('mcp.arg.required', "This argument is required");
+					} else if (!item) {
+						// For optional arguments when no item is selected, return empty text action
+						resolve({ id: 'insert-text', label: '', action: 'text' });
 					} else {
-						resolve(quickPick.selectedItems[0]);
+						resolve(item);
 					}
 				}));
 				store.add(quickPick.onDidTriggerButton(() => {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CHAT_CATEGORY } from '../actions/chatActions.js';
+import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from '../actions/chatActions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -17,35 +17,7 @@ import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ChatViewId } from '../chat.js';
 
-/**
- * Action ID for the `Configure Custom Chat Mode` action.
- */
-const COMFIGURE_MODES_ACTION_ID = 'workbench.action.chat.manage.mode';
-
-class ManageModeAction extends Action2 {
-	constructor() {
-		super({
-			id: COMFIGURE_MODES_ACTION_ID,
-			title: localize2('configure-modes', "Configure Chat Modes..."),
-			shortTitle: localize('manage-mode', "Configure Modes..."),
-			icon: Codicon.bookmark,
-			f1: true,
-			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
-			category: CHAT_CATEGORY,
-			menu: [
-				{
-					id: MenuId.ChatModePicker,
-					when: ChatContextKeys.Modes.hasCustomChatModes
-				}, {
-					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-					order: 12,
-					group: '2_manage'
-				}
-			]
-		});
-	}
-
+abstract class ConfigModeActionImpl extends Action2 {
 	public override async run(accessor: ServicesAccessor): Promise<void> {
 		const openerService = accessor.get(IOpenerService);
 		const instaService = accessor.get(IInstantiationService);
@@ -64,9 +36,56 @@ class ManageModeAction extends Action2 {
 	}
 }
 
+// Separate action `Configure Mode` link in the mode picker.
+
+const PICKER_CONFIGURE_MODES_ACTION_ID = 'workbench.action.chat.picker.configmode';
+
+class PickerConfigModeAction extends ConfigModeActionImpl {
+	constructor() {
+		super({
+			id: PICKER_CONFIGURE_MODES_ACTION_ID,
+			title: localize2('select-mode', "Configure Modes..."),
+			category: CHAT_CATEGORY,
+			f1: false,
+			menu: {
+				id: MenuId.ChatModePicker,
+			}
+		});
+	}
+}
+
+/**
+ * Action ID for the `Configure Custom Chat Mode` action.
+ */
+const CONFIGURE_MODES_ACTION_ID = 'workbench.action.chat.manage.mode';
+
+class ManageModeAction extends ConfigModeActionImpl {
+	constructor() {
+		super({
+			id: CONFIGURE_MODES_ACTION_ID,
+			title: localize2('configure-modes', "Configure Chat Modes..."),
+			shortTitle: localize('configure-modes.short', "Modes"),
+			icon: Codicon.bookmark,
+			f1: true,
+			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+			category: CHAT_CATEGORY,
+			menu: [
+				{
+					id: CHAT_CONFIG_MENU_ID,
+					when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
+					order: 12,
+					group: '0_level'
+				}
+			]
+		});
+	}
+}
+
+
 /**
  * Helper to register all the `Run Current Prompt` actions.
  */
 export function registerChatModeActions(): void {
 	registerAction2(ManageModeAction);
+	registerAction2(PickerConfigModeAction);
 }

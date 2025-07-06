@@ -432,6 +432,14 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 		const lastEntry = newLinearHistory.at(-1);
 		if (requestId && lastEntry?.requestId === requestId) {
+			// mirror over the saved postEdit modifications
+			if (lastEntry.postEdit && undoStop) {
+				const rebaseUri = (uri: URI) => URI.parse(uri.toString().replaceAll(POST_EDIT_STOP_ID, undoStop));
+				for (const [uri, prev] of lastEntry.postEdit.entries()) {
+					snapshot.entries.set(uri, { ...prev, snapshotUri: rebaseUri(prev.snapshotUri), resource: rebaseUri(prev.resource) });
+				}
+			}
+
 			newLinearHistory[newLinearHistory.length - 1] = { ...lastEntry, stops: [...lastEntry.stops, snapshot], postEdit: undefined };
 		} else {
 			newLinearHistory.push({ requestId, startIndex: lastEntry ? lastEntry.startIndex + lastEntry.stops.length : 0, stops: [snapshot], postEdit: undefined });
@@ -452,7 +460,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	private _createSnapshot(requestId: string | undefined, undoStop: string | undefined): IChatEditingSessionStop {
-
 		const entries = new ResourceMap<ISnapshotEntry>();
 		for (const entry of this._entriesObs.get()) {
 			entries.set(entry.modifiedURI, entry.createSnapshot(requestId, undoStop));

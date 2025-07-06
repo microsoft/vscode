@@ -32,7 +32,7 @@ export namespace Iterable {
 		return iterable || _empty;
 	}
 
-	export function* reverse<T>(array: Array<T>): Iterable<T> {
+	export function* reverse<T>(array: ReadonlyArray<T>): Iterable<T> {
 		for (let i = array.length - 1; i >= 0; i--) {
 			yield array[i];
 		}

@@ -33,6 +33,8 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { WindowIntervalTimer } from '../../../base/browser/dom.js';
 import { WorkerTextModelSyncClient } from '../../common/services/textModelSync/textModelSync.impl.js';
 import { EditorWorkerHost } from '../../common/services/editorWorkerHost.js';
+import { StringEdit } from '../../common/core/edits/stringEdit.js';
+import { OffsetRange } from '../../common/core/ranges/offsetRange.js';
 
 /**
  * Stop the worker if it was not needed for 5 min.
@@ -177,6 +179,17 @@ export abstract class EditorWorkerService extends Disposable implements IEditorW
 
 		} else {
 			return Promise.resolve(undefined);
+		}
+	}
+
+	public async computeStringEditFromDiff(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<StringEdit> {
+		try {
+			const worker = await this._workerWithResources([]);
+			const edit = await worker.$computeStringDiff(original, modified, options, algorithm);
+			return StringEdit.fromJson(edit);
+		} catch (e) {
+			onUnexpectedError(e);
+			return StringEdit.replace(OffsetRange.ofLength(original.length), modified); // approximation
 		}
 	}
 
