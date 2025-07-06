@@ -242,6 +242,21 @@ export async function main(argv: string[]): Promise<any> {
 			});
 		}
 
+		// Handle --transient option
+		if (args['transient']) {
+			const tempParentDir = randomPath(tmpdir(), 'vscode');
+			const tempUserDataDir = join(tempParentDir, 'data');
+			const tempExtensionsDir = join(tempParentDir, 'extensions');
+
+			addArg(argv, '--user-data-dir', tempUserDataDir);
+			addArg(argv, '--extensions-dir', tempExtensionsDir);
+			addArg(argv, '--disable-updates');
+
+			if (args.verbose) {
+				console.log(`Warning: state is temporarily stored in: "${tempParentDir}"`);
+			}
+		}
+
 		const hasReadStdinArg = args._.some(arg => arg === '-') || args.chat?._.some(arg => arg === '-');
 		if (hasReadStdinArg) {
 			// remove the "-" argument when we read from stdin
