@@ -1110,7 +1110,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Await for promises that we recorded to update
 		// our ready and restored states properly.
 		Promises.settled(layoutReadyPromises).finally(() => {
-			this.whenReadyPromise.complete();
 
 			// Focus the active maximized part in case we have
 			// not yet focused a specific element and panel
@@ -1118,6 +1117,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (getActiveElement() === mainWindow.document.body && (this.isPanelMaximized() || this.isAuxiliaryBarMaximized())) {
 				this.focus();
 			}
+
+			this.whenReadyPromise.complete();
 
 			Promises.settled(layoutRestoredPromises).finally(() => {
 				this.restored = true;
