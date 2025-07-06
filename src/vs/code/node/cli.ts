@@ -244,17 +244,16 @@ export async function main(argv: string[]): Promise<any> {
 
 		// Handle --disable-state option
 		if (args['disable-state']) {
-			const tempUserDataDir = randomPath(tmpdir(), 'vscode-no-state-userdata');
-			const tempExtensionsDir = randomPath(tmpdir(), 'vscode-no-state-extensions');
+			const tempParentDir = randomPath(tmpdir(), 'vscode-disable-state');
+			const tempUserDataDir = join(tempParentDir, 'userdata');
+			const tempExtensionsDir = join(tempParentDir, 'extensions');
 
 			addArg(argv, '--user-data-dir', tempUserDataDir);
 			addArg(argv, '--extensions-dir', tempExtensionsDir);
 			addArg(argv, '--disable-updates');
 
 			if (args.verbose) {
-				console.log(`--disable-state: Using temporary user data directory: ${tempUserDataDir}`);
-				console.log(`--disable-state: Using temporary extensions directory: ${tempExtensionsDir}`);
-				console.log(`--disable-state: Updates disabled`);
+				console.log(`--disable-state: Using temporary directories in: ${tempParentDir}`);
 			}
 		}
 

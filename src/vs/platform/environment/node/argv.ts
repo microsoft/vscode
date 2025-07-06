@@ -168,7 +168,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'skip-welcome': { type: 'boolean' },
 	'disable-telemetry': { type: 'boolean' },
 	'disable-updates': { type: 'boolean' },
-	'disable-state': { type: 'boolean', description: localize('disableState', "Uses temporary directories for user data and extensions, and disables updates. Useful for testing or temporary sessions.") },
+	'disable-state': { type: 'boolean' },
 	'use-inmemory-secretstorage': { type: 'boolean', deprecates: ['disable-keytar'] },
 	'password-store': { type: 'string' },
 	'disable-workspace-trust': { type: 'boolean' },
