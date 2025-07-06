@@ -545,7 +545,7 @@ export class StackFrame implements IStackFrame {
 			((threadStopReason === 'instruction breakpoint' && !preserveFocus) ||
 				(threadStopReason === 'step' && this.thread.lastSteppingGranularity === 'instruction' && !preserveFocus) ||
 				editorService.activeEditor instanceof DisassemblyViewInput)) {
-			return editorService.openEditor(DisassemblyViewInput.instance, { pinned: true, revealIfOpened: true });
+			return editorService.openEditor(DisassemblyViewInput.instance, { pinned: true, revealIfOpened: true, preserveFocus });
 		}
 
 		if (this.source.available) {
