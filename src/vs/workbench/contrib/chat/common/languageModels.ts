@@ -151,7 +151,7 @@ export interface ILanguageModelChatResponse {
 }
 
 export interface ILanguageModelChatProvider {
-
+	prepareLanguageModelChat(options: { silent: boolean }, token: CancellationToken): Promise<ILanguageModelChatMetadata[]>;
 }
 
 export interface ILanguageModelChat {
@@ -347,6 +347,15 @@ export class LanguageModelsService implements ILanguageModelsService {
 		this._logService.trace('[LM] selected language models', selector, result);
 
 		return result;
+	}
+
+	registerLanguageModelProvider(vendor: string, provider: ILanguageModelChatProvider): IDisposable {
+		this._logService.trace('[LM] registering language model provider', vendor, provider);
+
+
+		return toDisposable(() => {
+			this._logService.trace('[LM] UNregistered language model provider', vendor);
+		});
 	}
 
 	registerLanguageModelChat(identifier: string, provider: ILanguageModelChat): IDisposable {

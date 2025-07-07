@@ -1254,7 +1254,7 @@ export interface ExtHostSpeechShape {
 }
 
 export interface MainThreadLanguageModelsShape extends IDisposable {
-	$registerLanguageModelProvider(handle: number, identifier: string, metadata: ILanguageModelChatMetadata): void;
+	$registerLanguageModelProvider(vendor: string): void;
 	$unregisterProvider(vendor: string): void;
 	$tryStartChatRequest(extension: ExtensionIdentifier, provider: string, requestId: number, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: {}, token: CancellationToken): Promise<void>;
 	$reportResponsePart(requestId: number, chunk: IChatResponseFragment | IChatResponseFragment[]): Promise<void>;

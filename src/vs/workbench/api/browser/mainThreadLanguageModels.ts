@@ -56,8 +56,13 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		this._store.dispose();
 	}
 
-	$registerLanguageModelProvider(handle: number, identifier: string, metadata: ILanguageModelChatMetadata): void {
+	$registerLanguageModelProvider(vendor: string): void {
 		const dipsosables = new DisposableStore();
+		dipsosables.add(this._chatProviderService.registerLanguageModelProvider(vendor, {
+			prepareLanguageModelChat: (options, token) => {
+				return this._proxy.$prepareLanguageModelProvider(vendor, options, token);
+			}
+		}));
 		dipsosables.add(this._chatProviderService.registerLanguageModelChat(identifier, {
 			metadata,
 			sendChatRequest: async (messages, from, options, token) => {
