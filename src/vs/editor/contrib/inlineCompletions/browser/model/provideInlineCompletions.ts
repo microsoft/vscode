@@ -418,7 +418,8 @@ export interface IDisplayLocation {
 
 export enum InlineCompletionEditorType {
 	TextEditor = 'textEditor',
-	DiffEditor = 'diffEditor'
+	DiffEditor = 'diffEditor',
+	Notebook = 'notebook',
 }
 
 /**
