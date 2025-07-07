@@ -73,6 +73,15 @@ suite('AccountPolicyService', () => {
 			'setting.E': {
 				'type': 'boolean',
 				'default': true,
+			},
+			'setting.ChatMCP': {
+				'type': 'boolean',
+				'default': true,
+				policy: {
+					name: 'ChatMCP',
+					minimumVersion: '1.99',
+					defaultValue: false,
+				}
 			}
 		}
 	};
@@ -159,5 +168,35 @@ suite('AccountPolicyService', () => {
 			assert.deepStrictEqual(C, ['policyValueC1', 'policyValueC2']);
 			assert.strictEqual(D, false);
 		}
+	});
+
+	test('ChatMCP policy is enforced when MCP is disabled', async () => {
+		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT, mcp: false };
+		defaultAccountService.setDefaultAccount(defaultAccount);
+
+		await policyConfiguration.initialize();
+
+		const chatMcpPolicyValue = policyService.getPolicyValue('ChatMCP');
+		const actualConfigurationModel = policyConfiguration.configurationModel;
+		const chatMcpConfigValue = actualConfigurationModel.getValue('setting.ChatMCP');
+
+		// When MCP is disabled via account policy, the ChatMCP policy should be enforced with defaultValue
+		assert.strictEqual(chatMcpPolicyValue, false);
+		assert.strictEqual(chatMcpConfigValue, false);
+	});
+
+	test('ChatMCP policy is not enforced when MCP is enabled', async () => {
+		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT, mcp: true };
+		defaultAccountService.setDefaultAccount(defaultAccount);
+
+		await policyConfiguration.initialize();
+
+		const chatMcpPolicyValue = policyService.getPolicyValue('ChatMCP');
+		const actualConfigurationModel = policyConfiguration.configurationModel;
+		const chatMcpConfigValue = actualConfigurationModel.getValue('setting.ChatMCP');
+
+		// When MCP is enabled via account policy, the ChatMCP policy should not be enforced
+		assert.strictEqual(chatMcpPolicyValue, undefined);
+		assert.strictEqual(chatMcpConfigValue, true); // default configuration value
 	});
 });
