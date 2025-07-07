@@ -50,19 +50,15 @@ div.chat-welcome-view {
 	& > .chat-welcome-view-indicator-container {
 		display: flex;
 		flex-wrap: wrap;
-		margin-top: 5px;
-		gap: 9px;
+		margin-top: 10px;
+		gap: 8px;
 		justify-content: center;
 	}
 
 	& > .chat-welcome-view-message {
-		position: absolute;
-		left: 0;
-		right: 0;
-		bottom: 0;
+		position: relative;
 		text-align: center;
 		max-width: 100%;
-		padding: 20px 20px 105px 20px;
 		margin: 0 auto;
 		color: var(--vscode-input-placeholderForeground);
 
@@ -70,7 +66,7 @@ div.chat-welcome-view {
 			color: var(--vscode-textLink-foreground);
 		}
 		p{
-			margin-top: 0px;
+			margin-top: 8px;
 			margin-bottom: 8px;
 		}
 	}
