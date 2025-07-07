@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { POLICY_KEY_CHAT_MCP } from '../../../../platform/policy/common/accountPolicyKeys.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { equals } from '../../../../base/common/objects.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -75,7 +76,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 				updateIfNeeded(key, policy, this.accountPolicy?.chatPreviewFeaturesEnabled);
 			}
 			// MCP
-			else if (key === 'ChatMCP') {
+			else if (key === POLICY_KEY_CHAT_MCP) {
 				updateIfNeeded(key, policy, this.accountPolicy?.mcpEnabled);
 			}
 		}

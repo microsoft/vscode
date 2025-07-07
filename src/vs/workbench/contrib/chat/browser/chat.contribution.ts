@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { POLICY_KEY_CHAT_MCP, POLICY_KEY_CHAT_TOOLS_AUTO_APPROVE, POLICY_KEY_CHAT_PROMPT_FILES } from '../../../../platform/policy/common/accountPolicyKeys.js';
 import './promptSyntax/promptToolsCodeLensProvider.js';
 import './promptSyntax/promptCodingAgentActionContribution.js';
 import { timeout } from '../../../../base/common/async.js';
@@ -217,7 +218,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['experimental'],
 			policy: {
-				name: 'ChatToolsAutoApprove',
+				name: POLICY_KEY_CHAT_TOOLS_AUTO_APPROVE,
 				minimumVersion: '1.99',
 				previewFeature: true,
 				defaultValue: false
@@ -259,7 +260,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.mcp.enabled', "Enables integration with Model Context Protocol servers to provide additional tools and functionality."),
 			default: true,
 			policy: {
-				name: 'ChatMCP',
+				name: POLICY_KEY_CHAT_MCP,
 				minimumVersion: '1.99',
 			}
 		},
@@ -369,7 +370,7 @@ configurationRegistry.registerConfiguration({
 			disallowConfigurationDefault: true,
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 			policy: {
-				name: 'ChatPromptFiles',
+				name: POLICY_KEY_CHAT_PROMPT_FILES,
 				minimumVersion: '1.99',
 				description: nls.localize('chat.promptFiles.policy', "Enables reusable prompt and instruction files in Chat, Edits, and Inline Chat sessions."),
 				previewFeature: true,
