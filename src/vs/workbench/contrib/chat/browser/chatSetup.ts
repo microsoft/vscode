@@ -81,6 +81,7 @@ const defaultChat = {
 	manageOveragesUrl: product.defaultChatAgent?.manageOverageUrl ?? '',
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
 	signUpUrl: product.defaultChatAgent?.signUpUrl ?? '',
+	providerId: product.defaultChatAgent?.providerId ?? '',
 	providerName: product.defaultChatAgent?.providerName ?? '',
 	enterpriseProviderId: product.defaultChatAgent?.enterpriseProviderId ?? '',
 	enterpriseProviderName: product.defaultChatAgent?.enterpriseProviderName ?? '',
@@ -327,9 +328,9 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		}
 
 		await chatService.resendRequest(requestModel, {
+			...widget?.getModeRequestOptions(),
 			mode,
 			userSelectedModelId: languageModel,
-			userSelectedTools: widget?.getUserSelectedTools()
 		});
 	}
 
@@ -352,14 +353,14 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 		// check that tools other than setup. and internal tools are registered.
 		for (const tool of languageModelToolsService.getTools()) {
-			if (tool.source.type !== 'internal') {
+			if (tool.id.startsWith('copilot_')) {
 				return; // we have tools!
 			}
 		}
 
 		return Event.toPromise(Event.filter(languageModelToolsService.onDidChangeTools, () => {
 			for (const tool of languageModelToolsService.getTools()) {
-				if (tool.source.type !== 'internal') {
+				if (tool.id.startsWith('copilot_')) {
 					return true; // we have tools!
 				}
 			}
@@ -647,7 +648,7 @@ class ChatSetup {
 		});
 		if (!trusted) {
 			this.context.update({ later: true });
-			this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotTrusted', installDuration: 0, signUpErrorCode: undefined });
+			this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotTrusted', installDuration: 0, signUpErrorCode: undefined, provider: undefined });
 
 			return { dialogSkipped, success: undefined /* canceled */ };
 		}
@@ -689,7 +690,7 @@ class ChatSetup {
 					return this.doRun(options); // open dialog again
 				case ChatSetupStrategy.Canceled:
 					this.context.update({ later: true });
-					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedMaybeLater', installDuration: 0, signUpErrorCode: undefined });
+					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedMaybeLater', installDuration: 0, signUpErrorCode: undefined, provider: undefined });
 					break;
 			}
 		} catch (error) {
@@ -735,10 +736,6 @@ class ChatSetup {
 		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
 			let alternateProvider: 'off' | 'monochrome' | 'colorful' | 'first' = 'off';
 			if (defaultChat.alternativeProviderId) {
-				if (this.configurationService.getValue('chat.setup.signInWithAlternateProvider')) {
-					alternateProvider = 'colorful'; // TODO@bpasero remove me soon
-				}
-
 				switch (variant) {
 					case 'alternate-first':
 						alternateProvider = 'first';
@@ -1167,11 +1164,13 @@ type InstallChatClassification = {
 	installResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the extension was installed successfully, cancelled or failed to install.' };
 	installDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration it took to install the extension.' };
 	signUpErrorCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The error code in case of an error signing up.' };
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider used for the chat installation.' };
 };
 type InstallChatEvent = {
 	installResult: 'installed' | 'alreadyInstalled' | 'cancelled' | 'failedInstall' | 'failedNotSignedIn' | 'failedSignUp' | 'failedNotTrusted' | 'failedNoSession' | 'failedMaybeLater';
 	installDuration: number;
 	signUpErrorCode: number | undefined;
+	provider: string | undefined;
 };
 
 enum ChatSetupStep {
@@ -1222,7 +1221,7 @@ class ChatSetupController extends Disposable {
 		this._onDidChange.fire();
 	}
 
-	async setup(options?: { forceSignIn?: boolean; useAlternateProvider?: boolean }): Promise<ChatSetupResultValue> {
+	async setup(options?: { forceSignIn?: boolean; useAlternateProvider?: boolean; useEnterpriseProvider?: boolean }): Promise<ChatSetupResultValue> {
 		const watch = new StopWatch(false);
 		const title = localize('setupChatProgress', "Getting Copilot ready...");
 		const badge = this.activityService.showViewContainerActivity(CHAT_SIDEBAR_PANEL_ID, {
@@ -1240,7 +1239,7 @@ class ChatSetupController extends Disposable {
 		}
 	}
 
-	private async doSetup(options: { forceSignIn?: boolean; useAlternateProvider?: boolean }, watch: StopWatch): Promise<ChatSetupResultValue> {
+	private async doSetup(options: { forceSignIn?: boolean; useAlternateProvider?: boolean; useEnterpriseProvider?: boolean }, watch: StopWatch): Promise<ChatSetupResultValue> {
 		this.context.suspend();  // reduces flicker
 
 		let success: ChatSetupResultValue = false;
@@ -1256,7 +1255,8 @@ class ChatSetupController extends Disposable {
 				this.setStep(ChatSetupStep.SigningIn);
 				const result = await this.signIn({ useAlternateProvider: options.useAlternateProvider });
 				if (!result.session) {
-					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotSignedIn', installDuration: watch.elapsed(), signUpErrorCode: undefined });
+					const provider = options.useAlternateProvider ? defaultChat.alternativeProviderId : options.useEnterpriseProvider ? defaultChat.enterpriseProviderId : defaultChat.providerName;
+					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotSignedIn', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
 					return undefined; // treat as cancelled because signing in already triggers an error dialog
 				}
 
@@ -1266,7 +1266,7 @@ class ChatSetupController extends Disposable {
 
 			// Await Install
 			this.setStep(ChatSetupStep.Installing);
-			success = await this.install(session, entitlement ?? this.context.state.entitlement, providerId, watch, installation);
+			success = await this.install(session, entitlement ?? this.context.state.entitlement, providerId, watch, installation, options);
 		} finally {
 			this.setStep(ChatSetupStep.Initial);
 			this.context.resume();
@@ -1300,9 +1300,11 @@ class ChatSetupController extends Disposable {
 		return { session, entitlement: entitlements?.entitlement };
 	}
 
-	private async install(session: AuthenticationSession | undefined, entitlement: ChatEntitlement, providerId: string, watch: StopWatch, installation: Promise<void>): Promise<ChatSetupResultValue> {
+	private async install(session: AuthenticationSession | undefined, entitlement: ChatEntitlement, providerId: string, watch: StopWatch, installation: Promise<void>, options: { useAlternateProvider?: boolean; useEnterpriseProvider?: boolean }): Promise<ChatSetupResultValue> {
 		const wasRunning = this.context.state.installed && !this.context.state.disabled;
 		let signUpResult: boolean | { errorCode: number } | undefined = undefined;
+
+		const provider = options.useAlternateProvider ? defaultChat.alternativeProviderId : options.useEnterpriseProvider ? defaultChat.enterpriseProviderId : defaultChat.providerName;
 
 		try {
 
@@ -1319,7 +1321,7 @@ class ChatSetupController extends Disposable {
 					}
 
 					if (!session) {
-						this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNoSession', installDuration: watch.elapsed(), signUpErrorCode: undefined });
+						this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNoSession', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
 						return false; // unexpected
 					}
 				}
@@ -1327,19 +1329,19 @@ class ChatSetupController extends Disposable {
 				signUpResult = await this.requests.signUpFree(session);
 
 				if (typeof signUpResult !== 'boolean' /* error */) {
-					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedSignUp', installDuration: watch.elapsed(), signUpErrorCode: signUpResult.errorCode });
+					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedSignUp', installDuration: watch.elapsed(), signUpErrorCode: signUpResult.errorCode, provider });
 				}
 			}
 
 			await this.doInstallWithRetry(installation);
 		} catch (error) {
 			this.logService.error(`[chat setup] install: error ${error}`);
-			this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: isCancellationError(error) ? 'cancelled' : 'failedInstall', installDuration: watch.elapsed(), signUpErrorCode: undefined });
+			this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: isCancellationError(error) ? 'cancelled' : 'failedInstall', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
 			return false;
 		}
 
 		if (typeof signUpResult === 'boolean') {
-			this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: wasRunning && !signUpResult ? 'alreadyInstalled' : 'installed', installDuration: watch.elapsed(), signUpErrorCode: undefined });
+			this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: wasRunning && !signUpResult ? 'alreadyInstalled' : 'installed', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
 		}
 
 		if (wasRunning && signUpResult === true) {

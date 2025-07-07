@@ -20,14 +20,14 @@ export {
 	signalFromObservable, wasEventTriggeredRecently,
 } from './utils/utils.js';
 export { type DebugOwner } from './debugName.js';
-export { type IChangeContext, type IChangeTracker, recordChanges } from './changeTracker.js';
+export { type IChangeContext, type IChangeTracker, recordChanges, recordChangesLazy } from './changeTracker.js';
 export { constObservable } from './observables/constObservable.js';
 export { type IObservableSignal, observableSignal } from './observables/observableSignal.js';
 export { observableFromEventOpts } from './observables/observableFromEvent.js';
 export { observableSignalFromEvent } from './observables/observableSignalFromEvent.js';
 export { asyncTransaction, globalTransaction, subtransaction, transaction, TransactionImpl } from './transaction.js';
 export { observableFromValueWithChangeEvent, ValueWithChangeEventFromObservable } from './utils/valueWithChangeEvent.js';
-export { runOnChange, runOnChangeWithCancellationToken, runOnChangeWithStore } from './utils/runOnChange.js';
+export { runOnChange, runOnChangeWithCancellationToken, runOnChangeWithStore, type RemoveUndefined } from './utils/runOnChange.js';
 export { derivedConstOnceDefined, latestChangedValue } from './experimental/utils.js';
 export { observableFromEvent } from './observables/observableFromEvent.js';
 export { observableValue } from './observables/observableValue.js';
