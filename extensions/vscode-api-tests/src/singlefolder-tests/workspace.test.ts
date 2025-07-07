@@ -35,6 +35,9 @@ suite('vscode API - workspace', () => {
 		assert.strictEqual(md.value, '**bold**\\*\\*bold?\\*\\*');
 
 		md.appendMarkdown('**bold**');
+		if (process.platform === 'linux') {
+			assert.strictEqual(md.value, '*asdasdasd*bold**\\*\\*bold?\\*\\***bold**');
+		}
 		assert.strictEqual(md.value, '**bold**\\*\\*bold?\\*\\***bold**');
 	});
 

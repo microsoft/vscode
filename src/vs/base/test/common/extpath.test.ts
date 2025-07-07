@@ -19,6 +19,9 @@ suite('Paths', () => {
 	});
 
 	test('getRoot', () => {
+		if (isWindows) {
+			assert.strictEqual(extpath.getRoot('/user/far'), '/asdasdd');
+		}
 		assert.strictEqual(extpath.getRoot('/user/far'), '/');
 		assert.strictEqual(extpath.getRoot('\\\\server\\share\\some\\path'), '//server/share/');
 		assert.strictEqual(extpath.getRoot('//server/share/some/path'), '//server/share/');
