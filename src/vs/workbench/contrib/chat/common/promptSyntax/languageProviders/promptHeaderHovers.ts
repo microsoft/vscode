@@ -70,7 +70,10 @@ export class PromptHeaderHoverProvider extends Disposable implements HoverProvid
 			return undefined;
 		}
 
-		await header.settled;
+		const completed = await header.settled;
+		if (!completed || token.isCancellationRequested) {
+			return undefined;
+		}
 
 		if (header instanceof InstructionsHeader) {
 			const descriptionRange = header.metadataUtility.description?.range;
@@ -124,7 +127,7 @@ export class PromptHeaderHoverProvider extends Disposable implements HoverProvid
 				if (toolRange?.containsPosition(position)) {
 					const tool = this.languageModelToolsService.getToolByName(toolName);
 					if (tool) {
-						return this.createHover(tool.displayName, toolRange);
+						return this.createHover(tool.modelDescription, toolRange);
 					}
 					const toolSet = this.languageModelToolsService.getToolSetByName(toolName);
 					if (toolSet) {
@@ -143,22 +146,25 @@ export class PromptHeaderHoverProvider extends Disposable implements HoverProvid
 			lines.push(toolSet.description);
 		}
 		for (const tool of toolSet.getTools()) {
-			lines.push(`- ${tool.toolReferenceName ?? tool.displayName} (${tool.displayName})`);
+			lines.push(`- ${tool.toolReferenceName ?? tool.displayName}`);
 		}
 		return this.createHover(lines.join('\n'), range);
 	}
 
 	private getModelHover(node: PromptModelMetadata, range: Range, baseMessage: string): Hover | undefined {
-		if (node.value) {
-
+		const modelName = node.value;
+		if (modelName) {
 			for (const id of this.languageModelsService.getLanguageModelIds()) {
 				const meta = this.languageModelsService.lookupLanguageModel(id);
-				if (meta) {
+				if (meta && meta.name === modelName) {
 					const lines: string[] = [];
 					lines.push(baseMessage + '\n');
-					lines.push(localize('modelName', '{0}', meta.description ?? meta.name));
+					lines.push(localize('modelName', '- Name: {0}', meta.name));
 					lines.push(localize('modelFamily', '- Family: {0}', meta.family));
 					lines.push(localize('modelVendor', '- Vendor: {0}', meta.vendor));
+					if (meta.description) {
+						lines.push('', '', meta.description);
+					}
 					return this.createHover(lines.join('\n'), range);
 				}
 			}

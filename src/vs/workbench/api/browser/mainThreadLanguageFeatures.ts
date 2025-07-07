@@ -685,6 +685,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				}
 			},
 			groupId: groupId ?? extensionId,
+			providerId: new languages.VersionedExtensionId(extensionId, extensionVersion).toString(),
 			yieldsToGroupIds: yieldsToExtensionIds,
 			debounceDelayMs,
 			displayName,
@@ -1311,7 +1312,6 @@ type InlineCompletionEndOfLifeEvent = {
 	superseded: boolean;
 	editorType: string;
 	viewKind: string | undefined;
-	// render info
 	cursorColumnDistance: number | undefined;
 	cursorLineDistance: number | undefined;
 	lineCountOriginal: number | undefined;

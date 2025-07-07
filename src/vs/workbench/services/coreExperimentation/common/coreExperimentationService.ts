@@ -10,6 +10,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { firstSessionDateStorageKey, ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 
 export const ICoreExperimentationService = createDecorator<ICoreExperimentationService>('coreExperimentationService');
 export const startupExpContext = new RawContextKey<string>('coreExperimentation.startupExpGroup', '');
@@ -83,9 +84,15 @@ export class CoreExperimentationService extends Disposable implements ICoreExper
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IProductService private readonly productService: IProductService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
+
+		if (environmentService.disableExperiments) {
+			return; // explicitly disabled
+		}
+
 		this.initializeExperiments();
 	}
 
@@ -107,7 +114,15 @@ export class CoreExperimentationService extends Disposable implements ICoreExper
 		const storageKey = `coreExperimentation.${experimentConfig.experimentName}`;
 		const storedExperiment = this.storageService.get(storageKey, StorageScope.APPLICATION);
 		if (storedExperiment) {
-			return;
+			try {
+				const parsedExperiment: IExperiment = JSON.parse(storedExperiment);
+				this.experiments.set(experimentConfig.experimentName, parsedExperiment);
+				startupExpContext.bindTo(this.contextKeyService).set(parsedExperiment.experimentGroup);
+				return;
+			} catch (e) {
+				this.storageService.remove(storageKey, StorageScope.APPLICATION);
+				return;
+			}
 		}
 
 		const experiment = this.createStartupExperiment(experimentConfig.experimentName, experimentConfig);
@@ -133,6 +148,22 @@ export class CoreExperimentationService extends Disposable implements ICoreExper
 	}
 
 	private createStartupExperiment(experimentName: string, experimentConfig: ExperimentConfiguration): IExperiment | undefined {
+		const startupExpGroupOverride = this.environmentService.startupExperimentGroup;
+		if (startupExpGroupOverride) {
+			// If the user has an override, we use that directly
+			const group = experimentConfig.groups.find(g => g.name === startupExpGroupOverride);
+			if (group) {
+				return {
+					cohort: 1,
+					subCohort: 1,
+					experimentGroup: group.name,
+					iteration: group.iteration,
+					isInExperiment: true
+				};
+			}
+			return undefined;
+		}
+
 		const cohort = Math.random();
 
 		if (cohort >= experimentConfig.targetPercentage / 100) {
@@ -196,4 +227,4 @@ export class CoreExperimentationService extends Disposable implements ICoreExper
 	}
 }
 
-registerSingleton(ICoreExperimentationService, CoreExperimentationService, InstantiationType.Delayed);
+registerSingleton(ICoreExperimentationService, CoreExperimentationService, InstantiationType.Eager);

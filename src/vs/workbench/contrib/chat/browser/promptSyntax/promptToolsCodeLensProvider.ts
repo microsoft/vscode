@@ -48,11 +48,14 @@ class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider
 
 		const parser = this.promptsService.getSyntaxParserFor(model);
 
-		const { header } = await parser
-			.start(token)
-			.settled();
+		await parser.start(token).settled();
+		const { header } = parser;
+		if (!header) {
+			return undefined;
+		}
 
-		if ((header === undefined) || token.isCancellationRequested) {
+		const completed = await header.settled;
+		if (!completed || token.isCancellationRequested) {
 			return undefined;
 		}
 
@@ -78,7 +81,7 @@ class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider
 
 	private async updateTools(model: ITextModel, tools: PromptToolsMetadata) {
 
-		const selectedToolsNow = tools.value ? this.languageModelToolsService.toToolAndToolSetEnablementMap(new Set(tools.value)) : new Map();
+		const selectedToolsNow = tools.value ? this.languageModelToolsService.toToolAndToolSetEnablementMap(tools.value) : new Map();
 		const newSelectedAfter = await this.instantiationService.invokeFunction(showToolsPicker, localize('placeholder', "Select tools"), undefined, selectedToolsNow);
 		if (!newSelectedAfter) {
 			return;

@@ -34,6 +34,7 @@ import { ILabelService } from '../../../../../../../platform/label/common/label.
 import { ComputeAutomaticInstructions } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
+import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
 
 /**
  * Helper class to assert the properties of a link.
@@ -113,6 +114,7 @@ suite('PromptsService', () => {
 		instaService.stub(ILogService, new NullLogService());
 		instaService.stub(IWorkspacesService, {});
 		instaService.stub(IConfigurationService, new TestConfigurationService());
+		instaService.stub(IWorkbenchEnvironmentService, {});
 
 		const fileService = disposables.add(instaService.createInstance(FileService));
 		instaService.stub(IFileService, fileService);

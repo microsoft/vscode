@@ -148,7 +148,6 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 					if (this.storageService.isNew(StorageScope.APPLICATION)) {
 						const startupExpValue = startupExpContext.getValue(this.contextKeyService);
 						if (startupExpValue === StartupExperimentGroup.MaximizedChat || startupExpValue === StartupExperimentGroup.SplitEmptyEditorChat) {
-							startupExpContext.bindTo(this.contextKeyService).reset();
 							return;
 						}
 					}
