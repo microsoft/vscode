@@ -129,8 +129,9 @@ div.chat-welcome-view {
 
 	& > .chat-welcome-view-suggested-prompts {
 		display: flex;
-		flex-wrap: nowrap;
+		flex-wrap: wrap;
 		justify-content: center;
+		row-gap: 8px;
 		margin-top: 4px;
 
 		> .chat-welcome-view-suggested-prompt {
