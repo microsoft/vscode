@@ -253,13 +253,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
-		// Require a shell type for completions. This will wait a short period after launching to
-		// wait for the shell type to initialize. This prevents user requests sometimes getting lost
-		// if requested shortly after the terminal is created.
+		// Wait for the shell type to initialize. This will wait a short period after launching to
+		// allow the shell type to be set if possible. This prevents user requests sometimes getting
+		// lost if requested shortly after the terminal is created. Completion providers can still
+		// work with undefined shell types such as Pseudoterminal-based extension terminals.
 		await this._shellTypeInit;
-		if (!this.shellType) {
-			return;
-		}
 
 		let doNotRequestExtensionCompletions = false;
 		// Ensure that a key has been pressed since the last accepted completion in order to prevent
@@ -720,7 +718,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// Track the time when completions are shown for the first time
 		if (this._completionRequestTimestamp !== undefined) {
 			const completionLatency = Date.now() - this._completionRequestTimestamp;
-			if (this._suggestTelemetry && this.shellType && this._discoverability) {
+			if (this._suggestTelemetry && this._discoverability) {
 				const firstShown = this._discoverability.getFirstShown(this.shellType);
 				this._discoverability.updateShown();
 				this._suggestTelemetry.logCompletionLatency(this._sessionId, completionLatency, firstShown);
@@ -919,7 +917,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._leadingLineContent = undefined;
 		this._suggestWidget?.hide();
 	}
-
 }
 
 class PersistedWidgetSize {
