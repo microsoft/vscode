@@ -128,13 +128,16 @@ export class InlineCompletionsModel extends Disposable {
 		}));
 
 		{ // Determine editor type
+			const isNotebook = this.textModel.uri.scheme === 'vscode-notebook-cell';
 			const [diffEditor] = this._codeEditorService.listDiffEditors()
 				.filter(d =>
 					d.getOriginalEditor().getId() === this._editor.getId() ||
 					d.getModifiedEditor().getId() === this._editor.getId());
 
-			this.editorType = !!diffEditor ? InlineCompletionEditorType.DiffEditor : InlineCompletionEditorType.TextEditor;
-			this.isInDiffEditor = this.editorType === InlineCompletionEditorType.DiffEditor;
+			this.isInDiffEditor = !!diffEditor;
+			this.editorType = isNotebook ? InlineCompletionEditorType.Notebook
+				: this.isInDiffEditor ? InlineCompletionEditorType.DiffEditor
+					: InlineCompletionEditorType.TextEditor;
 		}
 
 		this._register(recomputeInitiallyAndOnChange(this._fetchInlineCompletionsPromise));
