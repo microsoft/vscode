@@ -7,11 +7,15 @@
 	cursor: default;
 	position: absolute;
 	overflow: hidden;
-	user-select: text;
-	-webkit-user-select: text;
 	box-sizing: border-box;
 	line-height: 1.5em;
 	white-space: var(--vscode-hover-whiteSpace, normal);
+}
+
+/* Enable text selection for all elements except button-like elements */
+.monaco-hover :not(.action-container):not(.action):not(button):not(.monaco-button):not(.monaco-text-button):not([role="button"]) {
+	user-select: text;
+	-webkit-user-select: text;
 }
 
 .monaco-hover.fade-in {
@@ -206,15 +210,4 @@
 	pointer-events: none;
 	opacity: 0.4;
 	cursor: default;
-}
-
-/* Prevent text selection in all button-like elements within hovers */
-.monaco-hover .action-container,
-.monaco-hover .action,
-.monaco-hover button,
-.monaco-hover .monaco-button,
-.monaco-hover .monaco-text-button,
-.monaco-hover [role="button"] {
-	-webkit-user-select: none;
-	user-select: none;
 }
