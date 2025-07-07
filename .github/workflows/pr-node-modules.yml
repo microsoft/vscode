@@ -30,7 +30,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .build/node_modules_cache
-          key: "node_modules-${{ hashFiles('.build/packagelockhash') }}"
+          key: "node_modules-compile-${{ hashFiles('.build/packagelockhash') }}"
 
       - name: Install build tools
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -106,7 +106,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .build/node_modules_cache
-          key: "node_modules-${{ hashFiles('.build/packagelockhash') }}"
+          key: "node_modules-linux-${{ hashFiles('.build/packagelockhash') }}"
 
       - name: Install build dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -180,7 +180,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .build/node_modules_cache
-          key: "node_modules-${{ hashFiles('.build/packagelockhash') }}"
+          key: "node_modules-macos-${{ hashFiles('.build/packagelockhash') }}"
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -246,7 +246,7 @@ jobs:
         id: node-modules-cache
         with:
           path: .build/node_modules_cache
-          key: "node_modules-${{ hashFiles('.build/packagelockhash') }}"
+          key: "node_modules-windows-${{ hashFiles('.build/packagelockhash') }}"
 
       - name: Install dependencies
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
