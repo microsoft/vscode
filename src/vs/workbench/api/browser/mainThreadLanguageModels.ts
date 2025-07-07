@@ -17,7 +17,7 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { resizeImage } from '../../contrib/chat/browser/imageUtils.js';
 import { ILanguageModelIgnoredFilesService } from '../../contrib/chat/common/ignoredFiles.js';
 import { ILanguageModelStatsService } from '../../contrib/chat/common/languageModelStats.js';
-import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
+import { IChatMessage, IChatResponseFragment, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
@@ -59,8 +59,14 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	$registerLanguageModelProvider(vendor: string): void {
 		const dipsosables = new DisposableStore();
 		dipsosables.add(this._chatProviderService.registerLanguageModelProvider(vendor, {
-			prepareLanguageModelChat: (options, token) => {
-				return this._proxy.$prepareLanguageModelProvider(vendor, options, token);
+			prepareLanguageModelChat: async (options, token) => {
+				const models = await this._proxy.$prepareLanguageModelProvider(vendor, options, token);
+				models.forEach(m => {
+					if (m.auth) {
+						dipsosables.add(this._registerAuthenticationProvider(m.extension, m.auth));
+					}
+				});
+				return models;
 			},
 			sendChatRequest: async (model, messages, from, options, token) => {
 				const requestId = (Math.random() * 1e6) | 0;
@@ -91,10 +97,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 				return this._proxy.$provideTokenLength(model, str, token);
 			},
 		}));
-		if (metadata.auth) {
-			dipsosables.add(this._registerAuthenticationProvider(metadata.extension, metadata.auth));
-		}
-		this._providerRegistrations.set(handle, dipsosables);
+		this._providerRegistrations.set(vendor, dipsosables);
 	}
 
 	async $reportResponsePart(requestId: number, chunk: IChatResponseFragment | IChatResponseFragment[]): Promise<void> {
