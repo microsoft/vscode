@@ -32,11 +32,14 @@ export class EditSourceTrackingImpl extends Disposable {
 
 		const scmBridge = this._instantiationService.createInstance(ScmBridge);
 
-		this.docsState = mapObservableArrayCached(this, this._workspace.documents, (doc, store) => {
+		const states = mapObservableArrayCached(this, this._workspace.documents, (doc, store) => {
 			const docIsVisible = derived(reader => this._docIsVisible(doc, reader));
 			const wasEverVisible = derivedObservableWithCache<boolean>(this, (reader, lastVal) => lastVal || docIsVisible.read(reader));
 			return wasEverVisible.map(v => v ? [doc, store.add(this._instantiationService.createInstance(TrackedDocumentInfo, doc, docIsVisible, scmBridge))] as const : undefined);
-		}).recomputeInitiallyAndOnChange(this._store).map((entries, reader) => new Map(entries.map(e => e.read(reader)).filter(isDefined)));
+		});
+
+		this.docsState = states.map((entries, reader) => new Map(entries.map(e => e.read(reader)).filter(isDefined)))
+			.recomputeInitiallyAndOnChange(this._store);
 	}
 }
 
