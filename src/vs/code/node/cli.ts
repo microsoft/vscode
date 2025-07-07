@@ -252,9 +252,7 @@ export async function main(argv: string[]): Promise<any> {
 			addArg(argv, '--extensions-dir', tempExtensionsDir);
 			addArg(argv, '--disable-updates');
 
-			if (args.verbose) {
-				console.log(`Warning: state is temporarily stored in: "${tempParentDir}"`);
-			}
+			console.log(`Warning: state is temporarily stored in: "${tempParentDir}"`);
 		}
 
 		const hasReadStdinArg = args._.some(arg => arg === '-') || args.chat?._.some(arg => arg === '-');
