@@ -685,6 +685,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				}
 			},
 			groupId: groupId ?? extensionId,
+			providerId: new languages.VersionedExtensionId(extensionId, extensionVersion).toString(),
 			yieldsToGroupIds: yieldsToExtensionIds,
 			debounceDelayMs,
 			displayName,

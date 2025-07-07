@@ -875,7 +875,7 @@ Update \`.github/copilot-instructions.md\` for the user, then ask for feedback o
 		title: localize2('config.label', "Configure Chat..."),
 		group: 'navigation',
 		when: ContextKeyExpr.equals('view', ChatViewId),
-		icon: Codicon.settings,
+		icon: Codicon.settingsGear,
 		order: 6
 	});
 }

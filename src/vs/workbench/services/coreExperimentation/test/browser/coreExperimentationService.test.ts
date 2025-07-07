@@ -11,6 +11,7 @@ import { firstSessionDateStorageKey, ITelemetryService, ITelemetryData, Telemetr
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 
 interface ITelemetryEvent {
 	eventName: string;
@@ -72,12 +73,14 @@ suite('CoreExperimentationService', () => {
 	let telemetryService: MockTelemetryService;
 	let productService: MockProductService;
 	let contextKeyService: MockContextKeyService;
+	let environmentService: IWorkbenchEnvironmentService;
 
 	setup(() => {
 		storageService = disposables.add(new TestStorageService());
 		telemetryService = new MockTelemetryService();
 		productService = new MockProductService();
 		contextKeyService = new MockContextKeyService();
+		environmentService = {} as IWorkbenchEnvironmentService;
 	});
 
 	test('should return experiment from storage if it exists', () => {
@@ -97,7 +100,8 @@ suite('CoreExperimentationService', () => {
 			storageService,
 			telemetryService,
 			productService,
-			contextKeyService
+			contextKeyService,
+			environmentService
 		));
 
 		// Should not return experiment again
@@ -120,7 +124,8 @@ suite('CoreExperimentationService', () => {
 				storageService,
 				telemetryService,
 				productService,
-				contextKeyService
+				contextKeyService,
+				environmentService
 			));
 
 			// Should create experiment
@@ -154,7 +159,8 @@ suite('CoreExperimentationService', () => {
 				storageService,
 				telemetryService,
 				productService,
-				contextKeyService
+				contextKeyService,
+				environmentService
 			));
 
 			const experiment = service.getExperiment();
@@ -191,7 +197,8 @@ suite('CoreExperimentationService', () => {
 				storageService,
 				telemetryService,
 				productService,
-				contextKeyService
+				contextKeyService,
+				environmentService
 			));
 
 			// Should not create experiment
@@ -229,7 +236,8 @@ suite('CoreExperimentationService', () => {
 					storageService,
 					telemetryService,
 					productService,
-					contextKeyService
+					contextKeyService,
+					environmentService
 				));
 
 				const experiment = service.getExperiment();
@@ -254,7 +262,8 @@ suite('CoreExperimentationService', () => {
 				storageService,
 				telemetryService,
 				productService,
-				contextKeyService
+				contextKeyService,
+				environmentService
 			));
 
 			const experiment = service.getExperiment();
@@ -285,7 +294,8 @@ suite('CoreExperimentationService', () => {
 				storageService,
 				telemetryService,
 				productService,
-				contextKeyService
+				contextKeyService,
+				environmentService
 			));
 
 			const experiment = service.getExperiment();
@@ -309,7 +319,8 @@ suite('CoreExperimentationService', () => {
 				storageService,
 				telemetryService,
 				productService,
-				contextKeyService
+				contextKeyService,
+				environmentService
 			));
 
 			const experiment = service.getExperiment();

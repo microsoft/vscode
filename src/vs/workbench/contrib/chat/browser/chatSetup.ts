@@ -353,14 +353,14 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 		// check that tools other than setup. and internal tools are registered.
 		for (const tool of languageModelToolsService.getTools()) {
-			if (tool.source.type !== 'internal') {
+			if (tool.id.startsWith('copilot_')) {
 				return; // we have tools!
 			}
 		}
 
 		return Event.toPromise(Event.filter(languageModelToolsService.onDidChangeTools, () => {
 			for (const tool of languageModelToolsService.getTools()) {
-				if (tool.source.type !== 'internal') {
+				if (tool.id.startsWith('copilot_')) {
 					return true; // we have tools!
 				}
 			}
@@ -736,10 +736,6 @@ class ChatSetup {
 		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
 			let alternateProvider: 'off' | 'monochrome' | 'colorful' | 'first' = 'off';
 			if (defaultChat.alternativeProviderId) {
-				if (this.configurationService.getValue('chat.setup.signInWithAlternateProvider')) {
-					alternateProvider = 'colorful'; // TODO@bpasero remove me soon
-				}
-
 				switch (variant) {
 					case 'alternate-first':
 						alternateProvider = 'first';
