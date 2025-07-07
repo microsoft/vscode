@@ -21,6 +21,7 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { CHAT_MCP_POLICY_KEY } from '../../../../platform/policy/common/policyKeys.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, MODE_DEFAULT_SOURCE_FOLDER, MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../common/promptSyntax/config/promptFileLocations.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -259,7 +260,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.mcp.enabled', "Enables integration with Model Context Protocol servers to provide additional tools and functionality."),
 			default: true,
 			policy: {
-				name: 'ChatMCP',
+				name: CHAT_MCP_POLICY_KEY,
 				minimumVersion: '1.99',
 			}
 		},

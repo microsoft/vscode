@@ -7,6 +7,7 @@ import { IStringDictionary } from '../../../../base/common/collections.js';
 import { equals } from '../../../../base/common/objects.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition } from '../../../../platform/policy/common/policy.js';
+import { CHAT_MCP_POLICY_KEY } from '../../../../platform/policy/common/policyKeys.js';
 import { IDefaultAccountService } from '../../accounts/common/defaultAccount.js';
 
 interface IAccountPolicy {
@@ -75,7 +76,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 				updateIfNeeded(key, policy, this.accountPolicy?.chatPreviewFeaturesEnabled);
 			}
 			// MCP
-			else if (key === 'ChatMCP') {
+			else if (key === CHAT_MCP_POLICY_KEY) {
 				updateIfNeeded(key, policy, this.accountPolicy?.mcpEnabled);
 			}
 		}
