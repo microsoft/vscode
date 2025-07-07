@@ -372,6 +372,28 @@ const winLocalLinkClause = '(?:(?:' + `(?:${winDrivePrefix}|${RegexPathConstants
 function detectPathsNoSuffix(line: string, os: OperatingSystem): IParsedLink[] {
 	const results: IParsedLink[] = [];
 
+	// Special handling for PowerShell prompts on Windows
+	// PowerShell prompts have the format "PS <path>" where path can contain spaces
+	if (os === OperatingSystem.Windows) {
+		const powershellMatch = line.match(/^PS\s+([^>]+)>/);
+		if (powershellMatch) {
+			const fullPath = powershellMatch[1];
+			// Verify it looks like a Windows path (has drive letter)
+			if (/^[a-zA-Z]:/.test(fullPath)) {
+				results.push({
+					path: {
+						index: line.indexOf(fullPath),
+						text: fullPath
+					},
+					prefix: undefined,
+					suffix: undefined
+				});
+				// Return early to avoid double-processing with the general regex
+				return results;
+			}
+		}
+	}
+
 	const regex = new RegExp(os === OperatingSystem.Windows ? winLocalLinkClause : unixLocalLinkClause, 'g');
 	let match;
 	while ((match = regex.exec(line)) !== null) {

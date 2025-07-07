@@ -759,5 +759,48 @@ suite('TerminalLinkParsing', () => {
 				[] as IParsedLink[]
 			);
 		});
+		
+		suite('PowerShell prompt path detection with spaces', () => {
+			test('should detect full path with spaces in PowerShell prompt', () => {
+				deepStrictEqual(
+					detectLinks('PS D:\\workspace\\abc def>', OperatingSystem.Windows),
+					[
+						{
+							path: {
+								index: 3,
+								text: 'D:\\workspace\\abc def'
+							},
+							prefix: undefined,
+							suffix: undefined
+						}
+					] as IParsedLink[]
+				);
+			});
+			
+			test('should detect full path with spaces in PowerShell prompt with longer path', () => {
+				deepStrictEqual(
+					detectLinks('PS C:\\Program Files\\My App\\test folder>', OperatingSystem.Windows),
+					[
+						{
+							path: {
+								index: 3,
+								text: 'C:\\Program Files\\My App\\test folder'
+							},
+							prefix: undefined,
+							suffix: undefined
+						}
+					] as IParsedLink[]
+				);
+			});
+			
+			test('should not affect normal path detection without PowerShell prompt', () => {
+				// Normal paths with spaces should still be truncated at the space
+				const result = detectLinks('D:\\workspace\\abc def', OperatingSystem.Windows);
+				strictEqual(result.length > 0, true);
+				if (result.length > 0) {
+					strictEqual(result[0].path.text.includes(' '), false, 'Normal paths should not include spaces');
+				}
+			});
+		});
 	});
 });
