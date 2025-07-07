@@ -50,8 +50,8 @@ export function registerChatExportActions() {
 			// If destination is passed, use it and avoid the fileDialogService
 			// Otherwise, use the fileDialogService
 			let target: URI | undefined;
-			if (dest) {
-				target = typeof dest === 'string' ? URI.file(dest) : dest;
+			if (URI.isUri(dest)) {
+				target = dest;
 			} else {
 				const defaultUri = joinPath(await fileDialogService.defaultFilePath(), defaultFileName);
 				target = await fileDialogService.showSaveDialog({ defaultUri, filters });
