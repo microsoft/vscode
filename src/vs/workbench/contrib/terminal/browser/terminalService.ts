@@ -1017,6 +1017,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		const location = await this.resolveLocation(options?.location) || this.defaultLocation;
 		const parent = await this._getSplitParent(options?.location);
 		this._terminalHasBeenCreated.set(true);
+		this._extensionService.activateByEvent('onTerminal');
 		if (parent) {
 			return this._splitTerminal(shellLaunchConfig, location, parent);
 		}
