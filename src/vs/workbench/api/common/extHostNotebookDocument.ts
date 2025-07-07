@@ -272,24 +272,26 @@ export class ExtHostNotebookDocument {
 			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.ChangeCellContent) {
 				relaxedCellChanges.push({ cell: this._cells[rawEvent.index].apiCell, document: this._cells[rawEvent.index].apiCell.document });
 				
-				// Check if we need to forward this as a document change event
-				// This is a workaround for EOL changes not being properly forwarded to document change events
+				// Forward notebook cell content changes to the document system to ensure
+				// workspace.onDidChangeTextDocument events are fired for extensions.
+				// This addresses the issue where changes in notebook cells (including EOL changes)
+				// were not triggering document change events that extensions expect.
 				const cell = this._cells[rawEvent.index];
 				if (cell && cell.apiCell.document) {
-					// Get the current document data to construct a model changed event
 					const doc = this._textDocumentsAndEditors.getDocument(cell.uri);
 					if (doc) {
-						// Create a minimal model changed event to trigger document change events
-						// This ensures that extensions listening to workspace.onDidChangeTextDocument
-						// receive notifications for notebook cell changes, including EOL changes
+						// Create a document change event to notify extensions listening to
+						// workspace.onDidChangeTextDocument. Since ChangeCellContent events
+						// can include various types of changes (content edits, EOL changes, etc.),
+						// we create a generic change event with empty changes array.
 						this._textDocuments.$acceptModelChanged(cell.uri, {
-							changes: [],
+							changes: [], // Empty changes array for generic content change
 							eol: doc.document.eol === 1 ? '\n' : '\r\n',
-							versionId: doc.document.version,
+							versionId: this._versionId, // Use notebook's version ID which reflects the change
 							isUndoing: false,
 							isRedoing: false,
 							isFlush: false,
-							isEolChange: true, // Mark this as a potential EOL change
+							isEolChange: false, // Don't assume this is specifically an EOL change
 							detailedReason: undefined
 						}, this._isDirty);
 					}
