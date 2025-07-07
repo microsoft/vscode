@@ -48,7 +48,7 @@ export abstract class BaseEdit<T extends BaseReplacement<T>, TEdit extends BaseE
 	 * Normalizes the edit by removing empty replacements and joining touching replacements (if the replacements allow joining).
 	 * Two edits have an equal normalized edit if and only if they have the same effect on any input.
 	 *
-	 * ![](./docs/BaseEdit_normalize.dio.svg)
+	 * ![](./docs/BaseEdit_normalize.dio.png)
 	 *
 	 * Invariant:
 	 * ```
@@ -90,7 +90,7 @@ export abstract class BaseEdit<T extends BaseReplacement<T>, TEdit extends BaseE
 	/**
 	 * Combines two edits into one with the same effect.
 	 *
-	 * ![](./docs/BaseEdit_compose.dio.svg)
+	 * ![](./docs/BaseEdit_compose.dio.png)
 	 *
 	 * Invariant:
 	 * ```

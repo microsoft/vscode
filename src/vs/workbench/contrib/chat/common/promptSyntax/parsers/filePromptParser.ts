@@ -17,7 +17,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 export class FilePromptParser extends BasePromptParser<FilePromptContentProvider> {
 	constructor(
 		uri: URI,
-		options: Partial<IPromptParserOptions>,
+		options: IPromptParserOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
 		@ILogService logService: ILogService,

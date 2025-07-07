@@ -433,16 +433,13 @@ export class CollapsedCodeBlock extends Disposable {
 	) {
 		super();
 		this.element = $('.chat-codeblock-pill-widget');
+		this.element.tabIndex = 0;
 		this.element.classList.add('show-file-icons');
-		this._register(dom.addDisposableListener(this.element, 'click', async () => {
-			if (this._currentDiff) {
-				this.editorService.openEditor({
-					original: { resource: this._currentDiff.originalURI },
-					modified: { resource: this._currentDiff.modifiedURI },
-					options: { transient: true },
-				});
-			} else if (this.uri) {
-				this.editorService.openEditor({ resource: this.uri });
+		this.element.role = 'button';
+		this._register(dom.addDisposableListener(this.element, 'click', () => this._showDiff()));
+		this._register(dom.addDisposableListener(this.element, 'keydown', (e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				this._showDiff();
 			}
 		}));
 		this._register(dom.addDisposableListener(this.element, dom.EventType.CONTEXT_MENU, domEvent => {
@@ -458,6 +455,18 @@ export class CollapsedCodeBlock extends Disposable {
 				},
 			});
 		}));
+	}
+
+	private _showDiff(): void {
+		if (this._currentDiff) {
+			this.editorService.openEditor({
+				original: { resource: this._currentDiff.originalURI },
+				modified: { resource: this._currentDiff.modifiedURI },
+				options: { transient: true },
+			});
+		} else if (this.uri) {
+			this.editorService.openEditor({ resource: this.uri });
+		}
 	}
 
 	render(uri: URI, isStreaming?: boolean): void {

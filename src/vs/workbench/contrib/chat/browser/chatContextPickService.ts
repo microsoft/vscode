@@ -43,18 +43,25 @@ export interface IChatContextValueItem extends IChatContextItem {
 
 export type ChatContextPick = IChatContextPickerPickItem | IQuickPickSeparator;
 
+export interface IChatContextPicker {
+	readonly placeholder: string;
+	/**
+	 * Picks that should either be:
+	 * - A promise that resolves to the picked items
+	 * - A function that maps input query into items to display.
+	 */
+	readonly picks: Promise<ChatContextPick[]> | ((query: IObservable<string>, token: CancellationToken) => IObservable<{ busy: boolean; picks: ChatContextPick[] }>);
+
+	readonly configure?: {
+		label: string;
+		commandId: string;
+	};
+}
+
 export interface IChatContextPickerItem extends IChatContextItem {
 	readonly type: 'pickerPick';
 
-	asPicker(widget: IChatWidget): {
-		readonly placeholder: string;
-		/**
-		 * Picks that should either be:
-		 * - A promise that resolves to the picked items
-		 * - A function that maps input query into items to display.
-		 */
-		readonly picks: Promise<ChatContextPick[]> | ((query: IObservable<string>, token: CancellationToken) => IObservable<{ busy: boolean; picks: ChatContextPick[] }>);
-	};
+	asPicker(widget: IChatWidget): IChatContextPicker;
 }
 
 /**

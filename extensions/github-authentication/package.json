@@ -18,7 +18,8 @@
     "workspace"
   ],
   "enabledApiProposals": [
-    "authIssuers"
+    "authIssuers",
+    "authProviderSpecific"
   ],
   "activationEvents": [],
   "capabilities": {

@@ -8,7 +8,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun } from '../../../../../base/common/observable.js';
-import { basename } from '../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getCodeEditor, ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
@@ -57,7 +57,9 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 					activeEditorDisposables.add(Event.debounce(
 						Event.any(
 							codeEditor.onDidChangeModel,
-							codeEditor.onDidChangeModelLanguage),
+							codeEditor.onDidChangeModelLanguage,
+							codeEditor.onDidChangeCursorSelection,
+							codeEditor.onDidScrollChange),
 						() => undefined,
 						500)(() => this.updateImplicitContext()));
 				}
@@ -71,7 +73,9 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 						if (codeEditor && codeEditor.getModel()?.uri.scheme === Schemas.vscodeNotebookCell) {
 							activeCellDisposables.add(Event.debounce(
 								Event.any(
-									codeEditor.onDidChangeModel),
+									codeEditor.onDidChangeModel,
+									codeEditor.onDidChangeCursorSelection,
+									codeEditor.onDidScrollChange),
 								() => undefined,
 								500)(() => this.updateImplicitContext()));
 						}
@@ -146,18 +150,57 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		const cancelTokenSource = this._currentCancelTokenSource.value = new CancellationTokenSource();
 		const codeEditor = this.findActiveCodeEditor();
 		const model = codeEditor?.getModel();
+		const selection = codeEditor?.getSelection();
 		let newValue: Location | URI | undefined;
-		const isSelection = false;
+		let isSelection = false;
 
 		let languageId: string | undefined;
 		if (model) {
-			newValue = model.uri;
 			languageId = model.getLanguageId();
+			if (selection && !selection.isEmpty()) {
+				newValue = { uri: model.uri, range: selection } satisfies Location;
+				isSelection = true;
+			} else {
+				const visibleRanges = codeEditor?.getVisibleRanges();
+				if (visibleRanges && visibleRanges.length > 0) {
+					// Merge visible ranges. Maybe the reference value could actually be an array of Locations?
+					// Something like a Location with an array of Ranges?
+					let range = visibleRanges[0];
+					visibleRanges.slice(1).forEach(r => {
+						range = range.plusRange(r);
+					});
+					newValue = { uri: model.uri, range } satisfies Location;
+				} else {
+					newValue = model.uri;
+				}
+			}
 		}
 
 		const notebookEditor = this.findActiveNotebookEditor();
 		if (notebookEditor) {
-			newValue = notebookEditor.textModel?.uri;
+			const activeCell = notebookEditor.getActiveCell();
+			if (activeCell) {
+				const codeEditor = this.codeEditorService.getActiveCodeEditor();
+				const selection = codeEditor?.getSelection();
+				const visibleRanges = codeEditor?.getVisibleRanges() || [];
+				newValue = activeCell.uri;
+				if (isEqual(codeEditor?.getModel()?.uri, activeCell.uri)) {
+					if (selection && !selection.isEmpty()) {
+						newValue = { uri: activeCell.uri, range: selection } satisfies Location;
+						isSelection = true;
+					} else if (visibleRanges.length > 0) {
+						// Merge visible ranges. Maybe the reference value could actually be an array of Locations?
+						// Something like a Location with an array of Ranges?
+						let range = visibleRanges[0];
+						visibleRanges.slice(1).forEach(r => {
+							range = range.plusRange(r);
+						});
+						newValue = { uri: activeCell.uri, range } satisfies Location;
+					}
+				}
+			} else {
+				newValue = notebookEditor.textModel?.uri;
+			}
 		}
 
 		const uri = newValue instanceof URI ? newValue : newValue?.uri;
@@ -243,7 +286,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		return this._value;
 	}
 
-	private _enabled = false;
+	private _enabled = true;
 	get enabled() {
 		return this._enabled;
 	}
@@ -259,7 +302,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		this._onDidChangeValue.fire();
 	}
 
-	public async toBaseEntries(): Promise<readonly IChatRequestVariableEntry[]> {
+	public toBaseEntries(): IChatRequestVariableEntry[] {
 		return [{
 			kind: 'file',
 			id: this.id,

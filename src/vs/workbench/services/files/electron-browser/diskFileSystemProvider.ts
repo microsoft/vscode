@@ -68,6 +68,10 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		return this.provider.stat(resource);
 	}
 
+	realpath(resource: URI): Promise<string> {
+		return this.provider.realpath(resource);
+	}
+
 	readdir(resource: URI): Promise<[string, FileType][]> {
 		return this.provider.readdir(resource);
 	}

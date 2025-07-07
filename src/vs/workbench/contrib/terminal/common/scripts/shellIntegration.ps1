@@ -23,7 +23,9 @@ $Global:__VSCodeState = @{
 	IsWindows10 = $false
 }
 
-# Store the nonce in script scope and unset the global
+# Store the nonce in a regular variable and unset the environment variable. It's by design that
+# anything that can execute PowerShell code can read the nonce, as it's basically impossible to hide
+# in PowerShell. The most important thing is getting it out of the environment.
 $Global:__VSCodeState.Nonce = $env:VSCODE_NONCE
 $env:VSCODE_NONCE = $null
 

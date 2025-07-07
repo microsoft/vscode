@@ -115,7 +115,7 @@
 		"type": "label",
 		"name": "*duplicate",
 		"action": "close",
-		"reason": "duplicate",
+		"reason": "not_planned",
 		"comment": "Thanks for creating this issue! We figured it's covering the same as another one we already have. Thus, we closed this one as a duplicate. You can search for [similar existing issues](${duplicateQuery}). See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nHappy Coding!"
 	},
 	{
@@ -521,7 +521,7 @@
 		"action": "updateLabels",
 		"addLabel": "info-needed",
 		"removeLabel": "~info-needed",
-		"comment": "Thanks for creating this issue! We figured it's missing some basic information or in some other way doesn't follow our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). Please take the time to review these and update the issue.\n\nHappy Coding!"
+		"comment": "Thanks for creating this issue! We figured it's missing some basic information or in some other way doesn't follow our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). Please take the time to review these and update the issue.\n\nFor Copilot Issues, be sure to visit our [Copilot-specific guidelines](https://github.com/microsoft/vscode/wiki/Copilot-Issues) page for details on the necessary information.\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
@@ -539,13 +539,13 @@
 		"removeLabel": "~confirmation-needed",
 		"comment": "Please diagnose the root cause of the issue by running the command `F1 > Help: Troubleshoot Issue` and following the instructions. Once you have done that, please update the issue with the results.\n\nHappy Coding!"
 	},
-		{
+	{
 		"type": "label",
 		"name": "~chat-rate-limiting",
 		"removeLabel": "~chat-rate-limiting",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode-copilot-release/issues/2627. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253124. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
 		"type": "label",
@@ -553,7 +553,7 @@
 		"removeLabel": "~chat-request-failed",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode-copilot-release/issues/4332. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253136. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
 		"type": "label",
@@ -561,7 +561,7 @@
 		"removeLabel": "~chat-rai-content-filters",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode-copilot-release/issues/2625. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253130. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
 		"type": "label",
@@ -569,7 +569,7 @@
 		"removeLabel": "~chat-public-code-blocking",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode-copilot-release/issues/2626. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253129. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
 		"type": "label",
@@ -577,7 +577,7 @@
 		"removeLabel": "~chat-lm-unavailable",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode-copilot-release/issues/2116. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253137. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
 		"type": "label",
@@ -585,7 +585,7 @@
 		"removeLabel": "~chat-authentication",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode-copilot-release/issues/11078, if the bug you are experiencing is not there, please comment on this closed issue thread so we can re-open it.",
+		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/253132, if the bug you are experiencing is not there, please comment on this closed issue thread so we can re-open it.",
 		"assign": ["TylerLeonhardt"]
 	},
 	{
@@ -594,6 +594,15 @@
 		"removeLabel": "~chat-no-response-returned",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode-copilot-release/issues/7034. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/253126. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+	},
+		{
+		"type": "label",
+		"name": "~chat-billing",
+		"removeLabel": "~chat-billing",
+		"addLabel":"chat-billing",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/252230. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	}
 ]

@@ -15,6 +15,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import product from '../../../../platform/product/common/product.js';
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../files/browser/fileConstants.js';
 
 const allowedHtmlTags = [
@@ -77,6 +78,7 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 				replaceWithPlaintext: true,
 				allowedTags: allowedHtmlTags,
 				...options?.sanitizerOptions,
+				allowedProductProtocols: [product.urlProtocol]
 			}
 		};
 

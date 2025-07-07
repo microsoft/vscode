@@ -29,6 +29,7 @@ import { getPrefixTrim, mapOutFalsy } from '../utils/utils.js';
 
 const BORDER_WIDTH = 1;
 const WIDGET_SEPARATOR_WIDTH = 1;
+const WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH = 3;
 const BORDER_RADIUS = 4;
 
 export class InlineEditsInsertionView extends Disposable implements IInlineEditsView {
@@ -126,6 +127,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			lineNumber: number;
 			startColumn: number;
 			text: string;
+			inDiffEditor: boolean;
 		} | undefined>,
 		private readonly _tabAction: IObservable<InlineEditTabAction>,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -142,6 +144,9 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 				minReservedLineCount: constObservable(0),
 				targetTextModel: this._editorObs.model.map(model => model ?? undefined),
 				warning: constObservable(undefined),
+				handleInlineCompletionShown: constObservable(() => {
+					// This is a no-op for the insertion view, as it is handled by the InlineEditsView.
+				}),
 			},
 			observableValue(this, { syntaxHighlightingEnabled: true, extraClasses: ['inline-edit'] }),
 			true,
@@ -261,8 +266,9 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			layoutInfo.overlay.bottom
 		)).read(reader);
 
+		const separatorWidth = this._input.map(i => i?.inDiffEditor ? WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH : WIDGET_SEPARATOR_WIDTH).read(reader);
 		const overlayRect = overlayLayoutObs.map(l => l.overlay.withMargin(0, BORDER_WIDTH, 0, l.startsAtContentLeft ? 0 : BORDER_WIDTH).intersectHorizontal(new OffsetRange(overlayHider.left, Number.MAX_SAFE_INTEGER)));
-		const underlayRect = overlayRect.map(rect => rect.withMargin(WIDGET_SEPARATOR_WIDTH, WIDGET_SEPARATOR_WIDTH));
+		const underlayRect = overlayRect.map(rect => rect.withMargin(separatorWidth, separatorWidth));
 
 		return [
 			n.div({
@@ -270,7 +276,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 				style: {
 					...underlayRect.read(reader).toStyles(),
 					borderRadius: BORDER_RADIUS,
-					border: `${BORDER_WIDTH + WIDGET_SEPARATOR_WIDTH}px solid ${asCssVariable(editorBackground)}`,
+					border: `${BORDER_WIDTH + separatorWidth}px solid ${asCssVariable(editorBackground)}`,
 					boxSizing: 'border-box',
 				}
 			}),

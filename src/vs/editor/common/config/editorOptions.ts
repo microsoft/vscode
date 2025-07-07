@@ -58,6 +58,14 @@ export interface IEditorOptions {
 	 */
 	allowVariableLineHeights?: boolean;
 	/**
+	 * This editor is allowed to use variable font-sizes and font-families
+	 */
+	allowVariableFonts?: boolean;
+	/**
+	 * This editor is allowed to use variable font-sizes and font-families in accessibility mode
+	 */
+	allowVariableFontsInAccessibilityMode?: boolean;
+	/**
 	 * The aria label for the editor's textarea (when it is focused).
 	 */
 	ariaLabel?: string;
@@ -1369,13 +1377,6 @@ class EditorEnumOption<K extends EditorOption, T extends string, V> extends Base
 	}
 }
 
-function stringArray(value: any, defaultValue: string[]): string[] {
-	if (!Array.isArray(value)) {
-		return defaultValue;
-	}
-	return value.map(item => String(item));
-}
-
 //#endregion
 
 //#region autoIndent
@@ -1982,6 +1983,26 @@ class EffectiveEditContextEnabled extends ComputedEditorOption<EditorOption.effe
 }
 
 //#endregion
+
+//#region effectiveAllowVariableFonts
+
+class EffectiveAllowVariableFonts extends ComputedEditorOption<EditorOption.effectiveAllowVariableFonts, boolean> {
+
+	constructor() {
+		super(EditorOption.effectiveAllowVariableFonts);
+	}
+
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions): boolean {
+		const accessibilitySupport = env.accessibilitySupport;
+		if (accessibilitySupport === AccessibilitySupport.Enabled) {
+			return options.get(EditorOption.allowVariableFontsInAccessibilityMode);
+		} else {
+			return options.get(EditorOption.allowVariableFonts);
+		}
+	}
+}
+
+//#engregion
 
 //#region fontSize
 
@@ -3761,6 +3782,17 @@ export function filterValidationDecorations(options: IComputedEditorOptions): bo
 
 //#endregion
 
+//#region filterFontDecorations
+
+/**
+ * @internal
+ */
+export function filterFontDecorations(options: IComputedEditorOptions): boolean {
+	return !options.get(EditorOption.effectiveAllowVariableFonts);
+}
+
+//#endregion
+
 //#region rulers
 
 export interface IRulerOption {
@@ -4299,10 +4331,6 @@ export interface IInlineSuggestOptions {
 		* @internal
 		*/
 		enabled?: boolean;
-		/**
-		* @internal
-		*/
-		useMultiLineGhostText?: boolean;
 	};
 
 	/**
@@ -4312,7 +4340,12 @@ export interface IInlineSuggestOptions {
 		/**
 		* @internal
 		*/
-		suppressInlineSuggestions?: string[];
+		suppressInlineSuggestions?: string;
+
+		/**
+		* @internal
+		*/
+		triggerCommandOnProviderChange?: boolean;
 	};
 }
 
@@ -4343,10 +4376,10 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				showCollapsed: false,
 				renderSideBySide: 'auto',
 				allowCodeShifting: 'always',
-				useMultiLineGhostText: true
 			},
 			experimental: {
-				suppressInlineSuggestions: [],
+				suppressInlineSuggestions: '',
+				triggerCommandOnProviderChange: true,
 			},
 		};
 
@@ -4380,10 +4413,16 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					description: nls.localize('inlineSuggest.suppressSuggestions', "Controls how inline suggestions interact with the suggest widget. If enabled, the suggest widget is not shown automatically when inline suggestions are available.")
 				},
 				'editor.inlineSuggest.experimental.suppressInlineSuggestions': {
-					type: 'array',
+					type: 'string',
+					default: defaults.experimental.suppressInlineSuggestions,
 					tags: ['experimental', 'onExp'],
-					items: { type: 'string' },
-					description: nls.localize('inlineSuggest.suppressInlineSuggestions', "Suppresses inline completions for specified extension IDs.")
+					description: nls.localize('inlineSuggest.suppressInlineSuggestions', "Suppresses inline completions for specified extension IDs -- comma separated.")
+				},
+				'editor.inlineSuggest.experimental.triggerCommandOnProviderChange': {
+					type: 'boolean',
+					default: defaults.experimental.triggerCommandOnProviderChange,
+					tags: ['experimental', 'onExp'],
+					description: nls.localize('inlineSuggest.triggerCommandOnProviderChange', "Controls whether to trigger a command when the inline suggestion provider changes.")
 				},
 				'editor.inlineSuggest.fontFamily': {
 					type: 'string',
@@ -4436,10 +4475,10 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				showCollapsed: boolean(input.edits?.showCollapsed, this.defaultValue.edits.showCollapsed),
 				allowCodeShifting: stringSet(input.edits?.allowCodeShifting, this.defaultValue.edits.allowCodeShifting, ['always', 'horizontal', 'never']),
 				renderSideBySide: stringSet(input.edits?.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto']),
-				useMultiLineGhostText: boolean(input.edits?.useMultiLineGhostText, this.defaultValue.edits.useMultiLineGhostText),
 			},
 			experimental: {
-				suppressInlineSuggestions: stringArray(input.experimental?.suppressInlineSuggestions, this.defaultValue.experimental.suppressInlineSuggestions),
+				suppressInlineSuggestions: EditorStringOption.string(input.experimental?.suppressInlineSuggestions, this.defaultValue.experimental.suppressInlineSuggestions),
+				triggerCommandOnProviderChange: boolean(input.experimental?.triggerCommandOnProviderChange, this.defaultValue.experimental.triggerCommandOnProviderChange),
 			},
 		};
 	}
@@ -5506,6 +5545,8 @@ export const enum EditorOption {
 	accessibilitySupport,
 	accessibilityPageSize,
 	allowVariableLineHeights,
+	allowVariableFonts,
+	allowVariableFontsInAccessibilityMode,
 	ariaLabel,
 	ariaRequired,
 	autoClosingBrackets,
@@ -5663,6 +5704,7 @@ export const enum EditorOption {
 	inlineCompletionsAccessibilityVerbose,
 	effectiveEditContext,
 	scrollOnMiddleClick,
+	effectiveAllowVariableFonts
 }
 
 export const EditorOptions = {
@@ -5691,6 +5733,19 @@ export const EditorOptions = {
 		})),
 	allowVariableLineHeights: register(new EditorBooleanOption(
 		EditorOption.allowVariableLineHeights, 'allowVariableLineHeights', true
+	)),
+	allowVariableFonts: register(new EditorBooleanOption(
+		EditorOption.allowVariableFonts, 'allowVariableFonts', true,
+		{
+			description: nls.localize('allowVariableFonts', "Controls whether to allow using variable fonts in the editor.")
+		}
+	)),
+	allowVariableFontsInAccessibilityMode: register(new EditorBooleanOption(
+		EditorOption.allowVariableFontsInAccessibilityMode, 'allowVariableFontsInAccessibilityMode', false,
+		{
+			description: nls.localize('allowVariableFontsInAccessibilityMode', "Controls whether to allow using variable fonts in the editor in the accessibility mode."),
+			tags: ['accessibility']
+		}
 	)),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
@@ -6189,7 +6244,10 @@ export const EditorOptions = {
 	quickSuggestionsDelay: register(new EditorIntOption(
 		EditorOption.quickSuggestionsDelay, 'quickSuggestionsDelay',
 		10, 0, Constants.MAX_SAFE_SMALL_INTEGER,
-		{ description: nls.localize('quickSuggestionsDelay', "Controls the delay in milliseconds after which quick suggestions will show up.") }
+		{
+			description: nls.localize('quickSuggestionsDelay', "Controls the delay in milliseconds after which quick suggestions will show up."),
+			tags: ['onExP']
+		}
 	)),
 	readOnly: register(new EditorBooleanOption(
 		EditorOption.readOnly, 'readOnly', false,
@@ -6507,7 +6565,8 @@ export const EditorOptions = {
 	wrappingInfo: register(new EditorWrappingInfoComputer()),
 	wrappingIndent: register(new WrappingIndentOption()),
 	wrappingStrategy: register(new WrappingStrategy()),
-	effectiveEditContextEnabled: register(new EffectiveEditContextEnabled())
+	effectiveEditContextEnabled: register(new EffectiveEditContextEnabled()),
+	effectiveAllowVariableFonts: register(new EffectiveAllowVariableFonts())
 };
 
 type EditorOptionsType = typeof EditorOptions;

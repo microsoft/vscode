@@ -1117,6 +1117,18 @@ export namespace CompletionItemTag {
 	}
 }
 
+export namespace CompletionCommand {
+	export function from(c: vscode.Command | { command: vscode.Command; icon: vscode.ThemeIcon }, converter: CommandsConverter, disposables: DisposableStore): { command: extHostProtocol.ICommandDto; icon?: languages.IconPath } {
+		if ('icon' in c && 'command' in c) {
+			return {
+				command: converter.toInternal(c.command, disposables),
+				icon: IconPath.fromThemeIcon(c.icon)
+			};
+		}
+		return { command: converter.toInternal(c, disposables) };
+	}
+}
+
 export namespace CompletionItemKind {
 
 	const _from = new Map<types.CompletionItemKind, languages.CompletionItemKind>([

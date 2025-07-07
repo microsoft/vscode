@@ -8,7 +8,7 @@ import { LineRange } from '../../../../../common/core/ranges/lineRange.js';
 import { Position } from '../../../../../common/core/position.js';
 import { TextEdit } from '../../../../../common/core/edits/textEdit.js';
 import { AbstractText } from '../../../../../common/core/text/abstractText.js';
-import { Command } from '../../../../../common/languages.js';
+import { InlineCompletionCommand } from '../../../../../common/languages.js';
 import { InlineSuggestionItem } from '../../model/inlineSuggestionItem.js';
 
 export class InlineEditWithChanges {
@@ -31,7 +31,7 @@ export class InlineEditWithChanges {
 		public readonly originalText: AbstractText,
 		public readonly edit: TextEdit,
 		public readonly cursorPosition: Position,
-		public readonly commands: readonly Command[],
+		public readonly commands: readonly InlineCompletionCommand[],
 		public readonly inlineCompletion: InlineSuggestionItem
 	) {
 	}

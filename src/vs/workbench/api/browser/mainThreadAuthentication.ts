@@ -6,7 +6,7 @@
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import * as nls from '../../../nls.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { IAuthenticationCreateSessionOptions, AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, INTERNAL_AUTH_PROVIDER_PREFIX as INTERNAL_MODEL_AUTH_PROVIDER_PREFIX, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions } from '../../services/authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions } from '../../services/authentication/common/authentication.js';
 import { ExtHostAuthenticationShape, ExtHostContext, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol.js';
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import Severity from '../../../base/common/severity.js';
@@ -53,7 +53,6 @@ export class MainThreadAuthenticationProvider extends Disposable implements IAut
 		public readonly label: string,
 		public readonly supportsMultipleAccounts: boolean,
 		public readonly authorizationServers: ReadonlyArray<URI>,
-		private readonly notificationService: INotificationService,
 		onDidChangeSessionsEmitter: Emitter<AuthenticationSessionsChangeEvent>,
 	) {
 		super();
@@ -64,13 +63,12 @@ export class MainThreadAuthenticationProvider extends Disposable implements IAut
 		return this._proxy.$getSessions(this.id, scopes, options);
 	}
 
-	createSession(scopes: string[], options: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession> {
+	createSession(scopes: string[], options: IAuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
 		return this._proxy.$createSession(this.id, scopes, options);
 	}
 
 	async removeSession(sessionId: string): Promise<void> {
 		await this._proxy.$removeSession(this.id, sessionId);
-		this.notificationService.info(nls.localize('signedOut', "Successfully signed out."));
 	}
 }
 
@@ -153,7 +151,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		const emitter = new Emitter<AuthenticationSessionsChangeEvent>();
 		this._registrations.set(id, emitter);
 		const supportedAuthorizationServerUris = supportedAuthorizationServer.map(i => URI.revive(i));
-		const provider = new MainThreadAuthenticationProvider(this._proxy, id, label, supportsMultipleAccounts, supportedAuthorizationServerUris, this.notificationService, emitter);
+		const provider = new MainThreadAuthenticationProvider(this._proxy, id, label, supportsMultipleAccounts, supportedAuthorizationServerUris, emitter);
 		this.authenticationService.registerAuthenticationProvider(id, provider);
 	}
 
@@ -227,7 +225,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	async $registerDynamicAuthenticationProvider(id: string, label: string, authorizationServer: UriComponents, clientId: string): Promise<void> {
-		await this.$registerAuthenticationProvider(id, label, false, [authorizationServer]);
+		await this.$registerAuthenticationProvider(id, label, true, [authorizationServer]);
 		this.dynamicAuthProviderStorageService.storeClientId(id, URI.revive(authorizationServer).toString(true), clientId, label);
 	}
 
@@ -235,12 +233,27 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		await this.dynamicAuthProviderStorageService.setSessionsForDynamicAuthProvider(authProviderId, clientId, sessions);
 	}
 
+	async $sendDidChangeDynamicProviderInfo({ providerId, clientId, authorizationServer, label }: Partial<{ providerId: string; clientId: string; authorizationServer: UriComponents; label: string }>): Promise<void> {
+		this.logService.info(`Client ID for authentication provider ${providerId} changed to ${clientId}`);
+		const existing = this.dynamicAuthProviderStorageService.getInteractedProviders().find(p => p.providerId === providerId);
+		if (!existing) {
+			throw new Error(`Dynamic authentication provider ${providerId} not found. Has it been registered?`);
+		}
+		this.dynamicAuthProviderStorageService.storeClientId(
+			providerId || existing.providerId,
+			authorizationServer ? URI.revive(authorizationServer).toString(true) : existing.authorizationServer,
+			clientId || existing.clientId,
+			label || existing.label
+		);
+	}
+
 	private async loginPrompt(provider: IAuthenticationProvider, extensionName: string, recreatingSession: boolean, options?: AuthenticationInteractiveOptions): Promise<boolean> {
 		let message: string;
 
-		// An internal provider is a special case which is for model access only.
-		if (provider.id.startsWith(INTERNAL_MODEL_AUTH_PROVIDER_PREFIX)) {
-			message = nls.localize('confirmModelAccess', "The extension '{0}' wants to access the language models provided by {1}.", extensionName, provider.label);
+		// Check if the provider has a custom confirmation message
+		const customMessage = provider.confirmation?.(extensionName, recreatingSession);
+		if (customMessage) {
+			message = customMessage;
 		} else {
 			message = recreatingSession
 				? nls.localize('confirmRelogin', "The extension '{0}' wants you to sign in again using {1}.", extensionName, provider.label)

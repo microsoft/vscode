@@ -24,14 +24,13 @@ export interface IPromptContentsProviderOptions {
 	 * file extension to be treated as a prompt file.
 	 */
 	readonly allowNonPromptFiles: boolean;
+
+	/**
+	 * Language ID to use for the prompt contents. If not set, the language ID will be inferred from the file.
+	 */
+	readonly languageId: string | undefined;
 }
 
-/**
- * Default {@link IPromptContentsProviderOptions} options.
- */
-export const DEFAULT_OPTIONS: IPromptContentsProviderOptions = {
-	allowNonPromptFiles: false,
-};
 
 /**
  * Base class for prompt contents providers. Classes that extend this one are responsible to:
@@ -51,7 +50,7 @@ export abstract class PromptContentsProviderBase<
 	TChangeEvent extends NonNullable<unknown>,
 > extends ObservableDisposable implements IPromptContentsProvider {
 	public abstract readonly uri: URI;
-	public abstract createNew(promptContentsSource: { uri: URI }): IPromptContentsProvider;
+	public abstract createNew(promptContentsSource: { uri: URI }, options: IPromptContentsProviderOptions): IPromptContentsProvider;
 	public abstract override toString(): string;
 	public abstract get languageId(): string;
 	public abstract get sourceName(): string;
@@ -105,20 +104,16 @@ export abstract class PromptContentsProviderBase<
 	protected readonly onChangeEmitter = this._register(new Emitter<TChangeEvent | 'full'>());
 
 	/**
-	 * Options passed to the constructor, extended with
-	 * value defaults from {@link DEFAULT_OPTIONS}.
+	 * Options passed to the constructor
 	 */
 	protected readonly options: IPromptContentsProviderOptions;
 
 	constructor(
-		options: Partial<IPromptContentsProviderOptions>,
+		options: IPromptContentsProviderOptions,
 	) {
 		super();
 
-		this.options = {
-			...DEFAULT_OPTIONS,
-			...options,
-		};
+		this.options = options;
 	}
 
 	/**

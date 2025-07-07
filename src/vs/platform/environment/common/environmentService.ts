@@ -83,9 +83,6 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get sync(): 'on' | 'off' | undefined { return this.args.sync; }
 
 	@memoize
-	get machineSettingsResource(): URI { return joinPath(URI.file(join(this.userDataPath, 'Machine')), 'settings.json'); }
-
-	@memoize
 	get workspaceStorageHome(): URI { return joinPath(this.appSettingsHome, 'workspaceStorage'); }
 
 	@memoize

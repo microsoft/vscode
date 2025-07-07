@@ -36,7 +36,7 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 
 	constructor(
 		private readonly model: ITextModel,
-		options: Partial<IPromptContentsProviderOptions>,
+		options: IPromptContentsProviderOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(options);
@@ -67,7 +67,7 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 
 	public override createNew(
 		promptContentsSource: TextModel | { uri: URI },
-		options: Partial<IPromptContentsProviderOptions> = {},
+		options: IPromptContentsProviderOptions,
 	): IPromptContentsProvider {
 		if (promptContentsSource instanceof TextModel) {
 			return this.instantiationService.createInstance(
