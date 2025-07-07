@@ -263,7 +263,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			sendSoon({ index: fragment.index, part });
 		});
 
-		let value: any;
+		let value: unknown;
 
 		try {
 			value = data.provider.provideLanguageModelResponse(

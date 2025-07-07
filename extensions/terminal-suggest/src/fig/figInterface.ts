@@ -31,12 +31,11 @@ export async function getFigSuggestions(
 	specs: Fig.Spec[],
 	terminalContext: { commandLine: string; cursorPosition: number },
 	availableCommands: ICompletionResource[],
-	prefix: string,
+	currentCommandAndArgString: string,
 	tokenType: TokenType,
 	shellIntegrationCwd: vscode.Uri | undefined,
 	env: Record<string, string>,
 	name: string,
-	precedingText: string,
 	executeExternals: IFigExecuteExternals,
 	token?: vscode.CancellationToken,
 ): Promise<IFigSpecSuggestionsResult> {
@@ -46,6 +45,7 @@ export async function getFigSuggestions(
 		hasCurrentArg: false,
 		items: [],
 	};
+	const currentCommand = currentCommandAndArgString.split(' ')[0];
 	for (const spec of specs) {
 		const specLabels = getFigSuggestionLabel(spec);
 
@@ -66,7 +66,7 @@ export async function getFigSuggestions(
 					const description = getFixSuggestionDescription(spec);
 					result.items.push(createCompletionItem(
 						terminalContext.cursorPosition,
-						prefix,
+						currentCommandAndArgString,
 						{
 							label: { label: specLabel, description },
 							kind: vscode.TerminalCompletionItemKind.Method
@@ -83,8 +83,8 @@ export async function getFigSuggestions(
 				: availableCommands.filter(command => specLabel === (command.definitionCommand ?? (typeof command.label === 'string' ? command.label : command.label.label))));
 			if (
 				!(osIsWindows()
-					? commandAndAliases.some(e => precedingText.startsWith(`${removeAnyFileExtension((typeof e.label === 'string' ? e.label : e.label.label))} `))
-					: commandAndAliases.some(e => precedingText.startsWith(`${typeof e.label === 'string' ? e.label : e.label.label} `)))
+					? commandAndAliases.some(e => currentCommand.startsWith(removeAnyFileExtension((typeof e.label === 'string' ? e.label : e.label.label))))
+					: commandAndAliases.some(e => currentCommand.startsWith(typeof e.label === 'string' ? e.label : e.label.label)))
 			) {
 				continue;
 			}
@@ -93,7 +93,7 @@ export async function getFigSuggestions(
 			if (!actualSpec) {
 				continue;
 			}
-			const completionItemResult = await getFigSpecSuggestions(actualSpec, terminalContext, prefix, shellIntegrationCwd, env, name, executeExternals, token);
+			const completionItemResult = await getFigSpecSuggestions(actualSpec, terminalContext, currentCommandAndArgString, shellIntegrationCwd, env, name, executeExternals, token);
 			result.hasCurrentArg ||= !!completionItemResult?.hasCurrentArg;
 			if (completionItemResult) {
 				result.filesRequested ||= completionItemResult.filesRequested;

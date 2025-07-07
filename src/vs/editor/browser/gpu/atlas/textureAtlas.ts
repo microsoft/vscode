@@ -12,6 +12,7 @@ import { NKeyMap } from '../../../../base/common/map.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
+import type { DecorationStyleCache } from '../css/decorationStyleCache.js';
 import { GlyphRasterizer } from '../raster/glyphRasterizer.js';
 import type { IGlyphRasterizer } from '../raster/raster.js';
 import { IdleTaskQueue, type ITaskQueue } from '../taskQueue.js';
@@ -59,6 +60,7 @@ export class TextureAtlas extends Disposable {
 		/** The maximum texture size supported by the GPU. */
 		private readonly _maxTextureSize: number,
 		options: ITextureAtlasOptions | undefined,
+		private readonly _decorationStyleCache: DecorationStyleCache,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
@@ -88,7 +90,7 @@ export class TextureAtlas extends Disposable {
 		// IMPORTANT: The first glyph on the first page must be an empty glyph such that zeroed out
 		// cells end up rendering nothing
 		// TODO: This currently means the first slab is for 0x0 glyphs and is wasted
-		const nullRasterizer = new GlyphRasterizer(1, '', 1);
+		const nullRasterizer = new GlyphRasterizer(1, '', 1, this._decorationStyleCache);
 		firstPage.getGlyph(nullRasterizer, '', 0, 0);
 		nullRasterizer.dispose();
 	}

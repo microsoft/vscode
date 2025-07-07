@@ -18,7 +18,7 @@ import { serializeEnvironmentDescriptionMap, serializeEnvironmentVariableCollect
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IEnvironmentVariableCollectionDescription, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from '../../../platform/terminal/common/environmentVariable.js';
-import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TerminalShellType } from '../../../platform/terminal/common/terminal.js';
+import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TerminalShellType, WindowsShellType } from '../../../platform/terminal/common/terminal.js';
 import { TerminalDataBufferer } from '../../../platform/terminal/common/terminalDataBuffering.js';
 import { ThemeColor } from '../../../base/common/themables.js';
 import { Promises } from '../../../base/common/async.js';
@@ -27,6 +27,7 @@ import { TerminalCompletionList, TerminalQuickFix, ViewColumn } from './extHostT
 import { IExtHostCommands } from './extHostCommands.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { ISerializedTerminalInstanceContext } from '../../contrib/terminal/common/terminal.js';
+import { isWindows } from '../../../base/common/platform.js';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
 
@@ -781,7 +782,8 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		if (completions === null || completions === undefined) {
 			return undefined;
 		}
-		return TerminalCompletionList.from(completions);
+		const pathSeparator = !isWindows || this.activeTerminal.state?.shell === WindowsShellType.GitBash ? '/' : '\\';
+		return TerminalCompletionList.from(completions, pathSeparator);
 	}
 
 	public $acceptTerminalShellType(id: number, shellType: TerminalShellType | undefined): void {

@@ -13,7 +13,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { IListService, WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { NotificationFocusedContext, NotificationsCenterVisibleContext, NotificationsToastsVisibleContext } from '../../../common/contextkeys.js';
-import { INotificationService, INotificationSourceFilter, NotificationsFilter, Severity } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, INotificationSourceFilter, NotificationsFilter } from '../../../../platform/notification/common/notification.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ActionRunner, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../base/common/actions.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
@@ -86,16 +86,6 @@ export function getNotificationFromContext(listService: IListService, context?: 
 	}
 
 	return undefined;
-}
-
-export function getSeverityPrefix(severity: Severity): string {
-	if (severity === Severity.Error) {
-		return localize('severityPrefix.error', "Error: ");
-	} else if (severity === Severity.Warning) {
-		return localize('severityPrefix.warning', "Warning: ");
-	} else {
-		return localize('severityPrefix.info', "Info: ");
-	}
 }
 
 export function registerNotificationCommands(center: INotificationsCenterController, toasts: INotificationsToastController, model: NotificationsModel): void {

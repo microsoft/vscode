@@ -77,7 +77,7 @@ export interface ISandboxNodeProcess extends INodeProcess {
 	 * - `process.env`: this is the actual environment of the process before this method
 	 * - `shellEnv`   : if the program was not started from a terminal, we resolve all shell
 	 *                  variables to get the same experience as if the program was started from
-	 *                  a terminal
+	 *                  a terminal (Linux, macOS)
 	 * - `userEnv`    : this is instance specific environment, e.g. if the user started the program
 	 *                  from a terminal and changed certain variables
 	 *

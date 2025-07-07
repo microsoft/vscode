@@ -13,9 +13,10 @@ import { IAccessibilitySignalService, AccessibilitySignal } from '../../../../pl
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IListService, WorkbenchList } from '../../../../platform/list/browser/listService.js';
-import { getNotificationFromContext, getSeverityPrefix } from './notificationsCommands.js';
+import { getNotificationFromContext } from './notificationsCommands.js';
 import { NotificationFocusedContext } from '../../../common/contextkeys.js';
 import { INotificationViewItem } from '../../../common/notifications.js';
+import { withSeverityPrefix } from '../../../../platform/notification/common/notification.js';
 
 export class NotificationAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 90;
@@ -56,14 +57,10 @@ export class NotificationAccessibleView implements IAccessibleViewImplementation
 			function getContentForNotification(): string | undefined {
 				const notification = getNotificationFromContext(listService);
 				const message = notification?.message.original.toString();
-				if (!notification) {
+				if (!notification || !message) {
 					return;
 				}
-				// Add severity prefix to match WCAG 4.1.3 Status Messages requirements
-				const severityPrefix = getSeverityPrefix(notification.severity);
-				const messageWithSeverity = `${severityPrefix}${message}`;
-
-				return notification.source ? localize('notification.accessibleViewSrc', '{0} Source: {1}', messageWithSeverity, notification.source) : localize('notification.accessibleView', '{0}', messageWithSeverity);
+				return withSeverityPrefix(notification.source ? localize('notification.accessibleViewSrc', '{0} Source: {1}', message, notification.source) : message, notification.severity);
 			}
 			const content = getContentForNotification();
 			if (!content) {

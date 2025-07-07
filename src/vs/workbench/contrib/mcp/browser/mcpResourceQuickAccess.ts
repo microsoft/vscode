@@ -13,7 +13,6 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ByteSize, IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -22,11 +21,11 @@ import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator } f
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
-import { resolveImageEditorAttachContext } from '../../chat/browser/chatAttachmentResolve.js';
-import { IChatRequestVariableEntry } from '../../chat/common/chatModel.js';
+import { IChatAttachmentResolveService } from '../../chat/browser/chatAttachmentResolveService.js';
+import { IChatRequestVariableEntry } from '../../chat/common/chatVariableEntries.js';
 import { IMcpResource, IMcpResourceTemplate, IMcpServer, IMcpService, isMcpResourceTemplate, McpCapability, McpConnectionState, McpResourceURI } from '../common/mcpTypes.js';
 import { IUriTemplateVariable } from '../common/uriTemplate.js';
-import { openPanelChatAndGetWidget } from './mcpCommands.js';
+import { openPanelChatAndGetWidget } from './openPanelChatAndGetWidget.js';
 
 export class McpResourcePickHelper {
 	public static sep(server: IMcpServer): IQuickPickSeparator {
@@ -41,7 +40,7 @@ export class McpResourcePickHelper {
 		if (isMcpResourceTemplate(resource)) {
 			return {
 				id: resource.template.template,
-				label: resource.name,
+				label: resource.title || resource.name,
 				description: resource.description,
 				detail: localize('mcp.resource.template', 'Resource template: {0}', resource.template.template),
 			};
@@ -49,7 +48,7 @@ export class McpResourcePickHelper {
 
 		return {
 			id: resource.uri.toString(),
-			label: resource.name,
+			label: resource.title || resource.name,
 			description: resource.description,
 			detail: resource.mcpUri + (resource.sizeInBytes !== undefined ? ' (' + ByteSize.formatSize(resource.sizeInBytes) + ')' : ''),
 		};
@@ -75,9 +74,9 @@ export class McpResourcePickHelper {
 	constructor(
 		@IMcpService private readonly _mcpService: IMcpService,
 		@IFileService private readonly _fileService: IFileService,
-		@IDialogService private readonly _dialogService: IDialogService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IChatAttachmentResolveService private readonly _chatAttachmentResolveService: IChatAttachmentResolveService
 	) { }
 
 	public async toAttachment(resource: IMcpResource | IMcpResourceTemplate): Promise<IChatRequestVariableEntry | undefined> {
@@ -98,7 +97,7 @@ export class McpResourcePickHelper {
 	}
 
 	private async _resourceToAttachment(resource: { uri: URI; name: string; mimeType?: string }): Promise<IChatRequestVariableEntry | undefined> {
-		const asImage = await resolveImageEditorAttachContext(this._fileService, this._dialogService, resource.uri, undefined, resource.mimeType);
+		const asImage = await this._chatAttachmentResolveService.resolveImageEditorAttachContext(resource.uri, undefined, resource.mimeType);
 		if (asImage) {
 			return asImage;
 		}
@@ -131,7 +130,7 @@ export class McpResourcePickHelper {
 			return uri;
 		}
 
-		this._notificationService.warn(localize('mcp.resource.template.notFound', "The resource {0} was not found.", McpResourceURI.toServer(uri).resourceURI.toString()));
+		this._notificationService.warn(localize('mcp.resource.template.notFound', "The resource {0} was not found.", McpResourceURI.toServer(uri).resourceURL.toString()));
 		return undefined;
 	}
 

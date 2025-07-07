@@ -104,6 +104,14 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				}
 			});
 		}));
+		this._register(this._editor.onDidChangeFont((e) => {
+			e.changes.forEach((change) => {
+				const lineNumber = change.lineNumber;
+				if (this._widgetState.startLineNumbers.includes(lineNumber)) {
+					this._renderStickyScroll(lineNumber);
+				}
+			});
+		}));
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			this._readConfigurationChange(e);
 		}));

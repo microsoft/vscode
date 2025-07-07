@@ -10,7 +10,7 @@ import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { IModelDecoration, ITextModel, PositionAffinity } from '../model.js';
 import { IViewModelLines } from './viewModelLines.js';
 import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from '../viewModel.js';
-import { filterValidationDecorations } from '../config/editorOptions.js';
+import { filterFontDecorations, filterValidationDecorations } from '../config/editorOptions.js';
 import { StandardTokenType } from '../encodedTokenAttributes.js';
 
 export interface IDecorationsViewportData {
@@ -22,6 +22,10 @@ export interface IDecorationsViewportData {
 	 * inline decorations grouped by each line in the viewport.
 	 */
 	readonly inlineDecorations: InlineDecoration[][];
+	/**
+	 * Whether the decorations affects the fonts.
+	 */
+	readonly hasVariableFonts: boolean;
 }
 
 export class ViewModelDecorations implements IDisposable {
@@ -110,13 +114,14 @@ export class ViewModelDecorations implements IDisposable {
 		return this._cachedModelDecorationsResolver!;
 	}
 
-	public getInlineDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): InlineDecoration[] {
+	public getInlineDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): { inlineDecorations: InlineDecoration[]; hasVariableFonts: boolean } {
 		const range = new Range(lineNumber, this._linesCollection.getViewLineMinColumn(lineNumber), lineNumber, this._linesCollection.getViewLineMaxColumn(lineNumber));
-		return this._getDecorationsInRange(range, onlyMinimapDecorations, onlyMarginDecorations).inlineDecorations[0];
+		const decorations = this._getDecorationsInRange(range, onlyMinimapDecorations, onlyMarginDecorations);
+		return { inlineDecorations: decorations.inlineDecorations[0], hasVariableFonts: decorations.hasVariableFonts };
 	}
 
 	private _getDecorationsInRange(viewRange: Range, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IDecorationsViewportData {
-		const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, filterValidationDecorations(this.configuration.options), onlyMinimapDecorations, onlyMarginDecorations);
+		const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, filterValidationDecorations(this.configuration.options), filterFontDecorations(this.configuration.options), onlyMinimapDecorations, onlyMarginDecorations);
 		const startLineNumber = viewRange.startLineNumber;
 		const endLineNumber = viewRange.endLineNumber;
 
@@ -127,6 +132,7 @@ export class ViewModelDecorations implements IDisposable {
 			inlineDecorations[j - startLineNumber] = [];
 		}
 
+		let hasVariableFonts = false;
 		for (let i = 0, len = modelDecorations.length; i < len; i++) {
 			const modelDecoration = modelDecorations[i];
 			const decorationOptions = modelDecoration.options;
@@ -168,11 +174,15 @@ export class ViewModelDecorations implements IDisposable {
 					inlineDecorations[viewRange.endLineNumber - startLineNumber].push(inlineDecoration);
 				}
 			}
+			if (decorationOptions.affectsFont) {
+				hasVariableFonts = true;
+			}
 		}
 
 		return {
 			decorations: decorationsInViewport,
-			inlineDecorations: inlineDecorations
+			inlineDecorations: inlineDecorations,
+			hasVariableFonts
 		};
 	}
 }

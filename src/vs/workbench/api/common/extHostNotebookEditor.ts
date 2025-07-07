@@ -18,19 +18,16 @@ export class ExtHostNotebookEditor {
 	private _visible: boolean = false;
 
 	private _editor?: vscode.NotebookEditor;
-	private _selections: vscode.NotebookRange[] = [new NotebookRange(0, 0)];
 
 	constructor(
 		readonly id: string,
 		private readonly _proxy: MainThreadNotebookEditorsShape,
 		readonly notebookData: ExtHostNotebookDocument,
 		private _visibleRanges: vscode.NotebookRange[],
-		selections: vscode.NotebookRange[],
+		private _selections: vscode.NotebookRange[],
 		private _viewColumn: vscode.ViewColumn | undefined,
 		private readonly viewType: string
-	) {
-		this._selections = this._validSelections(selections);
-	}
+	) { }
 
 	get apiEditor(): vscode.NotebookEditor {
 		if (!this._editor) {
@@ -52,7 +49,7 @@ export class ExtHostNotebookEditor {
 					if (!Array.isArray(value) || !value.every(extHostTypes.NotebookRange.isNotebookRange)) {
 						throw illegalArgument('selections');
 					}
-					that._selections = that._validSelections(value);
+					that._selections = value.length === 0 ? [new NotebookRange(0, 0)] : value;
 					that._trySetSelections(that._selections);
 				},
 				get visibleRanges() {
@@ -97,7 +94,7 @@ export class ExtHostNotebookEditor {
 	}
 
 	_acceptSelections(selections: vscode.NotebookRange[]): void {
-		this._selections = this._validSelections(selections);
+		this._selections = selections;
 	}
 
 	private _trySetSelections(value: vscode.NotebookRange[]): void {
@@ -106,9 +103,5 @@ export class ExtHostNotebookEditor {
 
 	_acceptViewColumn(value: vscode.ViewColumn | undefined) {
 		this._viewColumn = value;
-	}
-
-	private _validSelections(selections: vscode.NotebookRange[]) {
-		return selections.length === 0 ? [new NotebookRange(0, 0)] : selections;
 	}
 }

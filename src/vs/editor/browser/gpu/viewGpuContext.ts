@@ -24,13 +24,12 @@ import { Event } from '../../../base/common/event.js';
 import { EditorOption, type IEditorOptions } from '../../common/config/editorOptions.js';
 import { InlineDecorationType } from '../../common/viewModel.js';
 import { DecorationStyleCache } from './css/decorationStyleCache.js';
-import { ViewportRenderStrategy } from './renderStrategy/viewportRenderStrategy.js';
 
 export class ViewGpuContext extends Disposable {
 	/**
 	 * The hard cap for line columns rendered by the GPU renderer.
 	 */
-	readonly maxGpuCols = ViewportRenderStrategy.maxSupportedColumns;
+	readonly maxGpuCols = 2000;
 
 	readonly canvas: FastDomNode<HTMLCanvasElement>;
 	readonly ctx: GPUCanvasContext;
@@ -111,7 +110,7 @@ export class ViewGpuContext extends Disposable {
 			}).then(ref => {
 				ViewGpuContext.deviceSync = ref.object;
 				if (!ViewGpuContext._atlas) {
-					ViewGpuContext._atlas = this._instantiationService.createInstance(TextureAtlas, ref.object.limits.maxTextureDimension2D, undefined);
+					ViewGpuContext._atlas = this._instantiationService.createInstance(TextureAtlas, ref.object.limits.maxTextureDimension2D, undefined, ViewGpuContext.decorationStyleCache);
 				}
 				return ref.object;
 			});

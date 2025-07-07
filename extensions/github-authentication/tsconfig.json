@@ -13,6 +13,7 @@
 	"include": [
 		"src/**/*",
 		"../../src/vscode-dts/vscode.d.ts",
-		"../../src/vscode-dts/vscode.proposed.authIssuers.d.ts"
+		"../../src/vscode-dts/vscode.proposed.authIssuers.d.ts",
+		"../../src/vscode-dts/vscode.proposed.authProviderSpecific.d.ts"
 	]
 }

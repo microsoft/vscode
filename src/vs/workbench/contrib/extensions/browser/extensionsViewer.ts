@@ -26,7 +26,6 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IListStyles } from '../../../../base/browser/ui/list/listWidget.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IStyleOverride } from '../../../../platform/theme/browser/defaultStyles.js';
-import { getAriaLabelForExtension } from './extensionsViews.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -36,6 +35,16 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { getLocationBasedViewColors } from '../../../browser/parts/views/viewPane.js';
 import { DelayedPagedModel, IPagedModel } from '../../../../base/common/paging.js';
 import { ExtensionIconWidget } from './extensionsWidgets.js';
+
+function getAriaLabelForExtension(extension: IExtension | null): string {
+	if (!extension) {
+		return '';
+	}
+	const publisher = extension.publisherDomain?.verified ? localize('extension.arialabel.verifiedPublisher', "Verified Publisher {0}", extension.publisherDisplayName) : localize('extension.arialabel.publisher', "Publisher {0}", extension.publisherDisplayName);
+	const deprecated = extension?.deprecationInfo ? localize('extension.arialabel.deprecated', "Deprecated") : '';
+	const rating = extension?.rating ? localize('extension.arialabel.rating', "Rated {0} out of 5 stars by {1} users", extension.rating.toFixed(2), extension.ratingCount) : '';
+	return `${extension.displayName}, ${deprecated ? `${deprecated}, ` : ''}${extension.version}, ${publisher}, ${extension.description} ${rating ? `, ${rating}` : ''}`;
+}
 
 export class ExtensionsList extends Disposable {
 

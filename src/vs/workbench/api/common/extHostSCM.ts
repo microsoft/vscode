@@ -1085,7 +1085,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		}
 	}
 
-	async $provideHistoryItems(sourceControlHandle: number, options: any, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined> {
+	async $provideHistoryItems(sourceControlHandle: number, options: vscode.SourceControlHistoryOptions, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined> {
 		try {
 			const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
 			const historyItems = await historyProvider?.provideHistoryItems(options, token);

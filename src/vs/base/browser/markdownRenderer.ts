@@ -42,6 +42,7 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 export interface ISanitizerOptions {
 	replaceWithPlaintext?: boolean;
 	allowedTags?: string[];
+	allowedProductProtocols?: string[];
 }
 
 const defaultMarkedRenderers = Object.freeze({
@@ -323,7 +324,7 @@ function activateLink(markdown: IMarkdownString, options: MarkdownRenderOptions,
 }
 
 function uriMassage(markdown: IMarkdownString, part: string): string {
-	let data: any;
+	let data: unknown;
 	try {
 		data = parse(decodeURIComponent(part));
 	} catch (e) {
@@ -535,6 +536,10 @@ function getSanitizerOptions(options: IInternalSanitizerOptions): { config: domp
 		allowedSchemes.push(Schemas.command);
 	}
 
+	if (options.allowedProductProtocols) {
+		allowedSchemes.push(...options.allowedProductProtocols);
+	}
+
 	return {
 		config: {
 			// allowedTags should included everything that markdown renders to.
@@ -722,7 +727,7 @@ function completeSingleLinePattern(token: marked.Tokens.Text | marked.Tokens.Par
 			}
 
 			// Contains the start of link text, and no following tokens contain the link target
-			else if (lastLine.match(/(^|\s)\[\w*/)) {
+			else if (lastLine.match(/(^|\s)\[\w*[^\]]*$/)) {
 				return completeLinkText(token);
 			}
 		}
@@ -822,6 +827,12 @@ function completeListItemPattern(list: marked.Tokens.List): marked.Tokens.List |
 	return newList;
 }
 
+function completeHeading(token: marked.Tokens.Heading, fullRawText: string): marked.TokensList | void {
+	if (token.raw.match(/-\s*$/)) {
+		return marked.lexer(fullRawText + ' &nbsp;');
+	}
+}
+
 const maxIncompleteTokensFixRounds = 3;
 export function fillInIncompleteTokens(tokens: marked.TokensList): marked.TokensList {
 	for (let i = 0; i < maxIncompleteTokensFixRounds; i++) {
@@ -846,22 +857,23 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 			newTokens = completeTable(tokens.slice(i));
 			break;
 		}
+	}
 
-		if (i === tokens.length - 1 && token.type === 'list') {
-			const newListToken = completeListItemPattern(token as marked.Tokens.List);
-			if (newListToken) {
-				newTokens = [newListToken];
-				break;
-			}
+	const lastToken = tokens.at(-1);
+	if (!newTokens && lastToken?.type === 'list') {
+		const newListToken = completeListItemPattern(lastToken as marked.Tokens.List);
+		if (newListToken) {
+			newTokens = [newListToken];
+			i = tokens.length - 1;
 		}
+	}
 
-		if (i === tokens.length - 1 && token.type === 'paragraph') {
-			// Only operates on a single token, because any newline that follows this should break these patterns
-			const newToken = completeSingleLinePattern(token as marked.Tokens.Paragraph);
-			if (newToken) {
-				newTokens = [newToken];
-				break;
-			}
+	if (!newTokens && lastToken?.type === 'paragraph') {
+		// Only operates on a single token, because any newline that follows this should break these patterns
+		const newToken = completeSingleLinePattern(lastToken as marked.Tokens.Paragraph);
+		if (newToken) {
+			newTokens = [newToken];
+			i = tokens.length - 1;
 		}
 	}
 
@@ -872,6 +884,13 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 		];
 		(newTokensList as marked.TokensList).links = tokens.links;
 		return newTokensList as marked.TokensList;
+	}
+
+	if (lastToken?.type === 'heading') {
+		const completeTokens = completeHeading(lastToken as marked.Tokens.Heading, mergeRawTokenText(tokens));
+		if (completeTokens) {
+			return completeTokens;
+		}
 	}
 
 	return null;
@@ -891,15 +910,15 @@ function completeUnderscore(tokens: marked.Token): marked.Token {
 }
 
 function completeLinkTarget(tokens: marked.Token): marked.Token {
-	return completeWithString(tokens, ')');
+	return completeWithString(tokens, ')', false);
 }
 
 function completeLinkTargetArg(tokens: marked.Token): marked.Token {
-	return completeWithString(tokens, '")');
+	return completeWithString(tokens, '")', false);
 }
 
 function completeLinkText(tokens: marked.Token): marked.Token {
-	return completeWithString(tokens, '](https://microsoft.com)');
+	return completeWithString(tokens, '](https://microsoft.com)', false);
 }
 
 function completeDoublestar(tokens: marked.Token): marked.Token {
@@ -910,12 +929,13 @@ function completeDoubleUnderscore(tokens: marked.Token): marked.Token {
 	return completeWithString(tokens, '__');
 }
 
-function completeWithString(tokens: marked.Token[] | marked.Token, closingString: string): marked.Token {
+function completeWithString(tokens: marked.Token[] | marked.Token, closingString: string, shouldTrim = true): marked.Token {
 	const mergedRawText = mergeRawTokenText(Array.isArray(tokens) ? tokens : [tokens]);
 
 	// If it was completed correctly, this should be a single token.
 	// Expecting either a Paragraph or a List
-	return marked.lexer(mergedRawText + closingString)[0] as marked.Token;
+	const trimmedRawText = shouldTrim ? mergedRawText.trimEnd() : mergedRawText;
+	return marked.lexer(trimmedRawText + closingString)[0] as marked.Token;
 }
 
 function completeTable(tokens: marked.Token[]): marked.Token[] | undefined {

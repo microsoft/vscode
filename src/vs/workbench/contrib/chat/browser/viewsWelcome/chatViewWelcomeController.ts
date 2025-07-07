@@ -16,9 +16,10 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatAgentLocation } from '../../common/constants.js';
+import { IChatWidgetService } from '../chat.js';
 import { chatViewsWelcomeRegistry, IChatViewsWelcomeDescriptor } from './chatViewsWelcome.js';
 
 const $ = dom.$;
@@ -113,6 +114,15 @@ export interface IChatViewWelcomeContent {
 	message: IMarkdownString | ((disposables: DisposableStore) => HTMLElement);
 	additionalMessage?: string | IMarkdownString;
 	tips?: IMarkdownString;
+	inputPart?: HTMLElement;
+	isExperimental?: boolean;
+	suggestedPrompts?: IChatSuggestedPrompts[];
+}
+
+export interface IChatSuggestedPrompts {
+	icon?: ThemeIcon;
+	label: string;
+	prompt: string;
 }
 
 export interface IChatViewWelcomeRenderOptions {
@@ -130,7 +140,8 @@ export class ChatViewWelcomePart extends Disposable {
 		@IOpenerService private openerService: IOpenerService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILogService private logService: ILogService,
-		@IChatAgentService chatAgentService: IChatAgentService,
+		@IChatWidgetService private chatWidgetService: IChatWidgetService,
+		@ITelemetryService private telemetryService: ITelemetryService,
 	) {
 		super();
 		this.element = dom.$('.chat-welcome-view');
@@ -155,23 +166,64 @@ export class ChatViewWelcomePart extends Disposable {
 			}
 
 			// Message
-			const message = dom.append(this.element, $('.chat-welcome-view-message'));
+			const message = dom.append(this.element, content.isExperimental ? $('.chat-welcome-experimental-view-message') : $('.chat-welcome-view-message'));
 			if (typeof content.message === 'function') {
 				dom.append(message, content.message(this._register(new DisposableStore())));
 			} else {
 				const messageResult = this.renderMarkdownMessageContent(renderer, content.message, options);
 				dom.append(message, messageResult.element);
-
 			}
 
-			// Additional message
-			if (typeof content.additionalMessage === 'string') {
-				const element = $('');
-				element.textContent = content.additionalMessage;
-				dom.append(message, element);
-			} else if (content.additionalMessage) {
-				const additionalMessageResult = this.renderMarkdownMessageContent(renderer, content.additionalMessage, options);
-				dom.append(message, additionalMessageResult.element);
+			if (content.isExperimental && content.inputPart) {
+				content.inputPart.querySelector('.chat-attachments-container')?.remove();
+				dom.append(this.element, content.inputPart);
+
+				if (content.suggestedPrompts && content.suggestedPrompts.length) {
+					// create a tile with icon and label for each suggested promot
+					const suggestedPromptsContainer = dom.append(this.element, $('.chat-welcome-view-suggested-prompts'));
+					for (const prompt of content.suggestedPrompts) {
+						const promptElement = dom.append(suggestedPromptsContainer, $('.chat-welcome-view-suggested-prompt'));
+						if (prompt.icon) {
+							const iconElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-icon'));
+							iconElement.appendChild(renderIcon(prompt.icon));
+						}
+						const labelElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-label'));
+						labelElement.textContent = prompt.label;
+						this._register(dom.addDisposableListener(promptElement, dom.EventType.CLICK, () => {
+
+							type SuggestedPromptClickEvent = { suggestedPrompt: string };
+
+							type SuggestedPromptClickData = {
+								owner: 'bhavyaus';
+								comment: 'Event used to gain insights into when suggested prompts are clicked.';
+								suggestedPrompt: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The suggested prompt clicked.' };
+							};
+
+							this.telemetryService.publicLog2<SuggestedPromptClickEvent, SuggestedPromptClickData>('chat.clickedSuggestedPrompt', {
+								suggestedPrompt: prompt.prompt,
+							});
+
+							this.chatWidgetService.lastFocusedWidget?.focusInput();
+							this.chatWidgetService.lastFocusedWidget?.setInput(prompt.prompt);
+						}));
+					}
+				}
+
+				if (typeof content.additionalMessage === 'string') {
+					const additionalMsg = $('.chat-welcome-view-experimental-additional-message');
+					additionalMsg.textContent = content.additionalMessage;
+					dom.append(this.element, additionalMsg);
+				}
+			} else {
+				// Additional message
+				if (typeof content.additionalMessage === 'string') {
+					const element = $('');
+					element.textContent = content.additionalMessage;
+					dom.append(message, element);
+				} else if (content.additionalMessage) {
+					const additionalMessageResult = this.renderMarkdownMessageContent(renderer, content.additionalMessage, options);
+					dom.append(message, additionalMessageResult.element);
+				}
 			}
 
 			// Tips
