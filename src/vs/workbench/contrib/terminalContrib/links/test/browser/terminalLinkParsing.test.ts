@@ -777,14 +777,30 @@ suite('TerminalLinkParsing', () => {
 				);
 			});
 			
-			test('should detect full path with spaces in PowerShell prompt with longer path', () => {
+			test('should detect full path with spaces in PowerShell prompt with Program Files', () => {
 				deepStrictEqual(
-					detectLinks('PS C:\\Program Files\\My App\\test folder>', OperatingSystem.Windows),
+					detectLinks('PS C:\\Program Files\\My App>', OperatingSystem.Windows),
 					[
 						{
 							path: {
 								index: 3,
-								text: 'C:\\Program Files\\My App\\test folder'
+								text: 'C:\\Program Files\\My App'
+							},
+							prefix: undefined,
+							suffix: undefined
+						}
+					] as IParsedLink[]
+				);
+			});
+			
+			test('should work with PowerShell prompt without spaces', () => {
+				deepStrictEqual(
+					detectLinks('PS D:\\simple>', OperatingSystem.Windows),
+					[
+						{
+							path: {
+								index: 3,
+								text: 'D:\\simple'
 							},
 							prefix: undefined,
 							suffix: undefined
@@ -799,6 +815,16 @@ suite('TerminalLinkParsing', () => {
 				strictEqual(result.length > 0, true);
 				if (result.length > 0) {
 					strictEqual(result[0].path.text.includes(' '), false, 'Normal paths should not include spaces');
+					strictEqual(result[0].path.text, 'D:\\workspace\\abc', 'Path should be truncated at space');
+				}
+			});
+			
+			test('should only match complete PowerShell prompts ending with >', () => {
+				// Should not match incomplete PowerShell prompts
+				const result = detectLinks('PS D:\\workspace\\abc def', OperatingSystem.Windows);
+				if (result.length > 0) {
+					// Should fall back to normal detection and truncate at space
+					strictEqual(result[0].path.text, 'D:\\workspace\\abc', 'Should use normal detection for incomplete PS prompt');
 				}
 			});
 		});

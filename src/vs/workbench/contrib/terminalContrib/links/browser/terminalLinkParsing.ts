@@ -375,7 +375,7 @@ function detectPathsNoSuffix(line: string, os: OperatingSystem): IParsedLink[] {
 	// Special handling for PowerShell prompts on Windows
 	// PowerShell prompts have the format "PS <path>" where path can contain spaces
 	if (os === OperatingSystem.Windows) {
-		const powershellMatch = line.match(/^PS\s+([^>]+)>/);
+		const powershellMatch = line.match(/^PS\s+([^>]+)>$/);
 		if (powershellMatch) {
 			const fullPath = powershellMatch[1];
 			// Verify it looks like a Windows path (has drive letter)
