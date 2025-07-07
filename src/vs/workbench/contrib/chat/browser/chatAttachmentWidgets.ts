@@ -51,12 +51,10 @@ import { CellUri } from '../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
 import { getHistoryItemEditorTitle, getHistoryItemHoverContent } from '../../scm/browser/util.js';
 import { IChatContentReference } from '../common/chatService.js';
-import { IChatRequestPasteVariableEntry, IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState } from '../common/chatVariableEntries.js';
+import { IChatRequestPasteVariableEntry, IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind } from '../common/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelToolsService, ToolSet } from '../common/languageModelToolsService.js';
 import { getCleanPromptName } from '../common/promptSyntax/config/promptFileLocations.js';
-import { PromptsType } from '../common/promptSyntax/promptTypes.js';
-import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 
 abstract class AbstractChatAttachmentWidget extends Disposable {
 	public readonly element: HTMLElement;
@@ -87,6 +85,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		this.label = contextResourceLabels.create(this.element, { supportIcons: true, hoverDelegate, hoverTargetOverride: this.element });
 		this._register(this.label);
 		this.element.tabIndex = 0;
+		this.element.role = 'button';
 
 		// Add middle-click support for removal
 		this._register(dom.addDisposableListener(this.element, dom.EventType.AUXCLICK, (e: MouseEvent) => {
@@ -501,7 +500,6 @@ export class PromptFileAttachmentWidget extends AbstractChatAttachmentWidget {
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IPromptsService private readonly promptService: IPromptsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
@@ -524,7 +522,7 @@ export class PromptFileAttachmentWidget extends AbstractChatAttachmentWidget {
 		const fileBasename = basename(resource.path);
 		const fileDirname = dirname(resource.path);
 		const friendlyName = `${fileBasename} ${fileDirname}`;
-		const isPrompt = this.promptService.getPromptFileType(resource) === PromptsType.prompt;
+		const isPrompt = attachment.id.startsWith(PromptFileVariableKind.PromptFile);
 		const ariaLabel = isPrompt
 			? localize('chat.promptAttachment', "Prompt file, {0}", friendlyName)
 			: localize('chat.instructionsAttachment', "Instructions attachment, {0}", friendlyName);

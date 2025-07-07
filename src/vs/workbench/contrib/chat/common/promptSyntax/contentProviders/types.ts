@@ -10,6 +10,7 @@ import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { PromptsType } from '../promptTypes.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { IPromptContentsProviderOptions } from './promptContentsProviderBase.js';
 
 /**
  * Interface for a prompt contents provider. Prompt contents providers are
@@ -64,5 +65,6 @@ export interface IPromptContentsProvider extends IDisposable {
 	 */
 	createNew(
 		promptContentsSource: { uri: URI },
+		options: IPromptContentsProviderOptions,
 	): IPromptContentsProvider;
 }

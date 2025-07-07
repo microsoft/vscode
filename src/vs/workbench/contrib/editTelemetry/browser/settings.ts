@@ -3,6 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { PromptModeMetadata } from './mode.js';
-export { PromptToolsMetadata } from './tools.js';
-export { PromptDescriptionMetadata } from './description.js';
+export const EDIT_TELEMETRY_SETTING_ID = 'telemetry.editStats.enabled';
+export const EDIT_TELEMETRY_SHOW_DECORATIONS = 'telemetry.editStats.showDecorations';
+export const EDIT_TELEMETRY_SHOW_STATUS_BAR = 'telemetry.editStats.showStatusBar';

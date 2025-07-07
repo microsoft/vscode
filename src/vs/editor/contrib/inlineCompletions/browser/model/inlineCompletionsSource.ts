@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareUndefinedSmallest, numberComparator } from '../../../../../base/common/arrays.js';
+import { booleanComparator, compareBy, compareUndefinedSmallest, numberComparator } from '../../../../../base/common/arrays.js';
 import { findLastMax } from '../../../../../base/common/arraysFind.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { equalsIfDefined, itemEquals } from '../../../../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { derived, IObservable, IObservableWithChange, ITransaction, observableValue, recordChanges, transaction } from '../../../../../base/common/observable.js';
+import { derived, IObservable, IObservableWithChange, ITransaction, observableValue, recordChangesLazy, transaction } from '../../../../../base/common/observable.js';
 // eslint-disable-next-line local/code-no-deep-import-of-internal
 import { observableReducerSettable } from '../../../../../base/common/observableInternal/experimental/reducer.js';
 import { isDefined } from '../../../../../base/common/types.js';
@@ -27,21 +27,47 @@ import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js
 import { formatRecordableLogEntry, IRecordableEditorLogEntry, IRecordableLogEntry, StructuredLogger } from '../structuredLogger.js';
 import { wait } from '../utils.js';
 import { InlineSuggestionIdentity, InlineSuggestionItem } from './inlineSuggestionItem.js';
-import { InlineCompletionContextWithoutUuid, InlineCompletionEditorType, provideInlineCompletions, runWhenCancelled } from './provideInlineCompletions.js';
+import { InlineCompletionContextWithoutUuid, InlineSuggestRequestInfo, provideInlineCompletions, runWhenCancelled } from './provideInlineCompletions.js';
 
 export class InlineCompletionsSource extends Disposable {
 	private static _requestId = 0;
 
-	private readonly _updateOperation;
+	private readonly _updateOperation = this._register(new MutableDisposable<UpdateOperation>());
 
 	private readonly _loggingEnabled;
 
 	private readonly _structuredFetchLogger;
 
-	private readonly _state;
+	private readonly _state = observableReducerSettable(this, {
+		initial: () => ({
+			inlineCompletions: InlineCompletionsState.createEmpty(),
+			suggestWidgetInlineCompletions: InlineCompletionsState.createEmpty(),
+		}),
+		disposeFinal: (values) => {
+			values.inlineCompletions.dispose();
+			values.suggestWidgetInlineCompletions.dispose();
+		},
+		changeTracker: recordChangesLazy(() => ({ versionId: this._versionId })),
+		update: (reader, previousValue, changes) => {
+			const edit = StringEdit.compose(changes.changes.map(c => c.change ? offsetEditFromContentChanges(c.change.changes) : StringEdit.empty).filter(isDefined));
 
-	public readonly inlineCompletions;
-	public readonly suggestWidgetInlineCompletions;
+			if (edit.isEmpty()) {
+				return previousValue;
+			}
+			try {
+				return {
+					inlineCompletions: previousValue.inlineCompletions.createStateWithAppliedEdit(edit, this._textModel),
+					suggestWidgetInlineCompletions: previousValue.suggestWidgetInlineCompletions.createStateWithAppliedEdit(edit, this._textModel),
+				};
+			} finally {
+				previousValue.inlineCompletions.dispose();
+				previousValue.suggestWidgetInlineCompletions.dispose();
+			}
+		}
+	});
+
+	public readonly inlineCompletions = this._state.map(this, v => v.inlineCompletions);
+	public readonly suggestWidgetInlineCompletions = this._state.map(this, v => v.suggestWidgetInlineCompletions);
 
 	constructor(
 		private readonly _textModel: ITextModel,
@@ -51,10 +77,9 @@ export class InlineCompletionsSource extends Disposable {
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
-		this._updateOperation = this._register(new MutableDisposable<UpdateOperation>());
 		this._loggingEnabled = observableConfigValue('editor.inlineSuggest.logFetch', false, this._configurationService).recomputeInitiallyAndOnChange(this._store);
 		this._structuredFetchLogger = this._register(this._instantiationService.createInstance(StructuredLogger.cast<
 			{ kind: 'start'; requestId: number; context: unknown } & IRecordableEditorLogEntry
@@ -62,50 +87,18 @@ export class InlineCompletionsSource extends Disposable {
 		>(),
 			'editor.inlineSuggest.logFetch.commandId'
 		));
-		this._state = observableReducerSettable(this, {
-			initial: () => ({
-				inlineCompletions: InlineCompletionsState.createEmpty(),
-				suggestWidgetInlineCompletions: InlineCompletionsState.createEmpty(),
-			}),
-			disposeFinal: (values) => {
-				values.inlineCompletions.dispose();
-				values.suggestWidgetInlineCompletions.dispose();
-			},
-			changeTracker: recordChanges({ versionId: this._versionId }),
-			update: (reader, previousValue, changes) => {
-				const edit = StringEdit.compose(changes.changes.map(c => c.change ? offsetEditFromContentChanges(c.change.changes) : StringEdit.empty).filter(isDefined));
-
-				if (edit.isEmpty()) {
-					return previousValue;
-				}
-				try {
-					return {
-						inlineCompletions: previousValue.inlineCompletions.createStateWithAppliedEdit(edit, this._textModel),
-						suggestWidgetInlineCompletions: previousValue.suggestWidgetInlineCompletions.createStateWithAppliedEdit(edit, this._textModel),
-					};
-				} finally {
-					previousValue.inlineCompletions.dispose();
-					previousValue.suggestWidgetInlineCompletions.dispose();
-				}
-			}
-		});
-		this.inlineCompletions = this._state.map(this, v => v.inlineCompletions);
-		this.suggestWidgetInlineCompletions = this._state.map(this, v => v.suggestWidgetInlineCompletions);
-		this.clearOperationOnTextModelChange = derived(this, reader => {
-			this._versionId.read(reader);
-			this._updateOperation.clear();
-			return undefined; // always constant
-		});
-		this._loadingCount = observableValue(this, 0);
-		this.loading = this._loadingCount.map(this, v => v > 0);
 
 		this.clearOperationOnTextModelChange.recomputeInitiallyAndOnChange(this._store);
 	}
 
-	public readonly clearOperationOnTextModelChange;
+	public readonly clearOperationOnTextModelChange = derived(this, reader => {
+		this._versionId.read(reader);
+		this._updateOperation.clear();
+		return undefined; // always constant
+	});
 
 	private _log(entry:
-		{ sourceId: string; kind: 'start'; requestId: number; context: unknown } & IRecordableEditorLogEntry
+		{ sourceId: string; kind: 'start'; requestId: number; context: unknown; provider: string | undefined } & IRecordableEditorLogEntry
 		| { sourceId: string; kind: 'end'; error: unknown; durationMs: number; result: unknown; requestId: number; didAllProvidersReturn: boolean } & IRecordableLogEntry
 	) {
 		if (this._loggingEnabled.get()) {
@@ -114,12 +107,21 @@ export class InlineCompletionsSource extends Disposable {
 		this._structuredFetchLogger.log(entry);
 	}
 
-	private readonly _loadingCount;
-	public readonly loading;
+	private readonly _loadingCount = observableValue(this, 0);
+	public readonly loading = this._loadingCount.map(this, v => v > 0);
 
-	public fetch(providers: InlineCompletionsProvider[], context: InlineCompletionContextWithoutUuid, activeInlineCompletion: InlineSuggestionIdentity | undefined, withDebounce: boolean, userJumpedToActiveCompletion: IObservable<boolean>, providerhasChangedCompletion: boolean, editorType: InlineCompletionEditorType): Promise<boolean> {
+	public fetch(
+		providers: InlineCompletionsProvider[],
+		providersLabel: string | undefined,
+		context: InlineCompletionContextWithoutUuid,
+		activeInlineCompletion: InlineSuggestionIdentity | undefined,
+		withDebounce: boolean,
+		userJumpedToActiveCompletion: IObservable<boolean>,
+		providerhasChangedCompletion: boolean,
+		requestInfo: InlineSuggestRequestInfo
+	): Promise<boolean> {
 		const position = this._cursorPosition.get();
-		const request = new UpdateRequest(position, context, this._textModel.getVersionId());
+		const request = new UpdateRequest(position, context, this._textModel.getVersionId(), new Set(providers));
 
 		const target = context.selectedSuggestionInfo ? this.suggestWidgetInlineCompletions.get() : this.inlineCompletions.get();
 
@@ -157,11 +159,20 @@ export class InlineCompletionsSource extends Disposable {
 
 				const requestId = InlineCompletionsSource._requestId++;
 				if (this._loggingEnabled.get() || this._structuredFetchLogger.isEnabled.get()) {
-					this._log({ sourceId: 'InlineCompletions.fetch', kind: 'start', requestId, modelUri: this._textModel.uri, modelVersion: this._textModel.getVersionId(), context: { triggerKind: context.triggerKind }, time: Date.now() });
+					this._log({
+						sourceId: 'InlineCompletions.fetch',
+						kind: 'start',
+						requestId,
+						modelUri: this._textModel.uri,
+						modelVersion: this._textModel.getVersionId(),
+						context: { triggerKind: context.triggerKind, suggestInfo: context.selectedSuggestionInfo ? true : undefined },
+						time: Date.now(),
+						provider: providersLabel,
+					});
 				}
 
 				const startTime = new Date();
-				const providerResult = provideInlineCompletions(providers, this._cursorPosition.get(), this._textModel, context, editorType, this._languageConfigurationService);
+				const providerResult = provideInlineCompletions(providers, this._cursorPosition.get(), this._textModel, context, requestInfo, this._languageConfigurationService);
 
 				runWhenCancelled(source.token, () => providerResult.cancelAndDispose({ kind: 'tokenCancellation' }));
 
@@ -307,6 +318,7 @@ class UpdateRequest {
 		public readonly position: Position,
 		public readonly context: InlineCompletionContextWithoutUuid,
 		public readonly versionId: number,
+		public readonly providers: Set<InlineCompletionsProvider>,
 	) {
 	}
 
@@ -315,12 +327,17 @@ class UpdateRequest {
 			&& equalsIfDefined(this.context.selectedSuggestionInfo, other.context.selectedSuggestionInfo, itemEquals())
 			&& (other.context.triggerKind === InlineCompletionTriggerKind.Automatic
 				|| this.context.triggerKind === InlineCompletionTriggerKind.Explicit)
-			&& this.versionId === other.versionId;
+			&& this.versionId === other.versionId
+			&& isSubset(other.providers, this.providers);
 	}
 
 	public get isExplicitRequest() {
 		return this.context.triggerKind === InlineCompletionTriggerKind.Explicit;
 	}
+}
+
+function isSubset<T>(set1: Set<T>, set2: Set<T>): boolean {
+	return [...set1].every(item => set2.has(item));
 }
 
 class UpdateOperation implements IDisposable {
@@ -376,16 +393,18 @@ class InlineCompletionsState extends Disposable {
 		return new InlineCompletionsState(newInlineCompletions, this.request);
 	}
 
-	public createStateWithAppliedResults(updatedSuggestions: InlineSuggestionItem[], request: UpdateRequest, textModel: ITextModel, cursorPosition: Position, itemIdToPreserve: InlineSuggestionIdentity | undefined): InlineCompletionsState {
-		let updatedItems: InlineSuggestionItem[] = [];
-
+	public createStateWithAppliedResults(updatedSuggestions: InlineSuggestionItem[], request: UpdateRequest, textModel: ITextModel, cursorPosition: Position, itemIdToPreserveAtTop: InlineSuggestionIdentity | undefined): InlineCompletionsState {
 		let itemToPreserve: InlineSuggestionItem | undefined = undefined;
-		if (itemIdToPreserve) {
-			const preserveCandidate = this._findById(itemIdToPreserve);
-			if (preserveCandidate) {
-				const updatedSuggestionsHasItemToPreserve = updatedSuggestions.some(i => i.hash === preserveCandidate.hash);
-				if (!updatedSuggestionsHasItemToPreserve && preserveCandidate.canBeReused(textModel, request.position)) {
-					itemToPreserve = preserveCandidate;
+		if (itemIdToPreserveAtTop) {
+			const itemToPreserveCandidate = this._findById(itemIdToPreserveAtTop);
+			if (itemToPreserveCandidate && itemToPreserveCandidate.canBeReused(textModel, request.position)) {
+				itemToPreserve = itemToPreserveCandidate;
+
+				const updatedItemToPreserve = updatedSuggestions.find(i => i.hash === itemToPreserveCandidate.hash);
+				if (updatedItemToPreserve) {
+					updatedSuggestions = moveToFront(updatedItemToPreserve, updatedSuggestions);
+				} else {
+					updatedSuggestions = [itemToPreserveCandidate, ...updatedSuggestions];
 				}
 			}
 		}
@@ -396,21 +415,23 @@ class InlineCompletionsState extends Disposable {
 			// Otherwise: prefer inline completion if there is a visible one
 			: updatedSuggestions.some(i => !i.isInlineEdit && i.isVisible(textModel, cursorPosition));
 
+		let updatedItems: InlineSuggestionItem[] = [];
 		for (const i of updatedSuggestions) {
 			const oldItem = this._findByHash(i.hash);
-			if (oldItem) {
-				updatedItems.push(i.withIdentity(oldItem.identity));
+			let item;
+			if (oldItem && oldItem !== i) {
+				item = i.withIdentity(oldItem.identity);
 				oldItem.setEndOfLifeReason({ kind: InlineCompletionEndOfLifeReasonKind.Ignored, userTypingDisagreed: false, supersededBy: i.getSourceCompletion() });
 			} else {
-				updatedItems.push(i);
+				item = i;
+			}
+			if (preferInlineCompletions !== item.isInlineEdit) {
+				updatedItems.push(item);
 			}
 		}
 
-		if (itemToPreserve) {
-			updatedItems.unshift(itemToPreserve);
-		}
-
-		updatedItems = preferInlineCompletions ? updatedItems.filter(i => !i.isInlineEdit) : updatedItems.filter(i => i.isInlineEdit);
+		updatedItems.sort(compareBy(i => i.showInlineEditMenu, booleanComparator));
+		updatedItems = distinctByKey(updatedItems, i => i.semanticId);
 
 		return new InlineCompletionsState(updatedItems, request);
 	}
@@ -418,4 +439,25 @@ class InlineCompletionsState extends Disposable {
 	public clone(): InlineCompletionsState {
 		return new InlineCompletionsState(this.inlineCompletions, this.request);
 	}
+}
+
+/** Keeps the first item in case of duplicates. */
+function distinctByKey<T>(items: T[], key: (item: T) => unknown): T[] {
+	const seen = new Set();
+	return items.filter(item => {
+		const k = key(item);
+		if (seen.has(k)) {
+			return false;
+		}
+		seen.add(k);
+		return true;
+	});
+}
+
+function moveToFront<T>(item: T, items: T[]): T[] {
+	const index = items.indexOf(item);
+	if (index > -1) {
+		return [item, ...items.slice(0, index), ...items.slice(index + 1)];
+	}
+	return items;
 }
