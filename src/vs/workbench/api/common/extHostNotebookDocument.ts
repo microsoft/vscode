@@ -5,6 +5,7 @@
 
 import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
+import { ISerializedModelContentChangedEvent } from '../../../editor/common/textModelEvents.js';
 import * as extHostProtocol from './extHost.protocol.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
@@ -270,6 +271,29 @@ export class ExtHostNotebookDocument {
 
 			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.ChangeCellContent) {
 				relaxedCellChanges.push({ cell: this._cells[rawEvent.index].apiCell, document: this._cells[rawEvent.index].apiCell.document });
+				
+				// Check if we need to forward this as a document change event
+				// This is a workaround for EOL changes not being properly forwarded to document change events
+				const cell = this._cells[rawEvent.index];
+				if (cell && cell.apiCell.document) {
+					// Get the current document data to construct a model changed event
+					const doc = this._textDocumentsAndEditors.getDocument(cell.uri);
+					if (doc) {
+						// Create a minimal model changed event to trigger document change events
+						// This ensures that extensions listening to workspace.onDidChangeTextDocument
+						// receive notifications for notebook cell changes, including EOL changes
+						this._textDocuments.$acceptModelChanged(cell.uri, {
+							changes: [],
+							eol: doc.document.eol === 1 ? '\n' : '\r\n',
+							versionId: doc.document.version,
+							isUndoing: false,
+							isRedoing: false,
+							isFlush: false,
+							isEolChange: true, // Mark this as a potential EOL change
+							detailedReason: undefined
+						}, this._isDirty);
+					}
+				}
 
 			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.ChangeCellMime) {
 				this._changeCellMime(rawEvent.index, rawEvent.mime);
