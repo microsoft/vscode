@@ -10,18 +10,12 @@ import { SortBy, SortOrder } from '../../extensionManagement/common/extensionMan
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IMcpServerConfiguration, IMcpServerVariable } from './mcpPlatformTypes.js';
 
-export interface IScannedMcpServer {
-	readonly id: string;
-	readonly name: string;
-	readonly version?: string;
-	readonly gallery?: boolean;
-	readonly config: IMcpServerConfiguration;
-}
+export type InstallSource = 'gallery' | 'local';
 
 export interface ILocalMcpServer {
 	readonly name: string;
 	readonly config: IMcpServerConfiguration;
-	readonly version: string;
+	readonly version?: string;
 	readonly mcpResource: URI;
 	readonly location?: URI;
 	readonly id?: string;
@@ -38,6 +32,7 @@ export interface ILocalMcpServer {
 	};
 	readonly codicon?: string;
 	readonly manifest?: IMcpServerManifest;
+	readonly source: InstallSource;
 }
 
 export interface IMcpServerInput {
@@ -142,7 +137,7 @@ export interface IMcpGalleryService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): boolean;
 	query(options?: IQueryOptions, token?: CancellationToken): Promise<IGalleryMcpServer[]>;
-	getMcpServer(server: string): Promise<IGalleryMcpServer | undefined>;
+	getMcpServers(servers: string[]): Promise<IGalleryMcpServer[]>;
 	getManifest(extension: IGalleryMcpServer, token: CancellationToken): Promise<IMcpServerManifest>;
 	getReadme(extension: IGalleryMcpServer, token: CancellationToken): Promise<string>;
 }
@@ -182,9 +177,9 @@ export type UninstallOptions = {
 };
 
 export interface IInstallableMcpServer {
-	name: string;
-	config: IMcpServerConfiguration;
-	inputs?: IMcpServerVariable[];
+	readonly name: string;
+	readonly config: IMcpServerConfiguration;
+	readonly inputs?: IMcpServerVariable[];
 }
 
 export const IMcpManagementService = createDecorator<IMcpManagementService>('IMcpManagementService');
@@ -198,6 +193,7 @@ export interface IMcpManagementService {
 	getInstalled(mcpResource?: URI): Promise<ILocalMcpServer[]>;
 	install(server: IInstallableMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
 	installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
+	updateMetadata(local: ILocalMcpServer, server: IGalleryMcpServer, profileLocation?: URI): Promise<ILocalMcpServer>;
 	uninstall(server: ILocalMcpServer, options?: UninstallOptions): Promise<void>;
 }
 

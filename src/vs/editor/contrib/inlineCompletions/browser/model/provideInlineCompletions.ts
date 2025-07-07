@@ -16,7 +16,7 @@ import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
-import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, PartialAcceptInfo, InlineCompletionsDisposeReason, LifetimeSummary, InlineCompletionTriggerKind } from '../../../../common/languages.js';
+import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, PartialAcceptInfo, InlineCompletionsDisposeReason, LifetimeSummary } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { fixBracketsInLine } from '../../../../common/model/bracketPairsTextModelPart/fixBrackets.js';
@@ -104,6 +104,9 @@ export function provideInlineCompletions(
 			runWhenCancelled(cancellationTokenSource.token, () => {
 				return list.removeRef(cancelReason);
 			});
+			if (cancellationTokenSource.token.isCancellationRequested) {
+				return undefined; // The list is disposed now, so we cannot return the items!
+			}
 
 			for (const item of result.items) {
 				data.push(toInlineSuggestData(item, list, defaultReplaceRange, model, languageConfigurationService, contextWithUuid, requestInfo));
@@ -241,6 +244,7 @@ export type InlineSuggestRequestInfo = {
 	startTime: number;
 	editorType: InlineCompletionEditorType;
 	languageId: string;
+	reason: string;
 };
 
 export type InlineSuggestViewData = {
@@ -344,9 +348,9 @@ export class InlineSuggestData {
 				timeUntilShown: this._timeUntilShown,
 				editorType: this._viewData.editorType,
 				languageId: this._requestInfo.languageId,
+				requestReason: this._requestInfo.reason,
 				viewKind: this._viewData.viewKind,
 				error: this._viewData.error,
-				isExplicitRequest: this.context.triggerKind === InlineCompletionTriggerKind.Explicit,
 				...this._viewData.renderData,
 			};
 			this.source.provider.handleEndOfLifetime(this.source.inlineSuggestions, this.sourceInlineCompletion, reason, summary);
@@ -414,7 +418,8 @@ export interface IDisplayLocation {
 
 export enum InlineCompletionEditorType {
 	TextEditor = 'textEditor',
-	DiffEditor = 'diffEditor'
+	DiffEditor = 'diffEditor',
+	Notebook = 'notebook',
 }
 
 /**

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assertNever } from '../../../base/common/assert.js';
 import { Queue } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
@@ -16,35 +17,26 @@ import { FileOperationResult, IFileService, toFileOperationResult } from '../../
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
-import { IScannedMcpServer } from './mcpManagement.js';
-import { IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration } from './mcpPlatformTypes.js';
+import { IInstallableMcpServer } from './mcpManagement.js';
+import { ICommonMcpServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from './mcpPlatformTypes.js';
 
 interface IScannedMcpServers {
-	servers?: IStringDictionary<Mutable<IScannedMcpServer>>;
+	servers?: IStringDictionary<Mutable<IMcpServerConfiguration>>;
 	inputs?: IMcpServerVariable[];
 }
 
-interface IScannedWorkspaceFolderMcpServers {
-	servers?: IStringDictionary<IMcpServerConfiguration>;
-	inputs?: IMcpServerVariable[];
+interface IOldScannedMcpServer {
+	id: string;
+	name: string;
+	version?: string;
+	gallery?: boolean;
+	config: Mutable<IMcpServerConfiguration>;
 }
+
 interface IScannedWorkspaceMcpServers {
 	settings?: {
-		mcp?: IScannedWorkspaceFolderMcpServers;
+		mcp?: IScannedMcpServers;
 	};
-}
-
-export interface ProfileMcpServersEvent {
-	readonly servers: readonly IScannedMcpServer[];
-	readonly profileLocation: URI;
-}
-
-export interface DidAddProfileMcpServersEvent extends ProfileMcpServersEvent {
-	readonly error?: Error;
-}
-
-export interface DidRemoveProfileMcpServersEvent extends ProfileMcpServersEvent {
-	readonly error?: Error;
 }
 
 export type McpResourceTarget = ConfigurationTarget.USER | ConfigurationTarget.WORKSPACE | ConfigurationTarget.WORKSPACE_FOLDER;
@@ -53,14 +45,14 @@ export const IMcpResourceScannerService = createDecorator<IMcpResourceScannerSer
 export interface IMcpResourceScannerService {
 	readonly _serviceBrand: undefined;
 	scanMcpServers(mcpResource: URI, target?: McpResourceTarget): Promise<IScannedMcpServers>;
-	addMcpServers(servers: { server: IScannedMcpServer; inputs?: IMcpServerVariable[] }[], mcpResource: URI, target?: McpResourceTarget): Promise<IScannedMcpServer[]>;
+	addMcpServers(servers: IInstallableMcpServer[], mcpResource: URI, target?: McpResourceTarget): Promise<void>;
 	removeMcpServers(serverNames: string[], mcpResource: URI, target?: McpResourceTarget): Promise<void>;
 }
 
 export class McpResourceScannerService extends Disposable implements IMcpResourceScannerService {
 	readonly _serviceBrand: undefined;
 
-	private readonly resourcesAccessQueueMap = new ResourceMap<Queue<any>>();
+	private readonly resourcesAccessQueueMap = new ResourceMap<Queue<IScannedMcpServers>>();
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -73,14 +65,12 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 		return this.withProfileMcpServers(mcpResource, target);
 	}
 
-	async addMcpServers(servers: { server: IScannedMcpServer; inputs?: IMcpServerVariable[] }[], mcpResource: URI, target?: McpResourceTarget): Promise<IScannedMcpServer[]> {
-		const result: IScannedMcpServer[] = [];
+	async addMcpServers(servers: IInstallableMcpServer[], mcpResource: URI, target?: McpResourceTarget): Promise<void> {
 		await this.withProfileMcpServers(mcpResource, target, scannedMcpServers => {
 			let updatedInputs = scannedMcpServers.inputs ?? [];
 			const existingServers = scannedMcpServers.servers ?? {};
-			for (const { server, inputs } of servers) {
-				existingServers[server.name] = server;
-				result.push(server);
+			for (const { name, config, inputs } of servers) {
+				existingServers[name] = config;
 				if (inputs) {
 					const existingInputIds = new Set(updatedInputs.map(input => input.id));
 					const newInputs = inputs.filter(input => !existingInputIds.has(input.id));
@@ -89,7 +79,6 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 			}
 			return { servers: existingServers, inputs: updatedInputs };
 		});
-		return result;
 	}
 
 	async removeMcpServers(serverNames: string[], mcpResource: URI, target?: McpResourceTarget): Promise<void> {
@@ -105,9 +94,9 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 
 	private async withProfileMcpServers(mcpResource: URI, target?: McpResourceTarget, updateFn?: (data: IScannedMcpServers) => IScannedMcpServers): Promise<IScannedMcpServers> {
 		return this.getResourceAccessQueue(mcpResource)
-			.queue(async () => {
+			.queue(async (): Promise<IScannedMcpServers> => {
 				target = target ?? ConfigurationTarget.USER;
-				let scannedMcpServers: IScannedMcpServers | undefined;
+				let scannedMcpServers: IScannedMcpServers = {};
 				try {
 					const content = await this.fileService.readFile(mcpResource);
 					const errors: ParseError[] = [];
@@ -135,18 +124,14 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 					scannedMcpServers = updateFn(scannedMcpServers ?? {});
 
 					if (target === ConfigurationTarget.USER) {
-						return this.writeScannedMcpServers(mcpResource, scannedMcpServers);
+						await this.writeScannedMcpServers(mcpResource, scannedMcpServers);
+					} else if (target === ConfigurationTarget.WORKSPACE_FOLDER) {
+						await this.writeScannedMcpServersToWorkspaceFolder(mcpResource, scannedMcpServers);
+					} else if (target === ConfigurationTarget.WORKSPACE) {
+						await this.writeScannedMcpServersToWorkspace(mcpResource, scannedMcpServers);
+					} else {
+						assertNever(target, `Invalid Target: ${ConfigurationTargetToString(target)}`);
 					}
-
-					if (target === ConfigurationTarget.WORKSPACE_FOLDER) {
-						return this.writeScannedMcpServersToWorkspaceFolder(mcpResource, scannedMcpServers);
-					}
-
-					if (target === ConfigurationTarget.WORKSPACE) {
-						return this.writeScannedMcpServersToWorkspace(mcpResource, scannedMcpServers);
-					}
-
-					throw new Error(`Invalid Target: ${ConfigurationTargetToString(target)}`);
 				}
 				return scannedMcpServers;
 			});
@@ -161,7 +146,7 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 	}
 
 	private async writeScannedMcpServersToWorkspaceFolder(mcpResource: URI, scannedMcpServers: IScannedMcpServers): Promise<void> {
-		await this.fileService.writeFile(mcpResource, VSBuffer.fromString(JSON.stringify(this.toWorkspaceFolderMcpServers(scannedMcpServers), null, '\t')));
+		await this.fileService.writeFile(mcpResource, VSBuffer.fromString(JSON.stringify(scannedMcpServers, null, '\t')));
 	}
 
 	private async writeScannedMcpServersToWorkspace(mcpResource: URI, scannedMcpServers: IScannedMcpServers): Promise<void> {
@@ -182,7 +167,7 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 		if (!scannedWorkspaceMcpServers.settings) {
 			scannedWorkspaceMcpServers.settings = {};
 		}
-		scannedWorkspaceMcpServers.settings.mcp = this.toWorkspaceFolderMcpServers(scannedMcpServers);
+		scannedWorkspaceMcpServers.settings.mcp = scannedMcpServers;
 		await this.fileService.writeFile(mcpResource, VSBuffer.fromString(JSON.stringify(scannedWorkspaceMcpServers, null, '\t')));
 	}
 
@@ -194,13 +179,13 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 		if (servers.length > 0) {
 			userMcpServers.servers = {};
 			for (const [serverName, server] of servers) {
-				userMcpServers.servers[serverName] = this.sanitizeServer(serverName, server);
+				userMcpServers.servers[serverName] = this.sanitizeServer(server);
 			}
 		}
 		return userMcpServers;
 	}
 
-	private fromWorkspaceFolderMcpServers(scannedWorkspaceFolderMcpServers: IScannedWorkspaceFolderMcpServers): IScannedMcpServers {
+	private fromWorkspaceFolderMcpServers(scannedWorkspaceFolderMcpServers: IScannedMcpServers): IScannedMcpServers {
 		const scannedMcpServers: IScannedMcpServers = {
 			inputs: scannedWorkspaceFolderMcpServers.inputs
 		};
@@ -208,53 +193,36 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 		if (servers.length > 0) {
 			scannedMcpServers.servers = {};
 			for (const [serverName, config] of servers) {
-				scannedMcpServers.servers[serverName] = this.sanitizeServer(serverName, config);
+				scannedMcpServers.servers[serverName] = this.sanitizeServer(config);
 			}
 		}
 		return scannedMcpServers;
 	}
 
-	private sanitizeServer(name: string, serverOrConfig: Mutable<IScannedMcpServer> | IMcpServerConfiguration): IScannedMcpServer {
-		let server: Mutable<IScannedMcpServer>;
-		if (!(<IScannedMcpServer>serverOrConfig).config) {
+	private sanitizeServer(serverOrConfig: IOldScannedMcpServer | Mutable<IMcpServerConfiguration>): IMcpServerConfiguration {
+		let server: IMcpServerConfiguration;
+		if ((<IOldScannedMcpServer>serverOrConfig).config) {
+			const oldScannedMcpServer = <IOldScannedMcpServer>serverOrConfig;
 			server = {
-				id: name,
-				name: name,
-				version: '0.0.1',
-				config: serverOrConfig as IMcpServerConfiguration
+				...oldScannedMcpServer.config,
+				version: oldScannedMcpServer.version,
+				gallery: oldScannedMcpServer.gallery
 			};
 		} else {
-			server = serverOrConfig as IScannedMcpServer;
+			server = serverOrConfig as IMcpServerConfiguration;
 		}
 
-		if (server.config.type === undefined || (server.config.type !== 'http' && server.config.type !== 'stdio')) {
-			server.config = {
-				...server.config as any,
-				type: (<IMcpStdioServerConfiguration>server.config).command ? 'stdio' : 'http'
-			};
+		if (server.type === undefined || (server.type !== McpServerType.REMOTE && server.type !== McpServerType.LOCAL)) {
+			(<Mutable<ICommonMcpServerConfiguration>>server).type = (<IMcpStdioServerConfiguration>server).command ? McpServerType.LOCAL : McpServerType.REMOTE;
 		}
+
 		return server;
 	}
 
-	private toWorkspaceFolderMcpServers(scannedMcpServers: IScannedMcpServers): IScannedWorkspaceFolderMcpServers {
-		const scannedWorkspaceFolderMcpServers: IScannedWorkspaceFolderMcpServers = {};
-		if (scannedMcpServers.inputs) {
-			scannedWorkspaceFolderMcpServers.inputs = scannedMcpServers.inputs;
-		}
-		const servers = Object.entries(scannedMcpServers.servers ?? {});
-		if (servers.length > 0) {
-			scannedWorkspaceFolderMcpServers.servers = {};
-			for (const [serverName, server] of servers) {
-				scannedWorkspaceFolderMcpServers.servers[serverName] = server.config;
-			}
-		}
-		return scannedWorkspaceFolderMcpServers;
-	}
-
-	private getResourceAccessQueue(file: URI): Queue<any> {
+	private getResourceAccessQueue(file: URI): Queue<IScannedMcpServers> {
 		let resourceQueue = this.resourcesAccessQueueMap.get(file);
 		if (!resourceQueue) {
-			resourceQueue = new Queue<any>();
+			resourceQueue = new Queue<IScannedMcpServers>();
 			this.resourcesAccessQueueMap.set(file, resourceQueue);
 		}
 		return resourceQueue;

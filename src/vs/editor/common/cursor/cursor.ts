@@ -22,7 +22,7 @@ import { VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequest
 import { dispose, Disposable } from '../../../base/common/lifecycle.js';
 import { ICoordinatesConverter } from '../viewModel.js';
 import { CursorStateChangedEvent, ViewModelEventsCollector } from '../viewModelEventDispatcher.js';
-import { TextModelEditReason } from '../textModelEditReason.js';
+import { TextModelEditReason, EditReasons } from '../textModelEditReason.js';
 
 export class CursorsController extends Disposable {
 
@@ -540,7 +540,7 @@ export class CursorsController extends Disposable {
 	}
 
 	public endComposition(eventsCollector: ViewModelEventsCollector, source?: string | null | undefined): void {
-		const reason = new TextModelEditReason({ source: 'cursor', kind: 'compositionEnd', detailedSource: source });
+		const reason = EditReasons.cursor({ kind: 'compositionEnd', detailedSource: source });
 
 		const compositionOutcome = this._compositionState ? this._compositionState.deduceOutcome(this._model, this.getSelections()) : null;
 		this._compositionState = null;
@@ -554,7 +554,7 @@ export class CursorsController extends Disposable {
 	}
 
 	public type(eventsCollector: ViewModelEventsCollector, text: string, source?: string | null | undefined): void {
-		const reason = new TextModelEditReason({ source: 'cursor', kind: 'type', detailedSource: source });
+		const reason = EditReasons.cursor({ kind: 'type', detailedSource: source });
 
 		this._executeEdit(() => {
 			if (source === 'keyboard') {
@@ -579,7 +579,7 @@ export class CursorsController extends Disposable {
 	}
 
 	public compositionType(eventsCollector: ViewModelEventsCollector, text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number, source?: string | null | undefined): void {
-		const reason = new TextModelEditReason({ source: 'cursor', kind: 'compositionType', detailedSource: source });
+		const reason = EditReasons.cursor({ kind: 'compositionType', detailedSource: source });
 
 		if (text.length === 0 && replacePrevCharCnt === 0 && replaceNextCharCnt === 0) {
 			// this edit is a no-op
@@ -599,7 +599,7 @@ export class CursorsController extends Disposable {
 	}
 
 	public paste(eventsCollector: ViewModelEventsCollector, text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined): void {
-		const reason = new TextModelEditReason({ source: 'cursor', kind: 'paste', detailedSource: source });
+		const reason = EditReasons.cursor({ kind: 'paste', detailedSource: source });
 
 		this._executeEdit(() => {
 			this._executeEditOperation(TypeOperations.paste(this.context.cursorConfig, this._model, this.getSelections(), text, pasteOnNewLine, multicursorText || []), reason);
@@ -607,14 +607,14 @@ export class CursorsController extends Disposable {
 	}
 
 	public cut(eventsCollector: ViewModelEventsCollector, source?: string | null | undefined): void {
-		const reason = new TextModelEditReason({ source: 'cursor', kind: 'cut', detailedSource: source });
+		const reason = EditReasons.cursor({ kind: 'cut', detailedSource: source });
 		this._executeEdit(() => {
 			this._executeEditOperation(DeleteOperations.cut(this.context.cursorConfig, this._model, this.getSelections()), reason);
 		}, eventsCollector, source);
 	}
 
 	public executeCommand(eventsCollector: ViewModelEventsCollector, command: editorCommon.ICommand, source?: string | null | undefined): void {
-		const reason = new TextModelEditReason({ source: 'cursor', kind: 'executeCommand', detailedSource: source });
+		const reason = EditReasons.cursor({ kind: 'executeCommand', detailedSource: source });
 
 		this._executeEdit(() => {
 			this._cursors.killSecondaryCursors();
@@ -627,7 +627,7 @@ export class CursorsController extends Disposable {
 	}
 
 	public executeCommands(eventsCollector: ViewModelEventsCollector, commands: editorCommon.ICommand[], source?: string | null | undefined): void {
-		const reason = new TextModelEditReason({ source: 'cursor', kind: 'executeCommands', detailedSource: source });
+		const reason = EditReasons.cursor({ kind: 'executeCommands', detailedSource: source });
 
 		this._executeEdit(() => {
 			this._executeEditOperation(new EditOperationResult(EditOperationType.Other, commands, {
@@ -756,7 +756,7 @@ interface ICommandsData {
 
 export class CommandExecutor {
 
-	public static executeCommands(model: ITextModel, selectionsBefore: Selection[], commands: (editorCommon.ICommand | null)[], editReason: TextModelEditReason = TextModelEditReason.Unknown): Selection[] | null {
+	public static executeCommands(model: ITextModel, selectionsBefore: Selection[], commands: (editorCommon.ICommand | null)[], editReason: TextModelEditReason = EditReasons.unknown({ name: 'executeCommands' })): Selection[] | null {
 
 		const ctx: IExecContext = {
 			model: model,

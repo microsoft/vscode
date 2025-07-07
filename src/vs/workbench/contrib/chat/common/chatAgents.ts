@@ -27,7 +27,7 @@ import { ChatContextKeys } from './chatContextKeys.js';
 import { IChatAgentEditedFileEvent, IChatProgressHistoryResponseContent, IChatRequestVariableData, ISerializableChatAgentData } from './chatModel.js';
 import { IRawChatCommandContribution } from './chatParticipantContribTypes.js';
 import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from './chatService.js';
-import { ChatAgentLocation, ChatMode } from './constants.js';
+import { ChatAgentLocation, ChatModeKind } from './constants.js';
 
 //#region agent service, commands etc
 
@@ -58,7 +58,7 @@ export interface IChatAgentData {
 	metadata: IChatAgentMetadata;
 	slashCommands: IChatAgentCommand[];
 	locations: ChatAgentLocation[];
-	modes: ChatMode[];
+	modes: ChatModeKind[];
 	disambiguation: { category: string; description: string; examples: string[] }[];
 }
 
@@ -207,7 +207,7 @@ export interface IChatAgentService {
 	/**
 	 * Get the default agent (only if activated)
 	 */
-	getDefaultAgent(location: ChatAgentLocation, mode?: ChatMode): IChatAgent | undefined;
+	getDefaultAgent(location: ChatAgentLocation, mode?: ChatModeKind): IChatAgent | undefined;
 
 	/**
 	 * Get the default agent data that has been contributed (may not be activated yet)
@@ -302,9 +302,9 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 				if (!agent.isCore) {
 					extensionAgentRegistered = true;
 				}
-				if (agent.modes.includes(ChatMode.Agent)) {
+				if (agent.modes.includes(ChatModeKind.Agent)) {
 					toolsAgentRegistered = true;
-				} else if (agent.modes.includes(ChatMode.Edit)) {
+				} else if (agent.modes.includes(ChatModeKind.Edit)) {
 					editingAgentRegistered = true;
 				} else {
 					defaultAgentRegistered = true;
@@ -316,7 +316,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		this._extensionAgentRegistered.set(extensionAgentRegistered);
 		if (toolsAgentRegistered !== this._hasToolsAgent) {
 			this._hasToolsAgent = toolsAgentRegistered;
-			this._onDidChangeAgents.fire(this.getDefaultAgent(ChatAgentLocation.Panel, ChatMode.Agent));
+			this._onDidChangeAgents.fire(this.getDefaultAgent(ChatAgentLocation.Panel, ChatModeKind.Agent));
 		}
 	}
 
@@ -381,7 +381,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		this._onDidChangeAgents.fire(new MergedChatAgent(agent.data, agent.impl));
 	}
 
-	getDefaultAgent(location: ChatAgentLocation, mode: ChatMode = ChatMode.Ask): IChatAgent | undefined {
+	getDefaultAgent(location: ChatAgentLocation, mode: ChatModeKind = ChatModeKind.Ask): IChatAgent | undefined {
 		return this._preferExtensionAgent(this.getActivatedAgents().filter(a => {
 			if (mode && !a.modes.includes(mode)) {
 				return false;
@@ -588,7 +588,7 @@ export class MergedChatAgent implements IChatAgent {
 	get metadata(): IChatAgentMetadata { return this.data.metadata; }
 	get slashCommands(): IChatAgentCommand[] { return this.data.slashCommands; }
 	get locations(): ChatAgentLocation[] { return this.data.locations; }
-	get modes(): ChatMode[] { return this.data.modes; }
+	get modes(): ChatModeKind[] { return this.data.modes; }
 	get disambiguation(): { category: string; description: string; examples: string[] }[] { return this.data.disambiguation; }
 
 	async invoke(request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {

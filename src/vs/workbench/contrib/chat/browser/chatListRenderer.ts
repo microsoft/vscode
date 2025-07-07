@@ -53,7 +53,7 @@ import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatC
 import { IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
-import { ChatAgentLocation, ChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { MarkUnhelpfulActionId } from './actions/chatTitleActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from './chat.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
@@ -123,7 +123,7 @@ const forceVerboseLayoutTracing = false
 export interface IChatRendererDelegate {
 	container: HTMLElement;
 	getListLength(): number;
-	currentChatMode(): ChatMode;
+	currentChatMode(): ChatModeKind;
 
 	readonly onDidScroll?: Event<void>;
 }
@@ -430,7 +430,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (templateData.currentElement && templateData.currentElement.id !== element.id) {
 			this.traceLayout('renderChatTreeItem', `Rendering a different element into the template, index=${index}`);
 			this.clearRenderedParts(templateData);
-			this.templateDataByRequestId.delete(templateData.currentElement.id);
+
+			const mappedTemplateData = this.templateDataByRequestId.get(templateData.currentElement.id);
+			if (mappedTemplateData && (mappedTemplateData.currentElement?.id !== templateData.currentElement.id)) {
+				this.templateDataByRequestId.delete(templateData.currentElement.id);
+			}
 		}
 
 		templateData.currentElement = element;
@@ -489,8 +493,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.requestHover.classList.toggle('editing', editing && isInput);
 		templateData.requestHover.classList.toggle('hidden', !!this.viewModel?.editing && !editing);
 		templateData.requestHover.classList.toggle('expanded', this.configService.getValue<string>('chat.editRequests') === 'hover');
-		templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.CLICK, () => {
-			if (this.viewModel?.editing && element.id !== this.viewModel.editing.id) {
+		templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.CLICK, (e) => {
+			const current = templateData.currentElement;
+			if (current && this.viewModel?.editing && current.id !== this.viewModel.editing.id) {
+				e.stopPropagation();
+				e.preventDefault();
 				this._onDidFocusOutside.fire();
 			}
 		}));
@@ -633,7 +640,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.KEY_DOWN, e => {
 				const ev = new StandardKeyboardEvent(e);
 				if (ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) {
-					if (this.viewModel?.editing?.id !== element.id && !this.viewModel?.requestInProgress) {
+					if (this.viewModel?.editing?.id !== element.id) {
+						ev.preventDefault();
+						ev.stopPropagation();
 						this._onDidClickRequest.fire(templateData);
 					}
 				}
@@ -1222,7 +1231,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (this.configService.getValue<string>('chat.editRequests') === 'inline' && !this.disableEdits) {
 				markdownPart.domNode.classList.add('clickable');
 				markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.CLICK, (e: MouseEvent) => {
-					if (this.viewModel?.editing?.id !== element.id && !this.viewModel?.requestInProgress) {
+					if (this.viewModel?.editing?.id !== element.id) {
+						const selection = dom.getWindow(templateData.rowContainer).getSelection();
+						if (selection && !selection.isCollapsed && selection.toString().length > 0) {
+							return;
+						}
+						e.preventDefault();
+						e.stopPropagation();
 						this._onDidClickRequest.fire(templateData);
 					}
 				}));

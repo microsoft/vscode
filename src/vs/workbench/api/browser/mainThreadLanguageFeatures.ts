@@ -617,7 +617,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.completionProvider.register(selector, provider));
 	}
 
-	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleEvents: boolean, extensionId: string, groupId: string | undefined, yieldsToExtensionIds: string[], displayName: string | undefined, debounceDelayMs: number | undefined, eventHandle: number | undefined): void {
+	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleEvents: boolean, extensionId: string, extensionVersion: string, groupId: string | undefined, yieldsToExtensionIds: string[], displayName: string | undefined, debounceDelayMs: number | undefined, eventHandle: number | undefined): void {
 		const provider: languages.InlineCompletionsProvider<IdentifiableInlineCompletions> = {
 			provideInlineCompletions: async (model: ITextModel, position: EditorPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
 				return this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
@@ -655,7 +655,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					timeUntilShown: lifetimeSummary.timeUntilShown,
 					editorType: lifetimeSummary.editorType,
 					viewKind: lifetimeSummary.viewKind,
-					isExplicitRequest: lifetimeSummary.isExplicitRequest,
+					requestReason: lifetimeSummary.requestReason,
 					error: lifetimeSummary.error,
 					languageId: lifetimeSummary.languageId,
 					cursorColumnDistance: lifetimeSummary.cursorColumnDistance,
@@ -667,6 +667,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					disjointReplacements: lifetimeSummary.disjointReplacements,
 					sameShapeReplacements: lifetimeSummary.sameShapeReplacements,
 					extensionId,
+					extensionVersion,
 					partiallyAccepted: lifetimeSummary.partiallyAccepted,
 					superseded: reason.kind === InlineCompletionEndOfLifeReasonKind.Ignored && !!reason.supersededBy,
 					reason: reason.kind === InlineCompletionEndOfLifeReasonKind.Accepted ? 'accepted'
@@ -684,6 +685,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				}
 			},
 			groupId: groupId ?? extensionId,
+			providerId: new languages.VersionedExtensionId(extensionId, extensionVersion).toString(),
 			yieldsToGroupIds: yieldsToExtensionIds,
 			debounceDelayMs,
 			displayName,
@@ -1297,19 +1299,19 @@ export class MainThreadDocumentRangeSemanticTokensProvider implements languages.
 type InlineCompletionEndOfLifeEvent = {
 	id: string;
 	extensionId: string;
+	extensionVersion: string;
 	shown: boolean;
 	shownDuration: number;
 	shownDurationUncollapsed: number;
 	timeUntilShown: number | undefined;
 	reason: 'accepted' | 'rejected' | 'ignored';
 	partiallyAccepted: number;
-	isExplicitRequest: boolean;
+	requestReason: string;
 	languageId: string;
 	error: string | undefined;
 	superseded: boolean;
 	editorType: string;
 	viewKind: string | undefined;
-	// render info
 	cursorColumnDistance: number | undefined;
 	cursorLineDistance: number | undefined;
 	lineCountOriginal: number | undefined;
@@ -1325,14 +1327,15 @@ type InlineCompletionsEndOfLifeClassification = {
 	comment: 'Inline completions ended';
 	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier for the inline completion request' };
 	extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier for the extension that contributed the inline completion' };
+	extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension that contributed the inline completion' };
 	shown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was shown to the user' };
 	shownDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown' };
 	shownDurationUncollapsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown without collapsing' };
 	timeUntilShown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be shown after the request' };
-	isExplicitRequest: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was requested explicitly by the user' };
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion ending' };
 	partiallyAccepted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How often the inline completion was partially accepted by the user' };
 	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language ID of the document where the inline completion was shown' };
+	requestReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion request' };
 	error: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The error message if the inline completion failed' };
 	superseded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was superseded by another one' };
 	editorType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of the editor where the inline completion was shown' };

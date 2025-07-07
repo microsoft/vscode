@@ -15,7 +15,7 @@ import { ISpeechProvider, ISpeechService, ISpeechToTextEvent, ISpeechToTextSessi
 import { IChatAgent, IChatAgentCommand, IChatAgentCompletionItem, IChatAgentData, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, IChatAgentService, IChatParticipantDetectionProvider } from '../../common/chatAgents.js';
 import { IChatModel } from '../../common/chatModel.js';
 import { IChatFollowup, IChatProgress } from '../../common/chatService.js';
-import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { IVoiceChatSessionOptions, IVoiceChatTextEvent, VoiceChatService } from '../../common/voiceChatService.js';
 
 suite('VoiceChat', () => {
@@ -31,7 +31,7 @@ suite('VoiceChat', () => {
 		extensionDisplayName = '';
 		extensionPublisherId = '';
 		locations: ChatAgentLocation[] = [ChatAgentLocation.Panel];
-		modes = [ChatMode.Ask];
+		modes = [ChatModeKind.Ask];
 		public readonly name: string;
 		constructor(readonly id: string, readonly slashCommands: IChatAgentCommand[]) {
 			this.name = id;

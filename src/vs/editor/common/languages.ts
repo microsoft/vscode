@@ -905,6 +905,8 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 */
 	groupId?: InlineCompletionProviderGroupId;
 
+	providerId?: string;
+
 	/**
 	 * Returns a list of preferred provider {@link groupId}s.
 	 * The current provider is only requested for completions if no provider with a preferred group id returned a result.
@@ -916,6 +918,17 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	debounceDelayMs?: number;
 
 	toString?(): string;
+}
+
+/** @internal */
+export class VersionedExtensionId {
+	constructor(
+		public readonly extensionId: string,
+		public readonly version: string,
+	) { }
+	toString(): string {
+		return `${this.extensionId}@${this.version}`;
+	}
 }
 
 export type InlineCompletionsDisposeReason = { kind: 'lostRace' | 'tokenCancellation' | 'other' | 'empty' | 'notTaken' };
@@ -947,7 +960,7 @@ export type LifetimeSummary = {
 	viewKind: string | undefined;
 	error: string | undefined;
 	languageId: string;
-	isExplicitRequest: boolean;
+	requestReason: string;
 	cursorColumnDistance?: number;
 	cursorLineDistance?: number;
 	lineCountOriginal?: number;
