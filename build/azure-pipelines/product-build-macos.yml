@@ -83,7 +83,7 @@ extends:
               name: ACESLabTest
               os: macOS
             variables:
-              NODE_OPTIONS: "--max-old-space-size=4096"
+              NODE_OPTIONS: "--max-old-space-size=8192"
             steps:
               - template: build/azure-pipelines/product-compile.yml@self
                 parameters:
@@ -97,7 +97,7 @@ extends:
           os: macOS
         variables:
           BUILDSECMON_OPT_IN: true
-          NODE_OPTIONS: "--max-old-space-size=4096"
+          NODE_OPTIONS: "--max-old-space-size=8192"
         jobs:
           - job: macOSElectronTest
             displayName: Electron Tests
