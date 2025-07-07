@@ -212,10 +212,10 @@ export class InlineEditsGutterIndicator extends Disposable {
 			const gutterEditArea = Rect.fromRanges(OffsetRange.fromTo(gutterViewPortWithoutStickyScroll.left, gutterViewPortWithoutStickyScroll.right), verticalEditRange);
 
 			// The gutter view container (pill)
-			const pillHeight = lineHeight;
+			const pillHeight = lineHeight > 0 ? lineHeight : 19; // Todo: find the height of the line
 			const pillOffset = this._verticalOffset.read(reader);
 			const pillFullyDockedRect = gutterEditArea.withHeight(pillHeight).translateY(pillOffset);
-			const pillIsFullyDocked = gutterViewPortWithoutStickyScrollWithoutPaddingTop.containsRect(pillFullyDockedRect);
+			const pillIsFullyDocked = gutterViewPortWithoutStickyScrollWithoutPaddingTop.containsRect(pillFullyDockedRect) && lineHeight > 0;
 
 			// The icon which will be rendered in the pill
 			const iconNoneDocked = this._tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.keyboardTab : Codicon.arrowRight);

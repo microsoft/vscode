@@ -511,6 +511,26 @@ export class FoldingController extends Disposable implements IEditorContribution
 	public reveal(position: IPosition): void {
 		this.editor.revealPositionInCenterIfOutsideViewport(position, ScrollType.Smooth);
 	}
+
+	public revealFoldedRegionsInRange(range: IRange): void {
+		const foldingModelPromise = this.getFoldingModel();
+		if (!foldingModelPromise) {
+			return;
+		}
+		foldingModelPromise.then(foldingModel => {
+			if (foldingModel && this.hiddenRangeModel) {
+				const toToggle: FoldingRegion[] = [];
+				for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
+					if (this.hiddenRangeModel.isHidden(lineNumber)) {
+						toToggle.push(...foldingModel.getAllRegionsAtLine(lineNumber, r => r.isCollapsed && lineNumber > r.startLineNumber));
+					}
+				}
+				if (toToggle.length) {
+					foldingModel.toggleCollapseState(toToggle);
+				}
+			}
+		}).then(undefined, onUnexpectedError);
+	}
 }
 
 export class RangesLimitReporter extends Disposable implements FoldingLimitReporter {
