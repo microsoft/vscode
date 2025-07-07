@@ -223,10 +223,18 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		});
 	}
 
-	async $startChatRequest(handle: number, requestId: number, from: ExtensionIdentifier, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: vscode.LanguageModelChatRequestOptions, token: CancellationToken): Promise<void> {
-		const data = this._languageModelProviders.get(handle);
+	async $startChatRequest(model: ILanguageModelChatMetadata, requestId: number, from: ExtensionIdentifier, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: vscode.LanguageModelChatRequestOptions, token: CancellationToken): Promise<void> {
+		const data = this._languageModelProviders.get(model.vendor);
 		if (!data) {
 			throw new Error('Provider not found');
+		}
+
+		const knownModel = data.knownModels.find(m => {
+			return m.id === model.id && m.family === model.family;
+		});
+
+		if (!knownModel) {
+			throw new Error('Model not found');
 		}
 
 		const queue: IChatResponseFragment[] = [];
@@ -274,10 +282,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		let value: unknown;
 
 		try {
-			value = data.provider.provideLanguageModelResponse(
+			value = data.provider.provideLanguageModelChatResponse(
+				knownModel,
 				messages.value.map(typeConvert.LanguageModelChatMessage2.to),
-				options,
-				ExtensionIdentifier.toKey(from),
+				{ ...options, modelOptions: options.modelOptions ?? {}, extensionId: ExtensionIdentifier.toKey(from) },
 				progress,
 				token
 			);
@@ -298,12 +306,13 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 	//#region --- token counting
 
-	$provideTokenLength(handle: number, value: string, token: CancellationToken): Promise<number> {
-		const data = this._languageModelProviders.get(handle);
-		if (!data) {
+	$provideTokenLength(model: ILanguageModelChatMetadata, value: string, token: CancellationToken): Promise<number> {
+		const data = this._languageModelProviders.get(model.vendor);
+		const knownModel = data?.knownModels.find(m => m.id === model.id && m.family === model.family);
+		if (!data || !knownModel) {
 			return Promise.resolve(0);
 		}
-		return Promise.resolve(data.provider.provideTokenCount(value, token));
+		return Promise.resolve(data.provider.provideTokenCount(knownModel, value, token));
 	}
 
 

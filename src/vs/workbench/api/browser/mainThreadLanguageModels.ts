@@ -61,11 +61,8 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		dipsosables.add(this._chatProviderService.registerLanguageModelProvider(vendor, {
 			prepareLanguageModelChat: (options, token) => {
 				return this._proxy.$prepareLanguageModelProvider(vendor, options, token);
-			}
-		}));
-		dipsosables.add(this._chatProviderService.registerLanguageModelChat(identifier, {
-			metadata,
-			sendChatRequest: async (messages, from, options, token) => {
+			},
+			sendChatRequest: async (model, messages, from, options, token) => {
 				const requestId = (Math.random() * 1e6) | 0;
 				const defer = new DeferredPromise<any>();
 				const stream = new AsyncIterableSource<IChatResponseFragment | IChatResponseFragment[]>();
@@ -79,7 +76,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 								part.value.data = VSBuffer.wrap(await resizeImage(part.value.data.buffer));
 							})
 					);
-					await this._proxy.$startChatRequest(handle, requestId, from, new SerializableObjectWithBuffers(messages), options, token);
+					await this._proxy.$startChatRequest(model, requestId, from, new SerializableObjectWithBuffers(messages), options, token);
 				} catch (err) {
 					this._pendingProgress.delete(requestId);
 					throw err;
@@ -90,8 +87,8 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 					stream: stream.asyncIterable
 				} satisfies ILanguageModelChatResponse;
 			},
-			provideTokenCount: (str, token) => {
-				return this._proxy.$provideTokenLength(handle, str, token);
+			provideTokenCount: (model, str, token) => {
+				return this._proxy.$provideTokenLength(model, str, token);
 			},
 		}));
 		if (metadata.auth) {
