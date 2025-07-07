@@ -63,13 +63,13 @@ export default class MergeConflictCodeLensProvider implements vscode.CodeLensPro
 		conflicts.forEach(conflict => {
 			const acceptCurrentCommand: vscode.Command = {
 				command: 'merge-conflict.accept.current',
-				title: vscode.l10n.t("Accept Current Change"),
+				title: vscode.l10n.t("Accept Your Changes (Current)"),
 				arguments: ['known-conflict', conflict]
 			};
 
 			const acceptIncomingCommand: vscode.Command = {
 				command: 'merge-conflict.accept.incoming',
-				title: vscode.l10n.t("Accept Incoming Change"),
+				title: vscode.l10n.t("Accept Their Changes (Incoming)"),
 				arguments: ['known-conflict', conflict]
 			};
 
