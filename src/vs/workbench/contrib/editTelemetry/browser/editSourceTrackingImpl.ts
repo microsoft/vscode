@@ -26,6 +26,7 @@ export class EditSourceTrackingImpl extends Disposable {
 	constructor(
 		private readonly _workspace: ObservableWorkspace,
 		private readonly _docIsVisible: (doc: IObservableDocument, reader: IReader) => boolean,
+		private readonly _statsEnabled: IObservable<boolean>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -35,7 +36,7 @@ export class EditSourceTrackingImpl extends Disposable {
 		const states = mapObservableArrayCached(this, this._workspace.documents, (doc, store) => {
 			const docIsVisible = derived(reader => this._docIsVisible(doc, reader));
 			const wasEverVisible = derivedObservableWithCache<boolean>(this, (reader, lastVal) => lastVal || docIsVisible.read(reader));
-			return wasEverVisible.map(v => v ? [doc, store.add(this._instantiationService.createInstance(TrackedDocumentInfo, doc, docIsVisible, scmBridge))] as const : undefined);
+			return wasEverVisible.map(v => v ? [doc, store.add(this._instantiationService.createInstance(TrackedDocumentInfo, doc, docIsVisible, scmBridge, this._statsEnabled))] as const : undefined);
 		});
 
 		this.docsState = states.map((entries, reader) => new Map(entries.map(e => e.read(reader)).filter(isDefined)))
@@ -81,6 +82,7 @@ class TrackedDocumentInfo extends Disposable {
 		private readonly _doc: IObservableDocument,
 		docIsVisible: IObservable<boolean>,
 		private readonly _scm: ScmBridge,
+		private readonly _statsEnabled: IObservable<boolean>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
@@ -98,6 +100,7 @@ class TrackedDocumentInfo extends Disposable {
 		const longtermResetSignal = observableSignal('resetSignal');
 
 		this.longtermTracker = derived((reader) => {
+			if (!this._statsEnabled.read(reader)) { return undefined; }
 			longtermResetSignal.read(reader);
 
 			const t = reader.store.add(new DocumentEditSourceTracker(docWithJustReason, undefined));
@@ -137,6 +140,8 @@ class TrackedDocumentInfo extends Disposable {
 		const resetSignal = observableSignal('resetSignal');
 
 		this.windowedTracker = derived((reader) => {
+			if (!this._statsEnabled.read(reader)) { return undefined; }
+
 			if (!docIsVisible.read(reader)) {
 				return undefined;
 			}
