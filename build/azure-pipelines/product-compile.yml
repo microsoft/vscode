@@ -109,7 +109,7 @@ steps:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Compile & Hygiene (OSS)
   - ${{ else }}:
-    - script: npm exec -- npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check
+    - script: npm exec -- npm-run-all -lp hygiene
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Compile & Hygiene (non-OSS)
@@ -162,6 +162,13 @@ steps:
         artifactName: Compilation
         sbomEnabled: false
       displayName: Publish compilation artifact
+
+    - task: 1ES.PublishPipelineArtifact@1
+      inputs:
+        targetPath: hygiene.cpuprofile
+        artifactName: node-cpuprofile-hygiene-task
+        sbomEnabled: false
+      displayName: Publish cpu profile
 
     - script: npm run download-builtin-extensions-cg
       env:

@@ -60,7 +60,7 @@
     "minify-vscode": "node ./node_modules/gulp/bin/gulp.js minify-vscode",
     "minify-vscode-reh": "node ./node_modules/gulp/bin/gulp.js minify-vscode-reh",
     "minify-vscode-reh-web": "node ./node_modules/gulp/bin/gulp.js minify-vscode-reh-web",
-    "hygiene": "node ./node_modules/gulp/bin/gulp.js hygiene",
+    "hygiene": "node --cpu-prof --cpu-prof-name 'hygiene.cpuprofile' ./node_modules/gulp/bin/gulp.js hygiene",
     "core-ci": "node ./node_modules/gulp/bin/gulp.js core-ci",
     "core-ci-pr": "node ./node_modules/gulp/bin/gulp.js core-ci-pr",
     "extensions-ci": "node ./node_modules/gulp/bin/gulp.js extensions-ci",
