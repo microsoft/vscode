@@ -275,7 +275,7 @@ export interface ILanguageModelToolsService {
 	resetToolAutoConfirmation(): void;
 	cancelToolCallsForRequest(requestId: string): void;
 	toToolEnablementMap(toolOrToolSetNames: Set<string>): Record<string, boolean>;
-	toToolAndToolSetEnablementMap(toolOrToolSetNames: Set<string>): IToolAndToolSetEnablementMap;
+	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[] | undefined): IToolAndToolSetEnablementMap;
 
 	readonly toolSets: IObservable<Iterable<ToolSet>>;
 	getToolSet(id: string): ToolSet | undefined;

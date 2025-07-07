@@ -20,18 +20,6 @@ export enum ChatModeKind {
 	Agent = 'agent'
 }
 
-export function modeToString(mode: ChatModeKind) {
-	switch (mode) {
-		case ChatModeKind.Agent:
-			return 'Agent';
-		case ChatModeKind.Edit:
-			return 'Edit';
-		case ChatModeKind.Ask:
-		default:
-			return 'Ask';
-	}
-}
-
 export function validateChatMode(mode: unknown): ChatModeKind | undefined {
 	switch (mode) {
 		case ChatModeKind.Ask:

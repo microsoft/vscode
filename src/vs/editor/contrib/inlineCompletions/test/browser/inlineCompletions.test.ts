@@ -340,6 +340,7 @@ suite('Inline Completions', () => {
 
 		test('when accepting word by word', async function () {
 			// The user types the text as suggested and the provider reports a different suggestion.
+			// Even when triggering explicitly, we want to keep the suggestion.
 
 			const provider = new MockInlineCompletionsProvider();
 			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
@@ -356,7 +357,7 @@ suite('Inline Completions', () => {
 
 					await ctx.model.triggerExplicitly(); // reset to provider truth
 					await timeout(10000);
-					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), (["foo[ baz]"]));
+					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), ([]));
 				}
 			);
 		});

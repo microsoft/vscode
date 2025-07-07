@@ -614,7 +614,7 @@ export class ChatService extends Disposable implements IChatService {
 				if (request.shouldBeRemovedOnSend.afterUndoStop) {
 					request.response?.finalizeUndoState();
 				} else {
-					this.removeRequest(sessionId, request.id);
+					await this.removeRequest(sessionId, request.id);
 				}
 			}
 		}

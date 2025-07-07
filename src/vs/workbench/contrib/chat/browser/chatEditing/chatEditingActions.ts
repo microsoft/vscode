@@ -326,7 +326,7 @@ registerAction2(class RemoveAction extends Action2 {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.currentlyEditing.negate(), ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input').negate())
+					when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input').negate())
 				}
 			]
 		});
@@ -339,7 +339,6 @@ registerAction2(class RemoveAction extends Action2 {
 		if (!isResponseVM(item) && !isRequestVM(item)) {
 			item = widget?.getFocus();
 		}
-
 
 		if (!item) {
 			return;
@@ -426,12 +425,17 @@ registerAction2(class EditAction extends Action2 {
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.edit,
+			keybinding: {
+				primary: KeyCode.Enter,
+				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate()),
+				weight: KeybindingWeight.WorkbenchContrib,
+			},
 			menu: [
 				{
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.currentlyEditing.negate(), ContextKeyExpr.or(ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'hover'), ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input')))
+					when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'hover'), ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input')))
 				}
 			]
 		});
@@ -439,13 +443,14 @@ registerAction2(class EditAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, ...args: any[]) {
 		let item: ChatTreeItem | undefined = args[0];
-		if (!item) {
-			return;
-		}
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const widget = chatWidgetService.lastFocusedWidget;
 		if (!isResponseVM(item) && !isRequestVM(item)) {
 			item = widget?.getFocus();
+		}
+
+		if (!item) {
+			return;
 		}
 
 		if (isRequestVM(item)) {

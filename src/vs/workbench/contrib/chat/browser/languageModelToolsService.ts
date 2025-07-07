@@ -484,13 +484,19 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return result;
 	}
 
-	toToolAndToolSetEnablementMap(toolOrToolSetNames: Set<string>): Map<ToolSet | IToolData, boolean> {
+	/**
+	 * Create a map that contains all tools and toolsets with their enablement state.
+	 * @param toolOrToolSetNames A list of tool or toolset names to check for enablement. If undefined, all tools and toolsets are enabled.
+	 * @returns A map of tool or toolset instances to their enablement state.
+	 */
+	toToolAndToolSetEnablementMap(enabledToolOrToolSetNames: readonly string[] | undefined): Map<ToolSet | IToolData, boolean> {
+		const toolOrToolSetNames = enabledToolOrToolSetNames ? new Set(enabledToolOrToolSetNames) : undefined;
 		const result = new Map<ToolSet | IToolData, boolean>();
 		for (const tool of this._tools.values()) {
-			result.set(tool.data, tool.data.toolReferenceName !== undefined && toolOrToolSetNames.has(tool.data.toolReferenceName));
+			result.set(tool.data, tool.data.toolReferenceName !== undefined && (toolOrToolSetNames === undefined || toolOrToolSetNames.has(tool.data.toolReferenceName)));
 		}
 		for (const toolSet of this._toolSets) {
-			result.set(toolSet, toolOrToolSetNames.has(toolSet.referenceName));
+			result.set(toolSet, (toolOrToolSetNames === undefined || toolOrToolSetNames.has(toolSet.referenceName)));
 		}
 		return result;
 	}

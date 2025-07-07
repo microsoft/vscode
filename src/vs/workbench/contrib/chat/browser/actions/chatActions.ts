@@ -29,6 +29,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -50,12 +51,12 @@ import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
-import { ChatMode, IChatMode } from '../../common/chatModes.js';
+import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
@@ -96,9 +97,13 @@ export interface IChatViewOpenOptions {
 	 */
 	attachScreenshot?: boolean;
 	/**
-	 * The mode to open the chat in.
+	 * A list of file URIs to attach to the chat as context.
 	 */
-	mode?: ChatModeKind;
+	attachFiles?: URI[];
+	/**
+	 * The mode ID or name to open the chat in.
+	 */
+	mode?: ChatModeKind | string;
 }
 
 export interface IChatViewOpenRequestEntry {
@@ -135,6 +140,8 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const chatAgentService = accessor.get(IChatAgentService);
 		const instaService = accessor.get(IInstantiationService);
 		const commandService = accessor.get(ICommandService);
+		const chatModeService = accessor.get(IChatModeService);
+		const fileService = accessor.get(IFileService);
 
 		let chatWidget = widgetService.lastFocusedWidget;
 		// When this was invoked to switch to a mode via keybinding, and some chat widget is focused, use that one.
@@ -147,11 +154,12 @@ abstract class OpenChatGlobalAction extends Action2 {
 			return;
 		}
 
-		let switchToMode = opts?.mode ?? this.mode;
+		const switchToModeInput = opts?.mode ?? this.mode;
+		let switchToMode = switchToModeInput && (chatModeService.findModeById(switchToModeInput) ?? chatModeService.findModeByName(switchToModeInput));
 		if (!switchToMode) {
-			switchToMode = opts?.query?.startsWith('@') ? ChatModeKind.Ask : undefined;
+			switchToMode = opts?.query?.startsWith('@') ? ChatMode.Ask : undefined;
 		}
-		if (switchToMode && validateChatMode(switchToMode)) {
+		if (switchToMode) {
 			await this.handleSwitchToMode(switchToMode, chatWidget, instaService, commandService);
 		}
 
@@ -164,6 +172,13 @@ abstract class OpenChatGlobalAction extends Action2 {
 			const screenshot = await hostService.getScreenshot();
 			if (screenshot) {
 				chatWidget.attachmentModel.addContext(convertBufferToScreenshotVariable(screenshot));
+			}
+		}
+		if (opts?.attachFiles) {
+			for (const file of opts.attachFiles) {
+				if (await fileService.exists(file)) {
+					chatWidget.attachmentModel.addFile(file);
+				}
 			}
 		}
 		if (opts?.query) {
@@ -194,17 +209,17 @@ abstract class OpenChatGlobalAction extends Action2 {
 		chatWidget.focusInput();
 	}
 
-	private async handleSwitchToMode(switchToMode: ChatModeKind, chatWidget: IChatWidget, instaService: IInstantiationService, commandService: ICommandService): Promise<void> {
+	private async handleSwitchToMode(switchToMode: IChatMode, chatWidget: IChatWidget, instaService: IInstantiationService, commandService: ICommandService): Promise<void> {
 		const currentMode = chatWidget.input.currentModeKind;
 
 		if (switchToMode) {
 			const editingSession = chatWidget.viewModel?.model.editingSession;
 			const requestCount = chatWidget.viewModel?.model.getRequests().length ?? 0;
-			const chatModeCheck = await instaService.invokeFunction(handleModeSwitch, currentMode, switchToMode, requestCount, editingSession);
+			const chatModeCheck = await instaService.invokeFunction(handleModeSwitch, currentMode, switchToMode.kind, requestCount, editingSession);
 			if (!chatModeCheck) {
 				return;
 			}
-			chatWidget.input.setChatMode(switchToMode);
+			chatWidget.input.setChatMode(switchToMode.id);
 
 			if (chatModeCheck.needToClearSession) {
 				await commandService.executeCommand(ACTION_ID_NEW_CHAT);
@@ -808,9 +823,9 @@ export function registerChatActions() {
 	registerAction2(class UpdateInstructionsAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.updateInstructions',
-				title: localize2('updateInstructions', "Generate Instructions"),
-				shortTitle: localize2('updateInstructions.short', "Generate Instructions"),
+				id: 'workbench.action.chat.generateInstructions',
+				title: localize2('generateInstructions', "Generate Workspace Instructions File"),
+				shortTitle: localize2('generateInstructions.short', "Generate Instructions"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.sparkle,
 				f1: true,
@@ -836,7 +851,7 @@ Focus on discovering the essential knowledge that would help an AI agents be imm
 - Project-specific conventions and patterns that differ from common practices
 - Integration points, external dependencies, and cross-component communication patterns
 
-Source existing AI conventions from: \`**/{.github/copilot-instructions.md,AGENT.md,AGENTS.md,CLAUDE.md,.cursorrules,.windsurfrules,.clinerules,.cursor/rules/**,.windsurf/rules/**,.clinerules/**,README.md}\`.
+Source existing AI conventions from \`**/{.github/copilot-instructions.md,AGENT.md,AGENTS.md,CLAUDE.md,.cursorrules,.windsurfrules,.clinerules,.cursor/rules/**,.windsurf/rules/**,.clinerules/**,README.md}\` (do one glob search).
 
 Guidelines (read more at https://aka.ms/vscode-instructions-docs):
 - If \`.github/copilot-instructions.md\` exists, merge intelligently - preserve valuable content while updating outdated sections
@@ -846,7 +861,7 @@ Guidelines (read more at https://aka.ms/vscode-instructions-docs):
 - Document only discoverable patterns, not aspirational practices
 - Reference key files/directories that exemplify important patterns
 
-After generating the initial instructions (in less than 20 tool calls, count down after each tool call), ask for feedback on any unclear or incomplete sections and iterate on the instructions based on their input.`;
+Update \`.github/copilot-instructions.md\` for the user, then ask for feedback on any unclear or incomplete sections to iterate.`;
 
 			await commandService.executeCommand('workbench.action.chat.open', {
 				mode: 'agent',
@@ -860,7 +875,7 @@ After generating the initial instructions (in less than 20 tool calls, count dow
 		title: localize2('config.label', "Configure Chat..."),
 		group: 'navigation',
 		when: ContextKeyExpr.equals('view', ChatViewId),
-		icon: Codicon.settings,
+		icon: Codicon.settingsGear,
 		order: 6
 	});
 }
@@ -1086,4 +1101,31 @@ MenuRegistry.appendMenuItem(MenuId.TerminalInstanceContext, {
 	group: '2_copilot',
 	title,
 	when: menuContext
+});
+
+// --- Chat Default Visibility
+
+registerAction2(class ToggleDefaultVisibilityAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.toggleDefaultVisibility',
+			title: localize2('chat.toggleDefaultVisibility.label', "Show View by Default"),
+			precondition: ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.AuxiliaryBar),
+			toggled: ContextKeyExpr.equals('config.workbench.secondarySideBar.defaultVisibility', 'hidden').negate(),
+			f1: false,
+			menu: {
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', ChatViewId),
+				order: 0,
+				group: '5_configure'
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const configurationService = accessor.get(IConfigurationService);
+
+		const currentValue = configurationService.getValue<'hidden' | 'visibleInWorkspace' | 'visible'>('workbench.secondarySideBar.defaultVisibility');
+		configurationService.updateValue('workbench.secondarySideBar.defaultVisibility', currentValue !== 'hidden' ? 'hidden' : 'visible');
+	}
 });
