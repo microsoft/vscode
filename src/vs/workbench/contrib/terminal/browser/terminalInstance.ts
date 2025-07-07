@@ -489,6 +489,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			}
 		}));
+		this._register(this.onDidChangeShellType(() => refreshShellIntegrationInfoStatus(this)));
 		this._register(this.capabilities.onDidRemoveCapabilityType(capability => {
 			capabilityListeners.get(capability)?.dispose();
 		}));

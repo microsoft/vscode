@@ -452,14 +452,13 @@
 		if (Array.isArray(configuration.cssModules) && configuration.cssModules.length > 0) {
 			performance.mark('code/willAddCssLoader');
 
-			const style = document.createElement('style');
-			style.type = 'text/css';
-			style.media = 'screen';
-			style.id = 'vscode-css-loading';
-			window.document.head.appendChild(style);
-
 			globalThis._VSCODE_CSS_LOAD = function (url) {
-				style.textContent += `@import url(${url});\n`;
+				const link = document.createElement('link');
+				link.setAttribute('rel', 'stylesheet');
+				link.setAttribute('type', 'text/css');
+				link.setAttribute('href', url);
+
+				window.document.head.appendChild(link);
 			};
 
 			const importMap: { imports: Record<string, string> } = { imports: {} };

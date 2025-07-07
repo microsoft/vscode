@@ -106,6 +106,9 @@ export class McpManagementChannel implements IServerChannel {
 			case 'uninstall': {
 				return this.service.uninstall(transformIncomingServer(args[0], uriTransformer), transformIncomingOptions(args[1], uriTransformer));
 			}
+			case 'updateMetadata': {
+				return this.service.updateMetadata(transformIncomingServer(args[0], uriTransformer), args[1], transformIncomingURI(args[2], uriTransformer));
+			}
 		}
 
 		throw new Error('Invalid call');
@@ -155,5 +158,9 @@ export class McpManagementChannelClient extends Disposable implements IMcpManage
 	getInstalled(mcpResource?: URI): Promise<ILocalMcpServer[]> {
 		return Promise.resolve(this.channel.call<ILocalMcpServer[]>('getInstalled', [mcpResource]))
 			.then(servers => servers.map(server => transformIncomingServer(server, null)));
+	}
+
+	updateMetadata(local: ILocalMcpServer, gallery: IGalleryMcpServer, mcpResource?: URI): Promise<ILocalMcpServer> {
+		return Promise.resolve(this.channel.call<ILocalMcpServer>('updateMetadata', [local, gallery, mcpResource])).then(local => transformIncomingServer(local, null));
 	}
 }

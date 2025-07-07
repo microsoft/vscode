@@ -146,21 +146,22 @@ function getDefaultContentSnippet(promptType: PromptsType): string {
 				`---`,
 				`mode: \${1|ask,edit,agent|}`,
 				`---`,
-				`\${2:Expected output and any relevant constraints for this task.}`,
+				`\${2:Define the task to achieve, including specific requirements, constraints, and success criteria.}`,
 			].join('\n');
 		case PromptsType.instructions:
 			return [
 				`---`,
 				`applyTo: '\${1|**,**/*.ts|}'`,
 				`---`,
-				`\${2:Coding standards, domain knowledge, and preferences that AI should follow.}`,
+				`\${2:Provide project context and coding guidelines that AI should follow when generating code, answering questions, or reviewing changes.}`,
 			].join('\n');
 		case PromptsType.mode:
 			return [
 				`---`,
 				`description: '\${1:Description of the custom chat mode.}'`,
-				`tools: [ '\${2:tool1}', '\${3:tool2}' ]`,
+				`tools: []`,
 				`---`,
+				`\${2:Define the purpose of this chat mode and how AI should behave: response style, available tools, focus areas, and any mode-specific instructions or constraints.}`,
 			].join('\n');
 		default:
 			throw new Error(`Unknown prompt type: ${promptType}`);

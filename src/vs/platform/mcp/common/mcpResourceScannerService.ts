@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assertNever } from '../../../base/common/assert.js';
 import { Queue } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
@@ -51,7 +52,7 @@ export interface IMcpResourceScannerService {
 export class McpResourceScannerService extends Disposable implements IMcpResourceScannerService {
 	readonly _serviceBrand: undefined;
 
-	private readonly resourcesAccessQueueMap = new ResourceMap<Queue<any>>();
+	private readonly resourcesAccessQueueMap = new ResourceMap<Queue<IScannedMcpServers>>();
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -93,7 +94,7 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 
 	private async withProfileMcpServers(mcpResource: URI, target?: McpResourceTarget, updateFn?: (data: IScannedMcpServers) => IScannedMcpServers): Promise<IScannedMcpServers> {
 		return this.getResourceAccessQueue(mcpResource)
-			.queue(async () => {
+			.queue(async (): Promise<IScannedMcpServers> => {
 				target = target ?? ConfigurationTarget.USER;
 				let scannedMcpServers: IScannedMcpServers = {};
 				try {
@@ -123,18 +124,14 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 					scannedMcpServers = updateFn(scannedMcpServers ?? {});
 
 					if (target === ConfigurationTarget.USER) {
-						return this.writeScannedMcpServers(mcpResource, scannedMcpServers);
+						await this.writeScannedMcpServers(mcpResource, scannedMcpServers);
+					} else if (target === ConfigurationTarget.WORKSPACE_FOLDER) {
+						await this.writeScannedMcpServersToWorkspaceFolder(mcpResource, scannedMcpServers);
+					} else if (target === ConfigurationTarget.WORKSPACE) {
+						await this.writeScannedMcpServersToWorkspace(mcpResource, scannedMcpServers);
+					} else {
+						assertNever(target, `Invalid Target: ${ConfigurationTargetToString(target)}`);
 					}
-
-					if (target === ConfigurationTarget.WORKSPACE_FOLDER) {
-						return this.writeScannedMcpServersToWorkspaceFolder(mcpResource, scannedMcpServers);
-					}
-
-					if (target === ConfigurationTarget.WORKSPACE) {
-						return this.writeScannedMcpServersToWorkspace(mcpResource, scannedMcpServers);
-					}
-
-					throw new Error(`Invalid Target: ${ConfigurationTargetToString(target)}`);
 				}
 				return scannedMcpServers;
 			});
@@ -204,7 +201,7 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 
 	private sanitizeServer(serverOrConfig: IOldScannedMcpServer | Mutable<IMcpServerConfiguration>): IMcpServerConfiguration {
 		let server: IMcpServerConfiguration;
-		if (!(<IOldScannedMcpServer>serverOrConfig).config) {
+		if ((<IOldScannedMcpServer>serverOrConfig).config) {
 			const oldScannedMcpServer = <IOldScannedMcpServer>serverOrConfig;
 			server = {
 				...oldScannedMcpServer.config,
@@ -222,10 +219,10 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 		return server;
 	}
 
-	private getResourceAccessQueue(file: URI): Queue<any> {
+	private getResourceAccessQueue(file: URI): Queue<IScannedMcpServers> {
 		let resourceQueue = this.resourcesAccessQueueMap.get(file);
 		if (!resourceQueue) {
-			resourceQueue = new Queue<any>();
+			resourceQueue = new Queue<IScannedMcpServers>();
 			this.resourcesAccessQueueMap.set(file, resourceQueue);
 		}
 		return resourceQueue;

@@ -307,7 +307,7 @@ suite('AsyncDataTree', function () {
 		assert(!aNode.collapsed);
 		assert.equal(aNode.children.length, 1);
 		assert.equal(aNode.children[0].element.id, 'b');
-		const bChild = container.querySelector('.monaco-list-row:nth-child(2)') as HTMLElement | undefined;
+		const bChild = container.querySelector('.monaco-list-row:nth-child(2)');
 		assert.equal(bChild?.textContent, 'b');
 		tree.collapse(a);
 		assert(aNode.collapsed);
@@ -319,8 +319,8 @@ suite('AsyncDataTree', function () {
 		assert.equal(aNodeUpdated1.children.length, 0);
 		let didCheckNoChildren = false;
 		const event = tree.onDidChangeCollapseState(e => {
-			const child = container.querySelector('.monaco-list-row:nth-child(2)') as HTMLElement | undefined;
-			assert.equal(child, undefined);
+			const child = container.querySelector('.monaco-list-row:nth-child(2)');
+			assert.equal(child, null);
 			didCheckNoChildren = true;
 		});
 		await tree.expand(aUpdated1);
@@ -331,7 +331,7 @@ suite('AsyncDataTree', function () {
 		assert(!aNodeUpdated2.collapsed);
 		assert.equal(aNodeUpdated2.children.length, 1);
 		assert.equal(aNodeUpdated2.children[0].element.id, 'c');
-		const child = container.querySelector('.monaco-list-row:nth-child(2)') as HTMLElement | undefined;
+		const child = container.querySelector('.monaco-list-row:nth-child(2)');
 		assert.equal(child?.textContent, 'c');
 	});
 
@@ -364,7 +364,7 @@ suite('AsyncDataTree', function () {
 		assert(!aNode.collapsed);
 		assert.equal(aNode.children.length, 1);
 		assert.equal(aNode.children[0].element.id, 'b');
-		const bChild = container.querySelector('.monaco-list-row:nth-child(2)') as HTMLElement | undefined;
+		const bChild = container.querySelector('.monaco-list-row:nth-child(2)');
 		assert.equal(bChild?.textContent, 'b');
 		tree.collapse(a);
 		assert(aNode.collapsed);
@@ -375,7 +375,7 @@ suite('AsyncDataTree', function () {
 		assert.equal(aNodeUpdated1.children.length, 1);
 		let didCheckSameChildren = false;
 		const event = tree.onDidChangeCollapseState(e => {
-			const child = container.querySelector('.monaco-list-row:nth-child(2)') as HTMLElement | undefined;
+			const child = container.querySelector('.monaco-list-row:nth-child(2)');
 			assert.equal(child?.textContent, 'b');
 			didCheckSameChildren = true;
 		});
@@ -387,7 +387,7 @@ suite('AsyncDataTree', function () {
 		assert(!aNodeUpdated2.collapsed);
 		assert.equal(aNodeUpdated2.children.length, 1);
 		assert.equal(aNodeUpdated2.children[0].element.id, 'b');
-		const child = container.querySelector('.monaco-list-row:nth-child(2)') as HTMLElement | undefined;
+		const child = container.querySelector('.monaco-list-row:nth-child(2)');
 		assert.equal(child?.textContent, 'b');
 	});
 
