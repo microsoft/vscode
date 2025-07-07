@@ -212,6 +212,41 @@ jobs:
         continue-on-error: true
         if: always()
 
+      - name: Create failure summary
+        if: failure()
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          ## 🚨 Build Failed on macOS (${{ env.VSCODE_ARCH }})
+          
+          The ${{ env.ARTIFACT_NAME }} tests have failed. To help with debugging:
+          
+          ### 📁 Check the Artifacts Section
+          
+          Relevant debugging files have been uploaded as artifacts:
+          
+          - **🪵 Log Files**: `logs-macos-${{ env.VSCODE_ARCH }}-${{ env.ARTIFACT_NAME }}-${{ github.run_attempt }}`
+            - Contains detailed execution logs and error output
+            - Look for error patterns, stack traces, and test failures
+          
+          - **💥 Crash Reports**: `crash-dump-macos-${{ env.VSCODE_ARCH }}-${{ env.ARTIFACT_NAME }}-${{ github.run_attempt }}`
+            - Native crash dumps (if any crashes occurred)
+            - Useful for diagnosing segfaults or unexpected terminations
+          
+          - **📦 Node Modules**: `node-modules-macos-${{ env.VSCODE_ARCH }}-${{ env.ARTIFACT_NAME }}-${{ github.run_attempt }}`
+            - Compiled native modules for crash report symbolification
+            - Needed to properly analyze crash dumps
+          
+          ### 🔍 Next Steps
+          
+          1. **Download the log files** from the artifacts section below
+          2. **Search for "ERROR"** or "FAIL" in the logs to identify the root cause
+          3. **Check recent changes** that might have introduced the regression
+          4. **Run tests locally** using `./scripts/test.sh` to reproduce the issue
+          
+          ---
+          *This is run attempt #${{ github.run_attempt }} - previous attempts may have additional artifacts if this is a retry.*
+          EOF
+
       - name: Publish Crash Reports
         uses: actions/upload-artifact@v4
         if: failure()

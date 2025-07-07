@@ -40,6 +40,9 @@ export function setup(ensureStableCode: () => { stableCodePath: string | undefin
 			await app.workbench.editors.selectTab('Untitled-1');
 			await app.workbench.editors.selectTab('app.js');
 			await app.workbench.editors.selectTab('www');
+			if (process.platform === 'darwin') {
+				await app.workbench.editors.selectTab('wwwsdadasd');
+			}
 
 			await app.stop();
 			app = undefined;
