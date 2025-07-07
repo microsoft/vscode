@@ -213,7 +213,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.tools.autoApprove': {
 			default: false,
-			markdownDescription: nls.localize('chat.tools.autoApprove', "Controls whether tool use should be automatically approved.\n\nThis will allow _all_ tools to run automatically without user confirmation, overriding any tool-specific settings such as terminal auto-approval. Use with caution and be extra wary of possible sources of prompt injection!"),
+			markdownDescription: nls.localize('chat.tools.autoApprove', "Controls whether tool use should be automatically approved.\n\nAllows _all_ tools to run automatically without user confirmation, overriding any tool-specific settings such as terminal auto-approval.\n\nUse with caution: carefully review selected tools and be extra wary of possible sources of prompt injection!"),
 			type: 'boolean',
 			tags: ['experimental'],
 			policy: {
