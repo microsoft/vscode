@@ -109,7 +109,7 @@ steps:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Compile & Hygiene (OSS)
   - ${{ else }}:
-    - script: npm exec -- npm-run-all -lp hygiene
+    - script: npm exec -- npm-run-all -lp core-ci hygiene
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Compile & Hygiene (non-OSS)
