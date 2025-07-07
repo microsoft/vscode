@@ -254,9 +254,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		// Wait for the shell type to initialize. This will wait a short period after launching to
-		// allow the shell type to be set if possible. This prevents user requests sometimes getting lost
-		// if requested shortly after the terminal is created. Completion providers can still work
-		// with undefined shell types (e.g., for pseudoterminal-based terminals).
+		// allow the shell type to be set if possible. This prevents user requests sometimes getting
+		// lost if requested shortly after the terminal is created. Completion providers can still
+		// work with undefined shell types such as Pseudoterminal-based extension terminals.
 		await this._shellTypeInit;
 
 		let doNotRequestExtensionCompletions = false;
