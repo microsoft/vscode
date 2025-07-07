@@ -77,6 +77,7 @@ export const enum PackageType {
 	NODE = 'npm',
 	DOCKER = 'docker',
 	PYTHON = 'pypi',
+	NUGET = 'nuget',
 	REMOTE = 'remote',
 }
 
