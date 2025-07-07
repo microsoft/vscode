@@ -71,6 +71,7 @@ import { INotebookOutlineEntryFactory, NotebookOutlineEntryFactory } from '../..
 import { IOutlineService } from '../../../../services/outline/browser/outline.js';
 import { DefaultEndOfLine } from '../../../../../editor/common/model.js';
 import { ITextResourcePropertiesService } from '../../../../../editor/common/services/textResourceConfiguration.js';
+import { INotebookLoggingService } from '../../common/notebookLoggingService.js';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -207,6 +208,12 @@ export function setupInstantiationService(disposables: Pick<DisposableStore, 'ad
 	instantiationService.stub(IOutlineService, new class extends mock<IOutlineService>() { override registerOutlineCreator() { return { dispose() { } }; } });
 	instantiationService.stub(INotebookCellOutlineDataSourceFactory, instantiationService.createInstance(NotebookCellOutlineDataSourceFactory));
 	instantiationService.stub(INotebookOutlineEntryFactory, instantiationService.createInstance(NotebookOutlineEntryFactory));
+	instantiationService.stub(INotebookLoggingService, new class extends mock<INotebookLoggingService>() {
+		override debug(category: string, output: string): void { }
+		override info(category: string, output: string): void { }
+		override warn(category: string, output: string): void { }
+		override error(category: string, output: string): void { }
+	});
 
 	instantiationService.stub(ILanguageDetectionService, new class MockLanguageDetectionService implements ILanguageDetectionService {
 		_serviceBrand: undefined;
