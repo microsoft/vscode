@@ -950,7 +950,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					attempt: request.attempt + 1,
 					location: this.location,
 					userSelectedModelId: this.input.currentLanguageModel,
-					mode: this.input.currentModeKind,
+					mode: request.mode ?? this.input.currentModeKind,
 				};
 				this.chatService.resendRequest(request, options).catch(e => this.logService.error('FAILED to rerun request', e));
 			}
@@ -1523,7 +1523,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const options: IChatSendRequestOptions = {
 			attempt: lastRequest.attempt + 1,
 			location: this.location,
-			userSelectedModelId: this.input.currentLanguageModel
+			userSelectedModelId: this.input.currentLanguageModel,
+			mode: lastRequest.mode ?? this.input.currentModeKind
 		};
 		return await this.chatService.resendRequest(lastRequest, options);
 	}

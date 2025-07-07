@@ -264,6 +264,8 @@ export function registerChatTitleActions() {
 				userSelectedModelId: languageModelId,
 				attempt: (request?.attempt ?? -1) + 1,
 				...widget?.getModeRequestOptions(),
+				// Use the original request's mode if available, otherwise fall back to current mode
+				mode: request?.mode ?? widget?.input.currentModeKind,
 			});
 		}
 	});

@@ -278,7 +278,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 	private async doForwardRequestToCopilotWhenReady(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
 		const widget = chatWidgetService.getWidgetBySessionId(requestModel.session.sessionId);
-		const mode = widget?.input.currentModeKind;
+		const mode = requestModel.mode ?? widget?.input.currentModeKind;
 		const languageModel = widget?.input.currentLanguageModel;
 
 		// We need a signal to know when we can resend the request to
@@ -481,6 +481,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 			locationData: requestModel.locationData,
 			attachedContext: requestModel.attachedContext,
 			isCompleteAddedRequest: requestModel.isCompleteAddedRequest,
+			mode: requestModel.mode,
 		});
 	}
 
@@ -530,6 +531,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 			locationData: requestModel.locationData,
 			attachedContext: [chatRequestToolEntry],
 			isCompleteAddedRequest: requestModel.isCompleteAddedRequest,
+			mode: requestModel.mode,
 		});
 	}
 }
