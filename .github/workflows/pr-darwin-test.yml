@@ -41,7 +41,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build/node_modules_cache
-          key: "node_modules-${{ hashFiles('.build/packagelockhash') }}"
+          key: "node_modules-macos-${{ hashFiles('.build/packagelockhash') }}"
 
       - name: Extract node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit == 'true'
