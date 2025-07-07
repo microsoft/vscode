@@ -1,6 +1,9 @@
 pr: none
 
-trigger: none
+trigger:
+  batch: true
+  branches:
+    include: ["main"]
 
 parameters:
   - name: VSCODE_QUALITY
@@ -79,7 +82,9 @@ extends:
             pool:
               name: ACESLabTest
               os: macOS
-            steps:
+              variables:
+                NODE_OPTIONS: "--max-old-space-size=4096"
+              steps:
               - template: build/azure-pipelines/product-compile.yml@self
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
@@ -92,6 +97,7 @@ extends:
           os: macOS
         variables:
           BUILDSECMON_OPT_IN: true
+          NODE_OPTIONS: "--max-old-space-size=4096"
         jobs:
           - job: macOSElectronTest
             displayName: Electron Tests
