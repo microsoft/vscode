@@ -416,6 +416,11 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 
 	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, details?: IListElementRenderDetails): void {
 		templateData.indentSize = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
+		
+		// For trees with checkboxes and only top-level nodes (flat structure), reduce indentation
+		if (node.depth === 1 && this.isCheckboxTree() && this.isFlatTree()) {
+			templateData.indentSize = 0;
+		}
 
 		this.renderedNodes.set(node, templateData);
 		this.renderedElements.set(node.element, node);
@@ -529,6 +534,22 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 		}
 
 		templateData.indentGuidesDisposable = disposableStore;
+	}
+
+	private isCheckboxTree(): boolean {
+		// Check if the renderer is the custom tree view renderer with checkboxes
+		// We use duck typing to detect if this is a checkbox tree
+		return 'onDidChangeCheckboxState' in this.renderer && typeof (this.renderer as any).onDidChangeCheckboxState === 'object';
+	}
+
+	private isFlatTree(): boolean {
+		// Check if all rendered nodes have depth 1 (indicating a flat tree)
+		for (const [node] of this.renderedNodes) {
+			if (node.depth > 1) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	private _onDidChangeActiveNodes(nodes: ITreeNode<T, TFilterData>[]): void {
