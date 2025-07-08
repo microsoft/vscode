@@ -19,7 +19,6 @@ import { BaseAssignmentService } from '../../../../platform/assignment/common/as
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
-import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 
 export const IWorkbenchAssignmentService = createDecorator<IWorkbenchAssignmentService>('WorkbenchAssignmentService');
 
@@ -82,13 +81,13 @@ class WorkbenchAssignmentServiceTelemetry implements IExperimentationTelemetry {
 }
 
 export class WorkbenchAssignmentService extends BaseAssignmentService {
+
 	constructor(
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IProductService productService: IProductService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
 
 		super(
@@ -104,7 +103,7 @@ export class WorkbenchAssignmentService extends BaseAssignmentService {
 	protected override get experimentsEnabled(): boolean {
 		return !this.environmentService.disableExperiments &&
 			!this.environmentService.extensionTestsLocationURI &&
-			!this.workbenchEnvironmentService.enableSmokeTestDriver &&
+			!(this.environmentService as IWorkbenchEnvironmentService).enableSmokeTestDriver &&
 			this.configurationService.getValue('workbench.enableExperiments') === true;
 	}
 
