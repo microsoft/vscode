@@ -81,6 +81,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 	private readonly viewState: MementoObject;
 	private readonly stateMemento: Memento;
 	private cachedFilterStats: { total: number; filtered: number } | undefined = undefined;
+	private isPreservingTreeState = false;
 
 	readonly onDidChangeVisibility = this.onDidChangeBodyVisibility;
 
@@ -502,7 +503,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		if (this.isVisible()) {
 			this.hasCommentsContextKey.set(this.commentService.commentsModel.hasCommentThreads());
 			this.cachedFilterStats = undefined;
-			this.renderComments();
+			this.renderCommentsWithStatePreservation();
 
 			if (this.tree.getSelection().length === 0 && this.commentService.commentsModel.hasCommentThreads()) {
 				const firstComment = this.commentService.commentsModel.resourceCommentThreads[0].commentThreads[0];
@@ -578,5 +579,60 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 			}
 		}
 		return false;
+	}
+
+	private captureTreeExpansionState(): Map<string, boolean> {
+		const expansionState = new Map<string, boolean>();
+		if (!this.tree) {
+			return expansionState;
+		}
+
+		const navigator = this.tree.navigate();
+		while (navigator.next()) {
+			const element = navigator.current();
+			if (element instanceof ResourceWithCommentThreads) {
+				const id = `${element.uniqueOwner}-${element.id}`;
+				expansionState.set(id, !this.tree.isCollapsed(element));
+			}
+		}
+		return expansionState;
+	}
+
+	private restoreTreeExpansionState(expansionState: Map<string, boolean>): void {
+		if (!this.tree) {
+			return;
+		}
+
+		const navigator = this.tree.navigate();
+		while (navigator.next()) {
+			const element = navigator.current();
+			if (element instanceof ResourceWithCommentThreads) {
+				const id = `${element.uniqueOwner}-${element.id}`;
+				const wasExpanded = expansionState.get(id);
+				if (wasExpanded !== undefined) {
+					this.tree.setCollapsed(element, !wasExpanded);
+				}
+			}
+		}
+	}
+
+	public renderCommentsWithStatePreservation(): void {
+		if (this.isPreservingTreeState && this.tree) {
+			const expansionState = this.captureTreeExpansionState();
+			this.renderComments();
+			// Need to wait for the tree to re-render before restoring state
+			setTimeout(() => {
+				this.restoreTreeExpansionState(expansionState);
+			}, 0);
+		} else {
+			this.renderComments();
+		}
+	}
+
+	public refreshWithStatePreservation(): void {
+		this.isPreservingTreeState = true;
+		this.refresh().finally(() => {
+			this.isPreservingTreeState = false;
+		});
 	}
 }

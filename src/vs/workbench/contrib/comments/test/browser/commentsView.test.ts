@@ -160,6 +160,32 @@ suite('Comments View', function () {
 		view.dispose();
 	});
 
+	test('refresh with state preservation', async function () {
+		const view = instantiationService.createInstance(CommentsPanel, { id: 'comments', title: 'Comments' });
+		view.render();
+		commentService.setWorkspaceComments('test', [
+			new TestCommentThread(1, 1, '1', 'test1', new Range(1, 1, 1, 1), [{ body: 'test', uniqueIdInThread: 1, userName: 'alex' }]),
+			new TestCommentThread(2, 1, '1', 'test2', new Range(1, 1, 1, 1), [{ body: 'test', uniqueIdInThread: 1, userName: 'alex' }]),
+		]);
+		
+		// Initially all comments should be expanded
+		assert.strictEqual(view.areAllCommentsExpanded(), true);
+		
+		// Collapse some comments
+		view.collapseAll();
+		assert.strictEqual(view.isSomeCommentsExpanded(), false);
+		
+		// Use state-preserving refresh which should maintain the collapsed state
+		view.refreshWithStatePreservation();
+		
+		// After state-preserving refresh, expansion state should be maintained
+		// Note: This needs to be async since the restoration happens in setTimeout
+		await new Promise(resolve => setTimeout(resolve, 10));
+		assert.strictEqual(view.isSomeCommentsExpanded(), false);
+		
+		view.dispose();
+	});
+
 	test('filter by text', async function () {
 		const view = instantiationService.createInstance(CommentsPanel, { id: 'comments', title: 'Comments' });
 		view.setVisible(true);
