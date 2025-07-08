@@ -303,7 +303,7 @@ function createSearchRegExp(options: IPatternInfo): RegExp {
 		global: true,
 		matchCase: options.isCaseSensitive,
 		multiline: true,
-		unicode: true,
+		unicode: 'unicodeSets',
 	});
 }
 

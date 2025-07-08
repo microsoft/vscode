@@ -201,7 +201,11 @@ export interface RegExpOptions {
 	wholeWord?: boolean;
 	multiline?: boolean;
 	global?: boolean;
-	unicode?: boolean;
+	/**
+	 * - `true`: `u` flag
+	 * - `'unicodeSets'`: `v` flag
+	 */
+	unicode?: boolean | 'unicodeSets';
 }
 
 export function createRegExp(searchString: string, isRegex: boolean, options: RegExpOptions = {}): RegExp {
@@ -229,8 +233,11 @@ export function createRegExp(searchString: string, isRegex: boolean, options: Re
 	if (options.multiline) {
 		modifiers += 'm';
 	}
-	if (options.unicode) {
+	if (options.unicode === true) {
 		modifiers += 'u';
+	}
+	if (options.unicode === 'unicodeSets') {
+		modifiers += 'v';
 	}
 
 	return new RegExp(searchString, modifiers);
