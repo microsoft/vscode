@@ -1127,7 +1127,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 			const group = this._terminalGroupService.createGroup(shellLaunchConfig);
 			instance = group.terminalInstances[0];
 		}
-
 		this._addToReconnected(instance);
 		return instance;
 	}
