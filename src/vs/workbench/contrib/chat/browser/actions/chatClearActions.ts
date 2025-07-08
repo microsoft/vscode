@@ -6,7 +6,7 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { localize2 } from '../../../../../nls.js';
+import { localize, localize2 } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -17,7 +17,7 @@ import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession } from '../../common/chatEditingService.js';
 import { ChatModeKind } from '../../common/constants.js';
-import { ChatViewId, IChatWidget } from '../chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { EditingSessionAction } from '../chatEditing/chatEditingActions.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
@@ -162,22 +162,48 @@ export function registerNewChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.redoEdit',
-				title: localize2('chat.redoEdit.label', "Redo Last Request"),
+				// title: localize2('chat.redoEdit.label', "Redo Last Request"),
+				title: {
+					value: localize('chat.redoEdit.label', "Redo"),
+					original: localize('chat.redoEdit.label', "Redo"),
+				},
 				category: CHAT_CATEGORY,
-				icon: Codicon.redo,
+				// icon: Codicon.redo,
 				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanRedo, ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
 				f1: true,
 				menu: [{
-					id: MenuId.ViewTitle,
+					id: MenuId.ChatMessageRestoreCheckpoint,
 					when: ContextKeyExpr.equals('view', ChatViewId),
 					group: 'navigation',
-					order: -2
-				}]
+					order: -1
+				}
+				]
 			});
 		}
 
 		async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession) {
-			await editingSession.redoInteraction();
+			const widget = accessor.get(IChatWidgetService);
+			if (editingSession.canRedo) {
+				console.log('Redoing interaction in chat editing session');
+			}
+			// Use a reactive approach with observables instead of polling in a loop
+			const redoUntilDone = async () => {
+				// Check if we can still redo - this avoids unnecessary calls
+				if (!editingSession.canRedo.get()) {
+					return;
+				}
+
+				// Perform one redo operation
+				await editingSession.redoInteraction();
+
+				// Schedule next redo asynchronously to avoid blocking the UI
+				setTimeout(() => redoUntilDone(), 0);
+			};
+
+			// Start the process
+			await redoUntilDone();
+			widget.lastFocusedWidget?.viewModel?.model.setCheckpoint(undefined);
+			widget.lastFocusedWidget?.rerenderChat();
 		}
 	});
 }

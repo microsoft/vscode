@@ -525,6 +525,120 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 	}
 });
 
+registerAction2(class RestoreCheckpointAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.restoreCheckpoint',
+			title: {
+				value: localize('chat.restoreCheckpoint.label', "Restore"),
+				original: 'Restore',
+			},
+			tooltip: localize('chat.restoreCheckpoint.tooltip', "Restore"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			// icon: Codicon.flag,
+			keybinding: {
+				primary: KeyCode.Delete,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
+				},
+				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate()),
+				weight: KeybindingWeight.WorkbenchContrib,
+			},
+			menu: [
+				{
+					id: MenuId.ChatMessageCheckpoint,
+					group: 'navigation',
+					order: 2,
+					when: ChatContextKeys.isRequest
+				}
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		let item: ChatTreeItem | undefined = args[0];
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const widget = chatWidgetService.lastFocusedWidget;
+		if (!isResponseVM(item) && !isRequestVM(item)) {
+			item = widget?.getFocus();
+		}
+
+		if (!item) {
+			return;
+		}
+
+		widget?.viewModel?.model.setCheckpoint(item.id);
+		widget?.rerenderChat();
+
+		const configurationService = accessor.get(IConfigurationService);
+		const dialogService = accessor.get(IDialogService);
+		const chatService = accessor.get(IChatService);
+		const chatModel = chatService.getSession(item.sessionId);
+		if (!chatModel) {
+			return;
+		}
+
+		const session = chatModel.editingSession;
+		if (!session) {
+			return;
+		}
+
+		const requestId = isRequestVM(item) ? item.id :
+			isResponseVM(item) ? item.requestId : undefined;
+
+		if (requestId) {
+			const chatRequests = chatModel.getRequests();
+			const itemIndex = chatRequests.findIndex(request => request.id === requestId);
+			const editsToUndo = chatRequests.length - itemIndex;
+
+			const requestsToRemove = chatRequests.slice(itemIndex);
+			const requestIdsToRemove = new Set(requestsToRemove.map(request => request.id));
+			const entriesModifiedInRequestsToRemove = session.entries.get().filter((entry) => requestIdsToRemove.has(entry.lastModifyingRequestId)) ?? [];
+			const shouldPrompt = entriesModifiedInRequestsToRemove.length > 0 && configurationService.getValue('chat.editing.confirmEditRequestRemoval') === true;
+
+			let message: string;
+			if (editsToUndo === 1) {
+				if (entriesModifiedInRequestsToRemove.length === 1) {
+					message = localize('chat.removeLast.confirmation.message2', "This will remove your last request and undo the edits made to {0}. Do you want to proceed?", basename(entriesModifiedInRequestsToRemove[0].modifiedURI));
+				} else {
+					message = localize('chat.removeLast.confirmation.multipleEdits.message', "This will remove your last request and undo edits made to {0} files in your working set. Do you want to proceed?", entriesModifiedInRequestsToRemove.length);
+				}
+			} else {
+				if (entriesModifiedInRequestsToRemove.length === 1) {
+					message = localize('chat.remove.confirmation.message2', "This will remove all subsequent requests and undo edits made to {0}. Do you want to proceed?", basename(entriesModifiedInRequestsToRemove[0].modifiedURI));
+				} else {
+					message = localize('chat.remove.confirmation.multipleEdits.message', "This will remove all subsequent requests and undo edits made to {0} files in your working set. Do you want to proceed?", entriesModifiedInRequestsToRemove.length);
+				}
+			}
+
+			const confirmation = shouldPrompt
+				? await dialogService.confirm({
+					title: editsToUndo === 1
+						? localize('chat.removeLast.confirmation.title', "Do you want to undo your last edit?")
+						: localize('chat.remove.confirmation.title', "Do you want to undo {0} edits?", editsToUndo),
+					message: message,
+					primaryButton: localize('chat.remove.confirmation.primaryButton', "Yes"),
+					checkbox: { label: localize('chat.remove.confirmation.checkbox', "Don't ask again"), checked: false },
+					type: 'info'
+				})
+				: { confirmed: true };
+
+			if (!confirmation.confirmed) {
+				return;
+			}
+
+			if (confirmation.checkboxChecked) {
+				await configurationService.updateValue('chat.editing.confirmEditRequestRemoval', false);
+			}
+
+			// Restore the snapshot to what it was before the request(s) that we deleted
+			const snapshotRequestId = chatRequests[itemIndex].id;
+			await session.restoreSnapshot(snapshotRequestId, undefined);
+		}
+	}
+});
+
 registerAction2(class ResolveSymbolsContextAction extends EditingSessionAction {
 	constructor() {
 		super({

@@ -695,6 +695,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							`_${element.shouldBeBlocked ? '1' : '0'}` +
 							// Re-render if we have an element currently being edited
 							`_${this.viewModel?.editing ? '1' : '0'}` +
+							// Re-render if we have an element currently being checkpointed
+							`_${this.viewModel?.model.checkpoint ? '1' : '0'}` +
 							// Re-render all if invoked by setting change
 							`_setting${this.settingChangeCounter || '0'}` +
 							// Rerender request if we got new content references in the response
@@ -1022,6 +1024,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (editedRequest) {
 			this.clickedRequest(editedRequest);
 		}
+	}
+
+	rerenderChat(): void {
+		this.onDidChangeItems();
 	}
 
 	private clickedRequest(item: IChatListItemTemplate) {
