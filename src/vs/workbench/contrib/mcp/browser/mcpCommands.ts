@@ -731,12 +731,6 @@ export class ShowInstalledMcpServersCommand extends Action2 {
 			category,
 			precondition: HasInstalledMcpServersContext,
 			f1: true,
-			menu: {
-				id: CHAT_CONFIG_MENU_ID,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-				order: 14,
-				group: '0_level'
-			}
 		});
 	}
 
@@ -749,6 +743,16 @@ export class ShowInstalledMcpServersCommand extends Action2 {
 		}
 	}
 }
+
+MenuRegistry.appendMenuItem(CHAT_CONFIG_MENU_ID, {
+	command: {
+		id: McpCommandIds.ShowInstalled,
+		title: localize2('mcp.servers', "MCP Servers")
+	},
+	when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
+	order: 14,
+	group: '0_level'
+});
 
 abstract class OpenMcpResourceCommand extends Action2 {
 	protected abstract getURI(accessor: ServicesAccessor): Promise<URI>;
