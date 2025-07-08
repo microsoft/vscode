@@ -1566,13 +1566,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid.edgeSnapping = this.state.runtime.mainWindowFullscreen;
 
 		if (this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED)) {
-			// TODO@benibenj this is a workaround for the grid not being able to
-			// restore the maximized auxiliary bar on startup when it was maximised
-			// It seems that since editor and panel are hidden, the parent node is
-			// also hidden and not present, breaking the layout.
-			// Workaround is to make editor visible so that its parent view gets
-			// added properly and then enter maximized mode of auxiliary bar.
-			this.setAuxiliaryBarMaximized(true, true /* fromInit */);
+			// // TODO@benibenj this is a workaround for the grid not being able to
+			// // restore the maximized auxiliary bar on startup when it was maximised
+			// // It seems that since editor and panel are hidden, the parent node is
+			// // also hidden and not present, breaking the layout.
+			// // Workaround is to make editor visible so that its parent view gets
+			// // added properly and then enter maximized mode of auxiliary bar.
+			// this.setAuxiliaryBarMaximized(true, true /* fromInit */);
 		}
 
 		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar, auxiliaryBarPart, bannerPart]) {
@@ -2653,6 +2653,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			sideBarPosition: positionToString(this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_POSITON)),
 			panelPosition: positionToString(this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_POSITION)),
 		};
+
+		console.log(result);
 
 		this.telemetryService.publicLog2<StartupLayoutEvent, StartupLayoutEventClassification>('startupLayout', layoutDescriptor);
 
