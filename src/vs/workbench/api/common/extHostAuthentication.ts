@@ -478,10 +478,6 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 			// If non-empty scopes are provided, include scope parameter in the request
 			authorizationUrl.searchParams.append('scope', scopeString);
 		}
-		if (this._resourceMetadata?.resource) {
-			// If a resource is specified, include it in the request
-			authorizationUrl.searchParams.append('resource', this._resourceMetadata.resource);
-		}
 
 		// Use a redirect URI that matches what was registered during dynamic registration
 		const redirectUri = 'https://vscode.dev/redirect';
@@ -569,7 +565,8 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/x-www-form-urlencoded',
-				'Accept': 'application/json'
+				'Accept': 'application/json',
+				'Origin': redirectUri,
 			},
 			body: tokenRequest.toString()
 		});

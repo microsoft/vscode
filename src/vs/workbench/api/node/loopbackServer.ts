@@ -53,8 +53,8 @@ export class LoopbackAuthServer implements ILoopbackServer {
 		private readonly _appUri: URI,
 		private readonly _appName: string
 	) {
-		const deferredPromise = new DeferredPromise<IOAuthResult>();
-		this._resultPromise = deferredPromise.p;
+		let deferred: { resolve: (result: IOAuthResult) => void; reject: (reason: any) => void };
+		this._resultPromise = new Promise<IOAuthResult>((resolve, reject) => deferred = { resolve, reject });
 
 		this._server = http.createServer((req, res) => {
 			const reqUrl = new URL(req.url!, `http://${req.headers.host}`);
@@ -66,7 +66,7 @@ export class LoopbackAuthServer implements ILoopbackServer {
 					if (error) {
 						res.writeHead(302, { location: `/done?error=${reqUrl.searchParams.get('error_description') || error}` });
 						res.end();
-						deferredPromise.error(new Error(error));
+						deferred.reject(new Error(error));
 						break;
 					}
 					if (!code || !state) {
@@ -77,10 +77,10 @@ export class LoopbackAuthServer implements ILoopbackServer {
 					if (this.state !== state) {
 						res.writeHead(302, { location: `/done?error=${encodeURIComponent('State does not match.')}` });
 						res.end();
-						deferredPromise.error(new Error('State does not match.'));
+						deferred.reject(new Error('State does not match.'));
 						break;
 					}
-					deferredPromise.complete({ code, state });
+					deferred.resolve({ code, state });
 					res.writeHead(302, { location: '/done' });
 					res.end();
 					break;
@@ -319,7 +319,7 @@ export class LoopbackAuthServer implements ILoopbackServer {
 		} else {
 			// Redirect to the app URI after a 1-second delay to allow page to load
 			setTimeout(function() {
-				window.location.href = '${this._appUri.toString(true)}';
+				// window.location.href = '${this._appUri.toString(true)}';
 			}, 1000);
 		}
 	</script>
