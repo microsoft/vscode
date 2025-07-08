@@ -19,7 +19,7 @@ export abstract class BaseAssignmentService implements IAssignmentService {
 	private overrideInitDelay: Promise<void>;
 
 	protected get experimentsEnabled(): boolean {
-		return true;
+		return !this.environmentService.disableExperiments;
 	}
 
 	constructor(

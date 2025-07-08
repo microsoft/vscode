@@ -3,45 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../../../base/common/event.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { ITextModel } from '../../../../../editor/common/model.js';
-import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { TextModelPromptParser } from '../../common/promptSyntax/parsers/textModelPromptParser.js';
-import { IChatPromptSlashCommand, ICustomChatMode, IPromptParserResult, IPromptPath, IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ICustomChatMode, IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 
 export class MockPromptsService implements IPromptsService {
-
 	_serviceBrand: undefined;
 
-	getSyntaxParserFor(_model: ITextModel): TextModelPromptParser & { isDisposed: false } {
-		throw new Error('Method not implemented.');
+	private readonly _onDidChangeCustomChatModes = new Emitter<void>();
+	readonly onDidChangeCustomChatModes = this._onDidChangeCustomChatModes.event;
+
+	private _customModes: ICustomChatMode[] = [];
+
+	setCustomModes(modes: ICustomChatMode[]): void {
+		this._customModes = modes;
+		this._onDidChangeCustomChatModes.fire();
 	}
-	listPromptFiles(_type: PromptsType): Promise<readonly IPromptPath[]> {
-		throw new Error('Method not implemented.');
+
+	async getCustomChatModes(token: CancellationToken): Promise<readonly ICustomChatMode[]> {
+		return this._customModes;
 	}
-	getSourceFolders(_type: PromptsType): readonly IPromptPath[] {
-		throw new Error('Method not implemented.');
-	}
-	asPromptSlashCommand(command: string): IChatPromptSlashCommand | undefined {
-		return undefined;
-	}
-	resolvePromptSlashCommand(_data: IChatPromptSlashCommand, _token: CancellationToken): Promise<IPromptParserResult | undefined> {
-		throw new Error('Method not implemented.');
-	}
-	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]> {
-		throw new Error('Method not implemented.');
-	}
-	onDidChangeCustomChatModes: Event<void> = Event.None;
-	getCustomChatModes(token: CancellationToken): Promise<readonly ICustomChatMode[]> {
-		throw new Error('Method not implemented.');
-	}
-	parse(uri: URI, type: PromptsType, token: CancellationToken): Promise<IPromptParserResult> {
-		throw new Error('Method not implemented.');
-	}
-	getPromptFileType(resource: URI): PromptsType | undefined {
-		throw new Error('Method not implemented.');
-	}
+
+	// Stub implementations for required interface methods
+	getSyntaxParserFor(_model: any): any { throw new Error('Not implemented'); }
+	listPromptFiles(_type: any): Promise<readonly any[]> { throw new Error('Not implemented'); }
+	getSourceFolders(_type: any): readonly any[] { throw new Error('Not implemented'); }
+	asPromptSlashCommand(_command: string): any { return undefined; }
+	resolvePromptSlashCommand(_data: any, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
+	findPromptSlashCommands(): Promise<any[]> { throw new Error('Not implemented'); }
+	parse(_uri: URI, _type: any, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
+	getPromptFileType(_resource: URI): any { return undefined; }
 	dispose(): void { }
 }

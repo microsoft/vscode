@@ -64,7 +64,7 @@ export const EditReasons = {
 	chatApplyEdits(data: { modelId: string | undefined }) {
 		return createEditReason({
 			source: 'Chat.applyEdits',
-			$modelId: data.modelId,
+			$modelId: avoidPathRedaction(data.modelId),
 		} as const);
 	},
 
@@ -90,7 +90,7 @@ export const EditReasons = {
 	inlineChatApplyEdit(data: { modelId: string | undefined }) {
 		return createEditReason({
 			source: 'inlineChat.applyEdits',
-			$modelId: data.modelId,
+			$modelId: avoidPathRedaction(data.modelId),
 		} as const);
 	},
 
@@ -115,3 +115,11 @@ export const EditReasons = {
 
 type Values<T> = T[keyof T];
 type ITextModelEditReasonMetadata = Values<{ [TKey in keyof typeof EditReasons]: ReturnType<typeof EditReasons[TKey]>['metadataT'] }>;
+
+function avoidPathRedaction(str: string | undefined): string | undefined {
+	if (str === undefined) {
+		return undefined;
+	}
+	// To avoid false-positive file path redaction.
+	return str.replaceAll('/', '|');
+}

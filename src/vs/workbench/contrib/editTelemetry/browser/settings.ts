@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.prompt-coding-agent-action-overlay .monaco-button {
-	width: 36px !important;
-	height: 36px !important;
-	border-radius: 50% !important;
-}
+export const EDIT_TELEMETRY_SETTING_ID = 'telemetry.editStats.enabled';
+export const EDIT_TELEMETRY_DETAILS_SETTING_ID = 'telemetry.editStats.details.enabled';
+export const EDIT_TELEMETRY_SHOW_DECORATIONS = 'telemetry.editStats.showDecorations';
+export const EDIT_TELEMETRY_SHOW_STATUS_BAR = 'telemetry.editStats.showStatusBar';

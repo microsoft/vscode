@@ -30,6 +30,10 @@ export function isResponseVM(item: unknown): item is IChatResponseViewModel {
 	return !!item && typeof (item as IChatResponseViewModel).setVote !== 'undefined';
 }
 
+export function isChatTreeItem(item: unknown): item is IChatRequestViewModel | IChatResponseViewModel {
+	return isRequestVM(item) || isResponseVM(item);
+}
+
 export function assertIsResponseVM(item: unknown): asserts item is IChatResponseViewModel {
 	if (!isResponseVM(item)) {
 		throw new Error('Expected item to be IChatResponseViewModel');

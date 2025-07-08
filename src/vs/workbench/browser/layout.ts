@@ -7,7 +7,6 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { Event, Emitter } from '../../base/common/event.js';
 import { EventType, addDisposableListener, getClientArea, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension } from '../../base/browser/dom.js';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from '../../base/browser/browser.js';
-import { IWorkingCopyBackupService } from '../services/workingCopy/common/workingCopyBackup.js';
 import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common/platform.js';
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from '../common/editor.js';
 import { SidebarPart } from './parts/sidebar/sidebarPart.js';
@@ -15,7 +14,7 @@ import { PanelPart } from './parts/panel/panelPart.js';
 import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart } from '../services/layout/browser/layoutService.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
-import { IConfigurationChangeEvent, IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService, isConfigured } from '../../platform/configuration/common/configuration.js';
 import { ITitleService } from '../services/title/browser/titleService.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { StartupKind, ILifecycleService } from '../services/lifecycle/common/lifecycle.js';
@@ -286,7 +285,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private titleService!: ITitleService;
 	private viewDescriptorService!: IViewDescriptorService;
 	private contextService!: IWorkspaceContextService;
-	private workingCopyBackupService!: IWorkingCopyBackupService;
 	private notificationService!: INotificationService;
 	private themeService!: IThemeService;
 	private statusBarService!: IStatusbarService;
@@ -314,7 +312,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.hostService = accessor.get(IHostService);
 		this.contextService = accessor.get(IWorkspaceContextService);
 		this.storageService = accessor.get(IStorageService);
-		this.workingCopyBackupService = accessor.get(IWorkingCopyBackupService);
 		this.themeService = accessor.get(IThemeService);
 		this.extensionService = accessor.get(IExtensionService);
 		this.logService = accessor.get(ILogService);
@@ -633,10 +630,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService, coreExperimentationService: ICoreExperimentationService): void {
 		this._mainContainerDimension = getClientArea(this.parent, DEFAULT_WINDOW_DIMENSIONS); // running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
 
-		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService, coreExperimentationService);
+		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService, coreExperimentationService, this.environmentService, this.viewDescriptorService);
 		this.stateModel.load({
 			mainContainerDimension: this._mainContainerDimension,
-			auxiliaryBarOpensMaximized: () => this.auxiliaryBarOpensMaximized(), // deferred as function because this depends on state
 			resetLayout: Boolean(this.layoutOptions?.resetLayout)
 		});
 
@@ -836,11 +832,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && this.configurationService.getValue('workbench.startupEditor') === 'newUntitledFile') {
 			if (this.editorGroupService.hasRestorableState) {
 				return []; // do not open any empty untitled file if we restored groups/editors from previous session
-			}
-
-			const hasBackups = await this.workingCopyBackupService.hasBackups();
-			if (hasBackups) {
-				return []; // do not open any empty untitled file if we have backups to restore
 			}
 
 			return [{
@@ -1111,6 +1102,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Await for promises that we recorded to update
 		// our ready and restored states properly.
 		Promises.settled(layoutReadyPromises).finally(() => {
+
+			// Focus the active maximized part in case we have
+			// not yet focused a specific element and panel
+			// or auxiliary bar are maximized.
+			if (getActiveElement() === mainWindow.document.body && (this.isPanelMaximized() || this.isAuxiliaryBarMaximized())) {
+				this.focus();
+			}
+
 			this.whenReadyPromise.complete();
 
 			Promises.settled(layoutRestoredPromises).finally(() => {
@@ -2126,13 +2125,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return true;
 	}
 
-	private auxiliaryBarOpensMaximized(): boolean {
-		const auxiliaryBarOpensMaximized = partOpensMaximizedFromString(this.configurationService.getValue<string>(WorkbenchLayoutSettings.AUXILIARY_BAR_OPENS_MAXIMIZED));
-		const auxiliaryBarLastIsMaximized = this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED);
-
-		return auxiliaryBarOpensMaximized === PartOpensMaximizedOptions.ALWAYS || (auxiliaryBarOpensMaximized === PartOpensMaximizedOptions.REMEMBER_LAST && auxiliaryBarLastIsMaximized);
-	}
-
 	isPanelMaximized(): boolean {
 		return (
 			this.getPanelAlignment() === 'center' || 	// the workbench grid currently prevents us from supporting panel
@@ -2785,7 +2777,6 @@ enum WorkbenchLayoutSettings {
 	ACTIVITY_BAR_VISIBLE = 'workbench.activityBar.visible',
 	PANEL_POSITION = 'workbench.panel.defaultLocation',
 	PANEL_OPENS_MAXIMIZED = 'workbench.panel.opensMaximized',
-	AUXILIARY_BAR_OPENS_MAXIMIZED = 'workbench.secondarySideBar.opensMaximized',
 	ZEN_MODE_CONFIG = 'zenMode',
 	EDITOR_CENTERED_LAYOUT_AUTO_RESIZE = 'workbench.editor.centeredLayoutAutoResize',
 }
@@ -2797,7 +2788,6 @@ enum LegacyWorkbenchLayoutSettings {
 
 interface ILayoutStateLoadConfiguration {
 	readonly mainContainerDimension: IDimension;
-	readonly auxiliaryBarOpensMaximized: () => boolean;
 	readonly resetLayout: boolean;
 }
 
@@ -2814,7 +2804,9 @@ class LayoutStateModel extends Disposable {
 		private readonly storageService: IStorageService,
 		private readonly configurationService: IConfigurationService,
 		private readonly contextService: IWorkspaceContextService,
-		private readonly coreExperimentationService: ICoreExperimentationService
+		private readonly coreExperimentationService: ICoreExperimentationService,
+		private readonly environmentService: IBrowserWorkbenchEnvironmentService,
+		private readonly viewDescriptorService: IViewDescriptorService
 	) {
 		super();
 
@@ -2877,13 +2869,35 @@ class LayoutStateModel extends Disposable {
 		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = workbenchState === WorkbenchState.EMPTY;
 		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
 		LayoutStateKeys.AUXILIARYBAR_HIDDEN.defaultValue = (() => {
+
+			// TODO@bpasero: lots of hacks here to not force open the auxiliary sidebar
+			// when no Chat view is present within:
+			// - revisit this when/if the default value of workbench.secondarySideBar.defaultVisibility changes
+			// - revisit this when Chat is available in serverless web
+			// - drop the need to probe for chat.setupContext
+			// - drop the need to probe for view location of workbench.panel.chat.view.copilot
+			const configuration = this.configurationService.inspect(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY);
+			if (configuration.defaultValue !== 'hidden' && !isConfigured(configuration)) {
+				if (isWeb && !this.environmentService.remoteAuthority) {
+					return true; // Chat view is not enabled
+				}
+
+				const context = this.storageService.getObject<{ hidden?: boolean; disabled?: boolean; installed?: boolean }>('chat.setupContext', StorageScope.PROFILE);
+				if (context && ((context.installed && context.disabled) || (!context.installed && context.hidden))) {
+					return true; // Chat view is hidden by user choice
+				}
+
+				const location = this.viewDescriptorService.getViewLocationById('workbench.panel.chat.view.copilot');
+				if (location === ViewContainerLocation.Sidebar || location === ViewContainerLocation.Panel) {
+					return true; // Chat view is not located in the auxiliary bar
+				}
+			}
+
 			switch (this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY)) {
 				case 'visible':
 					return false;
 				case 'visibleInWorkspace':
 					return workbenchState === WorkbenchState.EMPTY;
-				case 'visibleInNewWorkspace':
-					return workbenchState === WorkbenchState.EMPTY || !this.storageService.isNew(StorageScope.WORKSPACE);
 				default:
 					return true;
 			}
@@ -2942,35 +2956,27 @@ class LayoutStateModel extends Disposable {
 			)
 		) {
 			if (experiment.value.experimentGroup === StartupExperimentGroup.MaximizedChat) {
-				this.applyAuxiliaryBarMaximizedOverride();
+				this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY, {
+					sideBarVisible: !this.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN),
+					panelVisible: !this.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN),
+					editorVisible: !this.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN),
+					auxiliaryBarVisible: !this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN)
+				});
+
+				this.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, true);
+				this.setRuntimeValue(LayoutStateKeys.PANEL_HIDDEN, true);
+				this.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, true);
+				this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, false);
+
+				this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE, this.getInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE));
+				this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, true);
 			} else if (
 				experiment.value.experimentGroup === StartupExperimentGroup.SplitEmptyEditorChat ||
 				experiment.value.experimentGroup === StartupExperimentGroup.SplitWelcomeChat
 			) {
 				const mainContainerDimension = configuration.mainContainerDimension;
 				this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, false);
-				this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, mainContainerDimension.width / 2);
-			}
-		}
-
-		// Without experimental treatment
-		else {
-
-			// Override runtime values for auxiliary bar maximized state
-			const wasAuxiliaryBarMaximized = this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED);
-			const auxiliaryBarOpensMaximized = configuration.auxiliaryBarOpensMaximized();
-			const state = this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY);
-			if (wasAuxiliaryBarMaximized && !auxiliaryBarOpensMaximized) {
-				this.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, !state.sideBarVisible);
-				this.setRuntimeValue(LayoutStateKeys.PANEL_HIDDEN, !state.panelVisible);
-				this.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, !state.editorVisible);
-				this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, !state.auxiliaryBarVisible);
-
-				this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE));
-
-				this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, false);
-			} else if (!wasAuxiliaryBarMaximized && auxiliaryBarOpensMaximized) {
-				this.applyAuxiliaryBarMaximizedOverride();
+				this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, Math.ceil(mainContainerDimension.width / (1.618 * 1.618 /* golden ratio */)));
 			}
 		}
 
@@ -2982,23 +2988,6 @@ class LayoutStateModel extends Disposable {
 		) {
 			this.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, false);
 		}
-	}
-
-	private applyAuxiliaryBarMaximizedOverride(): void {
-		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY, {
-			sideBarVisible: !this.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN),
-			panelVisible: !this.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN),
-			editorVisible: !this.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN),
-			auxiliaryBarVisible: !this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN)
-		});
-
-		this.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, true);
-		this.setRuntimeValue(LayoutStateKeys.PANEL_HIDDEN, true);
-		this.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, true);
-		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, false);
-
-		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE, this.getInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE));
-		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, true);
 	}
 
 	save(workspace: boolean, global: boolean): void {

@@ -15,6 +15,7 @@ export interface IRemoteCodingAgent {
 	command: string;
 	displayName: string;
 	description?: string;
+	followUpRegex?: string;
 	when?: string;
 }
 
