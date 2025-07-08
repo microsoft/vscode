@@ -5,6 +5,7 @@
 
 import { reverseOrder, compareBy, numberComparator, sumBy } from '../../../../base/common/arrays.js';
 import { IntervalTimer, TimeoutTimer } from '../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { toDisposable, DisposableStore, Disposable } from '../../../../base/common/lifecycle.js';
 import { mapObservableArrayCached, derived, IReader, IObservable, observableSignal, runOnChange, IObservableWithChange, observableValue, transaction, derivedObservableWithCache } from '../../../../base/common/observable.js';
 import { isDefined } from '../../../../base/common/types.js';
@@ -353,18 +354,21 @@ class ArcTelemetrySender extends Disposable {
 
 		this._register(runOnChange(docWithAnnotatedEdits.value, (_val, _prev, changes) => {
 			const edit = AnnotatedStringEdit.compose(changes.map(c => c.edit));
-			if (edit.replacements.length !== 1) {
+
+			if (!edit.replacements.some(r => r.data.editReason.metadata.source === 'inlineCompletionAccept')) {
 				return;
 			}
-			const singleEdit = edit.replacements[0];
-			const data = singleEdit.data.editReason.metadata;
-			if (data?.source !== 'inlineCompletionAccept') {
+			if (!edit.replacements.every(r => r.data.editReason.metadata.source === 'inlineCompletionAccept')) {
+				onUnexpectedError(new Error('ArcTelemetrySender: Not all edits are inline completion accept edits!'));
 				return;
 			}
+			if (edit.replacements[0].data.editReason.metadata.source !== 'inlineCompletionAccept') {
+				return;
+			}
+			const data = edit.replacements[0].data.editReason.metadata;
 
 			const docWithJustReason = createDocWithJustReason(docWithAnnotatedEdits, this._store);
-			const reporter = this._instantiationService.createInstance(ArcTelemetryReporter, docWithJustReason, scmRepoBridge, singleEdit.toEdit(), res => {
-
+			const reporter = this._instantiationService.createInstance(ArcTelemetryReporter, docWithJustReason, scmRepoBridge, edit, res => {
 				res.telemetryService.publicLog2<{
 					extensionId: string;
 					extensionVersion: string;
@@ -437,6 +441,7 @@ export class ArcTelemetryReporter {
 		this._initialBranchName = this._gitRepo?.headBranchNameObs.get();
 
 		// This aligns with github inline completions
+		this._report(0); // for debugging
 		this._reportAfter(30 * 1000);
 		this._reportAfter(120 * 1000);
 		this._reportAfter(300 * 1000);
