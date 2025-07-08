@@ -52,10 +52,8 @@ const fallbackMatchers: RegExp[] = [
 	// C:\foo/bar baz:339: error ...
 	// C:\foo/bar baz:339:12: error ...     [#178584, Clang]
 	/^(?<link>(?<path>.+):(?<line>\d+)(?::(?<col>\d+))?) ?:/,
-	// PowerShell prompt with spaces - PS D:\workspace\abc def>
-	/^PS\s+(?<link>(?<path>[^>]+))>\s*$/,
-	// Cmd prompt
-	/^(?<link>(?<path>.+))>/,
+	// PowerShell and cmd prompt
+	/^(?:PS\s+)?(?<link>(?<path>[^>]+))>/,
 	// The whole line is the path
 	/^ *(?<link>(?<path>.+))/
 ];

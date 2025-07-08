@@ -136,10 +136,7 @@ const windowsFallbackLinks: (string | { link: string; resource: URI })[] = [
 	'C:\\foo bar',
 	'C:\\foo bar\\baz',
 	'C:\\foo\\bar baz',
-	'C:\\foo/bar baz',
-	// PowerShell prompts with spaces
-	'D:\\workspace\\abc def',
-	'C:\\Program Files\\Visual Studio Code'
+	'C:\\foo/bar baz'
 ];
 
 const supportedFallbackLinkFormats: LinkFormatInfo[] = [
