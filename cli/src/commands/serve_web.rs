@@ -41,14 +41,6 @@ use crate::{
 
 use super::{args::ServeWebArgs, CommandContext};
 
-/// Generates a random port between 1025 and 65535, matching the TypeScript randomPort() implementation.
-fn random_port() -> u16 {
-	use rand::Rng;
-	let min = 1025;
-	let max = 65535;
-	rand::thread_rng().gen_range(min..=max)
-}
-
 /// Length of a commit hash, for validation
 const COMMIT_HASH_LEN: usize = 40;
 /// Number of seconds where, if there's no connections to a VS Code server,
@@ -125,22 +117,17 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 		let _ = std::fs::remove_file(&s); // cleanup
 		r
 	} else {
-		// If port is 0, use a random port as documented in the help text
-		let port = if args.port == 0 {
-			random_port()
-		} else {
-			args.port
-		};
-		
 		let addr: SocketAddr = match &args.host {
 			Some(h) => {
-				SocketAddr::new(h.parse().map_err(CodeError::InvalidHostAddress)?, port)
+				SocketAddr::new(h.parse().map_err(CodeError::InvalidHostAddress)?, args.port)
 			}
-			None => SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port),
+			None => SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), args.port),
 		};
 		let builder = Server::try_bind(&addr).map_err(CodeError::CouldNotListenOnInterface)?;
 
-		let mut listening = format!("Web UI available at http://{addr}");
+		// Get the actual bound address (important when port 0 is used for random port assignment)
+		let bound_addr = builder.local_addr();
+		let mut listening = format!("Web UI available at http://{bound_addr}");
 		if let Some(base) = args.server_base_path {
 			if !base.starts_with('/') {
 				listening.push('/');
