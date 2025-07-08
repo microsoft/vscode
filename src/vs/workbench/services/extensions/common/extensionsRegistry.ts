@@ -400,8 +400,8 @@ export const schema: IJSONSchema = {
 					},
 					{
 						label: 'onTerminal',
-						body: 'onTerminal',
-						description: nls.localize('vscode.extension.activationEvents.onTerminal', 'An activation event emitted when a terminal is opened.'),
+						body: 'onTerminal:{1:shellType}',
+						description: nls.localize('vscode.extension.activationEvents.onTerminal', 'An activation event emitted when a terminal of the given shell type is opened.'),
 					},
 					{
 						label: 'onTerminalCompletionsRequested',

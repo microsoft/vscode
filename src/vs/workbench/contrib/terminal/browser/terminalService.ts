@@ -1017,7 +1017,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		const location = await this.resolveLocation(options?.location) || this.defaultLocation;
 		const parent = await this._getSplitParent(options?.location);
 		this._terminalHasBeenCreated.set(true);
-		this._extensionService.activateByEvent('onTerminal');
+		this._extensionService.activateByEvent('onTerminal:*');
 		if (parent) {
 			return this._splitTerminal(shellLaunchConfig, location, parent);
 		}
@@ -1093,6 +1093,9 @@ export class TerminalService extends Disposable implements ITerminalService {
 			shellLaunchConfig.parentTerminalId = parent.instanceId;
 			instance = group.split(shellLaunchConfig);
 		}
+		if (instance.shellType) {
+			this._extensionService.activateByEvent(`onTerminal:${instance.shellType}`);
+		}
 		this._addToReconnected(instance);
 		return instance;
 	}
@@ -1120,6 +1123,10 @@ export class TerminalService extends Disposable implements ITerminalService {
 			const group = this._terminalGroupService.createGroup(shellLaunchConfig);
 			instance = group.terminalInstances[0];
 		}
+		if (instance.shellType) {
+			this._extensionService.activateByEvent(`onTerminal:${instance.shellType}`);
+		}
+
 		this._addToReconnected(instance);
 		return instance;
 	}
