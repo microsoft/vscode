@@ -21,7 +21,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatModel, IExportableChatData, ISerializableChatData } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
-import { ChatAgentLocation, ChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { clearChatEditor } from './actions/chatClear.js';
 import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
@@ -69,7 +69,7 @@ export class ChatEditor extends EditorPane {
 				ChatAgentLocation.Panel,
 				undefined,
 				{
-					autoScroll: mode => mode !== ChatMode.Ask,
+					autoScroll: mode => mode !== ChatModeKind.Ask,
 					renderFollowups: true,
 					supportsFileReferences: true,
 					rendererOptions: {
@@ -77,7 +77,7 @@ export class ChatEditor extends EditorPane {
 							return true;
 						},
 						referencesExpandedWhenEmptyResponse: false,
-						progressMessageAtBottomOfResponse: mode => mode !== ChatMode.Ask,
+						progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
 					},
 					enableImplicitContext: true,
 					enableWorkingSet: 'explicit',

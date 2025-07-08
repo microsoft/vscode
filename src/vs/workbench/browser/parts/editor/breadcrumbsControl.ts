@@ -659,15 +659,12 @@ registerAction2(class ToggleBreadcrumb extends Action2 {
 	constructor() {
 		super({
 			id: 'breadcrumbs.toggle',
-			title: {
-				...localize2('cmd.toggle', "Toggle Breadcrumbs"),
-				mnemonicTitle: localize({ key: 'miBreadcrumbs', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breadcrumbs"),
-			},
+			title: localize2('cmd.toggle', "Toggle Breadcrumbs"),
 			category: Categories.View,
 			toggled: {
 				condition: ContextKeyExpr.equals('config.breadcrumbs.enabled', true),
 				title: localize('cmd.toggle2', "Toggle Breadcrumbs"),
-				mnemonicTitle: localize({ key: 'miBreadcrumbs2', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breadcrumbs")
+				mnemonicTitle: localize({ key: 'miBreadcrumbs2', comment: ['&& denotes a mnemonic'] }, "&&Breadcrumbs")
 			},
 			menu: [
 				{ id: MenuId.CommandPalette },

@@ -37,13 +37,11 @@
 			max-width: 350px;
 			padding: 0 20px;
 			margin-top: 26px;
+
+			a {
+				color: var(--vscode-textLink-foreground);
+			}
 		}
 
-		.mcp-welcome-button-container {
-			margin-top: 24px;
-			margin-bottom: 24px;
-			max-width: 300px;
-			width: 100%;
-		}
 	}
 }

@@ -97,7 +97,11 @@ interface IFocusEventFromScroll extends KeyboardEvent {
 const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
 const SEARCH_TOC_BEHAVIOR_KEY = 'workbench.settings.settingsSearchTocBehavior';
 
+const SHOW_AI_RESULTS_ENABLED_LABEL = localize('showAiResultsEnabled', "Show AI-recommended results");
+const SHOW_AI_RESULTS_DISABLED_LABEL = localize('showAiResultsDisabled', "No AI results available at this time...");
+
 const SETTINGS_EDITOR_STATE_KEY = 'settingsEditorState';
+
 export class SettingsEditor2 extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.settings2';
@@ -335,6 +339,7 @@ export class SettingsEditor2 extends EditorPane {
 		if (this.showAiResultsAction) {
 			this.showAiResultsAction.checked = false;
 			this.showAiResultsAction.enabled = false;
+			this.showAiResultsAction.label = SHOW_AI_RESULTS_DISABLED_LABEL;
 		}
 	}
 
@@ -666,7 +671,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		const showAiResultActionClassNames = ['action-label', ThemeIcon.asClassName(preferencesAiResultsIcon)];
 		this.showAiResultsAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS,
-			localize('showAiResults', "Show AI-recommended results"), showAiResultActionClassNames.join(' '), true
+			SHOW_AI_RESULTS_DISABLED_LABEL, showAiResultActionClassNames.join(' '), true
 		));
 		this._register(this.showAiResultsAction.onDidChange(async () => {
 			await this.onDidToggleAiSearch();
@@ -766,6 +771,9 @@ export class SettingsEditor2 extends EditorPane {
 
 	toggleAiSearch(): void {
 		if (this.showAiResultsAction) {
+			if (!this.showAiResultsAction.enabled) {
+				aria.status(localize('noAiResults', "No AI results available at this time."));
+			}
 			this.showAiResultsAction.checked = !this.showAiResultsAction.checked;
 		}
 	}
@@ -1820,6 +1828,7 @@ export class SettingsEditor2 extends EditorPane {
 				return this.doAiSearch(query, token).then((results) => {
 					if (results && this.showAiResultsAction) {
 						this.showAiResultsAction.enabled = true;
+						this.showAiResultsAction.label = SHOW_AI_RESULTS_ENABLED_LABEL;
 						this.renderResultCountMessages(true);
 					}
 				}).catch(e => {
@@ -1931,17 +1940,19 @@ export class SettingsEditor2 extends EditorPane {
 		} else {
 			const count = this.searchResultModel.getUniqueResultsCount();
 			let resultString: string;
-			switch (count) {
-				case 0: resultString = localize('noResults', "No Settings Found"); break;
-				case 1: resultString = localize('oneResult', "1 Setting Found"); break;
-				default: resultString = localize('moreThanOneResult', "{0} Settings Found", count);
-			}
 
 			if (showAiResultsMessage) {
-				resultString += localize({
-					key: 'aiSearchResults',
-					comment: ['This string is appended after noResults, oneResult, or moreThanOneResult']
-				}, ". AI Results Available");
+				switch (count) {
+					case 0: resultString = localize('noResultsWithAiAvailable', "No Settings Found. AI Results Available"); break;
+					case 1: resultString = localize('oneResultWithAiAvailable', "1 Setting Found. AI Results Available"); break;
+					default: resultString = localize('moreThanOneResultWithAiAvailable', "{0} Settings Found. AI Results Available", count);
+				}
+			} else {
+				switch (count) {
+					case 0: resultString = localize('noResults', "No Settings Found"); break;
+					case 1: resultString = localize('oneResult', "1 Setting Found"); break;
+					default: resultString = localize('moreThanOneResult', "{0} Settings Found", count);
+				}
 			}
 
 			this.searchResultLabel = resultString;

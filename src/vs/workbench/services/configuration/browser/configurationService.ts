@@ -1333,31 +1333,40 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 	}
 }
 
-class ResetConfigurationDefaultsOverridesCache extends Disposable implements IWorkbenchContribution {
-	constructor(
-		@IConfigurationService configurationService: WorkspaceService,
-		@IExtensionService extensionService: IExtensionService,
-	) {
-		super();
-		if (configurationService.hasCachedConfigurationDefaultsOverrides()) {
-			extensionService.whenInstalledExtensionsRegistered().then(() => configurationService.reloadConfiguration(ConfigurationTarget.DEFAULT));
-		}
-	}
-}
+class ConfigurationDefaultOverridesContribution extends Disposable implements IWorkbenchContribution {
 
-class UpdateExperimentalSettingsDefaults extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.updateExperimentalSettingsDefaults';
+	static readonly ID = 'workbench.contrib.configurationDefaultOverridesContribution';
 
 	private readonly processedExperimentalSettings = new Set<string>();
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 
 	constructor(
-		@IWorkbenchAssignmentService private readonly workbenchAssignmentService: IWorkbenchAssignmentService
+		@IWorkbenchAssignmentService private readonly workbenchAssignmentService: IWorkbenchAssignmentService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IConfigurationService private readonly configurationService: WorkspaceService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
-		this.processExperimentalSettings(Object.keys(this.configurationRegistry.getConfigurationProperties()));
+
+		this.updateDefaults();
+
+		// When configuration is updated make sure to apply experimental configuration overrides
 		this._register(this.configurationRegistry.onDidUpdateConfiguration(({ properties }) => this.processExperimentalSettings(properties)));
+	}
+
+	private async updateDefaults(): Promise<void> {
+		this.logService.trace('ConfigurationService#updateDefaults: begin');
+		try {
+			// Check for experiments
+			await this.processExperimentalSettings(Object.keys(this.configurationRegistry.getConfigurationProperties()));
+		} finally {
+			// Invalidate defaults cache after extensions have registered
+			// and after the experiments have been resolved to prevent
+			// resetting the overrides too early.
+			await this.extensionService.whenInstalledExtensionsRegistered();
+			this.logService.trace('ConfigurationService#updateDefaults: resetting the defaults');
+			this.configurationService.reloadConfiguration(ConfigurationTarget.DEFAULT);
+		}
 	}
 
 	private async processExperimentalSettings(properties: Iterable<string>): Promise<void> {
@@ -1391,8 +1400,7 @@ class UpdateExperimentalSettingsDefaults extends Disposable implements IWorkbenc
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(RegisterConfigurationSchemasContribution, LifecyclePhase.Restored);
-workbenchContributionsRegistry.registerWorkbenchContribution(ResetConfigurationDefaultsOverridesCache, LifecyclePhase.Eventually);
-registerWorkbenchContribution2(UpdateExperimentalSettingsDefaults.ID, UpdateExperimentalSettingsDefaults, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ConfigurationDefaultOverridesContribution.ID, ConfigurationDefaultOverridesContribution, WorkbenchPhase.BlockRestore);
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration({

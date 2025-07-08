@@ -44,6 +44,7 @@ export interface IAuthenticationMcpAccessService {
 	removeAllowedMcpServers(providerId: string, accountName: string): void;
 }
 
+// TODO@TylerLeonhardt: Should this class only keep track of allowed things and throw away disallowed ones?
 export class AuthenticationMcpAccessService extends Disposable implements IAuthenticationMcpAccessService {
 	_serviceBrand: undefined;
 

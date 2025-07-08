@@ -21,6 +21,15 @@
 	overflow: hidden;
 }
 
+.interactive-session .experimental-welcome-view & > .chat-welcome-view-input-part {
+	max-width: 650px;
+	margin-bottom: 48px;
+}
+
+.interactive-session.experimental-welcome-view .chat-input-toolbars > .chat-input-toolbar > div {
+	display: none;
+}
+
 /* Container for ChatViewPane welcome view */
 .pane-body > .chat-view-welcome {
 	flex-direction: column;
@@ -49,6 +58,7 @@ div.chat-welcome-view {
 		font-weight: 500;
 		text-align: center;
 		line-height: normal;
+		padding: 0 8px;
 	}
 
 	& > .chat-welcome-view-indicator-container {
@@ -95,6 +105,66 @@ div.chat-welcome-view {
 			.codicon {
 				padding-top: 1px;
 			}
+		}
+	}
+
+	& > .chat-welcome-experimental-view-message {
+		text-align: center;
+		max-width: 350px;
+		padding: 0 20px 32px;
+		font-size: 16px;
+
+		a {
+			color: var(--vscode-descriptionForeground);
+		}
+	}
+
+	& > .chat-welcome-view-experimental-additional-message {
+		font-size: 12px;
+		color: var(--vscode-disabledForeground);
+		text-align: center;
+		max-width: 400px;
+		margin-top: 8px;
+	}
+
+	& > .chat-welcome-view-suggested-prompts {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		margin-top: 4px;
+
+		> .chat-welcome-view-suggested-prompt {
+			display: flex;
+			align-items: center;
+			padding: 2px;
+			border-radius: 8px;
+			background-color: var(--vscode-editorWidget-background);
+			cursor: pointer;
+			border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+			border-radius: 4px;
+			max-width: 100%;
+			width: fit-content;
+			margin: 0 4px;
+
+			> .chat-welcome-view-suggested-prompt-icon {
+				display: flex;
+				align-items: center;
+				font-size: 4px;
+				color: var(--vscode-icon-foreground) !important;
+				align-items: center;
+				padding: 4px;
+			}
+
+			> .chat-welcome-view-suggested-prompt-label {
+				font-size: 14px;
+				color: var(--vscode-editorWidget-foreground);
+				padding: 4px 4px 4px 0;
+			}
+		}
+
+		> .chat-welcome-view-suggested-prompt:hover {
+			background-color: var(--vscode-list-hoverBackground);
+			border-color: var(--vscode-focusBorder);
 		}
 	}
 }

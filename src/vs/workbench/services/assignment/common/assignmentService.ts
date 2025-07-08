@@ -100,7 +100,7 @@ export class WorkbenchAssignmentService extends BaseAssignmentService {
 	}
 
 	protected override get experimentsEnabled(): boolean {
-		return this.configurationService.getValue('workbench.enableExperiments') === true;
+		return !this.environmentService.disableExperiments && this.configurationService.getValue('workbench.enableExperiments') === true;
 	}
 
 	override async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {

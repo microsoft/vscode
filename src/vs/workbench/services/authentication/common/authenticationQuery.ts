@@ -68,6 +68,12 @@ export interface IAccountQuery extends IBaseQuery {
 	mcpServers(): IAccountMcpServersQuery;
 
 	/**
+	 * Get operations for all entities (extensions and MCP servers) on this account
+	 * @returns An account-entities query interface for type-agnostic operations
+	 */
+	entities(): IAccountEntitiesQuery;
+
+	/**
 	 * Remove all authentication data for this account
 	 */
 	remove(): void;
@@ -125,6 +131,12 @@ export interface IAccountExtensionQuery extends IBaseQuery {
 	 * Check if this account is the preferred account for this extension
 	 */
 	isPreferred(): boolean;
+
+	/**
+	 * Check if this extension is trusted (defined in product.json)
+	 * @returns True if the extension is trusted, false otherwise
+	 */
+	isTrusted(): boolean;
 }
 
 /**
@@ -194,10 +206,10 @@ export interface IAccountExtensionsQuery extends IBaseQuery {
 	readonly accountName: string;
 
 	/**
-	 * Get all extension IDs that have access to this account
-	 * @returns Array of extension IDs
+	 * Get all extensions that have access to this account with their trusted state
+	 * @returns Array of objects containing extension data including trusted state
 	 */
-	getAllowedExtensionIds(): string[];
+	getAllowedExtensions(): { id: string; name: string; allowed?: boolean; lastUsed?: number; trusted?: boolean }[];
 
 	/**
 	 * Grant access to this account for all specified extensions
@@ -250,16 +262,40 @@ export interface IAccountMcpServersQuery extends IBaseQuery {
 }
 
 /**
+ * Query interface for type-agnostic operations on all entities (extensions and MCP servers) within a specific account
+ */
+export interface IAccountEntitiesQuery extends IBaseQuery {
+	readonly accountName: string;
+
+	/**
+	 * Check if this account has been used by any entity (extension or MCP server)
+	 * @returns True if the account has been used, false otherwise
+	 */
+	hasAnyUsage(): boolean;
+
+	/**
+	 * Get the total count of entities that have used this account
+	 * @returns Object with counts for extensions and MCP servers
+	 */
+	getEntityCount(): { extensions: number; mcpServers: number; total: number };
+
+	/**
+	 * Remove access to this account for all entities (extensions and MCP servers)
+	 */
+	removeAllAccess(): void;
+
+	/**
+	 * Execute a callback for each entity that has used this account
+	 * @param callback Function to execute for each entity
+	 */
+	forEach(callback: (entityId: string, entityType: 'extension' | 'mcpServer') => void): void;
+}
+
+/**
  * Query interface for operations on a specific extension within a provider
  */
 export interface IProviderExtensionQuery extends IBaseQuery {
 	readonly extensionId: string;
-
-	/**
-	 * Get the last used account for this extension within this provider
-	 * @returns The account name, or undefined if no preference is set
-	 */
-	getLastUsedAccount(): Promise<string | undefined>;
 
 	/**
 	 * Get the preferred account for this extension within this provider
@@ -277,12 +313,6 @@ export interface IProviderExtensionQuery extends IBaseQuery {
 	 * Remove the account preference for this extension within this provider
 	 */
 	removeAccountPreference(): void;
-
-	/**
-	 * Get all accounts that this extension has used within this provider
-	 * @returns Array of account names
-	 */
-	getUsedAccounts(): Promise<string[]>;
 }
 
 /**

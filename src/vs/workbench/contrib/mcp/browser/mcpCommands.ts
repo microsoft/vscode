@@ -23,33 +23,39 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { ActiveEditorContext, ResourceContextKey } from '../../../common/contextkeys.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { ActiveEditorContext, RemoteNameContext, ResourceContextKey, WorkbenchStateContext, WorkspaceFolderCountContext } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IAuthenticationAccessService } from '../../../services/authentication/browser/authenticationAccessService.js';
-import { IAuthenticationMcpAccessService } from '../../../services/authentication/browser/authenticationMcpAccessService.js';
-import { IAuthenticationMcpService } from '../../../services/authentication/browser/authenticationMcpService.js';
+import { IAccountQuery, IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { IChatWidgetService } from '../../chat/browser/chat.js';
+import { ChatViewId, IChatWidgetService } from '../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { ChatMode } from '../../chat/common/constants.js';
+import { ChatModeKind } from '../../chat/common/constants.js';
 import { ILanguageModelsService } from '../../chat/common/languageModels.js';
 import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpConnectionState, mcpPromptPrefix, McpServerCacheState } from '../common/mcpTypes.js';
+import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpConnectionState, McpDefinitionReference, mcpPromptPrefix, McpServerCacheState } from '../common/mcpTypes.js';
 import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
 import { McpResourceQuickAccess, McpResourceQuickPick } from './mcpResourceQuickAccess.js';
-import { McpUrlHandler } from './mcpUrlHandler.js';
 import { openPanelChatAndGetWidget } from './openPanelChatAndGetWidget.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { IRemoteUserDataProfilesService } from '../../../services/userDataProfile/common/remoteUserDataProfiles.js';
+import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from '../../../browser/actions/workspaceCommands.js';
+import { MCP_CONFIGURATION_KEY, WORKSPACE_STANDALONE_CONFIGURATIONS } from '../../../services/configuration/common/configuration.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { CHAT_CONFIG_MENU_ID } from '../../chat/browser/actions/chatActions.js';
+import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -68,7 +74,7 @@ export class ListMcpServerCommand extends Action2 {
 			menu: [{
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.or(McpContextKeys.hasUnknownTools, McpContextKeys.hasServersWithErrors),
-					ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
+					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent)
 				),
 				id: MenuId.ChatExecute,
 				group: 'navigation',
@@ -134,7 +140,12 @@ export class ListMcpServerCommand extends Action2 {
 }
 
 interface ActionItem extends IQuickPickItem {
-	action: 'start' | 'stop' | 'restart' | 'disconnect' | 'signout' | 'showOutput' | 'config' | 'configSampling' | 'samplingLog' | 'resources';
+	action: 'start' | 'stop' | 'restart' | 'showOutput' | 'config' | 'configSampling' | 'samplingLog' | 'resources';
+}
+
+interface AuthActionItem extends IQuickPickItem {
+	action: 'disconnect' | 'signout';
+	accountQuery: IAccountQuery;
 }
 
 export class McpServerOptionsCommand extends Action2 {
@@ -154,11 +165,8 @@ export class McpServerOptionsCommand extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const commandService = accessor.get(ICommandService);
 		const samplingService = accessor.get(IMcpSamplingService);
-		const authenticationMcpService = accessor.get(IAuthenticationMcpService);
-		const authenticationMcpAccessService = accessor.get(IAuthenticationMcpAccessService);
-		const authenticationExtensionAccessService = accessor.get(IAuthenticationAccessService);
+		const authenticationQueryService = accessor.get(IAuthenticationQueryService);
 		const authenticationService = accessor.get(IAuthenticationService);
-		const productService = accessor.get(IProductService);
 		const server = mcpService.servers.get().find(s => s.definition.id === id);
 		if (!server) {
 			return;
@@ -167,7 +175,7 @@ export class McpServerOptionsCommand extends Action2 {
 		const collection = mcpRegistry.collections.get().find(c => c.id === server.collection.id);
 		const serverDefinition = collection?.serverDefinitions.get().find(s => s.id === server.definition.id);
 
-		const items: (ActionItem | IQuickPickSeparator)[] = [];
+		const items: (ActionItem | AuthActionItem | IQuickPickSeparator)[] = [];
 		const serverState = server.connectionState.get();
 
 		items.push({ type: 'separator', label: localize('mcp.actions.status', 'Status') });
@@ -189,17 +197,7 @@ export class McpServerOptionsCommand extends Action2 {
 			});
 		}
 
-		const item = this._getAuthAction(
-			mcpRegistry,
-			authenticationMcpService,
-			authenticationMcpAccessService,
-			authenticationExtensionAccessService,
-			productService,
-			server.definition.id
-		);
-		if (item) {
-			items.push(item);
-		}
+		items.push(...this._getAuthActions(authenticationQueryService, server.definition.id));
 
 		const configTarget = serverDefinition?.presentation?.origin || collection?.presentation?.origin;
 		if (configTarget) {
@@ -262,24 +260,12 @@ export class McpServerOptionsCommand extends Action2 {
 				await server.start({ isFromInteraction: true });
 				break;
 			case 'disconnect':
-				await this._handleAuth(
-					mcpRegistry,
-					authenticationMcpService,
-					authenticationMcpAccessService,
-					authenticationService,
-					server,
-					false
-				);
+				await server.stop();
+				await this._handleAuth(authenticationService, pick.accountQuery, server.definition, false);
 				break;
 			case 'signout':
-				await this._handleAuth(
-					mcpRegistry,
-					authenticationMcpService,
-					authenticationMcpAccessService,
-					authenticationService,
-					server,
-					true
-				);
+				await server.stop();
+				await this._handleAuth(authenticationService, pick.accountQuery, server.definition, true);
 				break;
 			case 'showOutput':
 				server.showOutput();
@@ -302,102 +288,54 @@ export class McpServerOptionsCommand extends Action2 {
 				});
 				break;
 			default:
-				assertNever(pick.action);
+				assertNever(pick);
 		}
 	}
 
-	private _getAuthAction(
-		mcpRegistry: IMcpRegistry,
-		authenticationMcpService: IAuthenticationMcpService,
-		authenticationMcpAccessService: IAuthenticationMcpAccessService,
-		authenticationAccessService: IAuthenticationAccessService,
-		productService: IProductService,
+	private _getAuthActions(
+		authenticationQueryService: IAuthenticationQueryService,
 		serverId: string
-	): ActionItem | undefined {
-		const providerId = mcpRegistry.getAuthenticationUsage(serverId);
-		if (!providerId) {
-			return undefined;
-		}
-		const preference = authenticationMcpService.getAccountPreference(serverId, providerId);
-		if (!preference) {
-			return undefined;
-		}
-		if (!authenticationMcpAccessService.isAccessAllowed(providerId, preference, serverId)) {
-			return undefined;
-		}
-		const allowedServers = this._getAllAllowedItems(
-			authenticationMcpAccessService,
-			authenticationAccessService,
-			productService,
-			providerId,
-			preference
-		);
+	): AuthActionItem[] {
+		const result: AuthActionItem[] = [];
+		// Really, this should only ever have one entry.
+		for (const [providerId, accountName] of authenticationQueryService.mcpServer(serverId).getAllAccountPreferences()) {
 
-		// If there are multiple allowed servers/extensions, other things are using this provider
-		// so we show a disconnect action, otherwise we show a sign out action.
-		if (allowedServers.length > 1) {
-			return {
-				action: 'disconnect',
-				label: localize('mcp.disconnect', 'Disconnect Account'),
-				description: `(${preference})`,
-			};
+			const accountQuery = authenticationQueryService.provider(providerId).account(accountName);
+			if (!accountQuery.mcpServer(serverId).isAccessAllowed()) {
+				continue; // skip accounts that are not allowed
+			}
+			// If there are multiple allowed servers/extensions, other things are using this provider
+			// so we show a disconnect action, otherwise we show a sign out action.
+			if (accountQuery.entities().getEntityCount().total > 1) {
+				result.push({
+					action: 'disconnect',
+					label: localize('mcp.disconnect', 'Disconnect Account'),
+					description: `(${accountName})`,
+					accountQuery
+				});
+			} else {
+				result.push({
+					action: 'signout',
+					label: localize('mcp.signOut', 'Sign Out'),
+					description: `(${accountName})`,
+					accountQuery
+				});
+			}
 		}
-		return {
-			action: 'signout',
-			label: localize('mcp.signOut', 'Sign Out'),
-			description: `(${preference})`
-		};
-	}
-
-	// TODO@TylerLeonhardt: The fact that this function exists means that these classes could really use some refactoring...
-	private _getAllAllowedItems(
-		authenticationMcpAccessService: IAuthenticationMcpAccessService,
-		authenticationAccessService: IAuthenticationAccessService,
-		productService: IProductService,
-		providerId: string,
-		preference: string
-	) {
-		const trustedExtensionAuth = Array.isArray(productService.trustedExtensionAuthAccess) || !productService.trustedExtensionAuthAccess
-			? []
-			: productService.trustedExtensionAuthAccess[providerId] ?? [];
-		const trustedMcpAuth = Array.isArray(productService.trustedMcpAuthAccess) || !productService.trustedMcpAuthAccess
-			? []
-			: productService.trustedMcpAuthAccess[providerId] ?? [];
-
-		return [
-			...authenticationMcpAccessService.readAllowedMcpServers(providerId, preference).filter(s => !s.trusted),
-			...authenticationAccessService.readAllowedExtensions(providerId, preference).filter(e => !e.trusted),
-			...trustedExtensionAuth,
-			...trustedMcpAuth
-		];
+		return result;
 	}
 
 	private async _handleAuth(
-		mcpRegistry: IMcpRegistry,
-		authenticationMcpService: IAuthenticationMcpService,
-		authenticationMcpAccessService: IAuthenticationMcpAccessService,
 		authenticationService: IAuthenticationService,
-		server: IMcpServer,
+		accountQuery: IAccountQuery,
+		definition: McpDefinitionReference,
 		signOut: boolean
 	) {
-		const providerId = mcpRegistry.getAuthenticationUsage(server.definition.id);
-		if (!providerId) {
-			return;
-		}
-		const preference = authenticationMcpService.getAccountPreference(server.definition.id, providerId);
-		if (!preference) {
-			return;
-		}
-		authenticationMcpAccessService.updateAllowedMcpServers(providerId, preference, [
-			{
-				id: server.definition.id,
-				name: server.definition.label,
-				allowed: false
-			}
-		]);
+		const { providerId, accountName } = accountQuery;
+		accountQuery.mcpServer(definition.id).setAccessAllowed(false, definition.label);
 		if (signOut) {
 			const accounts = await authenticationService.getAccounts(providerId);
-			const account = accounts.find(a => a.label === preference);
+			const account = accounts.find(a => a.label === accountName);
 			if (account) {
 				const sessions = await authenticationService.getSessions(providerId, undefined, { account });
 				for (const session of sessions) {
@@ -737,26 +675,6 @@ export class StopServer extends Action2 {
 	}
 }
 
-export class InstallFromActivation extends Action2 {
-	constructor() {
-		super({
-			id: McpCommandIds.InstallFromActivation,
-			title: localize2('mcp.command.installFromActivation', "Install..."),
-			category,
-			f1: false,
-			menu: {
-				id: MenuId.EditorContent,
-				when: ContextKeyExpr.equals('resourceScheme', McpUrlHandler.scheme)
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor, uri: URI) {
-		const addConfigHelper = accessor.get(IInstantiationService).createInstance(McpAddConfigurationCommand, undefined);
-		addConfigHelper.pickForUrlHandler(uri);
-	}
-}
-
 export class McpBrowseCommand extends Action2 {
 	constructor() {
 		super({
@@ -784,6 +702,27 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	},
 });
 
+export class BrowseMcpServersPageCommand extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.BrowsePage,
+			title: localize2('mcp.command.open', "Browse MCP Servers"),
+			icon: Codicon.globe,
+			menu: [{
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', InstalledMcpServersViewId),
+				group: 'navigation',
+			}],
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const productService = accessor.get(IProductService);
+		const openerService = accessor.get(IOpenerService);
+		return openerService.open(productService.quality === 'insider' ? 'https://code.visualstudio.com/insider/mcp' : 'https://code.visualstudio.com/mcp');
+	}
+}
+
 export class ShowInstalledMcpServersCommand extends Action2 {
 	constructor() {
 		super({
@@ -792,11 +731,115 @@ export class ShowInstalledMcpServersCommand extends Action2 {
 			category,
 			precondition: HasInstalledMcpServersContext,
 			f1: true,
+			menu: {
+				id: CHAT_CONFIG_MENU_ID,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
+				order: 14,
+				group: '0_level'
+			}
 		});
 	}
 
 	async run(accessor: ServicesAccessor) {
-		accessor.get(IViewsService).openView(InstalledMcpServersViewId, true);
+		const viewsService = accessor.get(IViewsService);
+		const view = await viewsService.openView(InstalledMcpServersViewId, true);
+		if (!view) {
+			await viewsService.openViewContainer(VIEW_CONTAINER.id);
+			await viewsService.openView(InstalledMcpServersViewId, true);
+		}
+	}
+}
+
+abstract class OpenMcpResourceCommand extends Action2 {
+	protected abstract getURI(accessor: ServicesAccessor): Promise<URI>;
+
+	async run(accessor: ServicesAccessor) {
+		const fileService = accessor.get(IFileService);
+		const editorService = accessor.get(IEditorService);
+		const resource = await this.getURI(accessor);
+		if (!(await fileService.exists(resource))) {
+			await fileService.createFile(resource, VSBuffer.fromString(JSON.stringify({ servers: {} }, null, '\t')));
+		}
+		await editorService.openEditor({ resource });
+	}
+}
+
+export class OpenUserMcpResourceCommand extends OpenMcpResourceCommand {
+	constructor() {
+		super({
+			id: McpCommandIds.OpenUserMcp,
+			title: localize2('mcp.command.openUserMcp', "Open User Configuration"),
+			category,
+			f1: true
+		});
+	}
+
+	protected override getURI(accessor: ServicesAccessor): Promise<URI> {
+		const userDataProfileService = accessor.get(IUserDataProfileService);
+		return Promise.resolve(userDataProfileService.currentProfile.mcpResource);
+	}
+}
+
+export class OpenRemoteUserMcpResourceCommand extends OpenMcpResourceCommand {
+	constructor() {
+		super({
+			id: McpCommandIds.OpenRemoteUserMcp,
+			title: localize2('mcp.command.openRemoteUserMcp', "Open Remote User Configuration"),
+			category,
+			f1: true,
+			precondition: RemoteNameContext.notEqualsTo('')
+		});
+	}
+
+	protected override async getURI(accessor: ServicesAccessor): Promise<URI> {
+		const userDataProfileService = accessor.get(IUserDataProfileService);
+		const remoteUserDataProfileService = accessor.get(IRemoteUserDataProfilesService);
+		const remoteProfile = await remoteUserDataProfileService.getRemoteProfile(userDataProfileService.currentProfile);
+		return remoteProfile.mcpResource;
+	}
+}
+
+export class OpenWorkspaceFolderMcpResourceCommand extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.OpenWorkspaceFolderMcp,
+			title: localize2('mcp.command.openWorkspaceFolderMcp', "Open Workspace Folder MCP Configuration"),
+			category,
+			f1: true,
+			precondition: WorkspaceFolderCountContext.notEqualsTo(0)
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
+		const commandService = accessor.get(ICommandService);
+		const editorService = accessor.get(IEditorService);
+		const workspaceFolders = workspaceContextService.getWorkspace().folders;
+		const workspaceFolder = workspaceFolders.length === 1 ? workspaceFolders[0] : await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
+		if (workspaceFolder) {
+			await editorService.openEditor({ resource: workspaceFolder.toResource(WORKSPACE_STANDALONE_CONFIGURATIONS[MCP_CONFIGURATION_KEY]) });
+		}
+	}
+}
+
+export class OpenWorkspaceMcpResourceCommand extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.OpenWorkspaceMcp,
+			title: localize2('mcp.command.openWorkspaceMcp', "Open Workspace MCP Configuration"),
+			category,
+			f1: true,
+			precondition: WorkbenchStateContext.isEqualTo('workspace')
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
+		const editorService = accessor.get(IEditorService);
+		const workspaceConfiguration = workspaceContextService.getWorkspace().configuration;
+		if (workspaceConfiguration) {
+			await editorService.openEditor({ resource: workspaceConfiguration });
+		}
 	}
 }
 
@@ -895,5 +938,3 @@ export class McpStartPromptingServerCommand extends Action2 {
 		SuggestController.get(editor)?.triggerSuggest();
 	}
 }
-
-
