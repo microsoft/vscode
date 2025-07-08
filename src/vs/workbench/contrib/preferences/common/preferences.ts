@@ -224,6 +224,10 @@ knownTermMappings.set('powershell', 'PowerShell');
 knownTermMappings.set('javascript', 'JavaScript');
 knownTermMappings.set('typescript', 'TypeScript');
 knownTermMappings.set('github', 'GitHub');
+knownTermMappings.set('jet brains', 'JetBrains');
+knownTermMappings.set('jetbrains', 'JetBrains');
+knownTermMappings.set('re sharper', 'ReSharper');
+knownTermMappings.set('resharper', 'ReSharper');
 
 export function wordifyKey(key: string): string {
 	key = key
