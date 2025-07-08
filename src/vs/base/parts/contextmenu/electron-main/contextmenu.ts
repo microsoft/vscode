@@ -20,6 +20,7 @@ export function registerContextMenuListener(): void {
 				// It turns out that the menu gets GC'ed if not referenced anymore
 				// As such we drag it into this scope so that it is not being GC'ed
 				if (menu) {
+					console.log('CONTEXT_MENU_CLOSE_CHANNEL channel', contextMenuId);
 					event.sender.send(CONTEXT_MENU_CLOSE_CHANNEL, contextMenuId);
 				}
 			}

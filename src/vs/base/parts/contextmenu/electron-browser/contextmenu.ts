@@ -25,7 +25,7 @@ export function popup(items: IContextMenuItem[], options?: IPopupOptions, onHide
 		}
 
 		ipcRenderer.removeListener(onClickChannel, onClickChannelHandler);
-
+		console.log('CONTEXT_MENU_CLOSE_CHANNEL');
 		onHide?.();
 	});
 
