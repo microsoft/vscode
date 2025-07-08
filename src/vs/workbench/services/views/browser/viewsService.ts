@@ -531,7 +531,7 @@ export class ViewsService extends Disposable implements IViewsService {
 						layoutService.setPartHidden(true, getPartByLocation(viewLocation));
 					}
 				} else {
-					viewsService.openView(viewDescriptor.id, !options?.preserveFocus);
+					await viewsService.openView(viewDescriptor.id, !options?.preserveFocus);
 				}
 			}
 		}));
