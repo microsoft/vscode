@@ -1018,10 +1018,17 @@ export class TerminalService extends Disposable implements ITerminalService {
 		const parent = await this._getSplitParent(options?.location);
 		this._terminalHasBeenCreated.set(true);
 		this._extensionService.activateByEvent('onTerminal:*');
+		let instance;
 		if (parent) {
-			return this._splitTerminal(shellLaunchConfig, location, parent);
+			instance = this._splitTerminal(shellLaunchConfig, location, parent);
+		} else {
+			instance = this._createTerminal(shellLaunchConfig, location, options);
 		}
-		return this._createTerminal(shellLaunchConfig, location, options);
+		this._register(instance.onDidChangeShellType(() => this._extensionService.activateByEvent(`onTerminal:${instance.shellType}`)));
+		if (instance.shellType) {
+			this._extensionService.activateByEvent(`onTerminal:${instance.shellType}`);
+		}
+		return instance;
 	}
 
 	private async _getContributedProfile(shellLaunchConfig: IShellLaunchConfig, options?: ICreateTerminalOptions): Promise<IExtensionTerminalProfile | undefined> {
@@ -1093,10 +1100,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 			shellLaunchConfig.parentTerminalId = parent.instanceId;
 			instance = group.split(shellLaunchConfig);
 		}
-		this._register(instance.onDidChangeShellType(() => this._extensionService.activateByEvent(`onTerminal:${instance.shellType}`)));
-		if (instance.shellType) {
-			this._extensionService.activateByEvent(`onTerminal:${instance.shellType}`);
-		}
 		this._addToReconnected(instance);
 		return instance;
 	}
@@ -1123,10 +1126,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 			// TODO: pass resource?
 			const group = this._terminalGroupService.createGroup(shellLaunchConfig);
 			instance = group.terminalInstances[0];
-		}
-		this._register(instance.onDidChangeShellType(() => this._extensionService.activateByEvent(`onTerminal:${instance.shellType}`)));
-		if (instance.shellType) {
-			this._extensionService.activateByEvent(`onTerminal:${instance.shellType}`);
 		}
 
 		this._addToReconnected(instance);
