@@ -13,13 +13,13 @@ import { FloatHorizontalRange, VisibleRanges } from '../../view/renderingContext
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
 import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, DomPosition, RenderWhitespace } from '../../../common/viewLayout/viewLineRenderer.js';
 import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
-import { InlineDecorationType } from '../../../common/viewModel.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { EditorFontLigatures } from '../../../common/config/editorOptions.js';
 import { DomReadingContext } from './domReadingContext.js';
 import type { ViewLineOptions } from './viewLineOptions.js';
 import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
+import { InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
