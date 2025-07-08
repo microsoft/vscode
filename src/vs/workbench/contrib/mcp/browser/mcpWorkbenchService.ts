@@ -216,7 +216,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		} else {
 			server = this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), local, gallery, undefined);
 		}
-		this._local = this._local.filter(e => e.name === local.name);
+		this._local = this._local.filter(e => e.name !== local.name);
 		this._local.push(server);
 		this._onChange.fire(server);
 		return server;
