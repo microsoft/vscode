@@ -339,7 +339,7 @@ configurationRegistry.registerConfiguration({
 				}
 			],
 			default: true,
-			markdownDescription: nls.localize('mpc.discovery.enabled', "Configures discovery of Model Context Protocol servers on the machine. It may be set to `true` or `false` to disable or enable all sources, and an mapping sources you wish to enable."),
+			markdownDescription: nls.localize('mcp.discovery.enabled', "Configures discovery of Model Context Protocol servers on the machine. It may be set to `true` or `false` to disable or enable all sources, and an mapping sources you wish to enable."),
 		},
 		[mcpGalleryServiceUrlConfig]: {
 			type: 'string',
