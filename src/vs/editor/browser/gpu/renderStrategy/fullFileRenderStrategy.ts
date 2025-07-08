@@ -10,7 +10,7 @@ import { CursorColumns } from '../../../common/core/cursorColumns.js';
 import type { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import { ViewEventType, type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLineMappingChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewThemeChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../../common/viewEvents.js';
 import type { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
-import type { InlineDecoration, ViewLineRenderingData } from '../../../common/viewModel.js';
+import type { ViewLineRenderingData } from '../../../common/viewModel.js';
 import type { ViewContext } from '../../../common/viewModel/viewContext.js';
 import type { ViewLineOptions } from '../../viewParts/viewLines/viewLineOptions.js';
 import type { ITextureAtlasPageGlyph } from '../atlas/atlas.js';
@@ -22,6 +22,7 @@ import { quadVertices } from '../gpuUtils.js';
 import { GlyphRasterizer } from '../raster/glyphRasterizer.js';
 import { ViewGpuContext } from '../viewGpuContext.js';
 import { BaseRenderStrategy } from './baseRenderStrategy.js';
+import { InlineDecoration } from '../../../common/viewModel/inlineDecorations.js';
 
 const enum Constants {
 	IndicesPerCell = 6,

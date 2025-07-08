@@ -22,6 +22,9 @@ import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/mo
 import { ViewModelLinesFromProjectedModel } from '../../../common/viewModel/viewModelLines.js';
 import { TestConfiguration } from '../config/testConfiguration.js';
 import { createTextModel } from '../../common/testTextModel.js';
+import { LineBreaksComputerFactory } from '../../../common/viewModel/lineBreaksComputer.js';
+import { DOMLineBreaksComputerFactory } from '../../../browser/view/domLineBreaksComputer.js';
+import { getActiveWindow } from '../../../../base/browser/dom.js';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 
@@ -97,11 +100,11 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		const config = new TestConfiguration({});
 		const wrappingInfo = config.options.get(EditorOption.wrappingInfo);
 		const fontInfo = config.options.get(EditorOption.fontInfo);
-		const wordWrapBreakAfterCharacters = config.options.get(EditorOption.wordWrapBreakAfterCharacters);
-		const wordWrapBreakBeforeCharacters = config.options.get(EditorOption.wordWrapBreakBeforeCharacters);
 		const wrappingIndent = config.options.get(EditorOption.wrappingIndent);
 		const wordBreak = config.options.get(EditorOption.wordBreak);
-		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
+		const domLineBreaksComputerFactory = DOMLineBreaksComputerFactory.create(getActiveWindow());
+		const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(config.options);
+		const lineBreaksComputerFactory = new LineBreaksComputerFactory(domLineBreaksComputerFactory, monospaceLineBreaksComputerFactory);
 
 		const model = createTextModel([
 			'int main() {',
@@ -116,7 +119,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			1,
 			model,
 			lineBreaksComputerFactory,
-			lineBreaksComputerFactory,
+			config,
 			fontInfo,
 			model.getOptions().tabSize,
 			'simple',
@@ -920,8 +923,8 @@ suite('SplitLinesCollection', () => {
 			assert.deepStrictEqual(
 				data.map((d) => ({
 					inlineDecorations: d.inlineDecorations?.map((d) => ({
-						startOffset: d.startOffset,
-						endOffset: d.endOffset,
+						startOffset: d.range.startColumn - 1,
+						endOffset: d.range.endColumn - 1,
 					})),
 				})),
 				[
@@ -963,7 +966,7 @@ suite('SplitLinesCollection', () => {
 			1,
 			model,
 			lineBreaksComputerFactory,
-			lineBreaksComputerFactory,
+			configuration,
 			fontInfo,
 			model.getOptions().tabSize,
 			'simple',

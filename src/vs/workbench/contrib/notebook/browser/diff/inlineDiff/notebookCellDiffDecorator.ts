@@ -16,7 +16,7 @@ import { diffAddDecoration, diffWholeLineAddDecoration, diffDeleteDecoration } f
 import { IDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
 import { ITextModel, TrackedRangeStickiness, MinimapPosition, IModelDeltaDecoration, OverviewRulerLane } from '../../../../../../editor/common/model.js';
 import { ModelDecorationOptions } from '../../../../../../editor/common/model/textModel.js';
-import { InlineDecoration, InlineDecorationType } from '../../../../../../editor/common/viewModel.js';
+import { InlineDecoration, InlineDecorationType } from '../../../../../../editor/common/viewModel/inlineDecorations.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
 import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/rangeMapping.js';

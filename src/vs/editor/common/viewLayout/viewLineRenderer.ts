@@ -9,7 +9,7 @@ import * as strings from '../../../base/common/strings.js';
 import { IViewLineTokens } from '../tokens/lineTokens.js';
 import { StringBuilder } from '../core/stringBuilder.js';
 import { LineDecoration, LineDecorationsNormalizer } from './lineDecorations.js';
-import { InlineDecorationType } from '../viewModel.js';
+import { InlineDecorationType } from '../viewModel/inlineDecorations.js';
 import { LinePart, LinePartMetadata } from './linePart.js';
 import { OffsetRange } from '../core/ranges/offsetRange.js';
 
