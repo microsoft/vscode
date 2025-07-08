@@ -217,7 +217,7 @@ export class FetchWebPageTool implements IToolImpl {
 				title: confirmationTitle,
 				message: confirmationMessage,
 				allowAutoConfirm: true,
-				disclaimer: localize('fetchWebPage.confirmationMessage.plural', 'Web content may contain malicious code or attempt prompt injection attacks.')
+				disclaimer: new MarkdownString('$(info) ' + localize('fetchWebPage.confirmationMessage.plural', 'Web content may contain malicious code or attempt prompt injection attacks.'), { supportThemeIcons: true })
 			};
 		}
 		return result;
