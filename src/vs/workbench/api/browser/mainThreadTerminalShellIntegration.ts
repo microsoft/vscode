@@ -115,7 +115,7 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 	private _enableShellIntegration(instance: ITerminalInstance): void {
 		this._extensionService.activateByEvent('onTerminalShellIntegration:*');
 		if (instance.shellType) {
-			this._extensionService.activateByEvent('onTerminalShellIntegration:' + instance.shellType);
+			this._extensionService.activateByEvent(`onTerminalShellIntegration:${instance.shellType}`);
 		}
 		this._proxy.$shellIntegrationChange(instance.instanceId);
 		const cwdDetection = instance.capabilities.get(TerminalCapability.CwdDetection);
