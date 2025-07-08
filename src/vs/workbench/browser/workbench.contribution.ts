@@ -530,20 +530,19 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('panelOpensMaximized', "Controls whether the panel opens maximized. It can either always open maximized, never open maximized, or open to the last state it was in before being closed."),
 				'enumDescriptions': [
 					localize('workbench.panel.opensMaximized.always', "Always maximize the panel when opening it."),
-					localize('workbench.panel.opensMaximized.never', "Never maximize the panel when opening it. The panel will open un-maximized."),
+					localize('workbench.panel.opensMaximized.never', "Never maximize the panel when opening it."),
 					localize('workbench.panel.opensMaximized.preserve', "Open the panel to the state that it was in, before it was closed.")
 				]
 			},
 			'workbench.secondarySideBar.defaultVisibility': {
 				'type': 'string',
-				'enum': ['hidden', 'visibleInWorkspace', 'visibleInNewWorkspace', 'visible'],
+				'enum': ['hidden', 'visibleInWorkspace', 'visible'],
 				'default': 'hidden',
 				'tags': ['onExp'],
 				'description': localize('secondarySideBarDefaultVisibility', "Controls the default visibility of the secondary side bar in workspaces or empty windows opened for the first time."),
 				'enumDescriptions': [
 					localize('workbench.secondarySideBar.defaultVisibility.hidden', "The secondary side bar is hidden by default."),
 					localize('workbench.secondarySideBar.defaultVisibility.visibleInWorkspace', "The secondary side bar is visible by default if a workspace is opened."),
-					localize('workbench.secondarySideBar.defaultVisibility.visibleInNewWorkspace', "The secondary side bar is visible by default if a new workspace is opened."),
 					localize('workbench.secondarySideBar.defaultVisibility.visible', "The secondary side bar is visible by default.")
 				]
 			},

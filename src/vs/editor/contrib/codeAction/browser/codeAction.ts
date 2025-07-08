@@ -25,6 +25,7 @@ import * as languages from '../../../common/languages.js';
 import { ITextModel } from '../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { IModelService } from '../../../common/services/model.js';
+import { EditReasons } from '../../../common/textModelEditReason.js';
 import { TextModelCancellationTokenSource } from '../../editorState/browser/editorState.js';
 import { CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource, filtersAction, mayIncludeActionsOfKind } from '../common/types.js';
 
@@ -309,6 +310,7 @@ export async function applyCodeAction(
 			code: 'undoredo.codeAction',
 			respectAutoSaveConfig: codeActionReason !== ApplyCodeActionReason.OnSave,
 			showPreview: options?.preview,
+			reason: EditReasons.codeAction({ kind: item.action.kind, extensionId: item.provider?.extensionId }),
 		});
 
 		if (!result.isApplied) {

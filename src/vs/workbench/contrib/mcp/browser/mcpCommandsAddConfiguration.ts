@@ -18,7 +18,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -177,7 +177,7 @@ export class McpAddConfigurationCommand {
 		// Split command into command and args, handling quotes
 		const parts = command.match(/(?:[^\s"]+|"[^"]*")+/g)!;
 		return {
-			type: 'stdio',
+			type: McpServerType.LOCAL,
 			command: parts[0].replace(/"/g, ''),
 
 			args: parts.slice(1).map(arg => arg.replace(/"/g, ''))
@@ -199,7 +199,7 @@ export class McpAddConfigurationCommand {
 			packageType: 'sse'
 		});
 
-		return { url, type: 'http' };
+		return { url, type: McpServerType.REMOTE };
 	}
 
 	private async getServerId(suggestion = `my-mcp-server-${generateUuid().split('-')[0]}`): Promise<string | undefined> {
@@ -389,7 +389,7 @@ export class McpAddConfigurationCommand {
 			case AddConfigurationType.PipPackage:
 			case AddConfigurationType.DockerImage: {
 				const r = await this.getAssistedConfig(serverType);
-				config = r?.server ? { ...r.server, type: 'stdio' } : undefined;
+				config = r?.server ? { ...r.server, type: McpServerType.LOCAL } : undefined;
 				suggestedName = r?.name;
 				inputs = r?.inputs;
 				inputValues = r?.inputValues;

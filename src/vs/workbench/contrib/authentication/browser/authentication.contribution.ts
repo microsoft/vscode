@@ -20,6 +20,11 @@ import { IAuthenticationUsageService } from '../../../services/authentication/br
 import { ManageAccountPreferencesForMcpServerAction } from './actions/manageAccountPreferencesForMcpServerAction.js';
 import { ManageTrustedMcpServersForAccountAction } from './actions/manageTrustedMcpServersForAccountAction.js';
 import { RemoveDynamicAuthenticationProvidersAction } from './actions/manageDynamicAuthenticationProvidersAction.js';
+import { IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
+import { IMcpRegistry } from '../../mcp/common/mcpRegistryTypes.js';
+import { autorun } from '../../../../base/common/observable.js';
+import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { Event } from '../../../../base/common/event.js';
 
 const codeExchangeProxyCommand = CommandsRegistry.registerCommand('workbench.getCodeExchangeProxyEndpoints', function (accessor, _) {
 	const environmentService = accessor.get(IBrowserWorkbenchEnvironmentService);
@@ -110,5 +115,105 @@ class AuthenticationUsageContribution implements IWorkbenchContribution {
 	}
 }
 
+// class AuthenticationExtensionsContribution extends Disposable implements IWorkbenchContribution {
+// 	static ID = 'workbench.contrib.authenticationExtensions';
+
+// 	constructor(
+// 		@IExtensionService private readonly _extensionService: IExtensionService,
+// 		@IAuthenticationQueryService private readonly _authenticationQueryService: IAuthenticationQueryService,
+// 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService
+// 	) {
+// 		super();
+// 		void this.run();
+// 		this._register(this._extensionService.onDidChangeExtensions(this._onDidChangeExtensions, this));
+// 		this._register(
+// 			Event.any(
+// 				this._authenticationService.onDidChangeDeclaredProviders,
+// 				this._authenticationService.onDidRegisterAuthenticationProvider
+// 			)(() => this._cleanupRemovedExtensions())
+// 		);
+// 	}
+
+// 	async run(): Promise<void> {
+// 		await this._extensionService.whenInstalledExtensionsRegistered();
+// 		this._cleanupRemovedExtensions();
+// 	}
+
+// 	private _onDidChangeExtensions(delta: { readonly added: readonly IExtensionDescription[]; readonly removed: readonly IExtensionDescription[] }): void {
+// 		if (delta.removed.length > 0) {
+// 			this._cleanupRemovedExtensions(delta.removed);
+// 		}
+// 	}
+
+// 	private _cleanupRemovedExtensions(removedExtensions?: readonly IExtensionDescription[]): void {
+// 		const extensionIdsToRemove = removedExtensions
+// 			? new Set(removedExtensions.map(e => e.identifier.value))
+// 			: new Set(this._extensionService.extensions.map(e => e.identifier.value));
+
+// 		// If we are cleaning up specific removed extensions, we only remove those.
+// 		const isTargetedCleanup = !!removedExtensions;
+
+// 		const providerIds = this._authenticationQueryService.getProviderIds();
+// 		for (const providerId of providerIds) {
+// 			this._authenticationQueryService.provider(providerId).forEachAccount(account => {
+// 				account.extensions().forEach(extension => {
+// 					const shouldRemove = isTargetedCleanup
+// 						? extensionIdsToRemove.has(extension.extensionId)
+// 						: !extensionIdsToRemove.has(extension.extensionId);
+
+// 					if (shouldRemove) {
+// 						extension.removeUsage();
+// 						extension.setAccessAllowed(false);
+// 					}
+// 				});
+// 			});
+// 		}
+// 	}
+// }
+
+class AuthenticationMcpContribution extends Disposable implements IWorkbenchContribution {
+	static ID = 'workbench.contrib.authenticationMcp';
+
+	constructor(
+		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
+		@IAuthenticationQueryService private readonly _authenticationQueryService: IAuthenticationQueryService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService
+	) {
+		super();
+		this._cleanupRemovedMcpServers();
+
+		// Listen for MCP collections changes using autorun with observables
+		this._register(autorun(reader => {
+			// Read the collections observable to register dependency
+			this._mcpRegistry.collections.read(reader);
+			// Schedule cleanup for next tick to avoid running during observable updates
+			queueMicrotask(() => this._cleanupRemovedMcpServers());
+		}));
+		this._register(
+			Event.any(
+				this._authenticationService.onDidChangeDeclaredProviders,
+				this._authenticationService.onDidRegisterAuthenticationProvider
+			)(() => this._cleanupRemovedMcpServers())
+		);
+	}
+
+	private _cleanupRemovedMcpServers(): void {
+		const currentServerIds = new Set(this._mcpRegistry.collections.get().flatMap(c => c.serverDefinitions.get()).map(s => s.id));
+		const providerIds = this._authenticationQueryService.getProviderIds();
+		for (const providerId of providerIds) {
+			this._authenticationQueryService.provider(providerId).forEachAccount(account => {
+				account.mcpServers().forEach(server => {
+					if (!currentServerIds.has(server.mcpServerId)) {
+						server.removeUsage();
+						server.setAccessAllowed(false);
+					}
+				});
+			});
+		}
+	}
+}
+
 registerWorkbenchContribution2(AuthenticationContribution.ID, AuthenticationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AuthenticationUsageContribution.ID, AuthenticationUsageContribution, WorkbenchPhase.Eventually);
+// registerWorkbenchContribution2(AuthenticationExtensionsContribution.ID, AuthenticationExtensionsContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(AuthenticationMcpContribution.ID, AuthenticationMcpContribution, WorkbenchPhase.Eventually);

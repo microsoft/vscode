@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './promptSyntax/promptToolsCodeLensProvider.js';
+import './promptSyntax/promptCodingAgentActionContribution.js';
 import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
@@ -42,7 +43,7 @@ import { ChatSlashCommandService, IChatSlashCommandService } from '../common/cha
 import { ChatTransferService, IChatTransferService } from '../common/chatTransferService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
@@ -111,6 +112,7 @@ import { runSaveToPromptAction, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './prom
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './chatAttachmentResolveService.js';
 import { registerLanguageModelActions } from './actions/chatLanguageModelActions.js';
+import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -211,7 +213,9 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.tools.autoApprove': {
 			default: false,
-			description: nls.localize('chat.tools.autoApprove', "Controls whether tool use should be automatically approved."),
+			// Description is added in for policy parser. See https://github.com/microsoft/vscode/issues/254526
+			description: nls.localize('chat.tools.autoApprove.description', "Controls whether tool use should be automatically approved. Allow all tools to run automatically without user confirmation, overriding any tool-specific settings such as terminal auto-approval. Use with caution: carefully review selected tools and be extra wary of possible sources of prompt injection!"),
+			markdownDescription: nls.localize('chat.tools.autoApprove.markdownDescription', "Controls whether tool use should be automatically approved.\n\nAllows _all_ tools to run automatically without user confirmation, overriding any tool-specific settings such as terminal auto-approval.\n\nUse with caution: carefully review selected tools and be extra wary of possible sources of prompt injection!"),
 			type: 'boolean',
 			tags: ['experimental'],
 			policy: {
@@ -245,16 +249,20 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['experimental']
 		},
+		'chat.editRequests': {
+			markdownDescription: nls.localize('chat.editRequests', "Enables editing of requests in the chat. This allows you to change the request content and resubmit it to the model."),
+			type: 'string',
+			enum: ['inline', 'hover', 'input', 'none'],
+			default: 'inline',
+			tags: ['experimental', 'onExp'],
+		},
 		[mcpEnabledSection]: {
 			type: 'boolean',
 			description: nls.localize('chat.mcp.enabled', "Enables integration with Model Context Protocol servers to provide additional tools and functionality."),
 			default: true,
-			tags: ['preview'],
 			policy: {
 				name: 'ChatMCP',
 				minimumVersion: '1.99',
-				previewFeature: true,
-				defaultValue: false
 			}
 		},
 		[mcpServerSamplingSection]: {
@@ -456,26 +464,13 @@ configurationRegistry.registerConfiguration({
 				},
 			],
 		},
-		'chat.setup.signInWithAlternateProvider': { // TODO@bpasero remove me eventually
-			type: 'string',
-			enum: ['off', 'monochrome', 'colorful', 'first'],
-			description: nls.localize('chat.signInWithAlternateProvider', "Enable alternative sign-in provider."),
-			default: 'off',
-			tags: ['onExp', 'experimental'],
-		},
 		'chat.setup.signInDialogVariant': { // TODO@bpasero remove me eventually
 			type: 'string',
-			enum: ['default', 'brand-gh', 'brand-vsc', 'style-glow', 'account-create'],
+			enum: ['default', 'alternate-first', 'alternate-color', 'alternate-monochrome'],
 			description: nls.localize('chat.signInDialogVariant', "Control variations of the sign-in dialog."),
 			default: 'default',
 			tags: ['onExp', 'experimental']
-		},
-		'chat.setup.continueLaterIndicator': { // TODO@bpasero remove me eventually
-			type: 'boolean',
-			description: nls.localize('chat.continueLaterIndicator', "Enable indicator in the status bar to finish chat setup."),
-			default: false,
-			tags: ['onExp', 'experimental'],
-		},
+		}
 	}
 });
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -620,7 +615,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			sortText: 'z1_help',
 			executeImmediately: true,
 			locations: [ChatAgentLocation.Panel],
-			modes: [ChatMode.Ask]
+			modes: [ChatModeKind.Ask]
 		}, async (prompt, progress) => {
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 			const agents = chatAgentService.getAgents();
@@ -711,6 +706,7 @@ registerWorkbenchContribution2(ChatEditingEditorContextKeys.ID, ChatEditingEdito
 registerWorkbenchContribution2(ChatTransferContribution.ID, ChatTransferContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatContextContributions.ID, ChatContextContributions, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatResponseResourceFileSystemProvider.ID, ChatResponseResourceFileSystemProvider, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(PromptUrlHandler.ID, PromptUrlHandler, WorkbenchPhase.BlockRestore);
 
 registerChatActions();
 registerChatCopyActions();

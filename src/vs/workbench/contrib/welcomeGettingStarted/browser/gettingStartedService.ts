@@ -37,6 +37,8 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { asWebviewUri } from '../../webview/common/webview.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { extensionDefaultIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { GettingStartedInput } from './gettingStartedInput.js';
 
 export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
 
@@ -161,6 +163,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		@IWorkbenchAssignmentService private readonly tasExperimentService: IWorkbenchAssignmentService,
 		@IProductService private readonly productService: IProductService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
 
@@ -458,6 +461,10 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				id: string;
 			};
 			this.telemetryService.publicLog2<GettingStartedAutoOpenEvent, GettingStartedAutoOpenClassification>('gettingStarted.didAutoOpenWalkthrough', { id: sectionToOpen });
+			const activeEditor = this.editorService.activeEditor;
+			if (activeEditor instanceof GettingStartedInput) {
+				this.commandService.executeCommand('workbench.action.keepEditor');
+			}
 			this.commandService.executeCommand('workbench.action.openWalkthrough', sectionToOpen, {
 				inactive: this.layoutService.hasFocus(Parts.EDITOR_PART) // do not steal the active editor away
 			});

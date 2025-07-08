@@ -6,7 +6,6 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
-import { IModelChangedEvent } from '../../../editor/common/model/mirrorTextModel.js';
 import { ExtHostDocumentsShape, IMainContext, MainContext, MainThreadDocumentsShape } from './extHost.protocol.js';
 import { ExtHostDocumentData, setWordDefinitionFor } from './extHostDocumentData.js';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
@@ -15,17 +14,20 @@ import type * as vscode from 'vscode';
 import { assertReturnsDefined } from '../../../base/common/types.js';
 import { deepFreeze } from '../../../base/common/objects.js';
 import { TextDocumentChangeReason } from './extHostTypes.js';
+import { ISerializedModelContentChangedEvent } from '../../../editor/common/textModelEvents.js';
 
 export class ExtHostDocuments implements ExtHostDocumentsShape {
 
 	private readonly _onDidAddDocument = new Emitter<vscode.TextDocument>();
 	private readonly _onDidRemoveDocument = new Emitter<vscode.TextDocument>();
-	private readonly _onDidChangeDocument = new Emitter<vscode.TextDocumentChangeEvent>();
+	private readonly _onDidChangeDocument = new Emitter<Omit<vscode.TextDocumentChangeEvent, 'detailedReason'>>();
+	private readonly _onDidChangeDocumentWithReason = new Emitter<vscode.TextDocumentChangeEvent>();
 	private readonly _onDidSaveDocument = new Emitter<vscode.TextDocument>();
 
 	readonly onDidAddDocument: Event<vscode.TextDocument> = this._onDidAddDocument.event;
 	readonly onDidRemoveDocument: Event<vscode.TextDocument> = this._onDidRemoveDocument.event;
-	readonly onDidChangeDocument: Event<vscode.TextDocumentChangeEvent> = this._onDidChangeDocument.event;
+	readonly onDidChangeDocument: Event<vscode.TextDocumentChangeEvent> = this._onDidChangeDocument.event as Event<vscode.TextDocumentChangeEvent>;
+	readonly onDidChangeDocumentWithReason: Event<vscode.TextDocumentChangeEvent> = this._onDidChangeDocumentWithReason.event;
 	readonly onDidSaveDocument: Event<vscode.TextDocument> = this._onDidSaveDocument.event;
 
 	private readonly _toDispose = new DisposableStore();
@@ -145,7 +147,13 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		this._onDidChangeDocument.fire({
 			document: data.document,
 			contentChanges: [],
-			reason: undefined
+			reason: undefined,
+		});
+		this._onDidChangeDocumentWithReason.fire({
+			document: data.document,
+			contentChanges: [],
+			reason: undefined,
+			detailedReason: undefined,
 		});
 	}
 
@@ -159,11 +167,17 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		this._onDidChangeDocument.fire({
 			document: data.document,
 			contentChanges: [],
-			reason: undefined
+			reason: undefined,
+		});
+		this._onDidChangeDocumentWithReason.fire({
+			document: data.document,
+			contentChanges: [],
+			reason: undefined,
+			detailedReason: undefined,
 		});
 	}
 
-	public $acceptModelChanged(uriComponents: UriComponents, events: IModelChangedEvent, isDirty: boolean): void {
+	public $acceptModelChanged(uriComponents: UriComponents, events: ISerializedModelContentChangedEvent, isDirty: boolean): void {
 		const uri = URI.revive(uriComponents);
 		const data = this._documentsAndEditors.getDocument(uri);
 		if (!data) {
@@ -179,7 +193,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 			reason = TextDocumentChangeReason.Redo;
 		}
 
-		this._onDidChangeDocument.fire(deepFreeze({
+		this._onDidChangeDocument.fire(deepFreeze<Omit<vscode.TextDocumentChangeEvent, 'detailedReason'>>({
 			document: data.document,
 			contentChanges: events.changes.map((change) => {
 				return {
@@ -189,7 +203,23 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 					text: change.text
 				};
 			}),
-			reason
+			reason,
+		}));
+		this._onDidChangeDocumentWithReason.fire(deepFreeze<vscode.TextDocumentChangeEvent>({
+			document: data.document,
+			contentChanges: events.changes.map((change) => {
+				return {
+					range: TypeConverters.Range.to(change.range),
+					rangeOffset: change.rangeOffset,
+					rangeLength: change.rangeLength,
+					text: change.text
+				};
+			}),
+			reason,
+			detailedReason: events.detailedReason ? {
+				source: events.detailedReason.source as string,
+				metadata: events.detailedReason,
+			} : undefined,
 		}));
 	}
 

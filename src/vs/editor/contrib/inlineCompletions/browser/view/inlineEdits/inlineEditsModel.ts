@@ -14,7 +14,7 @@ import { StringText } from '../../../../../common/core/text/abstractText.js';
 import { Command, InlineCompletionCommand, InlineCompletionDisplayLocation } from '../../../../../common/languages.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { InlineCompletionItem } from '../../model/inlineSuggestionItem.js';
-import { IInlineEditHost, IInlineEditModel, InlineCompletionViewKind, InlineEditTabAction } from './inlineEditsViewInterface.js';
+import { IInlineEditHost, IInlineEditModel, InlineCompletionViewData, InlineCompletionViewKind, InlineEditTabAction } from './inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
 
 export class InlineEditModel implements IInlineEditModel {
@@ -55,8 +55,8 @@ export class InlineEditModel implements IInlineEditModel {
 		this._model.stop();
 	}
 
-	handleInlineEditShown(viewKind: InlineCompletionViewKind) {
-		this._model.handleInlineSuggestionShown(this.inlineEdit.inlineCompletion, viewKind);
+	handleInlineEditShown(viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData) {
+		this._model.handleInlineSuggestionShown(this.inlineEdit.inlineCompletion, viewKind, viewData);
 	}
 }
 

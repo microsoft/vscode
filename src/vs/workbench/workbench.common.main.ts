@@ -83,7 +83,6 @@ import './services/notebook/common/notebookDocumentService.js';
 import './services/commands/common/commandService.js';
 import './services/themes/browser/workbenchThemeService.js';
 import './services/label/common/labelService.js';
-import './services/mcp/common/mcpWorkbenchManagementService.js';
 import './services/extensions/common/extensionManifestPropertiesService.js';
 import './services/extensionManagement/common/extensionGalleryService.js';
 import './services/extensionManagement/browser/extensionEnablementService.js';
@@ -130,6 +129,7 @@ import './services/userActivity/common/userActivityService.js';
 import './services/userActivity/browser/userActivityBrowser.js';
 import './services/editor/browser/editorPaneService.js';
 import './services/editor/common/customEditorLabelService.js';
+import './services/coreExperimentation/common/coreExperimentationService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { GlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionEnablementService.js';
@@ -156,9 +156,8 @@ import { ExtensionStorageService, IExtensionStorageService } from '../platform/e
 import { IUserDataSyncLogService } from '../platform/userDataSync/common/userDataSync.js';
 import { UserDataSyncLogService } from '../platform/userDataSync/common/userDataSyncLog.js';
 import { AllowedExtensionsService } from '../platform/extensionManagement/common/allowedExtensionsService.js';
-import { IMcpGalleryService, IMcpManagementService } from '../platform/mcp/common/mcpManagement.js';
+import { IMcpGalleryService } from '../platform/mcp/common/mcpManagement.js';
 import { McpGalleryService } from '../platform/mcp/common/mcpGalleryService.js';
-import { McpManagementService } from '../platform/mcp/common/mcpManagementService.js';
 
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, InstantiationType.Delayed);
 registerSingleton(IAllowedExtensionsService, AllowedExtensionsService, InstantiationType.Delayed);
@@ -175,7 +174,6 @@ registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationSe
 registerSingleton(IDownloadService, DownloadService, InstantiationType.Delayed);
 registerSingleton(IOpenerService, OpenerService, InstantiationType.Delayed);
 registerSingleton(IMcpGalleryService, McpGalleryService, InstantiationType.Delayed);
-registerSingleton(IMcpManagementService, McpManagementService, InstantiationType.Delayed);
 
 //#endregion
 
@@ -374,6 +372,9 @@ import './contrib/userDataProfile/browser/userDataProfile.contribution.js';
 // Continue Edit Session
 import './contrib/editSessions/browser/editSessions.contribution.js';
 
+// Remote Coding Agents
+import './contrib/remoteCodingAgents/browser/remoteCodingAgents.contribution.js';
+
 // Code Actions
 import './contrib/codeActions/browser/codeActions.contribution.js';
 
@@ -413,6 +414,8 @@ import './contrib/inlineCompletions/browser/inlineCompletions.contribution.js';
 // Drop or paste into
 import './contrib/dropOrPasteInto/browser/dropOrPasteInto.contribution.js';
 
+// Edit Telemetry
+import './contrib/editTelemetry/browser/editTelemetry.contribution.js';
 
 
 //#endregion

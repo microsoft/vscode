@@ -18,7 +18,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { ChatRequestVariableSet, IChatRequestVariableEntry, IPromptFileVariableEntry, isPromptFileVariableEntry, toPromptFileVariableEntry, toPromptTextVariableEntry, PromptFileVariableKind } from '../chatVariableEntries.js';
 import { IToolData } from '../languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
-import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME } from './config/promptFileLocations.js';
+import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, isPromptOrInstructionsFile } from './config/promptFileLocations.js';
 import { PromptsType } from './promptTypes.js';
 import { IPromptParserResult, IPromptPath, IPromptsService } from './service/promptsService.js';
 
@@ -43,11 +43,11 @@ export class ComputeAutomaticInstructions {
 		return this._autoAddedInstructions;
 	}
 
-	private async _parsePromptFile(uri: URI, token: CancellationToken): Promise<IPromptParserResult> {
+	private async _parseInstructionsFile(uri: URI, token: CancellationToken): Promise<IPromptParserResult> {
 		if (this._parseResults.has(uri)) {
 			return this._parseResults.get(uri)!;
 		}
-		const result = await this._promptsService.parse(uri, token);
+		const result = await this._promptsService.parse(uri, PromptsType.instructions, token);
 		this._parseResults.set(uri, result);
 		return result;
 	}
@@ -74,10 +74,10 @@ export class ComputeAutomaticInstructions {
 		const instructionsWithPatternsList = await this._getInstructionsWithPatternsList(instructionFiles, variables, token);
 		if (instructionsWithPatternsList.length > 0) {
 			const text = instructionsWithPatternsList.join('\n');
-			variables.add(toPromptTextVariableEntry(text, PromptsConfig.COPILOT_INSTRUCTIONS));
+			variables.add(toPromptTextVariableEntry(text, PromptsConfig.COPILOT_INSTRUCTIONS, true));
 		}
 		// add all instructions for all instruction files that are in the context
-		this._addReferencedInstructions(variables, token);
+		await this._addReferencedInstructions(variables, token);
 
 	}
 
@@ -86,7 +86,7 @@ export class ComputeAutomaticInstructions {
 
 		const autoAddedInstructions: IPromptFileVariableEntry[] = [];
 		for (const instructionFile of instructionFiles) {
-			const { metadata, uri } = await this._parsePromptFile(instructionFile.uri, token);
+			const { metadata, uri } = await this._parseInstructionsFile(instructionFile.uri, token);
 
 			if (metadata?.promptType !== PromptsType.instructions) {
 				this._logService.trace(`[InstructionsContextComputer] Not an instruction file: ${uri}`);
@@ -114,7 +114,7 @@ export class ComputeAutomaticInstructions {
 					localize('instruction.file.reason.specificFile', 'Automatically attached as pattern {0} matches {1}', applyTo, this._labelService.getUriLabel(match.file, { relative: true }));
 
 
-				autoAddedInstructions.push(toPromptFileVariableEntry(uri, PromptFileVariableKind.Instruction, reason));
+				autoAddedInstructions.push(toPromptFileVariableEntry(uri, PromptFileVariableKind.Instruction, reason, true));
 			} else {
 				this._logService.trace(`[InstructionsContextComputer] No match for ${uri} with ${applyTo}`);
 			}
@@ -153,7 +153,7 @@ export class ComputeAutomaticInstructions {
 			for (const instructionFilePath of instructionFiles) {
 				const file = joinPath(folder.uri, instructionFilePath);
 				if (await this._fileService.exists(file)) {
-					entries.push(toPromptFileVariableEntry(file, PromptFileVariableKind.Instruction, localize('instruction.file.reason.copilot', 'Automatically attached as setting {0} is enabled', PromptsConfig.USE_COPILOT_INSTRUCTION_FILES)));
+					entries.push(toPromptFileVariableEntry(file, PromptFileVariableKind.Instruction, localize('instruction.file.reason.copilot', 'Automatically attached as setting {0} is enabled', PromptsConfig.USE_COPILOT_INSTRUCTION_FILES), true));
 				}
 			}
 		}
@@ -205,7 +205,7 @@ export class ComputeAutomaticInstructions {
 
 		const entries: string[] = [];
 		for (const instructionFile of instructionFiles) {
-			const { metadata, uri } = await this._parsePromptFile(instructionFile.uri, token);
+			const { metadata, uri } = await this._parseInstructionsFile(instructionFile.uri, token);
 			if (metadata?.promptType !== PromptsType.instructions) {
 				continue;
 			}
@@ -232,19 +232,47 @@ export class ComputeAutomaticInstructions {
 	}
 
 	private async _addReferencedInstructions(attachedContext: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
+		const seen = new ResourceSet();
+		const todo: URI[] = [];
 		for (const variable of attachedContext.asArray()) {
 			if (isPromptFileVariableEntry(variable)) {
-				const result = await this._parsePromptFile(variable.value, token);
-				for (const ref of result.allValidReferences) {
-					if (await this._fileService.exists(ref)) {
-						const reason = localize('instruction.file.reason.referenced', 'Referenced by {0}', basename(variable.value));
-						attachedContext.add(toPromptFileVariableEntry(ref, PromptFileVariableKind.InstructionReference, reason));
-					}
+				if (!seen.has(variable.value)) {
+					todo.push(variable.value);
+					seen.add(variable.value);
 				}
 			}
 		}
+		let next = todo.pop();
+		while (next) {
+			const result = await this._parseInstructionsFile(next, token);
+			const refsToCheck: { resource: URI }[] = [];
+			for (const ref of result.references) {
+				if (!seen.has(ref) && (isPromptOrInstructionsFile(ref) || this._workspaceService.getWorkspaceFolder(ref) !== undefined)) {
+					// only add references that are either prompt or instruction files or are part of the workspace
+					refsToCheck.push({ resource: ref });
+					seen.add(ref);
+				}
+			}
+			if (refsToCheck.length > 0) {
+				const stats = await this._fileService.resolveAll(refsToCheck);
+				for (let i = 0; i < stats.length; i++) {
+					const stat = stats[i];
+					const uri = refsToCheck[i].resource;
+					if (stat.success && stat.stat?.isFile) {
+						if (isPromptOrInstructionsFile(uri)) {
+							// only recursivly parse instruction files
+							todo.push(uri);
+						}
+						const reason = localize('instruction.file.reason.referenced', 'Referenced by {0}', basename(next));
+						attachedContext.add(toPromptFileVariableEntry(uri, PromptFileVariableKind.InstructionReference, reason, true));
+					}
+				}
+			}
+			next = todo.pop();
+		}
 	}
 }
+
 
 function getFilePath(uri: URI): string {
 	if (uri.scheme === Schemas.file || uri.scheme === Schemas.vscodeRemote) {

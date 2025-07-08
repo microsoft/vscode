@@ -18,6 +18,7 @@ import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from './text
 import { IViewLineTokens } from './tokens/lineTokens.js';
 import { ViewEventHandler } from './viewEventHandler.js';
 import { VerticalRevealType } from './viewEvents.js';
+import { InlineDecoration, SingleLineInlineDecoration } from './viewModel/inlineDecorations.js';
 
 export interface IViewModel extends ICursorSimpleModel {
 
@@ -44,6 +45,7 @@ export interface IViewModel extends ICursorSimpleModel {
 	onCompositionStart(): void;
 	onCompositionEnd(): void;
 
+	getFontSizeAtPosition(position: IPosition): string | null;
 	getMinimapDecorationsInRange(range: Range): ViewModelDecoration[];
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
 	getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
@@ -349,6 +351,10 @@ export class ViewLineRenderingData {
 	 * The visible column at the start of the line (after the fauxIndent)
 	 */
 	public readonly startVisibleColumn: number;
+	/**
+	 * Whether the line has variable fonts
+	 */
+	public readonly hasVariableFonts: boolean;
 
 	constructor(
 		minColumn: number,
@@ -361,6 +367,7 @@ export class ViewLineRenderingData {
 		inlineDecorations: InlineDecoration[],
 		tabSize: number,
 		startVisibleColumn: number,
+		hasVariableFonts: boolean
 	) {
 		this.minColumn = minColumn;
 		this.maxColumn = maxColumn;
@@ -374,6 +381,7 @@ export class ViewLineRenderingData {
 		this.inlineDecorations = inlineDecorations;
 		this.tabSize = tabSize;
 		this.startVisibleColumn = startVisibleColumn;
+		this.hasVariableFonts = hasVariableFonts;
 	}
 
 	public static isBasicASCII(lineContent: string, mightContainNonBasicASCII: boolean): boolean {
@@ -388,40 +396,6 @@ export class ViewLineRenderingData {
 			return strings.containsRTL(lineContent);
 		}
 		return false;
-	}
-}
-
-export const enum InlineDecorationType {
-	Regular = 0,
-	Before = 1,
-	After = 2,
-	RegularAffectingLetterSpacing = 3
-}
-
-export class InlineDecoration {
-	constructor(
-		public readonly range: Range,
-		public readonly inlineClassName: string,
-		public readonly type: InlineDecorationType
-	) {
-	}
-}
-
-export class SingleLineInlineDecoration {
-	constructor(
-		public readonly startOffset: number,
-		public readonly endOffset: number,
-		public readonly inlineClassName: string,
-		public readonly inlineClassNameAffectsLetterSpacing: boolean
-	) {
-	}
-
-	toInlineDecoration(lineNumber: number): InlineDecoration {
-		return new InlineDecoration(
-			new Range(lineNumber, this.startOffset + 1, lineNumber, this.endOffset + 1),
-			this.inlineClassName,
-			this.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular
-		);
 	}
 }
 
