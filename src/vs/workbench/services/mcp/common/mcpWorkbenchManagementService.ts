@@ -124,8 +124,21 @@ export class WorkbenchMcpManagementService extends Disposable implements IWorkbe
 			}
 		}));
 
-		this._register(this.mcpManagementService.onDidInstallMcpServers(e => this.handleInstallMcpServerResultsFromEvent(e, this._onDidInstallMcpServers, this._onDidInstallMcpServersInCurrentProfile)));
-		this._register(this.mcpManagementService.onDidUpdateMcpServers(e => this.handleInstallMcpServerResultsFromEvent(e, this._onDidUpdateMcpServers, this._onDidUpdateMcpServersInCurrentProfile)));
+		this._register(this.mcpManagementService.onDidInstallMcpServers(e => {
+			const { mcpServerInstallResult, mcpServerInstallResultInCurrentProfile } = this.createInstallMcpServerResultsFromEvent(e, LocalMcpServerScope.User);
+			this._onDidInstallMcpServers.fire(mcpServerInstallResult);
+			if (mcpServerInstallResultInCurrentProfile.length) {
+				this._onDidInstallMcpServersInCurrentProfile.fire(mcpServerInstallResultInCurrentProfile);
+			}
+		}));
+
+		this._register(this.mcpManagementService.onDidUpdateMcpServers(e => {
+			const { mcpServerInstallResult, mcpServerInstallResultInCurrentProfile } = this.createInstallMcpServerResultsFromEvent(e, LocalMcpServerScope.User);
+			this._onDidUpdateMcpServers.fire(mcpServerInstallResult);
+			if (mcpServerInstallResultInCurrentProfile.length) {
+				this._onDidUpdateMcpServersInCurrentProfile.fire(mcpServerInstallResultInCurrentProfile);
+			}
+		}));
 
 		this._register(this.mcpManagementService.onUninstallMcpServer(e => {
 			this._onUninstallMcpServer.fire(e);
@@ -148,7 +161,7 @@ export class WorkbenchMcpManagementService extends Disposable implements IWorkbe
 
 		this._register(this.workspaceMcpManagementService.onDidInstallMcpServers(async e => {
 			const { mcpServerInstallResult } = this.createInstallMcpServerResultsFromEvent(e, LocalMcpServerScope.Workspace);
-			this._onDidInstallMcpServersInCurrentProfile.fire(mcpServerInstallResult);
+			this._onDidInstallMcpServers.fire(mcpServerInstallResult);
 			this._onDidInstallMcpServersInCurrentProfile.fire(mcpServerInstallResult);
 		}));
 
@@ -164,7 +177,7 @@ export class WorkbenchMcpManagementService extends Disposable implements IWorkbe
 
 		this._register(this.workspaceMcpManagementService.onDidUpdateMcpServers(e => {
 			const { mcpServerInstallResult } = this.createInstallMcpServerResultsFromEvent(e, LocalMcpServerScope.Workspace);
-			this._onDidUpdateMcpServersInCurrentProfile.fire(mcpServerInstallResult);
+			this._onDidUpdateMcpServers.fire(mcpServerInstallResult);
 			this._onDidUpdateMcpServersInCurrentProfile.fire(mcpServerInstallResult);
 		}));
 
@@ -204,7 +217,7 @@ export class WorkbenchMcpManagementService extends Disposable implements IWorkbe
 		}));
 	}
 
-	private createInstallMcpServerResultsFromEvent(e: readonly InstallMcpServerResult[], scope: LocalMcpServerScope) {
+	private createInstallMcpServerResultsFromEvent(e: readonly InstallMcpServerResult[], scope: LocalMcpServerScope): { mcpServerInstallResult: IWorkbenchMcpServerInstallResult[]; mcpServerInstallResultInCurrentProfile: IWorkbenchMcpServerInstallResult[] } {
 		const mcpServerInstallResult: IWorkbenchMcpServerInstallResult[] = [];
 		const mcpServerInstallResultInCurrentProfile: IWorkbenchMcpServerInstallResult[] = [];
 		for (const result of e) {
@@ -219,14 +232,6 @@ export class WorkbenchMcpManagementService extends Disposable implements IWorkbe
 		}
 
 		return { mcpServerInstallResult, mcpServerInstallResultInCurrentProfile };
-	}
-
-	private handleInstallMcpServerResultsFromEvent(e: readonly InstallMcpServerResult[], emitter: Emitter<readonly InstallMcpServerResult[]>, currentProfileEmitter: Emitter<readonly InstallMcpServerResult[]>): void {
-		const { mcpServerInstallResult, mcpServerInstallResultInCurrentProfile } = this.createInstallMcpServerResultsFromEvent(e, LocalMcpServerScope.User);
-		emitter.fire(mcpServerInstallResult);
-		if (mcpServerInstallResultInCurrentProfile.length) {
-			currentProfileEmitter.fire(mcpServerInstallResultInCurrentProfile);
-		}
 	}
 
 	private async handleRemoteInstallMcpServerResultsFromEvent(e: readonly InstallMcpServerResult[], emitter: Emitter<readonly InstallMcpServerResult[]>, currentProfileEmitter: Emitter<readonly InstallMcpServerResult[]>): Promise<void> {

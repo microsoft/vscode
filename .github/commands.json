@@ -596,7 +596,7 @@
 		"reason": "not_planned",
 		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/253126. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
-		{
+	{
 		"type": "label",
 		"name": "~chat-billing",
 		"removeLabel": "~chat-billing",
@@ -604,5 +604,14 @@
 		"action": "close",
 		"reason": "not_planned",
 		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/252230. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+	},
+	{
+		"type": "label",
+		"name": "~chat-infinite-response-loop",
+		"removeLabel": "~chat-infinite-response-loop",
+		"addLabel":"chat-infinite-response-loop",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/253134. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	}
 ]

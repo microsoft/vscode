@@ -1116,9 +1116,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.inputPart.setChatMode(this.inlineInputPart.currentModeKind);
-		const currentModelName = this.inlineInputPart.selectedLanguageModel?.metadata.name;
-		if (currentModelName) {
-			this.inputPart.switchModelByName(currentModelName);
+		const currentModel = this.inlineInputPart.selectedLanguageModel;
+		if (currentModel) {
+			this.inputPart.switchModel(currentModel.metadata);
 		}
 
 		const isInput = this.configurationService.getValue<string>('chat.editRequests') === 'input';
@@ -1952,7 +1952,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		if (model !== undefined) {
-			this.input.switchModelByName(model);
+			this.input.switchModelByQualifiedName(model);
 		}
 	}
 

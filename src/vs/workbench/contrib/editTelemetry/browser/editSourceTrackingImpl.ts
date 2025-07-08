@@ -12,11 +12,12 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { AnnotatedStringEdit, BaseStringEdit } from '../../../../editor/common/core/edits/stringEdit.js';
 import { StringText } from '../../../../editor/common/core/text/abstractText.js';
+import { TextModelEditReason } from '../../../../editor/common/textModelEditReason.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ISCMRepository, ISCMService } from '../../scm/common/scm.js';
 import { ArcTracker } from './arcTracker.js';
-import { CombineStreamedChanges, DocumentWithAnnotatedEdits, EditReasonData, EditSource, EditSourceData, IDocumentWithAnnotatedEdits, MinimizeEditsProcessor } from './documentWithAnnotatedEdits.js';
+import { CombineStreamedChanges, DocumentWithSourceAnnotatedEdits, EditKeySourceData, EditSource, EditSourceData, IDocumentWithAnnotatedEdits, MinimizeEditsProcessor } from './documentWithAnnotatedEdits.js';
 import { DocumentEditSourceTracker, TrackedEdit } from './editTracker.js';
 import { ObservableWorkspace, IObservableDocument } from './observableWorkspace.js';
 
@@ -26,17 +27,21 @@ export class EditSourceTrackingImpl extends Disposable {
 	constructor(
 		private readonly _workspace: ObservableWorkspace,
 		private readonly _docIsVisible: (doc: IObservableDocument, reader: IReader) => boolean,
+		private readonly _statsEnabled: IObservable<boolean>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
 		const scmBridge = this._instantiationService.createInstance(ScmBridge);
 
-		this.docsState = mapObservableArrayCached(this, this._workspace.documents, (doc, store) => {
+		const states = mapObservableArrayCached(this, this._workspace.documents, (doc, store) => {
 			const docIsVisible = derived(reader => this._docIsVisible(doc, reader));
 			const wasEverVisible = derivedObservableWithCache<boolean>(this, (reader, lastVal) => lastVal || docIsVisible.read(reader));
-			return wasEverVisible.map(v => v ? [doc, store.add(this._instantiationService.createInstance(TrackedDocumentInfo, doc, docIsVisible, scmBridge))] as const : undefined);
-		}).recomputeInitiallyAndOnChange(this._store).map((entries, reader) => new Map(entries.map(e => e.read(reader)).filter(isDefined)));
+			return wasEverVisible.map(v => v ? [doc, store.add(this._instantiationService.createInstance(TrackedDocumentInfo, doc, docIsVisible, scmBridge, this._statsEnabled))] as const : undefined);
+		});
+
+		this.docsState = states.map((entries, reader) => new Map(entries.map(e => e.read(reader)).filter(isDefined)))
+			.recomputeInitiallyAndOnChange(this._store);
 	}
 }
 
@@ -78,15 +83,16 @@ class TrackedDocumentInfo extends Disposable {
 		private readonly _doc: IObservableDocument,
 		docIsVisible: IObservable<boolean>,
 		private readonly _scm: ScmBridge,
+		private readonly _statsEnabled: IObservable<boolean>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 
 		// Use the listener service and special events from core to annotate where an edit came from (is async)
-		let processedDoc: IDocumentWithAnnotatedEdits<EditReasonData> = this._store.add(new DocumentWithAnnotatedEdits(_doc));
+		let processedDoc: IDocumentWithAnnotatedEdits<EditSourceData> = this._store.add(new DocumentWithSourceAnnotatedEdits(_doc));
 		// Combine streaming edits into one and make edit smaller
-		processedDoc = this._store.add(this._instantiationService.createInstance((CombineStreamedChanges<EditReasonData>), processedDoc));
+		processedDoc = this._store.add(this._instantiationService.createInstance((CombineStreamedChanges<EditSourceData>), processedDoc));
 		// Remove common suffix and prefix from edits
 		processedDoc = this._store.add(new MinimizeEditsProcessor(processedDoc));
 
@@ -95,6 +101,7 @@ class TrackedDocumentInfo extends Disposable {
 		const longtermResetSignal = observableSignal('resetSignal');
 
 		this.longtermTracker = derived((reader) => {
+			if (!this._statsEnabled.read(reader)) { return undefined; }
 			longtermResetSignal.read(reader);
 
 			const t = reader.store.add(new DocumentEditSourceTracker(docWithJustReason, undefined));
@@ -134,6 +141,8 @@ class TrackedDocumentInfo extends Disposable {
 		const resetSignal = observableSignal('resetSignal');
 
 		this.windowedTracker = derived((reader) => {
+			if (!this._statsEnabled.read(reader)) { return undefined; }
+
 			if (!docIsVisible.read(reader)) {
 				return undefined;
 			}
@@ -215,6 +224,10 @@ class TrackedDocumentInfo extends Disposable {
 			isTrackedByGit: isTrackedByGit ? 1 : 0,
 		});
 
+		const sourceKeyToRepresentative = new Map<string, TextModelEditReason>();
+		for (const r of ranges) {
+			sourceKeyToRepresentative.set(r.sourceKey, r.sourceRepresentative);
+		}
 
 		const sums = sumByCategory(ranges, r => r.range.length, r => r.sourceKey);
 		const entries = Object.entries(sums).filter(([key, value]) => value !== undefined);
@@ -225,9 +238,21 @@ class TrackedDocumentInfo extends Disposable {
 			if (value === undefined) {
 				continue;
 			}
+
+
+			const repr = sourceKeyToRepresentative.get(key);
+			const cleanedKey = repr?.toKey(1, { $extensionId: false, $extensionVersion: false });
+
+			const metadata = repr?.metadata;
+			const extensionId = metadata && '$extensionId' in metadata ? metadata.$extensionId : undefined;
+			const extensionVersion = metadata && '$extensionVersion' in metadata ? metadata.$extensionVersion : undefined;
+
 			this._telemetryService.publicLog2<{
 				mode: string;
-				reasonKey: string;
+				sourceKey: string;
+				extensionId: string;
+				extensionVersion: string;
+				sourceKeyWithoutExtId: string;
 				languageId: string;
 				statsUuid: string;
 				modifiedCount: number;
@@ -236,16 +261,22 @@ class TrackedDocumentInfo extends Disposable {
 				owner: 'hediet';
 				comment: 'Reports distribution of various edit kinds.';
 
-				reasonKey: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the edit.' };
+				sourceKey: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the edit.' };
 				mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'longterm or 5minWindow' };
 				languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
 				statsUuid: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The unique identifier for the telemetry event.' };
+				extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension id which provided this inline completion.' };
+				extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension.' };
+				sourceKeyWithoutExtId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the edit.' };
 
 				modifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Fraction of nes modified characters'; isMeasurement: true };
 				totalModifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Total number of characters'; isMeasurement: true };
 			}>('editTelemetry.editSources.details', {
 				mode,
-				reasonKey: key,
+				sourceKey: key,
+				extensionId: extensionId ?? '',
+				extensionVersion: extensionVersion ?? '',
+				sourceKeyWithoutExtId: cleanedKey ?? '',
 				languageId: this._doc.languageId.get(),
 				statsUuid: statsUuid,
 				modifiedCount: value,
@@ -304,8 +335,8 @@ function mapObservableDelta<T, TDelta, TDeltaNew>(obs: IObservableWithChange<T, 
 /**
  * Removing the metadata allows touching edits from the same source to merged, even if they were caused by different actions (e.g. two user edits).
  */
-function createDocWithJustReason(docWithAnnotatedEdits: IDocumentWithAnnotatedEdits<EditReasonData>, store: DisposableStore): IDocumentWithAnnotatedEdits<EditSourceData> {
-	const docWithJustReason: IDocumentWithAnnotatedEdits<EditSourceData> = {
+function createDocWithJustReason(docWithAnnotatedEdits: IDocumentWithAnnotatedEdits<EditSourceData>, store: DisposableStore): IDocumentWithAnnotatedEdits<EditKeySourceData> {
+	const docWithJustReason: IDocumentWithAnnotatedEdits<EditKeySourceData> = {
 		value: mapObservableDelta(docWithAnnotatedEdits.value, edit => ({ edit: edit.edit.mapData(d => d.data.toEditSourceData()) }), store),
 		waitForQueue: () => docWithAnnotatedEdits.waitForQueue(),
 	};
@@ -314,7 +345,7 @@ function createDocWithJustReason(docWithAnnotatedEdits: IDocumentWithAnnotatedEd
 
 class ArcTelemetrySender extends Disposable {
 	constructor(
-		docWithAnnotatedEdits: IDocumentWithAnnotatedEdits<EditReasonData>,
+		docWithAnnotatedEdits: IDocumentWithAnnotatedEdits<EditSourceData>,
 		scmRepoBridge: ScmRepoBridge | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -336,6 +367,7 @@ class ArcTelemetrySender extends Disposable {
 
 				res.telemetryService.publicLog2<{
 					extensionId: string;
+					extensionVersion: string;
 					opportunityId: string;
 					didBranchChange: number;
 					timeDelayMs: number;
@@ -346,6 +378,7 @@ class ArcTelemetrySender extends Disposable {
 					comment: 'Reports the accepted and retained character count for an inline completion/edit.';
 
 					extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension id (copilot or copilot-chat); which provided this inline completion.' };
+					extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension.' };
 					opportunityId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for an opportunity to show an inline completion or NES.' };
 
 					didBranchChange: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates if the branch changed in the meantime. If the branch changed (value is 1); this event should probably be ignored.' };
@@ -354,6 +387,7 @@ class ArcTelemetrySender extends Disposable {
 					originalCharCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The original character count before any edits.' };
 				}>('editTelemetry.reportInlineEditArc', {
 					extensionId: data.$extensionId ?? '',
+					extensionVersion: data.$extensionVersion ?? '',
 					opportunityId: data.$$requestUuid ?? 'unknown',
 					didBranchChange: res.didBranchChange ? 1 : 0,
 					timeDelayMs: res.timeDelayMs,
