@@ -55,7 +55,15 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 			return refs.map(r => ({
 				id: `refs/heads/${r.name}`,
 				name: r.name ?? r.commit ?? '',
-				description: r.commitDetails?.message
+				//description: r.commitDetails?.message
+			}));
+		} else if (group === 'stashes') {
+			const stashes = await this.repository.getStashes();
+
+			return stashes.map(s => ({
+				id: `stash@{${s.index}}`,
+				name: `#${s.index}: ${s.description}`,
+				description: s.branchName
 			}));
 		} else if (group === 'tags') {
 			const refs = await this.repository.getRefs({ pattern: 'refs/tags', includeCommitDetails: true });
@@ -63,7 +71,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 			return refs.map(r => ({
 				id: `refs/tags/${r.name}`,
 				name: r.name ?? r.commit ?? '',
-				description: r.commitDetails?.message
+				//description: r.commitDetails?.message
 			}));
 		} else if (group === 'worktrees') {
 			const worktrees = await this.repository.getWorktrees();
