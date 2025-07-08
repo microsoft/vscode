@@ -24,13 +24,14 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { EditSource } from './documentWithAnnotatedEdits.js';
 import { EditSourceTrackingImpl } from './editSourceTrackingImpl.js';
-import { EDIT_TELEMETRY_SHOW_DECORATIONS, EDIT_TELEMETRY_SHOW_STATUS_BAR } from './settings.js';
+import { EDIT_TELEMETRY_DETAILS_SETTING_ID, EDIT_TELEMETRY_SHOW_DECORATIONS, EDIT_TELEMETRY_SHOW_STATUS_BAR } from './settings.js';
 import { VSCodeWorkspace } from './vscodeObservableWorkspace.js';
 
 export class EditTrackingFeature extends Disposable {
 
 	private readonly _editSourceTrackingShowDecorations;
 	private readonly _editSourceTrackingShowStatusBar;
+	private readonly _editSourceDetailsEnabled;
 	private readonly _showStateInMarkdownDoc = 'editTelemetry.showDebugDetails';
 	private readonly _toggleDecorations = 'editTelemetry.toggleDebugDecorations';
 
@@ -46,6 +47,7 @@ export class EditTrackingFeature extends Disposable {
 
 		this._editSourceTrackingShowDecorations = makeSettable(observableConfigValue(EDIT_TELEMETRY_SHOW_DECORATIONS, false, this._configurationService));
 		this._editSourceTrackingShowStatusBar = observableConfigValue(EDIT_TELEMETRY_SHOW_STATUS_BAR, false, this._configurationService);
+		this._editSourceDetailsEnabled = observableConfigValue(EDIT_TELEMETRY_DETAILS_SETTING_ID, false, this._configurationService);
 
 		const onDidAddGroupSignal = observableSignalFromEvent(this, this._editorGroupsService.onDidAddGroup);
 		const onDidRemoveGroupSignal = observableSignalFromEvent(this, this._editorGroupsService.onDidRemoveGroup);
@@ -72,7 +74,7 @@ export class EditTrackingFeature extends Disposable {
 		const impl = this._register(this._instantiationService.createInstance(EditSourceTrackingImpl, this._workspace, (doc, reader) => {
 			const map = visibleUris.read(reader);
 			return map.get(doc.uri.toString()) !== undefined;
-		}));
+		}, this._editSourceDetailsEnabled));
 
 		this._register(autorun((reader) => {
 			if (!this._editSourceTrackingShowDecorations.read(reader)) {

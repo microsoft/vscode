@@ -28,10 +28,19 @@ export interface IPolicy {
 	readonly previewFeature?: boolean;
 
 	/**
-	 * Default value for a 'previewFeature' policy. Default is `false`.
-	 * Remarks:
-	 * A default value is only relevant when previewFeature is `true`.
-	 * In all other instances, a value is required when setting a policy.
-	 */
+	 * The value that a preview feature will use when its corresponding policy is active.
+	 *
+	 * Only applicable when `previewFeature: true`. When a preview feature's policy is enabled,
+	 * this value determines what value the feature receives.
+	 *
+	 * For example:
+	 * - If `defaultValue: true`,  the feature's setting is locked to `true` WHEN the policy is in effect.
+	 * - If `defaultValue: 'foo'`, the feature's setting is locked to 'foo' WHEN the policy is in effect.
+	 *
+	 * If omitted, 'false' is the assumed value.
+	 *
+	 * Note: This is unrelated to VS Code settings and their default values. This specifically controls
+	 * the value of a preview feature's setting when policy is overriding it.
+	*/
 	readonly defaultValue?: string | number | boolean;
 }
