@@ -81,7 +81,7 @@
       },
       {
         "fileMatch": "tsconfig.json",
-        "url": "https://json.schemastore.org/tsconfig"
+        "url": "https://www.schemastore.org/tsconfig"
       },
       {
         "fileMatch": "tsconfig.json",
@@ -89,7 +89,7 @@
       },
       {
         "fileMatch": "tsconfig.*.json",
-        "url": "https://json.schemastore.org/tsconfig"
+        "url": "https://www.schemastore.org/tsconfig"
       },
       {
         "fileMatch": "tsconfig-*.json",
@@ -97,7 +97,7 @@
       },
       {
         "fileMatch": "tsconfig-*.json",
-        "url": "https://json.schemastore.org/tsconfig"
+        "url": "https://www.schemastore.org/tsconfig"
       },
       {
         "fileMatch": "tsconfig.*.json",
@@ -105,27 +105,27 @@
       },
       {
         "fileMatch": "typings.json",
-        "url": "https://json.schemastore.org/typings"
+        "url": "https://www.schemastore.org/typings"
       },
       {
         "fileMatch": ".bowerrc",
-        "url": "https://json.schemastore.org/bowerrc"
+        "url": "https://www.schemastore.org/bowerrc"
       },
       {
         "fileMatch": ".babelrc",
-        "url": "https://json.schemastore.org/babelrc"
+        "url": "https://www.schemastore.org/babelrc"
       },
       {
         "fileMatch": ".babelrc.json",
-        "url": "https://json.schemastore.org/babelrc"
+        "url": "https://www.schemastore.org/babelrc"
       },
       {
         "fileMatch": "babel.config.json",
-        "url": "https://json.schemastore.org/babelrc"
+        "url": "https://www.schemastore.org/babelrc"
       },
       {
         "fileMatch": "jsconfig.json",
-        "url": "https://json.schemastore.org/jsconfig"
+        "url": "https://www.schemastore.org/jsconfig"
       },
       {
         "fileMatch": "jsconfig.json",
@@ -133,7 +133,7 @@
       },
       {
         "fileMatch": "jsconfig.*.json",
-        "url": "https://json.schemastore.org/jsconfig"
+        "url": "https://www.schemastore.org/jsconfig"
       },
       {
         "fileMatch": "jsconfig.*.json",
