@@ -71,7 +71,10 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 			return undefined;
 		}
 
-		await header.settled;
+		const completed = await header.settled;
+		if (!completed || token.isCancellationRequested) {
+			return undefined;
+		}
 
 		const fullHeaderRange = parser.header.range;
 		const headerRange = new Range(fullHeaderRange.startLineNumber + 1, 0, fullHeaderRange.endLineNumber - 1, model.getLineMaxColumn(fullHeaderRange.endLineNumber - 1),);
@@ -171,7 +174,7 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 			const item: CompletionItem = {
 				label: value,
 				kind: CompletionItemKind.Value,
-				insertText: value,
+				insertText: whilespaceAfterColon === 0 ? ` ${value}` : value,
 				range: new Range(position.lineNumber, colonPosition.column + whilespaceAfterColon + 1, position.lineNumber, model.getLineMaxColumn(position.lineNumber)),
 			};
 			suggestions.push(item);
@@ -225,7 +228,7 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 			const metadata = this.languageModelsService.lookupLanguageModel(model);
 			if (metadata && metadata.isUserSelectable !== false) {
 				if (!agentModeOnly || ILanguageModelChatMetadata.suitableForAgentMode(metadata)) {
-					result.push(metadata.name);
+					result.push(ILanguageModelChatMetadata.asQualifiedName(metadata));
 				}
 			}
 		}

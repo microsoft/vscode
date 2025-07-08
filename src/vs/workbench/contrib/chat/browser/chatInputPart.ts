@@ -271,6 +271,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatModeKindKey: IContextKey<ChatModeKind>;
 
 	private modelWidget: ModelPickerActionItem | undefined;
+	private modeWidget: ModePickerActionItem | undefined;
 	private readonly _waitForPersistedLanguageModel: MutableDisposable<IDisposable>;
 	private _onDidChangeCurrentLanguageModel: Emitter<ILanguageModelChatMetadataAndIdentifier>;
 
@@ -452,7 +453,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const mode = this._currentModeObservable.read(r);
 			const model = mode.model?.read(r);
 			if (model) {
-				this.switchModelByName(model);
+				this.switchModelByQualifiedName(model);
 			}
 		}));
 	}
@@ -517,9 +518,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	public switchModelByName(modelName: string): boolean {
+	public switchModelByQualifiedName(qualifiedModelName: string): boolean {
 		const models = this.getModels();
-		const model = models.find(m => m.metadata.name === modelName);
+		const model = models.find(m => ILanguageModelChatMetadata.asQualifiedName(m.metadata) === qualifiedModelName);
 		if (model) {
 			this.setCurrentLanguageModel(model);
 			return true;
@@ -538,6 +539,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public openModelPicker(): void {
 		this.modelWidget?.show();
+	}
+
+	public openModePicker(): void {
+		this.modeWidget?.show();
 	}
 
 	private checkModelSupported(): void {
@@ -1149,7 +1154,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					const delegate: IModePickerDelegate = {
 						currentMode: this._currentModeObservable
 					};
-					return this.instantiationService.createInstance(ModePickerActionItem, action, delegate);
+					return this.modeWidget = this.instantiationService.createInstance(ModePickerActionItem, action, delegate);
 				}
 
 				return undefined;

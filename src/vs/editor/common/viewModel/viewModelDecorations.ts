@@ -9,9 +9,10 @@ import { Range } from '../core/range.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { IModelDecoration, ITextModel, PositionAffinity } from '../model.js';
 import { IViewModelLines } from './viewModelLines.js';
-import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from '../viewModel.js';
+import { ICoordinatesConverter } from '../viewModel.js';
 import { filterFontDecorations, filterValidationDecorations } from '../config/editorOptions.js';
-import { StandardTokenType } from '../encodedTokenAttributes.js';
+import { isModelDecorationVisible, ViewModelDecoration } from './viewModelDecoration.js';
+import { InlineDecoration, InlineDecorationType } from './inlineDecorations.js';
 
 export interface IDecorationsViewportData {
 	/**
@@ -185,62 +186,4 @@ export class ViewModelDecorations implements IDisposable {
 			hasVariableFonts
 		};
 	}
-}
-
-export function isModelDecorationVisible(model: ITextModel, decoration: IModelDecoration): boolean {
-	if (decoration.options.hideInCommentTokens && isModelDecorationInComment(model, decoration)) {
-		return false;
-	}
-
-	if (decoration.options.hideInStringTokens && isModelDecorationInString(model, decoration)) {
-		return false;
-	}
-
-	return true;
-}
-
-export function isModelDecorationInComment(model: ITextModel, decoration: IModelDecoration): boolean {
-	return testTokensInRange(
-		model,
-		decoration.range,
-		(tokenType) => tokenType === StandardTokenType.Comment
-	);
-}
-
-export function isModelDecorationInString(model: ITextModel, decoration: IModelDecoration): boolean {
-	return testTokensInRange(
-		model,
-		decoration.range,
-		(tokenType) => tokenType === StandardTokenType.String
-	);
-}
-
-/**
- * Calls the callback for every token that intersects the range.
- * If the callback returns `false`, iteration stops and `false` is returned.
- * Otherwise, `true` is returned.
- */
-function testTokensInRange(model: ITextModel, range: Range, callback: (tokenType: StandardTokenType) => boolean): boolean {
-	for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
-		const lineTokens = model.tokenization.getLineTokens(lineNumber);
-		const isFirstLine = lineNumber === range.startLineNumber;
-		const isEndLine = lineNumber === range.endLineNumber;
-
-		let tokenIdx = isFirstLine ? lineTokens.findTokenIndexAtOffset(range.startColumn - 1) : 0;
-		while (tokenIdx < lineTokens.getCount()) {
-			if (isEndLine) {
-				const startOffset = lineTokens.getStartOffset(tokenIdx);
-				if (startOffset > range.endColumn - 1) {
-					break;
-				}
-			}
-
-			const callbackResult = callback(lineTokens.getStandardTokenType(tokenIdx));
-			if (!callbackResult) {
-				return false;
-			}
-			tokenIdx++;
-		}
-	}
-	return true;
 }

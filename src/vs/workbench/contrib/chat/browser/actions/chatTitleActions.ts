@@ -262,9 +262,8 @@ export function registerChatTitleActions() {
 
 			chatService.resendRequest(request!, {
 				userSelectedModelId: languageModelId,
-				userSelectedTools: widget?.getUserSelectedTools(),
 				attempt: (request?.attempt ?? -1) + 1,
-				mode: widget?.input.currentModeKind,
+				...widget?.getModeRequestOptions(),
 			});
 		}
 	});

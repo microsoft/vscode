@@ -104,6 +104,9 @@ export function provideInlineCompletions(
 			runWhenCancelled(cancellationTokenSource.token, () => {
 				return list.removeRef(cancelReason);
 			});
+			if (cancellationTokenSource.token.isCancellationRequested) {
+				return undefined; // The list is disposed now, so we cannot return the items!
+			}
 
 			for (const item of result.items) {
 				data.push(toInlineSuggestData(item, list, defaultReplaceRange, model, languageConfigurationService, contextWithUuid, requestInfo));
@@ -415,7 +418,8 @@ export interface IDisplayLocation {
 
 export enum InlineCompletionEditorType {
 	TextEditor = 'textEditor',
-	DiffEditor = 'diffEditor'
+	DiffEditor = 'diffEditor',
+	Notebook = 'notebook',
 }
 
 /**

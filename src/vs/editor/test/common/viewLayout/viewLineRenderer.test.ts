@@ -11,9 +11,9 @@ import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
 import { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
 import { CharacterMapping, DomPosition, RenderLineInput, RenderLineOutput2, renderViewLine2 as renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
-import { InlineDecorationType } from '../../../common/viewModel.js';
 import { TestLineToken, TestLineTokens } from '../core/testLineToken.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
+import { InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
 
 function createViewLineTokens(viewLineTokens: TestLineToken[]): IViewLineTokens {
 	return new TestLineTokens(viewLineTokens);
