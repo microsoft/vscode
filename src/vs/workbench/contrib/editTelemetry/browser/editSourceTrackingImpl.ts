@@ -344,6 +344,7 @@ class ArcTelemetrySender extends Disposable {
 
 				res.telemetryService.publicLog2<{
 					extensionId: string;
+					extensionVersion: string;
 					opportunityId: string;
 					didBranchChange: number;
 					timeDelayMs: number;
@@ -354,6 +355,7 @@ class ArcTelemetrySender extends Disposable {
 					comment: 'Reports the accepted and retained character count for an inline completion/edit.';
 
 					extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension id (copilot or copilot-chat); which provided this inline completion.' };
+					extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension.' };
 					opportunityId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for an opportunity to show an inline completion or NES.' };
 
 					didBranchChange: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates if the branch changed in the meantime. If the branch changed (value is 1); this event should probably be ignored.' };
@@ -362,6 +364,7 @@ class ArcTelemetrySender extends Disposable {
 					originalCharCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The original character count before any edits.' };
 				}>('editTelemetry.reportInlineEditArc', {
 					extensionId: data.$extensionId ?? '',
+					extensionVersion: data.$extensionVersion ?? '',
 					opportunityId: data.$$requestUuid ?? 'unknown',
 					didBranchChange: res.didBranchChange ? 1 : 0,
 					timeDelayMs: res.timeDelayMs,
