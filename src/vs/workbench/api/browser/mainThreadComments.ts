@@ -765,7 +765,13 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		if (!this._onChangeContainerListener.value) {
 			this._onChangeContainerListener.value = this._viewDescriptorService.onDidChangeContainer(e => {
 				if (e.views.find(view => view.id === COMMENTS_VIEW_ID)) {
-					this.setComments();
+					// Use state-preserving refresh when moving the comments view to a different container
+					const commentsView = this._viewsService.getViewWithId<CommentsPanel>(COMMENTS_VIEW_ID);
+					if (commentsView) {
+						commentsView.refreshWithStatePreservation();
+					} else {
+						this.setComments();
+					}
 					this.registerViewOpenedListener();
 				}
 			});
