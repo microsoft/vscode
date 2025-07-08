@@ -405,8 +405,8 @@ export const schema: IJSONSchema = {
 					},
 					{
 						label: 'onTerminalShellIntegration',
-						body: 'onTerminalShellIntegration',
-						description: nls.localize('vscode.extension.activationEvents.onTerminalShellIntegration', 'An activation event emitted when terminal shell integration is activated.'),
+						body: 'onTerminalShellIntegration:${1:shellType}',
+						description: nls.localize('vscode.extension.activationEvents.onTerminalShellIntegration', 'An activation event emitted when terminal shell integration is activated for the given shell type.'),
 					},
 					{
 						label: 'onMcpCollection',
