@@ -95,7 +95,7 @@ export function refreshShellIntegrationInfoStatus(instance: ITerminalInstance) {
 	if (instance.shellType) {
 		detailedAdditions.push(`Shell type: \`${instance.shellType}\``);
 	}
-	const cwd = instance.capabilities.get(TerminalCapability.CwdDetection)?.getCwd() || instance.cwd;
+	const cwd = instance.cwd;
 	if (cwd) {
 		detailedAdditions.push(`Current working directory: \`${cwd}\``);
 	}
