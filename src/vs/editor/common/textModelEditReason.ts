@@ -35,7 +35,7 @@ export class TextModelEditReason {
 	 * Converts the metadata to a key string.
 	 * Only includes properties/values that have `level` many `$` prefixes or less.
 	*/
-	public toKey(level: number, filter: { [TKey in keyof ITextModelEditReasonMetadata]?: boolean } = {}): string {
+	public toKey(level: number, filter: { [TKey in ITextModelEditReasonMetadataKeys]?: boolean } = {}): string {
 		const metadata = this.metadata;
 		const keys = Object.entries(metadata).filter(([key, value]) => {
 			const filterVal = (filter as Record<string, boolean>)[key];
@@ -133,6 +133,8 @@ function toProperties(version: ProviderId | undefined) {
 
 type Values<T> = T[keyof T];
 type ITextModelEditReasonMetadata = Values<{ [TKey in keyof typeof EditReasons]: ReturnType<typeof EditReasons[TKey]>['metadataT'] }>;
+type ITextModelEditReasonMetadataKeys = Values<{ [TKey in keyof typeof EditReasons]: keyof ReturnType<typeof EditReasons[TKey]>['metadataT'] }>;
+
 
 function avoidPathRedaction(str: string | undefined): string | undefined {
 	if (str === undefined) {

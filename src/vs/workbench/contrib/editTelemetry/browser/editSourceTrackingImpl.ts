@@ -12,11 +12,12 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { AnnotatedStringEdit, BaseStringEdit } from '../../../../editor/common/core/edits/stringEdit.js';
 import { StringText } from '../../../../editor/common/core/text/abstractText.js';
+import { TextModelEditReason } from '../../../../editor/common/textModelEditReason.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ISCMRepository, ISCMService } from '../../scm/common/scm.js';
 import { ArcTracker } from './arcTracker.js';
-import { CombineStreamedChanges, DocumentWithAnnotatedEdits, EditReasonData, EditSource, EditSourceData, IDocumentWithAnnotatedEdits, MinimizeEditsProcessor } from './documentWithAnnotatedEdits.js';
+import { CombineStreamedChanges, DocumentWithSourceAnnotatedEdits, EditKeySourceData, EditSource, EditSourceData, IDocumentWithAnnotatedEdits, MinimizeEditsProcessor } from './documentWithAnnotatedEdits.js';
 import { DocumentEditSourceTracker, TrackedEdit } from './editTracker.js';
 import { ObservableWorkspace, IObservableDocument } from './observableWorkspace.js';
 
@@ -89,9 +90,9 @@ class TrackedDocumentInfo extends Disposable {
 		super();
 
 		// Use the listener service and special events from core to annotate where an edit came from (is async)
-		let processedDoc: IDocumentWithAnnotatedEdits<EditReasonData> = this._store.add(new DocumentWithAnnotatedEdits(_doc));
+		let processedDoc: IDocumentWithAnnotatedEdits<EditSourceData> = this._store.add(new DocumentWithSourceAnnotatedEdits(_doc));
 		// Combine streaming edits into one and make edit smaller
-		processedDoc = this._store.add(this._instantiationService.createInstance((CombineStreamedChanges<EditReasonData>), processedDoc));
+		processedDoc = this._store.add(this._instantiationService.createInstance((CombineStreamedChanges<EditSourceData>), processedDoc));
 		// Remove common suffix and prefix from edits
 		processedDoc = this._store.add(new MinimizeEditsProcessor(processedDoc));
 
@@ -223,6 +224,10 @@ class TrackedDocumentInfo extends Disposable {
 			isTrackedByGit: isTrackedByGit ? 1 : 0,
 		});
 
+		const sourceKeyToRepresentative = new Map<string, TextModelEditReason>();
+		for (const r of ranges) {
+			sourceKeyToRepresentative.set(r.sourceKey, r.sourceRepresentative);
+		}
 
 		const sums = sumByCategory(ranges, r => r.range.length, r => r.sourceKey);
 		const entries = Object.entries(sums).filter(([key, value]) => value !== undefined);
@@ -233,9 +238,21 @@ class TrackedDocumentInfo extends Disposable {
 			if (value === undefined) {
 				continue;
 			}
+
+
+			const repr = sourceKeyToRepresentative.get(key);
+			const cleanedKey = repr?.toKey(1, { $extensionId: false, $extensionVersion: false });
+
+			const metadata = repr?.metadata;
+			const extensionId = metadata && '$extensionId' in metadata ? metadata.$extensionId : undefined;
+			const extensionVersion = metadata && '$extensionVersion' in metadata ? metadata.$extensionVersion : undefined;
+
 			this._telemetryService.publicLog2<{
 				mode: string;
-				reasonKey: string;
+				sourceKey: string;
+				extensionId: string;
+				extensionVersion: string;
+				sourceKeyWithoutExtId: string;
 				languageId: string;
 				statsUuid: string;
 				modifiedCount: number;
@@ -244,16 +261,22 @@ class TrackedDocumentInfo extends Disposable {
 				owner: 'hediet';
 				comment: 'Reports distribution of various edit kinds.';
 
-				reasonKey: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the edit.' };
+				sourceKey: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the edit.' };
 				mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'longterm or 5minWindow' };
 				languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
 				statsUuid: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The unique identifier for the telemetry event.' };
+				extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension id which provided this inline completion.' };
+				extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension.' };
+				sourceKeyWithoutExtId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the edit.' };
 
 				modifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Fraction of nes modified characters'; isMeasurement: true };
 				totalModifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Total number of characters'; isMeasurement: true };
 			}>('editTelemetry.editSources.details', {
 				mode,
-				reasonKey: key,
+				sourceKey: key,
+				extensionId: extensionId ?? '',
+				extensionVersion: extensionVersion ?? '',
+				sourceKeyWithoutExtId: cleanedKey ?? '',
 				languageId: this._doc.languageId.get(),
 				statsUuid: statsUuid,
 				modifiedCount: value,
@@ -312,8 +335,8 @@ function mapObservableDelta<T, TDelta, TDeltaNew>(obs: IObservableWithChange<T, 
 /**
  * Removing the metadata allows touching edits from the same source to merged, even if they were caused by different actions (e.g. two user edits).
  */
-function createDocWithJustReason(docWithAnnotatedEdits: IDocumentWithAnnotatedEdits<EditReasonData>, store: DisposableStore): IDocumentWithAnnotatedEdits<EditSourceData> {
-	const docWithJustReason: IDocumentWithAnnotatedEdits<EditSourceData> = {
+function createDocWithJustReason(docWithAnnotatedEdits: IDocumentWithAnnotatedEdits<EditSourceData>, store: DisposableStore): IDocumentWithAnnotatedEdits<EditKeySourceData> {
+	const docWithJustReason: IDocumentWithAnnotatedEdits<EditKeySourceData> = {
 		value: mapObservableDelta(docWithAnnotatedEdits.value, edit => ({ edit: edit.edit.mapData(d => d.data.toEditSourceData()) }), store),
 		waitForQueue: () => docWithAnnotatedEdits.waitForQueue(),
 	};
@@ -322,7 +345,7 @@ function createDocWithJustReason(docWithAnnotatedEdits: IDocumentWithAnnotatedEd
 
 class ArcTelemetrySender extends Disposable {
 	constructor(
-		docWithAnnotatedEdits: IDocumentWithAnnotatedEdits<EditReasonData>,
+		docWithAnnotatedEdits: IDocumentWithAnnotatedEdits<EditSourceData>,
 		scmRepoBridge: ScmRepoBridge | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
