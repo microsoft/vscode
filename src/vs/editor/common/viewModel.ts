@@ -12,12 +12,13 @@ import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData,
 import { CursorChangeReason } from './cursorEvents.js';
 import { INewScrollPosition, ScrollType } from './editorCommon.js';
 import { EditorTheme } from './editorTheme.js';
-import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel, PositionAffinity } from './model.js';
+import { EndOfLinePreference, IGlyphMarginLanesModel, ITextModel, PositionAffinity } from './model.js';
 import { ILineBreaksComputer, InjectedText } from './modelLineProjectionData.js';
 import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from './textModelGuides.js';
 import { IViewLineTokens } from './tokens/lineTokens.js';
 import { ViewEventHandler } from './viewEventHandler.js';
 import { VerticalRevealType } from './viewEvents.js';
+import { ViewModelDecoration } from './viewModel/viewModelDecoration.js';
 
 export interface IViewModel extends ICursorSimpleModel {
 
@@ -429,18 +430,6 @@ export class SingleLineInlineDecoration {
 			this.inlineClassName,
 			this.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular
 		);
-	}
-}
-
-export class ViewModelDecoration {
-	_viewModelDecorationBrand: void = undefined;
-
-	public readonly range: Range;
-	public readonly options: IModelDecorationOptions;
-
-	constructor(range: Range, options: IModelDecorationOptions) {
-		this.range = range;
-		this.options = options;
 	}
 }
 
