@@ -25,7 +25,6 @@ import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops, PositionAff
 import { LineTokens } from '../../../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../../../common/viewLayout/lineDecorations.js';
 import { RenderLineInput, renderViewLine } from '../../../../../common/viewLayout/viewLineRenderer.js';
-import { InlineDecorationType } from '../../../../../common/viewModel.js';
 import { GhostText, GhostTextReplacement, IGhostTextLine } from '../../model/ghostText.js';
 import { RangeSingleLine } from '../../../../../common/core/ranges/rangeSingleLine.js';
 import { ColumnRange } from '../../../../../common/core/ranges/columnRange.js';
@@ -35,6 +34,7 @@ import { IMouseEvent, StandardMouseEvent } from '../../../../../../base/browser/
 import { CodeEditorWidget } from '../../../../../browser/widget/codeEditor/codeEditorWidget.js';
 import { TokenWithTextArray } from '../../../../../common/tokens/tokenWithTextArray.js';
 import { InlineCompletionViewData } from '../inlineEdits/inlineEditsViewInterface.js';
+import { InlineDecorationType } from '../../../../../common/viewModel/inlineDecorations.js';
 import { sum } from '../../../../../../base/common/arrays.js';
 
 export interface IGhostTextWidgetModel {
