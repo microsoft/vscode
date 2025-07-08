@@ -7,7 +7,7 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import type { IKeyValueStorage, IExperimentationTelemetry } from 'tas-client-umd';
 import { MementoObject, Memento } from '../../../common/memento.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryData } from '../../../../base/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -19,6 +19,7 @@ import { BaseAssignmentService } from '../../../../platform/assignment/common/as
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
 
 export const IWorkbenchAssignmentService = createDecorator<IWorkbenchAssignmentService>('WorkbenchAssignmentService');
 
@@ -89,6 +90,11 @@ export class WorkbenchAssignmentService extends BaseAssignmentService {
 		@IProductService productService: IProductService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
+		const experimentsEnabled = getTelemetryLevel(configurationService) === TelemetryLevel.USAGE &&
+			!environmentService.disableExperiments &&
+			!environmentService.extensionTestsLocationURI &&
+			!environmentService.enableSmokeTestDriver &&
+			configurationService.getValue('workbench.enableExperiments') === true;
 
 		super(
 			telemetryService.machineId,
@@ -96,15 +102,9 @@ export class WorkbenchAssignmentService extends BaseAssignmentService {
 			productService,
 			environmentService,
 			new WorkbenchAssignmentServiceTelemetry(telemetryService, productService),
+			experimentsEnabled,
 			new MementoKeyValueStorage(new Memento('experiment.service.memento', storageService))
 		);
-	}
-
-	protected override get experimentsEnabled(): boolean {
-		return !this.environmentService.disableExperiments &&
-			!this.environmentService.extensionTestsLocationURI &&
-			!(this.environmentService as IWorkbenchEnvironmentService).enableSmokeTestDriver &&
-			this.configurationService.getValue('workbench.enableExperiments') === true;
 	}
 
 	override async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
