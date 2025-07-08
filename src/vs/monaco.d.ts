@@ -7563,6 +7563,7 @@ declare namespace monaco.languages {
 		disjointReplacements?: number;
 		sameShapeReplacements?: boolean;
 		typingSpeed: number;
+		typingSpeedCharacterCount: number;
 	};
 
 	export interface CodeAction {

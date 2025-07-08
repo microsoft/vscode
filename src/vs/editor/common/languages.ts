@@ -957,6 +957,7 @@ export type LifetimeSummary = {
 	disjointReplacements?: number;
 	sameShapeReplacements?: boolean;
 	typingSpeed: number;
+	typingSpeedCharacterCount: number;
 };
 
 export interface CodeAction {

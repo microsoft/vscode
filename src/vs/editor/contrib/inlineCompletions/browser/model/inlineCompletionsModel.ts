@@ -228,12 +228,14 @@ export class InlineCompletionsModel extends Disposable {
 				reason += reason.length > 0 ? `:${changeSummary.changeReason}` : changeSummary.changeReason;
 			}
 
+			const typingSpeed = typing.getSpeed();
 			const requestInfo: InlineSuggestRequestInfo = {
 				editorType: this.editorType,
 				startTime: Date.now(),
 				languageId: this.textModel.getLanguageId(),
 				reason,
-				typingSpeed: typing.speed,
+				typingSpeed: typingSpeed.speed,
+				typingSpeedCharacterCount: typingSpeed.characterCount,
 			};
 
 			let context: InlineCompletionContextWithoutUuid = {
