@@ -727,7 +727,7 @@ function completeSingleLinePattern(token: marked.Tokens.Text | marked.Tokens.Par
 			}
 
 			// Contains the start of link text, and no following tokens contain the link target
-			else if (lastLine.match(/(^|\s)\[\w*/)) {
+			else if (lastLine.match(/(^|\s)\[\w*[^\]]*$/)) {
 				return completeLinkText(token);
 			}
 		}

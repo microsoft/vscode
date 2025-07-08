@@ -315,7 +315,7 @@ export class WebWorkerClient<W extends object> extends Disposable implements IWe
 	) {
 		super();
 
-		this._worker = worker;
+		this._worker = this._register(worker);
 		this._register(this._worker.onMessage((msg) => {
 			this._protocol.handleMessage(msg);
 		}));

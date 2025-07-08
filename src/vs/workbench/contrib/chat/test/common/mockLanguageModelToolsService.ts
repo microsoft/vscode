@@ -76,7 +76,7 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		throw new Error('Method not implemented.');
 	}
 
-	toToolAndToolSetEnablementMap(toolOrToolSetNames: Set<string>): Map<ToolSet | IToolData, boolean> {
+	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[] | undefined): Map<ToolSet | IToolData, boolean> {
 		throw new Error('Method not implemented.');
 	}
 }

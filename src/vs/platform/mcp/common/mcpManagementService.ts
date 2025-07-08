@@ -82,16 +82,16 @@ export abstract class AbstractMcpResourceManagementService extends Disposable im
 	private initialize(): Promise<void> {
 		if (!this.initializePromise) {
 			this.initializePromise = (async () => {
-				this.local = await this.populateLocalServer();
+				this.local = await this.populateLocalServers();
 				this.startWatching();
 			})();
 		}
 		return this.initializePromise;
 	}
 
-	private async populateLocalServer(): Promise<Map<string, ILocalMcpServer>> {
+	private async populateLocalServers(): Promise<Map<string, ILocalMcpServer>> {
+		this.logService.trace('AbstractMcpResourceManagementService#populateLocalServers', this.mcpResource.toString());
 		const local = new Map<string, ILocalMcpServer>();
-		this.logService.info('MCP Management Service: fetchInstalled', this.mcpResource.toString());
 		try {
 			const scannedMcpServers = await this.mcpResourceScannerService.scanMcpServers(this.mcpResource, this.target);
 			if (scannedMcpServers.servers) {
@@ -118,7 +118,7 @@ export abstract class AbstractMcpResourceManagementService extends Disposable im
 
 	protected async updateLocal(): Promise<void> {
 		try {
-			const current = await this.populateLocalServer();
+			const current = await this.populateLocalServers();
 
 			const added: ILocalMcpServer[] = [];
 			const updated: ILocalMcpServer[] = [];
@@ -386,11 +386,12 @@ export abstract class AbstractMcpResourceManagementService extends Disposable im
 	abstract installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
 	abstract updateMetadata(local: ILocalMcpServer, server: IGalleryMcpServer, profileLocation: URI): Promise<ILocalMcpServer>;
 	protected abstract getLocalServerInfo(name: string, mcpServerConfig: IMcpServerConfiguration): Promise<ILocalMcpServerInfo | undefined>;
+	protected abstract installFromUri(uri: URI, options?: Omit<InstallOptions, 'mcpResource'>): Promise<ILocalMcpServer>;
 }
 
 export class McpUserResourceManagementService extends AbstractMcpResourceManagementService implements IMcpManagementService {
 
-	private readonly mcpLocation: URI;
+	protected readonly mcpLocation: URI;
 
 	constructor(
 		mcpResource: URI,
@@ -498,12 +499,17 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 		return storedMcpServerInfo;
 	}
 
-	private getLocation(name: string, version?: string): URI {
+	protected getLocation(name: string, version?: string): URI {
 		name = name.replace('/', '.');
 		return this.uriIdentityService.extUri.joinPath(this.mcpLocation, version ? `${name}-${version}` : name);
 	}
 
+	protected override installFromUri(uri: URI, options?: Omit<InstallOptions, 'mcpResource'>): Promise<ILocalMcpServer> {
+		throw new Error('Method not supported.');
+	}
+
 }
+
 
 export class McpManagementService extends Disposable implements IMcpManagementService {
 
@@ -528,7 +534,7 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 
 	constructor(
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 	) {
 		super();
 	}
@@ -537,7 +543,7 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 		let mcpResourceManagementService = this.mcpResourceManagementServices.get(mcpResource);
 		if (!mcpResourceManagementService) {
 			const disposables = new DisposableStore();
-			const service = disposables.add(this.instantiationService.createInstance(McpUserResourceManagementService, mcpResource));
+			const service = disposables.add(this.createMcpResourceManagementService(mcpResource));
 			disposables.add(service.onInstallMcpServer(e => this._onInstallMcpServer.fire(e)));
 			disposables.add(service.onDidInstallMcpServers(e => this._onDidInstallMcpServers.fire(e)));
 			disposables.add(service.onDidUpdateMcpServers(e => this._onDidUpdateMcpServers.fire(e)));
@@ -576,6 +582,10 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 		this.mcpResourceManagementServices.forEach(service => service.dispose());
 		this.mcpResourceManagementServices.clear();
 		super.dispose();
+	}
+
+	protected createMcpResourceManagementService(mcpResource: URI): McpUserResourceManagementService {
+		return this.instantiationService.createInstance(McpUserResourceManagementService, mcpResource);
 	}
 
 }

@@ -569,11 +569,22 @@ export interface IMcpServerContainer extends IDisposable {
 	update(): void;
 }
 
+export interface IMcpServerEditorOptions extends IEditorOptions {
+	tab?: McpServerEditorTab;
+	sideByside?: boolean;
+}
+
 export const enum McpServerInstallState {
 	Installing,
 	Installed,
 	Uninstalling,
 	Uninstalled
+}
+
+export const enum McpServerEditorTab {
+	Readme = 'readme',
+	Manifest = 'manifest',
+	Configuration = 'configuration',
 }
 
 export interface IWorkbenchMcpServer {
@@ -615,7 +626,7 @@ export interface IMcpWorkbenchService {
 	uninstall(mcpServer: IWorkbenchMcpServer): Promise<void>;
 	getMcpConfigPath(arg: IWorkbenchLocalMcpServer): IMcpConfigPath | undefined;
 	getMcpConfigPath(arg: URI): Promise<IMcpConfigPath | undefined>;
-	open(extension: IWorkbenchMcpServer | string, options?: IEditorOptions): Promise<void>;
+	open(extension: IWorkbenchMcpServer | string, options?: IMcpServerEditorOptions): Promise<void>;
 }
 
 export class McpServerContainers extends Disposable {
@@ -667,7 +678,7 @@ export namespace McpResourceURI {
 		});
 	}
 
-	export function toServer(uri: URI | string): { definitionId: string; resourceURI: URI } {
+	export function toServer(uri: URI | string): { definitionId: string; resourceURL: URL } {
 		if (typeof uri === 'string') {
 			uri = URI.parse(uri);
 		}
@@ -679,13 +690,16 @@ export namespace McpResourceURI {
 			throw new Error(`Invalid MCP resource URI: ${uri.toString()}`);
 		}
 		const [, serverScheme, authority, ...path] = parts;
+
+		// URI cannot correctly stringify empty authorities (#250905) so we use URL instead to construct
+		const url = new URL(`${serverScheme}://${authority.toLowerCase() === emptyAuthorityPlaceholder ? '' : authority}`);
+		url.pathname = path.length ? ('/' + path.join('/')) : '';
+		url.search = uri.query;
+		url.hash = uri.fragment;
+
 		return {
 			definitionId: decodeHex(uri.authority).toString(),
-			resourceURI: uri.with({
-				scheme: serverScheme,
-				authority: authority.toLowerCase() === emptyAuthorityPlaceholder ? '' : authority,
-				path: path.length ? ('/' + path.join('/')) : '',
-			}),
+			resourceURL: url,
 		};
 	}
 

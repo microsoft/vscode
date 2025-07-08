@@ -83,26 +83,31 @@ export class InlineCompletionsService extends Disposable implements IInlineCompl
 	}
 
 	setSnoozeDuration(durationMs: number): void {
+		if (durationMs < 0) {
+			throw new BugIndicatingError(`Invalid snooze duration: ${durationMs}. Duration must be non-negative.`);
+		}
+		if (durationMs === 0) {
+			this.cancelSnooze();
+			return;
+		}
+
 		const wasSnoozing = this.isSnoozing();
 		this._snoozeTimeEnd = Date.now() + durationMs;
-		const isSnoozing = this.isSnoozing();
 
-		if (wasSnoozing !== isSnoozing) {
-			this._onDidChangeIsSnoozing.fire(isSnoozing);
+		if (!wasSnoozing) {
+			this._onDidChangeIsSnoozing.fire(true);
 		}
 
-		if (isSnoozing) {
-			this._timer.cancelAndSet(
-				() => {
-					if (!this.isSnoozing()) {
-						this._onDidChangeIsSnoozing.fire(false);
-					} else {
-						throw new BugIndicatingError('Snooze timer did not fire as expected');
-					}
-				},
-				this.snoozeTimeLeft + 1,
-			);
-		}
+		this._timer.cancelAndSet(
+			() => {
+				if (!this.isSnoozing()) {
+					this._onDidChangeIsSnoozing.fire(false);
+				} else {
+					throw new BugIndicatingError('Snooze timer did not fire as expected');
+				}
+			},
+			this.snoozeTimeLeft + 1,
+		);
 	}
 
 	isSnoozing(): boolean {
