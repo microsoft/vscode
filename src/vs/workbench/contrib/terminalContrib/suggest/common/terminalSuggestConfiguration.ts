@@ -203,7 +203,7 @@ export function registerTerminalSuggestProvidersConfiguration(availableProviders
 	const defaultValue: IStringDictionary<boolean> = {
 		// Always include known built-in providers as defaults even if not yet registered
 		'terminal-suggest': true,
-		'builtinPwsh': false,
+		'pwsh-shell-integration': false,
 		'lsp': true
 	};
 
