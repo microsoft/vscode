@@ -162,10 +162,56 @@ export function registerNewChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.redoEdit',
-				// title: localize2('chat.redoEdit.label', "Redo Last Request"),
+				title: localize2('chat.redoEdit.label', "Redo Last Request"),
+				category: CHAT_CATEGORY,
+				icon: Codicon.redo,
+				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanRedo, ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
+				f1: true,
+				menu: [
+					{
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.equals('view', ChatViewId),
+						group: 'navigation',
+						order: -2
+					}
+				]
+			});
+		}
+
+		async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession) {
+			const widget = accessor.get(IChatWidgetService);
+			if (editingSession.canRedo) {
+				console.log('Redoing interaction in chat editing session');
+			}
+			// Use a reactive approach with observables instead of polling in a loop
+			const redoUntilDone = async () => {
+				// Check if we can still redo - this avoids unnecessary calls
+				if (!editingSession.canRedo.get()) {
+					return;
+				}
+
+				// Perform one redo operation
+				await editingSession.redoInteraction();
+
+				// Schedule next redo asynchronously to avoid blocking the UI
+				setTimeout(() => redoUntilDone(), 0);
+			};
+
+			// Start the process
+			await redoUntilDone();
+			widget.lastFocusedWidget?.viewModel?.model.setCheckpoint(undefined);
+			widget.lastFocusedWidget?.rerenderChat();
+		}
+	});
+
+	registerAction2(class RedoChatEditInteractionAction2 extends EditingSessionAction {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.redoEdit2',
+				// title: localize2('chat.redoEdit.label2', "Redo Last Request"),
 				title: {
-					value: localize('chat.redoEdit.label', "Redo"),
-					original: localize('chat.redoEdit.label', "Redo"),
+					value: localize('chat.redoEdit.label2', "Redo"),
+					original: localize('chat.redoEdit.label2', "Redo"),
 				},
 				category: CHAT_CATEGORY,
 				// icon: Codicon.redo,
