@@ -16,55 +16,64 @@
 				return value === null ? null : decodeURIComponent(value);
 			}
 
-			const url = new URL(window.location.href);
-			const params = url.searchParams;
-			const id = decode(params.get('vscode-reqid'));
-			const scheme = decode(params.get('vscode-scheme'));
-			const authority = decode(params.get('vscode-authority'));
+			// Check if we're coming from vscode.dev/redirect
+			const isFromVscodeDevRedirect = document.referrer.includes('vscode.dev/redirect');
 
-			if (!id) {
-				throw new Error('Missing id');
-			} else if (!scheme) {
-				throw new Error('Missing scheme');
-			} else if (!authority) {
-				throw new Error('Missing authority');
+			// If we're not from vscode.dev/redirect and we're on localhost, redirect through vscode.dev first
+			if (!isFromVscodeDevRedirect && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+				const redirectUrl = `https://vscode.dev/redirect?uri=${encodeURIComponent(window.location.href)}`;
+				window.location.href = redirectUrl;
+				// Don't process further, let the redirect happen
+			} else {
+				// Process normally
+				const url = new URL(window.location.href);
+				const params = url.searchParams;
+				const id = decode(params.get('vscode-reqid'));
+				const scheme = decode(params.get('vscode-scheme'));
+				const authority = decode(params.get('vscode-authority'));
+
+				if (!id) {
+					throw new Error('Missing id');
+				} else if (!scheme) {
+					throw new Error('Missing scheme');
+				} else if (!authority) {
+					throw new Error('Missing authority');
+				}
+
+				const path = decode(params.get('vscode-path'));
+				const query = decode(params.get('vscode-query'));
+				const fragment = decode(params.get('vscode-fragment'));
+
+				params.delete('vscode-reqid');
+				params.delete('vscode-scheme');
+				params.delete('vscode-authority');
+				params.delete('vscode-path');
+				params.delete('vscode-query');
+				params.delete('vscode-fragment');
+
+				let uri = { scheme, authority };
+
+				if (path) {
+					uri.path = path;
+				}
+
+				if (query) {
+					const originalParams = new URLSearchParams(query);
+					originalParams.forEach((value, key) => params.set(key, value));
+				}
+
+				const resultQuery = params.toString();
+				if (resultQuery) {
+					uri.query = resultQuery;
+				}
+
+				if (fragment) {
+					uri.fragment = fragment;
+				}
+
+				localStorage.setItem(`vscode-web.url-callbacks[${id}]`, JSON.stringify(uri));
 			}
-
-			const path = decode(params.get('vscode-path'));
-			const query = decode(params.get('vscode-query'));
-			const fragment = decode(params.get('vscode-fragment'));
-
-			params.delete('vscode-reqid');
-			params.delete('vscode-scheme');
-			params.delete('vscode-authority');
-			params.delete('vscode-path');
-			params.delete('vscode-query');
-			params.delete('vscode-fragment');
-
-			let uri = { scheme, authority };
-
-			if (path) {
-				uri.path = path;
-			}
-
-			if (query) {
-				const originalParams = new URLSearchParams(query);
-				originalParams.forEach((value, key) => params.set(key, value));
-			}
-
-			const resultQuery = params.toString();
-			if (resultQuery) {
-				uri.query = resultQuery;
-			}
-
-			if (fragment) {
-				uri.fragment = fragment;
-			}
-
-			localStorage.setItem(`vscode-web.url-callbacks[${id}]`, JSON.stringify(uri));
 		</script>
-
-		<!-- Styling -->
 		<style type="text/css">
 			html {
 				height: 100%;
