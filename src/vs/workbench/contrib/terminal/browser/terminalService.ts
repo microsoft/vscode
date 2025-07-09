@@ -847,7 +847,11 @@ export class TerminalService extends Disposable implements ITerminalService {
 		instanceDisposables.add(instance.onDidFocus(this._onDidChangeActiveInstance.fire, this._onDidChangeActiveInstance));
 		instanceDisposables.add(instance.onRequestAddInstanceToGroup(async e => await this._addInstanceToGroup(instance, e)));
 		instanceDisposables.add(instance.onDidChangeShellType(() => this._extensionService.activateByEvent(`onTerminal:${instance.shellType}`)));
-		instanceDisposables.add(instance.onDidChangeShellType(() => this._extensionService.activateByEvent(`onTerminalShellIntegration:${instance.shellType}`)));
+		instanceDisposables.add(Event.runAndSubscribe(instance.capabilities.onDidAddCapability, (() => {
+			if (instance.capabilities.has(TerminalCapability.CommandDetection)) {
+				this._extensionService.activateByEvent(`onTerminalShellIntegration:${instance.shellType}`);
+			}
+		})));
 		const disposeListener = this._register(instance.onDisposed(() => {
 			instanceDisposables.dispose();
 			this._store.delete(disposeListener);
