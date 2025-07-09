@@ -749,7 +749,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// TODO@bhavyaus remove this startup experiment once settled
 			const startupExpValue = startupExpContext.getValue(this.contextKeyService);
 			const configuration = this.configurationService.inspect('workbench.secondarySideBar.defaultVisibility');
-			const expIsActive = configuration.defaultValue !== 'hidden';
+			const expIsActive = configuration.value === 'hidden';
 
 			const chatSetupTriggerContext = ContextKeyExpr.or(
 				ChatContextKeys.Setup.installed.negate(),
@@ -757,8 +757,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			);
 
 			let welcomeContent: IChatViewWelcomeContent;
-			const configuration = this.configurationService.inspect('workbench.secondarySideBar.defaultVisibility');
-			const expIsActive = configuration.defaultValue !== 'hidden';
 			if ((startupExpValue === StartupExperimentGroup.MaximizedChat
 				|| startupExpValue === StartupExperimentGroup.SplitEmptyEditorChat
 				|| startupExpValue === StartupExperimentGroup.SplitWelcomeChat
@@ -767,7 +765,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.container.classList.add('experimental-welcome-view');
 			}
 			else if (expIsActive) {
-				welcomeContent = this.getWelcomeViewContent(expIsActive);
+				welcomeContent = this.getWelcomeViewContent(undefined, expIsActive);
 			}
 			else {
 				const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
@@ -794,8 +792,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			dom.setVisibility(numItems !== 0, this.listContainer);
 		}
 	}
-=
-	private getWelcomeViewContent(expIsActive?: boolean): IChatViewWelcomeContent {
+
+	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined, expIsActive?: boolean): IChatViewWelcomeContent {
 		const disclaimerMessage = expIsActive
 			? localize('chatDisclaimer', "AI responses may be inaccurate.")
 			: localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.");
@@ -806,7 +804,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				title: localize('chatDescription', "Ask about your code."),
 				message: new MarkdownString(disclaimerMessage),
 				icon,
-        additionalMessage,
+				additionalMessage,
 			};
 		} else if (this.input.currentModeKind === ChatModeKind.Edit) {
 			const editsHelpMessage = localize('editsHelp', "Start your editing session by defining a set of files that you want to work with. Then ask Copilot for the changes you want to make.");
@@ -816,7 +814,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				title: localize('editsTitle', "Edit in context."),
 				message: new MarkdownString(message),
 				icon,
-        additionalMessage
+				additionalMessage
 			};
 		} else {
 			const agentHelpMessage = localize('agentMessage', "Ask Copilot to edit your files in [agent mode]({0}). Copilot will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.", 'https://aka.ms/vscode-copilot-agent');
@@ -826,7 +824,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				title: localize('agentTitle', "Build with agent mode."),
 				message: new MarkdownString(message),
 				icon,
-        additionalMessage
+				additionalMessage
 			};
 		}
 	}

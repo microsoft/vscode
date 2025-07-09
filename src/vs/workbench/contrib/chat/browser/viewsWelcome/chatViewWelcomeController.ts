@@ -20,7 +20,6 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidgetService } from '../chat.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { chatViewsWelcomeRegistry, IChatViewsWelcomeDescriptor } from './chatViewsWelcome.js';
 
@@ -164,7 +163,7 @@ export class ChatViewWelcomePart extends Disposable {
 
 			// Preview indicator
 			const configuration = this.configurationService.inspect('workbench.secondarySideBar.defaultVisibility');
-			const expIsActive = configuration.defaultValue !== 'hidden';
+			const expIsActive = configuration.value === 'hidden';
 			if (typeof content.message !== 'function' && options?.isWidgetAgentWelcomeViewContent && !expIsActive) {
 				const container = dom.append(this.element, $('.chat-welcome-view-indicator-container'));
 				dom.append(container, $('.chat-welcome-view-subtitle', undefined, localize('agentModeSubtitle', "Agent Mode")));
@@ -172,7 +171,7 @@ export class ChatViewWelcomePart extends Disposable {
 
 			// Message
 			const message = dom.append(this.element, content.isExperimental ? $('.chat-welcome-experimental-view-message') : $('.chat-welcome-view-message'));
-      message.classList.toggle('experimental-empty-state', expIsActive);
+			message.classList.toggle('experimental-empty-state', expIsActive);
 			if (typeof content.message === 'function') {
 				dom.append(message, content.message(this._register(new DisposableStore())));
 			} else {
