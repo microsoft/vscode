@@ -17,8 +17,9 @@ import { IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
 import { IChatResponseModel } from '../common/chatModel.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
+import { IChatSendRequestOptions } from '../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/chatViewModel.js';
-import { ChatAgentLocation, ChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatInputPart } from './chatInputPart.js';
 import { ChatViewPane } from './chatViewPane.js';
@@ -119,12 +120,12 @@ export interface IChatListItemRendererOptions {
 	readonly editableCodeBlock?: boolean;
 	readonly renderDetectedCommandsWithRequest?: boolean;
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
-	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatMode) => boolean);
-	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatMode) => boolean);
+	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatModeKind) => boolean);
+	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatModeKind) => boolean);
 }
 
 export interface IChatWidgetViewOptions {
-	autoScroll?: boolean | ((mode: ChatMode) => boolean);
+	autoScroll?: boolean | ((mode: ChatModeKind) => boolean);
 	renderInputOnTop?: boolean;
 	renderFollowups?: boolean;
 	renderStyle?: 'compact' | 'minimal';
@@ -159,6 +160,7 @@ export interface IChatViewViewContext {
 
 export interface IChatResourceViewContext {
 	isQuickChat?: boolean;
+	isInlineChat?: boolean;
 }
 
 export type IChatWidgetViewContext = IChatViewViewContext | IChatResourceViewContext | {};
@@ -199,12 +201,15 @@ export interface IChatWidget {
 	refreshParsedInput(): void;
 	logInputHistory(): void;
 	acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined>;
+	startEditing(requestId: string): void;
+	finishedEditing(completedEdit?: boolean): void;
 	rerunLastRequest(): Promise<void>;
 	setInputPlaceholder(placeholder: string): void;
 	resetInputPlaceholder(): void;
 	focusLastMessage(): void;
 	focusInput(): void;
 	hasInputFocus(): boolean;
+	getModeRequestOptions(): Partial<IChatSendRequestOptions>;
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined;
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[];
 	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[];

@@ -97,7 +97,7 @@ export interface ISearchModel {
 	replaceString: string;
 	preserveCase: boolean;
 	searchResult: ISearchResult;
-	aiSearch(onResultReported: () => void): Promise<ISearchComplete>;
+	aiSearch(onResultReported: (result: ISearchProgressItem | undefined) => void): Promise<ISearchComplete>;
 	hasAIResults: boolean;
 	hasPlainResults: boolean;
 	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void, callerToken?: CancellationToken): {

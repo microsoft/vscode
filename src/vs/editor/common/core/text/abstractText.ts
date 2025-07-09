@@ -6,7 +6,7 @@
 import { assert } from '../../../../base/common/assert.js';
 import { splitLines } from '../../../../base/common/strings.js';
 import { Position } from '../position.js';
-import { PositionOffsetTransformer } from './positionToOffset.js';
+import { PositionOffsetTransformer } from './positionToOffsetImpl.js';
 import { Range } from '../range.js';
 import { LineRange } from '../ranges/lineRange.js';
 import { TextLength } from '../text/textLength.js';
@@ -47,6 +47,17 @@ export abstract class AbstractText {
 	getLines(): string[] {
 		const value = this.getValue();
 		return splitLines(value);
+	}
+
+	getLinesOfRange(range: LineRange): string[] {
+		return range.mapToLineArray(lineNumber => this.getLineAt(lineNumber));
+	}
+
+	equals(other: AbstractText): boolean {
+		if (this === other) {
+			return true;
+		}
+		return this.getValue() === other.getValue();
 	}
 }
 

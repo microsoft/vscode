@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { localize } from '../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IExtensionManagementService } from '../../../../../../platform/extensionManagement/common/extensionManagement.js';
+import { areSameExtensions } from '../../../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
@@ -28,6 +31,7 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
+		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(toolInvocation);
@@ -36,8 +40,9 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 			throw new Error('Tool specific data is missing or not of kind extensions');
 		}
 
+		const extensionsContent = toolInvocation.toolSpecificData;
 		this.domNode = dom.$('');
-		const chatExtensionsContentPart = this._register(instantiationService.createInstance(ChatExtensionsContentPart, toolInvocation.toolSpecificData));
+		const chatExtensionsContentPart = this._register(instantiationService.createInstance(ChatExtensionsContentPart, extensionsContent));
 		this._register(chatExtensionsContentPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		dom.append(this.domNode, chatExtensionsContentPart.domNode);
 
@@ -49,12 +54,15 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 			const cancelLabel = localize('cancel', "Cancel");
 			const cancelKeybinding = keybindingService.lookupKeybinding(CancelChatActionId)?.getLabel();
 			const cancelTooltip = cancelKeybinding ? `${cancelLabel} (${cancelKeybinding})` : cancelLabel;
+			const enableContinueButtonEvent = this._register(new Emitter<boolean>());
 
 			const buttons: IChatConfirmationButton[] = [
 				{
 					label: continueLabel,
 					data: true,
-					tooltip: continueTooltip
+					tooltip: continueTooltip,
+					disabled: true,
+					onDidChangeDisablement: enableContinueButtonEvent.event
 				},
 				{
 					label: cancelLabel,
@@ -82,6 +90,12 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 				ChatContextKeys.Editing.hasToolConfirmation.bindTo(contextKeyService).set(false);
 				this._onNeedsRerender.fire();
 			});
+			const disposable = this._register(extensionManagementService.onInstallExtension(e => {
+				if (extensionsContent.extensions.some(id => areSameExtensions({ id }, e.identifier))) {
+					disposable.dispose();
+					enableContinueButtonEvent.fire(false);
+				}
+			}));
 		}
 
 	}

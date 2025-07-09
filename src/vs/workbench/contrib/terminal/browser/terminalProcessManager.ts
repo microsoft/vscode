@@ -609,6 +609,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 	}
 
+	async sendSignal(signal: string): Promise<void> {
+		await this.ptyProcessReady;
+		if (this._process) {
+			this._process.sendSignal(signal);
+		}
+	}
+
 	async processBinary(data: string): Promise<void> {
 		await this.ptyProcessReady;
 		this._dataFilter.disableSeamlessRelaunch();

@@ -70,7 +70,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 			const toolInvocations = item.response.value.filter(item => item.kind === 'toolInvocation');
 			for (const toolInvocation of toolInvocations) {
 				if (toolInvocation.confirmationMessages) {
-					const title = toolInvocation.confirmationMessages.title;
+					const title = typeof toolInvocation.confirmationMessages.title === 'string' ? toolInvocation.confirmationMessages.title : toolInvocation.confirmationMessages.title.value;
 					const message = typeof toolInvocation.confirmationMessages.message === 'string' ? toolInvocation.confirmationMessages.message : stripIcons(renderMarkdownAsPlaintext(toolInvocation.confirmationMessages.message));
 					let input = '';
 					if (toolInvocation.toolSpecificData) {
@@ -86,7 +86,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 					}
 					responseContent += `\n${message}\n`;
 				} else if (toolInvocation.isComplete && toolInvocation.resultDetails && 'input' in toolInvocation.resultDetails) {
-					responseContent += toolInvocation.resultDetails.isError ? 'Errored ' : 'Completed ';
+					responseContent += '\n' + toolInvocation.resultDetails.isError ? 'Errored ' : 'Completed ';
 					responseContent += `${`${typeof toolInvocation.invocationMessage === 'string' ? toolInvocation.invocationMessage : stripIcons(renderMarkdownAsPlaintext(toolInvocation.invocationMessage))} with input: ${toolInvocation.resultDetails.input}`}\n`;
 				}
 			}

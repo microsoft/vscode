@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PROMPT_LANGUAGE_ID } from '../constants.js';
+import { PROMPT_LANGUAGE_ID } from '../promptTypes.js';
 import { IPromptContentsProvider } from './types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../base/common/assert.js';
@@ -12,8 +12,8 @@ import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js'
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
+import { isPromptOrInstructionsFile } from '../config/promptFileLocations.js';
 import { IPromptContentsProviderOptions, PromptContentsProviderBase } from './promptContentsProviderBase.js';
-import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/prompts.js';
 import { OpenFailed, NotPromptFile, ResolveError, FolderReference } from '../../promptFileReferenceErrors.js';
 import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../../platform/files/common/files.js';
 
@@ -27,6 +27,10 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 	}
 
 	public override get languageId(): string {
+		if (this.options.languageId) {
+			return this.options.languageId;
+		}
+
 		const model = this.modelService.getModel(this.uri);
 
 		if (model !== null) {
@@ -46,33 +50,35 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 
 	constructor(
 		public readonly uri: URI,
-		options: Partial<IPromptContentsProviderOptions>,
+		options: IPromptContentsProviderOptions,
 		@IFileService private readonly fileService: IFileService,
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super(options);
 
-		// make sure the object is updated on file changes
-		this._register(
-			this.fileService.onDidFilesChange((event) => {
-				// if file was added or updated, forward the event to
-				// the `getContentsStream()` produce a new stream for file contents
-				if (event.contains(this.uri, FileChangeType.ADDED, FileChangeType.UPDATED)) {
-					// we support only full file parsing right now because
-					// the event doesn't contain a list of changed lines
-					this.onChangeEmitter.fire('full');
-					return;
-				}
+		if (options.updateOnChange) {
+			// make sure the object is updated on file changes
+			this._register(
+				this.fileService.onDidFilesChange((event) => {
+					// if file was added or updated, forward the event to
+					// the `getContentsStream()` produce a new stream for file contents
+					if (event.contains(this.uri, FileChangeType.ADDED, FileChangeType.UPDATED)) {
+						// we support only full file parsing right now because
+						// the event doesn't contain a list of changed lines
+						this.onChangeEmitter.fire('full');
+						return;
+					}
 
-				// if file was deleted, forward the event to
-				// the `getContentsStream()` produce an error
-				if (event.contains(this.uri, FileChangeType.DELETED)) {
-					this.onChangeEmitter.fire(event);
-					return;
-				}
-			}),
-		);
+					// if file was deleted, forward the event to
+					// the `getContentsStream()` produce an error
+					if (event.contains(this.uri, FileChangeType.DELETED)) {
+						this.onChangeEmitter.fire(event);
+						return;
+					}
+				}),
+			);
+		}
 	}
 
 	/**
@@ -140,7 +146,7 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 
 	public override createNew(
 		promptContentsSource: { uri: URI },
-		options: Partial<IPromptContentsProviderOptions> = {},
+		options: IPromptContentsProviderOptions,
 	): IPromptContentsProvider {
 		return new FilePromptContentProvider(
 			promptContentsSource.uri,

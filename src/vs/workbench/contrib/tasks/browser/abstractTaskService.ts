@@ -47,9 +47,9 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { ITerminalGroupService, ITerminalService } from '../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../terminal/common/terminal.js';
 
-import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, ITaskEvent, ITaskIdentifier, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RuntimeType, Task, TASK_RUNNING_STATE, TaskDefinition, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, USER_TASKS_GROUP_KEY, TaskEventKind, InstancePolicy } from '../common/tasks.js';
+import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, ITaskEvent, ITaskIdentifier, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RuntimeType, Task, TASK_RUNNING_STATE, TaskDefinition, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, USER_TASKS_GROUP_KEY, TaskEventKind, InstancePolicy, RerunAllRunningTasksCommandId } from '../common/tasks.js';
 import { CustomExecutionSupportedContext, ICustomizationProperties, IProblemMatcherRunOptions, ITaskFilter, ITaskProvider, ITaskService, IWorkspaceFolderTaskResult, ProcessExecutionSupportedContext, ServerlessWebContext, ShellExecutionSupportedContext, TaskCommandsRegistered, TaskExecutionSupportedContext } from '../common/taskService.js';
-import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind } from '../common/taskSystem.js';
+import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers, VerifiedTask } from '../common/taskSystem.js';
 import { getTemplates as getTaskTemplates } from '../common/taskTemplates.js';
 
 import * as TaskConfig from '../common/taskConfiguration.js';
@@ -85,8 +85,10 @@ import { IPreferencesService } from '../../../services/preferences/common/prefer
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { IChatService } from '../../chat/common/chatService.js';
-import { ChatAgentLocation, ChatMode } from '../../chat/common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
 import { CHAT_OPEN_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
+import { IChatAgentService } from '../../chat/common/chatAgents.js';
+import { getActiveElement } from '../../../../base/browser/dom.js';
 
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
@@ -286,6 +288,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatService private readonly _chatService: IChatService,
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService
 	) {
 		super();
 		this._whenTaskSystemReady = Event.toPromise(this.onDidChangeTaskSystemInfo);
@@ -322,8 +325,26 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 
 			this._setTaskLRUCacheLimit();
-			await this._updateWorkspaceTasks(TaskRunSource.ConfigurationChange);
+			const mapStringToFolderTasks: Map<string, IWorkspaceFolderTaskResult> = await this._updateWorkspaceTasks(TaskRunSource.ConfigurationChange);
 			this._onDidChangeTaskConfig.fire();
+
+			// Loop through all workspaceFolderTask result
+			for (const [folderUri, folderResult] of mapStringToFolderTasks) {
+				if (!folderResult.set?.tasks?.length) {
+					continue;
+				}
+
+				for (const task of folderResult.set.tasks) {
+					const realUniqueId = task._id;
+					const lastTask = this._taskSystem?.lastTask?.task._id;
+
+					if (lastTask && lastTask === realUniqueId && folderUri !== 'setting') {
+						const verifiedLastTask = new VerifiedTask(task, this._taskSystem!.lastTask!.resolver, Triggers.command);
+						this._taskSystem!.lastTask = verifiedLastTask;
+					}
+				}
+			}
+
 		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(_contextKeyService);
 		this._onDidStateChange = this._register(new Emitter());
@@ -513,6 +534,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		});
 
+		CommandsRegistry.registerCommand(RerunAllRunningTasksCommandId, async (accessor, arg) => {
+			if (await this._trust()) {
+				this._runRerunAllRunningTasksCommand();
+			}
+		});
+
 		CommandsRegistry.registerCommand('workbench.action.tasks.terminate', async (accessor, arg) => {
 			if (await this._trust()) {
 				this._runTerminateCommand(arg);
@@ -683,15 +710,21 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						const customMessage = message === errorMessage
 							? `\`${message}\``
 							: `\`${message}\`\n\`\`\`json${errorMessage}\`\`\``;
-						actions.push({
-							label: nls.localize('troubleshootWithChat', "Fix with Chat"),
-							run: async () => {
-								this._commandService.executeCommand(CHAT_OPEN_ACTION_ID, {
-									mode: ChatMode.Agent,
-									query: `Fix this task configuration error: ${customMessage}`
-								});
-							}
-						});
+
+
+						const defaultAgent = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
+						const providerName = defaultAgent?.fullName;
+						if (providerName) {
+							actions.push({
+								label: nls.localize('troubleshootWithChat', "Fix with {0}", providerName),
+								run: async () => {
+									this._commandService.executeCommand(CHAT_OPEN_ACTION_ID, {
+										mode: ChatModeKind.Agent,
+										query: `Fix this task configuration error: ${customMessage}`
+									});
+								}
+							});
+						}
 					}
 				}
 				actions.push({
@@ -2027,13 +2060,51 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const response = await this._taskSystem.terminate(task);
 		if (response.success) {
 			try {
-				await this.run(task);
+				// Before restarting, check if the task still exists and get updated version
+				const updatedTask = await this._findUpdatedTask(task);
+				if (updatedTask) {
+					await this.run(updatedTask);
+				} else {
+					// Task no longer exists, show warning
+					this._notificationService.warn(nls.localize('TaskSystem.taskNoLongerExists', 'Task {0} no longer exists or has been modified. Cannot restart.', task.configurationProperties.name));
+				}
 			} catch {
 				// eat the error, we don't care about it here
 			}
 		} else {
 			this._notificationService.warn(nls.localize('TaskSystem.restartFailed', 'Failed to terminate and restart task {0}', Types.isString(task) ? task : task.configurationProperties.name));
 		}
+	}
+
+	private async _findUpdatedTask(originalTask: Task): Promise<Task | undefined> {
+		const mapStringToFolderTasks = await this._updateWorkspaceTasks(TaskRunSource.System);
+
+		// Look for the task in current workspace configuration
+		for (const [_, folderResult] of mapStringToFolderTasks) {
+			if (!folderResult.set?.tasks?.length && !folderResult.configurations?.byIdentifier) {
+				continue;
+			}
+			// There are two ways where Task lives:
+			// 1. folderResult.set.tasks
+			if (folderResult.set?.tasks) {
+				for (const task of folderResult.set.tasks) {
+					// Check if this is the same task by ID
+					if (task._id === originalTask._id) {
+						return task;
+					}
+				}
+			}
+			// 2. folderResult.configurations.byIdentifier
+			if (folderResult.configurations?.byIdentifier) {
+				for (const [_, configuringTask] of Object.entries(folderResult.configurations.byIdentifier)) {
+					// Check if this is the same task by ID
+					if (configuringTask._id === originalTask._id) {
+						return this.tryResolveTask(configuringTask);
+					}
+				}
+			}
+		}
+		return undefined;
 	}
 
 	public async terminate(task: Task): Promise<ITaskTerminateResponse> {
@@ -2149,7 +2220,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							return done(taskSet);
 						}, error), 5000, () => {
 							// onTimeout
-							console.error('Timed out getting tasks from ', providerType);
 							done(undefined);
 						});
 					}
@@ -2864,7 +2934,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _trust(): Promise<boolean> {
-		if (ServerlessWebContext && !TaskExecutionSupportedContext) {
+		const context = this._contextKeyService.getContext(getActiveElement());
+		if (ServerlessWebContext.getValue(this._contextKeyService) && !TaskExecutionSupportedContext?.evaluate(context)) {
 			return false;
 		}
 		await this._workspaceTrustManagementService.workspaceTrustInitialized;
@@ -3299,6 +3370,19 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this._restart(activeTasks[0]);
 			}
 		}
+	}
+
+	private async _runRerunAllRunningTasksCommand(): Promise<void> {
+		const activeTasks = await this.getActiveTasks();
+
+		if (activeTasks.length === 0) {
+			this._notificationService.info(nls.localize('TaskService.noRunningTasks', 'No running tasks to restart'));
+			return;
+		}
+
+		// Restart all active tasks
+		const restartPromises = activeTasks.map(task => this._restart(task));
+		await Promise.allSettled(restartPromises);
 	}
 
 	private _getTaskIdentifier(filter?: string | ITaskIdentifier): string | KeyedTaskIdentifier | undefined {

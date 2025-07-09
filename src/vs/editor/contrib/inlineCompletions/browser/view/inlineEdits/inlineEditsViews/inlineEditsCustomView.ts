@@ -12,14 +12,13 @@ import { asCssVariable } from '../../../../../../../platform/theme/common/colorU
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
+import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
 import { InlineCompletionDisplayLocation } from '../../../../../../common/languages.js';
 import { ILanguageService } from '../../../../../../common/languages/language.js';
-import { LineTokens } from '../../../../../../common/tokens/lineTokens.js';
-import { TokenArray } from '../../../../../../common/tokens/tokenArray.js';
+import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
 import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorsuccessfulBackground } from '../theme.js';
 import { maxContentWidthInRange, rectToProps } from '../utils/utils.js';
@@ -137,7 +136,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 			const { lineWidth, lineWidthBelow, lineWidthAbove, startContentLeftOffset, endContentLeftOffset } = contentState.read(reader);
 
 			const contentLeft = this._editorObs.layoutInfoContentLeft.read(reader);
-			const lineHeight = this._editorObs.getOption(EditorOption.lineHeight).read(reader);
+			const lineHeight = this._editorObs.observeLineHeightForLine(startLineNumber).read(reader);
 			const scrollTop = this._editorObs.scrollTop.read(reader);
 			const scrollLeft = this._editorObs.scrollLeft.read(reader);
 

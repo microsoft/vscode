@@ -26,19 +26,6 @@
 	align-items: center;
 }
 
-.extension-list-item > .icon-container > .icon {
-	width: 42px;
-	height: 42px;
-	padding-right: 14px;
-	flex-shrink: 0;
-	object-fit: contain;
-}
-
-.extension-list-item > .icon-container > .codicon {
-	padding-right: 14px;
-	font-size: 42px !important;
-}
-
 .extension-list-item > .icon-container .extension-badge {
 	position: absolute;
 	bottom: 5px;
@@ -105,7 +92,7 @@
 
 .extension-list-item > .details > .header-container > .header .extension-kind-indicator {
 	font-size: 80%;
-	margin-left: 2px;
+	margin-left: 4px;
 }
 
 .extension-list-item > .details > .header-container > .header > .install-count:not(:empty) {
@@ -131,11 +118,6 @@
 
 .extension-list-item > .details > .header-container > .header > .ratings {
 	text-align: right;
-}
-
-.extension-list-item > .details > .header-container > .header > .extension-remote-badge-container {
-	margin-left: 6px;
-	display: none;
 }
 
 .extension-list-item > .details > .header-container > .header .extension-remote-badge .codicon {

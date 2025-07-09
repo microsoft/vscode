@@ -556,15 +556,21 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private createTitle(): void {
 		this.titleDisposables.clear();
 
+		const isShowingTitleInNativeTitlebar = hasNativeTitlebar(this.configurationService, this.titleBarStyle);
+
 		// Text Title
 		if (!this.isCommandCenterVisible) {
-			this.title.innerText = this.windowTitle.value;
-			this.titleDisposables.add(this.windowTitle.onDidChange(() => {
+			if (!isShowingTitleInNativeTitlebar) {
 				this.title.innerText = this.windowTitle.value;
-				if (this.lastLayoutDimensions) {
-					this.updateLayout(this.lastLayoutDimensions); // layout menubar and other renderings in the titlebar
-				}
-			}));
+				this.titleDisposables.add(this.windowTitle.onDidChange(() => {
+					this.title.innerText = this.windowTitle.value;
+					if (this.lastLayoutDimensions) {
+						this.updateLayout(this.lastLayoutDimensions); // layout menubar and other renderings in the titlebar
+					}
+				}));
+			} else {
+				reset(this.title);
+			}
 		}
 
 		// Menu Title
@@ -845,17 +851,22 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private updateLayout(dimension: Dimension): void {
 		this.lastLayoutDimensions = dimension;
 
-		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
-			const zoomFactor = getZoomFactor(getWindow(this.element));
-
-			this.element.style.setProperty('--zoom-factor', zoomFactor.toString());
-			this.rootContainer.classList.toggle('counter-zoom', this.preventZoom);
-
-			if (this.customMenubar.value) {
-				const menubarDimension = new Dimension(0, dimension.height);
-				this.customMenubar.value.layout(menubarDimension);
-			}
+		if (!hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
+			return;
 		}
+
+		const zoomFactor = getZoomFactor(getWindow(this.element));
+
+		this.element.style.setProperty('--zoom-factor', zoomFactor.toString());
+		this.rootContainer.classList.toggle('counter-zoom', this.preventZoom);
+
+		if (this.customMenubar.value) {
+			const menubarDimension = new Dimension(0, dimension.height);
+			this.customMenubar.value.layout(menubarDimension);
+		}
+
+		const hasCenter = this.isCommandCenterVisible || this.title.innerText !== '';
+		this.rootContainer.classList.toggle('has-center', hasCenter);
 	}
 
 	focus(): void {

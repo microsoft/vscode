@@ -30,13 +30,12 @@
 	position: relative;
 }
 
-.extension-editor > .header > .icon-container .icon {
+.extension-editor > .header > .icon-container .extension-icon .icon {
 	height: 128px;
 	width: 128px;
-	object-fit: contain;
 }
 
-.extension-editor > .header > .icon-container > .codicon {
+.extension-editor > .header > .icon-container > .extension-icon .codicon {
 	font-size: 128px !important;
 }
 
@@ -776,8 +775,8 @@
 	text-decoration: underline;
 }
 
-.monaco-workbench.vs .extension-editor .extensions-grid-view > .extension-container.disabled > .extension-list-item > .icon-container > .icon,
-.monaco-workbench.vs-dark .extension-editor .extensions-grid-view > .extension-container.disabled > .extension-list-item > .icon-container > .icon,
+.monaco-workbench.vs .extension-editor .extensions-grid-view > .extension-container.disabled > .extension-list-item > .icon-container > .extension-icon .icon,
+.monaco-workbench.vs-dark .extension-editor .extensions-grid-view > .extension-container.disabled > .extension-list-item > .icon-container > .extension-icon .icon,
 .monaco-workbench.vs .extension-editor .extensions-grid-view > .extension-container.disabled > .extension-list-item > .details > .header-container .codicon,
 .monaco-workbench.vs-dark .extension-editor .extensions-grid-view > .extension-container.disabled > .extension-list-item > .details > .header-container .codicon {
 	opacity: 0.5;
