@@ -369,11 +369,11 @@ export class HoverService extends Disposable implements IHoverService {
 	// TODO: Investigate performance of this function. There seems to be a lot of content created
 	//       and thrown away on start up
 	setupManagedHover(hoverDelegate: IHoverDelegate, targetElement: HTMLElement, content: IManagedHoverContentOrFactory, options?: IManagedHoverOptions | undefined): IManagedHover {
-		targetElement.setAttribute('custom-hover', 'true');
-
 		if (hoverDelegate.showNativeHover) {
 			return setupNativeHover(targetElement, content);
 		}
+
+		targetElement.setAttribute('custom-hover', 'true');
 
 		if (targetElement.title !== '') {
 			console.warn('HTML element already has a title attribute, which will conflict with the custom hover. Please remove the title attribute.');
