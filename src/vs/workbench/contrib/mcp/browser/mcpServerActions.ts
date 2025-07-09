@@ -12,7 +12,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { manageExtensionIcon } from '../../extensions/browser/extensionsIcons.js';
 import { getDomNodePagePosition } from '../../../../base/browser/dom.js';
-import { IMcpSamplingService, IMcpServer, IMcpServerContainer, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCapability, McpConnectionState, McpServerEditorTab } from '../common/mcpTypes.js';
+import { IMcpSamplingService, IMcpServer, IMcpServerContainer, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCapability, McpConnectionState, McpServerEditorTab, McpServerInstallState } from '../common/mcpTypes.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
@@ -116,6 +116,9 @@ export class InstallAction extends McpServerAction {
 		if (!this.mcpServer?.gallery && !this.mcpServer?.installable) {
 			return;
 		}
+		if (this.mcpServer.installState !== McpServerInstallState.Uninstalled) {
+			return;
+		}
 		this.class = InstallAction.CLASS;
 		this.enabled = true;
 		this.label = localize('install', "Install");
@@ -145,6 +148,20 @@ export class InstallAction extends McpServerAction {
 	}
 }
 
+export class InstallingLabelAction extends McpServerAction {
+
+	private static readonly LABEL = localize('installing', "Installing");
+	private static readonly CLASS = `${McpServerAction.LABEL_ACTION_CLASS} install installing`;
+
+	constructor() {
+		super('extension.installing', InstallingLabelAction.LABEL, InstallingLabelAction.CLASS, false);
+	}
+
+	update(): void {
+		this.class = `${InstallingLabelAction.CLASS}${this.mcpServer && this.mcpServer.installState === McpServerInstallState.Installing ? '' : ' hide'}`;
+	}
+}
+
 export class UninstallAction extends McpServerAction {
 
 	static readonly CLASS = `${this.LABEL_ACTION_CLASS} prominent uninstall`;
@@ -164,6 +181,10 @@ export class UninstallAction extends McpServerAction {
 			return;
 		}
 		if (!this.mcpServer.local) {
+			return;
+		}
+		if (this.mcpServer.installState !== McpServerInstallState.Installed) {
+			this.enabled = false;
 			return;
 		}
 		this.class = UninstallAction.CLASS;
