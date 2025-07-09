@@ -70,6 +70,16 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		default: product.quality !== 'stable',
 		tags: ['preview'],
 	},
+	[TerminalSuggestSettingId.Providers]: {
+		restricted: true,
+		markdownDescription: localize('suggest.providers', "Providers are enabled by default. Omit them by setting the id of the provider to `false`."),
+		type: 'object',
+		properties: {},
+		default: {
+			'pwsh-shell-integration': false,
+		},
+		tags: ['preview'],
+	},
 	[TerminalSuggestSettingId.QuickSuggestions]: {
 		restricted: true,
 		markdownDescription: localize('suggest.quickSuggestions', "Controls whether suggestions should automatically show up while typing. Also be aware of the {0}-setting which controls if suggestions are triggered by special characters.", `\`#${TerminalSuggestSettingId.SuggestOnTriggerCharacters}#\``),

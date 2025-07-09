@@ -71,6 +71,8 @@ export interface McpCollectionDefinition {
 		removed?(): void;
 	};
 
+	readonly source?: IWorkbenchMcpServer | ExtensionIdentifier;
+
 	readonly presentation?: {
 		/** Sort order of the collection. */
 		readonly order?: number;
