@@ -1255,7 +1255,7 @@ class ChatSetupController extends Disposable {
 				this.setStep(ChatSetupStep.SigningIn);
 				const result = await this.signIn({ useAlternateProvider: options.useAlternateProvider });
 				if (!result.session) {
-					const provider = options.useAlternateProvider ? defaultChat.alternativeProviderId : options.useEnterpriseProvider ? defaultChat.enterpriseProviderId : defaultChat.providerName;
+					const provider = options.useAlternateProvider ? defaultChat.alternativeProviderId : options.useEnterpriseProvider ? defaultChat.enterpriseProviderId : defaultChat.providerId;
 					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotSignedIn', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
 					return undefined; // treat as cancelled because signing in already triggers an error dialog
 				}
@@ -1304,7 +1304,7 @@ class ChatSetupController extends Disposable {
 		const wasRunning = this.context.state.installed && !this.context.state.disabled;
 		let signUpResult: boolean | { errorCode: number } | undefined = undefined;
 
-		const provider = options.useAlternateProvider ? defaultChat.alternativeProviderId : options.useEnterpriseProvider ? defaultChat.enterpriseProviderId : defaultChat.providerName;
+		const provider = options.useAlternateProvider ? defaultChat.alternativeProviderId : options.useEnterpriseProvider ? defaultChat.enterpriseProviderId : defaultChat.providerId;
 
 		try {
 
