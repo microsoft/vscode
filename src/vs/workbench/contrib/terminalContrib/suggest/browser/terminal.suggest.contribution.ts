@@ -516,7 +516,7 @@ class TerminalSuggestProvidersConfigurationManager extends Disposable {
 
 	private _updateConfiguration(): void {
 		const providers = Array.from(this._terminalCompletionService.providers);
-		const providerIds = providers.map(p => p.id).filter(id => id !== undefined);
+		const providerIds = providers.map(p => p.id).filter((id): id is string => typeof id === 'string');
 		registerTerminalSuggestProvidersConfiguration(providerIds);
 	}
 }
