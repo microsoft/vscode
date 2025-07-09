@@ -20,12 +20,13 @@ export function popup(items: IContextMenuItem[], options?: IPopupOptions, onHide
 
 	ipcRenderer.once(onClickChannel, onClickChannelHandler);
 	ipcRenderer.once(CONTEXT_MENU_CLOSE_CHANNEL, (event: unknown, closedContextMenuId: number) => {
+		console.log('CONTEXT_MENU_CLOSE_CHANNEL');
 		if (closedContextMenuId !== contextMenuId) {
 			return;
 		}
 
 		ipcRenderer.removeListener(onClickChannel, onClickChannelHandler);
-		console.log('CONTEXT_MENU_CLOSE_CHANNEL');
+		console.log('before onHide');
 		onHide?.();
 	});
 
