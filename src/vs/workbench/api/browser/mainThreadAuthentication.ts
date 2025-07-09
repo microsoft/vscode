@@ -554,4 +554,19 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		});
 		return result?.trim() || undefined;
 	}
+
+	async $promptForClientSecret(authorizationServerUrl: string): Promise<string | undefined> {
+		const result = await this.quickInputService.input({
+			title: nls.localize('clientSecretPromptTitle', "OAuth Client Secret Required"),
+			prompt: nls.localize('clientSecretPrompt', "Please enter the client secret for the authorization server '{0}':", authorizationServerUrl),
+			placeHolder: nls.localize('clientSecretPlaceholder', "Enter your OAuth client secret (optional)"),
+			password: true,
+			ignoreFocusLost: true,
+			validateInput: (value: string) => {
+				// Client secret is optional - some providers don't require it
+				return undefined;
+			}
+		});
+		return result?.trim() || undefined;
+	}
 }
