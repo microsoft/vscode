@@ -130,7 +130,7 @@ export interface ICommonNativeHostService {
 
 	saveWindowSplash(splash: IPartsSplash): Promise<void>;
 
-	setBackgroundThrottling(throttling: boolean): Promise<void>;
+	setBackgroundThrottling(allowed: boolean): Promise<void>;
 
 	/**
 	 * Make the window focused.

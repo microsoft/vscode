@@ -125,7 +125,7 @@ class ChatSuspendThrottlingHandler extends Disposable {
 			// When a chat request is in progress, we must ensure that background
 			// throttling is not applied so that the chat session can continue
 			// even when the window is not in focus.
-			nativeHostService.setBackgroundThrottling(running);
+			nativeHostService.setBackgroundThrottling(!running);
 		}));
 	}
 }
