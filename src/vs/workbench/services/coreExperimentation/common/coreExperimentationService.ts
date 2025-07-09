@@ -88,6 +88,15 @@ export class CoreExperimentationService extends Disposable implements ICoreExper
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
+
+		if (
+			environmentService.disableExperiments ||
+			environmentService.enableSmokeTestDriver ||
+			environmentService.extensionTestsLocationURI
+		) {
+			return; //not applicable in this environment
+		}
+
 		this.initializeExperiments();
 	}
 

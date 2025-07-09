@@ -427,11 +427,12 @@ registerActiveInstanceAction({
 	keybinding: [{
 		primary: KeyCode.Tab,
 		// Tab is bound to other workbench keybindings that this needs to beat
-		weight: KeybindingWeight.WorkbenchContrib + 2
+		weight: KeybindingWeight.WorkbenchContrib + 2,
+		when: ContextKeyExpr.and(SimpleSuggestContext.HasFocusedSuggestion)
 	},
 	{
 		primary: KeyCode.Enter,
-		when: ContextKeyExpr.or(ContextKeyExpr.notEquals(`config.${TerminalSuggestSettingId.SelectionMode}`, 'partial'), ContextKeyExpr.or(SimpleSuggestContext.FirstSuggestionFocused.toNegated(), SimpleSuggestContext.HasNavigated)),
+		when: ContextKeyExpr.and(SimpleSuggestContext.HasFocusedSuggestion, ContextKeyExpr.or(ContextKeyExpr.notEquals(`config.${TerminalSuggestSettingId.SelectionMode}`, 'partial'), ContextKeyExpr.or(SimpleSuggestContext.FirstSuggestionFocused.toNegated(), SimpleSuggestContext.HasNavigated))),
 		weight: KeybindingWeight.WorkbenchContrib + 1
 	}],
 	menu: {

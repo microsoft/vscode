@@ -38,7 +38,7 @@ import product from '../../../../../platform/product/common/product.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
-import { IsCompactTitleBarContext } from '../../../../common/contextkeys.js';
+import { ActiveEditorContext, IsCompactTitleBarContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
@@ -348,12 +348,18 @@ export function registerChatActions() {
 			super({
 				id: `workbench.action.chat.history`,
 				title: localize2('chat.history.label', "Show Chats..."),
-				menu: {
-					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.equals('view', ChatViewId),
-					group: 'navigation',
-					order: 2
-				},
+				menu: [
+					{
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.equals('view', ChatViewId),
+						group: 'navigation',
+						order: 2
+					},
+					{
+						id: MenuId.EditorTitle,
+						when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
+					},
+				],
 				category: CHAT_CATEGORY,
 				icon: Codicon.history,
 				f1: true,
@@ -1080,7 +1086,7 @@ const menuContext = ContextKeyExpr.and(
 	ChatContextKeys.Setup.disabled.negate()
 );
 
-const title = localize('copilot', "Copilot");
+const title = localize('ai actions', "AI Actions");
 
 MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	submenu: MenuId.ChatTextEditorMenu,
@@ -1125,7 +1131,7 @@ registerAction2(class ToggleDefaultVisibilityAction extends Action2 {
 	async run(accessor: ServicesAccessor) {
 		const configurationService = accessor.get(IConfigurationService);
 
-		const currentValue = configurationService.getValue<'hidden' | 'visibleInWorkspace' | 'visible'>('workbench.secondarySideBar.defaultVisibility');
+		const currentValue = configurationService.getValue<'hidden' | unknown>('workbench.secondarySideBar.defaultVisibility');
 		configurationService.updateValue('workbench.secondarySideBar.defaultVisibility', currentValue !== 'hidden' ? 'hidden' : 'visible');
 	}
 });
