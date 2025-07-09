@@ -374,6 +374,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async setBackgroundThrottling(windowId: number | undefined, throttling: boolean): Promise<void> {
 		const window = this.codeWindowById(windowId);
 
+		this.logService.trace(`Setting background throttling for window ${windowId} to '${throttling}'`);
+
 		window?.win?.webContents?.setBackgroundThrottling(throttling);
 	}
 
