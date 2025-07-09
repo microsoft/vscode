@@ -2804,11 +2804,7 @@ class LayoutStateModel extends Disposable {
 		[StorageScope.WORKSPACE]: boolean;
 		[StorageScope.PROFILE]: boolean;
 		[StorageScope.APPLICATION]: boolean;
-	} = {
-			[StorageScope.WORKSPACE]: this.storageService.isNew(StorageScope.WORKSPACE),
-			[StorageScope.PROFILE]: this.storageService.isNew(StorageScope.PROFILE),
-			[StorageScope.APPLICATION]: this.storageService.isNew(StorageScope.APPLICATION)
-		};
+	};
 
 	constructor(
 		private readonly storageService: IStorageService,
@@ -2819,6 +2815,12 @@ class LayoutStateModel extends Disposable {
 		private readonly viewDescriptorService: IViewDescriptorService
 	) {
 		super();
+
+		this.isNew = {
+			[StorageScope.WORKSPACE]: this.storageService.isNew(StorageScope.WORKSPACE),
+			[StorageScope.PROFILE]: this.storageService.isNew(StorageScope.PROFILE),
+			[StorageScope.APPLICATION]: this.storageService.isNew(StorageScope.APPLICATION)
+		};
 
 		this._register(this.configurationService.onDidChangeConfiguration(configurationChange => this.updateStateFromLegacySettings(configurationChange)));
 	}
