@@ -657,8 +657,8 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					viewKind: lifetimeSummary.viewKind,
 					requestReason: lifetimeSummary.requestReason,
 					error: lifetimeSummary.error,
-					typingSpeed: lifetimeSummary.typingSpeed,
-					typingSpeedCharacterCount: lifetimeSummary.typingSpeedCharacterCount,
+					typingInterval: lifetimeSummary.typingInterval,
+					typingIntervalCharacterCount: lifetimeSummary.typingIntervalCharacterCount,
 					languageId: lifetimeSummary.languageId,
 					cursorColumnDistance: lifetimeSummary.cursorColumnDistance,
 					cursorLineDistance: lifetimeSummary.cursorLineDistance,
@@ -1311,8 +1311,8 @@ type InlineCompletionEndOfLifeEvent = {
 	requestReason: string;
 	languageId: string;
 	error: string | undefined;
-	typingSpeed: number;
-	typingSpeedCharacterCount: number;
+	typingInterval: number;
+	typingIntervalCharacterCount: number;
 	superseded: boolean;
 	editorType: string;
 	viewKind: string | undefined;
@@ -1341,8 +1341,8 @@ type InlineCompletionsEndOfLifeClassification = {
 	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language ID of the document where the inline completion was shown' };
 	requestReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion request' };
 	error: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The error message if the inline completion failed' };
-	typingSpeed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The average typing speed of the user at the moment the inline completion was requested' };
-	typingSpeedCharacterCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The character count involved in the typing speed calculation' };
+	typingInterval: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The average typing interval of the user at the moment the inline completion was requested' };
+	typingIntervalCharacterCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The character count involved in the typing interval calculation' };
 	superseded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was superseded by another one' };
 	editorType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of the editor where the inline completion was shown' };
 	viewKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of the view where the inline completion was shown' };

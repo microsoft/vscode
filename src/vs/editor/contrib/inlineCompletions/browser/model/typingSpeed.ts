@@ -11,11 +11,11 @@ import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js
 interface TypingSession {
 	startTime: number;
 	endTime: number;
-	characterCount: number; // Effective character count for typing speed calculation
+	characterCount: number; // Effective character count for typing interval calculation
 }
 
-interface TypingSpeedResult {
-	speed: number; // Average milliseconds between keystrokes
+interface TypingIntervalResult {
+	averageInterval: number; // Average milliseconds between keystrokes
 	characterCount: number; // Number of characters involved in the computation
 }
 
@@ -23,12 +23,12 @@ interface TypingSpeedResult {
  * Tracks typing speed as average milliseconds between keystrokes.
  * Higher values indicate slower typing.
  */
-export class TypingSpeed extends Disposable {
+export class TypingInterval extends Disposable {
 
 	private readonly _typingSessions: TypingSession[] = [];
 	private _currentSession: TypingSession | null = null;
 	private _lastChangeTime = 0;
-	private _cachedTypingSpeedResult: TypingSpeedResult | null = null;
+	private _cachedTypingIntervalResult: TypingIntervalResult | null = null;
 	private _cacheInvalidated = true;
 
 	// Configuration constants
@@ -39,17 +39,17 @@ export class TypingSpeed extends Disposable {
 	private static readonly MIN_CHARS_FOR_RELIABLE_SPEED = 20; // Minimum characters needed for reliable speed calculation
 
 	/**
-	 * Gets the current typing speed as average milliseconds between keystrokes
+	 * Gets the current typing interval as average milliseconds between keystrokes
 	 * and the number of characters involved in the computation.
-	 * Higher speed values indicate slower typing.
-	 * Returns { speed: 0, characterCount: 0 } if no typing data is available.
+	 * Higher interval values indicate slower typing.
+	 * Returns { interval: 0, characterCount: 0 } if no typing data is available.
 	 */
-	public getSpeed(): TypingSpeedResult {
-		if (this._cacheInvalidated || this._cachedTypingSpeedResult === null) {
-			this._cachedTypingSpeedResult = this._calculateTypingSpeed();
+	public getTypingInterval(): TypingIntervalResult {
+		if (this._cacheInvalidated || this._cachedTypingIntervalResult === null) {
+			this._cachedTypingIntervalResult = this._calculateTypingInterval();
 			this._cacheInvalidated = false;
 		}
-		return this._cachedTypingSpeedResult;
+		return this._cachedTypingIntervalResult;
 	}
 
 	constructor(private readonly _textModel: ITextModel) {
@@ -63,7 +63,7 @@ export class TypingSpeed extends Disposable {
 		const characterCount = this._calculateEffectiveCharacterCount(change);
 
 		// If too much time has passed since last change, start a new session
-		if (this._currentSession && (now - this._lastChangeTime) > TypingSpeed.MAX_SESSION_GAP_MS) {
+		if (this._currentSession && (now - this._lastChangeTime) > TypingInterval.MAX_SESSION_GAP_MS) {
 			this._finalizeCurrentSession();
 		}
 
@@ -149,11 +149,11 @@ export class TypingSpeed extends Disposable {
 		const sessionDuration = this._currentSession.endTime - this._currentSession.startTime;
 
 		// Only keep sessions that meet minimum duration and have actual content
-		if (sessionDuration >= TypingSpeed.MIN_SESSION_DURATION_MS && this._currentSession.characterCount > 0) {
+		if (sessionDuration >= TypingInterval.MIN_SESSION_DURATION_MS && this._currentSession.characterCount > 0) {
 			this._typingSessions.push(this._currentSession);
 
 			// Limit session history
-			if (this._typingSessions.length > TypingSpeed.SESSION_HISTORY_LIMIT) {
+			if (this._typingSessions.length > TypingInterval.SESSION_HISTORY_LIMIT) {
 				this._typingSessions.shift();
 			}
 		}
@@ -161,12 +161,12 @@ export class TypingSpeed extends Disposable {
 		this._currentSession = null;
 	}
 
-	private _calculateTypingSpeed(): TypingSpeedResult {
+	private _calculateTypingInterval(): TypingIntervalResult {
 		// Finalize current session for calculation
 		if (this._currentSession) {
 			const tempSession = { ...this._currentSession };
 			const sessionDuration = tempSession.endTime - tempSession.startTime;
-			if (sessionDuration >= TypingSpeed.MIN_SESSION_DURATION_MS && tempSession.characterCount > 0) {
+			if (sessionDuration >= TypingInterval.MIN_SESSION_DURATION_MS && tempSession.characterCount > 0) {
 				const allSessions = [...this._typingSessions, tempSession];
 				return this._calculateSpeedFromSessions(allSessions);
 			}
@@ -175,30 +175,30 @@ export class TypingSpeed extends Disposable {
 		return this._calculateSpeedFromSessions(this._typingSessions);
 	}
 
-	private _calculateSpeedFromSessions(sessions: TypingSession[]): TypingSpeedResult {
+	private _calculateSpeedFromSessions(sessions: TypingSession[]): TypingIntervalResult {
 		if (sessions.length === 0) {
-			return { speed: 0, characterCount: 0 };
+			return { averageInterval: 0, characterCount: 0 };
 		}
 
 		// Sort sessions by recency (most recent first) to ensure we get the most recent sessions
 		const sortedSessions = [...sessions].sort((a, b) => b.endTime - a.endTime);
 
 		// First, try the standard window
-		const cutoffTime = Date.now() - TypingSpeed.TYPING_SPEED_WINDOW_MS;
+		const cutoffTime = Date.now() - TypingInterval.TYPING_SPEED_WINDOW_MS;
 		const recentSessions = sortedSessions.filter(session => session.endTime > cutoffTime);
 		const olderSessions = sortedSessions.splice(recentSessions.length);
 
 		let totalChars = sum(recentSessions.map(session => session.characterCount));
 
 		// If we don't have enough characters in the standard window, expand to include older sessions
-		for (let i = 0; i < olderSessions.length && totalChars < TypingSpeed.MIN_CHARS_FOR_RELIABLE_SPEED; i++) {
+		for (let i = 0; i < olderSessions.length && totalChars < TypingInterval.MIN_CHARS_FOR_RELIABLE_SPEED; i++) {
 			recentSessions.push(olderSessions[i]);
 			totalChars += olderSessions[i].characterCount;
 		}
 
 		const totalTime = sum(recentSessions.map(session => session.endTime - session.startTime));
 		if (totalTime === 0 || totalChars <= 1) {
-			return { speed: 0, characterCount: totalChars };
+			return { averageInterval: 0, characterCount: totalChars };
 		}
 
 		// Calculate average milliseconds between keystrokes
@@ -206,7 +206,7 @@ export class TypingSpeed extends Disposable {
 		const avgMsBetweenKeystrokes = totalTime / keystrokeIntervals;
 
 		return {
-			speed: Math.round(avgMsBetweenKeystrokes),
+			averageInterval: Math.round(avgMsBetweenKeystrokes),
 			characterCount: totalChars
 		};
 	}
@@ -218,7 +218,7 @@ export class TypingSpeed extends Disposable {
 		this._typingSessions.length = 0;
 		this._currentSession = null;
 		this._lastChangeTime = 0;
-		this._cachedTypingSpeedResult = null;
+		this._cachedTypingIntervalResult = null;
 		this._cacheInvalidated = true;
 	}
 

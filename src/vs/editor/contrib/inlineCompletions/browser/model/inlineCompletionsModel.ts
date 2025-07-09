@@ -47,7 +47,7 @@ import { TextModelEditReason, EditReasons } from '../../../../common/textModelEd
 import { ICodeEditorService } from '../../../../browser/services/codeEditorService.js';
 import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
 import { IInlineCompletionsService } from '../../../../browser/services/inlineCompletionsService.js';
-import { TypingSpeed } from './typingSpeed.js';
+import { TypingInterval } from './typingSpeed.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -85,7 +85,7 @@ export class InlineCompletionsModel extends Disposable {
 
 	private readonly _editorObs;
 
-	private readonly _typing: TypingSpeed;
+	private readonly _typing: TypingInterval;
 
 	private readonly _suggestPreviewEnabled;
 	private readonly _suggestPreviewMode;
@@ -123,7 +123,7 @@ export class InlineCompletionsModel extends Disposable {
 		this._inlineEditsEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.enabled);
 		this._inlineEditsShowCollapsedEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
 		this._triggerCommandOnProviderChange = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.experimental.triggerCommandOnProviderChange);
-		this._typing = this._register(new TypingSpeed(this.textModel));
+		this._typing = this._register(new TypingInterval(this.textModel));
 
 		this._register(this._inlineCompletionsService.onDidChangeIsSnoozing((isSnoozing) => {
 			if (isSnoozing) {
@@ -364,14 +364,14 @@ export class InlineCompletionsModel extends Disposable {
 			reason += reason.length > 0 ? `:${changeSummary.changeReason}` : changeSummary.changeReason;
 		}
 
-		const typingSpeed = this._typing.getSpeed();
+		const typingInterval = this._typing.getTypingInterval();
 		const requestInfo: InlineSuggestRequestInfo = {
 			editorType: this.editorType,
 			startTime: Date.now(),
 			languageId: this.textModel.getLanguageId(),
 			reason,
-			typingSpeed: typingSpeed.speed,
-			typingSpeedCharacterCount: typingSpeed.characterCount,
+			typingInterval: typingInterval.averageInterval,
+			typingIntervalCharacterCount: typingInterval.characterCount,
 		};
 
 		let context: InlineCompletionContextWithoutUuid = {
