@@ -273,6 +273,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					continue;
 				}
 
+				if (part.kind === 'workspaceEdit') {
+					session.makeWorkspaceEdit(part.id, responseModel, part.edit, undoStop);
+					continue;
+				}
+
 				if (part.kind !== 'textEditGroup' && part.kind !== 'notebookEditGroup') {
 					continue;
 				}
@@ -282,7 +287,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				// get new edits and start editing session
 				let entry = editsSeen[i];
 				if (!entry) {
-					entry = { seen: 0, streaming: session.startStreamingEdits(CellUri.parse(part.uri)?.notebook ?? part.uri, responseModel, undoStop) };
+					entry = { seen: 0, streaming: session.startStreamingEdits(CellUri.parse(part.uri)?.notebook ?? part.uri, part.editId, responseModel, undoStop) };
 					editsSeen[i] = entry;
 				}
 

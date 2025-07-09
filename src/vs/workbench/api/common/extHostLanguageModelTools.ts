@@ -9,17 +9,21 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
+import { isAsyncIterable } from '../../../base/common/types.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { IChatTextEdit } from '../../contrib/chat/common/chatService.js';
 import { IPreparedToolInvocation, isToolInvocationContext, IToolInvocation, IToolInvocationContext, IToolInvocationPreparationContext, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import { ExtensionEditToolId, InternalEditToolId } from '../../contrib/chat/common/tools/editFileTool.js';
 import { InternalFetchWebPageToolId } from '../../contrib/chat/common/tools/tools.js';
+import { SearchExtensionsToolId } from '../../contrib/extensions/common/searchExtensionsTool.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto, SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
+import { ExtHostLanguageModelToolsShape, IChatNotebookEditDto, IChatWorkspaceEditDto, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
+import { ExtHostChatAgents2 } from './extHostChatAgents2.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import * as typeConvert from './extHostTypeConverters.js';
-import { SearchExtensionsToolId } from '../../contrib/extensions/common/searchExtensionsTool.js';
+import * as extHostTypes from './extHostTypes.js';
 
 class Tool {
 
@@ -64,6 +68,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 	constructor(
 		mainContext: IMainContext,
 		private readonly _languageModels: ExtHostLanguageModels,
+		private readonly _chatAgents: ExtHostChatAgents2,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguageModelTools);
 
@@ -171,8 +176,10 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			}
 		}
 
+		const opStreamRef = { isDone: false };
 		if (isProposedApiEnabled(item.extension, 'chatParticipantAdditions') && dto.modelId) {
 			options.model = await this.getModel(dto.modelId, item.extension);
+			(options as vscode.LanguageModelToolInvocation<any>).operations = this.createOperationStream(dto.context?.sessionId, dto.chatRequestId, opStreamRef, token);
 		}
 
 		if (dto.tokenBudget !== undefined) {
@@ -197,12 +204,88 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		}
 
 		// todo: 'any' cast because TS can't handle the overloads
-		const extensionResult = await raceCancellation(Promise.resolve((item.tool.invoke as any)(options, token, progress!)), token);
-		if (!extensionResult) {
-			throw new CancellationError();
+		try {
+			const extensionResult = await raceCancellation(Promise.resolve((item.tool.invoke as any)(options, token, progress!)), token);
+			if (!extensionResult) {
+				throw new CancellationError();
+			}
+
+			return typeConvert.LanguageModelToolResult2.from(extensionResult, item.extension);
+		} finally {
+			opStreamRef.isDone = true;
+		}
+	}
+
+	private createOperationStream(chatSessionId: string | undefined, chatRequestId: string | undefined, ref: { isDone: boolean }, token: CancellationToken): vscode.LanguageModelToolOperationStream {
+		function throwIfDone(source: Function | undefined) {
+			if (ref.isDone) {
+				const err = new Error('Tool call has completed');
+				Error.captureStackTrace(err, source);
+				throw err;
+			}
 		}
 
-		return typeConvert.LanguageModelToolResult2.from(extensionResult, item.extension);
+		const request = chatRequestId && this._chatAgents.getInFlightRequest(chatRequestId);
+		const report = async (dto: IChatWorkspaceEditDto | IChatNotebookEditDto | Dto<IChatTextEdit>) => {
+			if (request && chatSessionId) {
+				if (!dto.id) {
+					throw new Error('Tool edit must have an ID');
+				}
+				const waiter = this._chatAgents.awaitEditId(chatSessionId, dto.id, token);
+				request.stream.send(dto);
+				await waiter;
+			}
+		};
+
+		return {
+			notebookEdit: async (target, edits) => {
+				throwIfDone(this.createOperationStream);
+				const id = generateUuid();
+				if (isAsyncIterable(edits)) {
+					for await (const edit of edits) {
+						const part = new extHostTypes.ChatResponseNotebookEditPart(target, edit);
+						const dto = typeConvert.ChatResponseNotebookEditPart.from(part);
+						dto.id = id;
+						await report(dto);
+					}
+
+					edits = [];
+				}
+
+				const part = new extHostTypes.ChatResponseNotebookEditPart(target, []);
+				part.isDone = true;
+				const dto = typeConvert.ChatResponseNotebookEditPart.from(part);
+				await report(dto);
+			},
+
+			textEdit: async (target, edits) => {
+				throwIfDone(this.createOperationStream);
+				const id = generateUuid();
+				if (isAsyncIterable(edits)) {
+					for await (const edit of edits) {
+						const part = new extHostTypes.ChatResponseTextEditPart(target, edit);
+						const dto = typeConvert.ChatResponseTextEditPart.from(part);
+						dto.id = id;
+						await report(dto);
+					}
+
+					edits = [];
+				}
+
+				const part = new extHostTypes.ChatResponseTextEditPart(target, []);
+				part.isDone = true;
+				const dto = typeConvert.ChatResponseTextEditPart.from(part);
+				await report(dto);
+			},
+
+			workspaceEdit: async (edits) => {
+				await report({
+					kind: 'workspaceEdit',
+					id: generateUuid(),
+					edits: typeConvert.WorkspaceEdit.from(edits),
+				});
+			}
+		};
 	}
 
 	private async getModel(modelId: string, extension: IExtensionDescription): Promise<vscode.LanguageModelChat> {

@@ -25,7 +25,7 @@ import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommo
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, IChatWorkspaceEdit, isIUsedContext } from './chatService.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
 
@@ -73,6 +73,7 @@ export interface IChatTextEditGroupState {
 
 export interface IChatTextEditGroup {
 	uri: URI;
+	editId: string | undefined;
 	edits: TextEdit[][];
 	state?: IChatTextEditGroupState;
 	kind: 'textEditGroup';
@@ -91,6 +92,7 @@ export interface ICellTextEditOperation {
 
 export interface IChatNotebookEditGroup {
 	uri: URI;
+	editId: string | undefined;
 	edits: (ICellTextEditOperation | ICellEditOperation)[];
 	state?: IChatTextEditGroupState;
 	kind: 'notebookEditGroup';
@@ -115,7 +117,8 @@ export type IChatProgressHistoryResponseContent =
 	| IChatTextEditGroup
 	| IChatNotebookEditGroup
 	| IChatConfirmation
-	| IChatExtensionsContent;
+	| IChatExtensionsContent
+	| IChatWorkspaceEdit;
 
 /**
  * "Normal" progress kinds that are rendered as parts of the stream of content.
@@ -366,6 +369,7 @@ class AbstractResponse implements IResponse {
 					break;
 				case 'textEditGroup':
 				case 'notebookEditGroup':
+				case 'workspaceEdit':
 					segment = { text: localize('editsSummary', "Made changes."), isBlock: true };
 					break;
 				case 'confirmation':
@@ -495,6 +499,7 @@ export class Response extends AbstractResponse implements IDisposable {
 			if (!found) {
 				this._responseParts.push({
 					kind: groupKind,
+					editId: progress.id,
 					uri,
 					edits: groupKind === 'textEditGroup' ? [edits] : edits,
 					done: progress.done

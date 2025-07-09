@@ -12,7 +12,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { ISelection } from '../../../../editor/common/core/selection.js';
-import { Command, Location, TextEdit } from '../../../../editor/common/languages.js';
+import { Command, IWorkspaceFileEdit, IWorkspaceTextEdit, Location, TextEdit, WorkspaceEdit } from '../../../../editor/common/languages.js';
 import { FileType } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
@@ -205,6 +205,8 @@ export interface IChatMoveMessage {
 }
 
 export interface IChatTextEdit {
+	/** Unique edit ID. If present, the edit can be awaited on in the ChatEditingService and it will also have that ID as its undo stop. */
+	id?: string;
 	uri: URI;
 	edits: TextEdit[];
 	kind: 'textEdit';
@@ -212,6 +214,8 @@ export interface IChatTextEdit {
 }
 
 export interface IChatNotebookEdit {
+	/** Unique edit ID. If present, the edit can be awaited on in the ChatEditingService and it will also have that ID as its undo stop. */
+	id?: string;
 	uri: URI;
 	edits: ICellEditOperation[];
 	kind: 'notebookEdit';
@@ -236,6 +240,18 @@ export interface IChatElicitationRequest {
 	acceptedResult?: Record<string, unknown>;
 	accept(): Promise<void>;
 	reject(): Promise<void>;
+}
+
+/** Assignable for to a {@link WorkspaceEdit} without ICustomEdit */
+export interface FileAndTextWorkspaceEdit {
+	edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>;
+}
+
+export interface IChatWorkspaceEdit {
+	/** Unique edit ID. If present, the edit can be awaited on in the ChatEditingService and it will also have that ID as its undo stop. */
+	id: string;
+	kind: 'workspaceEdit';
+	edit: FileAndTextWorkspaceEdit;
 }
 
 export interface IChatTerminalToolInvocationData {
@@ -322,7 +338,8 @@ export type IChatProgress =
 	| IChatUndoStop
 	| IChatPrepareToolInvocationPart
 	| IChatTaskSerialized
-	| IChatElicitationRequest;
+	| IChatElicitationRequest
+	| IChatWorkspaceEdit;
 
 export interface IChatFollowup {
 	kind: 'reply';

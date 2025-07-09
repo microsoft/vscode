@@ -460,4 +460,44 @@ declare module 'vscode' {
 	export interface ChatRequest {
 		modeInstructions?: string;
 	}
+
+	/** Extension with LanguageModelToolInvocation  */
+	export interface LanguageModelTool<T> {
+		invoke(options: LanguageModelToolInvocation<T>, token: CancellationToken): ProviderResult<LanguageModelToolResult>;
+	}
+
+	export interface LanguageModelToolInvocation<T> extends LanguageModelToolInvocationOptions<T> {
+		/**
+		 * A stream where additional operations and output from the tool can be sent.
+		 */
+		operations: LanguageModelToolOperationStream;
+	}
+
+	/**
+	 * The LanguageModelToolOperationStream allows the tool to return additional
+	 * content and operations to be displayed in the chat view.
+	 */
+	export interface LanguageModelToolOperationStream {
+		/**
+		 * Applies edits to a file.
+		 * @param target File to change
+		 * @param edits Edit, array of edits, or a stream of edits to apply
+		 * @returns A thenable that resolves when the edits have been applied.
+		 */
+		textEdit(target: Uri, edits: TextEdit | TextEdit[] | AsyncIterable<TextEdit>): Thenable<void>;
+		/**
+		 * Applies edits to a notebook.
+		 * @param target Notebook to change
+		 * @param edits Edit, array of edits, or a stream of edits to apply
+		 * @returns A thenable that resolves when the edits have been applied.
+		 */
+		notebookEdit(target: Uri, edits: NotebookEdit | NotebookEdit[] | AsyncIterable<NotebookEdit>): Thenable<void>;
+
+		/**
+		 * Applies a workspace edit.
+		 * @param edit The workspace edit to apply
+		 * @returns A thenable that resolves when the edit has been applied.
+		 */
+		workspaceEdit(edit: WorkspaceEdit): Thenable<void>;
+	}
 }

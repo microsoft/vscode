@@ -8,7 +8,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { TextEdit } from '../../../../editor/common/languages.js';
+import { TextEdit, WorkspaceEdit } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -111,6 +111,12 @@ export interface IChatEditingSession extends IDisposable {
 	getEntry(uri: URI): IModifiedFileEntry | undefined;
 	readEntry(uri: URI, reader?: IReader): IModifiedFileEntry | undefined;
 
+	/**
+	 * Waits for an edit to be complete. The `editId` corresponds to the `id`
+	 * on the text edit, notebook edit, or workspace edit.
+	 */
+	awaitEditComplete(editId: string, token?: CancellationToken): Promise<void>;
+
 	restoreSnapshot(requestId: string, stopId: string | undefined): Promise<void>;
 
 	/**
@@ -134,7 +140,16 @@ export interface IChatEditingSession extends IDisposable {
 	 * @param responseModel The response model making the edits
 	 * @param inUndoStop The undo stop the edits will be grouped in
 	 */
-	startStreamingEdits(resource: URI, responseModel: IChatResponseModel, inUndoStop: string | undefined): IStreamingEdits;
+	startStreamingEdits(resource: URI, editId: string | undefined, responseModel: IChatResponseModel, inUndoStop: string | undefined): IStreamingEdits;
+
+	/**
+	 * Makes a workspace edit
+	 * @param editId Edit operation ID
+	 * @param responseModel The response model making the edits
+	 * @param edits Edit to make
+	 * @param inUndoStop The undo stop the edits will be grouped in
+	 */
+	makeWorkspaceEdit(editId: string | undefined, responseModel: IChatResponseModel, edits: WorkspaceEdit, inUndoStop: string | undefined): void;
 
 	/**
 	 * Gets the document diff of a change made to a URI between one undo stop and

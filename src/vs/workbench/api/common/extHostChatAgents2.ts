@@ -31,7 +31,6 @@ import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostDiagnostics } from './extHostDiagnostics.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
-import { ExtHostLanguageModelTools } from './extHostLanguageModelTools.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
 
@@ -41,6 +40,9 @@ class ChatAgentResponseStream {
 	private _isClosed: boolean = false;
 	private _firstProgress: number | undefined;
 	private _apiObject: vscode.ChatResponseStream | undefined;
+
+	private _sendQueue: (IChatProgressDto | [IChatProgressDto, number])[] = [];
+	private _notify: Function[] = [];
 
 	constructor(
 		private readonly _extension: IExtensionDescription,
@@ -52,6 +54,27 @@ class ChatAgentResponseStream {
 
 	close() {
 		this._isClosed = true;
+	}
+
+	send(chunk: IChatProgressDto): void;
+	send(chunk: IChatProgressDto, handle: number): Promise<void>;
+	send(chunk: IChatProgressDto, handle?: number) {
+		// push data into send queue. the first entry schedules the micro task which
+		// does the actual send to the main thread
+		const newLen = this._sendQueue.push(handle !== undefined ? [chunk, handle] : chunk);
+		if (newLen === 1) {
+			queueMicrotask(() => {
+				this._proxy.$handleProgressChunk(this._request.requestId, this._sendQueue).finally(() => {
+					this._notify.forEach(f => f());
+					this._notify.length = 0;
+				});
+				this._sendQueue.length = 0;
+			});
+		}
+		if (handle !== undefined) {
+			return new Promise<void>(resolve => { this._notify.push(resolve); });
+		}
+		return;
 	}
 
 	get timings(): IChatAgentResultTimings {
@@ -80,31 +103,6 @@ class ChatAgentResponseStream {
 				}
 			}
 
-
-			const sendQueue: (IChatProgressDto | [IChatProgressDto, number])[] = [];
-			const notify: Function[] = [];
-
-			function send(chunk: IChatProgressDto): void;
-			function send(chunk: IChatProgressDto, handle: number): Promise<void>;
-			function send(chunk: IChatProgressDto, handle?: number) {
-				// push data into send queue. the first entry schedules the micro task which
-				// does the actual send to the main thread
-				const newLen = sendQueue.push(handle !== undefined ? [chunk, handle] : chunk);
-				if (newLen === 1) {
-					queueMicrotask(() => {
-						that._proxy.$handleProgressChunk(that._request.requestId, sendQueue).finally(() => {
-							notify.forEach(f => f());
-							notify.length = 0;
-						});
-						sendQueue.length = 0;
-					});
-				}
-				if (handle !== undefined) {
-					return new Promise<void>(resolve => { notify.push(resolve); });
-				}
-				return;
-			}
-
 			const _report = (progress: IChatProgressDto, task?: (progress: vscode.Progress<vscode.ChatResponseWarningPart | vscode.ChatResponseReferencePart>) => Thenable<string | void>) => {
 				// Measure the time to the first progress update with real markdown content
 				if (typeof this._firstProgress === 'undefined' && (progress.kind === 'markdownContent' || progress.kind === 'markdownVuln' || progress.kind === 'prepareToolInvocation')) {
@@ -113,24 +111,24 @@ class ChatAgentResponseStream {
 
 				if (task) {
 					const myHandle = taskHandlePool++;
-					const progressReporterPromise = send(progress, myHandle);
+					const progressReporterPromise = this.send(progress, myHandle);
 					const progressReporter = {
 						report: (p: vscode.ChatResponseWarningPart | vscode.ChatResponseReferencePart) => {
 							progressReporterPromise.then(() => {
 								if (extHostTypes.MarkdownString.isMarkdownString(p.value)) {
-									send(typeConvert.ChatResponseWarningPart.from(<vscode.ChatResponseWarningPart>p), myHandle);
+									this.send(typeConvert.ChatResponseWarningPart.from(<vscode.ChatResponseWarningPart>p), myHandle);
 								} else {
-									send(typeConvert.ChatResponseReferencePart.from(<vscode.ChatResponseReferencePart>p), myHandle);
+									this.send(typeConvert.ChatResponseReferencePart.from(<vscode.ChatResponseReferencePart>p), myHandle);
 								}
 							});
 						}
 					};
 
 					Promise.all([progressReporterPromise, task(progressReporter)]).then(([_void, res]) => {
-						send(typeConvert.ChatTaskResult.from(res), myHandle);
+						this.send(typeConvert.ChatTaskResult.from(res), myHandle);
 					});
 				} else {
-					send(progress);
+					this.send(progress);
 				}
 			};
 
@@ -342,6 +340,7 @@ class ChatAgentResponseStream {
 interface InFlightChatRequest {
 	requestId: string;
 	extRequest: vscode.ChatRequest;
+	stream: ChatAgentResponseStream;
 }
 
 export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsShape2 {
@@ -372,7 +371,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		private readonly _documents: ExtHostDocuments,
 		private readonly _languageModels: ExtHostLanguageModels,
 		private readonly _diagnostics: ExtHostDiagnostics,
-		private readonly _tools: ExtHostLanguageModelTools
+		private readonly _tools: { getTools(extension: IExtensionDescription): vscode.LanguageModelToolInformation[] }
 	) {
 		super();
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
@@ -387,6 +386,10 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				return arg;
 			}
 		});
+	}
+
+	awaitEditId(chatSessionId: string, callId: string, token: CancellationToken): Promise<void> {
+		return this._proxy.$awaitEditId(chatSessionId, callId, token);
 	}
 
 	transferActiveChat(newWorkspace: vscode.Uri): void {
@@ -550,7 +553,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				agent.extension,
 				this._logService
 			);
-			inFlightRequest = { requestId: requestDto.requestId, extRequest };
+			inFlightRequest = { requestId: requestDto.requestId, extRequest, stream };
 			this._inFlightRequests.add(inFlightRequest);
 
 			const task = agent.invoke(
@@ -599,6 +602,10 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			}
 			stream?.close();
 		}
+	}
+
+	public getInFlightRequest(requestId: string): InFlightChatRequest | undefined {
+		return Iterable.find(this._inFlightRequests, r => r.requestId === requestId);
 	}
 
 	private getDiagnosticsWhenEnabled(extension: Readonly<IRelaxedExtensionDescription>) {

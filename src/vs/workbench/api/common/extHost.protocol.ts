@@ -53,11 +53,11 @@ import { WorkspaceTrustRequestOptions } from '../../../platform/workspace/common
 import { SaveReason } from '../../common/editor.js';
 import { IRevealOptions, ITreeItem, IViewBadge } from '../../common/views.js';
 import { CallHierarchyItem } from '../../contrib/callHierarchy/common/callHierarchy.js';
-import { IChatAgentMetadata, IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
+import { IChatAgentHistoryEntry, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
 import { ICodeMapperRequest, ICodeMapperResult } from '../../contrib/chat/common/chatCodeMapperService.js';
 import { IChatRelatedFile, IChatRelatedFileProviderMetadata as IChatRelatedFilesProviderMetadata, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatProgressHistoryResponseContent } from '../../contrib/chat/common/chatModel.js';
-import { IChatContentInlineReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatResponseErrorDetails, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
+import { IChatContentInlineReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatResponseErrorDetails, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction, IChatWorkspaceEdit } from '../../contrib/chat/common/chatService.js';
 import { IChatRequestVariableValue } from '../../contrib/chat/common/chatVariables.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsChangeEvent } from '../../contrib/chat/common/languageModels.js';
@@ -1312,7 +1312,7 @@ export interface MainThreadChatAgentsShape2 extends IDisposable {
 	$unregisterAgent(handle: number): void;
 	$handleProgressChunk(requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
 	$handleAnchorResolve(requestId: string, handle: string, anchor: Dto<IChatContentInlineReference>): void;
-
+	$awaitEditId(chatSessionId: string, callId: string, token: CancellationToken): Promise<void>;
 
 	$transferActiveChatSession(toWorkspace: UriComponents): void;
 }
@@ -1348,14 +1348,24 @@ export interface IChatAgentCompletionItem {
 }
 
 export type IChatContentProgressDto =
-	| Dto<Exclude<IChatProgressHistoryResponseContent, IChatTask>>
-	| IChatTaskDto;
+	| Dto<Exclude<IChatProgressHistoryResponseContent, IChatTask | IChatWorkspaceEdit>>
+	| IChatTaskDto
+	| IChatWorkspaceEditDto;
 
 export type IChatAgentHistoryEntryDto = {
 	request: IChatAgentRequest;
 	response: ReadonlyArray<IChatContentProgressDto>;
 	result: IChatAgentResult;
 };
+
+export function chatAgentHistoryEntryToDto(entry: IChatAgentHistoryEntry): IChatAgentHistoryEntryDto {
+	return {
+		request: entry.request,
+		// todo@connor4312 we don't yet have WorkspaceEdit->DTO code
+		response: entry.response.map((r): IChatContentProgressDto => r.kind === 'workspaceEdit' ? { ...r, edits: { edits: [] } } : r),
+		result: entry.result
+	};
+}
 
 export interface ExtHostChatAgentsShape2 {
 	$invokeAgent(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
@@ -1444,8 +1454,15 @@ export type IDocumentContextDto = {
 	ranges: IRange[];
 };
 
+export interface IChatWorkspaceEditDto {
+	kind: 'workspaceEdit';
+	id: string;
+	edits: IWorkspaceEditDto;
+}
+
 export type IChatProgressDto =
-	| Dto<Exclude<IChatProgress, IChatTask | IChatNotebookEdit>>
+	| Dto<Exclude<IChatProgress, IChatTask | IChatNotebookEdit | IChatWorkspaceEdit>>
+	| IChatWorkspaceEditDto
 	| IChatTaskDto
 	| IChatNotebookEditDto;
 
@@ -2186,6 +2203,7 @@ export interface IWorkspaceEditEntryMetadataDto {
 }
 
 export interface IChatNotebookEditDto {
+	id?: string;
 	uri: URI;
 	edits: ICellEditOperationDto[];
 	kind: 'notebookEdit';

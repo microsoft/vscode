@@ -14,7 +14,7 @@ import { autorun, IObservable, IReader, ITransaction, observableValue, transacti
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
-import { TextEdit } from '../../../../../editor/common/languages.js';
+import { TextEdit, WorkspaceEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
@@ -145,6 +145,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			hasHistory && this._state.read(reader) === ChatEditingSessionState.Idle);
 		this.canUndo = this._timeline.canUndo.map((hasHistory, reader) =>
 			hasHistory && this._state.read(reader) === ChatEditingSessionState.Idle);
+	}
+
+	public async awaitEditComplete() {
+
 	}
 
 	public async init(): Promise<void> {
@@ -401,7 +405,11 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return this._state.get() === ChatEditingSessionState.Disposed;
 	}
 
-	startStreamingEdits(resource: URI, responseModel: IChatResponseModel, inUndoStop: string | undefined): IStreamingEdits {
+	makeWorkspaceEdit(editId: string | undefined, responseModel: IChatResponseModel, edits: WorkspaceEdit, inUndoStop: string | undefined): void {
+		throw new Error('not implemented');
+	}
+
+	startStreamingEdits(resource: URI, editId: string | undefined, responseModel: IChatResponseModel, inUndoStop: string | undefined): IStreamingEdits {
 		const completePromise = new DeferredPromise<void>();
 		const startPromise = new DeferredPromise<void>();
 

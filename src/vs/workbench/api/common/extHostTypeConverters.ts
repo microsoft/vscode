@@ -2765,7 +2765,6 @@ export namespace ChatResponseTextEditPart {
 		result.isDone = part.done;
 		return result;
 	}
-
 }
 
 export namespace NotebookEdit {

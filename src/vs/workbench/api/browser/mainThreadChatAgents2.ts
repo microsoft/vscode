@@ -34,7 +34,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../contrib/chat/common/const
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, ExtHostContext, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
+import { chatAgentHistoryEntryToDto, ExtHostChatAgentsShape2, ExtHostContext, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 import { NotebookDto } from './mainThreadNotebookDto.js';
 
 interface AgentData {
@@ -138,6 +138,10 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._agents.deleteAndDispose(handle);
 	}
 
+	async $awaitEditId(chatSessionId: string, editId: string, token: CancellationToken): Promise<void> {
+		this._chatEditingService.getEditingSession(chatSessionId)?.awaitEditComplete(editId, token);
+	}
+
 	$transferActiveChatSession(toWorkspace: UriComponents): void {
 		const widget = this._chatWidgetService.lastFocusedWidget;
 		const sessionId = widget?.viewModel?.model.sessionId;
@@ -169,7 +173,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			invoke: async (request, progress, history, token) => {
 				this._pendingProgress.set(request.requestId, progress);
 				try {
-					return await this._proxy.$invokeAgent(handle, request, { history }, token) ?? {};
+					return await this._proxy.$invokeAgent(handle, request, { history: history.map(chatAgentHistoryEntryToDto) }, token) ?? {};
 				} finally {
 					this._pendingProgress.delete(request.requestId);
 				}
@@ -182,13 +186,13 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					return [];
 				}
 
-				return this._proxy.$provideFollowups(request, handle, result, { history }, token);
+				return this._proxy.$provideFollowups(request, handle, result, { history: history.map(chatAgentHistoryEntryToDto) }, token);
 			},
 			provideChatTitle: (history, token) => {
-				return this._proxy.$provideChatTitle(handle, history, token);
+				return this._proxy.$provideChatTitle(handle, history.map(chatAgentHistoryEntryToDto), token);
 			},
 			provideChatSummary: (history, token) => {
-				return this._proxy.$provideChatSummary(handle, history, token);
+				return this._proxy.$provideChatSummary(handle, history.map(chatAgentHistoryEntryToDto), token);
 			},
 		};
 
@@ -376,7 +380,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._chatParticipantDetectionProviders.set(handle, this._chatAgentService.registerChatParticipantDetectionProvider(handle,
 			{
 				provideParticipantDetection: async (request: IChatAgentRequest, history: IChatAgentHistoryEntry[], options: { location: ChatAgentLocation; participants: IChatParticipantMetadata[] }, token: CancellationToken) => {
-					return await this._proxy.$detectChatParticipant(handle, request, { history }, options, token);
+					return await this._proxy.$detectChatParticipant(handle, request, { history: history.map(chatAgentHistoryEntryToDto) }, options, token);
 				}
 			}
 		));
