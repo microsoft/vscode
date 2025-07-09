@@ -213,8 +213,6 @@ export interface ILanguageModelsService {
 
 	registerLanguageModelProvider(vendor: string, provider: ILanguageModelChatProvider): IDisposable;
 
-	registerLanguageModelChat(identifier: string, provider: ILanguageModelChat): IDisposable;
-
 	sendChatRequest(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse>;
 
 	computeTokenLength(identifier: string, message: string | IChatMessage, token: CancellationToken): Promise<number>;
@@ -381,28 +379,6 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return toDisposable(() => {
 			this._logService.trace('[LM] UNregistered language model provider', vendor);
 			this._providers.delete(vendor);
-		});
-	}
-
-	registerLanguageModelChat(identifier: string, provider: ILanguageModelChat): IDisposable {
-
-		this._logService.trace('[LM] registering language model chat', identifier, provider.metadata);
-
-		if (!this._vendors.has(provider.metadata.vendor)) {
-			throw new Error(`Chat response provider uses UNKNOWN vendor ${provider.metadata.vendor}.`);
-		}
-		if (this._providers.has(identifier)) {
-			throw new Error(`Chat response provider with identifier ${identifier} is already registered.`);
-		}
-		this._providers.set(identifier, provider);
-		this._onDidChangeProviders.fire({ added: [{ identifier, metadata: provider.metadata }] });
-		this.updateUserSelectableModelsContext();
-		return toDisposable(() => {
-			this.updateUserSelectableModelsContext();
-			if (this._providers.delete(identifier)) {
-				this._onDidChangeProviders.fire({ removed: [identifier] });
-				this._logService.trace('[LM] UNregistered language model chat', identifier, provider.metadata);
-			}
 		});
 	}
 
