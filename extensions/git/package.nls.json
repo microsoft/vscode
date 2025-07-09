@@ -217,6 +217,8 @@
 	"config.inputValidationSubjectLength": "Controls the commit message subject length threshold for showing a warning. Unset it to inherit the value of `#git.inputValidationLength#`.",
 	"config.detectSubmodules": "Controls whether to automatically detect Git submodules.",
 	"config.detectSubmodulesLimit": "Controls the limit of Git submodules detected.",
+	"config.detectWorktrees": "Controls whether to automatically detect Git worktrees.",
+	"config.detectWorktreesLimit": "Controls the limit of Git worktrees detected.",
 	"config.alwaysShowStagedChangesResourceGroup": "Always show the Staged Changes resource group.",
 	"config.alwaysSignOff": "Controls the signoff flag for all commits.",
 	"config.ignoreSubmodules": "Ignore modifications to submodules in the file tree.",

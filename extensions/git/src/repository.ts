@@ -14,7 +14,7 @@ import { Branch, BranchQuery, Change, CommitOptions, FetchOptions, ForcePushMode
 import { AutoFetcher } from './autofetch';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
 import { debounce, memoize, sequentialize, throttle } from './decorators';
-import { Repository as BaseRepository, BlameInformation, Commit, GitError, LogFileOptions, LsTreeElement, PullOptions, RefQuery, Stash, Submodule } from './git';
+import { Repository as BaseRepository, BlameInformation, Commit, GitError, LogFileOptions, LsTreeElement, PullOptions, RefQuery, Stash, Submodule, Worktree } from './git';
 import { GitHistoryProvider } from './historyProvider';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { CommitCommandsCenter, IPostCommitCommandsProviderRegistry } from './postCommitCommands';
@@ -749,6 +749,11 @@ export class Repository implements Disposable {
 	private _submodules: Submodule[] = [];
 	get submodules(): Submodule[] {
 		return this._submodules;
+	}
+
+	private _worktrees: Worktree[] = [];
+	get worktrees(): Worktree[] {
+		return this._worktrees;
 	}
 
 	private _rebaseCommit: Commit | undefined = undefined;
@@ -2297,11 +2302,12 @@ export class Repository implements Disposable {
 				this._updateResourceGroupsState(optimisticResourcesGroups);
 			}
 
-			const [HEAD, remotes, submodules, rebaseCommit, mergeInProgress, cherryPickInProgress, commitTemplate] =
+			const [HEAD, remotes, submodules, worktrees, rebaseCommit, mergeInProgress, cherryPickInProgress, commitTemplate] =
 				await Promise.all([
 					this.repository.getHEADRef(),
 					this.repository.getRemotes(),
 					this.repository.getSubmodules(),
+					this.repository.getWorktrees(),
 					this.getRebaseCommit(),
 					this.isMergeInProgress(),
 					this.isCherryPickInProgress(),
@@ -2321,6 +2327,7 @@ export class Repository implements Disposable {
 			this._HEAD = HEAD;
 			this._remotes = remotes!;
 			this._submodules = submodules!;
+			this._worktrees = worktrees!;
 			this.rebaseCommit = rebaseCommit;
 			this.mergeInProgress = mergeInProgress;
 			this.cherryPickInProgress = cherryPickInProgress;

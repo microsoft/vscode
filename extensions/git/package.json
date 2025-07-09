@@ -2976,6 +2976,18 @@
           "default": 10,
           "description": "%config.detectSubmodulesLimit%"
         },
+        "git.detectWorktree": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "%config.detectWorktree%"
+        },
+        "git.detectWorktreesLimit": {
+          "type": "number",
+          "scope": "resource",
+          "default": 10,
+          "description": "%config.detectWorktreesLimit%"
+        },
         "git.alwaysShowStagedChangesResourceGroup": {
           "type": "boolean",
           "scope": "resource",

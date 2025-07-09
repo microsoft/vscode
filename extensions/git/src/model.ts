@@ -722,6 +722,14 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			.getConfiguration('git', Uri.file(repository.root))
 			.get<number>('detectSubmodulesLimit') as number;
 
+		const shouldDetectWorktrees = workspace
+			.getConfiguration('git', Uri.file(repository.root))
+			.get<boolean>('detectWorktrees') as boolean;
+
+		const worktreesLimit = workspace
+			.getConfiguration('git', Uri.file(repository.root))
+			.get<number>('detectWorktreesLimit') as number;
+
 		const checkForSubmodules = () => {
 			if (!shouldDetectSubmodules) {
 				this.logger.trace('[Model][open] Automatic detection of git submodules is not enabled.');
@@ -742,6 +750,18 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				});
 		};
 
+		const checkForWorktrees = () => {
+			if (!shouldDetectWorktrees) {
+				this.logger.trace('Automatic detection of git worktrees is not enabled.');
+				return;
+			}
+
+			if (repository.worktrees.length > worktreesLimit) {
+				window.showWarningMessage('Placeholder for worktrees warning message');
+				statusListener.dispose();
+			}
+		};
+
 		const updateMergeChanges = () => {
 			// set mergeChanges context
 			const mergeChanges: Uri[] = [];
@@ -755,10 +775,12 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 		const statusListener = repository.onDidRunGitStatus(() => {
 			checkForSubmodules();
+			checkForWorktrees();
 			updateMergeChanges();
 			this.onDidChangeActiveTextEditor();
 		});
 		checkForSubmodules();
+		checkForWorktrees();
 		this.onDidChangeActiveTextEditor();
 
 		const updateOperationInProgressContext = () => {
