@@ -19,6 +19,7 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { FileKind, IFileService } from '../../../../../platform/files/common/files.js';
@@ -47,7 +48,8 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IConfigurationService private readonly configService: IConfigurationService
 	) {
 		super();
 
@@ -90,40 +92,51 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, hintLabel));
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), hintElement, title));
 
-		if (!this.attachment.isSelection) {
+
+		if (this.configService.getValue('chat.implicitContext.suggestedContext')) {
+			if (!this.attachment.isSelection) {
+				const buttonMsg = this.attachment.enabled ? localize('disable', "Disable current {0} context", attachmentTypeName) : localize('enable', "Enable current {0} context", attachmentTypeName);
+				const toggleButton = this.renderDisposables.add(new Button(this.domNode, { supportIcons: true, title: buttonMsg }));
+				toggleButton.icon = this.attachment.enabled ? Codicon.x : Codicon.plus;
+				this.renderDisposables.add(toggleButton.onDidClick((e) => {
+					e.stopPropagation();
+					e.preventDefault();
+					if (!this.attachment.enabled) {
+						this.convertToRegularAttachment();
+					}
+					this.attachment.enabled = false;
+				}));
+			}
+
+			if (!this.attachment.enabled && this.attachment.isSelection) {
+				this.domNode.classList.remove('disabled');
+			}
+
+			this.renderDisposables.add(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, e => {
+				if (!this.attachment.enabled && !this.attachment.isSelection) {
+					this.convertToRegularAttachment();
+				}
+			}));
+
+			this.renderDisposables.add(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, e => {
+				const event = new StandardKeyboardEvent(e);
+				if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+					if (!this.attachment.enabled && !this.attachment.isSelection) {
+						e.preventDefault();
+						e.stopPropagation();
+						this.convertToRegularAttachment();
+					}
+				}
+			}));
+		} else {
 			const buttonMsg = this.attachment.enabled ? localize('disable', "Disable current {0} context", attachmentTypeName) : localize('enable', "Enable current {0} context", attachmentTypeName);
 			const toggleButton = this.renderDisposables.add(new Button(this.domNode, { supportIcons: true, title: buttonMsg }));
-			toggleButton.icon = this.attachment.enabled ? Codicon.x : Codicon.plus;
+			toggleButton.icon = this.attachment.enabled ? Codicon.eye : Codicon.eyeClosed;
 			this.renderDisposables.add(toggleButton.onDidClick((e) => {
-				e.stopPropagation();
-				e.preventDefault();
-				if (!this.attachment.enabled) {
-					this.convertToRegularAttachment();
-				}
-				this.attachment.enabled = false;
+				e.stopPropagation(); // prevent it from triggering the click handler on the parent immediately after rerendering
+				this.attachment.enabled = !this.attachment.enabled;
 			}));
 		}
-
-		if (!this.attachment.enabled && this.attachment.isSelection) {
-			this.domNode.classList.remove('disabled');
-		}
-
-		this.renderDisposables.add(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, e => {
-			if (!this.attachment.enabled && !this.attachment.isSelection) {
-				this.convertToRegularAttachment();
-			}
-		}));
-
-		this.renderDisposables.add(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, e => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				if (!this.attachment.enabled && !this.attachment.isSelection) {
-					e.preventDefault();
-					e.stopPropagation();
-					this.convertToRegularAttachment();
-				}
-			}
-		}));
 
 		// Context menu
 		const scopedContextKeyService = this.renderDisposables.add(this.contextKeyService.createScoped(this.domNode));
