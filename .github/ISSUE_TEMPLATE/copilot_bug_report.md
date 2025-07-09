@@ -1,6 +1,6 @@
 ---
 name: Copilot Bug report
-about: Create a report to help us improve Copilot's chat interface in VS Code. (Note - Not for VS Code Team Members, they go to internalbacklog or public vscode)
+about: Create a report to help us improve Copilot's chat interface in VS Code
 ---
 
 <!-- Please search existing issues to avoid creating duplicates -->
