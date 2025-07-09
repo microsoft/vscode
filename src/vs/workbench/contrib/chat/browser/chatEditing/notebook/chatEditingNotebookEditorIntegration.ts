@@ -174,7 +174,18 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 				&& cellChanges.read(r).some(c => c.type !== 'unchanged' && !c.diff.read(r).identical)
 			) {
 				lastModifyingRequestId = _entry.lastModifyingRequestId;
-				this.reveal(true);
+				// Check if any of the changes are visible, if not, reveal the first change.
+				const visibleChange = this.sortedCellChanges.find(c => {
+					if (c.type === 'unchanged') {
+						return false;
+					}
+					const index = c.modifiedCellIndex ?? c.originalCellIndex;
+					return this.notebookEditor.visibleRanges.some(range => index >= range.start && index < range.end);
+				});
+
+				if (!visibleChange) {
+					this.reveal(true);
+				}
 			}
 		}));
 

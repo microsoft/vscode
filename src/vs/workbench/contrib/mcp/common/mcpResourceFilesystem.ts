@@ -41,7 +41,8 @@ export class McpResourceFilesystem extends Disposable implements IWorkbenchContr
 		| FileSystemProviderCapabilities.Readonly
 		| FileSystemProviderCapabilities.PathCaseSensitive
 		| FileSystemProviderCapabilities.FileReadStream
-		| FileSystemProviderCapabilities.FileAtomicRead;
+		| FileSystemProviderCapabilities.FileAtomicRead
+		| FileSystemProviderCapabilities.FileReadWrite;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -107,11 +108,11 @@ export class McpResourceFilesystem extends Disposable implements IWorkbenchContr
 			watchedOnHandler = handler;
 
 			const token = callCts.value.token;
-			handler.subscribe({ uri: resourceURI.toString(true) }, token).then(
+			handler.subscribe({ uri: resourceURI.toString() }, token).then(
 				() => {
 					if (!token.isCancellationRequested) {
 						watchListener.value = handler.onDidUpdateResource(e => {
-							if (equalsUriPath(e.params.uri, resourceURI)) {
+							if (equalsUrlPath(e.params.uri, resourceURI)) {
 								this._onDidChangeFile.fire([{ resource: uri, type: FileChangeType.UPDATED }]);
 							}
 						});
@@ -146,7 +147,7 @@ export class McpResourceFilesystem extends Disposable implements IWorkbenchContr
 			throw createFileSystemProviderError(`File is not a directory`, FileSystemProviderErrorCode.FileNotADirectory);
 		}
 
-		const resourcePathParts = resourceURI.path.split('/');
+		const resourcePathParts = resourceURI.pathname.split('/');
 
 		const output = new Map<string, FileType>();
 		for (const content of contents) {
@@ -206,15 +207,15 @@ export class McpResourceFilesystem extends Disposable implements IWorkbenchContr
 
 	private _decodeURI(uri: URI) {
 		let definitionId: string;
-		let resourceURI: URI;
+		let resourceURL: URL;
 		try {
-			({ definitionId, resourceURI } = McpResourceURI.toServer(uri));
+			({ definitionId, resourceURL } = McpResourceURI.toServer(uri));
 		} catch (e) {
 			throw createFileSystemProviderError(String(e), FileSystemProviderErrorCode.FileNotFound);
 		}
 
-		if (resourceURI.path.endsWith('/')) {
-			resourceURI = resourceURI.with({ path: resourceURI.path.slice(0, -1) });
+		if (resourceURL.pathname.endsWith('/')) {
+			resourceURL.pathname = resourceURL.pathname.slice(0, -1);
 		}
 
 		const server = this._mcpService.servers.get().find(s => s.definition.id === definitionId);
@@ -227,25 +228,25 @@ export class McpResourceFilesystem extends Disposable implements IWorkbenchContr
 			throw createFileSystemProviderError(`MCP server ${definitionId} does not support resources`, FileSystemProviderErrorCode.FileNotFound);
 		}
 
-		return { definitionId, resourceURI, server };
+		return { definitionId, resourceURI: resourceURL, server };
 	}
 
 	private async _readURI(uri: URI, token?: CancellationToken) {
 		const { resourceURI, server } = this._decodeURI(uri);
-		const res = await McpServer.callOn(server, r => r.readResource({ uri: resourceURI.toString(true) }, token), token);
+		const res = await McpServer.callOn(server, r => r.readResource({ uri: resourceURI.toString() }, token), token);
 
 		return {
 			contents: res.contents,
 			resourceURI,
-			forSameURI: res.contents.filter(c => equalsUriPath(c.uri, resourceURI)),
+			forSameURI: res.contents.filter(c => equalsUrlPath(c.uri, resourceURI)),
 		};
 	}
 }
 
-function equalsUriPath(a: string, b: URI): boolean {
+function equalsUrlPath(a: string, b: URL): boolean {
 	// MCP doesn't specify either way, but underlying systems may can be case-sensitive.
 	// It's better to treat case-sensitive paths as case-insensitive than vise-versa.
-	return equalsIgnoreCase(URI.parse(a).path, b.path);
+	return equalsIgnoreCase(new URL(a).pathname, b.pathname);
 }
 
 function contentToBuffer(content: MCP.TextResourceContents | MCP.BlobResourceContents): Uint8Array {

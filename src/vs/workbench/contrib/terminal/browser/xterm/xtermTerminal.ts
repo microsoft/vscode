@@ -30,7 +30,7 @@ import { ShellIntegrationAddon } from '../../../../../platform/terminal/common/x
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { DecorationAddon } from './decorationAddon.js';
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TerminalContextKeys } from '../../common/terminalContextKey.js';
@@ -174,6 +174,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	constructor(
 		xtermCtor: typeof RawXtermTerminal,
 		options: IXtermTerminalOptions,
+		private readonly _onDidExecuteText: Event<void> | undefined,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
@@ -277,7 +278,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._register(this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e)));
 		this._register(this._decorationAddon.onDidRequestCopyAsHtml(e => this._onDidRequestCopyAsHtml.fire(e)));
 		this.raw.loadAddon(this._decorationAddon);
-		this._shellIntegrationAddon = new ShellIntegrationAddon(options.shellIntegrationNonce ?? '', options.disableShellIntegrationReporting, this._telemetryService, this._logService);
+		this._shellIntegrationAddon = new ShellIntegrationAddon(options.shellIntegrationNonce ?? '', options.disableShellIntegrationReporting, this._onDidExecuteText, this._telemetryService, this._logService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
 		this._xtermAddonLoader.importAddon('clipboard').then(ClipboardAddon => {
 			if (this._store.isDisposed) {

@@ -75,21 +75,21 @@ suite('ScopeData', () => {
 		assert.strictEqual(scopeData.tenantId, 'some_guid');
 	});
 
-	test('should extract tenant from issuer URL path', () => {
-		const issuer = Uri.parse('https://login.microsoftonline.com/tenant123/oauth2/v2.0');
-		const scopeData = new ScopeData(['custom_scope'], issuer);
+	test('should extract tenant from authorization server URL path', () => {
+		const authorizationServer = Uri.parse('https://login.microsoftonline.com/tenant123/oauth2/v2.0');
+		const scopeData = new ScopeData(['custom_scope'], authorizationServer);
 		assert.strictEqual(scopeData.tenant, 'tenant123');
 	});
 
-	test('should fallback to default tenant if issuer URL has no path segments', () => {
-		const issuer = Uri.parse('https://login.microsoftonline.com');
-		const scopeData = new ScopeData(['custom_scope'], issuer);
+	test('should fallback to default tenant if authorization server URL has no path segments', () => {
+		const authorizationServer = Uri.parse('https://login.microsoftonline.com');
+		const scopeData = new ScopeData(['custom_scope'], authorizationServer);
 		assert.strictEqual(scopeData.tenant, 'organizations');
 	});
 
-	test('should prioritize issuer URL over VSCODE_TENANT scope', () => {
-		const issuer = Uri.parse('https://login.microsoftonline.com/url_tenant/oauth2/v2.0');
-		const scopeData = new ScopeData(['custom_scope', 'VSCODE_TENANT:scope_tenant'], issuer);
+	test('should prioritize authorization server URL over VSCODE_TENANT scope', () => {
+		const authorizationServer = Uri.parse('https://login.microsoftonline.com/url_tenant/oauth2/v2.0');
+		const scopeData = new ScopeData(['custom_scope', 'VSCODE_TENANT:scope_tenant'], authorizationServer);
 		assert.strictEqual(scopeData.tenant, 'url_tenant');
 	});
 });

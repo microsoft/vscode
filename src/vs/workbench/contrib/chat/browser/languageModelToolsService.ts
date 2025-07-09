@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveDocument } from '../../../../base/browser/dom.js';
 import { renderStringAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
@@ -160,13 +159,13 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		});
 	}
 
-	getTools(): Iterable<Readonly<IToolData>> {
+	getTools(includeDisabled?: boolean): Iterable<Readonly<IToolData>> {
 		const toolDatas = Iterable.map(this._tools.values(), i => i.data);
 		const extensionToolsEnabled = this._configurationService.getValue<boolean>(ChatConfiguration.ExtensionToolsEnabled);
 		return Iterable.filter(
 			toolDatas,
 			toolData => {
-				const satisfiesWhenClause = !toolData.when || this._contextKeyService.contextMatchesRules(toolData.when);
+				const satisfiesWhenClause = includeDisabled || !toolData.when || this._contextKeyService.contextMatchesRules(toolData.when);
 				const satisfiesExternalToolCheck = toolData.source.type !== 'extension' || !!extensionToolsEnabled;
 				return satisfiesWhenClause && satisfiesExternalToolCheck;
 			});
@@ -185,10 +184,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
-	getToolByName(name: string): IToolData | undefined {
-		for (const toolData of this.getTools()) {
-			if (toolData.toolReferenceName === name) {
-				return toolData;
+	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined {
+		for (const tool of this.getTools(!!includeDisabled)) {
+			if (tool.toolReferenceName === name) {
+				return tool;
 			}
 		}
 		return undefined;
@@ -340,7 +339,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			toolResult ??= { content: [] };
 			toolResult.toolResultError = err instanceof Error ? err.message : String(err);
 			if (tool.data.alwaysDisplayInputOutput) {
-				toolResult.toolResultDetails = { input: this.formatToolInput(dto), output: [{ type: 'text', value: String(err) }], isError: true };
+				toolResult.toolResultDetails = { input: this.formatToolInput(dto), output: [{ isText: true, value: String(err) }], isError: true };
 			}
 
 			throw err;
@@ -355,7 +354,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	private async prepareToolInvocation(tool: IToolEntry, dto: IToolInvocation, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const prepared = tool.impl!.prepareToolInvocation ?
-			await tool.impl!.prepareToolInvocation(dto.parameters, token)
+			await tool.impl!.prepareToolInvocation({
+				parameters: dto.parameters,
+				chatRequestId: dto.chatRequestId,
+				chatSessionId: dto.context?.sessionId,
+				chatInteractionId: dto.chatInteractionId
+			}, token)
 			: undefined;
 
 		if (prepared?.confirmationMessages) {
@@ -375,14 +379,18 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private playAccessibilitySignal(toolInvocations: ChatToolInvocation[]): void {
-		const hasFocusedWindow = getActiveDocument().hasFocus();
 		const autoApproved = this._configurationService.getValue('chat.tools.autoApprove');
 		if (autoApproved) {
 			return;
 		}
-		const setting: { sound: 'auto' | 'on' | 'off' } = this._configurationService.getValue(AccessibilitySignal.chatUserActionRequired.settingsKey);
-		if (setting.sound === 'on' || (setting.sound === 'auto' && (this._accessibilityService.isScreenReaderOptimized() || !hasFocusedWindow))) {
-			this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { customAlertMessage: this._instantiationService.invokeFunction(getToolConfirmationAlert, toolInvocations), userGesture: true });
+		const setting: { sound?: 'auto' | 'on' | 'off'; announcement?: 'auto' | 'off' } | undefined = this._configurationService.getValue(AccessibilitySignal.chatUserActionRequired.settingsKey);
+		if (!setting) {
+			return;
+		}
+		const soundEnabled = setting.sound === 'on' || (setting.sound === 'auto' && (this._accessibilityService.isScreenReaderOptimized()));
+		const announcementEnabled = this._accessibilityService.isScreenReaderOptimized() && setting.announcement === 'auto';
+		if (soundEnabled || announcementEnabled) {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { customAlertMessage: this._instantiationService.invokeFunction(getToolConfirmationAlert, toolInvocations), userGesture: true, modality: !soundEnabled ? 'announcement' : undefined });
 		}
 	}
 
@@ -402,11 +410,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private toolResultToIO(toolResult: IToolResult): IToolResultInputOutputDetails['output'] {
 		return toolResult.content.map(part => {
 			if (part.kind === 'text') {
-				return { type: 'text', value: part.value };
+				return { isText: true, value: part.value };
 			} else if (part.kind === 'promptTsx') {
-				return { type: 'text', value: stringifyPromptTsxPart(part) };
+				return { isText: true, value: stringifyPromptTsxPart(part) };
 			} else if (part.kind === 'data') {
-				return { type: 'data', value64: encodeBase64(part.value.data), mimeType: part.value.mimeType };
+				return { value: encodeBase64(part.value.data), mimeType: part.value.mimeType };
 			} else {
 				assertNever(part);
 			}
@@ -455,11 +463,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
-	toEnablementMap(toolOrToolsetNames: Iterable<string>): Record<string, boolean> {
-		const toolOrToolset = new Set<string>(toolOrToolsetNames);
+	toToolEnablementMap(toolOrToolsetNames: Set<string>): Record<string, boolean> {
 		const result: Record<string, boolean> = {};
 		for (const tool of this._tools.values()) {
-			if (tool.data.toolReferenceName && toolOrToolset.has(tool.data.toolReferenceName) || toolOrToolset.has(tool.data.id)) {
+			if (tool.data.toolReferenceName && toolOrToolsetNames.has(tool.data.toolReferenceName)) {
 				result[tool.data.id] = true;
 			} else {
 				result[tool.data.id] = false;
@@ -467,11 +474,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		for (const toolSet of this._toolSets) {
-			if (toolOrToolset.has(toolSet.toolReferenceName)) {
-				result[toolSet.toolReferenceName] = true;
-			}
-			for (const tool of toolSet.getTools()) {
-				if (toolOrToolset.has(tool.id)) {
+			if (toolOrToolsetNames.has(toolSet.referenceName)) {
+				for (const tool of toolSet.getTools()) {
 					result[tool.id] = true;
 				}
 			}
@@ -480,20 +484,46 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return result;
 	}
 
+	/**
+	 * Create a map that contains all tools and toolsets with their enablement state.
+	 * @param toolOrToolSetNames A list of tool or toolset names to check for enablement. If undefined, all tools and toolsets are enabled.
+	 * @returns A map of tool or toolset instances to their enablement state.
+	 */
+	toToolAndToolSetEnablementMap(enabledToolOrToolSetNames: readonly string[] | undefined): Map<ToolSet | IToolData, boolean> {
+		const toolOrToolSetNames = enabledToolOrToolSetNames ? new Set(enabledToolOrToolSetNames) : undefined;
+		const result = new Map<ToolSet | IToolData, boolean>();
+		for (const tool of this._tools.values()) {
+			result.set(tool.data, tool.data.toolReferenceName !== undefined && (toolOrToolSetNames === undefined || toolOrToolSetNames.has(tool.data.toolReferenceName)));
+		}
+		for (const toolSet of this._toolSets) {
+			result.set(toolSet, (toolOrToolSetNames === undefined || toolOrToolSetNames.has(toolSet.referenceName)));
+		}
+		return result;
+	}
+
 	private readonly _toolSets = new ObservableSet<ToolSet>();
 
 	readonly toolSets: IObservable<Iterable<ToolSet>> = this._toolSets.observable;
 
-	getToolSetByName(name: string): ToolSet | undefined {
+	getToolSet(id: string): ToolSet | undefined {
 		for (const toolSet of this._toolSets) {
-			if (toolSet.toolReferenceName === name) {
+			if (toolSet.id === id) {
 				return toolSet;
 			}
 		}
 		return undefined;
 	}
 
-	createToolSet(source: ToolDataSource, id: string, displayName: string, options?: { icon?: ThemeIcon; toolReferenceName?: string; description?: string }): ToolSet & IDisposable {
+	getToolSetByName(name: string): ToolSet | undefined {
+		for (const toolSet of this._toolSets) {
+			if (toolSet.referenceName === name) {
+				return toolSet;
+			}
+		}
+		return undefined;
+	}
+
+	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string }): ToolSet & IDisposable {
 
 		const that = this;
 
@@ -505,7 +535,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 
 			}
-		}(id, displayName, options?.icon ?? Codicon.tools, source, options?.toolReferenceName ?? displayName, options?.description);
+		}(id, referenceName, options?.icon ?? Codicon.tools, source, options?.description);
 
 		this._toolSets.add(result);
 		return result;

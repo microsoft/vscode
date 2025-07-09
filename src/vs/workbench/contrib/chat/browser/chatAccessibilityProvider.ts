@@ -27,13 +27,16 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 	const titles: string[] = toolInvocation.filter(t => t.confirmationMessages?.title).map(v => {
 		let input = '';
 		if (v.toolSpecificData) {
-			input = v.toolSpecificData?.kind === 'terminal'
-				? v.toolSpecificData.command
-				: v.toolSpecificData?.kind === 'extensions'
-					? JSON.stringify(v.toolSpecificData.extensions)
-					: JSON.stringify(v.toolSpecificData.rawInput);
+			if (v.toolSpecificData.kind === 'terminal') {
+				input = v.toolSpecificData.command;
+			} else if (v.toolSpecificData.kind === 'extensions') {
+				input = JSON.stringify(v.toolSpecificData.extensions);
+			} else if (v.toolSpecificData.kind === 'input') {
+				input = JSON.stringify(v.toolSpecificData.rawInput);
+			}
 		}
-		const title = v.confirmationMessages?.title || '';
+		const titleObj = v.confirmationMessages?.title;
+		const title = typeof titleObj === 'string' ? titleObj : titleObj?.value || '';
 		return (title + (input ? ': ' + input : '')).trim();
 	}).filter(v => !!v);
 
@@ -85,7 +88,17 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 				toolInvocationHint = this._instantiationService.invokeFunction(getToolConfirmationAlert, toolInvocation);
 			} else { // all completed
 				for (const invocation of toolInvocation) {
-					toolInvocationHint += localize('toolCompletedHint', "Tool {0} completed.", typeof invocation.confirmationMessages?.title === 'string' ? invocation.confirmationMessages?.title : invocation.confirmationMessages?.title.value);
+					const titleObj = invocation.confirmationMessages?.title;
+					let title = '';
+					if (typeof titleObj === 'string' && titleObj.trim()) {
+						title = titleObj;
+					} else if (titleObj && typeof titleObj === 'object' && 'value' in titleObj && titleObj.value && titleObj.value.trim()) {
+						title = titleObj.value;
+					} else {
+						// Fallback to toolId if no valid title
+						title = invocation.toolId;
+					}
+					toolInvocationHint += localize('toolCompletedHint', "Tool {0} completed.", title);
 				}
 			}
 		}

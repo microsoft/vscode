@@ -338,6 +338,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			// shows again.
 			let windowProgressDisposable: IDisposable | undefined = undefined;
 			const onVisibilityChange = (visible: boolean) => {
+
 				// Clear any previous running window progress
 				dispose(windowProgressDisposable);
 
@@ -386,7 +387,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 				// create notification now or after a delay
 				if (typeof options.delay === 'number' && options.delay > 0) {
-					if (notificationTimeout !== undefined) {
+					if (notificationTimeout === undefined) {
 						notificationTimeout = setTimeout(() => notificationHandle = createNotification(titleAndMessage!, options.priority, step?.increment), options.delay);
 					}
 				} else {

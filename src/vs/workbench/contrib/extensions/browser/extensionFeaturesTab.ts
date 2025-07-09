@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { $, append, clearNode } from '../../../../base/browser/dom.js';
+import { $, append, clearNode, addDisposableListener, EventType } from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ExtensionIdentifier, IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
 import { Orientation, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
@@ -304,15 +304,13 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 				hoverDisposable.value = undefined;
 			}
 		};
-		svg.addEventListener('mousemove', mouseMoveListener);
-		disposables.add(toDisposable(() => svg.removeEventListener('mousemove', mouseMoveListener)));
+		disposables.add(addDisposableListener(svg, EventType.MOUSE_MOVE, mouseMoveListener));
 
 		const mouseLeaveListener = () => {
 			highlightCircle.style.display = 'none';
 			hoverDisposable.value = undefined;
 		};
-		svg.addEventListener('mouseleave', mouseLeaveListener);
-		disposables.add(toDisposable(() => svg.removeEventListener('mouseleave', mouseLeaveListener)));
+		disposables.add(addDisposableListener(svg, EventType.MOUSE_LEAVE, mouseLeaveListener));
 	}
 }
 

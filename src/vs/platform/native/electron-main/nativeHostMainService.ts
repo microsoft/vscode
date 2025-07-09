@@ -16,7 +16,6 @@ import { dirname, join, posix, resolve, win32 } from '../../../base/common/path.
 import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { AddFirstParameterToFunctions } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
-import { realpath } from '../../../base/node/extpath.js';
 import { virtualMachineHint } from '../../../base/node/id.js';
 import { Promises, SymlinkSupport } from '../../../base/node/pfs.js';
 import { findFreePort, isPortFree } from '../../../base/node/ports.js';
@@ -384,7 +383,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		try {
 			const { symbolicLink } = await SymlinkSupport.stat(source);
 			if (symbolicLink && !symbolicLink.dangling) {
-				const linkTargetRealPath = await realpath(source);
+				const linkTargetRealPath = await Promises.realpath(source);
 				if (target === linkTargetRealPath) {
 					return;
 				}
@@ -558,9 +557,9 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		this.environmentMainService.unsetSnapExportedVariables();
 		try {
 			if (matchesSomeScheme(url, Schemas.http, Schemas.https)) {
-				this.openExternalBrowser(url, defaultApplication);
+				this.openExternalBrowser(windowId, url, defaultApplication);
 			} else {
-				shell.openExternal(url);
+				this.doOpenShellExternal(windowId, url);
 			}
 		} finally {
 			this.environmentMainService.restoreSnapExportedVariables();
@@ -569,28 +568,28 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return true;
 	}
 
-	private async openExternalBrowser(url: string, defaultApplication?: string): Promise<void> {
+	private async openExternalBrowser(windowId: number | undefined, url: string, defaultApplication?: string): Promise<void> {
 		const configuredBrowser = defaultApplication ?? this.configurationService.getValue<string>('workbench.externalBrowser');
 		if (!configuredBrowser) {
-			return shell.openExternal(url);
+			return this.doOpenShellExternal(windowId, url);
 		}
 
 		if (configuredBrowser.includes(posix.sep) || configuredBrowser.includes(win32.sep)) {
 			const browserPathExists = await Promises.exists(configuredBrowser);
 			if (!browserPathExists) {
 				this.logService.error(`Configured external browser path does not exist: ${configuredBrowser}`);
-				return shell.openExternal(url);
+				return this.doOpenShellExternal(windowId, url);
 			}
 		}
 
 		try {
-			const { default: open } = await import('open');
+			const { default: open, apps } = await import('open');
 			const res = await open(url, {
 				app: {
 					// Use `open.apps` helper to allow cross-platform browser
 					// aliases to be looked up properly. Fallback to the
 					// configured value if not found.
-					name: Object.hasOwn(open.apps, configuredBrowser) ? open.apps[(configuredBrowser as keyof typeof open['apps'])] : configuredBrowser
+					name: Object.hasOwn(apps, configuredBrowser) ? apps[(configuredBrowser as keyof typeof apps)] : configuredBrowser
 				}
 			});
 
@@ -602,12 +601,46 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				// (see also https://github.com/microsoft/vscode/issues/230636)
 				res.stderr?.once('data', (data: Buffer) => {
 					this.logService.error(`Error openening external URL '${url}' using browser '${configuredBrowser}': ${data.toString()}`);
-					return shell.openExternal(url);
+					return this.doOpenShellExternal(windowId, url);
 				});
 			}
 		} catch (error) {
 			this.logService.error(`Unable to open external URL '${url}' using browser '${configuredBrowser}' due to ${error}.`);
-			return shell.openExternal(url);
+			return this.doOpenShellExternal(windowId, url);
+		}
+	}
+
+	private async doOpenShellExternal(windowId: number | undefined, url: string): Promise<void> {
+		try {
+			await shell.openExternal(url);
+		} catch (error) {
+			let isLink: boolean;
+			let message: string;
+			if (matchesSomeScheme(url, Schemas.http, Schemas.https)) {
+				isLink = true;
+				message = localize('openExternalErrorLinkMessage', "An error occurred opening a link in your default browser.");
+			} else {
+				isLink = false;
+				message = localize('openExternalProgramErrorMessage', "An error occurred opening an external program.");
+			}
+
+			const { response } = await this.dialogMainService.showMessageBox({
+				type: 'error',
+				message,
+				detail: error.message,
+				buttons: isLink ? [
+					localize({ key: 'copyLink', comment: ['&& denotes a mnemonic'] }, "&&Copy Link"),
+					localize('cancel', "Cancel")
+				] : [
+					localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")
+				]
+			}, this.windowById(windowId)?.win ?? undefined);
+
+			if (response === 1 /* Cancel */) {
+				return;
+			}
+
+			this.writeClipboardText(windowId, url);
 		}
 	}
 

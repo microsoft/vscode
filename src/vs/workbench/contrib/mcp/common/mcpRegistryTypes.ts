@@ -55,9 +55,6 @@ export interface IMcpRegistry {
 	/** Whether there are new collections that can be resolved with a discover() call */
 	readonly lazyCollectionState: IObservable<LazyCollectionState>;
 
-	/** Gets the prefix that should be applied to a collection's tools in order to avoid ID conflicts */
-	collectionToolPrefix(collection: McpCollectionReference): IObservable<string>;
-
 	/** Helper function to observe a definition by its reference. */
 	getServerDefinition(collectionRef: McpDefinitionReference, definitionRef: McpDefinitionReference): IObservable<{ server: McpServerDefinition | undefined; collection: McpCollectionDefinition | undefined }>;
 

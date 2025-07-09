@@ -56,12 +56,12 @@ export class DynamicAuthenticationProviderStorageService extends Disposable impl
 		return provider?.clientId;
 	}
 
-	storeClientId(providerId: string, clientId: string, label?: string, issuer?: string): void {
+	storeClientId(providerId: string, authorizationServer: string, clientId: string, label?: string): void {
 		// Store provider information in single location
-		this._trackProvider(providerId, clientId, label, issuer);
+		this._trackProvider(providerId, authorizationServer, clientId, label);
 	}
 
-	private _trackProvider(providerId: string, clientId: string, label?: string, issuer?: string): void {
+	private _trackProvider(providerId: string, authorizationServer: string, clientId: string, label?: string): void {
 		const providers = this._getStoredProviders();
 
 		// Check if provider already exists
@@ -71,7 +71,7 @@ export class DynamicAuthenticationProviderStorageService extends Disposable impl
 			const newProvider: DynamicAuthenticationProviderInfo = {
 				providerId,
 				label: label || providerId, // Use provided label or providerId as default
-				issuer: issuer || providerId, // Use provided issuer or providerId as default
+				authorizationServer,
 				clientId
 			};
 			providers.push(newProvider);
@@ -82,7 +82,7 @@ export class DynamicAuthenticationProviderStorageService extends Disposable impl
 			const updatedProvider: DynamicAuthenticationProviderInfo = {
 				providerId,
 				label: label || existingProvider.label,
-				issuer: issuer || existingProvider.issuer,
+				authorizationServer,
 				clientId
 			};
 			providers[existingProviderIndex] = updatedProvider;
@@ -93,7 +93,14 @@ export class DynamicAuthenticationProviderStorageService extends Disposable impl
 	private _getStoredProviders(): DynamicAuthenticationProviderInfo[] {
 		const stored = this.storageService.get(DynamicAuthenticationProviderStorageService.PROVIDERS_STORAGE_KEY, StorageScope.APPLICATION, '[]');
 		try {
-			return JSON.parse(stored);
+			const providerInfos = JSON.parse(stored);
+			// MIGRATION: remove after an iteration or 2
+			for (const providerInfo of providerInfos) {
+				if (!providerInfo.authorizationServer) {
+					providerInfo.authorizationServer = providerInfo.issuer;
+				}
+			}
+			return providerInfos;
 		} catch {
 			return [];
 		}

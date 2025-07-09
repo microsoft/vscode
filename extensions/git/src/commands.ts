@@ -2247,8 +2247,8 @@ export class CommandCenter {
 
 		const messageWarning = !discardUntrackedChangesToTrash
 			? resources.length === 1
-				? '\n\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST if you proceed.'
-				: '\n\nThis is IRREVERSIBLE!\nThese files will be FOREVER LOST if you proceed.'
+				? '\n\n' + l10n.t('This is IRREVERSIBLE!\nThis file will be FOREVER LOST if you proceed.')
+				: '\n\n' + l10n.t('This is IRREVERSIBLE!\nThese files will be FOREVER LOST if you proceed.')
 			: '';
 
 		const message = resources.length === 1
@@ -2258,11 +2258,11 @@ export class CommandCenter {
 		const messageDetail = discardUntrackedChangesToTrash
 			? isWindows
 				? resources.length === 1
-					? 'You can restore this file from the Recycle Bin.'
-					: 'You can restore these files from the Recycle Bin.'
+					? l10n.t('You can restore this file from the Recycle Bin.')
+					: l10n.t('You can restore these files from the Recycle Bin.')
 				: resources.length === 1
-					? 'You can restore this file from the Trash.'
-					: 'You can restore these files from the Trash.'
+					? l10n.t('You can restore this file from the Trash.')
+					: l10n.t('You can restore these files from the Trash.')
 			: '';
 
 		const primaryAction = discardUntrackedChangesToTrash

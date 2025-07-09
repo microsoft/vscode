@@ -45,8 +45,8 @@ export interface IToolData {
 
 export interface IToolProgressStep {
 	readonly message: string | IMarkdownString | undefined;
-	readonly increment: number | undefined;
-	readonly total: number | undefined;
+	readonly increment?: number;
+	readonly total?: number;
 }
 
 export type ToolProgress = IProgress<IToolProgressStep>;
@@ -123,9 +123,26 @@ export function isToolInvocationContext(obj: any): obj is IToolInvocationContext
 	return typeof obj === 'object' && typeof obj.sessionId === 'string';
 }
 
+export interface IToolInvocationPreparationContext {
+	parameters: any;
+	chatRequestId?: string;
+	chatSessionId?: string;
+	chatInteractionId?: string;
+}
+
 export interface IToolResultInputOutputDetails {
 	readonly input: string;
-	readonly output: ({ type: 'text'; value: string } | { type: 'data'; mimeType: string; value64: string })[];
+	readonly output: ({
+		value: string;
+		/** If true, value is text. If false or not given, value is base64 */
+		isText?: boolean;
+		/** Mimetype of the value, optional */
+		mimeType?: string;
+		/** URI of the resource on the MCP server. */
+		uri?: URI;
+		/** If true, this part came in as a resource reference rather than direct data. */
+		asResource?: boolean;
+	})[];
 	readonly isError?: boolean;
 }
 
@@ -169,6 +186,7 @@ export interface IToolResultDataPart {
 export interface IToolConfirmationMessages {
 	title: string | IMarkdownString;
 	message: string | IMarkdownString;
+	disclaimer?: string | IMarkdownString;
 	allowAutoConfirm?: boolean;
 }
 
@@ -184,8 +202,10 @@ export interface IPreparedToolInvocation {
 
 export interface IToolImpl {
 	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult>;
-	prepareToolInvocation?(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
+	prepareToolInvocation?(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
 }
+
+export type IToolAndToolSetEnablementMap = ReadonlyMap<IToolData | ToolSet, boolean>;
 
 export class ToolSet {
 
@@ -200,10 +220,9 @@ export class ToolSet {
 
 	constructor(
 		readonly id: string,
-		readonly displayName: string,
+		readonly referenceName: string,
 		readonly icon: ThemeIcon,
 		readonly source: ToolDataSource,
-		readonly toolReferenceName: string,
 		readonly description?: string,
 	) {
 
@@ -250,16 +269,18 @@ export interface ILanguageModelToolsService {
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
 	getTools(): Iterable<Readonly<IToolData>>;
 	getTool(id: string): IToolData | undefined;
-	getToolByName(name: string): IToolData | undefined;
+	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined;
 	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
 	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'memory', autoConfirm?: boolean): void;
 	resetToolAutoConfirmation(): void;
 	cancelToolCallsForRequest(requestId: string): void;
-	toEnablementMap(toolOrToolSetNames: Iterable<string>): Record<string, boolean>;
+	toToolEnablementMap(toolOrToolSetNames: Set<string>): Record<string, boolean>;
+	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[] | undefined): IToolAndToolSetEnablementMap;
 
 	readonly toolSets: IObservable<Iterable<ToolSet>>;
+	getToolSet(id: string): ToolSet | undefined;
 	getToolSetByName(name: string): ToolSet | undefined;
-	createToolSet(source: ToolDataSource, id: string, displayName: string, options?: { icon?: ThemeIcon; toolReferenceName?: string; description?: string }): ToolSet & IDisposable;
+	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string }): ToolSet & IDisposable;
 }
 
 export function createToolInputUri(toolOrId: IToolData | string): URI {

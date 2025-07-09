@@ -5,6 +5,7 @@
 
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { Range } from '../../../../../editor/common/core/range.js';
@@ -62,6 +63,16 @@ class InputEditorDecorations extends Disposable {
 			this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent, e.slashCommand?.name));
 		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.updateInputEditorDecorations()));
+		this._register(autorun(reader => {
+			// Watch for changes to the current mode and its properties
+			const currentMode = this.widget.input.currentModeObs.read(reader);
+			if (currentMode) {
+				// Also watch the mode's description to react to any changes
+				currentMode.description.read(reader);
+			}
+			// Trigger decoration update when mode or its properties change
+			this.updateInputEditorDecorations();
+		}));
 
 		this.registerViewModelListeners();
 	}
@@ -115,7 +126,7 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		if (!inputValue) {
-			const description = this.widget.input.currentMode2.description;
+			const description = this.widget.input.currentModeObs.get().description.get();
 			const decoration: IDecorationOptions[] = [
 				{
 					range: {
@@ -309,7 +320,7 @@ class ChatTokenDeleter extends Disposable {
 
 			// If this was a simple delete, try to find out whether it was inside a token
 			if (!change.text && this.widget.viewModel) {
-				const previousParsedValue = parser.parseChatRequest(this.widget.viewModel.sessionId, previousInputValue, widget.location, { selectedAgent: previousSelectedAgent, mode: this.widget.input.currentMode });
+				const previousParsedValue = parser.parseChatRequest(this.widget.viewModel.sessionId, previousInputValue, widget.location, { selectedAgent: previousSelectedAgent, mode: this.widget.input.currentModeKind });
 
 				// For dynamic variables, this has to happen in ChatDynamicVariableModel with the other bookkeeping
 				const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart || p instanceof ChatRequestSlashPromptPart || p instanceof ChatRequestToolPart);

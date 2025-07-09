@@ -9,16 +9,13 @@ import { cloneAndChange } from '../../../../../base/common/objects.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
-import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestEnvironmentService } from '../../../../test/browser/workbenchTestServices.js';
-import { ISnapshotEntry } from '../../browser/chatEditing/chatEditingModifiedFileEntry.js';
 import { ChatEditingSessionStorage, IChatEditingSessionStop, StoredSessionState } from '../../browser/chatEditing/chatEditingSessionStorage.js';
 import { ChatEditingSnapshotTextModelContentProvider } from '../../browser/chatEditing/chatEditingTextModelContentProviders.js';
-import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { ISnapshotEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 
 suite('ChatEditingSessionStorage', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
@@ -51,7 +48,7 @@ suite('ChatEditingSessionStorage', () => {
 		return {
 			stopId,
 			entries: new ResourceMap([
-				[resource, { resource, languageId: 'javascript', snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(sessionId, requestId, stopId, resource.path), original: `contents${before}}`, current: `contents${after}`, originalToCurrentEdit: StringEdit.replace(OffsetRange.ofLength(42), 'newtext'), state: ModifiedFileEntryState.Modified, telemetryInfo: { agentId: 'agentId', command: 'cmd', requestId: generateUuid(), result: undefined, sessionId } } satisfies ISnapshotEntry],
+				[resource, { resource, languageId: 'javascript', snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(sessionId, requestId, stopId, resource.path), original: `contents${before}}`, current: `contents${after}`, state: ModifiedFileEntryState.Modified, telemetryInfo: { agentId: 'agentId', command: 'cmd', requestId: generateUuid(), result: undefined, sessionId } } satisfies ISnapshotEntry],
 			]),
 		};
 	}

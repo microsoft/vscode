@@ -36,6 +36,7 @@ export interface IButtonOptions extends Partial<IButtonStyles> {
 	readonly supportShortLabel?: boolean;
 	readonly secondary?: boolean;
 	readonly hoverDelegate?: IHoverDelegate;
+	readonly disabled?: boolean;
 }
 
 export interface IButtonStyles {
@@ -131,6 +132,7 @@ export class Button extends Disposable implements IButton {
 			this._element.setAttribute('aria-label', options.ariaLabel);
 		}
 		container.appendChild(this._element);
+		this.enabled = !options.disabled;
 
 		this._register(Gesture.addTarget(this._element));
 
@@ -331,7 +333,9 @@ export class Button extends Disposable implements IButton {
 	}
 
 	setTitle(title: string) {
-		if (!this._hover && title !== '') {
+		if (this.options.hoverDelegate?.showNativeHover) {
+			this._element.title = title;
+		} else if (!this._hover && title !== '') {
 			this._hover = this._register(getBaseLayerHoverDelegate().setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('element'), this._element, title));
 		} else if (this._hover) {
 			this._hover.update(title);

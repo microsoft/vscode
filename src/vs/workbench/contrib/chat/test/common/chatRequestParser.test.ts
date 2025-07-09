@@ -18,9 +18,9 @@ import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
-import { ChatMode, ChatAgentLocation } from '../../common/constants.js';
+import { ChatModeKind, ChatAgentLocation } from '../../common/constants.js';
 import { IToolData, ToolDataSource } from '../../common/languageModelToolsService.js';
-import { IPromptsService } from '../../common/promptSyntax/service/types.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { MockChatService } from './mockChatService.js';
 import { MockPromptsService } from './mockPromptsService.js';
 
@@ -215,7 +215,7 @@ suite('ChatRequestParser', () => {
 	// });
 
 	const getAgentWithSlashCommands = (slashCommands: IChatAgentCommand[]) => {
-		return { id: 'agent', name: 'agent', extensionId: nullExtensionDescription.identifier, publisherDisplayName: '', extensionDisplayName: '', extensionPublisherId: '', locations: [ChatAgentLocation.Panel], modes: [ChatMode.Ask], metadata: {}, slashCommands, disambiguation: [] } satisfies IChatAgentData;
+		return { id: 'agent', name: 'agent', extensionId: nullExtensionDescription.identifier, publisherDisplayName: '', extensionDisplayName: '', extensionPublisherId: '', locations: [ChatAgentLocation.Panel], modes: [ChatModeKind.Ask], metadata: {}, slashCommands, disambiguation: [] } satisfies IChatAgentData;
 	};
 
 	test('agent with subcommand after text', async () => {
@@ -244,7 +244,7 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const result = parser.parseChatRequest('1', '@agent hello', undefined, { mode: ChatMode.Edit });
+		const result = parser.parseChatRequest('1', '@agent hello', undefined, { mode: ChatModeKind.Edit });
 		await assertSnapshot(result);
 	});
 

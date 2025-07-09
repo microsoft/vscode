@@ -15,9 +15,10 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatToolInvocation } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
-import { ChatMode } from '../../common/constants.js';
+import { ChatModeKind } from '../../common/constants.js';
 import { IToolData, ToolSet } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { ToolsScope } from '../chatSelectedTools.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { showToolsPicker } from './chatToolPicker.js';
 
@@ -78,13 +79,13 @@ class ConfigureToolsAction extends Action2 {
 			icon: Codicon.tools,
 			f1: false,
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
-			menu: {
-				when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
+			precondition: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+			menu: [{
+				when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 				id: MenuId.ChatExecute,
 				group: 'navigation',
 				order: 1,
-			}
+			}]
 		});
 	}
 
@@ -110,7 +111,25 @@ class ConfigureToolsAction extends Action2 {
 			return;
 		}
 
-		await instaService.invokeFunction(showToolsPicker, localize('placeholder', "Select tools that are available to chat"), widget.input.selectedToolsModel.entriesMap, newEntriesMap => {
+		let placeholder;
+		let description;
+		const { entriesScope, entriesMap } = widget.input.selectedToolsModel;
+		switch (entriesScope) {
+			case ToolsScope.Session:
+				placeholder = localize('chat.tools.placeholder.session', "Select tools for this chat session");
+				description = localize('chat.tools.description.session', "The selected tools were configured by a prompt command and only apply to this chat session.");
+				break;
+			case ToolsScope.Mode:
+				placeholder = localize('chat.tools.placeholder.mode', "Select tools for this chat mode");
+				description = localize('chat.tools.description.mode', "The selected tools are configured by the '{0}' chat mode. Changes to the tools will be applied to the mode file as well.", widget.input.currentModeObs.get().name);
+				break;
+			case ToolsScope.Global:
+				placeholder = localize('chat.tools.placeholder.global', "Select tools that are available to chat.");
+				description = undefined;
+				break;
+		}
+
+		const result = await instaService.invokeFunction(showToolsPicker, placeholder, description, entriesMap.get(), newEntriesMap => {
 			const disableToolSets: ToolSet[] = [];
 			const disableTools: IToolData[] = [];
 			for (const [item, enabled] of newEntriesMap) {
@@ -122,11 +141,13 @@ class ConfigureToolsAction extends Action2 {
 					}
 				}
 			}
-			widget.input.selectedToolsModel.disable(disableToolSets, disableTools, false);
 		});
+		if (result) {
+			widget.input.selectedToolsModel.set(result, false);
+		}
 
 		telemetryService.publicLog2<SelectedToolData, SelectedToolClassification>('chat/selectedTools', {
-			total: widget.input.selectedToolsModel.entriesMap.size,
+			total: widget.input.selectedToolsModel.entriesMap.get().size,
 			enabled: widget.input.selectedToolsModel.entries.get().size,
 		});
 	}

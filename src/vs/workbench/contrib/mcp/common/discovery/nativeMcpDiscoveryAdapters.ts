@@ -51,7 +51,7 @@ export function claudeConfigToServerDefinition(idPrefix: string, contents: VSBuf
 				command: server.command,
 				env: server.env || {},
 				envFile: undefined,
-				cwd,
+				cwd: cwd?.fsPath,
 			}
 		};
 	});

@@ -5,13 +5,11 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { StringSHA1 } from '../../../../base/common/hash.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
-import { indexOfPattern } from '../../../../base/common/strings.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -37,8 +35,6 @@ const createTrustMemento = observableMemento<Readonly<Record<string, boolean>>>(
 	key: 'mcp.trustedCollections'
 });
 
-const collectionPrefixLen = 3;
-
 export class McpRegistry extends Disposable implements IMcpRegistry {
 	declare public readonly _serviceBrand: undefined;
 
@@ -52,41 +48,6 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			return [];
 		}
 		return this._collections.read(reader);
-	});
-
-	private readonly _collectionToPrefixes = this._collections.map(c => {
-		// This creates tool prefixes based on a hash of the collection ID. This is
-		// a short prefix because tool names that are too long can cause errors (#243602).
-		// So we take a hash (in order for tools to be stable, because randomized
-		// names can cause hallicinations if present in history) and then adjust
-		// them if there are any collisions.
-		type CollectionHash = { view: number; hash: string; collection: McpCollectionDefinition };
-
-		const hashes = c.map((collection): CollectionHash => {
-			const sha = new StringSHA1();
-			sha.update(collection.id);
-			const hash = sha.digest();
-			// Gemini errors if the name starts with a number (microsoft/vscode-copilot-release#7152)
-			return { view: indexOfPattern(hash, /[a-z]/i), hash, collection };
-		});
-
-		const view = (h: CollectionHash) => h.hash.slice(h.view, h.view + collectionPrefixLen);
-
-		let collided = false;
-		do {
-			hashes.sort((a, b) => view(a).localeCompare(view(b)) || a.collection.id.localeCompare(b.collection.id));
-			collided = false;
-			for (let i = 1; i < hashes.length; i++) {
-				const prev = hashes[i - 1];
-				const curr = hashes[i];
-				if (view(prev) === view(curr) && curr.view + collectionPrefixLen < curr.hash.length) {
-					curr.view++;
-					collided = true;
-				}
-			}
-		} while (collided);
-
-		return Object.fromEntries(hashes.map(h => [h.collection.id, view(h) + '.']));
 	});
 
 	private readonly _workspaceStorage = new Lazy(() => this._register(this._instantiationService.createInstance(McpRegistryInputStorage, StorageScope.WORKSPACE, StorageTarget.USER)));
@@ -150,7 +111,8 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		if (toReplace) {
 			this._collections.set(currentCollections.map(c => c === toReplace ? collection : c), undefined);
 		} else {
-			this._collections.set([...currentCollections, collection], undefined);
+			this._collections.set([...currentCollections, collection]
+				.sort((a, b) => (a.presentation?.order || 0) - (b.presentation?.order || 0)), undefined);
 		}
 
 		return {
@@ -167,10 +129,6 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			const server = collection?.serverDefinitions.read(reader).find(s => s.id === definitionRef.id);
 			return { collection, server };
 		});
-	}
-
-	public collectionToolPrefix(collection: McpCollectionReference): IObservable<string> {
-		return this._collectionToPrefixes.map(p => p[collection.id] ?? '');
 	}
 
 	public async discoverCollections(): Promise<McpCollectionDefinition[]> {

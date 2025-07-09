@@ -32,6 +32,7 @@ import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import * as arrays from '../../../../../base/common/arrays.js';
 import { renderStringAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 
 class ChatEditorOverlayWidget extends Disposable {
 
@@ -49,6 +50,7 @@ class ChatEditorOverlayWidget extends Disposable {
 	constructor(
 		private readonly _editor: { focus(): void },
 		@IChatService private readonly _chatService: IChatService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
 		super();
@@ -272,8 +274,21 @@ class ChatEditorOverlayWidget extends Disposable {
 								that._editor.focus();
 							});
 						}
+
 						override get actionRunner(): IActionRunner {
 							return super.actionRunner;
+						}
+
+						protected override getTooltip(): string | undefined {
+							const value = super.getTooltip();
+							if (!value) {
+								return value;
+							}
+							const kb = that._keybindingService.lookupKeybinding(this.action.id);
+							if (!kb) {
+								return value;
+							}
+							return localize('tooltip', "{0} ({1})", value, kb.getLabel());
 						}
 					};
 				}

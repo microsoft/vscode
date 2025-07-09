@@ -5,11 +5,8 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
-import { registerColor } from '../../../../platform/theme/common/colorRegistry.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-import { PANEL_BORDER } from '../../../common/theme.js';
 
-export const preferencesSashBorder = registerColor('preferences.sashBorder', PANEL_BORDER, localize('preferencesSashBorder', "The color of the Preferences editor splitview sash border."));
 export const settingsScopeDropDownIcon = registerIcon('settings-folder-dropdown', Codicon.triangleDown, localize('settingsScopeDropDownIcon', 'Icon for the folder dropdown button in the split JSON Settings editor.'));
 export const settingsMoreActionIcon = registerIcon('settings-more-action', Codicon.gear, localize('settingsMoreActionIcon', 'Icon for the \'more actions\' action in the Settings UI.'));
 
@@ -25,5 +22,6 @@ export const settingsRemoveIcon = registerIcon('settings-remove', Codicon.close,
 export const settingsDiscardIcon = registerIcon('settings-discard', Codicon.discard, localize('preferencesDiscardIcon', 'Icon for the discard action in the Settings UI.'));
 
 export const preferencesClearInputIcon = registerIcon('preferences-clear-input', Codicon.clearAll, localize('preferencesClearInput', 'Icon for clear input in the Settings and keybinding UI.'));
+export const preferencesAiResultsIcon = registerIcon('preferences-ai-results', Codicon.sparkle, localize('preferencesAiResults', 'Icon for showing AI results in the Settings UI.'));
 export const preferencesFilterIcon = registerIcon('preferences-filter', Codicon.filter, localize('settingsFilter', 'Icon for the button that suggests filters for the Settings UI.'));
 export const preferencesOpenSettingsIcon = registerIcon('preferences-open-settings', Codicon.goToFile, localize('preferencesOpenSettings', 'Icon for open settings commands.'));

@@ -117,6 +117,17 @@ export function raceCancellationError<T>(promise: Promise<T>, token: Cancellatio
 }
 
 /**
+ * Wraps a cancellable promise such that it is no cancellable. Can be used to
+ * avoid issues with shared promises that would normally be returned as
+ * cancellable to consumers.
+ */
+export function notCancellablePromise<T>(promise: CancelablePromise<T>): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
+		promise.then(resolve, reject);
+	});
+}
+
+/**
  * Returns as soon as one of the promises resolves or rejects and cancels remaining promises
  */
 export function raceCancellablePromises<T>(cancellablePromises: (CancelablePromise<T> | Promise<T>)[]): CancelablePromise<T> {
@@ -1448,7 +1459,8 @@ export let runWhenGlobalIdle: (callback: (idle: IdleDeadline) => void, timeout?:
 export let _runWhenIdle: (targetWindow: IdleApi, callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
 
 (function () {
-	if (typeof globalThis.requestIdleCallback !== 'function' || typeof globalThis.cancelIdleCallback !== 'function') {
+	const safeGlobal: any = globalThis;
+	if (typeof safeGlobal.requestIdleCallback !== 'function' || typeof safeGlobal.cancelIdleCallback !== 'function') {
 		_runWhenIdle = (_targetWindow, runner, timeout?) => {
 			setTimeout0(() => {
 				if (disposed) {
@@ -1474,7 +1486,7 @@ export let _runWhenIdle: (targetWindow: IdleApi, callback: (idle: IdleDeadline) 
 			};
 		};
 	} else {
-		_runWhenIdle = (targetWindow: IdleApi, runner, timeout?) => {
+		_runWhenIdle = (targetWindow: typeof safeGlobal, runner, timeout?) => {
 			const handle: number = targetWindow.requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
 			let disposed = false;
 			return {
@@ -1731,7 +1743,7 @@ export class DeferredPromise<T> {
 
 	private completeCallback!: ValueCallback<T>;
 	private errorCallback!: (err: unknown) => void;
-	private outcome?: { outcome: DeferredOutcome.Rejected; value: any } | { outcome: DeferredOutcome.Resolved; value: T };
+	private outcome?: { outcome: DeferredOutcome.Rejected; value: unknown } | { outcome: DeferredOutcome.Resolved; value: T };
 
 	public get isRejected() {
 		return this.outcome?.outcome === DeferredOutcome.Rejected;
@@ -1772,6 +1784,13 @@ export class DeferredPromise<T> {
 			this.outcome = { outcome: DeferredOutcome.Rejected, value: err };
 			resolve();
 		});
+	}
+
+	public settleWith(promise: Promise<T>): Promise<void> {
+		return promise.then(
+			value => this.complete(value),
+			error => this.error(error)
+		);
 	}
 
 	public cancel() {
@@ -2063,6 +2082,8 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 		});
 	}
 
+	public filter<T2 extends T>(filterFn: (item: T) => item is T2): AsyncIterableObject<T2>;
+	public filter(filterFn: (item: T) => boolean): AsyncIterableObject<T>;
 	public filter(filterFn: (item: T) => boolean): AsyncIterableObject<T> {
 		return AsyncIterableObject.filter(this, filterFn);
 	}
