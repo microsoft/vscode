@@ -82,11 +82,41 @@ export function escape(html: string): string {
 	});
 }
 
+const CONTROL_ESCAPES = new Map(Object.entries({ '\t': 't', '\n': 'n', '\v': 'v', '\f': 'f', '\r': 'r' }));
+const SYNTAX_CHARACTERS = /[\^$\\.*+?()[\]{}|/]/;
+const ESCAPABLE = /[,\-=<>#&!%:;@~'`"\t\v\f\uFEFF\p{Zs}\n\r\u2028\u2029\uD800-\uDFFF]/u;
+const ASCII_ALPHANUMERIC = /[a-zA-Z0-9]/;
+
+function escapeRegExpChar(char: string) {
+	if (SYNTAX_CHARACTERS.test(char)) {
+		return '\\' + char;
+	}
+	if (CONTROL_ESCAPES.has(char)) {
+		return '\\' + CONTROL_ESCAPES.get(char);
+	}
+	if (ESCAPABLE.test(char)) {
+		if (/[\x00-\xFF]/.test(char)) {
+			return `\\x${char.charCodeAt(0).toString(16).padStart(2, '0')}`;
+		}
+		return char.split('').map((c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`).join('');
+	}
+	return char;
+}
+
 /**
  * Escapes regular expression characters in a given string
+ * using identical logic to `RegExp.escape` (not yet available in Electron)
  */
 export function escapeRegExpCharacters(value: string): string {
-	return value.replace(/[\\\{\}\*\+\?\|\^\$\.\[\]\(\)]/g, '\\$&');
+	let escaped = '';
+	for (const char of value) {
+		if (escaped === '' && ASCII_ALPHANUMERIC.test(char)) {
+			escaped += `\\x${char.charCodeAt(0).toString(16).padStart(2, '0')}`;
+		} else {
+			escaped += escapeRegExpChar(char);
+		}
+	}
+	return escaped;
 }
 
 /**
