@@ -76,12 +76,12 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		for (const key in policyDefinitions) {
 			const policy = policyDefinitions[key];
 
-			// Map chat preview features with CHAT + PREVIEW tags
-			if (hasTags(policy, [PolicyTag.Chat, PolicyTag.Preview])) {
+			// Map chat preview features with ACCOUNT + PREVIEW tags
+			if (hasTags(policy, [PolicyTag.Account, PolicyTag.Preview])) {
 				updateIfNeeded(key, policy, this.accountPolicy?.chatPreviewFeaturesEnabled);
 			}
 			// Map MCP feature with MCP tag
-			else if (hasTags(policy, [PolicyTag.MCP])) {
+			else if (hasTags(policy, [PolicyTag.Account, PolicyTag.MCP])) {
 				updateIfNeeded(key, policy, this.accountPolicy?.mcpEnabled);
 			}
 		}

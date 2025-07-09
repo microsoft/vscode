@@ -57,7 +57,7 @@ suite('MultiplexPolicyService', () => {
 					name: 'PolicySettingB',
 					minimumVersion: '1.0.0',
 					defaultValue: "policyValueB",
-					tags: [PolicyTag.Chat, PolicyTag.Preview]
+					tags: [PolicyTag.Account, PolicyTag.Preview]
 				}
 			},
 			'setting.C': {
@@ -67,7 +67,7 @@ suite('MultiplexPolicyService', () => {
 					name: 'PolicySettingC',
 					minimumVersion: '1.0.0',
 					defaultValue: JSON.stringify(['policyValueC1', 'policyValueC2']),
-					tags: [PolicyTag.Chat, PolicyTag.Preview]
+					tags: [PolicyTag.Account, PolicyTag.Preview]
 				}
 			},
 			'setting.D': {
@@ -77,7 +77,7 @@ suite('MultiplexPolicyService', () => {
 					name: 'PolicySettingD',
 					minimumVersion: '1.0.0',
 					defaultValue: false,
-					tags: [PolicyTag.Chat, PolicyTag.Preview]
+					tags: [PolicyTag.Account, PolicyTag.Preview]
 				}
 			},
 			'setting.E': {

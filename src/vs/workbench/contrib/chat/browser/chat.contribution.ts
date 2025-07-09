@@ -223,7 +223,7 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatToolsAutoApprove',
 				minimumVersion: '1.99',
 				defaultValue: false,
-				tags: [PolicyTag.Chat, PolicyTag.Preview]
+				tags: [PolicyTag.Account, PolicyTag.Preview]
 			}
 		},
 		'chat.sendElementsToChat.enabled': {
@@ -264,7 +264,7 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatMCP',
 				minimumVersion: '1.99',
-				tags: [PolicyTag.Chat, PolicyTag.MCP]
+				tags: [PolicyTag.Account, PolicyTag.MCP]
 			}
 		},
 		[mcpServerSamplingSection]: {
@@ -324,7 +324,7 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatAgentMode',
 				minimumVersion: '1.99',
-				tags: [PolicyTag.Chat],
+				tags: [PolicyTag.Account],
 			}
 		},
 		[mcpDiscoverySection]: {
@@ -376,7 +376,7 @@ configurationRegistry.registerConfiguration({
 				minimumVersion: '1.99',
 				description: nls.localize('chat.promptFiles.policy', "Enables reusable prompt and instruction files in Chat, Edits, and Inline Chat sessions."),
 				defaultValue: false,
-				tags: [PolicyTag.Chat, PolicyTag.Preview]
+				tags: [PolicyTag.Account, PolicyTag.Preview]
 			}
 		},
 		[PromptsConfig.INSTRUCTIONS_LOCATION_KEY]: {
