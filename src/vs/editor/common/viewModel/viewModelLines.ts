@@ -17,7 +17,8 @@ import * as viewEvents from '../viewEvents.js';
 import { createModelLineProjection, IModelLineProjection } from './modelLineProjection.js';
 import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory } from '../modelLineProjectionData.js';
 import { ConstantTimePrefixSumComputer } from '../model/prefixSumComputer.js';
-import { ICoordinatesConverter, ViewLineData } from '../viewModel.js';
+import { ViewLineData } from '../viewModel.js';
+import { ICoordinatesConverter, IdentityCoordinatesConverter } from '../coordinatesConverter.js';
 
 export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
@@ -1120,7 +1121,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 	}
 
 	public createCoordinatesConverter(): ICoordinatesConverter {
-		return new IdentityCoordinatesConverter(this);
+		return new IdentityCoordinatesConverter(this.model);
 	}
 
 	public getHiddenAreas(): Range[] {
@@ -1253,79 +1254,5 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 	public getInjectedTextAt(position: Position): InjectedText | null {
 		// Identity lines collection does not support injected text.
 		return null;
-	}
-}
-
-class IdentityCoordinatesConverter implements ICoordinatesConverter {
-	private readonly _lines: ViewModelLinesFromModelAsIs;
-
-	constructor(lines: ViewModelLinesFromModelAsIs) {
-		this._lines = lines;
-	}
-
-	private _validPosition(pos: Position): Position {
-		return this._lines.model.validatePosition(pos);
-	}
-
-	private _validRange(range: Range): Range {
-		return this._lines.model.validateRange(range);
-	}
-
-	// View -> Model conversion and related methods
-
-	public convertViewPositionToModelPosition(viewPosition: Position): Position {
-		return this._validPosition(viewPosition);
-	}
-
-	public convertViewRangeToModelRange(viewRange: Range): Range {
-		return this._validRange(viewRange);
-	}
-
-	public validateViewPosition(_viewPosition: Position, expectedModelPosition: Position): Position {
-		return this._validPosition(expectedModelPosition);
-	}
-
-	public validateViewRange(_viewRange: Range, expectedModelRange: Range): Range {
-		return this._validRange(expectedModelRange);
-	}
-
-	// Model -> View conversion and related methods
-
-	public convertModelPositionToViewPosition(modelPosition: Position): Position {
-		return this._validPosition(modelPosition);
-	}
-
-	public convertModelRangeToViewRange(modelRange: Range): Range {
-		return this._validRange(modelRange);
-	}
-
-	public modelPositionIsVisible(modelPosition: Position): boolean {
-		const lineCount = this._lines.model.getLineCount();
-		if (modelPosition.lineNumber < 1 || modelPosition.lineNumber > lineCount) {
-			// invalid arguments
-			return false;
-		}
-		return true;
-	}
-
-	public modelRangeIsVisible(modelRange: Range): boolean {
-		const lineCount = this._lines.model.getLineCount();
-		if (modelRange.startLineNumber < 1 || modelRange.startLineNumber > lineCount) {
-			// invalid arguments
-			return false;
-		}
-		if (modelRange.endLineNumber < 1 || modelRange.endLineNumber > lineCount) {
-			// invalid arguments
-			return false;
-		}
-		return true;
-	}
-
-	public getModelLineViewLineCount(modelLineNumber: number): number {
-		return 1;
-	}
-
-	public getViewLineNumberOfModelPosition(modelLineNumber: number, modelColumn: number): number {
-		return modelLineNumber;
 	}
 }

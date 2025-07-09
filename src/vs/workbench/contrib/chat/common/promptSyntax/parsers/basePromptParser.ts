@@ -23,7 +23,7 @@ import type { IPromptContentsProvider } from '../contentProviders/types.js';
 import type { TPromptReference, ITopError } from './types.js';
 import { type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { assert, assertNever } from '../../../../../../base/common/assert.js';
-import { basename, dirname } from '../../../../../../base/common/resources.js';
+import { basename, dirname, joinPath } from '../../../../../../base/common/resources.js';
 import { BaseToken } from '../codecs/base/baseToken.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { type IRange, Range } from '../../../../../../editor/common/core/range.js';
@@ -31,7 +31,6 @@ import { PromptHeader, type TPromptMetadata } from './promptHeader/promptHeader.
 import { ObservableDisposable } from '../utils/observableDisposable.js';
 import { INSTRUCTIONS_LANGUAGE_ID, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../promptTypes.js';
 import { LinesDecoder } from '../codecs/base/linesCodec/linesDecoder.js';
-import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MarkdownLink } from '../codecs/base/markdownCodec/tokens/markdownLink.js';
 import { MarkdownToken } from '../codecs/base/markdownCodec/tokens/markdownToken.js';
@@ -39,17 +38,13 @@ import { FrontMatterHeader } from '../codecs/base/markdownExtensionsCodec/tokens
 import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ResolveError } from '../../promptFileReferenceErrors.js';
 import { type IPromptContentsProviderOptions } from '../contentProviders/promptContentsProviderBase.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 
 /**
  * Options of the {@link BasePromptParser} class.
  */
 export interface IBasePromptParserOptions {
-	/**
-	 * List of reference paths have been already seen before
-	 * getting to the current prompt. Used to prevent infinite
-	 * recursion in prompt file references.
-	 */
-	readonly seenReferences: readonly string[];
 }
 
 export type IPromptParserOptions = IBasePromptParserOptions & IPromptContentsProviderOptions;
@@ -66,8 +61,7 @@ export type TErrorCondition = OpenFailed | RecursiveReference | FolderReference 
  */
 export class BasePromptParser<TContentsProvider extends IPromptContentsProvider> extends ObservableDisposable {
 	/**
-	 * Options passed to the constructor, extended with
-	 * value defaults from {@link DEFAULT_OPTIONS}.
+	 * Options passed to the constructor.
 	 */
 	protected readonly options: IBasePromptParserOptions;
 
@@ -197,7 +191,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * block until the latest prompt contents parsing logic is settled
 	 * (e.g., for every `onContentChanged` event of the prompt source).
 	 */
-	public async settled(): Promise<this> {
+	public async settled(): Promise<boolean> {
 		assert(
 			this.started,
 			'Cannot wait on the parser that did not start yet.',
@@ -206,13 +200,13 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		await this.firstParseResult.promise;
 
 		if (this.errorCondition) {
-			return this;
+			return false;
 		}
 
 		// by the time when the `firstParseResult` promise is resolved,
 		// this object may have been already disposed, hence noop
 		if (this.isDisposed) {
-			return this;
+			return false;
 		}
 
 		assertDefined(
@@ -220,64 +214,34 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			'No stream reference found.',
 		);
 
-		await this.stream.settled;
+		const completed = await this.stream.settled;
 
 		// if prompt header exists, also wait for it to be settled
 		if (this.promptHeader) {
-			await this.promptHeader.settled;
+			const headerCompleted = await this.promptHeader.settled;
+			if (!headerCompleted) {
+				return false;
+			}
 		}
 
-		return this;
-	}
-
-	/**
-	 * Same as {@link settled} but also waits for all possible
-	 * nested child prompt references and their children to be settled.
-	 */
-	public async allSettled(): Promise<this> {
-		await this.settled();
-
-		return this;
+		return completed;
 	}
 
 	constructor(
 		private readonly promptContentsProvider: TContentsProvider,
 		options: IBasePromptParserOptions,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+		@IWorkbenchEnvironmentService private readonly envService: IWorkbenchEnvironmentService,
 		@ILogService protected readonly logService: ILogService,
 	) {
 		super();
 
 		this.options = options;
 
-		const seenReferences = [...this.options.seenReferences];
-
-		// to prevent infinite file recursion, we keep track of all references in
-		// the current branch of the file reference tree and check if the current
-		// file reference has been already seen before
-		if (seenReferences.includes(this.uri.path)) {
-			seenReferences.push(this.uri.path);
-
-			this._errorCondition = new RecursiveReference(
-				this.uri,
-				seenReferences,
-			);
-			this._onUpdate.fire();
-			this.firstParseResult.end();
-
-			return this;
-		}
-
-		// we don't care if reading the file fails below, hence can add the path
-		// of the current reference to the `seenReferences` set immediately, -
-		// even if the file doesn't exist, we would never end up in the recursion
-		seenReferences.push(this.uri.path);
-
 		this._register(
 			this.promptContentsProvider.onContentChanged((streamOrError) => {
 				// process the received message
-				this.onContentsChanged(streamOrError, seenReferences);
+				this.onContentsChanged(streamOrError);
 
 				// indicate that we've received at least one `onContentChanged` event
 				this.firstParseResult.end();
@@ -306,8 +270,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * 						references recursion.
 	 */
 	private onContentsChanged(
-		streamOrError: VSBufferReadableStream | ResolveError,
-		seenReferences: string[],
+		streamOrError: VSBufferReadableStream | ResolveError
 	): void {
 		// dispose and cleanup the previously received stream
 		// object or an error condition, if any received yet
@@ -363,7 +326,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			// try to convert a prompt variable with data token into a file reference
 			if (token instanceof PromptVariableWithData) {
 				try {
-					this.handleLinkToken(FileReference.from(token), [...seenReferences]);
+					this.handleLinkToken(FileReference.from(token));
 				} catch (error) {
 					// the `FileReference.from` call might throw if the `PromptVariableWithData` token
 					// can not be converted into a valid `#file` reference, hence we ignore the error
@@ -373,7 +336,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			// note! the `isURL` is a simple check and needs to be improved to truly
 			// 		 handle only file references, ignoring broken URLs or references
 			if (token instanceof MarkdownLink && !token.isURL) {
-				this.handleLinkToken(token, [...seenReferences]);
+				this.handleLinkToken(token);
 			}
 		});
 
@@ -417,16 +380,20 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	/**
 	 * Handle a new reference token inside prompt contents.
 	 */
-	private handleLinkToken(
-		token: FileReference | MarkdownLink,
-		seenReferences: string[],
-	): this {
-		const { parentFolder } = this;
+	private handleLinkToken(token: FileReference | MarkdownLink): this {
 
-		const referenceUri = ((parentFolder !== null) && (path.isAbsolute(token.path) === false))
-			? URI.joinPath(parentFolder, token.path)
-			: URI.file(token.path);
-
+		let referenceUri: URI;
+		if (path.isAbsolute(token.path)) {
+			referenceUri = URI.file(token.path);
+			if (this.envService.remoteAuthority) {
+				referenceUri = referenceUri.with({
+					scheme: Schemas.vscodeRemote,
+					authority: this.envService.remoteAuthority,
+				});
+			}
+		} else {
+			referenceUri = joinPath(dirname(this.uri), token.path);
+		}
 		this._references.push(new PromptReference(referenceUri, token));
 
 		this._onUpdate.fire();
@@ -502,29 +469,6 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 */
 	public get uri(): URI {
 		return this.promptContentsProvider.uri;
-	}
-
-	/**
-	 * Get the parent folder URI of the prompt.
-	 * For instance, if prompt URI points to a file on a disk, this
-	 * function will return the folder URI that contains that file,
-	 * but if the URI points to an `untitled` document, will try to
-	 * use a different folder URI based on the workspace state.
-	 */
-	public get parentFolder(): URI | null {
-		if (this.uri.scheme === 'file') {
-			return dirname(this.uri);
-		}
-
-		const { folders } = this.workspaceService.getWorkspace();
-
-		// single-root workspace, use root folder URI
-		if (folders.length === 1) {
-			return folders[0].uri;
-		}
-
-		// if a multi-root workspace, or no workspace at all
-		return null;
 	}
 
 	/**

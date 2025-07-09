@@ -13,6 +13,7 @@ import Severity from '../../../base/common/severity.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import * as nls from '../../../nls.js';
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
+import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
 import { IMcpMessageTransport, IMcpRegistry } from '../../contrib/mcp/common/mcpRegistryTypes.js';
 import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
@@ -91,6 +92,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			const serverDefinitions = observableValue<readonly McpServerDefinition[]>('mcpServers', servers);
 			const handle = this._mcpRegistry.registerCollection({
 				...collection,
+				source: new ExtensionIdentifier(collection.extensionId),
 				resolveServerLanch: collection.canResolveLaunch ? (async def => {
 					const r = await this._proxy.$resolveMcpLaunch(collection.id, def.label);
 					return r ? McpServerLaunch.fromSerialized(r) : undefined;
