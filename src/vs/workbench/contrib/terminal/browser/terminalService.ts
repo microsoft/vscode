@@ -846,6 +846,8 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}));
 		instanceDisposables.add(instance.onDidFocus(this._onDidChangeActiveInstance.fire, this._onDidChangeActiveInstance));
 		instanceDisposables.add(instance.onRequestAddInstanceToGroup(async e => await this._addInstanceToGroup(instance, e)));
+		instanceDisposables.add(instance.onDidChangeShellType(() => this._extensionService.activateByEvent(`onTerminal:${instance.shellType}`)));
+		instanceDisposables.add(instance.onDidChangeShellType(() => this._extensionService.activateByEvent(`onTerminalShellIntegration:${instance.shellType}`)));
 		const disposeListener = this._register(instance.onDisposed(() => {
 			instanceDisposables.dispose();
 			this._store.delete(disposeListener);
@@ -1024,7 +1026,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 		} else {
 			instance = this._createTerminal(shellLaunchConfig, location, options);
 		}
-		this._register(instance.onDidChangeShellType(() => this._extensionService.activateByEvent(`onTerminal:${instance.shellType}`)));
 		if (instance.shellType) {
 			this._extensionService.activateByEvent(`onTerminal:${instance.shellType}`);
 		}
