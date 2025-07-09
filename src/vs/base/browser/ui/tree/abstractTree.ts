@@ -371,7 +371,9 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 				this.indent = indent;
 
 				for (const [node, templateData] of this.renderedNodes) {
-					templateData.indentSize = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
+					// For first-level nodes that are not collapsible, use minimal indentation to avoid excessive spacing
+					const baseIndent = (node.depth === 1 && !node.collapsible) ? 0 : TreeRenderer.DefaultIndent;
+					templateData.indentSize = baseIndent + (node.depth - 1) * this.indent;
 					this.renderTreeElement(node, templateData);
 				}
 			}
@@ -415,7 +417,9 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 	}
 
 	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, details?: IListElementRenderDetails): void {
-		templateData.indentSize = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
+		// For first-level nodes that are not collapsible, use minimal indentation to avoid excessive spacing
+		const baseIndent = (node.depth === 1 && !node.collapsible) ? 0 : TreeRenderer.DefaultIndent;
+		templateData.indentSize = baseIndent + (node.depth - 1) * this.indent;
 
 		this.renderedNodes.set(node, templateData);
 		this.renderedElements.set(node.element, node);
