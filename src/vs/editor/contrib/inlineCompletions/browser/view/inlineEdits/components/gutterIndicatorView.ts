@@ -197,7 +197,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 			const layout = this._editorObs.layoutInfo.read(reader);
 
-			const lineHeight = this._editorObs.getOption(EditorOption.lineHeight).read(reader);
+			const lineHeight = this._editorObs.observeLineHeightForLine(s.range.map(r => r.startLineNumber)).read(reader);
 			const gutterViewPortPadding = 1;
 
 			// Entire gutter view from top left to bottom right

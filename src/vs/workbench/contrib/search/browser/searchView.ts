@@ -1656,6 +1656,7 @@ export class SearchView extends ViewPane {
 			this.inputPatternIncludes.onSearchSubmit();
 		});
 
+		this.viewModel.cancelSearch(true);
 		if (!shouldKeepAIResults) {
 			this.clearAIResults();
 		}
@@ -1745,10 +1746,10 @@ export class SearchView extends ViewPane {
 
 			if (aiName) {
 				const searchWithAIButtonTooltip = appendKeyBindingLabel(
-					nls.localize('triggerAISearch.tooltip', "Search with {0}", aiName),
+					nls.localize('triggerAISearch.tooltip', "Search with AI."),
 					this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.SearchWithAIActionId)
 				);
-				const searchWithAIButtonText = nls.localize('searchWithAIButtonTooltip', "Search with {0}.", aiName);
+				const searchWithAIButtonText = nls.localize('searchWithAIButtonTooltip', "Search with AI.");
 				const searchWithAIButton = this.messageDisposables.add(new SearchLinkButton(
 					searchWithAIButtonText,
 					() => {

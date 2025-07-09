@@ -33,4 +33,9 @@ export class TestSecretStorageService implements ISecretStorageService {
 	clear(): void {
 		this._storage.clear();
 	}
+
+	dispose(): void {
+		this._onDidChangeSecretEmitter.dispose();
+		this._storage.clear();
+	}
 }

@@ -8,12 +8,12 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IOffsetRange, OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
-import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from './chatModel.js';
 import { IChatSlashData } from './chatSlashCommands.js';
 import { IChatRequestProblemsVariable, IChatRequestVariableValue } from './chatVariables.js';
 import { ChatAgentLocation } from './constants.js';
 import { IToolData } from './languageModelToolsService.js';
-import { IChatPromptSlashCommand } from './promptSyntax/service/types.js';
+import { IChatPromptSlashCommand } from './promptSyntax/service/promptsService.js';
+import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from './chatVariableEntries.js';
 
 // These are in a separate file to avoid circular dependencies with the dependencies of the parser
 

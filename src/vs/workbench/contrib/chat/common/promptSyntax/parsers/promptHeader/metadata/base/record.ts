@@ -6,7 +6,7 @@
 import { assert } from '../../../../../../../../../base/common/assert.js';
 import { Range } from '../../../../../../../../../editor/common/core/range.js';
 import { PromptMetadataDiagnostic, PromptMetadataError, PromptMetadataWarning } from '../../diagnostics.js';
-import { FrontMatterRecord } from '../../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
+import { FrontMatterRecord } from '../../../../codecs/base/frontMatterCodec/tokens/index.js';
 
 /**
  * Supported primitive types for metadata values in a prompt header.

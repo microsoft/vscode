@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { IListOptions } from '../../../../../base/browser/ui/list/listWidget.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -46,7 +47,7 @@ import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
 
-export const $ = dom.$;
+const $ = dom.$;
 
 export interface IChatReferenceListItem extends IChatContentReference {
 	title?: string;
@@ -184,6 +185,7 @@ export class CollapsibleListPool extends Disposable {
 	constructor(
 		private _onDidChangeVisibility: Event<boolean>,
 		private readonly menuId: MenuId | undefined,
+		private readonly listOptions: IListOptions<IChatCollapsibleListItem> | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -205,6 +207,7 @@ export class CollapsibleListPool extends Disposable {
 			new CollapsibleListDelegate(),
 			[this.instantiationService.createInstance(CollapsibleListRenderer, resourceLabels, this.menuId)],
 			{
+				...this.listOptions,
 				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: {
 					getAriaLabel: (element: IChatCollapsibleListItem) => {

@@ -17,6 +17,7 @@ declare global {
 	function requestIdleCallback(callback: (args: IdleDeadline) => void, options?: { timeout: number }): number;
 	function cancelIdleCallback(handle: number): void;
 
+
 	// --- timeout / interval (available in all contexts, but different signatures in node.js vs web)
 
 	interface TimeoutHandle {readonly _: never; /* this is a trick that seems needed to prevent direct number assignment */}
@@ -26,6 +27,14 @@ declare global {
 
 	function setInterval(callback: (...args: any[]) => void, delay?: number, ...args: any[]): Timeout;
 	function clearInterval(timeout: Timeout | undefined): void;
+
+
+	// --- error
+
+	interface ErrorConstructor {
+		captureStackTrace(targetObject: object, constructorOpt?: Function): void;
+		stackTraceLimit: number;
+	}
 }
 
 export { }

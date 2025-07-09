@@ -260,9 +260,6 @@ const BufferPresets = {
 	Uint: createOneByteBuffer(DataType.Int),
 };
 
-declare const Buffer: any;
-const hasBuffer = (typeof Buffer !== 'undefined');
-
 export function serialize(writer: IWriter, data: any): void {
 	if (typeof data === 'undefined') {
 		writer.write(BufferPresets.Undefined);
@@ -271,7 +268,7 @@ export function serialize(writer: IWriter, data: any): void {
 		writer.write(BufferPresets.String);
 		writeInt32VQL(writer, buffer.byteLength);
 		writer.write(buffer);
-	} else if (hasBuffer && Buffer.isBuffer(data)) {
+	} else if (VSBuffer.isNativeBuffer(data)) {
 		const buffer = VSBuffer.wrap(data);
 		writer.write(BufferPresets.Buffer);
 		writeInt32VQL(writer, buffer.byteLength);

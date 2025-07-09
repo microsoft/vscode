@@ -700,7 +700,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'copilotSetup.customize',
 					title: localize('gettingStarted.customize.title', "Personalized to how you work"),
-					description: localize('gettingStarted.customize.description', "Swap models, add agent mode tools, and create personalized instructions.\n{0}", Button(localize('signUp', "Set up AI"), 'command:workbench.action.chat.triggerSetupWithoutDialog')),
+					description: localize('gettingStarted.customize.description', "Swap models, add agent mode tools, and create personalized instructions.\n{0}", Button(localize('signUp', "Enable AI features"), 'command:workbench.action.chat.triggerSetupWithoutDialog')),
 					media: {
 						type: 'svg', altText: 'Personalize', path: 'customize-ai.svg'
 					},
@@ -730,16 +730,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 						type: 'svg', altText: 'Language extensions', path: 'languages.svg'
 					},
 				},
-				{
-					id: 'newSettingsAndSync',
-					title: localize('newgettingStarted.settings.title', "Customize every aspect of VS Code"),
-					description: localize('newgettingStarted.settingsAndSync.description.interpolated', "[Back up and sync](command:workbench.userDataSync.actions.turnOn) settings across all your devices.\n{0}", Button(localize('tweakSettings', "Open Settings"), 'command:toSide:workbench.action.openSettings')),
-					when: 'syncStatus != uninitialized',
-					completionEvents: ['onEvent:sync-enabled'],
-					media: {
-						type: 'svg', altText: 'VS Code Settings', path: 'settings.svg'
-					},
-				},
+
 			]
 		}
 	}

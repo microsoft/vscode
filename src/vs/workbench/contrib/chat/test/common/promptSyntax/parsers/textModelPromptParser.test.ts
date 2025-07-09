@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ChatMode } from '../../../../common/constants.js';
+import { ChatModeKind } from '../../../../common/constants.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { ExpectedReference } from '../testUtils/expectedReference.js';
@@ -12,20 +12,21 @@ import { Range } from '../../../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { OpenFailed } from '../../../../common/promptFileReferenceErrors.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { randomBoolean } from '../../../../../../../base/test/common/testUtils.js';
-import { PromptsType } from '../../../../../../../platform/prompts/common/prompts.js';
+import { PROMPT_LANGUAGE_ID, INSTRUCTIONS_LANGUAGE_ID, MODE_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { INSTRUCTIONS_LANGUAGE_ID, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../../common/promptSyntax/constants.js';
+
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ExpectedDiagnosticError, ExpectedDiagnosticWarning, TExpectedDiagnostic } from '../testUtils/expectedDiagnostic.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
+
 
 /**
  * Test helper to run unit tests for the {@link TextModelPromptParser}
@@ -70,15 +71,16 @@ class TextModelPromptParserTest extends Disposable {
 
 		// create the parser instance
 		this.parser = this._register(
-			instantiationService.createInstance(TextModelPromptParser, this.model, {}),
+			instantiationService.createInstance(TextModelPromptParser, this.model, { allowNonPromptFiles: true, languageId: undefined, updateOnChange: true }),
 		).start();
 	}
 
 	/**
 	 * Wait for the prompt parsing/resolve process to finish.
 	 */
-	public allSettled(): Promise<TextModelPromptParser> {
-		return this.parser.allSettled();
+	public async allSettled(): Promise<TextModelPromptParser> {
+		await this.parser.settled();
+		return this.parser;
 	}
 
 	/**
@@ -87,7 +89,7 @@ class TextModelPromptParserTest extends Disposable {
 	public async validateReferences(
 		expectedReferences: readonly ExpectedReference[],
 	) {
-		await this.parser.allSettled();
+		await this.parser.settled();
 
 		const { references } = this.parser;
 		for (let i = 0; i < expectedReferences.length; i++) {
@@ -114,7 +116,7 @@ class TextModelPromptParserTest extends Disposable {
 	public async validateHeaderDiagnostics(
 		expectedDiagnostics: readonly TExpectedDiagnostic[],
 	) {
-		await this.parser.allSettled();
+		await this.parser.settled();
 
 		const { header } = this.parser;
 		assertDefined(
@@ -157,6 +159,7 @@ suite('TextModelPromptParser', () => {
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IFileService, disposables.add(instantiationService.createInstance(FileService)));
+		instantiationService.stub(IWorkbenchEnvironmentService, {});
 	});
 
 	/**
@@ -177,7 +180,7 @@ suite('TextModelPromptParser', () => {
 		);
 	};
 
-	test('• core logic #1', async () => {
+	test('core logic #1', async () => {
 		const test = createTest(
 			URI.file('/foo/bar.md'),
 			[
@@ -204,7 +207,6 @@ suite('TextModelPromptParser', () => {
 				startLine: 1,
 				startColumn: 27,
 				pathStartColumn: 33,
-				childrenOrError: new OpenFailed(URI.file('/abs/path/to/file.md'), 'File not found.'),
 			}),
 			new ExpectedReference({
 				uri: URI.file('/foo/folder/binary.file'),
@@ -213,7 +215,6 @@ suite('TextModelPromptParser', () => {
 				startLine: 7,
 				startColumn: 10,
 				pathStartColumn: 16,
-				childrenOrError: new OpenFailed(URI.file('/foo/folder/binary.file'), 'File not found.'),
 			}),
 			new ExpectedReference({
 				uri: URI.file('/etc/hosts/random-file.txt'),
@@ -222,12 +223,11 @@ suite('TextModelPromptParser', () => {
 				startLine: 7,
 				startColumn: 81,
 				pathStartColumn: 91,
-				childrenOrError: new OpenFailed(URI.file('/etc/hosts/random-file.txt'), 'File not found.'),
 			}),
 		]);
 	});
 
-	test('• core logic #2', async () => {
+	test('core logic #2', async () => {
 		const test = createTest(
 			URI.file('/absolute/folder/and/a/filename.txt'),
 			[
@@ -257,7 +257,6 @@ suite('TextModelPromptParser', () => {
 				startLine: 3,
 				startColumn: 43,
 				pathStartColumn: 55,
-				childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
 			}),
 			new ExpectedReference({
 				uri: URI.file('/absolute/c/file_name.prompt.md'),
@@ -266,7 +265,6 @@ suite('TextModelPromptParser', () => {
 				startLine: 6,
 				startColumn: 7,
 				pathStartColumn: 17,
-				childrenOrError: new OpenFailed(URI.file('/absolute/c/file_name.prompt.md'), 'File not found.'),
 			}),
 			new ExpectedReference({
 				uri: URI.file('/absolute/folder/main.rs'),
@@ -275,7 +273,6 @@ suite('TextModelPromptParser', () => {
 				startLine: 11,
 				startColumn: 36,
 				pathStartColumn: 42,
-				childrenOrError: new OpenFailed(URI.file('/absolute/folder/main.rs'), 'File not found.'),
 			}),
 			new ExpectedReference({
 				uri: URI.file('/absolute/folder/and/a/samefile.jpeg'),
@@ -284,15 +281,14 @@ suite('TextModelPromptParser', () => {
 				startLine: 11,
 				startColumn: 56,
 				pathStartColumn: 62,
-				childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/samefile.jpeg'), 'File not found.'),
 			}),
 		]);
 	});
 
-	suite('• header', () => {
-		suite(' • metadata', () => {
-			suite(' • instructions', () => {
-				test(`• empty header`, async () => {
+	suite('header', () => {
+		suite('metadata', () => {
+			suite('instructions', () => {
+				test(`empty header`, async () => {
 					const test = createTest(
 						URI.file('/absolute/folder/and/a/filename.txt'),
 						[
@@ -316,7 +312,6 @@ suite('TextModelPromptParser', () => {
 							startLine: 5,
 							startColumn: 43,
 							pathStartColumn: 50,
-							childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
 						}),
 					]);
 
@@ -335,7 +330,7 @@ suite('TextModelPromptParser', () => {
 					);
 				});
 
-				test(`• has correct 'instructions' metadata`, async () => {
+				test(`has correct 'instructions' metadata`, async () => {
 					const test = createTest(
 						URI.file('/absolute/folder/and/a/filename.instructions.md'),
 						[
@@ -365,7 +360,6 @@ suite('TextModelPromptParser', () => {
 							startLine: 11,
 							startColumn: 43,
 							pathStartColumn: 50,
-							childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
 						}),
 					]);
 
@@ -392,8 +386,8 @@ suite('TextModelPromptParser', () => {
 				});
 			});
 
-			suite(' • prompts', () => {
-				test(`• empty header`, async () => {
+			suite('prompts', () => {
+				test(`empty header`, async () => {
 					const test = createTest(
 						URI.file('/absolute/folder/and/a/filename.txt'),
 						[
@@ -417,7 +411,6 @@ suite('TextModelPromptParser', () => {
 							startLine: 5,
 							startColumn: 43,
 							pathStartColumn: 50,
-							childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
 						}),
 					]);
 
@@ -436,7 +429,7 @@ suite('TextModelPromptParser', () => {
 					);
 				});
 
-				test(`• has correct 'prompt' metadata`, async () => {
+				test(`has correct 'prompt' metadata`, async () => {
 					const test = createTest(
 						URI.file('/absolute/folder/and/a/filename.txt'),
 						[
@@ -447,12 +440,13 @@ suite('TextModelPromptParser', () => {
 					/* 05 */"	tools: [ 'tool_name3', \"tool_name4\" ]", /* duplicate `tools` record is ignored */
 					/* 06 */"	tools: 'tool_name5'", /* duplicate `tools` record with invalid value is ignored */
 					/* 07 */"	mode: 'agent'",
-					/* 07 */"	applyTo: 'frontend/**/*spec.ts'",
-					/* 08 */"---",
-					/* 09 */"The cactus on my desk has a thriving Instagram account.",
-					/* 10 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
-					/* 11 */"In an alternate universe, pigeons deliver sushi by drone.",
-					/* 12 */"Lunar rainbows only appear when you sing in falsetto.",
+					/* 08 */"	applyTo: 'frontend/**/*spec.ts'",
+					/* 09 */"	model: 'Super Finetune Turbo 2.3-o1'",
+					/* 10 */"---",
+					/* 11 */"The cactus on my desk has a thriving Instagram account.",
+					/* 12 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
+					/* 13 */"In an alternate universe, pigeons deliver sushi by drone.",
+					/* 14 */"Lunar rainbows only appear when you sing in falsetto.",
 					/* 13 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
 						],
 						PROMPT_LANGUAGE_ID,
@@ -463,10 +457,9 @@ suite('TextModelPromptParser', () => {
 							uri: URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
 							text: '[text](./foo-bar-baz/another-file.ts)',
 							path: './foo-bar-baz/another-file.ts',
-							startLine: 11,
+							startLine: 12,
 							startColumn: 43,
 							pathStartColumn: 50,
-							childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
 						}),
 					]);
 
@@ -488,14 +481,15 @@ suite('TextModelPromptParser', () => {
 							mode: 'agent',
 							description: 'My prompt.',
 							tools: ['tool_name1', 'tool_name2'],
+							model: 'Super Finetune Turbo 2.3-o1',
 						},
 						'Must have correct metadata.',
 					);
 				});
 			});
 
-			suite(' • modes', () => {
-				test(`• empty header`, async () => {
+			suite('modes', () => {
+				test(`empty header`, async () => {
 					const test = createTest(
 						URI.file('/absolute/folder/and/a/filename.txt'),
 						[
@@ -519,7 +513,6 @@ suite('TextModelPromptParser', () => {
 							startLine: 5,
 							startColumn: 43,
 							pathStartColumn: 50,
-							childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
 						}),
 					]);
 
@@ -538,7 +531,7 @@ suite('TextModelPromptParser', () => {
 					);
 				});
 
-				test(`• has correct metadata`, async () => {
+				test(`has correct metadata`, async () => {
 					const test = createTest(
 						URI.file('/absolute/folder/and/a/filename.txt'),
 						[
@@ -567,7 +560,6 @@ suite('TextModelPromptParser', () => {
 							startLine: 10,
 							startColumn: 43,
 							pathStartColumn: 50,
-							childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
 						}),
 					]);
 
@@ -581,9 +573,40 @@ suite('TextModelPromptParser', () => {
 						metadata,
 						{
 							promptType: PromptsType.mode,
-							mode: 'agent',
 							description: 'My mode.',
 							tools: ['tool_name1', 'tool_name2'],
+						},
+						'Must have correct metadata.',
+					);
+				});
+
+				test(`has model metadata`, async () => {
+					const test = createTest(
+						URI.file('/absolute/folder/and/a/filename1.txt'),
+						[
+					/* 01 */"---",
+					/* 02 */"description: 'My mode.'\t\t",
+					/* 03 */"model: Martin Finetune Turbo",
+					/* 04 */"---",
+					/* 05 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
+						],
+						MODE_LANGUAGE_ID,
+					);
+
+					await test.allSettled();
+
+					const { header, metadata } = test.parser;
+					assertDefined(
+						header,
+						'header must be defined.',
+					);
+
+					assert.deepStrictEqual(
+						metadata,
+						{
+							promptType: PromptsType.mode,
+							description: 'My mode.',
+							model: 'Martin Finetune Turbo',
 						},
 						'Must have correct metadata.',
 					);
@@ -591,8 +614,8 @@ suite('TextModelPromptParser', () => {
 			});
 		});
 
-		suite('• diagnostics', () => {
-			test('• core logic', async () => {
+		suite('diagnostics', () => {
+			test('core logic', async () => {
 				const test = createTest(
 					URI.file('/absolute/folder/and/a/filename.txt'),
 					[
@@ -621,7 +644,6 @@ suite('TextModelPromptParser', () => {
 						startLine: 10,
 						startColumn: 43,
 						pathStartColumn: 50,
-						childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
 					}),
 				]);
 
@@ -635,8 +657,7 @@ suite('TextModelPromptParser', () => {
 					metadata,
 					{
 						promptType: PromptsType.prompt,
-						mode: 'agent',
-						tools: ['tool_name1', 'tool_name2'],
+						mode: 'ask',
 					},
 					'Must have correct metadata.',
 				);
@@ -648,7 +669,7 @@ suite('TextModelPromptParser', () => {
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(4, 2, 4, 2 + 15),
-						'Unknown metadata \'something\' will be ignored.',
+						'Unknown property \'something\' will be ignored.',
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(5, 38, 5, 38 + 12),
@@ -656,11 +677,11 @@ suite('TextModelPromptParser', () => {
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(5, 52, 5, 52 + 4),
-						'Unexpected tool name \'true\', expected \'string\'.',
+						'Unexpected tool name \'true\', expected a string literal.',
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(5, 58, 5, 58 + 5),
-						'Unexpected tool name \'false\', expected \'string\'.',
+						'Unexpected tool name \'false\', expected a string literal.',
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(5, 65, 5, 65 + 2),
@@ -671,22 +692,22 @@ suite('TextModelPromptParser', () => {
 						'Duplicate tool name \'tool_name2\'.',
 					),
 					new ExpectedDiagnosticWarning(
-						new Range(3, 2, 3, 2 + 11),
-						`Record 'mode' is implied to have the 'agent' value if 'tools' record is present so the specified value will be ignored.`,
+						new Range(5, 1, 5, 84),
+						`Tools can only be used when in 'agent' mode, but the mode is set to 'ask'. The tools will be ignored.`,
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(6, 3, 6, 3 + 37),
-						`Duplicate metadata 'tools' will be ignored.`,
+						`Duplicate property 'tools' will be ignored.`,
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(7, 1, 7, 1 + 19),
-						`Duplicate metadata 'tools' will be ignored.`,
+						`Duplicate property 'tools' will be ignored.`,
 					),
 				]);
 			});
 
-			suite('• tools metadata', () => {
-				test('• tool names can be quoted and non-quoted string', async () => {
+			suite('tools metadata', () => {
+				test('tool names can be quoted and non-quoted string', async () => {
 					const test = createTest(
 						URI.file('/absolute/folder/and/a/my.prompt.md'),
 						[
@@ -722,9 +743,9 @@ suite('TextModelPromptParser', () => {
 				});
 			});
 
-			suite('• applyTo metadata', () => {
-				suite('• language', () => {
-					test('• prompt', async () => {
+			suite('applyTo metadata', () => {
+				suite('language', () => {
+					test('prompt', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/my.prompt.md'),
 							[
@@ -749,7 +770,7 @@ suite('TextModelPromptParser', () => {
 							metadata,
 							{
 								promptType: PromptsType.prompt,
-								mode: ChatMode.Ask,
+								mode: ChatModeKind.Ask,
 							},
 							'Must have correct metadata.',
 						);
@@ -757,12 +778,12 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
 								new Range(2, 1, 2, 1 + 15),
-								`Unknown metadata 'applyTo' will be ignored.`,
+								`Unknown property 'applyTo' will be ignored.`,
 							),
 						]);
 					});
 
-					test('• instructions', async () => {
+					test('instructions', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/my.prompt.md'),
 							[
@@ -795,14 +816,14 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
 								new Range(3, 1, 3, 13),
-								`Unknown metadata 'mode' will be ignored.`,
+								`Unknown property 'mode' will be ignored.`,
 							),
 						]);
 					});
 				});
 			});
 
-			test('• invalid glob pattern', async () => {
+			test('invalid glob pattern', async () => {
 				const test = createTest(
 					URI.file('/absolute/folder/and/a/my.prompt.md'),
 					[
@@ -834,7 +855,7 @@ suite('TextModelPromptParser', () => {
 				await test.validateHeaderDiagnostics([
 					new ExpectedDiagnosticWarning(
 						new Range(2, 1, 2, 14),
-						`Unknown metadata 'mode' will be ignored.`,
+						`Unknown property 'mode' will be ignored.`,
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(3, 10, 3, 10 + 2),
@@ -843,9 +864,9 @@ suite('TextModelPromptParser', () => {
 				]);
 			});
 
-			suite('• mode', () => {
-				suite('• invalid', () => {
-					test('• quoted string value', async () => {
+			suite('mode', () => {
+				suite('invalid', () => {
+					test('quoted string value', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/my.prompt.md'),
 							[
@@ -868,12 +889,12 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
 								new Range(2, 1, 2, 7 + 9),
-								`Unknown metadata 'mode' will be ignored.`,
+								`Unknown property 'mode' will be ignored.`,
 							),
 						]);
 					});
 
-					test('• single-token unquoted-string value', async () => {
+					test('single-token unquoted-string value', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/my.prompt.md'),
 							[
@@ -896,12 +917,12 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
 								new Range(2, 1, 2, 7 + 6),
-								`Unknown metadata 'mode' will be ignored.`,
+								`Unknown property 'mode' will be ignored.`,
 							),
 						]);
 					});
 
-					test('• unquoted string value', async () => {
+					test('unquoted string value', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/my.prompt.md'),
 							[
@@ -924,12 +945,12 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
 								new Range(2, 1, 2, 7 + 7),
-								`Unknown metadata 'mode' will be ignored.`,
+								`Unknown property 'mode' will be ignored.`,
 							),
 						]);
 					});
 
-					test('• multi-token unquoted-string value', async () => {
+					test('multi-token unquoted-string value', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/my.prompt.md'),
 							[
@@ -952,12 +973,12 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
 								new Range(2, 1, 2, 7 + 20),
-								`Unknown metadata 'mode' will be ignored.`,
+								`Unknown property 'mode' will be ignored.`,
 							),
 						]);
 					});
 
-					test('• after a description metadata', async () => {
+					test('after a description metadata', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/my.prompt.md'),
 							[
@@ -981,12 +1002,12 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
 								new Range(3, 1, 3, 7 + 6),
-								`Unknown metadata 'mode' will be ignored.`,
+								`Unknown property 'mode' will be ignored.`,
 							),
 						]);
 					});
 
-					test('• boolean value', async () => {
+					test('boolean value', async () => {
 						const booleanValue = randomBoolean();
 
 						const test = createTest(
@@ -1011,12 +1032,12 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
 								new Range(2, 2, 2, 9 + `${booleanValue}`.length),
-								`Unknown metadata 'mode' will be ignored.`,
+								`Unknown property 'mode' will be ignored.`,
 							),
 						]);
 					});
 
-					test('• empty quoted string value', async () => {
+					test('empty quoted string value', async () => {
 						const quotedString = (randomBoolean())
 							? `''`
 							: '""';
@@ -1043,12 +1064,12 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
 								new Range(2, 3, 2, 9 + `${quotedString}`.length),
-								`Unknown metadata 'mode' will be ignored.`,
+								`Unknown property 'mode' will be ignored.`,
 							),
 						]);
 					});
 
-					test('• empty value', async () => {
+					test('empty value', async () => {
 						const value = (randomBoolean())
 							? '\t\t  \t\t'
 							: ' \t \v \t ';
@@ -1075,12 +1096,12 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
 								new Range(2, 3, 2, 9),
-								`Unknown metadata 'mode' will be ignored.`,
+								`Unknown property 'mode' will be ignored.`,
 							),
 						]);
 					});
 
-					test('• void value', async () => {
+					test('void value', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/my.prompt.md'),
 							[
@@ -1103,16 +1124,16 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
 								new Range(2, 2, 2, 8),
-								`Unknown metadata 'mode' will be ignored.`,
+								`Unknown property 'mode' will be ignored.`,
 							),
 						]);
 					});
 				});
 			});
 
-			suite('• tools and mode compatibility', () => {
-				suite('• tools is set', () => {
-					test('• ask mode', async () => {
+			suite('tools and mode compatibility', () => {
+				suite('tools is set', () => {
+					test('ask mode', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
@@ -1139,26 +1160,27 @@ suite('TextModelPromptParser', () => {
 						);
 
 						const { tools, mode } = metadata;
-						assertDefined(
+						assert.equal(
 							tools,
-							'Tools metadata must be defined.',
+							undefined,
+							'Tools metadata must not be defined.',
 						);
 
 						assert.strictEqual(
 							mode,
-							ChatMode.Agent,
+							ChatModeKind.Ask,
 							'Mode metadata must have correct value.',
 						);
 
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
-								new Range(3, 1, 3, 1 + 11),
-								'Record \'mode\' is implied to have the \'agent\' value if \'tools\' record is present so the specified value will be ignored.',
+								new Range(2, 1, 2, 38),
+								'Tools can only be used when in \'agent\' mode, but the mode is set to \'ask\'. The tools will be ignored.',
 							),
 						]);
 					});
 
-					test('• edit mode', async () => {
+					test('edit mode', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
@@ -1185,26 +1207,27 @@ suite('TextModelPromptParser', () => {
 						);
 
 						const { tools, mode } = metadata;
-						assertDefined(
+						assert.equal(
 							tools,
-							'Tools metadata must be defined.',
+							undefined,
+							'Tools metadata must not be defined.',
 						);
 
 						assert.strictEqual(
 							mode,
-							ChatMode.Agent,
+							ChatModeKind.Edit,
 							'Mode metadata must have correct value.',
 						);
 
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
-								new Range(3, 1, 3, 1 + 12),
-								'Record \'mode\' is implied to have the \'agent\' value if \'tools\' record is present so the specified value will be ignored.',
+								new Range(2, 1, 2, 38),
+								'Tools can only be used when in \'agent\' mode, but the mode is set to \'edit\'. The tools will be ignored.',
 							),
 						]);
 					});
 
-					test('• agent mode', async () => {
+					test('agent mode', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
@@ -1238,14 +1261,14 @@ suite('TextModelPromptParser', () => {
 
 						assert.strictEqual(
 							mode,
-							ChatMode.Agent,
+							ChatModeKind.Agent,
 							'Mode metadata must have correct value.',
 						);
 
 						await test.validateHeaderDiagnostics([]);
 					});
 
-					test('• no mode', async () => {
+					test('no mode', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
@@ -1278,14 +1301,14 @@ suite('TextModelPromptParser', () => {
 
 						assert.strictEqual(
 							mode,
-							ChatMode.Agent,
+							ChatModeKind.Agent,
 							'Mode metadata must have correct value.',
 						);
 
 						await test.validateHeaderDiagnostics([]);
 					});
 
-					test('• invalid mode', async () => {
+					test('invalid mode', async () => {
 						const value = (randomBoolean())
 							? 'unknown mode  '
 							: 'unknown';
@@ -1323,7 +1346,7 @@ suite('TextModelPromptParser', () => {
 
 						assert.strictEqual(
 							mode,
-							ChatMode.Agent,
+							ChatModeKind.Agent,
 							'Mode metadata must have correct value.',
 						);
 
@@ -1336,8 +1359,8 @@ suite('TextModelPromptParser', () => {
 					});
 				});
 
-				suite('• tools is not set', () => {
-					test('• ask mode', async () => {
+				suite('tools is not set', () => {
+					test('ask mode', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
@@ -1371,7 +1394,7 @@ suite('TextModelPromptParser', () => {
 
 						assert.strictEqual(
 							mode,
-							ChatMode.Ask,
+							ChatModeKind.Ask,
 							'Mode metadata must have correct value.',
 						);
 
@@ -1383,7 +1406,7 @@ suite('TextModelPromptParser', () => {
 						]);
 					});
 
-					test('• edit mode', async () => {
+					test('edit mode', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
@@ -1417,14 +1440,14 @@ suite('TextModelPromptParser', () => {
 
 						assert.strictEqual(
 							mode,
-							ChatMode.Edit,
+							ChatModeKind.Edit,
 							'Mode metadata must have correct value.',
 						);
 
 						await test.validateHeaderDiagnostics([]);
 					});
 
-					test('• agent mode', async () => {
+					test('agent mode', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
@@ -1457,14 +1480,14 @@ suite('TextModelPromptParser', () => {
 
 						assert.strictEqual(
 							mode,
-							ChatMode.Agent,
+							ChatModeKind.Agent,
 							'Mode metadata must have correct value.',
 						);
 
 						await test.validateHeaderDiagnostics([]);
 					});
 
-					test('• no mode', async () => {
+					test('no mode', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
@@ -1506,7 +1529,7 @@ suite('TextModelPromptParser', () => {
 		});
 	});
 
-	test('• gets disposed with the model', async () => {
+	test('gets disposed with the model', async () => {
 		const test = createTest(
 			URI.file('/some/path/file.prompt.md'),
 			[
@@ -1527,7 +1550,7 @@ suite('TextModelPromptParser', () => {
 		);
 	});
 
-	test('• toString()', async () => {
+	test('toString()', async () => {
 		const modelUri = URI.file('/Users/legomushroom/repos/prompt-snippets/README.md');
 		const test = createTest(
 			modelUri,

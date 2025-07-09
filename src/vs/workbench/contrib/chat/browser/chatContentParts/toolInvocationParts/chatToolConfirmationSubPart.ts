@@ -118,7 +118,6 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 				reserveWidth: 19,
 				verticalPadding: 5,
 				editorOptions: {
-					wordWrap: 'on',
 					tabFocusMode: true,
 					ariaLabel: typeof title === 'string' ? title : title.value
 				},
@@ -252,11 +251,15 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 			const messageSeeMoreObserver = this._register(new ElementSizeObserver(elements.message, undefined));
 			const updateSeeMoreDisplayed = () => {
 				const show = messageSeeMoreObserver.getHeight() > SHOW_MORE_MESSAGE_HEIGHT_TRIGGER;
-				elements.messageContainer.classList.toggle('can-see-more', show);
+				if (elements.messageContainer.classList.contains('can-see-more') !== show) {
+					elements.messageContainer.classList.toggle('can-see-more', show);
+					this._onDidChangeHeight.fire();
+				}
 			};
 
 			this._register(dom.addDisposableListener(elements.showMore, 'click', () => {
 				elements.messageContainer.classList.toggle('can-see-more', false);
+				this._onDidChangeHeight.fire();
 				messageSeeMoreObserver.dispose();
 			}));
 
