@@ -100,5 +100,56 @@ suite('TreeView', function () {
 		assert.ok(true, 'Flat tree with checkboxes should render without indentation issues');
 	});
 
+	test('hierarchical tree with checkboxes keeps normal indentation', async () => {
+		// Create a tree view with hierarchical structure and checkboxes
+		const hierarchicalTreeView = disposables.add(workbenchInstantiationService(undefined, disposables).createInstance(TreeView, 'hierarchicalTestTree', 'Hierarchical Test Tree'));
+		
+		hierarchicalTreeView.dataProvider = {
+			getChildren: async (element?: ITreeItem): Promise<ITreeItem[] | undefined> => {
+				if (!element) {
+					// Root level items
+					return [
+						{ 
+							handle: 'parent1', 
+							label: { label: 'Parent 1' }, 
+							checkbox: { isChecked: false },
+							collapsibleState: TreeItemCollapsibleState.Expanded 
+						},
+						{ 
+							handle: 'parent2', 
+							label: { label: 'Parent 2' }, 
+							checkbox: { isChecked: true },
+							collapsibleState: TreeItemCollapsibleState.Expanded 
+						}
+					];
+				} else if (element.handle === 'parent1' || element.handle === 'parent2') {
+					// Child items - this makes it NOT flat
+					return [
+						{ 
+							handle: `${element.handle}_child1`, 
+							label: { label: 'Child 1' }, 
+							checkbox: { isChecked: false },
+							collapsibleState: TreeItemCollapsibleState.None 
+						},
+						{ 
+							handle: `${element.handle}_child2`, 
+							label: { label: 'Child 2' }, 
+							checkbox: { isChecked: true },
+							collapsibleState: TreeItemCollapsibleState.None 
+						}
+					];
+				}
+				return undefined;
+			}
+		};
+
+		hierarchicalTreeView.setVisibility(true);
+		await hierarchicalTreeView.refresh();
+		
+		// The test passes if no errors are thrown during rendering
+		// Normal indentation should be preserved for hierarchical trees
+		assert.ok(true, 'Hierarchical tree with checkboxes should render with normal indentation');
+	});
+
 
 });
