@@ -757,6 +757,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			);
 
 			let welcomeContent: IChatViewWelcomeContent;
+			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
+			const additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
 			if ((startupExpValue === StartupExperimentGroup.MaximizedChat
 				|| startupExpValue === StartupExperimentGroup.SplitEmptyEditorChat
 				|| startupExpValue === StartupExperimentGroup.SplitWelcomeChat
@@ -765,11 +767,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.container.classList.add('experimental-welcome-view');
 			}
 			else if (expIsActive) {
-				welcomeContent = this.getWelcomeViewContent(undefined, expIsActive);
+				welcomeContent = this.getWelcomeViewContent(additionalMessage, expIsActive);
 			}
 			else {
-				const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
-				const additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
 				const tips = this.input.currentModeKind === ChatModeKind.Ask
 					? new MarkdownString(localize('chatWidget.tips', "{0} or type {1} to attach context\n\n{2} to chat with extensions\n\nType {3} to use commands", '$(attach)', '#', '$(mention)', '/'), { supportThemeIcons: true })
 					: new MarkdownString(localize('chatWidget.tips.withoutParticipants', "{0} or type {1} to attach context", '$(attach)', '#'), { supportThemeIcons: true });
