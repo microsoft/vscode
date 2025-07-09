@@ -65,6 +65,14 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 				name: r.name ?? r.commit ?? '',
 				description: r.commitDetails?.message
 			}));
+		} else if (group === 'worktrees') {
+			const worktrees = await this.repository.getWorktrees();
+
+			return worktrees.map(w => ({
+				id: `worktrees/${w.name}`,
+				name: w.name ?? '',
+				description: '' // placeholder for worktree description
+			}));
 		}
 
 		return [];
