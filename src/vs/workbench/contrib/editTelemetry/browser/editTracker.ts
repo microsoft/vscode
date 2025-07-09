@@ -19,6 +19,7 @@ export class DocumentEditSourceTracker<T = void> extends Disposable {
 	private _pendingExternalEdits: AnnotatedStringEdit<EditKeySourceData> = AnnotatedStringEdit.empty;
 
 	private readonly _update = observableSignal(this);
+	private readonly _sumAddedCharactersPerKey: Map<string, number> = new Map();
 
 	constructor(
 		private readonly _doc: IDocumentWithAnnotatedEdits,
@@ -37,18 +38,33 @@ export class DocumentEditSourceTracker<T = void> extends Disposable {
 				}
 			} else {
 				if (!this._pendingExternalEdits.isEmpty()) {
-					this._edits = this._edits.compose(this._pendingExternalEdits);
+					this._applyEdit(this._pendingExternalEdits);
 					this._pendingExternalEdits = AnnotatedStringEdit.empty;
 				}
-				this._edits = this._edits.compose(eComposed);
+				this._applyEdit(eComposed);
 			}
 
 			this._update.trigger(undefined);
 		}));
 	}
 
+	private _applyEdit(e: AnnotatedStringEdit<EditKeySourceData>): void {
+		for (const r of e.replacements) {
+			const existing = this._sumAddedCharactersPerKey.get(r.data.key) ?? 0;
+			const newCount = existing + r.getNewLength();
+			this._sumAddedCharactersPerKey.set(r.data.key, newCount);
+		}
+
+		this._edits = this._edits.compose(e);
+	}
+
 	async waitForQueue(): Promise<void> {
 		await this._doc.waitForQueue();
+	}
+
+	public getChangedCharactersCount(key: string): number {
+		const val = this._sumAddedCharactersPerKey.get(key);
+		return val ?? 0;
 	}
 
 	getTrackedRanges(reader?: IReader): TrackedEdit[] {
