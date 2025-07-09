@@ -752,14 +752,22 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 		const checkForWorktrees = () => {
 			if (!shouldDetectWorktrees) {
-				this.logger.trace('Automatic detection of git worktrees is not enabled.');
+				this.logger.trace('[Model][open] Automatic detection of git worktrees is not enabled.');
 				return;
 			}
 
 			if (repository.worktrees.length > worktreesLimit) {
-				window.showWarningMessage('Placeholder for worktrees warning message');
+				window.showWarningMessage(l10n.t('The "{0}" repository has {1} worktrees which won\'t be opened automatically. You can still open each one individually by opening a file within.', path.basename(repository.root), repository.worktrees.length));
 				statusListener.dispose();
 			}
+
+			repository.worktrees
+				.slice(0, worktreesLimit)
+				.filter(w => w.path !== repository.root)
+				.forEach(w => {
+					this.logger.trace(`[Model][open] Opening worktree: '${w.path}'`);
+					this.eventuallyScanPossibleGitRepository(w.path);
+				});
 		};
 
 		const updateMergeChanges = () => {
