@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { POLICY_KEY_CHAT_MCP, POLICY_KEY_CHAT_TOOLS_AUTO_APPROVE, POLICY_KEY_CHAT_PROMPT_FILES } from '../../../../platform/policy/common/accountPolicyKeys.js';
+import { PolicyTag } from '../../../../base/common/policy.js';
 import './promptSyntax/promptToolsCodeLensProvider.js';
 import './promptSyntax/promptCodingAgentActionContribution.js';
 import { timeout } from '../../../../base/common/async.js';
@@ -218,10 +218,10 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['experimental'],
 			policy: {
-				name: POLICY_KEY_CHAT_TOOLS_AUTO_APPROVE,
+				name: 'ChatToolsAutoApprove',
 				minimumVersion: '1.99',
-				previewFeature: true,
-				defaultValue: false
+				defaultValue: false,
+				tags: [PolicyTag.Chat, PolicyTag.Preview]
 			}
 		},
 		'chat.sendElementsToChat.enabled': {
@@ -260,8 +260,9 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.mcp.enabled', "Enables integration with Model Context Protocol servers to provide additional tools and functionality."),
 			default: true,
 			policy: {
-				name: POLICY_KEY_CHAT_MCP,
+				name: 'ChatMCP',
 				minimumVersion: '1.99',
+				tags: [PolicyTag.Chat, PolicyTag.MCP]
 			}
 		},
 		[mcpServerSamplingSection]: {
@@ -321,8 +322,7 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatAgentMode',
 				minimumVersion: '1.99',
-				previewFeature: false,
-				defaultValue: false
+				tags: [PolicyTag.Chat],
 			}
 		},
 		[mcpDiscoverySection]: {
@@ -370,11 +370,11 @@ configurationRegistry.registerConfiguration({
 			disallowConfigurationDefault: true,
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 			policy: {
-				name: POLICY_KEY_CHAT_PROMPT_FILES,
+				name: 'ChatPromptFiles',
 				minimumVersion: '1.99',
 				description: nls.localize('chat.promptFiles.policy', "Enables reusable prompt and instruction files in Chat, Edits, and Inline Chat sessions."),
-				previewFeature: true,
-				defaultValue: false
+				defaultValue: false,
+				tags: [PolicyTag.Chat, PolicyTag.Preview]
 			}
 		},
 		[PromptsConfig.INSTRUCTIONS_LOCATION_KEY]: {
