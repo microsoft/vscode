@@ -2499,7 +2499,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			result.push({
 				type: 'branch',
 				data: panelPostion === Position.BOTTOM ? [editorNodes, nodes.panel] : [nodes.panel, editorNodes],
-				size: editorSectionWidth
+				size: editorSectionWidth,
+				visible: editorSectionWidth > 0
 			});
 
 			if (!sideBarNextToEditor) {
