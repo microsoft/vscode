@@ -530,10 +530,10 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.restoreCheckpoint',
 			title: {
-				value: localize('chat.restoreCheckpoint.label', "Restore"),
+				value: localize('chat.restoreCheckpoint.label', "Restore Checkpoint"),
 				original: 'Restore',
 			},
-			tooltip: localize('chat.restoreCheckpoint.tooltip', "Restore"),
+			tooltip: localize('chat.restoreCheckpoint.tooltip', "Restore Checkpoint"),
 			f1: false,
 			category: CHAT_CATEGORY,
 			// icon: Codicon.flag,

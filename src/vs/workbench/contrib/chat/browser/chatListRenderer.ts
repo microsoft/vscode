@@ -375,9 +375,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const checkpointContainer = dom.append(rowContainer, $('.checkpoint-container'));
 		const checkpointLabel = dom.append(checkpointContainer, $('.checkpoint-label'));
-		dom.append(checkpointLabel, $('span.codicon.codicon-flag'));
-		const labelText = dom.append(checkpointLabel, $('span.checkpoint-label-text'));
-		labelText.textContent = localize('checkpoint', 'Checkpoint');
+		dom.append(checkpointLabel, $('span.codicon.codicon-bookmark'));
 
 		const checkpointToolbar = templateDisposables.add(scopedInstantiationService2.createInstance(MenuWorkbenchToolBar, checkpointContainer, MenuId.ChatMessageCheckpoint, {
 			actionViewItemProvider: (action, options) => {
@@ -422,9 +420,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const checkpointRestoreContainer = dom.append(rowContainer, $('.checkpoint-restore-container'));
 		const checkpointLabel2 = dom.append(checkpointRestoreContainer, $('.checkpoint-label'));
-		dom.append(checkpointLabel2, $('span.codicon.codicon-flag'));
-		const labelText2 = dom.append(checkpointLabel2, $('span.checkpoint-label-text'));
-		labelText2.textContent = localize('checkpoint', 'Checkpoint');
+		dom.append(checkpointLabel2, $('span.codicon.codicon-bookmark'));
 		const checkpointRestoreToolbar = templateDisposables.add(scopedInstantiationService2.createInstance(MenuWorkbenchToolBar, checkpointRestoreContainer, MenuId.ChatMessageRestoreCheckpoint, {
 			actionViewItemProvider: (action, options) => {
 				if (action instanceof MenuItemAction) {

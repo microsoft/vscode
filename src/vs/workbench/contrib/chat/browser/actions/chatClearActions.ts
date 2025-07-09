@@ -179,28 +179,7 @@ export function registerNewChatActions() {
 		}
 
 		async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession) {
-			const widget = accessor.get(IChatWidgetService);
-			if (editingSession.canRedo) {
-				console.log('Redoing interaction in chat editing session');
-			}
-			// Use a reactive approach with observables instead of polling in a loop
-			const redoUntilDone = async () => {
-				// Check if we can still redo - this avoids unnecessary calls
-				if (!editingSession.canRedo.get()) {
-					return;
-				}
-
-				// Perform one redo operation
-				await editingSession.redoInteraction();
-
-				// Schedule next redo asynchronously to avoid blocking the UI
-				setTimeout(() => redoUntilDone(), 0);
-			};
-
-			// Start the process
-			await redoUntilDone();
-			widget.lastFocusedWidget?.viewModel?.model.setCheckpoint(undefined);
-			widget.lastFocusedWidget?.rerenderChat();
+			await editingSession.redoInteraction();
 		}
 	});
 
@@ -210,8 +189,8 @@ export function registerNewChatActions() {
 				id: 'workbench.action.chat.redoEdit2',
 				// title: localize2('chat.redoEdit.label2', "Redo Last Request"),
 				title: {
-					value: localize('chat.redoEdit.label2', "Redo"),
-					original: localize('chat.redoEdit.label2', "Redo"),
+					value: localize('chat.redoEdit.label2', "Redo Checkpoint Restore"),
+					original: localize('chat.redoEdit.label2', "Redo Checkpoint Restore"),
 				},
 				category: CHAT_CATEGORY,
 				// icon: Codicon.redo,
@@ -229,20 +208,13 @@ export function registerNewChatActions() {
 
 		async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession) {
 			const widget = accessor.get(IChatWidgetService);
-			if (editingSession.canRedo) {
-				console.log('Redoing interaction in chat editing session');
-			}
-			// Use a reactive approach with observables instead of polling in a loop
+
 			const redoUntilDone = async () => {
-				// Check if we can still redo - this avoids unnecessary calls
 				if (!editingSession.canRedo.get()) {
 					return;
 				}
 
-				// Perform one redo operation
 				await editingSession.redoInteraction();
-
-				// Schedule next redo asynchronously to avoid blocking the UI
 				setTimeout(() => redoUntilDone(), 0);
 			};
 
