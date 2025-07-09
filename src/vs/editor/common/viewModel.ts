@@ -6,13 +6,14 @@
 import * as arrays from '../../base/common/arrays.js';
 import { IScrollPosition, Scrollable } from '../../base/common/scrollable.js';
 import * as strings from '../../base/common/strings.js';
+import { ICoordinatesConverter } from './coordinatesConverter.js';
 import { IPosition, Position } from './core/position.js';
 import { Range } from './core/range.js';
 import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, ICursorSimpleModel, PartialCursorState } from './cursorCommon.js';
 import { CursorChangeReason } from './cursorEvents.js';
 import { INewScrollPosition, ScrollType } from './editorCommon.js';
 import { EditorTheme } from './editorTheme.js';
-import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel, PositionAffinity } from './model.js';
+import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel } from './model.js';
 import { ILineBreaksComputer, InjectedText } from './modelLineProjectionData.js';
 import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from './textModelGuides.js';
 import { IViewLineTokens } from './tokens/lineTokens.js';
@@ -221,28 +222,6 @@ export class Viewport {
 		this.width = width | 0;
 		this.height = height | 0;
 	}
-}
-
-export interface ICoordinatesConverter {
-	// View -> Model conversion and related methods
-	convertViewPositionToModelPosition(viewPosition: Position): Position;
-	convertViewRangeToModelRange(viewRange: Range): Range;
-	validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position;
-	validateViewRange(viewRange: Range, expectedModelRange: Range): Range;
-
-	// Model -> View conversion and related methods
-	/**
-	 * @param allowZeroLineNumber Should it return 0 when there are hidden lines at the top and the position is in the hidden area?
-	 * @param belowHiddenRanges When the model position is in a hidden area, should it return the first view position after or before?
-	 */
-	convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity, allowZeroLineNumber?: boolean, belowHiddenRanges?: boolean): Position;
-	/**
-	 * @param affinity Only has an effect if the range is empty.
-	*/
-	convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range;
-	modelPositionIsVisible(modelPosition: Position): boolean;
-	getModelLineViewLineCount(modelLineNumber: number): number;
-	getViewLineNumberOfModelPosition(modelLineNumber: number, modelColumn: number): number;
 }
 
 export class MinimapLinesRenderingData {
