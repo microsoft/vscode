@@ -371,6 +371,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		this.themeMainService.saveWindowSplash(windowId, window?.openedWorkspace, splash);
 	}
 
+	async setBackgroundThrottling(windowId: number | undefined, throttling: boolean): Promise<void> {
+		const window = this.codeWindowById(windowId);
+
+		window?.win?.webContents?.setBackgroundThrottling(throttling);
+	}
+
 	//#endregion
 
 

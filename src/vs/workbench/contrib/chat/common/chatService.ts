@@ -574,6 +574,8 @@ export interface IChatService {
 	activateDefaultAgent(location: ChatAgentLocation): Promise<void>;
 
 	readonly edits2Enabled: boolean;
+
+	readonly requestInProgressObs: IObservable<boolean>;
 }
 
 export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';
