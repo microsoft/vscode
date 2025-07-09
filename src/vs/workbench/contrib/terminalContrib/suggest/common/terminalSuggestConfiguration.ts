@@ -5,7 +5,9 @@
 
 import type { IStringDictionary } from '../../../../../base/common/collections.js';
 import { localize } from '../../../../../nls.js';
-import type { IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import type { IConfigurationPropertySchema, IConfigurationNode } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../../platform/product/common/product.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 
@@ -69,18 +71,6 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		markdownDescription: localize('suggest.enabled', "Enables terminal intellisense suggestions (preview) for supported shells ({0}) when {1} is set to {2}.\n\nIf shell integration is installed manually, {3} needs to be set to {4} before calling the shell integration script.", 'PowerShell v7+, zsh, bash, fish', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`', '`VSCODE_SUGGEST`', '`1`'),
 		type: 'boolean',
 		default: product.quality !== 'stable',
-		tags: ['preview'],
-	},
-	[TerminalSuggestSettingId.Providers]: {
-		restricted: true,
-		markdownDescription: localize('suggest.providers', "Providers are enabled by default. Omit them by setting the id of the provider to `false`."),
-		type: 'object',
-		properties: {},
-		default: {
-			'terminal-suggest': true,
-			'pwsh-shell-integration': true,
-			'lsp': true,
-		},
 		tags: ['preview'],
 	},
 	[TerminalSuggestSettingId.QuickSuggestions]: {
@@ -194,5 +184,52 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 	},
 
 };
+
+let terminalSuggestProvidersConfiguration: IConfigurationNode | undefined;
+
+export function registerTerminalSuggestProvidersConfiguration(availableProviders?: string[]) {
+	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+	
+	const oldProvidersConfiguration = terminalSuggestProvidersConfiguration;
+	
+	// Create properties for the providers setting dynamically
+	const providersProperties: IStringDictionary<IConfigurationPropertySchema> = {};
+	const defaultValue: IStringDictionary<boolean> = {};
+	
+	if (availableProviders) {
+		for (const providerId of availableProviders) {
+			providersProperties[providerId] = {
+				type: 'boolean',
+				description: localize('suggest.provider.description', "Enable or disable the '{0}' terminal suggestion provider.", providerId),
+				default: true
+			};
+			defaultValue[providerId] = true;
+		}
+	}
+	
+	// Create the configuration node with dynamic properties
+	terminalSuggestProvidersConfiguration = {
+		id: 'terminalSuggestProviders',
+		order: 100,
+		title: localize('terminalSuggestProvidersConfigurationTitle', "Terminal Suggest Providers"),
+		type: 'object',
+		properties: {
+			[TerminalSuggestSettingId.Providers]: {
+				restricted: true,
+				markdownDescription: localize('suggest.providers', "Providers are enabled by default. Omit them by setting the id of the provider to `false`."),
+				type: 'object',
+				properties: providersProperties,
+				default: defaultValue,
+				tags: ['preview'],
+			}
+		}
+	};
+	
+	// Update the registry with the new configuration
+	registry.updateConfigurations({ 
+		add: [terminalSuggestProvidersConfiguration], 
+		remove: oldProvidersConfiguration ? [oldProvidersConfiguration] : [] 
+	});
+}
 
 
