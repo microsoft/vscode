@@ -1359,12 +1359,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		const implicitUri = this.implicitContext?.value;
+		const isUri = URI.isUri(implicitUri);
 
-		if (implicitUri && (URI.isUri(implicitUri) || isLocation(implicitUri))) {
-			const targetUri = URI.isUri(implicitUri) ? implicitUri : implicitUri.uri;
+		if (implicitUri && (isUri || isLocation(implicitUri))) {
+			const targetUri = isUri ? implicitUri : implicitUri.uri;
 			const currentlyAttached = attachments.some(([, attachment]) => URI.isUri(attachment.value) && isEqual(attachment.value, targetUri));
 
-			const shouldShowImplicit = URI.isUri(implicitUri) ? !currentlyAttached : (implicitUri.range instanceof Selection || !currentlyAttached);
+			const shouldShowImplicit = isUri ? !currentlyAttached : implicitUri.range;
 			if (shouldShowImplicit) {
 				const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, this.implicitContext, this._contextResourceLabels, this._attachmentModel));
 				container.appendChild(implicitPart.domNode);
@@ -1388,10 +1389,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._attachmentModel.delete(attachment.id);
 
 		// if currently opened file is deleted, do not show implicit context
-		const location = isLocation(this.implicitContext?.value) && URI.isUri(attachment.value) && isEqual(this.implicitContext.value.uri, attachment.value);
-		const isuri = URI.isUri(this.implicitContext?.value) && URI.isUri(attachment.value) && isEqual(this.implicitContext.value, attachment.value);
+		const implicitValue = URI.isUri(this.implicitContext?.value) && URI.isUri(attachment.value) && isEqual(this.implicitContext.value, attachment.value);
 
-		if (this.implicitContext?.isFile && (location || isuri)) {
+		if (this.implicitContext?.isFile && implicitValue) {
 			this.implicitContext.enabled = false;
 		}
 
