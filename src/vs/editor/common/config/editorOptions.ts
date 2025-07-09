@@ -1256,6 +1256,9 @@ export function clampedFloat<T extends number>(value: any, defaultValue: T, mini
 
 class EditorFloatOption<K extends EditorOption> extends SimpleEditorOption<K, number> {
 
+	public readonly minimum: number | undefined;
+	public readonly maximum: number | undefined;
+
 	public static clamp(n: number, min: number, max: number): number {
 		if (n < min) {
 			return min;
@@ -1279,13 +1282,17 @@ class EditorFloatOption<K extends EditorOption> extends SimpleEditorOption<K, nu
 
 	public readonly validationFn: (value: number) => number;
 
-	constructor(id: K, name: PossibleKeyName<number>, defaultValue: number, validationFn: (value: number) => number, schema?: IConfigurationPropertySchema) {
+	constructor(id: K, name: PossibleKeyName<number>, defaultValue: number, validationFn: (value: number) => number, schema?: IConfigurationPropertySchema, minimum?: number, maximum?: number) {
 		if (typeof schema !== 'undefined') {
 			schema.type = 'number';
 			schema.default = defaultValue;
+			schema.minimum = minimum;
+			schema.maximum = maximum;
 		}
 		super(id, name, defaultValue, schema);
 		this.validationFn = validationFn;
+		this.minimum = minimum;
+		this.maximum = maximum;
 	}
 
 	public override validate(input: any): number {
@@ -3203,7 +3210,9 @@ class EditorLineHeight extends EditorFloatOption<EditorOption.lineHeight> {
 			EditorOption.lineHeight, 'lineHeight',
 			EDITOR_FONT_DEFAULTS.lineHeight,
 			x => EditorFloatOption.clamp(x, 0, 150),
-			{ markdownDescription: nls.localize('lineHeight', "Controls the line height. \n - Use 0 to automatically compute the line height from the font size.\n - Values between 0 and 8 will be used as a multiplier with the font size.\n - Values greater than or equal to 8 will be used as effective values.") }
+			{ markdownDescription: nls.localize('lineHeight', "Controls the line height. \n - Use 0 to automatically compute the line height from the font size.\n - Values between 0 and 8 will be used as a multiplier with the font size.\n - Values greater than or equal to 8 will be used as effective values.") },
+			0,
+			150
 		);
 	}
 
