@@ -7562,6 +7562,8 @@ declare namespace monaco.languages {
 		characterCountModified?: number;
 		disjointReplacements?: number;
 		sameShapeReplacements?: boolean;
+		typingInterval: number;
+		typingIntervalCharacterCount: number;
 	};
 
 	export interface CodeAction {
