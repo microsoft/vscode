@@ -18,7 +18,6 @@ import { inputPlaceholderForeground } from '../../../../../platform/theme/common
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/chatAgents.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../common/chatColors.js';
-import { ChatMode } from '../../common/chatModes.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../common/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { ChatModeKind } from '../../common/constants.js';
@@ -140,7 +139,6 @@ class InputEditorDecorations extends Disposable {
 					description += ` ${localize('editPlaceholderHint', "# context")}`;
 				}
 			}
-
 
 			const decoration: IDecorationOptions[] = [
 				{
