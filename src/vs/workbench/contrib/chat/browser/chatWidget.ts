@@ -1130,15 +1130,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			ChatContextKeys.currentlyEditing.bindTo(editedRequest.contextKeyService).set(false);
 		}
 
-		this.inputPart.setChatMode(this.inlineInputPart.currentModeKind);
-		const currentModel = this.inlineInputPart.selectedLanguageModel;
-		if (currentModel) {
-			this.inputPart.switchModel(currentModel.metadata);
-		}
+
 
 		const isInput = this.configurationService.getValue<string>('chat.editRequests') === 'input';
 
 		if (!isInput) {
+			this.inputPart.setChatMode(this.inlineInputPart.currentModeKind);
+			const currentModel = this.inlineInputPart.selectedLanguageModel;
+			if (currentModel) {
+				this.inputPart.switchModel(currentModel.metadata);
+			}
+
 			this.inputPart?.toggleChatInputOverlay(false);
 			try {
 				if (editedRequest?.rowContainer && editedRequest.rowContainer.contains(this.inputContainer)) {
