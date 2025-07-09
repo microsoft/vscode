@@ -5,7 +5,7 @@
 
 import { URI } from '../../../../../../base/common/uri.js';
 import { IFileService, IFileStatWithMetadata, IResolveMetadataFileOptions } from '../../../../../../platform/files/common/files.js';
-import { ITerminalCompletionProvider, TerminalCompletionService, TerminalResourceRequestConfig } from '../../browser/terminalCompletionService.js';
+import { TerminalCompletionService, TerminalResourceRequestConfig } from '../../browser/terminalCompletionService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import assert, { fail } from 'assert';
 import { isWindows, type IProcessEnvironment } from '../../../../../../base/common/platform.js';
@@ -21,7 +21,6 @@ import { count } from '../../../../../../base/common/strings.js';
 import { WindowsShellType } from '../../../../../../platform/terminal/common/terminal.js';
 import { gitBashToWindowsPath, windowsToGitBashPath } from '../../browser/terminalGitBashHelpers.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { TerminalSuggestSettingId } from '../../common/terminalSuggestConfiguration.js';
 
 const pathSeparator = isWindows ? '\\' : '/';
 
@@ -775,8 +774,8 @@ suite('TerminalCompletionService', () => {
 	suite('Provider Configuration', () => {
 		// Test class that extends TerminalCompletionService to access protected methods
 		class TestTerminalCompletionService extends TerminalCompletionService {
-			override getEnabledProviders(providers: ITerminalCompletionProvider[]): ITerminalCompletionProvider[] {
-				return super.getEnabledProviders(providers);
+			public _getEnabledProviders(providers: ITerminalCompletionProvider[]): ITerminalCompletionProvider[] {
+				return super._getEnabledProviders(providers);
 			}
 		}
 
@@ -794,8 +793,7 @@ suite('TerminalCompletionService', () => {
 					label: `completion-from-${id}`,
 					kind: TerminalCompletionItemKind.Method,
 					replacementIndex: 0,
-					replacementLength: 0,
-					provider: id
+					replacementLength: 0
 				}]
 			};
 		}
@@ -808,7 +806,7 @@ suite('TerminalCompletionService', () => {
 			// Set empty configuration (no provider keys)
 			configurationService.setUserConfiguration(TerminalSuggestSettingId.Providers, {});
 
-			const result = testTerminalCompletionService.getEnabledProviders(providers);
+			const result = testTerminalCompletionService._getEnabledProviders(providers);
 
 			// Both providers should be enabled since they're not explicitly disabled
 			assert.strictEqual(result.length, 2, 'Should enable both providers by default');
@@ -826,7 +824,7 @@ suite('TerminalCompletionService', () => {
 				'provider1': false
 			});
 
-			const result = testTerminalCompletionService.getEnabledProviders(providers);
+			const result = testTerminalCompletionService._getEnabledProviders(providers);
 
 			// Only provider2 should be enabled
 			assert.strictEqual(result.length, 1, 'Should enable only one provider');
@@ -844,7 +842,7 @@ suite('TerminalCompletionService', () => {
 				'provider1': true
 			});
 
-			const result = testTerminalCompletionService.getEnabledProviders(providers);
+			const result = testTerminalCompletionService._getEnabledProviders(providers);
 
 			// Both providers should be enabled
 			assert.strictEqual(result.length, 2, 'Should enable both providers');
@@ -864,7 +862,7 @@ suite('TerminalCompletionService', () => {
 				'provider2': false
 			});
 
-			const result = testTerminalCompletionService.getEnabledProviders(providers);
+			const result = testTerminalCompletionService._getEnabledProviders(providers);
 
 			// provider1 and provider3 should be enabled, provider2 should be disabled
 			assert.strictEqual(result.length, 2, 'Should enable two providers');
