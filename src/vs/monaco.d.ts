@@ -7512,7 +7512,6 @@ declare namespace monaco.languages {
 		 * Multiple providers can have the same group id.
 		 */
 		groupId?: InlineCompletionProviderGroupId;
-		providerId?: string;
 		/**
 		 * Returns a list of preferred provider {@link groupId}s.
 		 * The current provider is only requested for completions if no provider with a preferred group id returned a result.

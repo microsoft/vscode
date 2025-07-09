@@ -89,8 +89,12 @@ export class CoreExperimentationService extends Disposable implements ICoreExper
 	) {
 		super();
 
-		if (environmentService.disableExperiments) {
-			return; // explicitly disabled
+		if (
+			environmentService.disableExperiments ||
+			environmentService.enableSmokeTestDriver ||
+			environmentService.extensionTestsLocationURI
+		) {
+			return; //not applicable in this environment
 		}
 
 		this.initializeExperiments();

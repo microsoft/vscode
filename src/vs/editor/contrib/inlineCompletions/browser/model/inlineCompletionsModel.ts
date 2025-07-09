@@ -392,7 +392,7 @@ export class InlineCompletionsModel extends Disposable {
 		const userJumpedToActiveCompletion = this._jumpedToId.map(jumpedTo => !!jumpedTo && jumpedTo === this._inlineCompletionItems.get()?.inlineEdit?.semanticId);
 
 		const providers = changeSummary.provider
-			? { providers: [changeSummary.provider], label: 'single:' + changeSummary.provider.providerId }
+			? { providers: [changeSummary.provider], label: 'single:' + changeSummary.provider.providerId?.toString() }
 			: { providers: this._languageFeaturesService.inlineCompletionsProvider.all(this.textModel), label: undefined };
 		const suppressedProviderGroupIds = this._suppressedInlineCompletionGroupIds.get();
 		const availableProviders = providers.providers.filter(provider => !(provider.groupId && suppressedProviderGroupIds.has(provider.groupId)));
@@ -776,14 +776,14 @@ export class InlineCompletionsModel extends Disposable {
 			return EditReasons.inlineCompletionPartialAccept({
 				nes: completion.isInlineEdit,
 				requestUuid: completion.requestUuid,
-				extensionId: completion.source.provider.groupId ?? 'unknown',
+				providerId: completion.source.provider.providerId,
 				type,
 			});
 		} else {
 			return EditReasons.inlineCompletionAccept({
 				nes: completion.isInlineEdit,
 				requestUuid: completion.requestUuid,
-				extensionId: completion.source.provider.groupId ?? 'unknown',
+				providerId: completion.source.provider.providerId,
 			});
 		}
 	}

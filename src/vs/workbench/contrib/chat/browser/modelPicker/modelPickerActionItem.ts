@@ -19,6 +19,7 @@ import { getFlatActionBarActions } from '../../../../../platform/actions/browser
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPickerWidget.js';
 
 export interface IModelPickerDelegate {
 	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
@@ -35,7 +36,7 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate): I
 					id: model.metadata.id,
 					enabled: true,
 					checked: model.metadata.id === delegate.getCurrentModel()?.metadata.id,
-					category: model.metadata.modelPickerCategory,
+					category: model.metadata.modelPickerCategory || DEFAULT_MODEL_PICKER_CATEGORY,
 					class: undefined,
 					description: model.metadata.cost,
 					tooltip: model.metadata.description ?? model.metadata.name,

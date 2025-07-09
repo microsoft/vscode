@@ -4,23 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IExperimentationTelemetry, ExperimentationService as TASClient, IKeyValueStorage } from 'tas-client-umd';
-import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IProductService } from '../../product/common/productService.js';
-import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
 import { AssignmentFilterProvider, ASSIGNMENT_REFETCH_INTERVAL, ASSIGNMENT_STORAGE_KEY, IAssignmentService, TargetPopulation } from './assignment.js';
 import { importAMDNodeModule } from '../../../amdX.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 
 export abstract class BaseAssignmentService implements IAssignmentService {
+
 	_serviceBrand: undefined;
+
 	protected tasClient: Promise<TASClient> | undefined;
+
 	private networkInitialized = false;
 	private overrideInitDelay: Promise<void>;
-
-	protected get experimentsEnabled(): boolean {
-		return true;
-	}
 
 	constructor(
 		private readonly machineId: string,
@@ -28,10 +25,10 @@ export abstract class BaseAssignmentService implements IAssignmentService {
 		protected readonly productService: IProductService,
 		protected readonly environmentService: IEnvironmentService,
 		protected telemetry: IExperimentationTelemetry,
+		protected experimentsEnabled: boolean,
 		private keyValueStorage?: IKeyValueStorage
 	) {
-		const isTesting = environmentService.extensionTestsLocationURI !== undefined;
-		if (!isTesting && productService.tasConfig && this.experimentsEnabled && getTelemetryLevel(this.configurationService) === TelemetryLevel.USAGE) {
+		if (productService.tasConfig && experimentsEnabled) {
 			this.tasClient = this.setupTASClient();
 		}
 
