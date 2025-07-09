@@ -234,7 +234,7 @@ export function registerTerminalSuggestProvidersConfiguration(availableProviders
 	});
 }
 
-// Initial registration with default providers
-registerTerminalSuggestProvidersConfiguration([]);
+// Initial registration with default providers to ensure the setting appears in UI
+registerTerminalSuggestProvidersConfiguration(['terminal-suggest', 'builtinPwsh', 'lsp']);
 
 
