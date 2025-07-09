@@ -53,6 +53,13 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
+  - script: |
+      set -e
+
+      sudo sysctl kern.sched_recommended_cores=255
+      sysctl -a | grep -e kern
+    displayName: Get vm details
+
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
       displayName: Install build tools
