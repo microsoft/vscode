@@ -104,7 +104,6 @@ import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/model
 import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { isLocation } from '../../../../editor/common/languages.js';
-import { Selection } from '../../../../editor/common/core/selection.js';
 
 const $ = dom.$;
 
