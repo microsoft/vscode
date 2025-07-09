@@ -275,7 +275,7 @@ class McpServerDefinitionsProviderRenderer extends Disposable implements IExtens
 }
 
 Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
-	id: 'mcpServerDefinitionProviders',
+	id: mcpConfigurationSection,
 	label: localize('mcpServerDefinitionProviders', "MCP Servers"),
 	access: {
 		canToggle: false
