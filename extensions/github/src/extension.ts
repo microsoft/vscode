@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { commands, Disposable, ExtensionContext, extensions, l10n, LogLevel, LogOutputChannel, window } from 'vscode';
+import { commands, Disposable, ExtensionContext, extensions, l10n, lm, LogLevel, LogOutputChannel, window } from 'vscode';
 import { TelemetryReporter } from '@vscode/extension-telemetry';
 import { GithubRemoteSourceProvider } from './remoteSourceProvider.js';
 import { API, GitExtension } from './typings/git.js';
@@ -18,6 +18,7 @@ import { GitHubCanonicalUriProvider } from './canonicalUriProvider.js';
 import { VscodeDevShareProvider } from './shareProviders.js';
 import { GitHubSourceControlHistoryItemDetailsProvider } from './historyItemDetailsProvider.js';
 import { OctokitService } from './auth.js';
+import { GitHubMcpServerDefinitionProvider } from './mcp/githubMcpServerDefinitionProvider.js';
 
 export function activate(context: ExtensionContext): void {
 	const disposables: Disposable[] = [];
@@ -41,6 +42,7 @@ export function activate(context: ExtensionContext): void {
 
 	disposables.push(initializeGitBaseExtension());
 	disposables.push(initializeGitExtension(context, octokitService, telemetryReporter, logger));
+	disposables.push(lm.registerMcpServerDefinitionProvider('github-mcp-provider', new GitHubMcpServerDefinitionProvider()));
 }
 
 function initializeGitBaseExtension(): Disposable {
