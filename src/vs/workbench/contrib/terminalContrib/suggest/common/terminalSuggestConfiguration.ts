@@ -5,9 +5,8 @@
 
 import type { IStringDictionary } from '../../../../../base/common/collections.js';
 import { localize } from '../../../../../nls.js';
-import type { IConfigurationPropertySchema, IConfigurationNode } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationPropertySchema, IConfigurationNode, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../../platform/product/common/product.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 
@@ -196,18 +195,18 @@ let terminalSuggestProvidersConfiguration: IConfigurationNode | undefined;
 
 export function registerTerminalSuggestProvidersConfiguration(availableProviders?: string[]) {
 	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-	
+
 	const oldProvidersConfiguration = terminalSuggestProvidersConfiguration;
-	
+
 	// Create properties for the providers setting dynamically
 	const providersProperties: IStringDictionary<IConfigurationPropertySchema> = {};
 	const defaultValue: IStringDictionary<boolean> = {
 		// Always include known built-in providers as defaults even if not yet registered
 		'terminal-suggest': true,
-		'builtinPwsh': true,
+		'builtinPwsh': false,
 		'lsp': true
 	};
-	
+
 	if (availableProviders) {
 		for (const providerId of availableProviders) {
 			providersProperties[providerId] = {
@@ -218,7 +217,7 @@ export function registerTerminalSuggestProvidersConfiguration(availableProviders
 			defaultValue[providerId] = true;
 		}
 	}
-	
+
 	// Create the configuration node with dynamic properties
 	terminalSuggestProvidersConfiguration = {
 		id: 'terminalSuggestProviders',
@@ -236,11 +235,11 @@ export function registerTerminalSuggestProvidersConfiguration(availableProviders
 			}
 		}
 	};
-	
+
 	// Update the registry with the new configuration
-	registry.updateConfigurations({ 
-		add: [terminalSuggestProvidersConfiguration], 
-		remove: oldProvidersConfiguration ? [oldProvidersConfiguration] : [] 
+	registry.updateConfigurations({
+		add: [terminalSuggestProvidersConfiguration],
+		remove: oldProvidersConfiguration ? [oldProvidersConfiguration] : []
 	});
 }
 
