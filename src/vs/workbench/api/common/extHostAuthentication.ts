@@ -186,9 +186,9 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		serverMetadata: IAuthorizationServerMetadata,
 		resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
 		clientId: string | undefined,
+		clientSecret: string | undefined,
 		initialTokens: IAuthorizationToken[] | undefined
 	): Promise<string> {
-		let clientSecret: string | undefined;
 		if (!clientId) {
 			try {
 				const registration = await fetchDynamicRegistration(serverMetadata, this._initData.environment.appName, resourceMetadata?.scopes_supported);
@@ -245,13 +245,14 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 						provider.onDidChangeSessions(e => this._proxy.$sendDidChangeSessions(provider.id, e)),
 						provider.onDidChangeClientId(() => this._proxy.$sendDidChangeDynamicProviderInfo({
 							providerId: provider.id,
-							clientId: provider.clientId
+							clientId: provider.clientId,
+							clientSecret: provider._clientSecret
 						}))
 					),
 					options: { supportsMultipleAccounts: false }
 				}
 			);
-			await this._proxy.$registerDynamicAuthenticationProvider(provider.id, provider.label, provider.authorizationServer, provider.clientId);
+			await this._proxy.$registerDynamicAuthenticationProvider(provider.id, provider.label, provider.authorizationServer, provider.clientId, provider._clientSecret);
 		});
 
 		return provider.id;

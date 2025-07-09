@@ -54,6 +54,20 @@ export interface IDynamicAuthenticationProviderStorageService {
 	storeClientId(providerId: string, authorizationServer: string, clientId: string, label?: string): void;
 
 	/**
+	 * Get the client secret for a dynamic authentication provider.
+	 * @param providerId The provider ID or authorization server URL.
+	 * @returns The client secret if it exists, undefined otherwise.
+	 */
+	getClientSecret(providerId: string): Promise<string | undefined>;
+
+	/**
+	 * Store the client secret for a dynamic authentication provider.
+	 * @param providerId The provider ID or authorization server URL.
+	 * @param clientSecret The client secret to store.
+	 */
+	storeClientSecret(providerId: string, clientSecret: string): Promise<void>;
+
+	/**
 	 * Get all dynamic authentication providers that have been interacted with.
 	 * @returns Array of provider information.
 	 */

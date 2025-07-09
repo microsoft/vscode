@@ -124,6 +124,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 				// Auth Provider Id is a combination of the authorization server and the resource, if provided.
 				const authProviderId = resource ? `${authorizationServer.toString(true)} ${resource.resource}` : authorizationServer.toString(true);
 				const clientId = this.dynamicAuthProviderStorageService.getClientId(authProviderId);
+				const clientSecret = await this.dynamicAuthProviderStorageService.getClientSecret(authProviderId);
 				let initialTokens: (IAuthorizationTokenResponse & { created_at: number })[] | undefined = undefined;
 				if (clientId) {
 					initialTokens = await this.dynamicAuthProviderStorageService.getSessionsForDynamicAuthProvider(authProviderId, clientId);
@@ -133,6 +134,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 					serverMetadata,
 					resource,
 					clientId,
+					clientSecret,
 					initialTokens
 				);
 			}
@@ -226,16 +228,19 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return deferredPromise.p;
 	}
 
-	async $registerDynamicAuthenticationProvider(id: string, label: string, authorizationServer: UriComponents, clientId: string): Promise<void> {
+	async $registerDynamicAuthenticationProvider(id: string, label: string, authorizationServer: UriComponents, clientId: string, clientSecret?: string): Promise<void> {
 		await this.$registerAuthenticationProvider(id, label, true, [authorizationServer]);
 		this.dynamicAuthProviderStorageService.storeClientId(id, URI.revive(authorizationServer).toString(true), clientId, label);
+		if (clientSecret) {
+			await this.dynamicAuthProviderStorageService.storeClientSecret(id, clientSecret);
+		}
 	}
 
 	async $setSessionsForDynamicAuthProvider(authProviderId: string, clientId: string, sessions: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<void> {
 		await this.dynamicAuthProviderStorageService.setSessionsForDynamicAuthProvider(authProviderId, clientId, sessions);
 	}
 
-	async $sendDidChangeDynamicProviderInfo({ providerId, clientId, authorizationServer, label }: Partial<{ providerId: string; clientId: string; authorizationServer: UriComponents; label: string }>): Promise<void> {
+	async $sendDidChangeDynamicProviderInfo({ providerId, clientId, authorizationServer, label, clientSecret }: Partial<{ providerId: string; clientId: string; authorizationServer: UriComponents; label: string; clientSecret: string }>): Promise<void> {
 		this.logService.info(`Client ID for authentication provider ${providerId} changed to ${clientId}`);
 		const existing = this.dynamicAuthProviderStorageService.getInteractedProviders().find(p => p.providerId === providerId);
 		if (!existing) {
@@ -247,6 +252,9 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			clientId || existing.clientId,
 			label || existing.label
 		);
+		if (clientSecret) {
+			await this.dynamicAuthProviderStorageService.storeClientSecret(providerId || existing.providerId, clientSecret);
+		}
 	}
 
 	private async loginPrompt(provider: IAuthenticationProvider, extensionName: string, recreatingSession: boolean, options?: AuthenticationInteractiveOptions): Promise<boolean> {

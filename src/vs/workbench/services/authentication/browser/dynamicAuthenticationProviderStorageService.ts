@@ -61,6 +61,16 @@ export class DynamicAuthenticationProviderStorageService extends Disposable impl
 		this._trackProvider(providerId, authorizationServer, clientId, label);
 	}
 
+	async getClientSecret(providerId: string): Promise<string | undefined> {
+		const key = `dynamicAuthProvider:${providerId}:clientSecret`;
+		return await this.secretStorageService.get(key);
+	}
+
+	async storeClientSecret(providerId: string, clientSecret: string): Promise<void> {
+		const key = `dynamicAuthProvider:${providerId}:clientSecret`;
+		await this.secretStorageService.set(key, clientSecret);
+	}
+
 	private _trackProvider(providerId: string, authorizationServer: string, clientId: string, label?: string): void {
 		const providers = this._getStoredProviders();
 
@@ -133,6 +143,10 @@ export class DynamicAuthenticationProviderStorageService extends Disposable impl
 			const secretKey = JSON.stringify({ isDynamicAuthProvider: true, authProviderId: providerId, clientId: providerInfo.clientId });
 			await this.secretStorageService.delete(secretKey);
 		}
+
+		// Remove client secret from secret storage
+		const clientSecretKey = `dynamicAuthProvider:${providerId}:clientSecret`;
+		await this.secretStorageService.delete(clientSecretKey);
 	}
 
 	async getSessionsForDynamicAuthProvider(authProviderId: string, clientId: string): Promise<(IAuthorizationTokenResponse & { created_at: number })[] | undefined> {
