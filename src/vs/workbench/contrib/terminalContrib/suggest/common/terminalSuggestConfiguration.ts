@@ -56,10 +56,7 @@ export interface ITerminalSuggestConfiguration {
 	suggestOnTriggerCharacters: boolean;
 	runOnEnter: 'never' | 'exactMatch' | 'exactMatchIgnoreExtension' | 'always';
 	windowsExecutableExtensions: { [key: string]: boolean };
-	providers: {
-		'terminal-suggest': boolean;
-		'pwsh-shell-integration': boolean;
-	};
+	providers: { [key: string]: boolean };
 	showStatusBar: boolean;
 	cdPath: 'off' | 'relative' | 'absolute';
 	inlineSuggestion: 'off' | 'alwaysOnTopExceptExactMatch' | 'alwaysOnTop';
@@ -194,7 +191,12 @@ export function registerTerminalSuggestProvidersConfiguration(availableProviders
 	
 	// Create properties for the providers setting dynamically
 	const providersProperties: IStringDictionary<IConfigurationPropertySchema> = {};
-	const defaultValue: IStringDictionary<boolean> = {};
+	const defaultValue: IStringDictionary<boolean> = {
+		// Always include known built-in providers as defaults even if not yet registered
+		'terminal-suggest': true,
+		'builtinPwsh': true,
+		'lsp': true
+	};
 	
 	if (availableProviders) {
 		for (const providerId of availableProviders) {
@@ -231,5 +233,8 @@ export function registerTerminalSuggestProvidersConfiguration(availableProviders
 		remove: oldProvidersConfiguration ? [oldProvidersConfiguration] : [] 
 	});
 }
+
+// Initial registration with default providers
+registerTerminalSuggestProvidersConfiguration([]);
 
 
