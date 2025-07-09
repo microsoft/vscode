@@ -8,14 +8,15 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { observableSignal, runOnChange, IReader } from '../../../../base/common/observable.js';
 import { AnnotatedStringEdit } from '../../../../editor/common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
-import { IDocumentWithAnnotatedEdits, EditSourceData, EditSource } from './documentWithAnnotatedEdits.js';
+import { TextModelEditReason } from '../../../../editor/common/textModelEditReason.js';
+import { IDocumentWithAnnotatedEdits, EditKeySourceData, EditSource } from './documentWithAnnotatedEdits.js';
 
 /**
  * Tracks a single document.
 */
 export class DocumentEditSourceTracker<T = void> extends Disposable {
-	private _edits: AnnotatedStringEdit<EditSourceData> = AnnotatedStringEdit.empty;
-	private _pendingExternalEdits: AnnotatedStringEdit<EditSourceData> = AnnotatedStringEdit.empty;
+	private _edits: AnnotatedStringEdit<EditKeySourceData> = AnnotatedStringEdit.empty;
+	private _pendingExternalEdits: AnnotatedStringEdit<EditKeySourceData> = AnnotatedStringEdit.empty;
 
 	private readonly _update = observableSignal(this);
 
@@ -55,8 +56,7 @@ export class DocumentEditSourceTracker<T = void> extends Disposable {
 		const ranges = this._edits.getNewRanges();
 		return ranges.map((r, idx) => {
 			const e = this._edits.replacements[idx];
-			const reason = e.data.source;
-			const te = new TrackedEdit(e.replaceRange, r, reason, e.data.key);
+			const te = new TrackedEdit(e.replaceRange, r, e.data.key, e.data.source, e.data.representative);
 			return te;
 		});
 	}
@@ -90,7 +90,8 @@ export class TrackedEdit {
 	constructor(
 		public readonly originalRange: OffsetRange,
 		public readonly range: OffsetRange,
-		public readonly source: EditSource,
 		public readonly sourceKey: string,
+		public readonly source: EditSource,
+		public readonly sourceRepresentative: TextModelEditReason,
 	) { }
 }
