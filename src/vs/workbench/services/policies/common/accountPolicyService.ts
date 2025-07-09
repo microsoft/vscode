@@ -69,7 +69,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 			}
 		};
 
-		const hasTags = (policy: PolicyDefinition, tags: PolicyTag[]): boolean | undefined => {
+		const hasAllTags = (policy: PolicyDefinition, tags: PolicyTag[]): boolean | undefined => {
 			return policy.tags && tags.every(tag => policy.tags!.includes(tag));
 		};
 
@@ -77,11 +77,11 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 			const policy = policyDefinitions[key];
 
 			// Map chat preview features with ACCOUNT + PREVIEW tags
-			if (hasTags(policy, [PolicyTag.Account, PolicyTag.Preview])) {
+			if (hasAllTags(policy, [PolicyTag.Account, PolicyTag.Preview])) {
 				updateIfNeeded(key, policy, this.accountPolicy?.chatPreviewFeaturesEnabled);
 			}
 			// Map MCP feature with MCP tag
-			else if (hasTags(policy, [PolicyTag.Account, PolicyTag.MCP])) {
+			else if (hasAllTags(policy, [PolicyTag.Account, PolicyTag.MCP])) {
 				updateIfNeeded(key, policy, this.accountPolicy?.mcpEnabled);
 			}
 		}
