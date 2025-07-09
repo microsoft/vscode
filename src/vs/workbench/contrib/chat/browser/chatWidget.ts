@@ -761,8 +761,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
 			if ((startupExpValue === StartupExperimentGroup.MaximizedChat
 				|| startupExpValue === StartupExperimentGroup.SplitEmptyEditorChat
-				|| startupExpValue === StartupExperimentGroup.SplitWelcomeChat
-				|| expIsActive) && this.contextKeyService.contextMatchesRules(chatSetupTriggerContext)) {
+				|| startupExpValue === StartupExperimentGroup.SplitWelcomeChat) && this.contextKeyService.contextMatchesRules(chatSetupTriggerContext)) {
 				welcomeContent = this.getExpWelcomeViewContent();
 				this.container.classList.add('experimental-welcome-view');
 			}
