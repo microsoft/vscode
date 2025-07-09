@@ -76,7 +76,7 @@ export class ChatEditingTimeline {
 	 * Get the snapshot and history index for restoring, given requestId and stopId.
 	 * If requestId is undefined, returns undefined (pending snapshot is managed by session).
 	 */
-	public getSnapshotForRestore(requestId: string | undefined, stopId: string | undefined): { stop: IChatEditingSessionStop; historyIndex: number; apply(): void } | undefined {
+	public getSnapshotForRestore(requestId: string | undefined, stopId: string | undefined): { stop: IChatEditingSessionStop; apply(): void } | undefined {
 		if (requestId === undefined) {
 			return undefined;
 		}
@@ -85,7 +85,10 @@ export class ChatEditingTimeline {
 			return undefined;
 		}
 
-		return { stop: stopRef.stop, historyIndex: stopRef.historyIndex, apply: () => this._linearHistoryIndex.set(stopRef.historyIndex + 1, undefined) };
+		return {
+			stop: stopRef.stop,
+			apply: () => this._linearHistoryIndex.set(toIndex, undefined)
+		};
 	}
 
 	/**

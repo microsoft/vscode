@@ -9,6 +9,7 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { ChatEditingTimeline } from '../../browser/chatEditing/chatEditingTimeline.js';
 import { IChatEditingSessionStop } from '../../browser/chatEditing/chatEditingSessionStorage.js';
 import { transaction } from '../../../../../base/common/observable.js';
+import { IChatRequestDisablement } from '../../common/chatModel.js';
 
 suite('ChatEditingTimeline', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
@@ -333,6 +334,32 @@ suite('ChatEditingTimeline', () => {
 				redoSnap = timeline.getRedoSnapshot();
 			}
 			assert.deepStrictEqual(redoStops, ['stop2', 'stop3']);
+		});
+
+		test('getRequestDisablement with root request ID', () => {
+			timeline.pushSnapshot('req1', undefined, createSnapshot(undefined));
+			timeline.pushSnapshot('req1', 'stop1', createSnapshot('stop1'));
+			timeline.pushSnapshot('req1', 'stop2', createSnapshot('stop2'));
+
+			timeline.pushSnapshot('req2', undefined, createSnapshot(undefined));
+			timeline.pushSnapshot('req2', 'stop1-2', createSnapshot('stop1-2'));
+			timeline.pushSnapshot('req2', 'stop2-2', createSnapshot('stop2-2'));
+
+			const expected: IChatRequestDisablement[][] = [
+				[{ requestId: 'req2', afterUndoStop: 'stop2-2' }],
+				[{ requestId: 'req2', afterUndoStop: 'stop1-2' }],
+				[{ requestId: 'req2' }],
+				[{ requestId: 'req1', afterUndoStop: 'stop2' }, { requestId: 'req2' }],
+				[{ requestId: 'req1', afterUndoStop: 'stop1' }, { requestId: 'req2' }],
+				[{ requestId: 'req1' }, { requestId: 'req2' }],
+			];
+
+			while (timeline.canUndo.get()) {
+				timeline.getUndoSnapshot()!.apply();
+				const actual = timeline.getRequestDisablement();
+
+				assert.deepStrictEqual(actual, expected.shift()!);
+			}
 		});
 	});
 
