@@ -419,7 +419,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Theme changes
-		this._register(this.themeService.onDidColorThemeChange(() => this.updateWindowsBorder()));
+		this._register(this.themeService.onDidColorThemeChange(() => this.updateWindowBorder()));
 
 		// Window active / focus changes
 		this._register(this.hostService.onDidChangeFocus(focused => this.onWindowFocusChanged(focused)));
@@ -508,7 +508,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Propagate to grid
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled));
 
-			this.updateWindowsBorder(true);
+			this.updateWindowBorder(true);
 		}
 	}
 
@@ -518,7 +518,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.state.runtime.activeContainerId = activeContainerId;
 
 			// Indicate active window border
-			this.updateWindowsBorder();
+			this.updateWindowBorder();
 
 			this._onDidChangeActiveContainer.fire();
 		}
@@ -527,7 +527,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private onWindowFocusChanged(hasFocus: boolean): void {
 		if (this.state.runtime.hasFocus !== hasFocus) {
 			this.state.runtime.hasFocus = hasFocus;
-			this.updateWindowsBorder();
+			this.updateWindowBorder();
 		}
 	}
 
@@ -582,7 +582,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.adjustPartPositions(position, panelAlignment, panelPosition);
 	}
 
-	private updateWindowsBorder(skipLayout = false) {
+	private updateWindowBorder(skipLayout = false) {
 		if (
 			isWeb ||
 			isWindows || 											// not working well with zooming (border often not visible)
@@ -743,7 +743,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Window border
-		this.updateWindowsBorder(true);
+		this.updateWindowBorder(true);
 	}
 
 	private getDefaultLayoutViews(environmentService: IBrowserWorkbenchEnvironmentService, storageService: IStorageService): string[] | undefined {
@@ -2377,7 +2377,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.state.runtime.maximized.delete(targetWindowId);
 		}
 
-		this.updateWindowsBorder();
+		this.updateWindowBorder();
 		this._onDidChangeWindowMaximized.fire({ windowId: targetWindowId, maximized });
 	}
 
@@ -2800,6 +2800,12 @@ class LayoutStateModel extends Disposable {
 
 	private readonly stateCache = new Map<string, unknown>();
 
+	private readonly isNew: {
+		[StorageScope.WORKSPACE]: boolean;
+		[StorageScope.PROFILE]: boolean;
+		[StorageScope.APPLICATION]: boolean;
+	};
+
 	constructor(
 		private readonly storageService: IStorageService,
 		private readonly configurationService: IConfigurationService,
@@ -2809,6 +2815,12 @@ class LayoutStateModel extends Disposable {
 		private readonly viewDescriptorService: IViewDescriptorService
 	) {
 		super();
+
+		this.isNew = {
+			[StorageScope.WORKSPACE]: this.storageService.isNew(StorageScope.WORKSPACE),
+			[StorageScope.PROFILE]: this.storageService.isNew(StorageScope.PROFILE),
+			[StorageScope.APPLICATION]: this.storageService.isNew(StorageScope.APPLICATION)
+		};
 
 		this._register(this.configurationService.onDidChangeConfiguration(configurationChange => this.updateStateFromLegacySettings(configurationChange)));
 	}
@@ -2894,9 +2906,11 @@ class LayoutStateModel extends Disposable {
 			}
 
 			switch (this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY)) {
+				case 'maximized':
 				case 'visible':
 					return false;
 				case 'visibleInWorkspace':
+				case 'maximizedInWorkspace':
 					return workbenchState === WorkbenchState.EMPTY;
 				default:
 					return true;
@@ -2945,7 +2959,7 @@ class LayoutStateModel extends Disposable {
 			}
 		});
 
-		// With experimental treatment for new users
+		// Auxiliary bar: With experimental treatment for new users
 		if (
 			this.storageService.isNew(StorageScope.APPLICATION) &&
 			this.contextService.getWorkbenchState() === WorkbenchState.EMPTY &&
@@ -2956,20 +2970,7 @@ class LayoutStateModel extends Disposable {
 			)
 		) {
 			if (experiment.value.experimentGroup === StartupExperimentGroup.MaximizedChat) {
-				this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY, {
-					sideBarVisible: !this.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN),
-					panelVisible: !this.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN),
-					editorVisible: !this.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN),
-					auxiliaryBarVisible: !this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN)
-				});
-
-				this.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, true);
-				this.setRuntimeValue(LayoutStateKeys.PANEL_HIDDEN, true);
-				this.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, true);
-				this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, false);
-
-				this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE, this.getInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE));
-				this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, true);
+				this.applyAuxiliaryBarMaximizedOverride();
 			} else if (
 				experiment.value.experimentGroup === StartupExperimentGroup.SplitEmptyEditorChat ||
 				experiment.value.experimentGroup === StartupExperimentGroup.SplitWelcomeChat
@@ -2977,6 +2978,17 @@ class LayoutStateModel extends Disposable {
 				const mainContainerDimension = configuration.mainContainerDimension;
 				this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, false);
 				this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, Math.ceil(mainContainerDimension.width / (1.618 * 1.618 /* golden ratio */)));
+			}
+		}
+
+		// Auxiliary bar: Based on setting for new workspaces
+		else if (this.isNew[StorageScope.WORKSPACE]) {
+			const defaultAuxiliaryBarVisibility = this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY);
+			if (
+				defaultAuxiliaryBarVisibility === 'maximized' ||
+				(defaultAuxiliaryBarVisibility === 'maximizedInWorkspace' && this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY)
+			) {
+				this.applyAuxiliaryBarMaximizedOverride();
 			}
 		}
 
@@ -2988,6 +3000,23 @@ class LayoutStateModel extends Disposable {
 		) {
 			this.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, false);
 		}
+	}
+
+	private applyAuxiliaryBarMaximizedOverride(): void {
+		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY, {
+			sideBarVisible: !this.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN),
+			panelVisible: !this.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN),
+			editorVisible: !this.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN),
+			auxiliaryBarVisible: !this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN)
+		});
+
+		this.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, true);
+		this.setRuntimeValue(LayoutStateKeys.PANEL_HIDDEN, true);
+		this.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, true);
+		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, false);
+
+		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE, this.getInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE));
+		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, true);
 	}
 
 	save(workspace: boolean, global: boolean): void {
@@ -3071,13 +3100,15 @@ class LayoutStateModel extends Disposable {
 	}
 
 	private loadKeyFromStorage<T extends StorageKeyType>(key: WorkbenchLayoutStateKey<T>): T | undefined {
-		let value: any = this.storageService.get(`${LayoutStateModel.STORAGE_PREFIX}${key.name}`, key.scope);
+		const value = this.storageService.get(`${LayoutStateModel.STORAGE_PREFIX}${key.name}`, key.scope);
 
 		if (value !== undefined) {
+			this.isNew[key.scope] = false; // remember that we had previous state for this scope
+
 			switch (typeof key.defaultValue) {
-				case 'boolean': value = value === 'true'; break;
-				case 'number': value = parseInt(value); break;
-				case 'object': value = JSON.parse(value); break;
+				case 'boolean': return (value === 'true') as T;
+				case 'number': return parseInt(value) as T;
+				case 'object': return JSON.parse(value) as T;
 			}
 		}
 
