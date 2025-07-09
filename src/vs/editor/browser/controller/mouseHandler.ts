@@ -725,12 +725,15 @@ class TopBottomDragScrollingOperation extends Disposable {
 	}
 
 	private _execute(): void {
+		console.log('_execute');
 		const lineHeight = this._context.configuration.options.get(EditorOption.lineHeight);
+		console.log('lineHeight : ', lineHeight);
 		const scrollSpeedInLines = this._getScrollSpeed();
 		const elapsed = this._tick();
 		const scrollInPixels = scrollSpeedInLines * (elapsed / 1000) * lineHeight;
 		const scrollValue = (this._position.outsidePosition === 'above' ? -scrollInPixels : scrollInPixels);
 
+		console.log('scrollValue : ', scrollValue);
 		this._context.viewModel.viewLayout.deltaScrollNow(0, scrollValue);
 		this._viewHelper.renderNow();
 
