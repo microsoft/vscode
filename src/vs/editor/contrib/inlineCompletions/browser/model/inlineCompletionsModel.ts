@@ -47,6 +47,7 @@ import { TextModelEditReason, EditReasons } from '../../../../common/textModelEd
 import { ICodeEditorService } from '../../../../browser/services/codeEditorService.js';
 import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
 import { IInlineCompletionsService } from '../../../../browser/services/inlineCompletionsService.js';
+import { FoldingController } from '../../../folding/browser/folding.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -83,6 +84,8 @@ export class InlineCompletionsModel extends Disposable {
 	public readonly onDidAccept = this._onDidAccept.event;
 
 	private readonly _editorObs;
+
+	private readonly _foldingController;
 
 	private readonly _suggestPreviewEnabled;
 	private readonly _suggestPreviewMode;
@@ -166,6 +169,8 @@ export class InlineCompletionsModel extends Disposable {
 				};
 			}
 		}));
+
+		this._foldingController = FoldingController.get(this._editor);
 
 		const inlineCompletionProviders = observableFromEvent(this._languageFeaturesService.inlineCompletionsProvider.onDidChange, () => this._languageFeaturesService.inlineCompletionsProvider.all(textModel));
 		mapObservableArrayCached(this, inlineCompletionProviders, (provider, store) => {
@@ -664,10 +669,26 @@ export class InlineCompletionsModel extends Disposable {
 		return v?.primaryGhostText;
 	});
 
+	private readonly _visibleRanges = observableFromEvent(this._editor.onDidChangeHiddenAreas, () => this._editor.getVisibleRanges());
+
+	public readonly isInHiddenArea = derived(this, reader => {
+		const state = this.state.read(reader);
+		if (!state || state.kind !== 'inlineEdit') {
+			return false;
+		}
+
+		const completionRange = state.inlineCompletion.targetRange;
+		return !this._visibleRanges.read(reader).some(visibleRange => visibleRange.containsRange(completionRange));
+	});
+
 	public readonly showCollapsed = derived<boolean>(this, reader => {
 		const state = this.state.read(reader);
 		if (!state || state.kind !== 'inlineEdit') {
 			return false;
+		}
+
+		if (this.isInHiddenArea.read(reader)) {
+			return true;
 		}
 
 		if (state.inlineCompletion.displayLocation) {
@@ -1006,6 +1027,8 @@ export class InlineCompletionsModel extends Disposable {
 			this.dontRefetchSignal.trigger(tx);
 			const targetRange = s.inlineCompletion.targetRange;
 			const targetPosition = targetRange.getStartPosition();
+
+			this._foldingController?.revealFoldedRegionsInRange(targetRange);
 			this._editor.setPosition(targetPosition, 'inlineCompletions.jump');
 
 			// TODO: consider using view information to reveal it
