@@ -275,10 +275,6 @@ class ChatEditorOverlayWidget extends Disposable {
 							});
 						}
 
-						override get actionRunner(): IActionRunner {
-							return super.actionRunner;
-						}
-
 						protected override getTooltip(): string | undefined {
 							const value = super.getTooltip();
 							if (!value) {

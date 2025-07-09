@@ -461,6 +461,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 
 		this._register(this.onDidChangeParsedInput(() => this.updateChatInputContext()));
+
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set([
+				ChatContextKeys.Setup.installed.key,
+				ChatContextKeys.Entitlement.canSignUp.key
+			]))) {
+				// reset the input in welcome view if it was rendered in experimental mode
+				if (this.container.classList.contains('experimental-welcome-view')) {
+					this.container.classList.remove('experimental-welcome-view');
+					const renderFollowups = this.viewOptions.renderFollowups ?? false;
+					const renderStyle = this.viewOptions.renderStyle;
+					this.createInput(this.container, { renderFollowups, renderStyle });
+				}
+			}
+		}));
 	}
 
 	private _lastSelectedAgent: IChatAgentData | undefined;
@@ -1115,15 +1130,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			ChatContextKeys.currentlyEditing.bindTo(editedRequest.contextKeyService).set(false);
 		}
 
-		this.inputPart.setChatMode(this.inlineInputPart.currentModeKind);
-		const currentModelName = this.inlineInputPart.selectedLanguageModel?.metadata.name;
-		if (currentModelName) {
-			this.inputPart.switchModelByName(currentModelName);
-		}
-
 		const isInput = this.configurationService.getValue<string>('chat.editRequests') === 'input';
 
 		if (!isInput) {
+			this.inputPart.setChatMode(this.input.currentModeKind);
+			const currentModel = this.input.selectedLanguageModel;
+			if (currentModel) {
+				this.inputPart.switchModel(currentModel.metadata);
+			}
+
 			this.inputPart?.toggleChatInputOverlay(false);
 			try {
 				if (editedRequest?.rowContainer && editedRequest.rowContainer.contains(this.inputContainer)) {
@@ -1952,7 +1967,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		if (model !== undefined) {
-			this.input.switchModelByName(model);
+			this.input.switchModelByQualifiedName(model);
 		}
 	}
 
