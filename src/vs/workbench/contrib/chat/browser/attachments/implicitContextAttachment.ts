@@ -88,12 +88,13 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		this.domNode.ariaLabel = ariaLabel;
 		this.domNode.tabIndex = 0;
 
-		const hintLabel = !this.attachment.isSelection ? localize('hint.label.current', "Current {0}", attachmentTypeName) : '';
+		const isSuggestedEnabled = this.configService.getValue('chat.implicitContext.suggestedContext');
+		const hintLabel = !this.attachment.isSelection && !isSuggestedEnabled ? localize('hint.label.current', "Current {0}", attachmentTypeName) : '';
 		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, hintLabel));
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), hintElement, title));
 
 
-		if (this.configService.getValue('chat.implicitContext.suggestedContext')) {
+		if (isSuggestedEnabled) {
 			if (!this.attachment.isSelection) {
 				const buttonMsg = this.attachment.enabled ? localize('disable', "Disable current {0} context", attachmentTypeName) : localize('enable', "Enable current {0} context", attachmentTypeName);
 				const toggleButton = this.renderDisposables.add(new Button(this.domNode, { supportIcons: true, title: buttonMsg }));
