@@ -1,6 +1,10 @@
 ---
 name: Copilot Bug report
 about: Create a report to help us improve Copilot's chat interface in VS Code
+title: ''
+labels: chat-ext-issue
+assignees: ''
+
 ---
 
 <!-- Please search existing issues to avoid creating duplicates -->
