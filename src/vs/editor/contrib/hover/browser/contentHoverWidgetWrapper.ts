@@ -126,10 +126,18 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		return true;
 	}
 
+	/**
+	 * Checks if the content hover widget is currently visible.
+	 * Extracted for improved readability and reusability.
+	 */
 	private _isContentHoverVisible(): boolean {
 		return !!(this._contentHoverWidget.position && this._currentResult);
 	}
 
+	/**
+	 * Handles hover behavior when the content hover is not currently visible.
+	 * Extracted from _startShowingOrUpdateHover to improve code clarity.
+	 */
 	private _handleHoverWhenNotVisible(
 		anchor: HoverAnchor | null,
 		mode: HoverStartMode,
@@ -143,16 +151,28 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		return false;
 	}
 
+	/**
+	 * Determines if the hover should be kept visible due to sticky mouse behavior.
+	 * Extracted to simplify complex boolean logic in _startShowingOrUpdateHover.
+	 */
 	private _shouldKeepHoverForStickyMouse(mouseEvent: IEditorMouseEvent | null): boolean {
 		const isHoverSticky = this._editor.getOption(EditorOption.hover).sticky;
 		const isMouseGettingCloser = (mouseEvent && this._contentHoverWidget.isMouseGettingCloser(mouseEvent.event.posx, mouseEvent.event.posy)) ?? false;
 		return isHoverSticky && isMouseGettingCloser;
 	}
 
+	/**
+	 * Checks if the current anchor is equal to the previous anchor.
+	 * Extracted to improve readability of anchor comparison logic.
+	 */
 	private _isCurrentAnchorEqualToPrevious(anchor: HoverAnchor): boolean {
 		return !!(this._currentResult && this._currentResult.options.anchor.equals(anchor));
 	}
 
+	/**
+	 * Checks if the current anchor is compatible with the previous anchor.
+	 * Extracted to simplify complex anchor compatibility logic.
+	 */
 	private _isCurrentAnchorCompatibleWithPrevious(anchor: HoverAnchor, position: Position): boolean {
 		return !!(this._currentResult && anchor.canAdoptVisibleHover(this._currentResult.options.anchor, position));
 	}
@@ -171,6 +191,10 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		this._hoverOperation.start(mode, contentHoverComputerOptions);
 	}
 
+	/**
+	 * Checks if the current hover operation is for the same anchor.
+	 * Extracted to improve code clarity and reusability.
+	 */
 	private _isHoverOperationForSameAnchor(anchor: HoverAnchor): boolean {
 		return !!(this._hoverOperation.options && this._hoverOperation.options.anchor.equals(anchor));
 	}
@@ -188,6 +212,10 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		}
 	}
 
+	/**
+	 * Normalizes hover results by returning null for empty results.
+	 * Extracted to centralize hover result validation logic.
+	 */
 	private _normalizeHoverResult(hoverResult: ContentHoverResult | null): ContentHoverResult | null {
 		if (!hoverResult) {
 			return null;
@@ -225,6 +253,10 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		this._setCurrentResult(hoverResult);
 	}
 
+	/**
+	 * Determines if we should wait for a complete hover result before updating.
+	 * Extracted to simplify complex conditional logic in _withResult.
+	 */
 	private _shouldWaitForCompleteResult(hoverResult: ContentHoverResult): boolean {
 		return !!(this._contentHoverWidget.position && this._currentResult && this._currentResult.isComplete);
 	}
@@ -275,6 +307,10 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		return this._startShowingOrUpdateHover(anchor, HoverStartMode.Delayed, HoverStartSource.Mouse, false, mouseEvent);
 	}
 
+	/**
+	 * Selects the best anchor from a list of anchor candidates.
+	 * Extracted to improve readability and enable easier anchor selection logic changes.
+	 */
 	private _selectBestAnchor(anchorCandidates: HoverAnchor[]): HoverAnchor | null {
 		return anchorCandidates.length > 0 ? anchorCandidates[0] : null;
 	}
@@ -287,6 +323,10 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		return anchorCandidates;
 	}
 
+	/**
+	 * Adds hover anchors suggested by hover participants to the candidates list.
+	 * Extracted to separate participant-specific anchor logic.
+	 */
 	private _addParticipantAnchors(mouseEvent: IEditorMouseEvent, anchorCandidates: HoverAnchor[]): void {
 		for (const participant of this._participants) {
 			if (!participant.suggestHoverAnchor) {
@@ -299,6 +339,10 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		}
 	}
 
+	/**
+	 * Adds hover anchors based on mouse target type to the candidates list.
+	 * Extracted to separate target-based anchor logic from participant logic.
+	 */
 	private _addTargetBasedAnchors(mouseEvent: IEditorMouseEvent, anchorCandidates: HoverAnchor[]): void {
 		const target = mouseEvent.target;
 		switch (target.type) {
@@ -313,6 +357,10 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		}
 	}
 
+	/**
+	 * Determines if an anchor should be added for empty content based on mouse proximity.
+	 * Extracted to isolate complex empty content hover logic.
+	 */
 	private _shouldAddAnchorForEmptyContent(target: any, mouseEvent: IEditorMouseEvent): boolean {
 		const epsilon = this._editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth / 2;
 		// Let hover kick in even when the mouse is technically in the empty area after a line, given the distance is small enough
@@ -328,6 +376,10 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		}
 	}
 
+	/**
+	 * Checks if the mouse position is outside the editor bounds.
+	 * Extracted to improve readability of mouse leave logic.
+	 */
 	private _isMouseOutsideEditor(e: MouseEvent): boolean {
 		const editorDomNode = this._editor.getDomNode();
 		return !editorDomNode || !isMousePositionWithinElement(editorDomNode, e.x, e.y);
