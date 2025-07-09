@@ -214,7 +214,7 @@ export function registerTerminalSuggestProvidersConfiguration(availableProviders
 				description: localize('suggest.provider.description', "Enable or disable the '{0}' terminal suggestion provider.", providerId),
 				default: true
 			};
-			defaultValue[providerId] = true;
+			defaultValue[providerId] = defaultValue[providerId] ?? true;
 		}
 	}
 
