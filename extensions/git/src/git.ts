@@ -1025,7 +1025,7 @@ function parseGitWorktrees(raw: string): Worktree[] {
 	let lockedReason: string | undefined;
 
 	const push = () => {
-		if (path && name) {
+		if (path && name) { // Only push if we have a complete worktree
 			result.push({
 				path,
 				name,
@@ -1043,11 +1043,11 @@ function parseGitWorktrees(raw: string): Worktree[] {
 
 	for (const line of raw.split(lineSeparator)) {
 		if (!line.trim()) {
+			push(); // Blank line indicates the end of a worktree
 			continue;
 		}
 
 		if (line.startsWith('worktree ')) {
-			push(); // Push the previous worktree if exists, if not, then create new worktree
 			path = line.substring('worktree '.length);
 			name = path.split('/').pop();
 		} else if (line.startsWith('HEAD ')) {
