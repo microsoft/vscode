@@ -6,7 +6,6 @@ import { assertNever } from '../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { diffSets } from '../../../../../base/common/collections.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Iterable } from '../../../../../base/common/iterator.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
@@ -391,10 +390,11 @@ export async function showToolsPicker(
 		if (item.source.type === 'mcp') {
 			mcpToolSets.add(item);
 
-			if (Iterable.every(item.getTools(), tool => result.get(tool))) {
+			const toolsInSet = Array.from(item.getTools());
+			if (toolsInSet.length && toolsInSet.every(tool => result.get(tool))) {
 				// ALL tools from the MCP tool set are here, replace them with just the toolset
 				// but only when computing the final result
-				for (const tool of item.getTools()) {
+				for (const tool of toolsInSet) {
 					result.delete(tool);
 				}
 				result.set(item, true);
