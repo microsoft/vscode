@@ -32,6 +32,17 @@ export interface IFileStatus {
 	rename?: string;
 }
 
+export interface Worktree {
+	readonly path: string;
+	readonly name: string;
+	readonly commit?: string;
+	readonly branch?: string;
+	readonly detached?: boolean;
+	readonly prunable?: boolean;
+	readonly locked?: boolean;
+	readonly lockedReason?: string;
+}
+
 export interface Stash {
 	readonly hash: string;
 	readonly parents: string[];
@@ -998,6 +1009,69 @@ function parseGitStashes(raw: string): Stash[] {
 
 	return result;
 }
+
+function parseGitWorktrees(raw: string): Worktree[] {
+	const lineSeparator = /\r?\n/;
+
+	const result: Worktree[] = [];
+
+	let path: string | undefined;
+	let name: string | undefined;
+	let branch: string | undefined;
+	let commit: string | undefined;
+	let detached: boolean | undefined;
+	let prunable: boolean | undefined;
+	let locked: boolean | undefined;
+	let lockedReason: string | undefined;
+
+	const push = () => {
+		if (path && name) {
+			result.push({
+				path,
+				name,
+				branch,
+				commit,
+				detached,
+				prunable,
+				locked,
+				lockedReason,
+			});
+		}
+		// Reset for the next worktree
+		path = name = branch = commit = detached = prunable = locked = lockedReason = undefined;
+	};
+
+	for (const line of raw.split(lineSeparator)) {
+		if (!line.trim()) {
+			continue;
+		}
+
+		if (line.startsWith('worktree ')) {
+			push(); // Push the previous worktree if exists, if not, then create new worktree
+			path = line.substring('worktree '.length);
+			name = path.split('/').pop();
+		} else if (line.startsWith('HEAD ')) {
+			commit = line.substring('HEAD '.length);
+		} else if (line.startsWith('branch ')) {
+			branch = line.substring('branch '.length);
+		} else if (line === 'detached') {
+			detached = true;
+		} else if (line.startsWith('locked')) {
+			locked = true;
+			const reason = line.substring('locked'.length).trim();
+			if (reason) {
+				lockedReason = reason;
+			}
+		} else if (line.startsWith('prunable')) {
+			prunable = true;
+		}
+	}
+
+	push(); // Push the last worktree
+
+	return result;
+}
+
 
 function parseGitChanges(repositoryRoot: string, raw: string): Change[] {
 	let index = 0;
@@ -2712,6 +2786,11 @@ export class Repository {
 	async getStashes(): Promise<Stash[]> {
 		const result = await this.exec(['stash', 'list', `--format=${STASH_FORMAT}`, '-z']);
 		return parseGitStashes(result.stdout.trim());
+	}
+
+	async getWorktrees(): Promise<Worktree[]> {
+		const result = await this.exec(['worktree', 'list', '--porcelain']);
+		return parseGitWorktrees(result.stdout.trim());
 	}
 
 	async getRemotes(): Promise<Remote[]> {
