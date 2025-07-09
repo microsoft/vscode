@@ -2976,11 +2976,11 @@
           "default": 10,
           "description": "%config.detectSubmodulesLimit%"
         },
-        "git.detectWorktree": {
+        "git.detectWorktrees": {
           "type": "boolean",
           "scope": "resource",
           "default": true,
-          "description": "%config.detectWorktree%"
+          "description": "%config.detectWorktrees%"
         },
         "git.detectWorktreesLimit": {
           "type": "number",
