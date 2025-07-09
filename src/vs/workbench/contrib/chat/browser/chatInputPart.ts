@@ -102,6 +102,9 @@ import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
 import { resizeImage } from './imageUtils.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { isLocation } from '../../../../editor/common/languages.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
 
 const $ = dom.$;
 
@@ -169,7 +172,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		contextArr.add(...this.attachmentModel.attachments);
 
-		if (this.implicitContext?.enabled && this.implicitContext.value) {
+		if ((this.implicitContext?.enabled && this.implicitContext?.value) || isLocation(this.implicitContext?.value)) {
 			const implicitChatVariables = this.implicitContext.toBaseEntries();
 			contextArr.add(...implicitChatVariables);
 		}
@@ -441,6 +444,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.accessibilityService.alert(this._currentModeObservable.get().name);
 			if (this._inputEditor) {
 				this._inputEditor.updateOptions({ ariaLabel: this._getAriaLabel() });
+			}
+
+			if (this.implicitContext) {
+				this.implicitContext.enabled = this._currentModeObservable.get() !== ChatMode.Agent;
 			}
 		}));
 		this._register(this._onDidChangeCurrentLanguageModel.event(() => {
@@ -1301,10 +1308,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._indexOfLastOpenedContext = -1;
 		}
 
-		if (this.implicitContext?.value) {
-			const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, this.implicitContext, this._contextResourceLabels));
-			container.appendChild(implicitPart.domNode);
-		}
 
 		this.promptFileAttached.set(this.hasPromptFileAttachments);
 
@@ -1355,6 +1358,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 		}
 
+		const implicitUri = this.implicitContext?.value;
+
+		if (implicitUri && (URI.isUri(implicitUri) || isLocation(implicitUri))) {
+			const targetUri = URI.isUri(implicitUri) ? implicitUri : implicitUri.uri;
+			const currentlyAttached = attachments.some(([, attachment]) => URI.isUri(attachment.value) && isEqual(attachment.value, targetUri));
+
+			const shouldShowImplicit = URI.isUri(implicitUri) ? !currentlyAttached : (implicitUri.range instanceof Selection || !currentlyAttached);
+			if (shouldShowImplicit) {
+				const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, this.implicitContext, this._contextResourceLabels, this._attachmentModel));
+				container.appendChild(implicitPart.domNode);
+			}
+		}
 
 		if (oldHeight !== this.attachmentsContainer.offsetHeight) {
 			this._onDidChangeHeight.fire();
@@ -1371,6 +1386,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 
 		this._attachmentModel.delete(attachment.id);
+
+		// if currently opened file is deleted, do not show implicit context
+		const location = isLocation(this.implicitContext?.value) && URI.isUri(attachment.value) && isEqual(this.implicitContext.value.uri, attachment.value);
+		const isuri = URI.isUri(this.implicitContext?.value) && URI.isUri(attachment.value) && isEqual(this.implicitContext.value, attachment.value);
+
+		if (this.implicitContext?.isFile && (location || isuri)) {
+			this.implicitContext.enabled = false;
+		}
 
 		if (this._attachmentModel.size === 0) {
 			this.focus();
