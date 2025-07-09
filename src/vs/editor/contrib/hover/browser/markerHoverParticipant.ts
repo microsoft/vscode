@@ -72,7 +72,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 
 		const model = this._editor.getModel();
 		const anchorRange = anchor.range;
-		if (!model.isValidRange(anchor.range)) {
+		if (!model.isValidRange(anchorRange)) {
 			return [];
 		}
 		const lineNumber = anchorRange.startLineNumber;
