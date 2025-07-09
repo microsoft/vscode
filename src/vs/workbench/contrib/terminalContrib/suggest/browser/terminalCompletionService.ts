@@ -153,7 +153,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			return this._collectCompletions(providers, shellType, promptValue, cursorPosition, allowFallbackCompletions, capabilities, token, explicitlyInvoked);
 		}
 
-		providers = this._getEnabledProviders(providers);
+		providers = this.getEnabledProviders(providers);
 
 		if (!providers.length) {
 			return;
@@ -162,7 +162,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		return this._collectCompletions(providers, shellType, promptValue, cursorPosition, allowFallbackCompletions, capabilities, token, explicitlyInvoked);
 	}
 
-	protected _getEnabledProviders(providers: ITerminalCompletionProvider[]): ITerminalCompletionProvider[] {
+	getEnabledProviders(providers: ITerminalCompletionProvider[]): ITerminalCompletionProvider[] {
 		const providerConfig: { [key: string]: boolean } = this._configurationService.getValue(TerminalSuggestSettingId.Providers);
 		return providers.filter(p => {
 			const providerId = p.id;
