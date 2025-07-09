@@ -13,6 +13,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
 import { revive } from '../../../../base/common/marshalling.js';
+import { derived, IObservable, ObservableMap } from '../../../../base/common/observable.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isLocation } from '../../../../editor/common/languages.js';
@@ -36,7 +37,7 @@ import { ChatSessionStore, IChatTransfer2 } from './chatSessionStore.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatTransferService } from './chatTransferService.js';
 import { IChatRequestVariableEntry, isImageVariableEntry } from './chatVariableEntries.js';
-import { ChatAgentLocation, ChatConfiguration, ChatMode } from './constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from './constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from './languageModels.js';
 import { ILanguageModelToolsService } from './languageModelToolsService.js';
 
@@ -109,7 +110,7 @@ class CancellableRequest implements IDisposable {
 export class ChatService extends Disposable implements IChatService {
 	declare _serviceBrand: undefined;
 
-	private readonly _sessionModels = this._register(new DisposableMap<string, ChatModel>());
+	private readonly _sessionModels = new ObservableMap<string, ChatModel>();
 	private readonly _pendingRequests = this._register(new DisposableMap<string, CancellableRequest>());
 	private _persistedSessions: ISerializableChatsData;
 
@@ -133,6 +134,8 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableMap<string, CancellationTokenSource>());
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 	private readonly _chatSessionStore: ChatSessionStore;
+
+	readonly requestInProgressObs: IObservable<boolean>;
 
 	@memoize
 	private get useFileStorage(): boolean {
@@ -196,6 +199,11 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		this._register(storageService.onWillSaveState(() => this.saveState()));
+
+		this.requestInProgressObs = derived(reader => {
+			const models = this._sessionModels.observable.read(reader).values();
+			return Array.from(models).some(model => model.requestInProgressObs.read(reader));
+		});
 	}
 
 	isEnabled(location: ChatAgentLocation): boolean {
@@ -614,7 +622,7 @@ export class ChatService extends Disposable implements IChatService {
 				if (request.shouldBeRemovedOnSend.afterUndoStop) {
 					request.response?.finalizeUndoState();
 				} else {
-					this.removeRequest(sessionId, request.id);
+					await this.removeRequest(sessionId, request.id);
 				}
 			}
 		}
@@ -777,7 +785,7 @@ export class ChatService extends Disposable implements IChatService {
 						} satisfies IChatAgentRequest;
 					};
 
-					if (this.configurationService.getValue('chat.detectParticipant.enabled') !== false && this.chatAgentService.hasChatParticipantDetectionProviders() && !agentPart && !commandPart && !agentSlashCommandPart && enableCommandDetection && options?.mode !== ChatMode.Agent && options?.mode !== ChatMode.Edit) {
+					if (this.configurationService.getValue('chat.detectParticipant.enabled') !== false && this.chatAgentService.hasChatParticipantDetectionProviders() && !agentPart && !commandPart && !agentSlashCommandPart && enableCommandDetection && options?.mode !== ChatModeKind.Agent && options?.mode !== ChatModeKind.Edit) {
 						// We have no agent or command to scope history with, pass the full history to the participant detection provider
 						const defaultAgentHistory = this.getHistoryEntriesFromModel(requests, model.sessionId, location, defaultAgent.id);
 
@@ -952,7 +960,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private async checkAgentAllowed(agent: IChatAgentData): Promise<void> {
-		if (agent.modes.includes(ChatMode.Agent)) {
+		if (agent.modes.includes(ChatModeKind.Agent)) {
 			const enabled = await this.experimentService.getTreatment<boolean>('chatAgentEnabled');
 			if (enabled === false) {
 				throw new Error('Agent is currently disabled');
@@ -1125,7 +1133,8 @@ export class ChatService extends Disposable implements IChatService {
 			}
 		}
 
-		this._sessionModels.deleteAndDispose(sessionId);
+		this._sessionModels.delete(sessionId);
+		model.dispose();
 		this._pendingRequests.get(sessionId)?.cancel();
 		this._pendingRequests.deleteAndDispose(sessionId);
 		this._onDidDisposeSession.fire({ sessionId, reason: 'cleared' });

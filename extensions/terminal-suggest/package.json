@@ -25,7 +25,7 @@
   },
   "main": "./out/terminalSuggestMain",
   "activationEvents": [
-    "onTerminalCompletionsRequested"
+    "onTerminalShellIntegration:*"
   ],
   "repository": {
     "type": "git",

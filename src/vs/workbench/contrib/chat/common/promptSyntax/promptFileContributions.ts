@@ -12,6 +12,8 @@ import { PromptLinkDiagnosticsInstanceManager } from './languageProviders/prompt
 import { PromptHeaderDiagnosticsInstanceManager } from './languageProviders/promptHeaderDiagnosticsProvider.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { PromptPathAutocompletion } from './languageProviders/promptPathAutocompletion.js';
+import { PromptHeaderAutocompletion } from './languageProviders/promptHeaderAutocompletion.js';
+import { PromptHeaderHoverProvider } from './languageProviders/promptHeaderHovers.js';
 
 
 /**
@@ -43,7 +45,8 @@ export function registerPromptFileContributions(): void {
 	if (!isWindows) {
 		registerContribution(PromptPathAutocompletion);
 	}
-
+	registerContribution(PromptHeaderAutocompletion);
+	registerContribution(PromptHeaderHoverProvider);
 	registerContribution(ConfigMigration);
 }
 

@@ -92,6 +92,13 @@ export function refreshShellIntegrationInfoStatus(instance: ITerminalInstance) {
 	);
 
 	const detailedAdditions: string[] = [];
+	if (instance.shellType) {
+		detailedAdditions.push(`Shell type: \`${instance.shellType}\``);
+	}
+	const cwd = instance.cwd;
+	if (cwd) {
+		detailedAdditions.push(`Current working directory: \`${cwd}\``);
+	}
 	const seenSequences = Array.from(instance.xterm.shellIntegration.seenSequences);
 	if (seenSequences.length > 0) {
 		detailedAdditions.push(`Seen sequences: ${seenSequences.map(e => `\`${e}\``).join(', ')}`);

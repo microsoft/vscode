@@ -24,7 +24,7 @@ import { TextModelText } from '../../../../common/model/textModelText.js';
 import { IDisplayLocation, InlineSuggestData, InlineSuggestionList, SnippetInfo } from './provideInlineCompletions.js';
 import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 import { getPositionOffsetTransformerFromTextModel } from '../../../../common/core/text/getPositionOffsetTransformerFromTextModel.js';
-import { InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
+import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
 
 export type InlineSuggestionItem = InlineEditItem | InlineCompletionItem;
 
@@ -100,8 +100,8 @@ abstract class InlineSuggestionItemBase {
 		this.source.removeRef();
 	}
 
-	public reportInlineEditShown(commandService: ICommandService, viewKind: InlineCompletionViewKind) {
-		this._data.reportInlineEditShown(commandService, this.insertText, viewKind);
+	public reportInlineEditShown(commandService: ICommandService, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData) {
+		this._data.reportInlineEditShown(commandService, this.insertText, viewKind, viewData);
 	}
 
 	public reportPartialAccept(acceptedCharacters: number, info: PartialAcceptInfo) {
@@ -196,17 +196,19 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 		const insertText = data.insertText.replace(/\r\n|\r|\n/g, textModel.getEOL());
 
 		const edit = reshapeInlineCompletion(new StringReplacement(transformer.getOffsetRange(data.range), insertText), textModel);
+		const trimmedEdit = edit.removeCommonSuffixAndPrefix(textModel.getValue());
 		const textEdit = transformer.getSingleTextEdit(edit);
 
 		const displayLocation = data.displayLocation ? InlineSuggestDisplayLocation.create(data.displayLocation, textModel) : undefined;
 
-		return new InlineCompletionItem(edit, textEdit, textEdit.range, data.snippetInfo, data.additionalTextEdits, data, identity, displayLocation);
+		return new InlineCompletionItem(edit, trimmedEdit, textEdit, textEdit.range, data.snippetInfo, data.additionalTextEdits, data, identity, displayLocation);
 	}
 
 	public readonly isInlineEdit = false;
 
 	private constructor(
 		private readonly _edit: StringReplacement,
+		private readonly _trimmedEdit: StringReplacement,
 		private readonly _textEdit: TextReplacement,
 		private readonly _originalRange: Range,
 		public readonly snippetInfo: SnippetInfo | undefined,
@@ -219,11 +221,16 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 		super(data, identity, displayLocation);
 	}
 
+	override get hash(): string {
+		return JSON.stringify(this._trimmedEdit.toJson());
+	}
+
 	override getSingleTextEdit(): TextReplacement { return this._textEdit; }
 
 	override withIdentity(identity: InlineSuggestionIdentity): InlineCompletionItem {
 		return new InlineCompletionItem(
 			this._edit,
+			this._trimmedEdit,
 			this._textEdit,
 			this._originalRange,
 			this.snippetInfo,
@@ -251,8 +258,11 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 			}
 		}
 
+		const trimmedEdit = newEdit.removeCommonSuffixAndPrefix(textModel.getValue());
+
 		return new InlineCompletionItem(
 			newEdit,
+			trimmedEdit,
 			newTextEdit,
 			this._originalRange,
 			this.snippetInfo,

@@ -46,7 +46,7 @@ export class PromptApplyToMetadata extends PromptStringMetadata {
 					this.range,
 					localize(
 						'prompt.header.metadata.string.diagnostics.invalid-language',
-						"The '{0}' metadata record is only valid in instruction files.",
+						"The '{0}' header property is only valid in instruction files.",
 						this.recordName,
 					),
 				),

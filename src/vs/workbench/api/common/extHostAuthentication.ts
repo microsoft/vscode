@@ -13,7 +13,7 @@ import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/com
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
-import { fetchDynamicRegistration, getClaimsFromJWT, IAuthorizationJWTClaims, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, IAuthorizationTokenResponse, isAuthorizationTokenResponse } from '../../../base/common/oauth.js';
+import { AuthorizationErrorType, fetchDynamicRegistration, getClaimsFromJWT, IAuthorizationJWTClaims, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, IAuthorizationTokenResponse, isAuthorizationErrorResponse, isAuthorizationTokenResponse } from '../../../base/common/oauth.js';
 import { IExtHostWindow } from './extHostWindow.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { ILogger, ILoggerService, ILogService } from '../../../platform/log/common/log.js';
@@ -213,13 +213,19 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 
 		// Use the sequencer to ensure dynamic provider registration is serialized
 		await this._providerOperations.queue(provider.id, async () => {
-			const disposable = provider.onDidChangeSessions(e => this._proxy.$sendDidChangeSessions(provider.id, e));
 			this._authenticationProviders.set(
 				provider.id,
 				{
 					label: provider.label,
 					provider,
-					disposable: Disposable.from(provider, disposable),
+					disposable: Disposable.from(
+						provider,
+						provider.onDidChangeSessions(e => this._proxy.$sendDidChangeSessions(provider.id, e)),
+						provider.onDidChangeClientId(() => this._proxy.$sendDidChangeDynamicProviderInfo({
+							providerId: provider.id,
+							clientId: provider.clientId
+						}))
+					),
 					options: { supportsMultipleAccounts: false }
 				}
 			);
@@ -256,6 +262,9 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 	private _onDidChangeSessions = new Emitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
 	readonly onDidChangeSessions = this._onDidChangeSessions.event;
 
+	private readonly _onDidChangeClientId = new Emitter<void>();
+	readonly onDidChangeClientId = this._onDidChangeClientId.event;
+
 	private readonly _tokenStore: TokenStore;
 
 	protected readonly _createFlows: Array<{
@@ -276,7 +285,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		readonly authorizationServer: URI,
 		protected readonly _serverMetadata: IAuthorizationServerMetadata,
 		protected readonly _resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
-		readonly clientId: string,
+		protected _clientId: string,
 		onDidDynamicAuthProviderTokensChange: Emitter<{ authProviderId: string; clientId: string; tokens: IAuthorizationToken[] }>,
 		initialTokens: IAuthorizationToken[],
 	) {
@@ -292,7 +301,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		this._disposable = new DisposableStore();
 		this._disposable.add(this._onDidChangeSessions);
 		const scopedEvent = Event.chain(onDidDynamicAuthProviderTokensChange.event, $ => $
-			.filter(e => e.authProviderId === this.id && e.clientId === clientId)
+			.filter(e => e.authProviderId === this.id && e.clientId === _clientId)
 			.map(e => e.tokens)
 		);
 		this._tokenStore = this._disposable.add(new TokenStore(
@@ -309,6 +318,10 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 			label: nls.localize('url handler', "URL Handler"),
 			handler: (scopes, progress, token) => this._createWithUrlHandler(scopes, progress, token)
 		}];
+	}
+
+	get clientId(): string {
+		return this._clientId;
 	}
 
 	async getSessions(scopes: readonly string[] | undefined, _options: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession[]> {
@@ -455,7 +468,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 
 		// Prepare the authorization request URL
 		const authorizationUrl = new URL(this._serverMetadata.authorization_endpoint!);
-		authorizationUrl.searchParams.append('client_id', this.clientId);
+		authorizationUrl.searchParams.append('client_id', this._clientId);
 		authorizationUrl.searchParams.append('response_type', 'code');
 		authorizationUrl.searchParams.append('state', state.toString());
 		authorizationUrl.searchParams.append('code_challenge', codeChallenge);
@@ -546,7 +559,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		}
 
 		const tokenRequest = new URLSearchParams();
-		tokenRequest.append('client_id', this.clientId);
+		tokenRequest.append('client_id', this._clientId);
 		tokenRequest.append('grant_type', 'authorization_code');
 		tokenRequest.append('code', code);
 		tokenRequest.append('redirect_uri', redirectUri);
@@ -569,6 +582,10 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		const result = await response.json();
 		if (isAuthorizationTokenResponse(result)) {
 			return result;
+		} else if (isAuthorizationErrorResponse(result) && result.error === AuthorizationErrorType.InvalidClient) {
+			this._logger.warn(`Client ID (${this._clientId}) was invalid, generated a new one.`);
+			await this._generateNewClientId();
+			throw new Error(`Client ID was invalid, generated a new one. Please try again.`);
 		}
 		throw new Error(`Invalid authorization token response: ${JSON.stringify(result)}`);
 	}
@@ -579,7 +596,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		}
 
 		const tokenRequest = new URLSearchParams();
-		tokenRequest.append('client_id', this.clientId);
+		tokenRequest.append('client_id', this._clientId);
 		tokenRequest.append('grant_type', 'refresh_token');
 		tokenRequest.append('refresh_token', refreshToken);
 
@@ -592,19 +609,29 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 			body: tokenRequest.toString()
 		});
 
-		if (!response.ok) {
-			const text = await response.text();
-			throw new Error(`Token exchange failed: ${response.status} ${response.statusText} - ${text}`);
-		}
-
 		const result = await response.json();
 		if (isAuthorizationTokenResponse(result)) {
 			return {
 				...result,
 				created_at: Date.now(),
 			};
+		} else if (isAuthorizationErrorResponse(result) && result.error === AuthorizationErrorType.InvalidClient) {
+			this._logger.warn(`Client ID (${this._clientId}) was invalid, generated a new one.`);
+			await this._generateNewClientId();
+			throw new Error(`Client ID was invalid, generated a new one. Please try again.`);
 		}
 		throw new Error(`Invalid authorization token response: ${JSON.stringify(result)}`);
+	}
+
+	protected async _generateNewClientId(): Promise<void> {
+		try {
+			const registration = await fetchDynamicRegistration(this._serverMetadata, this._initData.environment.appName, this._resourceMetadata?.scopes_supported);
+			this._clientId = registration.client_id;
+			this._onDidChangeClientId.fire();
+		} catch (err) {
+			this._logger.error(`Failed to fetch new client ID: ${err}`);
+			throw new Error(`Failed to fetch new client ID: ${err}`);
+		}
 	}
 }
 

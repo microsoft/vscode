@@ -23,12 +23,13 @@ import { IModelDeltaDecoration, ITextModel, ITextSnapshot, MinimapPosition, Over
 import { ModelDecorationOptions } from '../../../../../editor/common/model/textModel.js';
 import { offsetEditFromContentChanges, offsetEditFromLineRangeMapping, offsetEditToEditOperations } from '../../../../../editor/common/model/textModelStringEdit.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
-import { TextModelEditReason } from '../../../../../editor/common/textModelEditReason.js';
+import { TextModelEditReason, EditReasons } from '../../../../../editor/common/textModelEditReason.js';
 import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { IChatResponseModel } from '../../common/chatModel.js';
 import { IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
 import { pendingRewriteMinimap } from './chatEditingModifiedFileEntry.js';
 
@@ -127,7 +128,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		return diff ? diff.identical : false;
 	}
 
-	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean): Promise<{ rewriteRatio: number; maxLineNumber: number }> {
+	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<{ rewriteRatio: number; maxLineNumber: number }> {
 
 		assertType(textEdits.every(TextEdit.isTextEdit), 'INVALID args, can only handle text edits');
 		assert(isEqual(resource, this.modifiedModel.uri), ' INVALID args, can only edit THIS document');
@@ -136,11 +137,14 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		let maxLineNumber = 0;
 		let rewriteRatio = 0;
 
+		const modelId = responseModel.session.getRequests().at(-1)?.modelId;
+		const reason = EditReasons.chatApplyEdits({ modelId: modelId });
+
 		if (isAtomicEdits) {
 			// EDIT and DONE
 			const minimalEdits = await this._editorWorkerService.computeMoreMinimalEdits(this.modifiedModel.uri, textEdits) ?? textEdits;
 			const ops = minimalEdits.map(TextEdit.asEditOperation);
-			const undoEdits = this._applyEdits(ops);
+			const undoEdits = this._applyEdits(ops, reason);
 
 			if (undoEdits.length > 0) {
 				let range: Range | undefined;
@@ -176,7 +180,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		} else {
 			// EDIT a bit, then DONE
 			const ops = textEdits.map(TextEdit.asEditOperation);
-			const undoEdits = this._applyEdits(ops);
+			const undoEdits = this._applyEdits(ops, reason);
 			maxLineNumber = undoEdits.reduce((max, op) => Math.max(max, op.range.startLineNumber), 0);
 			rewriteRatio = Math.min(1, maxLineNumber / this.modifiedModel.getLineCount());
 
@@ -207,7 +211,10 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		return { rewriteRatio, maxLineNumber };
 	}
 
-	private _applyEdits(edits: ISingleEditOperation[]) {
+	private _applyEdits(edits: ISingleEditOperation[], reason?: TextModelEditReason) {
+		if (!reason) {
+			reason = EditReasons.chatApplyEdits({ modelId: undefined });
+		}
 		try {
 			this._isEditFromUs = true;
 			// make the actual edit
@@ -216,7 +223,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			this.modifiedModel.pushEditOperations(null, edits, (undoEdits) => {
 				result = undoEdits;
 				return null;
-			}, undefined, new TextModelEditReason({ source: 'Chat.applyEdits' }));
+			}, undefined, reason);
 
 			return result;
 		} finally {

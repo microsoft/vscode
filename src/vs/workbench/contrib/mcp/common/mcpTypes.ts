@@ -71,6 +71,8 @@ export interface McpCollectionDefinition {
 		removed?(): void;
 	};
 
+	readonly source?: IWorkbenchMcpServer | ExtensionIdentifier;
+
 	readonly presentation?: {
 		/** Sort order of the collection. */
 		readonly order?: number;
@@ -569,10 +571,29 @@ export interface IMcpServerContainer extends IDisposable {
 	update(): void;
 }
 
+export interface IMcpServerEditorOptions extends IEditorOptions {
+	tab?: McpServerEditorTab;
+	sideByside?: boolean;
+}
+
+export const enum McpServerInstallState {
+	Installing,
+	Installed,
+	Uninstalling,
+	Uninstalled
+}
+
+export const enum McpServerEditorTab {
+	Readme = 'readme',
+	Manifest = 'manifest',
+	Configuration = 'configuration',
+}
+
 export interface IWorkbenchMcpServer {
 	readonly gallery: IGalleryMcpServer | undefined;
 	readonly local: IWorkbenchLocalMcpServer | undefined;
 	readonly installable: IInstallableMcpServer | undefined;
+	readonly installState: McpServerInstallState;
 	readonly id: string;
 	readonly name: string;
 	readonly label: string;
@@ -590,7 +611,7 @@ export interface IWorkbenchMcpServer {
 	readonly url?: string;
 	readonly repository?: string;
 	readonly config?: IMcpServerConfiguration | undefined;
-	hasReadme(): boolean;
+	readonly readmeUrl?: URI;
 	getReadme(token: CancellationToken): Promise<string>;
 	getManifest(token: CancellationToken): Promise<IMcpServerManifest>;
 }
@@ -599,14 +620,15 @@ export const IMcpWorkbenchService = createDecorator<IMcpWorkbenchService>('IMcpW
 export interface IMcpWorkbenchService {
 	readonly _serviceBrand: undefined;
 	readonly onChange: Event<IWorkbenchMcpServer | undefined>;
+	readonly onReset: Event<void>;
 	readonly local: readonly IWorkbenchMcpServer[];
 	queryLocal(): Promise<IWorkbenchMcpServer[]>;
 	queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IWorkbenchMcpServer[]>;
-	install(server: IWorkbenchMcpServer, installOptions?: IWorkbencMcpServerInstallOptions): Promise<void>;
+	install(server: IWorkbenchMcpServer, installOptions?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchMcpServer>;
 	uninstall(mcpServer: IWorkbenchMcpServer): Promise<void>;
 	getMcpConfigPath(arg: IWorkbenchLocalMcpServer): IMcpConfigPath | undefined;
 	getMcpConfigPath(arg: URI): Promise<IMcpConfigPath | undefined>;
-	open(extension: IWorkbenchMcpServer | string, options?: IEditorOptions): Promise<void>;
+	open(extension: IWorkbenchMcpServer | string, options?: IMcpServerEditorOptions): Promise<void>;
 }
 
 export class McpServerContainers extends Disposable {
@@ -658,7 +680,7 @@ export namespace McpResourceURI {
 		});
 	}
 
-	export function toServer(uri: URI | string): { definitionId: string; resourceURI: URI } {
+	export function toServer(uri: URI | string): { definitionId: string; resourceURL: URL } {
 		if (typeof uri === 'string') {
 			uri = URI.parse(uri);
 		}
@@ -670,13 +692,16 @@ export namespace McpResourceURI {
 			throw new Error(`Invalid MCP resource URI: ${uri.toString()}`);
 		}
 		const [, serverScheme, authority, ...path] = parts;
+
+		// URI cannot correctly stringify empty authorities (#250905) so we use URL instead to construct
+		const url = new URL(`${serverScheme}://${authority.toLowerCase() === emptyAuthorityPlaceholder ? '' : authority}`);
+		url.pathname = path.length ? ('/' + path.join('/')) : '';
+		url.search = uri.query;
+		url.hash = uri.fragment;
+
 		return {
 			definitionId: decodeHex(uri.authority).toString(),
-			resourceURI: uri.with({
-				scheme: serverScheme,
-				authority: authority.toLowerCase() === emptyAuthorityPlaceholder ? '' : authority,
-				path: path.length ? ('/' + path.join('/')) : '',
-			}),
+			resourceURL: url,
 		};
 	}
 
