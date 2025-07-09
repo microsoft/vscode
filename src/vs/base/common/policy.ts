@@ -42,7 +42,7 @@ export interface IPolicy {
 	 *
 	 * Note: This is unrelated to VS Code settings and their default values. This specifically controls
 	 * the value of a preview feature's setting when policy is overriding it.
-	*/
+	 */
 	readonly defaultValue?: string | number | boolean;
 
 	/**

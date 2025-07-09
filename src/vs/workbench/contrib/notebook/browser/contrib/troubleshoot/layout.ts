@@ -183,7 +183,7 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 		overlayContainer.appendChild(topLine);
 
 		const getLayoutInfo = () => {
-			const eol = cell.textModel?.getEOL() === '\n' ? 'LF' : 'CRLF';
+			const eol = cell.textBuffer.getEOL() === '\n' ? 'LF' : 'CRLF';
 			const scrollTop = this._notebookEditor.getAbsoluteTopOfElement(cell);
 			return `cell #${index} (handle: ${cell.handle}) | AbsoluteTopOfElement: ${scrollTop}px | EOL: ${eol}`;
 		};
@@ -230,7 +230,14 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 			this._localStore.add(cell.onDidChangeLayout((e) => {
 				updateLayout();
 			}));
-
+			this._localStore.add(cell.textBuffer.onDidChangeContent(() => {
+				updateLayout();
+			}));
+			if (cell.textModel) {
+				this._localStore.add(cell.textModel.onDidChangeContent(() => {
+					updateLayout();
+				}));
+			}
 			this._localStore.add(this._notebookEditor.onDidChangeLayout(() => {
 				updateLayout();
 			}));

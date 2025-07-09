@@ -2798,7 +2798,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		let isViewportWrapping = false;
 		let wrappingColumn = -1;
 
-		if (wordWrapOverride1 === 'inherit' && isDominatedByLongLines) {
+		if (options.get(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled && wordWrapOverride1 === 'inherit' && isDominatedByLongLines) {
 			// Force viewport width wrapping if model is dominated by long lines
 			isWordWrapMinified = true;
 			isViewportWrapping = true;
