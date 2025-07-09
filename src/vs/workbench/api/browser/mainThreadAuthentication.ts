@@ -539,8 +539,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return false;
 	}
 
-	async $promptForClientId(authorizationServerUrl: string): Promise<string | undefined> {
-		const result = await this.quickInputService.input({
+	async $promptForClientDetails(authorizationServerUrl: string): Promise<{ clientId: string; clientSecret?: string } | undefined> {
+		const clientId = await this.quickInputService.input({
 			title: nls.localize('clientIdPromptTitle', "OAuth Client ID Required"),
 			prompt: nls.localize('clientIdPrompt', "The authorization server '{0}' does not support automatic client registration. Please enter a client ID that has been registered for VS Code:", authorizationServerUrl),
 			placeHolder: nls.localize('clientIdPlaceholder', "Enter your OAuth client ID"),
@@ -552,11 +552,12 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 				return undefined;
 			}
 		});
-		return result?.trim() || undefined;
-	}
 
-	async $promptForClientSecret(authorizationServerUrl: string): Promise<string | undefined> {
-		const result = await this.quickInputService.input({
+		if (!clientId || clientId.trim().length === 0) {
+			return undefined;
+		}
+
+		const clientSecret = await this.quickInputService.input({
 			title: nls.localize('clientSecretPromptTitle', "OAuth Client Secret Required"),
 			prompt: nls.localize('clientSecretPrompt', "Please enter the client secret for the authorization server '{0}':", authorizationServerUrl),
 			placeHolder: nls.localize('clientSecretPlaceholder', "Enter your OAuth client secret (optional)"),
@@ -567,6 +568,10 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 				return undefined;
 			}
 		});
-		return result?.trim() || undefined;
+
+		return {
+			clientId: clientId.trim(),
+			clientSecret: clientSecret?.trim() || undefined
+		};
 	}
 }

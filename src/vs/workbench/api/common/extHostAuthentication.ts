@@ -200,14 +200,13 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 				this._logService.info(`Dynamic registration failed for ${authorizationServer.toString()}: ${err.message}. Prompting user for client ID and client secret.`);
 				
 				try {
-					clientId = await this._proxy.$promptForClientId(authorizationServer.toString());
-					if (!clientId) {
-						throw new Error('User did not provide a client ID');
+					const clientDetails = await this._proxy.$promptForClientDetails(authorizationServer.toString());
+					if (!clientDetails) {
+						throw new Error('User did not provide client details');
 					}
+					clientId = clientDetails.clientId;
+					clientSecret = clientDetails.clientSecret;
 					this._logService.info(`User provided client ID for ${authorizationServer.toString()}`);
-					
-					// Also prompt for client secret
-					clientSecret = await this._proxy.$promptForClientSecret(authorizationServer.toString());
 					if (clientSecret) {
 						this._logService.info(`User provided client secret for ${authorizationServer.toString()}`);
 					} else {
@@ -668,17 +667,14 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 			this._logger.info(`Dynamic registration failed for ${this.authorizationServer.toString()}: ${err}. Prompting user for client ID and client secret.`);
 			
 			try {
-				const clientId = await this._proxy.$promptForClientId(this.authorizationServer.toString());
-				if (!clientId) {
-					throw new Error('User did not provide a client ID');
+				const clientDetails = await this._proxy.$promptForClientDetails(this.authorizationServer.toString());
+				if (!clientDetails) {
+					throw new Error('User did not provide client details');
 				}
-				this._clientId = clientId;
+				this._clientId = clientDetails.clientId;
+				this._clientSecret = clientDetails.clientSecret;
 				this._logger.info(`User provided client ID for ${this.authorizationServer.toString()}`);
-				
-				// Also prompt for client secret
-				const clientSecret = await this._proxy.$promptForClientSecret(this.authorizationServer.toString());
-				this._clientSecret = clientSecret;
-				if (clientSecret) {
+				if (clientDetails.clientSecret) {
 					this._logger.info(`User provided client secret for ${this.authorizationServer.toString()}`);
 				} else {
 					this._logger.info(`User did not provide client secret for ${this.authorizationServer.toString()} (optional)`);
