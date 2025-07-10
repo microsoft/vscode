@@ -1164,7 +1164,9 @@ export class SnakeCaseAction extends AbstractCaseAction {
 }
 
 export class CamelCaseAction extends AbstractCaseAction {
-	public static wordBoundary = new BackwardsCompatibleRegExp('[_\\s-]', 'gm');
+	public static wordBoundary = new BackwardsCompatibleRegExp('[_-]|[^\\S\\n]', 'gm');
+	public static wordBoundaryToMaintain = new BackwardsCompatibleRegExp('(?<=\n)', 'gm');
+
 
 	constructor() {
 		super({
@@ -1176,20 +1178,25 @@ export class CamelCaseAction extends AbstractCaseAction {
 
 	protected _modifyText(text: string, wordSeparators: string): string {
 		const wordBoundary = CamelCaseAction.wordBoundary.get();
-		if (!wordBoundary) {
+		const wordBoundaryToMaintain = CamelCaseAction.wordBoundaryToMaintain.get();
+
+		if (!wordBoundary || !wordBoundaryToMaintain) {
 			// cannot support this
 			return text;
 		}
-		const words = text.split(wordBoundary);
-		const firstWord = words.shift();
-		return firstWord + words.map((word: string) => word.substring(0, 1).toLocaleUpperCase() + word.substring(1))
-			.join('');
+
+		const wordsWithMaintainBoundaries = text.split(wordBoundaryToMaintain);
+		return wordsWithMaintainBoundaries.map((words: string) => {
+			const w = words.split(wordBoundary);
+			const firstWord = w.shift();
+			return firstWord + w.map((word: string) => word.substring(0, 1).toLocaleUpperCase() + word.substring(1)).join('');
+		}).join('');
 	}
 }
 
 export class PascalCaseAction extends AbstractCaseAction {
-	public static wordBoundary = new BackwardsCompatibleRegExp('[_\\s-]', 'gm');
-	public static wordBoundaryToMaintain = new BackwardsCompatibleRegExp('(?<=\\.)', 'gm');
+	public static wordBoundary = new BackwardsCompatibleRegExp('[_-]|[^\\S\\n]', 'gm');
+	public static wordBoundaryToMaintain = new BackwardsCompatibleRegExp('(?<=\\.)|(?<=\n)', 'gm');
 
 	constructor() {
 		super({
