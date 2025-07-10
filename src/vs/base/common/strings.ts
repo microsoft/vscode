@@ -84,39 +84,44 @@ export function escape(html: string): string {
 
 const CONTROL_ESCAPES = new Map(Object.entries({ '\t': 't', '\n': 'n', '\v': 'v', '\f': 'f', '\r': 'r' }));
 const SYNTAX_CHARACTERS = /[\^$\\.*+?()[\]{}|/]/;
-const ESCAPABLE = /[,\-=<>#&!%:;@~'`"\t\v\f\uFEFF\p{Zs}\n\r\u2028\u2029\uD800-\uDFFF]/u;
+const HEX_ESCAPABLE = /[,\-=<>#&!%:;@~'`"\t\v\f\uFEFF\p{Zs}\n\r\u2028\u2029\uD800-\uDFFF]/u;
 const ASCII_ALPHANUMERIC = /[a-zA-Z0-9]/;
 
-function escapeRegExpChar(char: string) {
-	if (SYNTAX_CHARACTERS.test(char)) {
-		return '\\' + char;
-	}
-	if (CONTROL_ESCAPES.has(char)) {
-		return '\\' + CONTROL_ESCAPES.get(char);
-	}
-	if (ESCAPABLE.test(char)) {
-		if (/[\x00-\xFF]/.test(char)) {
-			return `\\x${char.charCodeAt(0).toString(16).padStart(2, '0')}`;
-		}
-		return char.split('').map((c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`).join('');
-	}
-	return char;
+function hexEscapeChar(char: string): string {
+	const escaped = char.charCodeAt(0) > 0xff
+		? `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`
+		: `\\x${char.charCodeAt(0).toString(16).padStart(2, '0')}`;
+	return escaped + (char[1] ? hexEscapeChar(char[1]) : '');
+}
+
+function regExpEscapeChar(char: string) {
+	const controlEscape = CONTROL_ESCAPES.get(char);
+	return controlEscape
+		? '\\' + controlEscape
+		: SYNTAX_CHARACTERS.test(char)
+			? '\\' + char
+			: HEX_ESCAPABLE.test(char)
+				? hexEscapeChar(char)
+				: char;
 }
 
 /**
  * Escapes regular expression characters in a given string
- * using identical logic to `RegExp.escape` (not yet available in Electron)
+ * using identical logic to `RegExp.escape` (not yet available in vscode's current Electron version)
  */
-export function escapeRegExpCharacters(value: string): string {
+export let escapeRegExpCharacters = (value: string): string => {
 	let escaped = '';
 	for (const char of value) {
-		if (escaped === '' && ASCII_ALPHANUMERIC.test(char)) {
-			escaped += `\\x${char.charCodeAt(0).toString(16).padStart(2, '0')}`;
-		} else {
-			escaped += escapeRegExpChar(char);
-		}
+		escaped += escaped === '' && ASCII_ALPHANUMERIC.test(char)
+			? hexEscapeChar(char)
+			: regExpEscapeChar(char);
 	}
 	return escaped;
+};
+
+if (typeof (RegExp as any).escape === 'function') {
+	escapeRegExpCharacters = (RegExp as any).escape;
+	console.log(`\x1b[36mNative RegExp.escape can replace ponyfill in ${import.meta.url}\x1b[0m`);
 }
 
 /**

@@ -330,8 +330,16 @@ suite('Strings', () => {
 		for (const [input, escaped] of tests) {
 			assert.strictEqual(strings.escapeRegExpCharacters(input), escaped);
 			for (const flags of ['', 'u', 'v']) {
-				const regExp = new RegExp(strings.escapeRegExpCharacters(input), flags);
+				const regExp = new RegExp(`^${strings.escapeRegExpCharacters(input)}$`, flags);
 				assert.strictEqual(regExp.test(input), true);
+
+				const anyCharRegExp = new RegExp(`^[${strings.escapeRegExpCharacters(input)}]$`, flags);
+				assert.strictEqual(anyCharRegExp.test(''), false);
+				assert.strictEqual(anyCharRegExp.test('\0'), false);
+
+				for (const char of flags === '' ? input.split('') : input) {
+					assert.strictEqual(anyCharRegExp.test(char), true);
+				}
 			}
 		}
 	});
