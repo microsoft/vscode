@@ -17,7 +17,7 @@ suite('NotebookCellLayoutManager', () => {
 
 	class MockList {
 		private _height = new Map();
-		getViewIndex(cell: ICellViewModel) { return this.cells.indexOf(cell); }
+		getViewIndex(cell: ICellViewModel) { return this.cells.indexOf(cell) < 0 ? undefined : this.cells.indexOf(cell); }
 		elementHeight(cell: ICellViewModel) { return this._height.get(cell) ?? 100; }
 		inRenderingTransaction = false;
 		updateElementHeight2(cell: ICellViewModel, height: number) { this._height.set(cell, height); }
