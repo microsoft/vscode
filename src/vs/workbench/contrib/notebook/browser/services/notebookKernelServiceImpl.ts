@@ -54,11 +54,25 @@ class KernelInfo {
 			return undefined;
 		}
 
-		// For REPLs, we need to check various selector combinations
+		// Try to extract language information from notebook metadata
+		let language: string | undefined;
+		if ('metadata' in notebook && notebook.metadata) {
+			// Check for language_info in metadata (Jupyter style)
+			const languageInfo = (notebook.metadata as any)?.language_info;
+			if (languageInfo?.name) {
+				language = languageInfo.name;
+			}
+		}
+
+		// For REPLs, we check various selector combinations
 		// Priority order: specific language + repl type, any language + repl type, specific language + any type, any language + any type
 		const candidates = [
-			// TODO: When language detection is available, we can use it here
-			// For now, we'll start with the broader selectors
+			// If we have language info, check specific language selectors first
+			...(language ? [
+				KernelInfo._selectorKey({ language, notebookType: 'repl' }),
+				KernelInfo._selectorKey({ language, notebookType: undefined }),
+			] : []),
+			// Fallback to generic selectors
 			KernelInfo._selectorKey({ language: undefined, notebookType: 'repl' }),
 			KernelInfo._selectorKey({ language: undefined, notebookType: undefined }),
 		];

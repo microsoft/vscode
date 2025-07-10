@@ -219,6 +219,44 @@ suite('NotebookKernelService', () => {
 		assert.strictEqual(info.all[1], pythonKernel);
 	});
 
+	test('REPL kernel affinity with language-specific selector', function () {
+		const notebook = URI.parse('foo:///python-repl');
+		// Create a REPL with Python language metadata
+		const pythonRepl = { 
+			uri: notebook, 
+			notebookType: 'repl',
+			metadata: { language_info: { name: 'python' } }
+		};
+
+		const pythonKernel = new TestNotebookKernel({ label: 'Python' });
+		pythonKernel.id = 'python-kernel';
+		pythonKernel.viewType = 'repl';
+		
+		const jupyterKernel = new TestNotebookKernel({ label: 'Jupyter' });
+		jupyterKernel.id = 'jupyter-kernel';
+		jupyterKernel.viewType = 'repl';
+		
+		disposables.add(kernelService.registerKernel(pythonKernel));
+		disposables.add(kernelService.registerKernel(jupyterKernel));
+
+		// Set language-specific affinity: Python kernel preferred for Python language
+		kernelService.updateKernelReplAffinity(pythonKernel, { language: 'python', notebookType: 'repl' }, 2);
+		
+		// Set generic REPL affinity: Jupyter kernel preferred for all REPLs
+		kernelService.updateKernelReplAffinity(jupyterKernel, { notebookType: 'repl' }, 2);
+
+		// For Python REPL, language-specific affinity should win
+		let info = kernelService.getMatchingKernel(pythonRepl);
+		assert.strictEqual(info.all.length, 2);
+		assert.strictEqual(info.all[0], pythonKernel); // Python kernel wins due to language-specific affinity
+
+		// For a generic REPL without language metadata, generic affinity should apply
+		const genericRepl = { uri: URI.parse('foo:///generic-repl'), notebookType: 'repl' };
+		info = kernelService.getMatchingKernel(genericRepl);
+		assert.strictEqual(info.all.length, 2);
+		assert.strictEqual(info.all[0], jupyterKernel); // Jupyter kernel wins due to generic REPL affinity
+	});
+
 	test('REPL affinity does not affect non-REPL notebooks', function () {
 		const notebook = URI.parse('foo:///regular');
 		const regular = { uri: notebook, notebookType: 'jupyter' };
