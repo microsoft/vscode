@@ -1833,7 +1833,7 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 
 	private readonly _subscriptions = new DisposableStore();
 	private _keyStatus: IModifierKeyStatus;
-	private static instance: ModifierKeyEmitter;
+	private static instance: ModifierKeyEmitter | undefined;
 
 	private constructor() {
 		super();
@@ -1968,6 +1968,13 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 		}
 
 		return ModifierKeyEmitter.instance;
+	}
+
+	static disposeInstance() {
+		if (ModifierKeyEmitter.instance) {
+			ModifierKeyEmitter.instance.dispose();
+			ModifierKeyEmitter.instance = undefined;
+		}
 	}
 
 	override dispose() {

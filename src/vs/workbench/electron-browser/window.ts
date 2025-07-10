@@ -706,7 +706,7 @@ export class NativeWindow extends BaseWindow {
 		})();
 
 		// Installation Dir Warning
-		if (this.environmentService.isBuilt) {
+		if (this.environmentService.isBuilt && !this.environmentService.extensionDevelopmentLocationURI?.length) {
 			let installLocationUri: URI;
 			if (isMacintosh) {
 				// appRoot = /Applications/Visual Studio Code - Insiders.app/Contents/Resources/app

@@ -360,6 +360,7 @@ namespace TaskFilterDTO {
 class TaskExecutionImpl implements vscode.TaskExecution {
 
 	readonly #tasks: ExtHostTaskBase;
+	private _terminal: vscode.Terminal | undefined;
 
 	constructor(tasks: ExtHostTaskBase, readonly _id: string, private readonly _task: vscode.Task) {
 		this.#tasks = tasks;
@@ -377,6 +378,14 @@ class TaskExecutionImpl implements vscode.TaskExecution {
 	}
 
 	public fireDidEndProcess(value: tasks.ITaskProcessEndedDTO): void {
+	}
+
+	public get terminal(): vscode.Terminal | undefined {
+		return this._terminal;
+	}
+
+	public set terminal(term: vscode.Terminal | undefined) {
+		this._terminal = term;
 	}
 }
 
@@ -497,8 +506,14 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		}
 		this._lastStartedTask = execution.id;
 
+		const taskExecution = await this.getTaskExecution(execution);
+		const terminal = this._terminalService.getTerminalById(terminalId)?.value;
+		if (taskExecution) {
+			taskExecution.terminal = terminal;
+		}
+
 		this._onDidExecuteTask.fire({
-			execution: await this.getTaskExecution(execution)
+			execution: taskExecution
 		});
 	}
 

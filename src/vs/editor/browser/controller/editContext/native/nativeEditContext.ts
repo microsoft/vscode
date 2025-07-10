@@ -32,6 +32,7 @@ import { NativeEditContextRegistry } from './nativeEditContextRegistry.js';
 import { IEditorAriaOptions } from '../../../editorBrowser.js';
 import { isHighSurrogate, isLowSurrogate } from '../../../../../base/common/strings.js';
 import { IME } from '../../../../../base/common/ime.js';
+import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -55,6 +56,7 @@ export class NativeEditContext extends AbstractEditContext {
 	private readonly _imeTextArea: FastDomNode<HTMLTextAreaElement>;
 	private readonly _editContext: EditContext;
 	private readonly _screenReaderSupport: ScreenReaderSupport;
+	private _previousEditContextSelection: OffsetRange = new OffsetRange(0, 0);
 	private _editContextPrimarySelection: Selection = new Selection(1, 1, 1, 1);
 
 	// Overflow guard container
@@ -201,8 +203,8 @@ export class NativeEditContext extends AbstractEditContext {
 		let reenableTracking: boolean = false;
 		this._register(IME.onDidChange(() => {
 			if (IME.enabled && reenableTracking) {
-				this.domNode.focus();
 				this._focusTracker.resume();
+				this.domNode.focus();
 				reenableTracking = false;
 			}
 			if (!IME.enabled && this.isFocused()) {
@@ -236,7 +238,6 @@ export class NativeEditContext extends AbstractEditContext {
 
 	public prepareRender(ctx: RenderingContext): void {
 		this._screenReaderSupport.prepareRender(ctx);
-		this._updateEditContext();
 		this._updateSelectionAndControlBounds(ctx);
 	}
 
@@ -267,15 +268,25 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public override onLinesChanged(e: ViewLinesChangedEvent): boolean {
+		this._updateEditContextOnLineChange(e.fromLineNumber, e.fromLineNumber + e.count - 1);
 		return true;
 	}
 
 	public override onLinesDeleted(e: ViewLinesDeletedEvent): boolean {
+		this._updateEditContextOnLineChange(e.fromLineNumber, e.toLineNumber);
 		return true;
 	}
 
 	public override onLinesInserted(e: ViewLinesInsertedEvent): boolean {
+		this._updateEditContextOnLineChange(e.fromLineNumber, e.toLineNumber);
 		return true;
+	}
+
+	private _updateEditContextOnLineChange(fromLineNumber: number, toLineNumber: number): void {
+		if (this._editContextPrimarySelection.endLineNumber < fromLineNumber || this._editContextPrimarySelection.startLineNumber > toLineNumber) {
+			return;
+		}
+		this._updateEditContext();
 	}
 
 	public override onScrollChanged(e: ViewScrollChangedEvent): boolean {
@@ -354,22 +365,16 @@ export class NativeEditContext extends AbstractEditContext {
 		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextState.text ?? ' ');
 		this._editContext.updateSelection(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
 		this._editContextPrimarySelection = editContextState.editContextPrimarySelection;
+		this._previousEditContextSelection = new OffsetRange(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
 	}
 
 	private _emitTypeEvent(viewController: ViewController, e: ITextUpdateEvent): void {
 		if (!this._editContext) {
 			return;
 		}
-		if (!this._editContextPrimarySelection.equalsSelection(this._primarySelection)) {
-			return;
-		}
-		const model = this._context.viewModel.model;
-		const startPositionOfEditContext = this._editContextStartPosition();
-		const offsetOfStartOfText = model.getOffsetAt(startPositionOfEditContext);
-		const offsetOfSelectionEnd = model.getOffsetAt(this._primarySelection.getEndPosition());
-		const offsetOfSelectionStart = model.getOffsetAt(this._primarySelection.getStartPosition());
-		const selectionEndOffset = offsetOfSelectionEnd - offsetOfStartOfText;
-		const selectionStartOffset = offsetOfSelectionStart - offsetOfStartOfText;
+		const selectionEndOffset = this._previousEditContextSelection.endExclusive;
+		const selectionStartOffset = this._previousEditContextSelection.start;
+		this._previousEditContextSelection = new OffsetRange(e.selectionStart, e.selectionEnd);
 
 		let replaceNextCharCnt = 0;
 		let replacePrevCharCnt = 0;
@@ -398,11 +403,6 @@ export class NativeEditContext extends AbstractEditContext {
 			positionDelta
 		};
 		this._onType(viewController, typeInput);
-
-		// It could be that the typed letter does not produce a change in the editor text,
-		// for example if an extension registers a custom typing command, and the typing operation does something else like scrolling
-		// Need to update the edit context to reflect this
-		this._updateEditContext();
 	}
 
 	private _onType(viewController: ViewController, typeInput: ITypeData): void {
@@ -593,7 +593,7 @@ export class NativeEditContext extends AbstractEditContext {
 			const delta2 = now - this._screenReaderSupport.getIgnoreSelectionChangeTime();
 			this._screenReaderSupport.resetSelectionChangeTime();
 			if (delta2 < 100) {
-				// received a `selectionchange` event within 100ms since we touched the textarea
+				// received a `selectionchange` event within 100ms since we touched the edit context
 				// => ignore it, since we caused it
 				return;
 			}

@@ -62,7 +62,7 @@ import { IChatRequestModel } from '../../../chat/common/chatModel.js';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
 import { IObservable, constObservable } from '../../../../../base/common/observable.js';
 import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
-import { ChatAgentLocation, ChatMode } from '../../../chat/common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../chat/common/constants.js';
 import { ChatTransferService, IChatTransferService } from '../../../chat/common/chatTransferService.js';
 import { NullLanguageModelsService } from '../../../chat/test/common/languageModels.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
@@ -144,7 +144,7 @@ suite('InlineChatSession', function () {
 			name: 'testAgent',
 			isDefault: true,
 			locations: [ChatAgentLocation.Editor],
-			modes: [ChatMode.Ask],
+			modes: [ChatModeKind.Ask],
 			metadata: {},
 			slashCommands: [],
 			disambiguation: [],

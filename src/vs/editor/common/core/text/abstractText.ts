@@ -52,6 +52,13 @@ export abstract class AbstractText {
 	getLinesOfRange(range: LineRange): string[] {
 		return range.mapToLineArray(lineNumber => this.getLineAt(lineNumber));
 	}
+
+	equals(other: AbstractText): boolean {
+		if (this === other) {
+			return true;
+		}
+		return this.getValue() === other.getValue();
+	}
 }
 
 export class LineBasedText extends AbstractText {
