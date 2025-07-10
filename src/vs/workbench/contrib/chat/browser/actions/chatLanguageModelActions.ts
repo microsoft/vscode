@@ -159,6 +159,10 @@ class ManageLanguageModelAuthenticationAction extends Action2 {
 						picked: allowedExt.allowed ?? false,
 						extension: allowedExt,
 						disabled: allowedExt.trusted, // Don't allow toggling trusted extensions
+						buttons: [{
+							iconClass: ThemeIcon.asClassName(Codicon.info),
+							tooltip: localize('openExtension', 'Open Extension'),
+						}]
 					});
 				}
 			} else {
@@ -179,6 +183,14 @@ class ManageLanguageModelAuthenticationAction extends Action2 {
 				onDidTriggerSeparatorButton(context) {
 					// Handle separator button clicks
 					const extId = context.separator.id!;
+					if (extId) {
+						// Open the extension in the editor
+						void extensionsWorkbenchService.open(extId);
+					}
+				},
+				onDidTriggerItemButton(context) {
+					// Handle item button clicks
+					const extId = context.item.id!;
 					if (extId) {
 						// Open the extension in the editor
 						void extensionsWorkbenchService.open(extId);
