@@ -1359,7 +1359,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			onDidStartTask: (listeners, thisArgs?, disposables?) => {
 				if (!isProposedApiEnabled(extension, 'taskExecutionTerminal')) {
-					thisArgs.terminal = undefined;
+					if (thisArgs) {
+						thisArgs.terminal = undefined;
+					}
 				}
 				return _asExtensionEvent(extHostTask.onDidStartTask)(listeners, thisArgs, disposables);
 			},
