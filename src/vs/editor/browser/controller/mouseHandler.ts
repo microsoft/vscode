@@ -405,7 +405,6 @@ class MouseDownOperation extends Disposable {
 		this._lastMouseEvent = e;
 		this._mouseState.setModifiers(e);
 
-		console.log('e : ', e);
 		const position = this._findMousePosition(e, false);
 		if (!position) {
 			// Ignoring because position is unknown
@@ -418,7 +417,6 @@ class MouseDownOperation extends Disposable {
 				target: position
 			});
 		} else {
-			console.log('position.type : ', position.type);
 			if (position.type === MouseTargetType.OUTSIDE_EDITOR && (position.outsidePosition === 'above' || position.outsidePosition === 'below')) {
 				this._topBottomDragScrolling.start(position, e);
 			} else {
@@ -552,6 +550,7 @@ class MouseDownOperation extends Disposable {
 		console.log('editorContent.y + editorContent.height : ', editorContent.y + editorContent.height);
 		const bottom = editorContent.y + editorContent.height - paddingBottom;
 		console.log('bottom : ', bottom);
+
 		if (e.posy > bottom) {
 			const outsideDistance = e.posy - editorContent.y - editorContent.height;
 			const verticalOffset = viewLayout.getCurrentScrollTop() + e.relativePos.y;
@@ -750,15 +749,12 @@ class TopBottomDragScrollingOperation extends Disposable {
 	}
 
 	private _execute(): void {
-		console.log('_execute');
 		const lineHeight = this._context.configuration.options.get(EditorOption.lineHeight);
-		console.log('lineHeight : ', lineHeight);
 		const scrollSpeedInLines = this._getScrollSpeed();
 		const elapsed = this._tick();
 		const scrollInPixels = scrollSpeedInLines * (elapsed / 1000) * lineHeight;
 		const scrollValue = (this._position.outsidePosition === 'above' ? -scrollInPixels : scrollInPixels);
 
-		console.log('scrollValue : ', scrollValue);
 		this._context.viewModel.viewLayout.deltaScrollNow(0, scrollValue);
 		this._viewHelper.renderNow();
 

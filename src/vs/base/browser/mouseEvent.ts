@@ -68,11 +68,9 @@ export class StandardMouseEvent implements IMouseEvent {
 		this.metaKey = e.metaKey;
 
 		if (typeof e.pageX === 'number') {
-			console.log('first calculation');
 			this.posx = e.pageX;
 			this.posy = e.pageY;
 		} else {
-			console.log('second calculation');
 			// Probably hit by MSGestureEvent
 			this.posx = e.clientX + this.target.ownerDocument.body.scrollLeft + this.target.ownerDocument.documentElement.scrollLeft;
 			this.posy = e.clientY + this.target.ownerDocument.body.scrollTop + this.target.ownerDocument.documentElement.scrollTop;
