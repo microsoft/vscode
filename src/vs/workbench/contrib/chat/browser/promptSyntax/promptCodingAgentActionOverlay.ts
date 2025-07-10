@@ -40,7 +40,7 @@ export class PromptCodingAgentActionOverlayWidget extends Disposable implements 
 
 		this._button.element.style.background = 'var(--vscode-button-background)';
 		this._button.element.style.color = 'var(--vscode-button-foreground)';
-		this._button.label = localize('runWithCodingAgent.label', "{0} Push to Copilot coding agent", '$(cloud-upload)');
+		this._button.label = localize('runWithCodingAgent.label', "{0} Delegate to Copilot coding agent", '$(cloud-upload)');
 
 		this._register(this._button.onDidClick(async () => {
 			await this._execute();
@@ -80,10 +80,11 @@ export class PromptCodingAgentActionOverlayWidget extends Disposable implements 
 	}
 
 	private _updateVisibility(): void {
+		const enableRemoteCodingAgentPromptFileOverlay = ChatContextKeys.enableRemoteCodingAgentPromptFileOverlay.getValue(this._contextKeyService);
 		const hasRemoteCodingAgent = ChatContextKeys.hasRemoteCodingAgent.getValue(this._contextKeyService);
 		const model = this._editor.getModel();
 		const isPromptFile = model?.getLanguageId() === PROMPT_LANGUAGE_ID;
-		const shouldBeVisible = !!(hasRemoteCodingAgent && isPromptFile);
+		const shouldBeVisible = !!(isPromptFile && enableRemoteCodingAgentPromptFileOverlay && hasRemoteCodingAgent);
 
 		if (shouldBeVisible !== this._isVisible) {
 			this._isVisible = shouldBeVisible;

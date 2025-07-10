@@ -25,7 +25,7 @@ import { getLocationBasedViewColors, ViewPane } from '../../../browser/parts/vie
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IViewDescriptorService, IViewsRegistry, Extensions as ViewExtensions } from '../../../common/views.js';
 import { HasInstalledMcpServersContext, IMcpWorkbenchService, InstalledMcpServersViewId, IWorkbenchMcpServer, McpServerContainers, mcpServerIcon, McpServerInstallState } from '../common/mcpTypes.js';
-import { DropDownAction, InstallAction, ManageMcpServerAction } from './mcpServerActions.js';
+import { DropDownAction, InstallAction, InstallingLabelAction, ManageMcpServerAction } from './mcpServerActions.js';
 import { PublisherWidget, InstallCountWidget, RatingsWidget, McpServerIconWidget } from './mcpServerWidgets.js';
 import { ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -41,6 +41,8 @@ import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution
 import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 
 export interface McpServerListViewOptions {
 	showWelcomeOnEmpty?: boolean;
@@ -207,9 +209,8 @@ export class McpServersListView extends ViewPane {
 		title.textContent = localize('mcp.welcome.title', "MCP Servers");
 
 		const description = dom.append(welcomeContent, dom.$('.mcp-welcome-description'));
-		const browseUrl = this.productService.quality === 'insider' ? 'https://code.visualstudio.com/insider/mcp' : 'https://code.visualstudio.com/mcp';
 		const markdownResult = this._register(renderMarkdown(new MarkdownString(
-			localize('mcp.welcome.descriptionWithLink', "Extend agent mode by installing [MCP servers]({0}) to bring extra tools for connecting to databases, invoking APIs and performing specialized tasks.", browseUrl),
+			localize('mcp.welcome.descriptionWithLink', "Extend agent mode by installing MCP servers to bring extra tools for connecting to databases, invoking APIs and performing specialized tasks."),
 			{ isTrusted: true }
 		), {
 			actionHandler: {
@@ -220,6 +221,16 @@ export class McpServersListView extends ViewPane {
 			}
 		}));
 		description.appendChild(markdownResult.element);
+
+		// Browse button
+		const buttonContainer = dom.append(welcomeContent, dom.$('.mcp-welcome-button-container'));
+		const button = this._register(new Button(buttonContainer, {
+			title: localize('mcp.welcome.browseButton', "Browse MCP Servers"),
+			...defaultButtonStyles
+		}));
+		button.label = localize('mcp.welcome.browseButton', "Browse MCP Servers");
+
+		this._register(button.onDidClick(() => this.openerService.open(URI.parse(this.productService.quality === 'insider' ? 'https://code.visualstudio.com/insider/mcp' : 'https://code.visualstudio.com/mcp'))));
 	}
 
 	private async query(query: string): Promise<IQueryResult> {
@@ -321,6 +332,7 @@ class McpServerRenderer implements IListRenderer<IWorkbenchMcpServer, IMcpServer
 
 		const actions = [
 			this.instantiationService.createInstance(InstallAction, false),
+			this.instantiationService.createInstance(InstallingLabelAction),
 			this.instantiationService.createInstance(ManageMcpServerAction, false),
 		];
 
