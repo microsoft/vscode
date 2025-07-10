@@ -259,11 +259,34 @@ suite('Workbench - TerminalInstance', () => {
 	});
 
 	suite('setShellType', () => {
+		let instantiationService: TestInstantiationService;
+
+		setup(async () => {
+			instantiationService = workbenchInstantiationService({
+				configurationService: () => new TestConfigurationService({
+					files: {},
+					terminal: {
+						integrated: {
+							fontFamily: 'monospace',
+							scrollback: 1000,
+							fastScrollSensitivity: 2,
+							mouseWheelScrollSensitivity: 1,
+							unicodeVersion: '6',
+							shellIntegration: {
+								enabled: true
+							}
+						}
+					},
+				})
+			}, store);
+			instantiationService.set(ITerminalProfileResolverService, new MockTerminalProfileResolverService());
+			instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
+			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
+			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
+		});
+
 		test('should handle undefined values correctly', async () => {
-			const terminalInstance = store.add(instantiationService.createInstance(TerminalInstance,
-				store.add(new TestTerminalChildProcess(false)),
-				{ executable: 'bash', args: [] }
-			));
+			const terminalInstance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
 
 			// Initially should be undefined
 			strictEqual(terminalInstance.shellType, undefined);
@@ -278,10 +301,7 @@ suite('Workbench - TerminalInstance', () => {
 		});
 
 		test('should not fire events when value is the same', async () => {
-			const terminalInstance = store.add(instantiationService.createInstance(TerminalInstance,
-				store.add(new TestTerminalChildProcess(false)),
-				{ executable: 'bash', args: [] }
-			));
+			const terminalInstance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
 
 			let eventCount = 0;
 			terminalInstance.onDidChangeShellType(() => {
