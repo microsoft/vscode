@@ -49,7 +49,7 @@ export class SCMHistoryItemContextContribution extends Disposable implements IWo
 class SCMHistoryItemContext implements IChatContextPickerItem {
 	readonly type = 'pickerPick';
 	readonly label = localize('chatContext.scmHistoryItems', 'Source Control...');
-	readonly description = localize('chatContext.scmHistoryItems.description', 'Add source control history items and changes');
+	readonly tooltip = localize('chatContext.scmHistoryItems.tooltip', 'Add source control history items and changes');
 	readonly icon = Codicon.gitCommit;
 
 	private readonly _delayer = new ThrottledDelayer<IChatContextPickerPickItem[]>(200);

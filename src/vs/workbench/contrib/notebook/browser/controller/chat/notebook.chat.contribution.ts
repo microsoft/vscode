@@ -253,7 +253,7 @@ class KernelVariableContextPicker implements IChatContextPickerItem {
 
 	readonly type = 'pickerPick';
 	readonly label = localize('chatContext.notebook.kernelVariable', 'Kernel Variable...');
-	readonly description = localize('chatContext.notebook.kernelVariable.description', 'Include variables from the notebook kernel');
+	readonly tooltip = localize('chatContext.notebook.kernelVariable.tooltip', 'Include variables from the notebook kernel');
 	readonly icon = Codicon.serverEnvironment;
 
 	constructor(
