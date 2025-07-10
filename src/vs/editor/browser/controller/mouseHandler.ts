@@ -405,6 +405,7 @@ class MouseDownOperation extends Disposable {
 		this._lastMouseEvent = e;
 		this._mouseState.setModifiers(e);
 
+		console.log('e : ', e);
 		const position = this._findMousePosition(e, false);
 		if (!position) {
 			// Ignoring because position is unknown
@@ -417,6 +418,7 @@ class MouseDownOperation extends Disposable {
 				target: position
 			});
 		} else {
+			console.log('position.type : ', position.type);
 			if (position.type === MouseTargetType.OUTSIDE_EDITOR && (position.outsidePosition === 'above' || position.outsidePosition === 'below')) {
 				this._topBottomDragScrolling.start(position, e);
 			} else {
@@ -516,6 +518,7 @@ class MouseDownOperation extends Disposable {
 	}
 
 	private _getPositionOutsideEditor(e: EditorMouseEvent): IMouseTarget | null {
+		console.log('_getPositionOutsideEditor : ', e);
 		const editorContent = e.editorPos;
 		const model = this._context.viewModel;
 		const viewLayout = this._context.viewLayout;
@@ -568,24 +571,30 @@ class MouseDownOperation extends Disposable {
 	}
 
 	private _findMousePosition(e: EditorMouseEvent, testEventTarget: boolean): IMouseTarget | null {
+		console.log('_findMousePosition : ', e);
 		const positionOutsideEditor = this._getPositionOutsideEditor(e);
+		console.log('positionOutsideEditor : ', positionOutsideEditor);
 		if (positionOutsideEditor) {
+			console.log('return 1');
 			return positionOutsideEditor;
 		}
 
 		const t = this._createMouseTarget(e, testEventTarget);
 		const hintedPosition = t.position;
 		if (!hintedPosition) {
+			console.log('return 2');
 			return null;
 		}
 
 		if (t.type === MouseTargetType.CONTENT_VIEW_ZONE || t.type === MouseTargetType.GUTTER_VIEW_ZONE) {
 			const newPosition = this._helpPositionJumpOverViewZone(t.detail);
 			if (newPosition) {
+				console.log('return 3');
 				return MouseTarget.createViewZone(t.type, t.element, t.mouseColumn, newPosition, t.detail);
 			}
 		}
 
+		console.log('return 4');
 		return t;
 	}
 
@@ -650,6 +659,7 @@ class TopBottomDragScrolling extends Disposable {
 	}
 
 	public start(position: IMouseTargetOutsideEditor, mouseEvent: EditorMouseEvent): void {
+		console.log('start : ', position, mouseEvent);
 		if (this._operation) {
 			this._operation.setPosition(position, mouseEvent);
 		} else {
