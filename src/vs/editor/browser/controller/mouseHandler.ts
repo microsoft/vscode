@@ -560,6 +560,7 @@ class MouseDownOperation extends Disposable {
 
 		const possibleLineNumber = viewLayout.getLineNumberAtVerticalOffset(viewLayout.getCurrentScrollTop() + e.relativePos.y);
 
+		console.log('e.posx : ', e.posx);
 		console.log('editorContent.x : ', editorContent.x);
 		if (e.posx < editorContent.x) {
 			const outsideDistance = editorContent.x - e.posx;
