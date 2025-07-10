@@ -523,6 +523,7 @@ export interface IChatSendRequestOptions {
 
 	/** The target agent ID can be specified with this property instead of using @ in 'message' */
 	agentId?: string;
+	agentIdButQuiet?: string;
 	slashCommand?: string;
 
 	/**

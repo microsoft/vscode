@@ -1714,7 +1714,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				attachedContext: requestInputs.attachedContext.asArray(),
 				noCommandDetection: options?.noCommandDetection,
 				...this.getModeRequestOptions(),
-				modeInstructions: this.input.currentModeObs.get().body?.get()
+				modeInstructions: this.input.currentModeObs.get().body?.get(),
+				agentIdButQuiet: this.input.currentEngineObs.get()
 			});
 
 			if (result) {

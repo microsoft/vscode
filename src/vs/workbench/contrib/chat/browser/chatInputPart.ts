@@ -85,7 +85,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } 
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
-import { CancelAction, ChatEditingSessionSubmitAction, ChatOpenModelPickerActionId, ChatSubmitAction, IChatExecuteActionContext, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
+import { CancelAction, ChatEditingSessionSubmitAction, ChatOpenEnginePickerActionId, ChatOpenModelPickerActionId, ChatSubmitAction, IChatExecuteActionContext, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
@@ -102,6 +102,7 @@ import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
 import { resizeImage } from './imageUtils.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
+import { IEnginePickerDelegate, EnginePickerActionItem } from './modelPicker/enginePickerActionItem.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { isLocation } from '../../../../editor/common/languages.js';
 
@@ -274,6 +275,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private modelWidget: ModelPickerActionItem | undefined;
 	private modeWidget: ModePickerActionItem | undefined;
+	private engineWidget: EnginePickerActionItem | undefined;
 	private readonly _waitForPersistedLanguageModel: MutableDisposable<IDisposable>;
 	private _onDidChangeCurrentLanguageModel: Emitter<ILanguageModelChatMetadataAndIdentifier>;
 
@@ -290,6 +292,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	readonly onDidChangeCurrentChatMode: Event<void>;
 
 	private readonly _currentModeObservable = observableValue<IChatMode>('currentMode', ChatMode.Ask);
+	private readonly _currentEngineIdObservable = observableValue<string>('currentEngineId', '');
+
+	public get currentEngineObs(): IObservable<string> {
+		return this._currentEngineIdObservable;
+	}
+
 	public get currentModeKind(): ChatModeKind {
 		const mode = this._currentModeObservable.get();
 		return mode.kind === ChatModeKind.Agent && !this.agentService.hasToolsAgent ?
@@ -438,6 +446,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._hasFileAttachmentContextKey = ChatContextKeys.hasFileAttachments.bindTo(contextKeyService);
 
 		this.initSelectedModel();
+		this.initializeDefaultEngineOrWait();
 
 		this._register(this.onDidChangeCurrentChatMode(() => {
 			this.accessibilityService.alert(this._currentModeObservable.get().name);
@@ -551,6 +560,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.modeWidget?.show();
 	}
 
+	public openEnginePicker(): void {
+		this.engineWidget?.show();
+	}
+
 	private checkModelSupported(): void {
 		if (this._currentLanguageModel && !this.modelSupportedForDefaultAgent(this._currentLanguageModel)) {
 			this.setCurrentLanguageModelToDefault();
@@ -583,6 +596,29 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (storeSelection) {
 			this.storageService.store(GlobalLastChatModeKey, mode.kind, StorageScope.APPLICATION, StorageTarget.USER);
 		}
+	}
+
+	private initializeDefaultEngineOrWait(): void {
+		this.initializeDefaultEngine();
+		if (!this._currentEngineIdObservable.get()) {
+			const disposable = this.agentService.onDidChangeAgents(() => {
+				this.initializeDefaultEngine();
+				if (this._currentEngineIdObservable.get()) {
+					disposable.dispose();
+				}
+			});
+		}
+	}
+
+	private initializeDefaultEngine(): void {
+		const engines = this.agentService.getEngines();
+		if (engines.length > 0 && !this._currentEngineIdObservable.get()) {
+			this._currentEngineIdObservable.set(engines[0].id, undefined);
+		}
+	}
+
+	public setCurrentEngine(engineId: string): void {
+		this._currentEngineIdObservable.set(engineId, undefined);
 	}
 
 	private modelSupportedForDefaultAgent(model: ILanguageModelChatMetadataAndIdentifier): boolean {
@@ -1161,6 +1197,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						currentMode: this._currentModeObservable
 					};
 					return this.modeWidget = this.instantiationService.createInstance(ModePickerActionItem, action, delegate);
+				} else if (action.id === ChatOpenEnginePickerActionId && action instanceof MenuItemAction) {
+					const delegate: IEnginePickerDelegate = {
+						currentEngineId: this._currentEngineIdObservable,
+					};
+					return this.engineWidget = this.instantiationService.createInstance(EnginePickerActionItem, action, delegate);
 				}
 
 				return undefined;

@@ -627,7 +627,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		const location = options?.location ?? model.initialLocation;
 		const attempt = options?.attempt ?? 0;
-		const defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.mode)!;
+		const defaultAgent = (options?.agentIdButQuiet && this.chatAgentService.getAgentImpl(options.agentIdButQuiet)) || this.chatAgentService.getDefaultAgent(location, options?.mode)!;
 
 		const parsedRequest = this.parseChatRequest(sessionId, request, location, options);
 		const agent = parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart)?.agent ?? defaultAgent;

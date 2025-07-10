@@ -399,6 +399,49 @@ class OpenModePickerAction extends Action2 {
 	}
 }
 
+export const ChatOpenEnginePickerActionId = 'workbench.action.chat.openEnginePicker';
+class OpenEnginePickerAction extends Action2 {
+	static readonly ID = ChatOpenEnginePickerActionId;
+
+	constructor() {
+		super({
+			id: OpenEnginePickerAction.ID,
+			title: localize2('interactive.openEnginePicker.label', "Open Engine Picker"),
+			category: CHAT_CATEGORY,
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+			menu: {
+				id: MenuId.ChatInput,
+				order: 0,
+				group: 'navigation',
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.or(
+						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
+						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Editor),
+						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook),
+						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal)
+					)
+				),
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = widgetService.lastFocusedWidget;
+		if (widget) {
+			const arg = args.at(0) as { engineId?: string } | undefined;
+			if (arg?.engineId) {
+				// Engine selection
+				widget.input.setCurrentEngine(arg.engineId);
+			} else {
+				// Open engine picker
+				widget.input.openEnginePicker();
+			}
+		}
+	}
+}
+
 export const ChangeChatModelActionId = 'workbench.action.chat.changeModel';
 class ChangeChatModelAction extends Action2 {
 	static readonly ID = ChangeChatModelActionId;
@@ -891,6 +934,7 @@ export function registerChatExecuteActions() {
 	registerAction2(SwitchToNextModelAction);
 	registerAction2(OpenModelPickerAction);
 	registerAction2(OpenModePickerAction);
+	registerAction2(OpenEnginePickerAction);
 	registerAction2(ChangeChatModelAction);
 	registerAction2(CancelEdit);
 }

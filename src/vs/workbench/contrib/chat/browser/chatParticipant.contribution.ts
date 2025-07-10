@@ -120,6 +120,10 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 					description: localize('chatParticipantWhen', "A condition which must be true to enable this participant."),
 					type: 'string'
 				},
+				isEngine: {
+					description: localize('chatParticipantIsEngine', "Whether this participant represents an AI engine/model that can be selected from the engine picker."),
+					type: 'boolean'
+				},
 				disambiguation: {
 					description: localize('chatParticipantDisambiguation', "Metadata to help with automatically routing user questions to this chat participant."),
 					type: 'array',
@@ -284,10 +288,10 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 								metadata: {
 									isSticky: providerDescriptor.isSticky,
 									sampleRequest: providerDescriptor.sampleRequest,
-								},
-								name: providerDescriptor.name,
+								}, name: providerDescriptor.name,
 								fullName: providerDescriptor.fullName,
 								isDefault: providerDescriptor.isDefault,
+								isEngine: providerDescriptor.isEngine,
 								locations: isNonEmptyArray(providerDescriptor.locations) ?
 									providerDescriptor.locations.map(ChatAgentLocation.fromRaw) :
 									[ChatAgentLocation.Panel],
