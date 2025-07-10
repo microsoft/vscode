@@ -846,78 +846,9 @@ export class GitStatusParser {
 }
 
 export interface Worktree {
-	readonly path: string;
 	readonly name: string;
-	readonly commit?: string;
-	readonly branch?: string;
-	readonly detached?: boolean;
-	readonly prunable?: boolean;
-	readonly locked?: boolean;
-	readonly lockedReason?: string;
+	readonly path: string;
 }
-
-export function parseGitWorktrees(raw: string): Worktree[] {
-	const lineSeparator = /\r?\n/;
-
-	const result: Worktree[] = [];
-
-	let path: string | undefined;
-	let name: string | undefined;
-	let branch: string | undefined;
-	let commit: string | undefined;
-	let detached: boolean | undefined;
-	let prunable: boolean | undefined;
-	let locked: boolean | undefined;
-	let lockedReason: string | undefined;
-
-	const push = () => {
-		if (path && name) { // Only push if we have a complete worktree
-			result.push({
-				path,
-				name,
-				branch,
-				commit,
-				detached,
-				prunable,
-				locked,
-				lockedReason,
-			});
-		}
-		// Reset for the next worktree
-		path = name = branch = commit = detached = prunable = locked = lockedReason = undefined;
-	};
-
-	for (const line of raw.split(lineSeparator)) {
-		if (!line.trim()) {
-			push(); // Blank line indicates the end of a worktree
-			continue;
-		}
-
-		if (line.startsWith('worktree ')) {
-			path = line.substring('worktree '.length);
-			name = path.split('/').pop();
-		} else if (line.startsWith('HEAD ')) {
-			commit = line.substring('HEAD '.length);
-		} else if (line.startsWith('branch ')) {
-			branch = line.substring('branch '.length);
-		} else if (line === 'detached') {
-			detached = true;
-		} else if (line.startsWith('locked')) {
-			locked = true;
-			const reason = line.substring('locked'.length).trim();
-			if (reason) {
-				lockedReason = reason;
-			}
-		} else if (line.startsWith('prunable')) {
-			prunable = true;
-		}
-	}
-
-	push(); // Push the last worktree
-
-	return result;
-}
-
 
 export interface Submodule {
 	name: string;
@@ -2788,6 +2719,28 @@ export class Repository {
 		return parseGitStashes(result.stdout.trim());
 	}
 
+	async getWorktrees(): Promise<Worktree[]> {
+		const worktrees: Worktree[] = [];
+
+		worktrees.push(...await this.getWorktreesFS());
+
+		return worktrees;
+	}
+
+	private async getWorktreesFS(): Promise<Worktree[]> {
+		const worktreesPath = path.join(this.repositoryRoot, '.git', 'worktrees');
+		const worktreeNames = await fs.readdir(worktreesPath);
+		const result: Worktree[] = [];
+
+		for (const name of worktreeNames) {
+			const gitdirPath = path.join(worktreesPath, name, 'gitdir');
+			const gitdirContent = (await fs.readFile(gitdirPath, 'utf8')).trim();
+			result.push({ name: name, path: gitdirContent });
+		}
+
+		return result;
+	}
+
 	async getRemotes(): Promise<Remote[]> {
 		const remotes: MutableRemote[] = [];
 
@@ -3071,11 +3024,6 @@ export class Repository {
 
 			throw err;
 		}
-	}
-
-	async getWorktrees(): Promise<Worktree[]> {
-		const result = await this.exec(['worktree', 'list', '--porcelain']);
-		return parseGitWorktrees(result.stdout.trim());
 	}
 
 	private sanitizeRelativePath(filePath: string): string {

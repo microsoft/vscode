@@ -763,7 +763,6 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 			repository.worktrees
 				.slice(0, worktreesLimit)
-				.filter(w => w.path !== repository.root)
 				.forEach(w => {
 					this.logger.trace(`[Model][open] Opening worktree: '${w.path}'`);
 					this.eventuallyScanPossibleGitRepository(w.path);
