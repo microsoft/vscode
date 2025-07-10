@@ -296,6 +296,8 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(terminalInstance.shellType, GeneralShellType.PowerShell);
 
 			// Set back to undefined (this is the key test - should work after our fix)
+			// This addresses the issue where PowerShell -> unrecognized shell transitions
+			// weren't properly setting shell type to undefined
 			terminalInstance.setShellType(undefined);
 			strictEqual(terminalInstance.shellType, undefined);
 		});

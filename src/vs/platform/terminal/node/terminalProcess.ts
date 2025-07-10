@@ -326,6 +326,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				this._queueProcessExit();
 			}
 			this._windowsShellHelper?.checkShell();
+			// For non-Windows systems, also check if shell type should be updated
+			// This provides a more reliable mechanism than title polling alone
+			if (!isWindows) {
+				this._checkShellTypeOnDataEvent();
+			}
 			this._childProcessMonitor?.handleOutput();
 		});
 		ptyProcess.onExit(e => {
@@ -433,6 +438,18 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		} else {
 			const shellTypeValue = posixShellTypeMap.get(sanitizedTitle) || generalShellTypeMap.get(sanitizedTitle);
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: shellTypeValue });
+		}
+	}
+
+	private _checkShellTypeOnDataEvent(): void {
+		if (!this._ptyProcess || this._store.isDisposed) {
+			return;
+		}
+		// Check if the current process title has changed and update shell type accordingly
+		const currentProcess = this._ptyProcess.process ?? '';
+		if (currentProcess !== this._currentTitle) {
+			// Title has changed, trigger a shell type check
+			this._sendProcessTitle(this._ptyProcess);
 		}
 	}
 
