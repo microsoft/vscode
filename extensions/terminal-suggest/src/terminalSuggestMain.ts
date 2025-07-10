@@ -170,7 +170,7 @@ async function writeGlobalsCache(): Promise<void> {
 		await vscode.workspace.fs.createDirectory(terminalSuggestDir);
 		const cacheFile = vscode.Uri.joinPath(terminalSuggestDir, `${CACHE_KEY}.json`);
 		const data = Buffer.from(JSON.stringify(obj), 'utf8');
-		await vscode.workspace.fs.writeFile(cacheFile, data, { create: true, overwrite: true });
+		await vscode.workspace.fs.writeFile(cacheFile, data);
 	} catch (err) {
 		console.error('Failed to write terminal suggest globals cache:', err);
 	}
