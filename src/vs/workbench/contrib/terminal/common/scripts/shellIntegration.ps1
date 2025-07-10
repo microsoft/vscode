@@ -8,6 +8,20 @@ if (Test-Path variable:global:__VSCodeState.OriginalPrompt) {
 	return;
 }
 
+# Clear any history entry that contains the shell integration script to prevent
+# issues with the 'r' alias (Invoke-History) re-executing the script loading command
+try {
+	$historyEntries = Get-History -ErrorAction SilentlyContinue
+	if ($historyEntries) {
+		$lastEntry = $historyEntries | Select-Object -Last 1
+		if ($lastEntry -and $lastEntry.CommandLine -match 'shellIntegration\.ps1') {
+			Clear-History -Id $lastEntry.Id -ErrorAction SilentlyContinue
+		}
+	}
+} catch {
+	# Ignore any errors when trying to clear history
+}
+
 # Disable shell integration when the language mode is restricted
 if ($ExecutionContext.SessionState.LanguageMode -ne "FullLanguage") {
 	return;
