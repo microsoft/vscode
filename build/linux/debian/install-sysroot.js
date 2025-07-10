@@ -122,7 +122,7 @@ async function fetchUrl(options, retries = 10, retryDelay = 1000) {
 async function getVSCodeSysroot(arch, isMusl = false) {
     let expectedName;
     let triple;
-    const prefix = process.env['VSCODE_SYSROOT_PREFIX'] ?? '-glibc-2.28-gcc-8.5.0';
+    const prefix = process.env['VSCODE_SYSROOT_PREFIX'] ?? '-glibc-2.28-gcc-10.5.0';
     switch (arch) {
         case 'amd64':
             expectedName = `x86_64-linux-gnu${prefix}.tar.gz`;
@@ -159,7 +159,7 @@ async function getVSCodeSysroot(arch, isMusl = false) {
     }
     console.log(`Installing ${arch} root image: ${sysroot}`);
     fs_1.default.rmSync(sysroot, { recursive: true, force: true });
-    fs_1.default.mkdirSync(sysroot);
+    fs_1.default.mkdirSync(sysroot, { recursive: true });
     await fetchUrl({
         checksumSha256,
         assetName: expectedName,

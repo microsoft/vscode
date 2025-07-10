@@ -17,6 +17,10 @@
     "ui",
     "workspace"
   ],
+  "enabledApiProposals": [
+    "authIssuers",
+    "authProviderSpecific"
+  ],
   "activationEvents": [],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -31,11 +35,17 @@
     "authentication": [
       {
         "label": "GitHub",
-        "id": "github"
+        "id": "github",
+        "authorizationServerGlobs": [
+          "https://github.com/login/oauth"
+        ]
       },
       {
         "label": "GitHub Enterprise Server",
-        "id": "github-enterprise"
+        "id": "github-enterprise",
+        "authorizationServerGlobs": [
+          "*"
+        ]
       }
     ],
     "configuration": [{
@@ -67,7 +77,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
-    "@types/node": "20.x",
+    "@types/node": "22.x",
     "@types/node-fetch": "^2.5.7"
   },
   "repository": {

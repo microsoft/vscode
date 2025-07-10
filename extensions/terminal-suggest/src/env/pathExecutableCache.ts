@@ -12,6 +12,7 @@ import { getFriendlyResourcePath } from '../helpers/uri';
 import { SettingsIds } from '../constants';
 import * as filesystem from 'fs';
 import * as path from 'path';
+import { TerminalShellType } from '../terminalSuggestMain';
 
 const isWindows = osIsWindows();
 
@@ -45,10 +46,14 @@ export class PathExecutableCache implements vscode.Disposable {
 		this._cachedPathValue = undefined;
 	}
 
-	async getExecutablesInPath(env: ITerminalEnvironment = process.env): Promise<{ completionResources: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined> {
+	async getExecutablesInPath(env: ITerminalEnvironment = process.env, shellType?: TerminalShellType): Promise<{ completionResources: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined> {
 		// Create cache key
 		let pathValue: string | undefined;
-		if (isWindows) {
+		if (shellType === TerminalShellType.GitBash) {
+			// TODO: figure out why shellIntegration.env.PATH
+			// regressed from using \ to / (correct)
+			pathValue = process.env.PATH;
+		} else if (isWindows) {
 			const caseSensitivePathKey = Object.keys(env).find(key => key.toLowerCase() === 'path');
 			if (caseSensitivePathKey) {
 				pathValue = env[caseSensitivePathKey];
@@ -71,7 +76,7 @@ export class PathExecutableCache implements vscode.Disposable {
 		const promises: Promise<Set<ICompletionResource> | undefined>[] = [];
 		const labels: Set<string> = new Set<string>();
 		for (const path of paths) {
-			promises.push(this._getFilesInPath(path, pathSeparator, labels));
+			promises.push(this._getExecutablesInPath(path, pathSeparator, labels));
 		}
 
 		// Merge all results
@@ -91,7 +96,7 @@ export class PathExecutableCache implements vscode.Disposable {
 		return this._cachedExes;
 	}
 
-	private async _getFilesInPath(path: string, pathSeparator: string, labels: Set<string>): Promise<Set<ICompletionResource> | undefined> {
+	private async _getExecutablesInPath(path: string, pathSeparator: string, labels: Set<string>): Promise<Set<ICompletionResource> | undefined> {
 		try {
 			const dirExists = await fs.stat(path).then(stat => stat.isDirectory()).catch(() => false);
 			if (!dirExists) {
@@ -101,11 +106,53 @@ export class PathExecutableCache implements vscode.Disposable {
 			const fileResource = vscode.Uri.file(path);
 			const files = await vscode.workspace.fs.readDirectory(fileResource);
 			for (const [file, fileType] of files) {
-				const formattedPath = getFriendlyResourcePath(vscode.Uri.joinPath(fileResource, file), pathSeparator);
-				if (!labels.has(file) && fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(formattedPath, this._cachedWindowsExeExtensions)) {
-					result.add({ label: file, documentation: formattedPath, kind: vscode.TerminalCompletionItemKind.Method });
-					labels.add(file);
+				let kind: vscode.TerminalCompletionItemKind | undefined;
+				let formattedPath: string | undefined;
+				const resource = vscode.Uri.joinPath(fileResource, file);
+
+				// Skip unknown or directory file types early
+				if (fileType === vscode.FileType.Unknown || fileType === vscode.FileType.Directory) {
+					continue;
 				}
+
+				try {
+					const lstat = await fs.lstat(resource.fsPath);
+					if (lstat.isSymbolicLink()) {
+						try {
+							const symlinkRealPath = await fs.realpath(resource.fsPath);
+							const isExec = await isExecutable(symlinkRealPath, this._cachedWindowsExeExtensions);
+							if (!isExec) {
+								continue;
+							}
+							kind = vscode.TerminalCompletionItemKind.Method;
+							formattedPath = `${resource.fsPath} -> ${symlinkRealPath}`;
+						} catch {
+							continue;
+						}
+					}
+				} catch {
+					// Ignore errors for unreadable files
+					continue;
+				}
+
+				formattedPath = formattedPath ?? getFriendlyResourcePath(resource, pathSeparator);
+
+				// Check if already added or not executable
+				if (labels.has(file)) {
+					continue;
+				}
+
+				const isExec = kind === vscode.TerminalCompletionItemKind.Method || await isExecutable(formattedPath, this._cachedWindowsExeExtensions);
+				if (!isExec) {
+					continue;
+				}
+
+				result.add({
+					label: file,
+					documentation: formattedPath,
+					kind: kind ?? vscode.TerminalCompletionItemKind.Method
+				});
+				labels.add(file);
 			}
 			return result;
 		} catch (e) {

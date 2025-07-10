@@ -22,79 +22,6 @@ const TS_CONFIG_PATH = path.join(__dirname, '../../', 'src', 'tsconfig.json');
 // #############################################################################################
 //
 
-const ignored = new Set([
-	'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/tokenizer.ts',
-	'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/bracketPairsTree.ts',
-	'vs/editor/common/model/textModelTokens.ts',
-	'vs/editor/common/model/tokenizationTextModelPart.ts',
-	'vs/editor/common/core/textEdit.ts',
-	'vs/editor/browser/view/viewLayer.ts',
-	'vs/platform/accessibilitySignal/browser/accessibilitySignalService.ts',
-	'vs/editor/browser/widget/diffEditor/utils.ts',
-	'vs/editor/browser/observableCodeEditor.ts',
-	'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/diffEditorViewZones.ts',
-	'vs/editor/browser/widget/diffEditor/diffEditorOptions.ts',
-	'vs/editor/browser/widget/diffEditor/components/diffEditorEditors.ts',
-	'vs/editor/browser/widget/diffEditor/features/movedBlocksLinesFeature.ts',
-	'vs/editor/browser/widget/diffEditor/components/diffEditorSash.ts',
-	'vs/editor/browser/widget/diffEditor/utils/editorGutter.ts',
-	'vs/editor/browser/widget/diffEditor/features/gutterFeature.ts',
-	'vs/editor/browser/widget/diffEditor/features/revertButtonsFeature.ts',
-	'vs/editor/browser/widget/diffEditor/diffEditorWidget.ts',
-	'vs/editor/contrib/inlineCompletions/browser/model/inlineCompletionsSource.ts',
-	'vs/editor/contrib/inlineCompletions/browser/model/suggestWidgetAdapter.ts',
-	'vs/editor/contrib/inlineCompletions/browser/model/inlineCompletionsModel.ts',
-	'vs/editor/contrib/inlineCompletions/browser/hintsWidget/inlineCompletionsHintsWidget.ts',
-	'vs/editor/contrib/inlayHints/browser/inlayHintsController.ts',
-	'vs/editor/contrib/inlineCompletions/browser/model/changeRecorder.ts',
-	'vs/editor/contrib/inlineCompletions/browser/view/ghostText/ghostTextView.ts',
-	'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditWithChanges.ts',
-	'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/components/gutterIndicatorView.ts',
-	'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/inlineEditsWordReplacementView.ts',
-	'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/inlineEditsLineReplacementView.ts',
-	'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/inlineEditsSideBySideView.ts',
-	'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/originalEditorInlineDiffView.ts',
-	'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsView.ts',
-	'vs/editor/contrib/inlineCompletions/browser/view/inlineCompletionsView.ts',
-	'vs/editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.ts',
-	'vs/editor/contrib/placeholderText/browser/placeholderTextContribution.ts',
-	'vs/editor/contrib/unicodeHighlighter/browser/unicodeHighlighter.ts',
-	'vs/workbench/contrib/files/browser/views/openEditorsView.ts',
-	'vs/workbench/contrib/chat/browser/chatContentParts/chatAttachmentsContentPart.ts',
-	'vs/workbench/contrib/chat/browser/contrib/chatImplicitContext.ts',
-	'vs/workbench/contrib/chat/browser/chatInputPart.ts',
-	'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange.ts',
-	'vs/workbench/contrib/mergeEditor/browser/model/diffComputer.ts',
-	'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel.ts',
-	'vs/workbench/contrib/mergeEditor/browser/view/editorGutter.ts',
-	'vs/workbench/contrib/mergeEditor/browser/view/editors/codeEditorView.ts',
-	'vs/workbench/contrib/mergeEditor/browser/view/editors/inputCodeEditorView.ts',
-	'vs/workbench/contrib/mergeEditor/browser/view/viewModel.ts',
-	'vs/workbench/contrib/mergeEditor/browser/mergeEditorInputModel.ts',
-	'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput.ts',
-	'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.ts',
-	'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.ts',
-	'vs/workbench/services/authentication/browser/authenticationExtensionsService.ts',
-	'vs/workbench/services/textMate/browser/backgroundTokenization/textMateWorkerTokenizerController.ts',
-	'vs/workbench/services/textMate/browser/textMateTokenizationFeatureImpl.ts',
-	'vs/workbench/contrib/notebook/browser/services/notebookServiceImpl.ts',
-	'vs/workbench/contrib/notebook/browser/contrib/multicursor/notebookMulticursor.ts',
-	'vs/editor/browser/widget/multiDiffEditor/diffEditorItemTemplate.ts',
-	'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.ts',
-	'vs/workbench/contrib/notebook/browser/diff/notebookMultiDiffEditor.ts',
-	'vs/workbench/contrib/search/common/cacheState.ts',
-	'vs/workbench/contrib/multiDiffEditor/browser/scmMultiDiffSourceResolver.ts',
-	'vs/workbench/contrib/mergeEditor/browser/view/viewZones.ts',
-	'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor.ts',
-	'vs/workbench/contrib/editSessions/browser/editSessionsStorageService.ts',
-	'vs/workbench/contrib/accessibilitySignals/browser/editorTextPropertySignalsContribution.ts',
-	'vs/workbench/contrib/inlineCompletions/browser/inlineCompletionLanguageStatusBarContribution.ts',
-	'vs/workbench/contrib/welcomeDialog/browser/welcomeWidget.ts',
-	'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/inlineEditsWordInsertView.ts',
-	'vs/workbench/api/common/extHostLanguageFeatures.ts',
-	'vs/workbench/api/common/extHostSearch.ts',
-]);
-
 
 const cancellationToken: ts.CancellationToken = {
 	isCancellationRequested: () => false,
@@ -125,12 +52,6 @@ for (const file of program.getSourceFiles()) {
 	if (!file || file.isDeclarationFile) {
 		continue;
 	}
-
-	const relativePath = path.relative(path.dirname(TS_CONFIG_PATH), file.fileName).replace(/\\/g, '/');
-	if (ignored.has(relativePath)) {
-		continue;
-	}
-
 	visit(file);
 }
 

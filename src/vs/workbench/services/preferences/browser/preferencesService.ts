@@ -33,7 +33,7 @@ import { GroupDirection, IEditorGroup, IEditorGroupsService } from '../../editor
 import { IEditorService, SIDE_GROUP } from '../../editor/common/editorService.js';
 import { KeybindingsEditorInput } from './keybindingsEditorInput.js';
 import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IKeybindingsEditorPane, IOpenKeybindingsEditorOptions, IOpenSettingsOptions, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, ISettingsGroup, SETTINGS_AUTHORITY, USE_SPLIT_JSON_SETTING, validateSettingsEditorOptions } from '../common/preferences.js';
-import { SettingsEditor2Input } from '../common/preferencesEditorInput.js';
+import { PreferencesEditorInput, SettingsEditor2Input } from '../common/preferencesEditorInput.js';
 import { defaultKeybindingsContents, DefaultKeybindingsEditorModel, DefaultRawSettingsEditorModel, DefaultSettings, DefaultSettingsEditorModel, Settings2EditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from '../common/preferencesModels.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { ITextEditorService } from '../../textfile/common/textEditorService.js';
@@ -212,6 +212,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private shouldOpenJsonByDefault(): boolean {
 		return this.configurationService.getValue('workbench.settings.editor') === 'json';
+	}
+
+	async openPreferences(): Promise<void> {
+		await this.editorGroupService.activeGroup.openEditor(this.instantiationService.createInstance(PreferencesEditorInput));
 	}
 
 	openSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {

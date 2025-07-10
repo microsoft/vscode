@@ -11,7 +11,6 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
@@ -25,7 +24,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
-import { IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
+import { IChatRequestImplicitVariableEntry } from '../../common/chatVariableEntries.js';
 
 export class ImplicitContextAttachmentWidget extends Disposable {
 	public readonly domNode: HTMLElement;
@@ -37,12 +36,12 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		private readonly resourceLabels: ResourceLabels,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IHoverService private readonly hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IFileService private readonly fileService: IFileService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 
@@ -59,9 +58,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		const file = URI.isUri(this.attachment.value) ? this.attachment.value : this.attachment.value!.uri;
 		const range = URI.isUri(this.attachment.value) || !this.attachment.isSelection ? undefined : this.attachment.value!.range;
 
-		const attachmentTypeName = (this.attachment.isPromptFile === false)
-			? file.scheme === Schemas.vscodeNotebookCell ? localize('cell.lowercase', "cell") : localize('file.lowercase', "file")
-			: localize('prompt.lowercase', "prompt");
+		const attachmentTypeName = file.scheme === Schemas.vscodeNotebookCell ? localize('cell.lowercase', "cell") : localize('file.lowercase', "file");
 
 		const fileBasename = basename(file);
 		const fileDirname = dirname(file);
@@ -74,16 +71,11 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		const currentFileHint = currentFile + (this.attachment.enabled ? '' : ` (${inactive})`);
 		const title = `${currentFileHint}\n${uriLabel}`;
 
-		const icon = this.attachment.isPromptFile
-			? ThemeIcon.fromId(Codicon.bookmark.id)
-			: undefined;
-
 		label.setFile(file, {
 			fileKind: FileKind.FILE,
 			hidePath: true,
 			range,
-			title,
-			icon,
+			title
 		});
 		this.domNode.ariaLabel = ariaLabel;
 		this.domNode.tabIndex = 0;

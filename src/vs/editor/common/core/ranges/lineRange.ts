@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BugIndicatingError } from '../../../../base/common/errors.js';
-import { OffsetRange } from '../offsetRange.js';
+import { OffsetRange } from './offsetRange.js';
 import { Range } from '../range.js';
 import { findFirstIdxMonotonousOrArrLen, findLastIdxMonotonous, findLastMonotonous } from '../../../../base/common/arraysFind.js';
 import { Comparator, compareBy, numberComparator } from '../../../../base/common/arrays.js';
@@ -46,7 +46,7 @@ export class LineRange {
 	}
 
 	/**
-	 * @param lineRanges An array of sorted line ranges.
+	 * @param lineRanges An array of arrays of of sorted line ranges.
 	 */
 	public static joinMany(lineRanges: readonly (readonly LineRange[])[]): readonly LineRange[] {
 		if (lineRanges.length === 0) {

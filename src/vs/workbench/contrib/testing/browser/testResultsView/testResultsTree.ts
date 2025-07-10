@@ -46,7 +46,7 @@ import { ITestResult, ITestRunTaskResults, LiveTestResult, TestResultItemChangeR
 import { ITestResultService } from '../../common/testResultService.js';
 import { IRichLocation, ITestItemContext, ITestMessage, ITestMessageMenuArgs, InternalTestItem, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset, testResultStateToContextValues } from '../../common/testTypes.js';
 import { TestingContextKeys } from '../../common/testingContextKeys.js';
-import { cmpPriority } from '../../common/testingStates.js';
+import { cmpPriority, isFailedState } from '../../common/testingStates.js';
 import { TestUriType, buildTestUri } from '../../common/testingUri.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { TestId } from '../../common/testId.js';
@@ -745,6 +745,9 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 		let { label, labelWithIcons, description } = element;
 		if (subjectElement instanceof TestMessageElement) {
 			description = subjectElement.label;
+			if (element.description) {
+				description = `${description} @ ${element.description}`;
+			}
 		}
 
 		const descriptionElement = description ? dom.$('span.test-label-description', {}, description) : '';
@@ -812,6 +815,18 @@ class TreeActionsProvider {
 					undefined,
 					() => this.commandService.executeCommand(TestCommandId.ReRunLastRun, element.results.id),
 				));
+
+				const hasFailedTests = Iterable.some(element.results.tests, test => isFailedState(test.ownComputedState));
+				if (hasFailedTests) {
+					primary.push(new Action(
+						'testing.outputPeek.rerunFailed',
+						localize('testing.reRunFailedFromLastRun', 'Rerun Failed Tests'),
+						ThemeIcon.asClassName(icons.testingRerunIcon),
+						undefined,
+						() => this.commandService.executeCommand(TestCommandId.ReRunFailedFromLastRun, element.results.id),
+					));
+				}
+
 				primary.push(new Action(
 					'testing.outputPeek.debug',
 					localize('testing.debugLastRun', 'Debug Last Run'),
@@ -819,6 +834,16 @@ class TreeActionsProvider {
 					undefined,
 					() => this.commandService.executeCommand(TestCommandId.DebugLastRun, element.results.id),
 				));
+
+				if (hasFailedTests) {
+					primary.push(new Action(
+						'testing.outputPeek.debugFailed',
+						localize('testing.debugFailedFromLastRun', 'Debug Failed Tests'),
+						ThemeIcon.asClassName(icons.testingDebugIcon),
+						undefined,
+						() => this.commandService.executeCommand(TestCommandId.DebugFailedFromLastRun, element.results.id),
+					));
+				}
 			}
 		}
 
@@ -842,6 +867,17 @@ class TreeActionsProvider {
 				() => this.commandService.executeCommand('testing.reRunLastRun', element.value.id),
 			));
 
+			const hasFailedTests = Iterable.some(element.value.tests, test => isFailedState(test.ownComputedState));
+			if (hasFailedTests) {
+				primary.push(new Action(
+					'testing.outputPeek.rerunFailedResult',
+					localize('testing.reRunFailedFromLastRun', 'Rerun Failed Tests'),
+					ThemeIcon.asClassName(icons.testingRerunIcon),
+					undefined,
+					() => this.commandService.executeCommand(TestCommandId.ReRunFailedFromLastRun, element.value.id),
+				));
+			}
+
 			if (capabilities & TestRunProfileBitset.Debug) {
 				primary.push(new Action(
 					'testing.outputPeek.debugLastRun',
@@ -850,6 +886,16 @@ class TreeActionsProvider {
 					undefined,
 					() => this.commandService.executeCommand('testing.debugLastRun', element.value.id),
 				));
+
+				if (hasFailedTests) {
+					primary.push(new Action(
+						'testing.outputPeek.debugFailedResult',
+						localize('testing.debugFailedFromLastRun', 'Debug Failed Tests'),
+						ThemeIcon.asClassName(icons.testingDebugIcon),
+						undefined,
+						() => this.commandService.executeCommand(TestCommandId.DebugFailedFromLastRun, element.value.id),
+					));
+				}
 			}
 		}
 

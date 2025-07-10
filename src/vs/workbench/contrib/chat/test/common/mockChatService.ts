@@ -82,7 +82,7 @@ export class MockChatService implements IChatService {
 	notifyUserAction(event: IChatUserActionEvent): void {
 		throw new Error('Method not implemented.');
 	}
-	onDidDisposeSession: Event<{ sessionId: string; reason: 'initializationFailed' | 'cleared' }> = undefined!;
+	onDidDisposeSession: Event<{ sessionId: string; reason: 'cleared' }> = undefined!;
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void {
 		throw new Error('Method not implemented.');

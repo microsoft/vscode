@@ -1046,6 +1046,19 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		return Promise.resolve(undefined);
 	}
 
+	async $resolveHistoryItemChatContext(sourceControlHandle: number, historyItemId: string, token: CancellationToken): Promise<string | undefined> {
+		try {
+			const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
+			const chatContext = await historyProvider?.resolveHistoryItemChatContext(historyItemId, token);
+
+			return chatContext ?? undefined;
+		}
+		catch (err) {
+			this.logService.error('ExtHostSCM#$resolveHistoryItemChatContext', err);
+			return undefined;
+		}
+	}
+
 	async $resolveHistoryItemRefsCommonAncestor(sourceControlHandle: number, historyItemRefs: string[], token: CancellationToken): Promise<string | undefined> {
 		try {
 			const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
@@ -1072,7 +1085,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		}
 	}
 
-	async $provideHistoryItems(sourceControlHandle: number, options: any, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined> {
+	async $provideHistoryItems(sourceControlHandle: number, options: vscode.SourceControlHistoryOptions, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined> {
 		try {
 			const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
 			const historyItems = await historyProvider?.provideHistoryItems(options, token);

@@ -208,6 +208,8 @@ export default class FileConfigurationManager extends Disposable {
 			includeCompletionsForModuleExports: config.get<boolean>('suggest.autoImports'),
 			...getInlayHintsPreferences(config),
 			...this.getOrganizeImportsPreferences(preferencesConfig),
+			// @ts-expect-error until TS 5.9
+			maximumHoverLength: this.getMaximumHoverLength(document),
 		};
 
 		return preferences;
@@ -256,6 +258,16 @@ export default class FileConfigurationManager extends Disposable {
 				organizeImportsNumericCollation: config.get<boolean>('organizeImports.numericCollation'),
 			} : {}),
 		};
+	}
+
+
+	private getMaximumHoverLength(document: vscode.TextDocument): number {
+		const defaultMaxLength = 500;
+		const maximumHoverLength = vscode.workspace.getConfiguration('js/ts', document).get<number>('hover.maximumLength', defaultMaxLength);
+		if (!Number.isSafeInteger(maximumHoverLength) || maximumHoverLength <= 0) {
+			return defaultMaxLength;
+		}
+		return maximumHoverLength;
 	}
 }
 

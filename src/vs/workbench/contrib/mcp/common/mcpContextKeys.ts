@@ -10,7 +10,7 @@ import { localize } from '../../../../nls.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { LazyCollectionState, IMcpService, McpServerToolsState, McpConnectionState } from './mcpTypes.js';
+import { LazyCollectionState, IMcpService, McpServerCacheState, McpConnectionState } from './mcpTypes.js';
 
 
 export namespace McpContextKeys {
@@ -55,8 +55,8 @@ export class McpContextKeysController extends Disposable implements IWorkbenchCo
 					return false;
 				}
 
-				const toolState = s.toolsState.read(r);
-				return toolState === McpServerToolsState.Unknown || toolState === McpServerToolsState.Outdated || toolState === McpServerToolsState.RefreshingFromUnknown;
+				const toolState = s.cacheState.read(r);
+				return toolState === McpServerCacheState.Unknown || toolState === McpServerCacheState.Outdated || toolState === McpServerCacheState.RefreshingFromUnknown;
 			}));
 		}));
 	}

@@ -123,7 +123,7 @@ import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreati
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../platform/workspace/common/workspaceTrust.js';
 import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalBackend, ITerminalLogService, ITerminalProfile, TerminalIcon, TerminalLocation, TerminalShellType } from '../../../platform/terminal/common/terminal.js';
 import { ICreateTerminalOptions, IDeserializedTerminalEditorInput, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, TerminalEditorLocation } from '../../contrib/terminal/browser/terminal.js';
-import { assertIsDefined, upcast } from '../../../base/common/types.js';
+import { assertReturnsDefined, upcast } from '../../../base/common/types.js';
 import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService, type ITerminalConfiguration } from '../../contrib/terminal/common/terminal.js';
 import { EditorResolverService } from '../../services/editor/browser/editorResolverService.js';
 import { FILE_EDITOR_INPUT_ID } from '../../contrib/files/common/files.js';
@@ -183,6 +183,8 @@ import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../platform/hover/test/browser/nullHoverService.js';
 import { IActionViewItemService, NullActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { ITreeSitterLibraryService } from '../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
+import { TestTreeSitterLibraryService } from '../../../editor/test/common/services/testTreeSitterLibraryService.js';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -310,6 +312,7 @@ export function workbenchInstantiationService(
 	const themeService = new TestThemeService();
 	instantiationService.stub(IThemeService, themeService);
 	instantiationService.stub(ILanguageConfigurationService, disposables.add(new TestLanguageConfigurationService()));
+	instantiationService.stub(ITreeSitterLibraryService, new TestTreeSitterLibraryService());
 	instantiationService.stub(IModelService, disposables.add(instantiationService.createInstance(ModelService)));
 	const fileService = overrides?.fileService ? overrides.fileService(instantiationService) : disposables.add(new TestFileService());
 	instantiationService.stub(IFileService, fileService);
@@ -632,6 +635,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	onDidChangeNotificationsVisibility = Event.None;
 	onDidAddContainer = Event.None;
 	onDidChangeActiveContainer = Event.None;
+	onDidChangeAuxiliaryBarMaximized = Event.None;
 
 	layout(): void { }
 	isRestored(): boolean { return true; }
@@ -658,6 +662,9 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	async setPanelHidden(_hidden: boolean): Promise<void> { }
 	toggleMaximizedPanel(): void { }
 	isPanelMaximized(): boolean { return false; }
+	toggleMaximizedAuxiliaryBar(): void { }
+	setAuxiliaryBarMaximized(maximized: boolean): boolean { return false; }
+	isAuxiliaryBarMaximized(): boolean { return false; }
 	getMenubarVisibility(): MenuBarVisibility { throw new Error('not implemented'); }
 	toggleMenuBar(): void { }
 	getSideBarPosition() { return 0; }
@@ -736,7 +743,7 @@ export class TestPaneCompositeService extends Disposable implements IPaneComposi
 	}
 
 	getPartByLocation(viewContainerLocation: ViewContainerLocation): IPaneCompositePart {
-		return assertIsDefined(this.parts.get(viewContainerLocation));
+		return assertReturnsDefined(this.parts.get(viewContainerLocation));
 	}
 }
 
@@ -1115,6 +1122,10 @@ export class TestFileService implements IFileService {
 
 	stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
 		return this.resolve(resource, { resolveMetadata: true });
+	}
+
+	async realpath(resource: URI): Promise<URI> {
+		return resource;
 	}
 
 	async resolveAll(toResolve: { resource: URI; options?: IResolveFileOptions }[]): Promise<IFileStatResult[]> {

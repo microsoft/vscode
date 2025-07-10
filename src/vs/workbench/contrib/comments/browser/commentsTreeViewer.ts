@@ -117,7 +117,7 @@ export class ResourceWithCommentsRenderer implements IListRenderer<ITreeNode<Res
 		return { resourceLabel, owner, separator };
 	}
 
-	renderElement(node: ITreeNode<ResourceWithCommentThreads>, index: number, templateData: IResourceTemplateData, height: number | undefined): void {
+	renderElement(node: ITreeNode<ResourceWithCommentThreads>, index: number, templateData: IResourceTemplateData): void {
 		templateData.resourceLabel.setFile(node.element.resource);
 		templateData.separator.innerText = '\u00b7';
 
@@ -280,7 +280,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		}
 	}
 
-	renderElement(node: ITreeNode<CommentNode>, index: number, templateData: ICommentThreadTemplateData, height: number | undefined): void {
+	renderElement(node: ITreeNode<CommentNode>, index: number, templateData: ICommentThreadTemplateData): void {
 		templateData.actionBar.clear();
 
 		const commentCount = node.element.replies.length + 1;

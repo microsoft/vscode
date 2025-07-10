@@ -3,17 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AutorunObserver, AutorunState } from '../../autorun.js';
-import { BaseObservable, IObservable, IObserver, ObservableValue, TransactionImpl } from '../../base.js';
-import { Derived, DerivedState } from '../../derived.js';
+import { AutorunObserver, AutorunState } from '../../reactions/autorunImpl.js';
+import { TransactionImpl } from '../../transaction.js';
 import { IChangeInformation, IObservableLogger } from '../logging.js';
 import { formatValue } from '../consoleObservableLogger.js';
 import { ObsDebuggerApi, IObsDeclaration, ObsInstanceId, ObsStateUpdate, ITransactionState, ObserverInstanceState } from './debuggerApi.js';
 import { registerDebugChannel } from './debuggerRpc.js';
 import { deepAssign, deepAssignDeleteNulls, getFirstStackFrameOutsideOf, ILocation, Throttler } from './utils.js';
 import { isDefined } from '../../../types.js';
-import { FromEventObservable } from '../../utils.js';
+import { FromEventObservable } from '../../observables/observableFromEvent.js';
 import { BugIndicatingError, onUnexpectedError } from '../../../errors.js';
+import { IObservable, IObserver } from '../../base.js';
+import { BaseObservable } from '../../observables/baseObservable.js';
+import { Derived, DerivedState } from '../../observables/derivedImpl.js';
+import { ObservableValue } from '../../observables/observableValue.js';
 
 interface IInstanceInfo {
 	declarationId: number;

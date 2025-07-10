@@ -43,6 +43,7 @@ import './services/extensionManagement/browser/extensionsProfileScannerService.j
 import './services/extensions/browser/extensionsScannerService.js';
 import './services/extensionManagement/browser/webExtensionsScannerService.js';
 import './services/extensionManagement/common/extensionManagementServerService.js';
+import './services/mcp/browser/mcpWorkbenchManagementService.js';
 import './services/extensionManagement/browser/extensionGalleryManifestService.js';
 import './services/telemetry/browser/telemetryService.js';
 import './services/url/browser/urlService.js';
@@ -67,7 +68,7 @@ import './services/userDataProfile/browser/userDataProfileStorageService.js';
 import './services/configurationResolver/browser/configurationResolverService.js';
 import '../platform/extensionResourceLoader/browser/extensionResourceLoaderService.js';
 import './services/auxiliaryWindow/browser/auxiliaryWindowService.js';
-import './services/browserElements/browser/browserElementsService.js';
+import './services/browserElements/browser/webBrowserElementsService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IAccessibilityService } from '../platform/accessibility/common/accessibility.js';

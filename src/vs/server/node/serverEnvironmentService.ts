@@ -11,6 +11,8 @@ import { refineServiceDecorator } from '../../platform/instantiation/common/inst
 import { IEnvironmentService, INativeEnvironmentService } from '../../platform/environment/common/environment.js';
 import { memoize } from '../../base/common/decorators.js';
 import { URI } from '../../base/common/uri.js';
+import { joinPath } from '../../base/common/resources.js';
+import { join } from '../../base/common/path.js';
 
 export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 
@@ -35,6 +37,7 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 	'user-data-dir': OPTIONS['user-data-dir'],
 	'enable-smoke-test-driver': OPTIONS['enable-smoke-test-driver'],
 	'disable-telemetry': OPTIONS['disable-telemetry'],
+	'disable-experiments': OPTIONS['disable-experiments'],
 	'disable-workspace-trust': OPTIONS['disable-workspace-trust'],
 	'file-watcher-polling': { type: 'string', deprecates: ['fileWatcherPolling'] },
 	'log': OPTIONS['log'],
@@ -158,6 +161,7 @@ export interface ServerParsedArgs {
 	'enable-smoke-test-driver'?: boolean;
 
 	'disable-telemetry'?: boolean;
+	'disable-experiments'?: boolean;
 	'file-watcher-polling'?: string;
 
 	'log'?: string[];
@@ -223,11 +227,17 @@ export interface ServerParsedArgs {
 export const IServerEnvironmentService = refineServiceDecorator<IEnvironmentService, IServerEnvironmentService>(IEnvironmentService);
 
 export interface IServerEnvironmentService extends INativeEnvironmentService {
+	readonly machineSettingsResource: URI;
+	readonly mcpResource: URI;
 	readonly args: ServerParsedArgs;
 }
 
 export class ServerEnvironmentService extends NativeEnvironmentService implements IServerEnvironmentService {
 	@memoize
 	override get userRoamingDataHome(): URI { return this.appSettingsHome; }
+	@memoize
+	get machineSettingsResource(): URI { return joinPath(URI.file(join(this.userDataPath, 'Machine')), 'settings.json'); }
+	@memoize
+	get mcpResource(): URI { return joinPath(URI.file(join(this.userDataPath, 'User')), 'mcp.json'); }
 	override get args(): ServerParsedArgs { return super.args as ServerParsedArgs; }
 }

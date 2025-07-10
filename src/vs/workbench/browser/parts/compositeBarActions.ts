@@ -160,7 +160,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 
 	private badgeContent: HTMLElement | undefined;
 	private readonly badgeDisposable = this._register(new MutableDisposable<DisposableStore>());
-	private mouseUpTimeout: any;
+	private mouseUpTimeout: Timeout | undefined;
 	private keybindingLabel: string | undefined | null;
 
 	constructor(

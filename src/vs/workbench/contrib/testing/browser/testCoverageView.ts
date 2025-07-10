@@ -488,7 +488,7 @@ class CurrentlyFilteredToRenderer implements ICompressibleTreeRenderer<CoverageT
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) { }
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<CoverageTreeElement>, FuzzyScore>, index: number, templateData: IFilteredToTemplate, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<CoverageTreeElement>, FuzzyScore>, index: number, templateData: IFilteredToTemplate): void {
 		this.renderInner(node.element.elements[node.element.elements.length - 1] as CurrentlyFilteredTo, templateData);
 	}
 
@@ -506,7 +506,7 @@ class CurrentlyFilteredToRenderer implements ICompressibleTreeRenderer<CoverageT
 		return { label, actions };
 	}
 
-	renderElement(element: ITreeNode<CoverageTreeElement, FuzzyScore>, index: number, templateData: IFilteredToTemplate, height: number | undefined): void {
+	renderElement(element: ITreeNode<CoverageTreeElement, FuzzyScore>, index: number, templateData: IFilteredToTemplate): void {
 		this.renderInner(element.element as CurrentlyFilteredTo, templateData);
 	}
 

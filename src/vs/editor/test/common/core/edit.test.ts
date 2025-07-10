@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Random } from './random.js';
 import { StringEdit, StringReplacement } from '../../../common/core/edits/stringEdit.js';
-import { OffsetRange } from '../../../common/core/offsetRange.js';
+import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { ArrayEdit, ArrayReplacement } from '../../../common/core/edits/arrayEdit.js';
 
 suite('Edit', () => {
@@ -150,8 +150,8 @@ suite('Edit', () => {
 
 				const e2 = getRandomEdit(s1, rng.nextIntRange(1, 4), rng);
 
-				const ae1 = ArrayEdit.create(e1.replacements.map(r => new ArrayReplacement(r.replaceRange, [...r.newValue])));
-				const ae2 = ArrayEdit.create(e2.replacements.map(r => new ArrayReplacement(r.replaceRange, [...r.newValue])));
+				const ae1 = ArrayEdit.create(e1.replacements.map(r => new ArrayReplacement(r.replaceRange, [...r.newText])));
+				const ae2 = ArrayEdit.create(e2.replacements.map(r => new ArrayReplacement(r.replaceRange, [...r.newText])));
 				const as0 = [...s0];
 				const as1 = ae1.apply(as0);
 				const as2 = ae2.apply(as1);

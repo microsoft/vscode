@@ -108,11 +108,8 @@ function whenESMWorkerReady(worker: Worker): Promise<Worker> {
 	});
 }
 
-function isPromiseLike<T>(obj: any): obj is PromiseLike<T> {
-	if (typeof obj.then === 'function') {
-		return true;
-	}
-	return false;
+function isPromiseLike<T>(obj: unknown): obj is PromiseLike<T> {
+	return !!obj && typeof (obj as PromiseLike<T>).then === 'function';
 }
 
 /**
@@ -175,7 +172,7 @@ class WebWorker extends Disposable implements IWebWorker {
 		return this.id;
 	}
 
-	public postMessage(message: any, transfer: Transferable[]): void {
+	public postMessage(message: unknown, transfer: Transferable[]): void {
 		this.worker?.then(w => {
 			try {
 				w.postMessage(message, transfer);

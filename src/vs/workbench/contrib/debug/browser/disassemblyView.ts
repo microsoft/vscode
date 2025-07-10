@@ -210,7 +210,7 @@ export class DisassemblyView extends EditorPane {
 				if (thisOM.isSourceCodeRender && row.showSourceLocation && row.instruction.location?.path && row.instruction.line) {
 					// instruction line + source lines
 					if (row.instruction.endLine) {
-						return lineHeight * (row.instruction.endLine - row.instruction.line + 2);
+						return lineHeight * Math.max(2, (row.instruction.endLine - row.instruction.line + 2));
 					} else {
 						// source is only a single line.
 						return lineHeight * 2;
@@ -511,6 +511,11 @@ export class DisassemblyView extends EditorPane {
 					continue;
 				}
 
+				if (address === -1n) {
+					// Ignore invalid instructions returned by the adapter.
+					continue;
+				}
+
 				const entry: IDisassembledInstructionEntry = {
 					allowBreakpoint: true,
 					isBreakpointSet: false,
@@ -727,7 +732,7 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 		return { currentElement, icon, disposables };
 	}
 
-	renderElement(element: IDisassembledInstructionEntry, index: number, templateData: IBreakpointColumnTemplateData, height: number | undefined): void {
+	renderElement(element: IDisassembledInstructionEntry, index: number, templateData: IBreakpointColumnTemplateData): void {
 		templateData.currentElement.element = element;
 		this.rerenderDebugStackframe(templateData.icon, element);
 	}
@@ -822,11 +827,11 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		return { currentElement, instruction, sourcecode, cellDisposable, disposables };
 	}
 
-	renderElement(element: IDisassembledInstructionEntry, index: number, templateData: IInstructionColumnTemplateData, height: number | undefined): void {
-		this.renderElementInner(element, index, templateData, height);
+	renderElement(element: IDisassembledInstructionEntry, index: number, templateData: IInstructionColumnTemplateData): void {
+		this.renderElementInner(element, index, templateData);
 	}
 
-	private async renderElementInner(element: IDisassembledInstructionEntry, index: number, templateData: IInstructionColumnTemplateData, height: number | undefined): Promise<void> {
+	private async renderElementInner(element: IDisassembledInstructionEntry, index: number, templateData: IInstructionColumnTemplateData): Promise<void> {
 		templateData.currentElement.element = element;
 		const instruction = element.instruction;
 		templateData.sourcecode.innerText = '';
@@ -896,7 +901,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		this.rerenderBackground(templateData.instruction, templateData.sourcecode, element);
 	}
 
-	disposeElement(element: IDisassembledInstructionEntry, index: number, templateData: IInstructionColumnTemplateData, height: number | undefined): void {
+	disposeElement(element: IDisassembledInstructionEntry, index: number, templateData: IInstructionColumnTemplateData): void {
 		dispose(templateData.cellDisposable);
 		templateData.cellDisposable = [];
 	}

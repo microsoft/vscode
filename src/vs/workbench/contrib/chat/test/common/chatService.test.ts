@@ -37,7 +37,7 @@ import { IChatFollowup, IChatService } from '../../common/chatService.js';
 import { ChatService } from '../../common/chatServiceImpl.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
-import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { MockChatService } from './mockChatService.js';
 import { MockChatVariablesService } from './mockChatVariables.js';
 
@@ -50,12 +50,12 @@ const chatAgentWithUsedContext: IChatAgent = {
 	extensionPublisherId: '',
 	extensionDisplayName: '',
 	locations: [ChatAgentLocation.Panel],
-	modes: [ChatMode.Ask],
+	modes: [ChatModeKind.Ask],
 	metadata: {},
 	slashCommands: [],
 	disambiguation: [],
 	async invoke(request, progress, history, token) {
-		progress({
+		progress([{
 			documents: [
 				{
 					uri: URI.file('/test/path/to/file'),
@@ -66,7 +66,7 @@ const chatAgentWithUsedContext: IChatAgent = {
 				}
 			],
 			kind: 'usedContext'
-		});
+		}]);
 
 		return { metadata: { metadataKey: 'value' } };
 	},
@@ -84,12 +84,12 @@ const chatAgentWithMarkdown: IChatAgent = {
 	extensionPublisherId: '',
 	extensionDisplayName: '',
 	locations: [ChatAgentLocation.Panel],
-	modes: [ChatMode.Ask],
+	modes: [ChatModeKind.Ask],
 	metadata: {},
 	slashCommands: [],
 	disambiguation: [],
 	async invoke(request, progress, history, token) {
-		progress({ kind: 'markdownContent', content: new MarkdownString('test') });
+		progress([{ kind: 'markdownContent', content: new MarkdownString('test') }]);
 		return { metadata: { metadataKey: 'value' } };
 	},
 	async provideFollowups(sessionId, token) {
@@ -106,7 +106,7 @@ function getAgentData(id: string): IChatAgentData {
 		publisherDisplayName: '',
 		extensionDisplayName: '',
 		locations: [ChatAgentLocation.Panel],
-		modes: [ChatMode.Ask],
+		modes: [ChatModeKind.Ask],
 		metadata: {},
 		slashCommands: [],
 		disambiguation: [],
@@ -162,19 +162,15 @@ suite('ChatService', () => {
 	test('retrieveSession', async () => {
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 		const session1 = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
-		await session1.waitForInitialization();
 		session1.addRequest({ parts: [], text: 'request 1' }, { variables: [] }, 0);
 
 		const session2 = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
-		await session2.waitForInitialization();
 		session2.addRequest({ parts: [], text: 'request 2' }, { variables: [] }, 0);
 
 		storageService.flush();
 		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
 		const retrieved1 = testDisposables.add((await testService2.getOrRestoreSession(session1.sessionId))!);
-		await retrieved1.waitForInitialization();
 		const retrieved2 = testDisposables.add((await testService2.getOrRestoreSession(session2.sessionId))!);
-		await retrieved2.waitForInitialization();
 		assert.deepStrictEqual(retrieved1.getRequests()[0]?.message.text, 'request 1');
 		assert.deepStrictEqual(retrieved2.getRequests()[0]?.message.text, 'request 2');
 	});

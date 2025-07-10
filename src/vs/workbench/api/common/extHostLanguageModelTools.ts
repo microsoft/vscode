@@ -11,7 +11,7 @@ import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { IPreparedToolInvocation, isToolInvocationContext, IToolInvocation, IToolInvocationContext, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IPreparedToolInvocation, isToolInvocationContext, IToolInvocation, IToolInvocationContext, IToolInvocationPreparationContext, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import { ExtensionEditToolId, InternalEditToolId } from '../../contrib/chat/common/tools/editFileTool.js';
 import { InternalFetchWebPageToolId } from '../../contrib/chat/common/tools/tools.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
@@ -220,13 +220,18 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		return model;
 	}
 
-	async $prepareToolInvocation(toolId: string, input: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+	async $prepareToolInvocation(toolId: string, context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const item = this._registeredTools.get(toolId);
 		if (!item) {
 			throw new Error(`Unknown tool ${toolId}`);
 		}
 
-		const options: vscode.LanguageModelToolInvocationPrepareOptions<any> = { input };
+		const options: vscode.LanguageModelToolInvocationPrepareOptions<any> = {
+			input: context.parameters,
+			chatRequestId: context.chatRequestId,
+			chatSessionId: context.chatSessionId,
+			chatInteractionId: context.chatInteractionId
+		};
 		if (isProposedApiEnabled(item.extension, 'chatParticipantPrivate') && item.tool.prepareInvocation2) {
 			const result = await item.tool.prepareInvocation2(options, token);
 			if (!result) {
@@ -235,14 +240,15 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 
 			return {
 				confirmationMessages: result.confirmationMessages ? {
-					title: result.confirmationMessages.title,
+					title: typeof result.confirmationMessages.title === 'string' ? result.confirmationMessages.title : typeConvert.MarkdownString.from(result.confirmationMessages.title),
 					message: typeof result.confirmationMessages.message === 'string' ? result.confirmationMessages.message : typeConvert.MarkdownString.from(result.confirmationMessages.message),
 				} : undefined,
 				toolSpecificData: {
 					kind: 'terminal',
 					language: result.language,
 					command: result.command,
-				}
+				},
+				presentation: result.presentation
 			};
 		} else if (item.tool.prepareInvocation) {
 			const result = await item.tool.prepareInvocation(options, token);
@@ -256,7 +262,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 
 			return {
 				confirmationMessages: result.confirmationMessages ? {
-					title: result.confirmationMessages.title,
+					title: typeof result.confirmationMessages.title === 'string' ? result.confirmationMessages.title : typeConvert.MarkdownString.from(result.confirmationMessages.title),
 					message: typeof result.confirmationMessages.message === 'string' ? result.confirmationMessages.message : typeConvert.MarkdownString.from(result.confirmationMessages.message),
 				} : undefined,
 				invocationMessage: typeConvert.MarkdownString.fromStrict(result.invocationMessage),

@@ -64,7 +64,7 @@ import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOpt
 import { IMarkdownVulnerability } from '../common/annotations.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatResponseModel, IChatTextEditGroup } from '../common/chatModel.js';
-import { IChatResponseViewModel, isResponseVM } from '../common/chatViewModel.js';
+import { IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { ChatTreeItem } from './chat.js';
 import { IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
@@ -215,6 +215,7 @@ export class CodeBlockPart extends Disposable {
 			},
 			ariaLabel: localize('chat.codeBlockHelp', 'Code block'),
 			overflowWidgetsDomNode,
+			tabFocusMode: true,
 			...this.getEditorOptionsFromConfig(),
 		});
 
@@ -348,7 +349,6 @@ export class CodeBlockPart extends Disposable {
 		const toolbarElt = this.toolbar.getElement();
 		if (this.accessibilityService.isScreenReaderOptimized()) {
 			toolbarElt.style.display = 'block';
-			toolbarElt.ariaLabel = this.configurationService.getValue(AccessibilityVerbositySettingId.Chat) ? localize('chat.codeBlock.toolbarVerbose', 'Toolbar for code block which can be reached via tab') : localize('chat.codeBlock.toolbar', 'Code block toolbar');
 		} else {
 			toolbarElt.style.display = '';
 		}
@@ -379,7 +379,7 @@ export class CodeBlockPart extends Disposable {
 
 		const editorBorder = 2;
 		width = width - editorBorder - (this.currentCodeBlockData?.renderOptions?.reserveWidth ?? 0);
-		this.editor.layout({ width, height });
+		this.editor.layout({ width: isRequestVM(this.currentCodeBlockData?.element) ? width * 0.9 : width, height });
 		this.updatePaddingForLayout();
 	}
 
@@ -411,8 +411,13 @@ export class CodeBlockPart extends Disposable {
 
 		this.editor.updateOptions({
 			...this.getEditorOptionsFromConfig(),
-			ariaLabel: localize('chat.codeBlockLabel', "Code block {0}", data.codeBlockIndex + 1),
 		});
+		if (!this.editor.getOption(EditorOption.ariaLabel)) {
+			// Don't override the ariaLabel if it was set by the editor options
+			this.editor.updateOptions({
+				ariaLabel: localize('chat.codeBlockLabel', "Code block {0}", data.codeBlockIndex + 1),
+			});
+		}
 		this.layout(width);
 		this.toolbar.setAriaLabel(localize('chat.codeBlockToolbarLabel', "Code block {0}", data.codeBlockIndex + 1));
 		if (data.renderOptions?.hideToolbar) {

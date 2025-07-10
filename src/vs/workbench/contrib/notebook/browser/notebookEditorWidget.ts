@@ -496,7 +496,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	getSelections() {
-		return this.viewModel?.getSelections() ?? [];
+		return this.viewModel?.getSelections() ?? [{ start: 0, end: 0 }];
 	}
 
 	setSelections(selections: ICellRange[]) {
@@ -2171,6 +2171,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._list.getCellViewScrollTop(cell);
 	}
 
+	getAbsoluteBottomOfElement(cell: ICellViewModel) {
+		return this._list.getCellViewScrollBottom(cell);
+	}
+
 	getHeightOfElement(cell: ICellViewModel) {
 		return this._list.elementHeight(cell);
 	}
@@ -2824,12 +2828,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._generateFontInfo();
 		}
 
+		let listViewOffset = 0;
+		if (this._dimension) {
+			listViewOffset = (this._notebookTopToolbar?.useGlobalToolbar ? /** Toolbar height */ 26 : 0) + (this._notebookStickyScroll?.getCurrentStickyHeight() ?? 0);
+		}
+
 		return {
 			width: this._dimension?.width ?? 0,
 			height: this._dimension?.height ?? 0,
 			scrollHeight: this._list?.getScrollHeight() ?? 0,
 			fontInfo: this._fontInfo!,
-			stickyHeight: this._notebookStickyScroll?.getCurrentStickyHeight() ?? 0
+			stickyHeight: this._notebookStickyScroll?.getCurrentStickyHeight() ?? 0,
+			listViewOffsetTop: listViewOffset
 		};
 	}
 

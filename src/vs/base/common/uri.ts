@@ -427,7 +427,7 @@ export interface UriComponents {
 	fragment?: string;
 }
 
-export function isUriComponents(thing: any): thing is UriComponents {
+export function isUriComponents(thing: unknown): thing is UriComponents {
 	if (!thing || typeof thing !== 'object') {
 		return false;
 	}

@@ -8,13 +8,12 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ICodeMapperService } from '../../common/chatCodeMapperService.js';
 import { ChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../common/languageModelToolsService.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../common/languageModelToolsService.js';
 
 export const ExtensionEditToolId = 'vscode_editFile';
 export const InternalEditToolId = 'vscode_editFile_internal';
@@ -22,7 +21,7 @@ export const EditToolData: IToolData = {
 	id: InternalEditToolId,
 	displayName: '', // not used
 	modelDescription: '', // Not used
-	source: { type: 'internal' },
+	source: ToolDataSource.Internal,
 };
 
 export interface EditToolParams {
@@ -50,16 +49,6 @@ export class EditTool implements IToolImpl {
 
 		const model = this.chatService.getSession(invocation.context?.sessionId) as ChatModel;
 		const request = model.getRequests().at(-1)!;
-
-		// Undo stops mark groups of response data in the output. Operations, such
-		// as text edits, that happen between undo stops are all done or undone together.
-		if (request.response?.response.getMarkdown().length) {
-			// slightly hacky way to avoid an extra 'no-op' undo stop at the start of responses that are just edits
-			model.acceptResponseProgress(request, {
-				kind: 'undoStop',
-				id: generateUuid(),
-			});
-		}
 
 		model.acceptResponseProgress(request, {
 			kind: 'markdownContent',
@@ -147,7 +136,7 @@ export class EditTool implements IToolImpl {
 		};
 	}
 
-	async prepareToolInvocation(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		return {
 			presentation: 'hidden'
 		};
