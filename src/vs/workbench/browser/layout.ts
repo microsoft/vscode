@@ -1565,16 +1565,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid = workbenchGrid;
 		this.workbenchGrid.edgeSnapping = this.state.runtime.mainWindowFullscreen;
 
-		if (this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED)) {
-			// // TODO@benibenj this is a workaround for the grid not being able to
-			// // restore the maximized auxiliary bar on startup when it was maximised
-			// // It seems that since editor and panel are hidden, the parent node is
-			// // also hidden and not present, breaking the layout.
-			// // Workaround is to make editor visible so that its parent view gets
-			// // added properly and then enter maximized mode of auxiliary bar.
-			// this.setAuxiliaryBarMaximized(true, true /* fromInit */);
-		}
-
 		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar, auxiliaryBarPart, bannerPart]) {
 			this._register(part.onDidVisibilityChange(visible => {
 				if (!this.inMaximizedAuxiliaryBarTransition) {
@@ -2040,7 +2030,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.setAuxiliaryBarMaximized(!this.isAuxiliaryBarMaximized());
 	}
 
-	setAuxiliaryBarMaximized(maximized: boolean, fromInit?: boolean): boolean {
+	setAuxiliaryBarMaximized(maximized: boolean): boolean {
 		if (
 			this.inMaximizedAuxiliaryBarTransition ||			// prevent re-entrance
 			(!maximized && !this.maximizedAuxiliaryBarState)	// return early if not maximizing and no state
@@ -2049,37 +2039,22 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		if (maximized) {
-			let state: typeof this.maximizedAuxiliaryBarState;
-			if (fromInit) {
-
-				// TODO workaround for a bug with grid, see above in `createWorkbenchLayout`
-				const stateMixin = { editorVisible: true };
-				this.setEditorHidden(false);
-				// TODO workaround
-
-				state = {
-					...this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY),
-					...stateMixin
-				};
-			} else {
-				state = {
-					sideBarVisible: this.isVisible(Parts.SIDEBAR_PART),
-					editorVisible: this.isVisible(Parts.EDITOR_PART),
-					panelVisible: this.isVisible(Parts.PANEL_PART),
-					auxiliaryBarVisible: this.isVisible(Parts.AUXILIARYBAR_PART)
-				};
-			}
-			this.maximizedAuxiliaryBarState = state;
+			const state = this.maximizedAuxiliaryBarState = {
+				sideBarVisible: this.isVisible(Parts.SIDEBAR_PART),
+				editorVisible: this.isVisible(Parts.EDITOR_PART),
+				panelVisible: this.isVisible(Parts.PANEL_PART),
+				auxiliaryBarVisible: this.isVisible(Parts.AUXILIARYBAR_PART)
+			};
 
 			this.inMaximizedAuxiliaryBarTransition = true;
 			try {
 				if (!state.auxiliaryBarVisible) {
 					this.setAuxiliaryBarHidden(false);
 				}
-				if (!fromInit) {
-					const size = this.workbenchGrid.getViewSize(this.auxiliaryBarPartView).width;
-					this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE, size);
-				}
+
+				const size = this.workbenchGrid.getViewSize(this.auxiliaryBarPartView).width;
+				this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE, size);
+
 				if (state.sideBarVisible) {
 					this.setSideBarHidden(true);
 				}
@@ -2090,9 +2065,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					this.setEditorHidden(true);
 				}
 
-				if (!fromInit) {
-					this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY, state);
-				}
+				this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY, state);
 			} finally {
 				this.inMaximizedAuxiliaryBarTransition = false;
 			}
@@ -2654,8 +2627,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			sideBarPosition: positionToString(this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_POSITON)),
 			panelPosition: positionToString(this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_POSITION)),
 		};
-
-		console.log(result);
 
 		this.telemetryService.publicLog2<StartupLayoutEvent, StartupLayoutEventClassification>('startupLayout', layoutDescriptor);
 
