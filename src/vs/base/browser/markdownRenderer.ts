@@ -45,7 +45,6 @@ export interface ISanitizerOptions {
 	readonly replaceWithPlaintext?: boolean;
 	readonly allowedTags?: readonly string[];
 	readonly customAttrSanitizer?: (attrName: string, attrValue: string) => boolean | string;
-	readonly allowedSchemes?: readonly string[];
 	readonly allowedProductProtocols?: readonly string[];
 }
 
