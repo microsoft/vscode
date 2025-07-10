@@ -143,15 +143,17 @@ export class QuickAccess {
 				// Open via keybinding
 				switch (kind) {
 					case QuickAccessKind.Files:
-						await this.code.sendKeybinding(process.platform === 'darwin' ? 'cmd+p' : 'ctrl+p', accept);
+						await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+p' : 'ctrl+p', accept);
 						break;
 					case QuickAccessKind.Symbols:
-						await this.code.sendKeybinding(process.platform === 'darwin' ? 'cmd+shift+o' : 'ctrl+shift+o', accept);
+						await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+shift+o' : 'ctrl+shift+o', accept);
 						break;
 					case QuickAccessKind.Commands:
-						await this.code.sendKeybinding(process.platform === 'darwin' ? 'cmd+shift+p' : 'ctrl+shift+p');
-						await this.code.wait(100);
-						await this.quickInput.waitForQuickInputOpened(10);
+						await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+shift+p' : 'ctrl+shift+p', async () => {
+
+							await this.code.wait(100);
+							await this.quickInput.waitForQuickInputOpened(10);
+						});
 						break;
 				}
 				break;
@@ -161,7 +163,7 @@ export class QuickAccess {
 				}
 
 				// Retry
-				await this.code.sendKeybinding('escape');
+				await this.code.dispatchKeybinding('escape', async () => { });
 			}
 		}
 
