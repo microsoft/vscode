@@ -326,10 +326,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				this._queueProcessExit();
 			}
 			this._windowsShellHelper?.checkShell();
-			// For non-Windows systems, check if process title changed more frequently
-			// This provides more reliable shell type detection than polling alone
-			if (!isWindows && this._ptyProcess && this._currentTitle !== this._ptyProcess.process) {
-				this._sendProcessTitle(this._ptyProcess);
+			// For non-Windows systems, also check if shell type should be updated
+			// This provides a more reliable mechanism than title polling alone
+			if (!isWindows) {
+				this._checkShellTypeOnDataEvent();
 			}
 			this._childProcessMonitor?.handleOutput();
 		});
@@ -431,22 +431,27 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			sanitizedTitle = path.basename(sanitizedTitle);
 		}
 
-		// Determine shell type based on sanitized title
-		let shellTypeValue: TerminalShellType | undefined;
-		
 		if (sanitizedTitle.toLowerCase().startsWith('python')) {
-			shellTypeValue = GeneralShellType.Python;
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: GeneralShellType.Python });
 		} else if (sanitizedTitle.toLowerCase().startsWith('julia')) {
-			shellTypeValue = GeneralShellType.Julia;
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: GeneralShellType.Julia });
 		} else {
-			shellTypeValue = posixShellTypeMap.get(sanitizedTitle) || generalShellTypeMap.get(sanitizedTitle);
+			const shellTypeValue = posixShellTypeMap.get(sanitizedTitle) || generalShellTypeMap.get(sanitizedTitle);
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: shellTypeValue });
 		}
-		
-		// Always fire shell type property change, even if undefined
-		// This ensures unrecognized shells (like R) properly reset the shell type
-		this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: shellTypeValue });
 	}
 
+	private _checkShellTypeOnDataEvent(): void {
+		if (!this._ptyProcess || this._store.isDisposed) {
+			return;
+		}
+		// Check if the current process title has changed and update shell type accordingly
+		const currentProcess = this._ptyProcess.process ?? '';
+		if (currentProcess !== this._currentTitle) {
+			// Title has changed, trigger a shell type check
+			this._sendProcessTitle(this._ptyProcess);
+		}
+	}
 
 	shutdown(immediate: boolean): void {
 		if (this._logService.getLevel() === LogLevel.Trace) {
