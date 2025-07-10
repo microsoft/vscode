@@ -80,7 +80,7 @@ const defaultChat = {
 	publicCodeMatchesUrl: product.defaultChatAgent?.publicCodeMatchesUrl ?? '',
 	manageOveragesUrl: product.defaultChatAgent?.manageOverageUrl ?? '',
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
-	provider: product.defaultChatAgent?.provider,
+	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' } },
 	providerUriSetting: product.defaultChatAgent?.providerUriSetting ?? '',
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',

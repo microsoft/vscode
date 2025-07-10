@@ -901,7 +901,7 @@ const defaultChat = {
 	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
 	managePlanUrl: product.defaultChatAgent?.managePlanUrl ?? '',
-	provider: product.defaultChatAgent?.provider,
+	provider: product.defaultChatAgent?.provider ?? { enterprise: { id: '' } },
 	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
 	completionsMenuCommand: product.defaultChatAgent?.completionsMenuCommand ?? '',
 };
