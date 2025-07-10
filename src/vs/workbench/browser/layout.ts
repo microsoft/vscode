@@ -1565,16 +1565,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid = workbenchGrid;
 		this.workbenchGrid.edgeSnapping = this.state.runtime.mainWindowFullscreen;
 
-		if (this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED)) {
-			// TODO@benibenj this is a workaround for the grid not being able to
-			// restore the maximized auxiliary bar on startup when it was maximised
-			// It seems that since editor and panel are hidden, the parent node is
-			// also hidden and not present, breaking the layout.
-			// Workaround is to make editor visible so that its parent view gets
-			// added properly and then enter maximized mode of auxiliary bar.
-			this.setAuxiliaryBarMaximized(true, true /* fromInit */);
-		}
-
 		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar, auxiliaryBarPart, bannerPart]) {
 			this._register(part.onDidVisibilityChange(visible => {
 				if (!this.inMaximizedAuxiliaryBarTransition) {
@@ -2023,63 +2013,42 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private maximizedAuxiliaryBarState: {
-		sideBarVisible: boolean;
-		editorVisible: boolean;
-		panelVisible: boolean;
-		auxiliaryBarVisible: boolean;
-	} | undefined = undefined;
-
 	private inMaximizedAuxiliaryBarTransition = false;
 
 	isAuxiliaryBarMaximized(): boolean {
-		return !!this.maximizedAuxiliaryBarState;
+		return this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED);
 	}
 
 	toggleMaximizedAuxiliaryBar(): void {
 		this.setAuxiliaryBarMaximized(!this.isAuxiliaryBarMaximized());
 	}
 
-	setAuxiliaryBarMaximized(maximized: boolean, fromInit?: boolean): boolean {
+	setAuxiliaryBarMaximized(maximized: boolean): boolean {
 		if (
-			this.inMaximizedAuxiliaryBarTransition ||			// prevent re-entrance
-			(!maximized && !this.maximizedAuxiliaryBarState)	// return early if not maximizing and no state
+			this.inMaximizedAuxiliaryBarTransition ||		// prevent re-entrance
+			(maximized === this.isAuxiliaryBarMaximized())	// return early if state is already present
 		) {
 			return false;
 		}
 
 		if (maximized) {
-			let state: typeof this.maximizedAuxiliaryBarState;
-			if (fromInit) {
-
-				// TODO workaround for a bug with grid, see above in `createWorkbenchLayout`
-				const stateMixin = { editorVisible: true };
-				this.setEditorHidden(false);
-				// TODO workaround
-
-				state = {
-					...this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY),
-					...stateMixin
-				};
-			} else {
-				state = {
-					sideBarVisible: this.isVisible(Parts.SIDEBAR_PART),
-					editorVisible: this.isVisible(Parts.EDITOR_PART),
-					panelVisible: this.isVisible(Parts.PANEL_PART),
-					auxiliaryBarVisible: this.isVisible(Parts.AUXILIARYBAR_PART)
-				};
-			}
-			this.maximizedAuxiliaryBarState = state;
+			const state = {
+				sideBarVisible: this.isVisible(Parts.SIDEBAR_PART),
+				editorVisible: this.isVisible(Parts.EDITOR_PART),
+				panelVisible: this.isVisible(Parts.PANEL_PART),
+				auxiliaryBarVisible: this.isVisible(Parts.AUXILIARYBAR_PART)
+			};
+			this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, true);
 
 			this.inMaximizedAuxiliaryBarTransition = true;
 			try {
 				if (!state.auxiliaryBarVisible) {
 					this.setAuxiliaryBarHidden(false);
 				}
-				if (!fromInit) {
-					const size = this.workbenchGrid.getViewSize(this.auxiliaryBarPartView).width;
-					this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE, size);
-				}
+
+				const size = this.workbenchGrid.getViewSize(this.auxiliaryBarPartView).width;
+				this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE, size);
+
 				if (state.sideBarVisible) {
 					this.setSideBarHidden(true);
 				}
@@ -2090,15 +2059,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					this.setEditorHidden(true);
 				}
 
-				if (!fromInit) {
-					this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY, state);
-				}
+				this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY, state);
 			} finally {
 				this.inMaximizedAuxiliaryBarTransition = false;
 			}
 		} else {
-			const state = assertReturnsDefined(this.maximizedAuxiliaryBarState);
-			this.maximizedAuxiliaryBarState = undefined;
+			const state = assertReturnsDefined(this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY));
+			this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, false);
 
 			this.inMaximizedAuxiliaryBarTransition = true;
 			try {
@@ -2117,8 +2084,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		this.focusPart(Parts.AUXILIARYBAR_PART);
-
-		this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, maximized);
 
 		this._onDidChangeAuxiliaryBarMaximized.fire();
 
@@ -2451,7 +2416,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return {
 			type: 'branch',
 			data: result,
-			size: availableHeight
+			size: availableHeight,
+			visible: result.some(node => node.visible)
 		};
 	}
 
@@ -2496,10 +2462,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				auxiliaryBar: auxiliaryBarNextToEditor ? nodes.auxiliaryBar : undefined
 			}, availableHeight - panelSize, editorSectionWidth);
 
+			const data = panelPostion === Position.BOTTOM ? [editorNodes, nodes.panel] : [nodes.panel, editorNodes];
 			result.push({
 				type: 'branch',
-				data: panelPostion === Position.BOTTOM ? [editorNodes, nodes.panel] : [nodes.panel, editorNodes],
-				size: editorSectionWidth
+				data,
+				size: editorSectionWidth,
+				visible: data.some(node => node.visible)
 			});
 
 			if (!sideBarNextToEditor) {

@@ -57,6 +57,7 @@ export interface ITerminalSuggestConfiguration {
 	providers: {
 		'terminal-suggest': boolean;
 		'pwsh-shell-integration': boolean;
+		[key: string]: boolean;
 	};
 	showStatusBar: boolean;
 	cdPath: 'off' | 'relative' | 'absolute';

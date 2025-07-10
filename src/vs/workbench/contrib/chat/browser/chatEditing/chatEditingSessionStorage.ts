@@ -66,11 +66,11 @@ export class ChatEditingSessionStorage {
 			if ('stops' in snapshot) {
 				return snapshot;
 			}
-			return { requestId: snapshot.requestId, stops: [{ stopId: undefined, entries: snapshot.entries }], postEdit: undefined };
+			return { requestId: snapshot.requestId, stops: [{ stopId: undefined, entries: snapshot.entries }] };
 		};
 		const deserializeChatEditingSessionSnapshot = async (startIndex: number, snapshot: IChatEditingSessionSnapshotDTO2): Promise<IChatEditingSessionSnapshot> => {
 			const stops = await Promise.all(snapshot.stops.map(deserializeChatEditingStopDTO));
-			return { startIndex, requestId: snapshot.requestId, stops, postEdit: snapshot.postEdit && await deserializeSnapshotEntriesDTO(snapshot.postEdit) };
+			return { startIndex, requestId: snapshot.requestId, stops };
 		};
 		const deserializeSnapshotEntry = async (entry: ISnapshotEntryDTO) => {
 			return {
@@ -180,7 +180,6 @@ export class ChatEditingSessionStorage {
 			return {
 				requestId: snapshot.requestId,
 				stops: await Promise.all(snapshot.stops.map(serializeChatEditingSessionStop)),
-				postEdit: snapshot.postEdit ? await Promise.all(Array.from(snapshot.postEdit.values()).map(serializeSnapshotEntry)) : undefined
 			};
 		};
 		const serializeSnapshotEntry = async (entry: ISnapshotEntry): Promise<ISnapshotEntryDTO> => {
@@ -242,9 +241,6 @@ export interface IChatEditingSessionSnapshot {
 	 * Invariant: never empty.
 	 */
 	readonly stops: IChatEditingSessionStop[];
-
-	/** Stop that represents changes after the last undo stop, kept for diffing purposes. */
-	readonly postEdit: ResourceMap<ISnapshotEntry> | undefined;
 }
 
 export interface IChatEditingSessionStop {
@@ -269,7 +265,6 @@ interface IChatEditingSessionSnapshotDTO {
 interface IChatEditingSessionSnapshotDTO2 {
 	readonly requestId: string | undefined;
 	readonly stops: IChatEditingSessionStopDTO[];
-	readonly postEdit: ISnapshotEntryDTO[] | undefined;
 }
 
 interface ISnapshotEntryDTO {
