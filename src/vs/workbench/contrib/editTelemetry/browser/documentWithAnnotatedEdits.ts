@@ -13,7 +13,7 @@ import { IEditorWorkerService } from '../../../../editor/common/services/editorW
 import { TextModelEditReason } from '../../../../editor/common/textModelEditReason.js';
 import { IObservableDocument } from './observableWorkspace.js';
 
-export interface IDocumentWithAnnotatedEdits<TEditData extends IEditData<TEditData> = EditSourceData> {
+export interface IDocumentWithAnnotatedEdits<TEditData extends IEditData<TEditData> = EditKeySourceData> {
 	readonly value: IObservableWithChange<StringText, { edit: AnnotatedStringEdit<TEditData> }>;
 	waitForQueue(): Promise<void>;
 }
@@ -22,8 +22,8 @@ export interface IDocumentWithAnnotatedEdits<TEditData extends IEditData<TEditDa
  * Creates a document that is a delayed copy of the original document,
  * but with edits annotated with the source of the edit.
 */
-export class DocumentWithAnnotatedEdits extends Disposable implements IDocumentWithAnnotatedEdits<EditReasonData> {
-	public readonly value: IObservableWithChange<StringText, { edit: AnnotatedStringEdit<EditReasonData> }>;
+export class DocumentWithSourceAnnotatedEdits extends Disposable implements IDocumentWithAnnotatedEdits<EditSourceData> {
+	public readonly value: IObservableWithChange<StringText, { edit: AnnotatedStringEdit<EditSourceData> }>;
 
 	constructor(private readonly _originalDoc: IObservableDocument) {
 		super();
@@ -32,7 +32,7 @@ export class DocumentWithAnnotatedEdits extends Disposable implements IDocumentW
 
 		this._register(runOnChange(this._originalDoc.value, (val, _prevVal, edits) => {
 			const eComposed = AnnotatedStringEdit.compose(edits.map(e => {
-				const editSourceData = new EditReasonData(e.reason);
+				const editSourceData = new EditSourceData(e.reason);
 				return e.mapData(() => editSourceData);
 			}));
 
@@ -46,9 +46,9 @@ export class DocumentWithAnnotatedEdits extends Disposable implements IDocumentW
 }
 
 /**
- * Only joins touching edits if the source and the metadata is the same.
+ * Only joins touching edits if the source and the metadata is the same (e.g. requestUuids must be equal).
 */
-export class EditReasonData implements IEditData<EditReasonData> {
+export class EditSourceData implements IEditData<EditSourceData> {
 	public readonly source;
 	public readonly key;
 
@@ -59,31 +59,33 @@ export class EditReasonData implements IEditData<EditReasonData> {
 		this.source = EditSourceBase.create(this.editReason);
 	}
 
-	join(data: EditReasonData): EditReasonData | undefined {
+	join(data: EditSourceData): EditSourceData | undefined {
 		if (this.editReason !== data.editReason) {
 			return undefined;
 		}
 		return this;
 	}
 
-	toEditSourceData(): EditSourceData {
-		return new EditSourceData(this.key, this.source);
+	toEditSourceData(): EditKeySourceData {
+		return new EditKeySourceData(this.key, this.source, this.editReason);
 	}
 }
 
-export class EditSourceData implements IEditData<EditSourceData> {
+export class EditKeySourceData implements IEditData<EditKeySourceData> {
 	constructor(
 		public readonly key: string,
 		public readonly source: EditSource,
+		public readonly representative: TextModelEditReason,
 	) { }
 
-	join(data: EditSourceData): EditSourceData | undefined {
+	join(data: EditKeySourceData): EditKeySourceData | undefined {
 		if (this.key !== data.key) {
 			return undefined;
 		}
 		if (this.source !== data.source) {
 			return undefined;
 		}
+		// The representatives could be different! (But equal modulo key)
 		return this;
 	}
 }
@@ -197,7 +199,7 @@ class UnknownEditSource extends EditSourceBase {
 	public getColor(): string { return '#ff000033'; }
 }
 
-export class CombineStreamedChanges<TEditData extends EditSourceData & IEditData<TEditData>> extends Disposable implements IDocumentWithAnnotatedEdits<TEditData> {
+export class CombineStreamedChanges<TEditData extends (EditKeySourceData | EditSourceData) & IEditData<TEditData>> extends Disposable implements IDocumentWithAnnotatedEdits<TEditData> {
 	private readonly _value: ISettableObservable<StringText, { edit: AnnotatedStringEdit<TEditData> }>;
 	readonly value: IObservableWithChange<StringText, { edit: AnnotatedStringEdit<TEditData> }>;
 	private readonly _runStore = this._register(new DisposableStore());
@@ -265,7 +267,7 @@ export class CombineStreamedChanges<TEditData extends EditSourceData & IEditData
 	}
 }
 
-function isChatEdit(next: { value: StringText; change: { edit: AnnotatedStringEdit<EditSourceData> }[] }) {
+function isChatEdit(next: { value: StringText; change: { edit: AnnotatedStringEdit<EditKeySourceData | EditSourceData> }[] }) {
 	return next.change.every(c => c.edit.replacements.every(e => {
 		if (e.data.source.category === 'ai' && e.data.source.feature === 'chat') {
 			return true;

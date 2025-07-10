@@ -121,7 +121,7 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 	findModelByName(languageModes: string[], modelName: string): ILanguageModelChatMetadata | undefined {
 		for (const model of languageModes) {
 			const metadata = this.languageModelsService.lookupLanguageModel(model);
-			if (metadata && metadata.isUserSelectable !== false && metadata.name === modelName) {
+			if (metadata && metadata.isUserSelectable !== false && ILanguageModelChatMetadata.asQualifiedName(metadata) === modelName) {
 				return metadata;
 			}
 		}

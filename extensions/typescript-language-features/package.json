@@ -1512,7 +1512,8 @@
               "off",
               "terse",
               "normal",
-              "verbose"
+              "verbose",
+              "requestTime"
             ],
             "default": "off",
             "description": "%typescript.tsserver.log%",

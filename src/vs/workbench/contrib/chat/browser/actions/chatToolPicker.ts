@@ -6,20 +6,20 @@ import { assertNever } from '../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { diffSets } from '../../../../../base/common/collections.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Iterable } from '../../../../../base/common/iterator.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { ExtensionEditorTab, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { McpCommandIds } from '../../../mcp/common/mcpCommandIds.js';
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
-import { IMcpServer, IMcpService, McpConnectionState } from '../../../mcp/common/mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpWorkbenchService, McpConnectionState, McpServerEditorTab } from '../../../mcp/common/mcpTypes.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { ConfigureToolSets } from '../tools/toolSetsContribution.js';
 
@@ -60,8 +60,9 @@ export async function showToolsPicker(
 	const mcpService = accessor.get(IMcpService);
 	const mcpRegistry = accessor.get(IMcpRegistry);
 	const commandService = accessor.get(ICommandService);
-	const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+	const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 	const editorService = accessor.get(IEditorService);
+	const mcpWorkbenchService = accessor.get(IMcpWorkbenchService);
 	const toolsService = accessor.get(ILanguageModelToolsService);
 
 	const mcpServerByTool = new Map<string, IMcpServer>();
@@ -89,7 +90,7 @@ export async function showToolsPicker(
 
 	const addMcpPick: CallbackPick = { type: 'item', label: localize('addServer', "Add MCP Server..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: () => commandService.executeCommand(McpCommandIds.AddConfiguration) };
 	const configureToolSetsPick: CallbackPick = { type: 'item', label: localize('configToolSet', "Configure Tool Sets..."), iconClass: ThemeIcon.asClassName(Codicon.gear), pickable: false, run: () => commandService.executeCommand(ConfigureToolSets.ID) };
-	const addExpPick: CallbackPick = { type: 'item', label: localize('addExtension', "Install Extension..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: () => extensionWorkbenchService.openSearch('@tag:language-model-tools') };
+	const addExpPick: CallbackPick = { type: 'item', label: localize('addExtension', "Install Extension..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: () => extensionsWorkbenchService.openSearch('@tag:language-model-tools') };
 	const addPick: CallbackPick = {
 		type: 'item', label: localize('addAny', "Add More Tools..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: async () => {
 			const pick = await quickPickService.pick(
@@ -144,7 +145,13 @@ export async function showToolsPicker(
 			toolBuckets.set(key, bucket);
 
 			const collection = mcpRegistry.collections.get().find(c => c.id === mcpServer.collection.id);
-			if (collection?.presentation?.origin) {
+			if (collection?.source) {
+				buttons.push({
+					iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
+					tooltip: localize('configMcpCol', "Configure {0}", collection.label),
+					action: () => collection.source ? collection.source instanceof ExtensionIdentifier ? extensionsWorkbenchService.open(collection.source.value, { tab: ExtensionEditorTab.Features, feature: 'mcp' }) : mcpWorkbenchService.open(collection.source, { tab: McpServerEditorTab.Configuration }) : undefined
+				});
+			} else if (collection?.presentation?.origin) {
 				buttons.push({
 					iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
 					tooltip: localize('configMcpCol', "Configure {0}", collection.label),
@@ -391,10 +398,11 @@ export async function showToolsPicker(
 		if (item.source.type === 'mcp') {
 			mcpToolSets.add(item);
 
-			if (Iterable.every(item.getTools(), tool => result.get(tool))) {
+			const toolsInSet = Array.from(item.getTools());
+			if (toolsInSet.length && toolsInSet.every(tool => result.get(tool))) {
 				// ALL tools from the MCP tool set are here, replace them with just the toolset
 				// but only when computing the final result
-				for (const tool of item.getTools()) {
+				for (const tool of toolsInSet) {
 					result.delete(tool);
 				}
 				result.set(item, true);

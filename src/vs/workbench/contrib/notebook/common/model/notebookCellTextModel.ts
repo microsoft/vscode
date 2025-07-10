@@ -117,7 +117,6 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		}
 
 		this._textBuffer = this._register(createTextBuffer(this._source, this._defaultEOL).textBuffer);
-		this._textBuffer.setEOL(this._defaultEOL === model.DefaultEndOfLine.LF ? '\n' : '\r\n');
 
 		this._register(this._textBuffer.onDidChangeContent(() => {
 			this._hash = null;
