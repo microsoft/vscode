@@ -525,6 +525,19 @@ class MouseDownOperation extends Disposable {
 
 		const mouseColumn = this._getMouseColumn(e);
 
+		const editorViewDomNode = this._viewHelper.viewDomNode;
+		const div = document.createElement('div');
+		div.style.position = 'fixed';
+		div.style.left = `${e.posx}px`;
+		div.style.top = `${e.posy}px`;
+		div.style.color = 'red';
+		div.style.backgroundColor = 'red';
+		div.style.height = '3px';
+		div.style.width = '3px';
+		div.style.zIndex = '1000';
+		console.log('div : ', div);
+		editorViewDomNode.appendChild(div);
+
 		console.log('e.posy : ', e.posy);
 		console.log('editorContent.y : ', editorContent.y);
 		if (e.posy < editorContent.y) {
