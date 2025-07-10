@@ -182,10 +182,13 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 		topLine.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
 		overlayContainer.appendChild(topLine);
 
-		const cellTop = this._notebookEditor.getAbsoluteTopOfElement(cell);
-
+		const getLayoutInfo = () => {
+			const eol = cell.textBuffer.getEOL() === '\n' ? 'LF' : 'CRLF';
+			const scrollTop = this._notebookEditor.getAbsoluteTopOfElement(cell);
+			return `cell #${index} (handle: ${cell.handle}) | AbsoluteTopOfElement: ${scrollTop}px | EOL: ${eol}`;
+		};
 		const label = document.createElement('div');
-		label.textContent = `cell #${index} (handle: ${cell.handle}) | AbsoluteTopOfElement: ${cellTop}px`;
+		label.textContent = getLayoutInfo();
 		label.style.position = 'absolute';
 		label.style.top = '0px';
 		label.style.right = '10px';
@@ -213,10 +216,8 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 
 			// Update overlay when layout changes
 			const updateLayout = () => {
-				const scrollTop = this._notebookEditor.getAbsoluteTopOfElement(cell);
-
 				// Update label text
-				label.textContent = `cell #${index} (handle: ${cell.handle}) | AbsoluteTopOfElement: ${scrollTop}px`;
+				label.textContent = getLayoutInfo();
 
 				// Refresh the overlay position
 				if (overlayId) {
@@ -229,7 +230,14 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 			this._localStore.add(cell.onDidChangeLayout((e) => {
 				updateLayout();
 			}));
-
+			this._localStore.add(cell.textBuffer.onDidChangeContent(() => {
+				updateLayout();
+			}));
+			if (cell.textModel) {
+				this._localStore.add(cell.textModel.onDidChangeContent(() => {
+					updateLayout();
+				}));
+			}
 			this._localStore.add(this._notebookEditor.onDidChangeLayout(() => {
 				updateLayout();
 			}));

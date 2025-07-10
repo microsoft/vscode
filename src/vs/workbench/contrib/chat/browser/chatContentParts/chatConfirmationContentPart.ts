@@ -56,7 +56,7 @@ export class ChatConfirmationContentPart extends Disposable implements IChatCont
 				const widget = chatWidgetService.getWidgetBySessionId(element.sessionId);
 				options.userSelectedModelId = widget?.input.currentLanguageModel;
 				options.mode = widget?.input.currentModeKind;
-				options.userSelectedTools = widget?.getUserSelectedTools();
+				Object.assign(options, widget?.getModeRequestOptions());
 
 				if (await this.chatService.sendRequest(element.sessionId, prompt, options)) {
 					confirmation.isUsed = true;

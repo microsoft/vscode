@@ -25,6 +25,8 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ExpectedDiagnosticError, ExpectedDiagnosticWarning, TExpectedDiagnostic } from '../testUtils/expectedDiagnostic.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
+
 
 /**
  * Test helper to run unit tests for the {@link TextModelPromptParser}
@@ -69,15 +71,16 @@ class TextModelPromptParserTest extends Disposable {
 
 		// create the parser instance
 		this.parser = this._register(
-			instantiationService.createInstance(TextModelPromptParser, this.model, { seenReferences: [], allowNonPromptFiles: true, languageId: undefined }),
+			instantiationService.createInstance(TextModelPromptParser, this.model, { allowNonPromptFiles: true, languageId: undefined, updateOnChange: true }),
 		).start();
 	}
 
 	/**
 	 * Wait for the prompt parsing/resolve process to finish.
 	 */
-	public allSettled(): Promise<TextModelPromptParser> {
-		return this.parser.allSettled();
+	public async allSettled(): Promise<TextModelPromptParser> {
+		await this.parser.settled();
+		return this.parser;
 	}
 
 	/**
@@ -86,7 +89,7 @@ class TextModelPromptParserTest extends Disposable {
 	public async validateReferences(
 		expectedReferences: readonly ExpectedReference[],
 	) {
-		await this.parser.allSettled();
+		await this.parser.settled();
 
 		const { references } = this.parser;
 		for (let i = 0; i < expectedReferences.length; i++) {
@@ -113,7 +116,7 @@ class TextModelPromptParserTest extends Disposable {
 	public async validateHeaderDiagnostics(
 		expectedDiagnostics: readonly TExpectedDiagnostic[],
 	) {
-		await this.parser.allSettled();
+		await this.parser.settled();
 
 		const { header } = this.parser;
 		assertDefined(
@@ -156,6 +159,7 @@ suite('TextModelPromptParser', () => {
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IFileService, disposables.add(instantiationService.createInstance(FileService)));
+		instantiationService.stub(IWorkbenchEnvironmentService, {});
 	});
 
 	/**
@@ -688,7 +692,7 @@ suite('TextModelPromptParser', () => {
 						'Duplicate tool name \'tool_name2\'.',
 					),
 					new ExpectedDiagnosticWarning(
-						new Range(3, 2, 3, 2 + 11),
+						new Range(5, 1, 5, 84),
 						`Tools can only be used when in 'agent' mode, but the mode is set to 'ask'. The tools will be ignored.`,
 					),
 					new ExpectedDiagnosticWarning(
@@ -1170,7 +1174,7 @@ suite('TextModelPromptParser', () => {
 
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
-								new Range(3, 1, 3, 1 + 11),
+								new Range(2, 1, 2, 38),
 								'Tools can only be used when in \'agent\' mode, but the mode is set to \'ask\'. The tools will be ignored.',
 							),
 						]);
@@ -1217,7 +1221,7 @@ suite('TextModelPromptParser', () => {
 
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
-								new Range(3, 1, 3, 1 + 12),
+								new Range(2, 1, 2, 38),
 								'Tools can only be used when in \'agent\' mode, but the mode is set to \'edit\'. The tools will be ignored.',
 							),
 						]);

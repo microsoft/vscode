@@ -53,20 +53,17 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 		_error: Error | undefined,
 		token: CancellationToken,
 	): Promise<void> {
-		// clean up all previously added markers
-		this.markerService.remove(MARKERS_OWNER_ID, [this.model.uri]);
 
 		const { header } = this.parser;
 		if (header === undefined) {
+			this.markerService.remove(MARKERS_OWNER_ID, [this.model.uri]);
 			return;
 		}
 
 		// header parsing process is separate from the prompt parsing one, hence
 		// apply markers only after the header is settled and so has diagnostics
-		await header.settled;
-		// by the time the promise finishes, the token might have been cancelled
-		// already due to a new 'onSettle' event, hence don't apply outdated markers
-		if (token.isCancellationRequested) {
+		const completed = await header.settled;
+		if (!completed || token.isCancellationRequested) {
 			return;
 		}
 
@@ -82,6 +79,11 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 			this.validateTools(header.metadataUtility.tools, ChatModeKind.Agent, markers);
 			this.validateModel(header.metadataUtility.model, ChatModeKind.Agent, markers);
 
+		}
+
+		if (markers.length === 0) {
+			this.markerService.remove(MARKERS_OWNER_ID, [this.model.uri]);
+			return;
 		}
 
 		this.markerService.changeOne(
@@ -119,7 +121,7 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 	findModelByName(languageModes: string[], modelName: string): ILanguageModelChatMetadata | undefined {
 		for (const model of languageModes) {
 			const metadata = this.languageModelsService.lookupLanguageModel(model);
-			if (metadata && metadata.isUserSelectable !== false && metadata.name === modelName) {
+			if (metadata && metadata.isUserSelectable !== false && ILanguageModelChatMetadata.asQualifiedName(metadata) === modelName) {
 				return metadata;
 			}
 		}

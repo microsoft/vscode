@@ -29,6 +29,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -37,7 +38,7 @@ import product from '../../../../../platform/product/common/product.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
-import { IsCompactTitleBarContext } from '../../../../common/contextkeys.js';
+import { ActiveEditorContext, IsCompactTitleBarContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
@@ -46,7 +47,6 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { McpCommandIds } from '../../../mcp/common/mcpCommandIds.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
@@ -141,6 +141,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const instaService = accessor.get(IInstantiationService);
 		const commandService = accessor.get(ICommandService);
 		const chatModeService = accessor.get(IChatModeService);
+		const fileService = accessor.get(IFileService);
 
 		let chatWidget = widgetService.lastFocusedWidget;
 		// When this was invoked to switch to a mode via keybinding, and some chat widget is focused, use that one.
@@ -175,7 +176,9 @@ abstract class OpenChatGlobalAction extends Action2 {
 		}
 		if (opts?.attachFiles) {
 			for (const file of opts.attachFiles) {
-				chatWidget.attachmentModel.addFile(file);
+				if (await fileService.exists(file)) {
+					chatWidget.attachmentModel.addFile(file);
+				}
 			}
 		}
 		if (opts?.query) {
@@ -345,12 +348,18 @@ export function registerChatActions() {
 			super({
 				id: `workbench.action.chat.history`,
 				title: localize2('chat.history.label', "Show Chats..."),
-				menu: {
-					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.equals('view', ChatViewId),
-					group: 'navigation',
-					order: 2
-				},
+				menu: [
+					{
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.equals('view', ChatViewId),
+						group: 'navigation',
+						order: 2
+					},
+					{
+						id: MenuId.EditorTitle,
+						when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
+					},
+				],
 				category: CHAT_CATEGORY,
 				icon: Codicon.history,
 				f1: true,
@@ -664,7 +673,7 @@ export function registerChatActions() {
 		}
 	});
 
-	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.notEquals(`config.${defaultChat.completionsAdvancedSetting}.authProvider`, defaultChat.enterpriseProviderId));
+	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.notEquals(`config.${defaultChat.completionsAdvancedSetting}.authProvider`, defaultChat.provider?.enterprise.id));
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -872,18 +881,8 @@ Update \`.github/copilot-instructions.md\` for the user, then ask for feedback o
 		title: localize2('config.label', "Configure Chat..."),
 		group: 'navigation',
 		when: ContextKeyExpr.equals('view', ChatViewId),
-		icon: Codicon.settings,
+		icon: Codicon.settingsGear,
 		order: 6
-	});
-
-	MenuRegistry.appendMenuItem(CHAT_CONFIG_MENU_ID, {
-		command: {
-			id: McpCommandIds.ShowInstalled,
-			title: localize2('mcp.servers', "MCP Servers")
-		},
-		when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-		order: 14,
-		group: '0_level'
 	});
 }
 
@@ -902,7 +901,7 @@ const defaultChat = {
 	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
 	managePlanUrl: product.defaultChatAgent?.managePlanUrl ?? '',
-	enterpriseProviderId: product.defaultChatAgent?.enterpriseProviderId ?? '',
+	provider: product.defaultChatAgent?.provider ?? { enterprise: { id: '' } },
 	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
 	completionsMenuCommand: product.defaultChatAgent?.completionsMenuCommand ?? '',
 };
@@ -1087,7 +1086,7 @@ const menuContext = ContextKeyExpr.and(
 	ChatContextKeys.Setup.disabled.negate()
 );
 
-const title = localize('copilot', "Copilot");
+const title = localize('ai actions', "AI Actions");
 
 MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	submenu: MenuId.ChatTextEditorMenu,
@@ -1108,4 +1107,31 @@ MenuRegistry.appendMenuItem(MenuId.TerminalInstanceContext, {
 	group: '2_copilot',
 	title,
 	when: menuContext
+});
+
+// --- Chat Default Visibility
+
+registerAction2(class ToggleDefaultVisibilityAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.toggleDefaultVisibility',
+			title: localize2('chat.toggleDefaultVisibility.label', "Show View by Default"),
+			precondition: ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.AuxiliaryBar),
+			toggled: ContextKeyExpr.equals('config.workbench.secondarySideBar.defaultVisibility', 'hidden').negate(),
+			f1: false,
+			menu: {
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', ChatViewId),
+				order: 0,
+				group: '5_configure'
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const configurationService = accessor.get(IConfigurationService);
+
+		const currentValue = configurationService.getValue<'hidden' | unknown>('workbench.secondarySideBar.defaultVisibility');
+		configurationService.updateValue('workbench.secondarySideBar.defaultVisibility', currentValue !== 'hidden' ? 'hidden' : 'visible');
+	}
 });
