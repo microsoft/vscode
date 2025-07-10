@@ -294,7 +294,6 @@
 .workbench-suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left {
 	flex-shrink: 1;
 	flex-grow: 1;
-	overflow: hidden;
 }
 
 .workbench-suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left > .monaco-icon-label {
