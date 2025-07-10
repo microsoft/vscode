@@ -35,7 +35,7 @@ import { SideBySideEditor, EditorResourceAccessor } from '../../../common/editor
 import { ICommandService, CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IViewDescriptorService } from '../../../common/views.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -926,7 +926,7 @@ export class TimelinePane extends ViewPane {
 		// this.treeElement.classList.add('show-file-icons');
 		container.appendChild(this.$tree);
 
-		this.treeRenderer = this.instantiationService.createInstance(TimelineTreeRenderer, this.commands);
+		this.treeRenderer = this.instantiationService.createInstance(TimelineTreeRenderer, this.commands, this.viewDescriptorService.getViewLocationById(this.id));
 		this._register(this.treeRenderer.onDidScrollToEnd(item => {
 			if (this.pageOnScroll) {
 				this.loadMore(item);
@@ -1165,11 +1165,18 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 
 	constructor(
 		private readonly commands: TimelinePaneCommands,
+		private readonly viewContainerLocation: ViewContainerLocation | null,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService,
+		@IThemeService private themeService: IThemeService
 	) {
 		this.actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
-		this._hoverDelegate = this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, {
+
+		this._hoverDelegate = this.instantiationService.createInstance(
+			WorkbenchHoverDelegate,
+			this.viewContainerLocation === ViewContainerLocation.Panel ? 'mouse' : 'element',
+			{
+				instantHover: this.viewContainerLocation !== ViewContainerLocation.Panel
+			}, {
 			position: {
 				hoverPosition: HoverPosition.RIGHT // Will flip when there's no space
 			}

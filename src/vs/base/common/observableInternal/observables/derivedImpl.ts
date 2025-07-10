@@ -400,6 +400,14 @@ export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObserv
 		this._value = newValue as any;
 	}
 
+	public debugRecompute(): void {
+		if (!this._isComputing) {
+			this._recompute();
+		} else {
+			this._state = DerivedState.stale;
+		}
+	}
+
 	public setValue(newValue: T, tx: ITransaction, change: TChange): void {
 		this._value = newValue;
 		const observers = this._observers;

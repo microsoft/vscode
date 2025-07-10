@@ -53,6 +53,7 @@ import './services/keybinding/electron-browser/nativeKeyboardLayout.js';
 import './services/path/electron-browser/pathService.js';
 import './services/themes/electron-browser/nativeHostColorSchemeService.js';
 import './services/extensionManagement/electron-browser/extensionManagementService.js';
+import './services/mcp/electron-browser/mcpWorkbenchManagementService.js';
 import './services/encryption/electron-browser/encryptionService.js';
 import './services/browserElements/electron-browser/browserElementsService.js';
 import './services/secrets/electron-browser/secretStorageService.js';

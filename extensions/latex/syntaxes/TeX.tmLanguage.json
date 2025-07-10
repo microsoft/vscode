@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/b46aaf9bf4d265e63e262ded4bf9beffe19d35b2",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/6bd99800f7b2cbd0e36cecb56fe1936da5affadb",
 	"name": "TeX",
 	"scopeName": "text.tex",
 	"patterns": [
@@ -55,7 +55,7 @@
 			"name": "meta.catcode.tex"
 		},
 		"iffalse-block": {
-			"begin": "(?<=^\\s*)((\\\\)iffalse)(?!\\s*[{}]\\s*\\\\fi)",
+			"begin": "(?<=^\\s*)((\\\\)iffalse)(?!\\s*[{}]\\s*\\\\fi\\b)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.tex"
@@ -65,7 +65,7 @@
 				}
 			},
 			"contentName": "comment.line.percentage.tex",
-			"end": "((\\\\)(?:else|fi))",
+			"end": "((\\\\)(?:else|fi)\\b)",
 			"endCaptures": {
 				"1": {
 					"name": "keyword.control.tex"

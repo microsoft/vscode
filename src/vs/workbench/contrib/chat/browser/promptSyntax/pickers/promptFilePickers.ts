@@ -130,7 +130,7 @@ const UPDATE_INSTRUCTIONS_OPTION: IPromptPickerQuickPickItem = Object.freeze({
 	pickable: false,
 	alwaysShow: true,
 	buttons: [HELP_BUTTON],
-	commandId: 'workbench.action.chat.updateInstructions',
+	commandId: 'workbench.action.chat.generateInstructions',
 });
 
 /**

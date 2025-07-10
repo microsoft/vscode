@@ -17,6 +17,7 @@ import { IExtensionsWorkbenchService } from '../../../extensions/common/extensio
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 
 class ManageLanguageModelAuthenticationAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.manageLanguageModelAuthentication';
@@ -26,6 +27,7 @@ class ManageLanguageModelAuthenticationAction extends Action2 {
 			id: ManageLanguageModelAuthenticationAction.ID,
 			title: localize2('manageLanguageModelAuthentication', 'Manage Language Model Access...'),
 			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.enabled,
 			menu: [{
 				id: MenuId.AccountsContext,
 				order: 100,
