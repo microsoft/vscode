@@ -338,6 +338,12 @@ configurationRegistry.registerConfiguration({
 				defaultValue: false
 			}
 		},
+		[ChatConfiguration.EnableMath]: {
+			type: 'boolean',
+			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using Katex."),
+			default: false,
+			tags: ['preview'],
+		},
 		[mcpDiscoverySection]: {
 			oneOf: [
 				{ type: 'boolean' },
