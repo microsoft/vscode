@@ -2428,7 +2428,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return {
 			type: 'branch',
 			data: result,
-			size: availableHeight
+			size: availableHeight,
+			visible: result.some(node => node.visible)
 		};
 	}
 
@@ -2473,11 +2474,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				auxiliaryBar: auxiliaryBarNextToEditor ? nodes.auxiliaryBar : undefined
 			}, availableHeight - panelSize, editorSectionWidth);
 
+			const data = panelPostion === Position.BOTTOM ? [editorNodes, nodes.panel] : [nodes.panel, editorNodes];
 			result.push({
 				type: 'branch',
-				data: panelPostion === Position.BOTTOM ? [editorNodes, nodes.panel] : [nodes.panel, editorNodes],
+				data,
 				size: editorSectionWidth,
-				visible: editorSectionWidth > 0
+				visible: data.some(node => node.visible)
 			});
 
 			if (!sideBarNextToEditor) {
