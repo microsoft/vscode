@@ -525,22 +525,13 @@ class MouseDownOperation extends Disposable {
 
 		const mouseColumn = this._getMouseColumn(e);
 
-		const editorViewDomNode = this._viewHelper.viewDomNode;
-		const div = document.createElement('div');
-		div.style.position = 'fixed';
-		div.style.left = `${e.posx}px`;
-		div.style.top = `${e.posy}px`;
-		div.style.color = 'red';
-		div.style.backgroundColor = 'red';
-		div.style.height = '3px';
-		div.style.width = '3px';
-		div.style.zIndex = '1000';
-		console.log('div : ', div);
-		editorViewDomNode.appendChild(div);
-
 		console.log('e.posy : ', e.posy);
 		console.log('editorContent.y : ', editorContent.y);
-		if (e.posy < editorContent.y) {
+
+		const visibleRange = this._context.viewModel.getCompletelyVisibleViewRange();
+		const paddingTop = Math.min(10, this._context.viewLayout.getLineHeightForLineNumber(visibleRange.startLineNumber) / 2);
+
+		if (e.posy < editorContent.y - paddingTop) {
 			const outsideDistance = editorContent.y - e.posy;
 			const verticalOffset = Math.max(viewLayout.getCurrentScrollTop() - outsideDistance, 0);
 			const viewZoneData = HitTestContext.getZoneAtCoord(this._context, verticalOffset);
@@ -555,8 +546,13 @@ class MouseDownOperation extends Disposable {
 			return MouseTarget.createOutsideEditor(mouseColumn, new Position(aboveLineNumber, 1), 'above', outsideDistance);
 		}
 
+
+		const paddingBottom = Math.min(10, this._context.viewLayout.getLineHeightForLineNumber(visibleRange.endLineNumber) / 2);
+
 		console.log('editorContent.y + editorContent.height : ', editorContent.y + editorContent.height);
-		if (e.posy > editorContent.y + editorContent.height) {
+		const bottom = editorContent.y + editorContent.height - paddingBottom;
+		console.log('bottom : ', bottom);
+		if (e.posy > bottom) {
 			const outsideDistance = e.posy - editorContent.y - editorContent.height;
 			const verticalOffset = viewLayout.getCurrentScrollTop() + e.relativePos.y;
 			const viewZoneData = HitTestContext.getZoneAtCoord(this._context, verticalOffset);
