@@ -262,7 +262,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		let doNotRequestExtensionCompletions = false;
 		// Ensure that a key has been pressed since the last accepted completion in order to prevent
 		// completions being requested again right after accepting a completion
-		if (this._lastUserDataTimestamp < SuggestAddon.lastAcceptedCompletionTimestamp) {
+		if (this._promptInputModel.value !== '' && this._lastUserDataTimestamp < SuggestAddon.lastAcceptedCompletionTimestamp) {
 			doNotRequestExtensionCompletions = true;
 		}
 
@@ -908,6 +908,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	hideSuggestWidget(cancelAnyRequest: boolean): void {
+		console.log('hiding', cancelAnyRequest);
 		this._discoverability?.resetTimer();
 		if (cancelAnyRequest) {
 			this._cancellationTokenSource?.cancel();
