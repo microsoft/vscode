@@ -847,6 +847,7 @@ export class Repository implements Disposable {
 
 	constructor(
 		private readonly repository: BaseRepository,
+		private readonly repositoryParentRootUri: string | undefined,
 		private readonly repositoryResolver: IRepositoryResolver,
 		private pushErrorHandlerRegistry: IPushErrorHandlerRegistry,
 		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
@@ -887,7 +888,8 @@ export class Repository implements Disposable {
 		this.disposables.push(new FileEventLogger(onRepositoryWorkingTreeFileChange, onRepositoryDotGitFileChange, logger));
 
 		const root = Uri.file(repository.root);
-		this._sourceControl = scm.createSourceControl('git', 'Git', root);
+		const parentRoot = this.repositoryParentRootUri ? Uri.file(this.repositoryParentRootUri) : undefined;
+		this._sourceControl = scm.createSourceControl('git', 'Git', root, parentRoot);
 
 		this._sourceControl.quickDiffProvider = this;
 		this._sourceControl.secondaryQuickDiffProvider = new StagedResourceQuickDiffProvider(this, logger);

@@ -1263,8 +1263,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 				return extHostSCM.getLastInputBox(extension)!; // Strict null override - Deprecated api
 			},
-			createSourceControl(id: string, label: string, rootUri?: vscode.Uri) {
-				return extHostSCM.createSourceControl(extension, id, label, rootUri);
+			createSourceControl(id: string, label: string, rootUri?: vscode.Uri, parentRootUri?: vscode.Uri): vscode.SourceControl {
+				return extHostSCM.createSourceControl(extension, id, label, rootUri, parentRootUri);
 			}
 		};
 

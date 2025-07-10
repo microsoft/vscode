@@ -558,6 +558,10 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		return this._rootUri;
 	}
 
+	get parentRootUri(): vscode.Uri | undefined {
+		return this._parentRootUri;
+	}
+
 	private _inputBox: ExtHostSCMInputBox;
 	get inputBox(): ExtHostSCMInputBox { return this._inputBox; }
 
@@ -749,7 +753,8 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		private _commands: ExtHostCommands,
 		private _id: string,
 		private _label: string,
-		private _rootUri?: vscode.Uri
+		private _rootUri?: vscode.Uri,
+		private _parentRootUri?: vscode.Uri
 	) {
 		this.#proxy = proxy;
 
@@ -760,7 +765,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		});
 
 		this._inputBox = new ExtHostSCMInputBox(_extension, _extHostDocuments, this.#proxy, this.handle, inputBoxDocumentUri);
-		this.#proxy.$registerSourceControl(this.handle, _id, _label, _rootUri, inputBoxDocumentUri);
+		this.#proxy.$registerSourceControl(this.handle, _id, _label, _rootUri, _parentRootUri, inputBoxDocumentUri);
 	}
 
 	private createdResourceGroups = new Map<ExtHostSourceControlResourceGroup, IDisposable>();
@@ -912,8 +917,8 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 	}
 
-	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined): vscode.SourceControl {
-		this.logService.trace('ExtHostSCM#createSourceControl', extension.identifier.value, id, label, rootUri);
+	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined, parentRootUri: vscode.Uri | undefined): vscode.SourceControl {
+		this.logService.trace('ExtHostSCM#createSourceControl', extension.identifier.value, id, label, rootUri, parentRootUri);
 
 		type TEvent = { extensionId: string };
 		type TMeta = {
@@ -926,7 +931,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 
 		const handle = ExtHostSCM._handlePool++;
-		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, id, label, rootUri);
+		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, id, label, rootUri, parentRootUri);
 		this._sourceControls.set(handle, sourceControl);
 
 		const sourceControls = this._sourceControlsByExtension.get(extension.identifier) || [];
