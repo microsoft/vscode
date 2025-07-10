@@ -27,12 +27,13 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { PreferredGroup } from '../common/editorService.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { PauseableEmitter } from '../../../../base/common/event.js';
-
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 interface RegisteredEditor {
 	globPattern: string | glob.IRelativePattern;
 	editorInfo: RegisteredEditorInfo;
 	options?: RegisteredEditorOptions;
 	editorFactoryObject: EditorInputFactoryObject;
+	whenClause?: string;
 }
 
 type RegisteredEditors = Array<RegisteredEditor>;
@@ -54,8 +55,10 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	private _flattenedEditors: Map<string | glob.IRelativePattern, RegisteredEditors> = new Map();
 	private _shouldReFlattenEditors: boolean = true;
 	private cache: Set<string> | undefined;
+	private readonly contextKeyService: IContextKeyService;
 
 	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -66,6 +69,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
+		this.contextKeyService = contextKeyService;
 		// Read in the cache on statup
 		this.cache = new Set<string>(JSON.parse(this.storageService.get(EditorResolverService.cacheStorageID, StorageScope.PROFILE, JSON.stringify([]))));
 		this.storageService.remove(EditorResolverService.cacheStorageID, StorageScope.PROFILE);
@@ -246,7 +250,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			globPattern,
 			editorInfo,
 			options,
-			editorFactoryObject
+			editorFactoryObject,
+			whenClause: options.when // Store the when clause
 		});
 		registeredEditor.set(editorInfo.id, editorsWithId);
 		this._shouldReFlattenEditors = true;
@@ -360,7 +365,16 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		for (const [key, editors] of this._flattenedEditors) {
 			for (const editor of editors) {
 				const foundInSettings = userSettings.find(setting => setting.viewType === editor.editorInfo.id);
+				// Check the when clause if it exists
 				if ((foundInSettings && editor.editorInfo.priority !== RegisteredEditorPriority.exclusive) || globMatchesResource(key, resource)) {
+					// Skip editors with when clauses that don't match the current context
+					if (editor.options?.when) {
+						// Parse the string to a ContextKeyExpression
+						const contextKeyExpr = ContextKeyExpr.deserialize(editor.options.when);
+						if (contextKeyExpr && !this.contextKeyService.contextMatchesRules(contextKeyExpr)) {
+							continue;
+						}
+					}
 					matchingEditors.push(editor);
 				}
 			}
