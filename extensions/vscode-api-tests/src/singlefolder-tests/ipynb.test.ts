@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
 
-(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('ipynb NotebookSerializer', function () {
+suite('ipynb NotebookSerializer', function () {
 	test('Can open an ipynb notebook', async () => {
 		assert.ok(vscode.workspace.workspaceFolders);
 		const workspace = vscode.workspace.workspaceFolders[0];
