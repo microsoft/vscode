@@ -1344,7 +1344,11 @@ class ChatSetupController extends Disposable {
 			this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: wasRunning && !signUpResult ? 'alreadyInstalled' : 'installed', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
 		}
 
-		if (wasRunning && signUpResult === true) {
+		if (wasRunning) {
+			// We always trigger refresh of tokens to help the user
+			// get out of authentication issues that can happen when
+			// for example the sign-up ran after the extension tried
+			// to use the authentication information to mint a token
 			refreshTokens(this.commandService);
 		}
 
