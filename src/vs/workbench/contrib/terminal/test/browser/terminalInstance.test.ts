@@ -288,6 +288,9 @@ suite('Workbench - TerminalInstance', () => {
 		test('should handle undefined values correctly', async () => {
 			const terminalInstance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
 
+			// Wait for the terminalInstance to be ready
+			await new Promise(resolve => setTimeout(resolve, 100));
+
 			// Initially should be undefined
 			strictEqual(terminalInstance.shellType, undefined);
 
@@ -304,6 +307,9 @@ suite('Workbench - TerminalInstance', () => {
 
 		test('should not fire events when value is the same', async () => {
 			const terminalInstance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
+
+			// Wait for the terminalInstance to be ready
+			await new Promise(resolve => setTimeout(resolve, 100));
 
 			let eventCount = 0;
 			terminalInstance.onDidChangeShellType(() => {
