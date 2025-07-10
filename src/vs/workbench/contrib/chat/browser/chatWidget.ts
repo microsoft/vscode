@@ -751,12 +751,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const configuration = this.configurationService.inspect('workbench.secondarySideBar.defaultVisibility');
 			const expIsActive = configuration.defaultValue !== 'hidden';
 
+			const expEmptyState = this.configurationService.getValue<boolean>('chat.emptyChatState.enabled');
+
 			const chatSetupTriggerContext = ContextKeyExpr.or(
 				ChatContextKeys.Setup.installed.negate(),
 				ChatContextKeys.Entitlement.canSignUp
 			);
 
 			let welcomeContent: IChatViewWelcomeContent;
+			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
+			const additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
 			if ((startupExpValue === StartupExperimentGroup.MaximizedChat
 				|| startupExpValue === StartupExperimentGroup.SplitEmptyEditorChat
 				|| startupExpValue === StartupExperimentGroup.SplitWelcomeChat
@@ -764,9 +768,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				welcomeContent = this.getExpWelcomeViewContent();
 				this.container.classList.add('experimental-welcome-view');
 			}
+			else if (expEmptyState) {
+				welcomeContent = this.getWelcomeViewContent(additionalMessage, expEmptyState);
+			}
 			else {
-				const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
-				const additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
 				const tips = this.input.currentModeKind === ChatModeKind.Ask
 					? new MarkdownString(localize('chatWidget.tips', "{0} or type {1} to attach context\n\n{2} to chat with extensions\n\nType {3} to use commands", '$(attach)', '#', '$(mention)', '/'), { supportThemeIcons: true })
 					: new MarkdownString(localize('chatWidget.tips.withoutParticipants', "{0} or type {1} to attach context", '$(attach)', '#'), { supportThemeIcons: true });
@@ -790,27 +795,37 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined): IChatViewWelcomeContent {
-		const baseMessage = localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.");
+	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined, expEmptyState?: boolean): IChatViewWelcomeContent {
+		const disclaimerMessage = expEmptyState
+			? localize('chatDisclaimer', "AI responses may be inaccurate.")
+			: localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.");
+		const icon = expEmptyState ? Codicon.chatSparkle : Codicon.copilotLarge;
+
 		if (this.input.currentModeKind === ChatModeKind.Ask) {
 			return {
-				title: localize('chatDescription', "Ask Copilot"),
-				message: new MarkdownString(baseMessage),
-				icon: Codicon.copilotLarge,
+				title: localize('chatDescription', "Ask about your code."),
+				message: new MarkdownString(disclaimerMessage),
+				icon,
 				additionalMessage,
 			};
 		} else if (this.input.currentModeKind === ChatModeKind.Edit) {
+			const editsHelpMessage = localize('editsHelp', "Start your editing session by defining a set of files that you want to work with. Then ask Copilot for the changes you want to make.");
+			const message = expEmptyState ? disclaimerMessage : `${editsHelpMessage}\n\n${disclaimerMessage}`;
+
 			return {
-				title: localize('editsTitle', "Edit with Copilot"),
-				message: new MarkdownString(localize('editsMessage', "Start your editing session by defining a set of files that you want to work with. Then ask Copilot for the changes you want to make.") + `\n\n${baseMessage}`),
-				icon: Codicon.copilotLarge,
+				title: localize('editsTitle', "Edit in context."),
+				message: new MarkdownString(message),
+				icon,
 				additionalMessage
 			};
 		} else {
+			const agentHelpMessage = localize('agentMessage', "Ask Copilot to edit your files in [agent mode]({0}). Copilot will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.", 'https://aka.ms/vscode-copilot-agent');
+			const message = expEmptyState ? disclaimerMessage : `${agentHelpMessage}\n\n${disclaimerMessage}`;
+
 			return {
-				title: localize('editsTitle', "Edit with Copilot"),
-				message: new MarkdownString(localize('agentMessage', "Ask Copilot to edit your files in [agent mode]({0}). Copilot will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.", 'https://aka.ms/vscode-copilot-agent') + `\n\n${baseMessage}`),
-				icon: Codicon.copilotLarge,
+				title: localize('agentTitle', "Build with agent mode."),
+				message: new MarkdownString(message),
+				icon,
 				additionalMessage
 			};
 		}
