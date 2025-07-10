@@ -130,6 +130,8 @@ export interface ICommonNativeHostService {
 
 	saveWindowSplash(splash: IPartsSplash): Promise<void>;
 
+	setBackgroundThrottling(allowed: boolean): Promise<void>;
+
 	/**
 	 * Make the window focused.
 	 * @param options specify the specific window to focus and the focus mode.

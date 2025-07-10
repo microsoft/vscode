@@ -47,6 +47,7 @@ import { TextModelEditReason, EditReasons } from '../../../../common/textModelEd
 import { ICodeEditorService } from '../../../../browser/services/codeEditorService.js';
 import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
 import { IInlineCompletionsService } from '../../../../browser/services/inlineCompletionsService.js';
+import { TypingInterval } from './typingSpeed.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -84,6 +85,8 @@ export class InlineCompletionsModel extends Disposable {
 
 	private readonly _editorObs;
 
+	private readonly _typing: TypingInterval;
+
 	private readonly _suggestPreviewEnabled;
 	private readonly _suggestPreviewMode;
 	private readonly _inlineSuggestMode;
@@ -120,6 +123,7 @@ export class InlineCompletionsModel extends Disposable {
 		this._inlineEditsEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.enabled);
 		this._inlineEditsShowCollapsedEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
 		this._triggerCommandOnProviderChange = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.experimental.triggerCommandOnProviderChange);
+		this._typing = this._register(new TypingInterval(this.textModel));
 
 		this._register(this._inlineCompletionsService.onDidChangeIsSnoozing((isSnoozing) => {
 			if (isSnoozing) {
@@ -360,11 +364,14 @@ export class InlineCompletionsModel extends Disposable {
 			reason += reason.length > 0 ? `:${changeSummary.changeReason}` : changeSummary.changeReason;
 		}
 
+		const typingInterval = this._typing.getTypingInterval();
 		const requestInfo: InlineSuggestRequestInfo = {
 			editorType: this.editorType,
 			startTime: Date.now(),
 			languageId: this.textModel.getLanguageId(),
 			reason,
+			typingInterval: typingInterval.averageInterval,
+			typingIntervalCharacterCount: typingInterval.characterCount,
 		};
 
 		let context: InlineCompletionContextWithoutUuid = {
@@ -392,7 +399,7 @@ export class InlineCompletionsModel extends Disposable {
 		const userJumpedToActiveCompletion = this._jumpedToId.map(jumpedTo => !!jumpedTo && jumpedTo === this._inlineCompletionItems.get()?.inlineEdit?.semanticId);
 
 		const providers = changeSummary.provider
-			? { providers: [changeSummary.provider], label: 'single:' + changeSummary.provider.providerId }
+			? { providers: [changeSummary.provider], label: 'single:' + changeSummary.provider.providerId?.toString() }
 			: { providers: this._languageFeaturesService.inlineCompletionsProvider.all(this.textModel), label: undefined };
 		const suppressedProviderGroupIds = this._suppressedInlineCompletionGroupIds.get();
 		const availableProviders = providers.providers.filter(provider => !(provider.groupId && suppressedProviderGroupIds.has(provider.groupId)));
@@ -776,14 +783,14 @@ export class InlineCompletionsModel extends Disposable {
 			return EditReasons.inlineCompletionPartialAccept({
 				nes: completion.isInlineEdit,
 				requestUuid: completion.requestUuid,
-				extensionId: completion.source.provider.groupId ?? 'unknown',
+				providerId: completion.source.provider.providerId,
 				type,
 			});
 		} else {
 			return EditReasons.inlineCompletionAccept({
 				nes: completion.isInlineEdit,
 				requestUuid: completion.requestUuid,
-				extensionId: completion.source.provider.groupId ?? 'unknown',
+				providerId: completion.source.provider.providerId,
 			});
 		}
 	}

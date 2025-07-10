@@ -365,7 +365,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 				toggleMenuTitle: localize('moreActions', "More Actions..."),
 				hoverDelegate: this.toolbarHoverDelegate,
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
-				highlightToggledItems: true
+				highlightToggledItems: true,
+				telemetrySource: this.nameForTelemetry
 			}
 		));
 
