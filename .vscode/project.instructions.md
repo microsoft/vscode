@@ -1,5 +1,5 @@
 ---
-applyTo: "**"
+applyTo: '**'
 ---
 
 # VS Code Copilot Development Guide
@@ -9,7 +9,6 @@ This file contains key information to help AI assistants work more efficiently w
 ## Quick Reference for Common Issues
 
 ### Build & Test Workflow
-
 1. **Compile**: `npm run compile` (required before testing code changes)
 2. **Run specific tests**: `./scripts/test.sh --grep "pattern"`
 3. **Test file location**: `out/` directory contains compiled JavaScript
@@ -18,7 +17,6 @@ This file contains key information to help AI assistants work more efficiently w
 ### Code Architecture Patterns
 
 #### Testing Strategy
-
 - Unit tests in `src/vs/*/test/` directories
 - Integration tests in `test/` directory
 - Use `npm run compile` before running node-based tests
@@ -26,13 +24,11 @@ This file contains key information to help AI assistants work more efficiently w
 ## Common Gotchas
 
 ### Module Loading
-
 - Use compiled files from `out/` directory when testing with node
 - Import paths: `const { Class } = require('../out/vs/path/to/module.js')`
 - ES modules require `.mjs` extension or package.json type modification
 
 ### Test Location
-
 - Don't add tests to the wrong test suite (e.g., adding to end of file instead of inside relevant suite)
 - Look for existing test patterns before creating new structures
 - Use `describe` and `test` consistently with existing patterns
@@ -40,14 +36,12 @@ This file contains key information to help AI assistants work more efficiently w
 ## Investigation Shortcuts
 
 ### Finding Related Code
-
 1. **Semantic search first**: Use file search for general concepts
 2. **Grep for exact strings**: Use grep for error messages or specific function names
 3. **Follow imports**: Check what files import the problematic module
 4. **Check test files**: Often reveal usage patterns and expected behavior
 
 ### Build Optimization
-
 - Compilation takes ~2 minutes - do this once at start
 - Extensions compile separately - skip if not needed
 - Use incremental compilation for faster iteration
@@ -65,9 +59,3 @@ test/                     # Integration tests
 out/                     # Compiled output
 scripts/                 # Build and test scripts
 ```
-
-## Additional Resources
-
-Read these files more detailed information when asked about specific topics or before making changes in those areas:
-
-- .github/documentation/notebook-editor-UI.md - This document explains how VS Code's notebook editor layout system works, including the key components involved, how layouts are triggered, and how potential recursive layout issues are handled.
