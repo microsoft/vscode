@@ -1257,11 +1257,11 @@ export interface ExtHostSpeechShape {
 export interface MainThreadLanguageModelsShape extends IDisposable {
 	$registerLanguageModelProvider(vendor: string): void;
 	$unregisterProvider(vendor: string): void;
-	$tryStartChatRequest(extension: ExtensionIdentifier, provider: string, requestId: number, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: {}, token: CancellationToken): Promise<void>;
+	$tryStartChatRequest(extension: ExtensionIdentifier, modelIdentifier: ILanguageModelIdentifier, requestId: number, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: {}, token: CancellationToken): Promise<void>;
 	$reportResponsePart(requestId: number, chunk: IChatResponseFragment | IChatResponseFragment[]): Promise<void>;
 	$reportResponseDone(requestId: number, error: SerializedError | undefined): Promise<void>;
 	$selectChatModels(selector: ILanguageModelChatSelector): Promise<ILanguageModelIdentifier[]>;
-	$countTokens(provider: string, value: string | IChatMessage, token: CancellationToken): Promise<number>;
+	$countTokens(identifier: ILanguageModelIdentifier, value: string | IChatMessage, token: CancellationToken): Promise<number>;
 	$fileIsIgnored(uri: UriComponents, token: CancellationToken): Promise<boolean>;
 	$registerFileIgnoreProvider(handle: number): void;
 	$unregisterFileIgnoreProvider(handle: number): void;
@@ -1271,10 +1271,10 @@ export interface ExtHostLanguageModelsShape {
 	$acceptChatModelMetadata(data: ILanguageModelsChangeEvent): void;
 	$prepareLanguageModelProvider(vendor: string, options: { silent: boolean }, token: CancellationToken): Promise<ILanguageModelChatMetadata[]>;
 	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void;
-	$startChatRequest(model: ILanguageModelChatMetadata, requestId: number, from: ExtensionIdentifier, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: { [name: string]: any }, token: CancellationToken): Promise<void>;
+	$startChatRequest(modelIdentifier: ILanguageModelIdentifier, requestId: number, from: ExtensionIdentifier, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: { [name: string]: any }, token: CancellationToken): Promise<void>;
 	$acceptResponsePart(requestId: number, chunk: IChatResponseFragment | IChatResponseFragment[]): Promise<void>;
 	$acceptResponseDone(requestId: number, error: SerializedError | undefined): Promise<void>;
-	$provideTokenLength(model: ILanguageModelChatMetadata, value: string | IChatMessage, token: CancellationToken): Promise<number>;
+	$provideTokenLength(modelIdentifier: ILanguageModelIdentifier, value: string | IChatMessage, token: CancellationToken): Promise<number>;
 	$isFileIgnored(handle: number, uri: UriComponents, token: CancellationToken): Promise<boolean>;
 }
 

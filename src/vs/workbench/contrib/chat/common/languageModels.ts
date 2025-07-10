@@ -274,7 +274,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _store = new DisposableStore();
 
 	private readonly _providers = new Map<string, { provider: ILanguageModelChatProvider; knownModels: ILanguageModelChatMetadata[] }>();
-	private readonly _vendors = new Set<string>();
+	private readonly _vendors = new Map<string, IUserFriendlyLanguageModel>();
 
 	private readonly _onDidChangeProviders = this._store.add(new Emitter<ILanguageModelsChangeEvent>());
 	readonly onDidChangeLanguageModels: Event<ILanguageModelsChangeEvent> = this._onDidChangeProviders.event;
@@ -308,15 +308,15 @@ export class LanguageModelsService implements ILanguageModelsService {
 						extension.collector.error(localize('vscode.extension.contributes.languageModels.whitespaceVendor', "The vendor field cannot start or end with whitespace."));
 						continue;
 					}
-					this._vendors.add(item.vendor);
+					this._vendors.set(item.vendor, item);
 				}
 			}
 
 			const removed: string[] = [];
-			for (const [identifier, value] of this._providers) {
-				if (!this._vendors.has(value.metadata.vendor)) {
-					this._providers.delete(identifier);
-					removed.push(identifier);
+			for (const [vendor, _] of this._providers) {
+				if (!this._vendors.has(vendor)) {
+					this._providers.delete(vendor);
+					removed.push(vendor);
 				}
 			}
 			if (removed.length > 0) {
