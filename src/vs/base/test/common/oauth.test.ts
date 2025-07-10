@@ -356,7 +356,8 @@ suite('OAuth', () => {
 		test('fetchDynamicRegistration should throw error on non-OK response', async () => {
 			fetchStub.resolves({
 				ok: false,
-				statusText: 'Bad Request'
+				statusText: 'Bad Request',
+				text: async () => 'Bad Request'
 			} as Response);
 
 			const serverMetadata: IAuthorizationServerMetadata = {
@@ -367,7 +368,7 @@ suite('OAuth', () => {
 
 			await assert.rejects(
 				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
-				/Registration failed: Bad Request/
+				/Registration to https:\/\/auth\.example\.com\/register failed: Bad Request/
 			);
 		});
 
@@ -447,6 +448,212 @@ suite('OAuth', () => {
 			// Verify request body contains default grant types
 			const requestBody = JSON.parse(options.body as string);
 			assert.deepStrictEqual(requestBody.grant_types, ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code']);
+		});
+
+		test('fetchDynamicRegistration should throw error when registration endpoint is missing', async () => {
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				response_types_supported: ['code']
+				// registration_endpoint is missing
+			};
+
+			await assert.rejects(
+				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
+				/Server does not support dynamic registration/
+			);
+		});
+
+		test('fetchDynamicRegistration should handle structured error response', async () => {
+			const errorResponse = {
+				error: 'invalid_client_metadata',
+				error_description: 'The client metadata is invalid'
+			};
+
+			fetchStub.resolves({
+				ok: false,
+				text: async () => JSON.stringify(errorResponse)
+			} as Response);
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
+			await assert.rejects(
+				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
+				/Registration to https:\/\/auth\.example\.com\/register failed: invalid_client_metadata: The client metadata is invalid/
+			);
+		});
+
+		test('fetchDynamicRegistration should handle structured error response without description', async () => {
+			const errorResponse = {
+				error: 'invalid_redirect_uri'
+			};
+
+			fetchStub.resolves({
+				ok: false,
+				text: async () => JSON.stringify(errorResponse)
+			} as Response);
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
+			await assert.rejects(
+				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
+				/Registration to https:\/\/auth\.example\.com\/register failed: invalid_redirect_uri/
+			);
+		});
+
+		test('fetchDynamicRegistration should handle malformed JSON error response', async () => {
+			fetchStub.resolves({
+				ok: false,
+				text: async () => 'Invalid JSON {'
+			} as Response);
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
+			await assert.rejects(
+				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
+				/Registration to https:\/\/auth\.example\.com\/register failed: Invalid JSON \{/
+			);
+		});
+
+		test('fetchDynamicRegistration should include scopes in request when provided', async () => {
+			const mockResponse = {
+				client_id: 'generated-client-id',
+				client_name: 'Test Client'
+			};
+
+			fetchStub.resolves({
+				ok: true,
+				json: async () => mockResponse
+			} as Response);
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
+			await fetchDynamicRegistration(serverMetadata, 'Test Client', ['read', 'write']);
+
+			// Verify request includes scopes
+			const [, options] = fetchStub.firstCall.args;
+			const requestBody = JSON.parse(options.body as string);
+			assert.strictEqual(requestBody.scope, 'read write');
+		});
+
+		test('fetchDynamicRegistration should omit scope from request when not provided', async () => {
+			const mockResponse = {
+				client_id: 'generated-client-id',
+				client_name: 'Test Client'
+			};
+
+			fetchStub.resolves({
+				ok: true,
+				json: async () => mockResponse
+			} as Response);
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
+			await fetchDynamicRegistration(serverMetadata, 'Test Client');
+
+			// Verify request does not include scope when not provided
+			const [, options] = fetchStub.firstCall.args;
+			const requestBody = JSON.parse(options.body as string);
+			assert.strictEqual(requestBody.scope, undefined);
+		});
+
+		test('fetchDynamicRegistration should handle empty scopes array', async () => {
+			const mockResponse = {
+				client_id: 'generated-client-id',
+				client_name: 'Test Client'
+			};
+
+			fetchStub.resolves({
+				ok: true,
+				json: async () => mockResponse
+			} as Response);
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
+			await fetchDynamicRegistration(serverMetadata, 'Test Client', []);
+
+			// Verify request includes empty scope
+			const [, options] = fetchStub.firstCall.args;
+			const requestBody = JSON.parse(options.body as string);
+			assert.strictEqual(requestBody.scope, '');
+		});
+
+		test('fetchDynamicRegistration should handle network fetch failure', async () => {
+			fetchStub.rejects(new Error('Network error'));
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
+			await assert.rejects(
+				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
+				/Network error/
+			);
+		});
+
+		test('fetchDynamicRegistration should handle response.json() failure', async () => {
+			fetchStub.resolves({
+				ok: true,
+				json: async () => {
+					throw new Error('JSON parsing failed');
+				}
+			} as unknown as Response);
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
+			await assert.rejects(
+				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
+				/JSON parsing failed/
+			);
+		});
+
+		test('fetchDynamicRegistration should handle response.text() failure for error cases', async () => {
+			fetchStub.resolves({
+				ok: false,
+				text: async () => {
+					throw new Error('Text parsing failed');
+				}
+			} as unknown as Response);
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
+			await assert.rejects(
+				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
+				/Text parsing failed/
+			);
 		});
 	});
 

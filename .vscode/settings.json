@@ -185,5 +185,7 @@
 	"chat.instructionsFilesLocations": {
 		".github/instructions": true,
 		".vscode": true
-	}
+	},
+	"githubPullRequests.codingAgent.enabled": true,
+	"githubPullRequests.codingAgent.uiIntegration": true
 }

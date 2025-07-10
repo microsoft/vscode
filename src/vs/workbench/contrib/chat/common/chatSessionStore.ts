@@ -21,7 +21,7 @@ import { IUserDataProfilesService } from '../../../../platform/userDataProfile/c
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { ChatModel, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData } from './chatModel.js';
-import { ChatAgentLocation, ChatMode } from './constants.js';
+import { ChatAgentLocation, ChatModeKind } from './constants.js';
 
 const maxPersistedSessions = 25;
 
@@ -459,7 +459,7 @@ export interface IChatTransfer {
 	timestampInMilliseconds: number;
 	inputValue: string;
 	location: ChatAgentLocation;
-	mode: ChatMode;
+	mode: ChatModeKind;
 }
 
 export interface IChatTransfer2 extends IChatTransfer {

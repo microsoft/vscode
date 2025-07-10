@@ -64,6 +64,10 @@ declare module 'vscode' {
 		 * If some inline completion provider registered by such an extension returns a result, this provider is not asked.
 		 */
 		yieldTo?: string[];
+		/**
+		 * Can override the extension id for the yieldTo mechanism. Used for testing, so that yieldTo can be tested within one extension.
+		*/
+		groupId?: string;
 
 		debounceDelayMs?: number;
 

@@ -17,6 +17,7 @@ export enum TsServerLogLevel {
 	Normal,
 	Terse,
 	Verbose,
+	RequestTime
 }
 
 export namespace TsServerLogLevel {
@@ -28,6 +29,8 @@ export namespace TsServerLogLevel {
 				return TsServerLogLevel.Terse;
 			case 'verbose':
 				return TsServerLogLevel.Verbose;
+			case 'requestTime':
+				return TsServerLogLevel.RequestTime;
 			case 'off':
 			default:
 				return TsServerLogLevel.Off;
@@ -42,6 +45,8 @@ export namespace TsServerLogLevel {
 				return 'terse';
 			case TsServerLogLevel.Verbose:
 				return 'verbose';
+			case TsServerLogLevel.RequestTime:
+				return 'requestTime';
 			case TsServerLogLevel.Off:
 			default:
 				return 'off';

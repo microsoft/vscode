@@ -12,6 +12,7 @@ import { AcceptInlineCompletion, AcceptNextLineOfInlineCompletion, AcceptNextWor
 import { InlineCompletionsController } from './controller/inlineCompletionsController.js';
 import { InlineCompletionsHoverParticipant } from './hintsWidget/hoverParticipant.js';
 import { InlineCompletionsAccessibleView } from './inlineCompletionsAccessibleView.js';
+import { CancelSnoozeInlineCompletion, SnoozeInlineCompletion } from '../../../browser/services/inlineCompletionsService.js';
 
 registerEditorContribution(InlineCompletionsController.ID, wrapInHotClass1(InlineCompletionsController.hot), EditorContributionInstantiation.Eventually);
 
@@ -28,6 +29,8 @@ registerEditorAction(HideInlineCompletion);
 registerEditorAction(JumpToNextInlineEdit);
 registerAction2(ToggleAlwaysShowInlineSuggestionToolbar);
 registerEditorAction(DevExtractReproSample);
+registerAction2(SnoozeInlineCompletion);
+registerAction2(CancelSnoozeInlineCompletion);
 
 HoverParticipantRegistry.register(InlineCompletionsHoverParticipant);
 AccessibleViewRegistry.register(new InlineCompletionsAccessibleView());

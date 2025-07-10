@@ -55,7 +55,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	) {
 		super();
 
-		this._models = new CustomEditorModelManager(this.uriIdentityService);
+		this._models = new CustomEditorModelManager();
 
 		this._contributedEditors = this._register(new ContributedCustomEditors(storageService));
 		// Register the contribution points only emitting one change from the resolver

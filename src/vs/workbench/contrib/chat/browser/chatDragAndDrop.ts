@@ -45,6 +45,7 @@ export class ChatDragAndDrop extends Themable {
 	private readonly overlays: Map<HTMLElement, { overlay: HTMLElement; disposable: IDisposable }> = new Map();
 	private overlayText?: HTMLElement;
 	private overlayTextBackground: string = '';
+	private disableOverlay: boolean = false;
 
 	constructor(
 		private readonly attachmentModel: ChatAttachmentModel,
@@ -81,6 +82,10 @@ export class ChatDragAndDrop extends Themable {
 		}
 	}
 
+	setDisabledOverlay(disable: boolean) {
+		this.disableOverlay = disable;
+	}
+
 	private currentActiveTarget: HTMLElement | undefined = undefined;
 	private createOverlay(target: HTMLElement, overlayContainer: HTMLElement): { overlay: HTMLElement; disposable: IDisposable } {
 		const overlay = document.createElement('div');
@@ -90,6 +95,10 @@ export class ChatDragAndDrop extends Themable {
 
 		const disposable = new DragAndDropObserver(target, {
 			onDragOver: (e) => {
+				if (this.disableOverlay) {
+					return;
+				}
+
 				e.stopPropagation();
 				e.preventDefault();
 
@@ -107,6 +116,9 @@ export class ChatDragAndDrop extends Themable {
 
 			},
 			onDragLeave: (e) => {
+				if (this.disableOverlay) {
+					return;
+				}
 				if (target === this.currentActiveTarget) {
 					this.currentActiveTarget = undefined;
 				}
@@ -114,6 +126,9 @@ export class ChatDragAndDrop extends Themable {
 				this.onDragLeave(e, target);
 			},
 			onDrop: (e) => {
+				if (this.disableOverlay) {
+					return;
+				}
 				e.stopPropagation();
 				e.preventDefault();
 

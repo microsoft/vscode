@@ -58,6 +58,14 @@ export interface IEditorOptions {
 	 */
 	allowVariableLineHeights?: boolean;
 	/**
+	 * This editor is allowed to use variable font-sizes and font-families
+	 */
+	allowVariableFonts?: boolean;
+	/**
+	 * This editor is allowed to use variable font-sizes and font-families in accessibility mode
+	 */
+	allowVariableFontsInAccessibilityMode?: boolean;
+	/**
 	 * The aria label for the editor's textarea (when it is focused).
 	 */
 	ariaLabel?: string;
@@ -1248,6 +1256,9 @@ export function clampedFloat<T extends number>(value: any, defaultValue: T, mini
 
 class EditorFloatOption<K extends EditorOption> extends SimpleEditorOption<K, number> {
 
+	public readonly minimum: number | undefined;
+	public readonly maximum: number | undefined;
+
 	public static clamp(n: number, min: number, max: number): number {
 		if (n < min) {
 			return min;
@@ -1271,13 +1282,17 @@ class EditorFloatOption<K extends EditorOption> extends SimpleEditorOption<K, nu
 
 	public readonly validationFn: (value: number) => number;
 
-	constructor(id: K, name: PossibleKeyName<number>, defaultValue: number, validationFn: (value: number) => number, schema?: IConfigurationPropertySchema) {
+	constructor(id: K, name: PossibleKeyName<number>, defaultValue: number, validationFn: (value: number) => number, schema?: IConfigurationPropertySchema, minimum?: number, maximum?: number) {
 		if (typeof schema !== 'undefined') {
 			schema.type = 'number';
 			schema.default = defaultValue;
+			schema.minimum = minimum;
+			schema.maximum = maximum;
 		}
 		super(id, name, defaultValue, schema);
 		this.validationFn = validationFn;
+		this.minimum = minimum;
+		this.maximum = maximum;
 	}
 
 	public override validate(input: any): number {
@@ -1367,13 +1382,6 @@ class EditorEnumOption<K extends EditorOption, T extends string, V> extends Base
 		}
 		return this._convert(<any>input);
 	}
-}
-
-function stringArray(value: any, defaultValue: string[]): string[] {
-	if (!Array.isArray(value)) {
-		return defaultValue;
-	}
-	return value.map(item => String(item));
 }
 
 //#endregion
@@ -1982,6 +1990,26 @@ class EffectiveEditContextEnabled extends ComputedEditorOption<EditorOption.effe
 }
 
 //#endregion
+
+//#region effectiveAllowVariableFonts
+
+class EffectiveAllowVariableFonts extends ComputedEditorOption<EditorOption.effectiveAllowVariableFonts, boolean> {
+
+	constructor() {
+		super(EditorOption.effectiveAllowVariableFonts);
+	}
+
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions): boolean {
+		const accessibilitySupport = env.accessibilitySupport;
+		if (accessibilitySupport === AccessibilitySupport.Enabled) {
+			return options.get(EditorOption.allowVariableFontsInAccessibilityMode);
+		} else {
+			return options.get(EditorOption.allowVariableFonts);
+		}
+	}
+}
+
+//#engregion
 
 //#region fontSize
 
@@ -2777,7 +2805,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		let isViewportWrapping = false;
 		let wrappingColumn = -1;
 
-		if (wordWrapOverride1 === 'inherit' && isDominatedByLongLines) {
+		if (options.get(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled && wordWrapOverride1 === 'inherit' && isDominatedByLongLines) {
 			// Force viewport width wrapping if model is dominated by long lines
 			isWordWrapMinified = true;
 			isViewportWrapping = true;
@@ -3182,7 +3210,9 @@ class EditorLineHeight extends EditorFloatOption<EditorOption.lineHeight> {
 			EditorOption.lineHeight, 'lineHeight',
 			EDITOR_FONT_DEFAULTS.lineHeight,
 			x => EditorFloatOption.clamp(x, 0, 150),
-			{ markdownDescription: nls.localize('lineHeight', "Controls the line height. \n - Use 0 to automatically compute the line height from the font size.\n - Values between 0 and 8 will be used as a multiplier with the font size.\n - Values greater than or equal to 8 will be used as effective values.") }
+			{ markdownDescription: nls.localize('lineHeight', "Controls the line height. \n - Use 0 to automatically compute the line height from the font size.\n - Values between 0 and 8 will be used as a multiplier with the font size.\n - Values greater than or equal to 8 will be used as effective values.") },
+			0,
+			150
 		);
 	}
 
@@ -3761,6 +3791,17 @@ export function filterValidationDecorations(options: IComputedEditorOptions): bo
 
 //#endregion
 
+//#region filterFontDecorations
+
+/**
+ * @internal
+ */
+export function filterFontDecorations(options: IComputedEditorOptions): boolean {
+	return !options.get(EditorOption.effectiveAllowVariableFonts);
+}
+
+//#endregion
+
 //#region rulers
 
 export interface IRulerOption {
@@ -4308,7 +4349,12 @@ export interface IInlineSuggestOptions {
 		/**
 		* @internal
 		*/
-		suppressInlineSuggestions?: string[];
+		suppressInlineSuggestions?: string;
+
+		/**
+		* @internal
+		*/
+		triggerCommandOnProviderChange?: boolean;
 	};
 }
 
@@ -4341,7 +4387,8 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				allowCodeShifting: 'always',
 			},
 			experimental: {
-				suppressInlineSuggestions: [],
+				suppressInlineSuggestions: '',
+				triggerCommandOnProviderChange: true,
 			},
 		};
 
@@ -4375,10 +4422,16 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					description: nls.localize('inlineSuggest.suppressSuggestions', "Controls how inline suggestions interact with the suggest widget. If enabled, the suggest widget is not shown automatically when inline suggestions are available.")
 				},
 				'editor.inlineSuggest.experimental.suppressInlineSuggestions': {
-					type: 'array',
+					type: 'string',
+					default: defaults.experimental.suppressInlineSuggestions,
 					tags: ['experimental', 'onExp'],
-					items: { type: 'string' },
-					description: nls.localize('inlineSuggest.suppressInlineSuggestions', "Suppresses inline completions for specified extension IDs.")
+					description: nls.localize('inlineSuggest.suppressInlineSuggestions', "Suppresses inline completions for specified extension IDs -- comma separated.")
+				},
+				'editor.inlineSuggest.experimental.triggerCommandOnProviderChange': {
+					type: 'boolean',
+					default: defaults.experimental.triggerCommandOnProviderChange,
+					tags: ['experimental', 'onExp'],
+					description: nls.localize('inlineSuggest.triggerCommandOnProviderChange', "Controls whether to trigger a command when the inline suggestion provider changes.")
 				},
 				'editor.inlineSuggest.fontFamily': {
 					type: 'string',
@@ -4433,7 +4486,8 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				renderSideBySide: stringSet(input.edits?.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto']),
 			},
 			experimental: {
-				suppressInlineSuggestions: stringArray(input.experimental?.suppressInlineSuggestions, this.defaultValue.experimental.suppressInlineSuggestions),
+				suppressInlineSuggestions: EditorStringOption.string(input.experimental?.suppressInlineSuggestions, this.defaultValue.experimental.suppressInlineSuggestions),
+				triggerCommandOnProviderChange: boolean(input.experimental?.triggerCommandOnProviderChange, this.defaultValue.experimental.triggerCommandOnProviderChange),
 			},
 		};
 	}
@@ -5500,6 +5554,8 @@ export const enum EditorOption {
 	accessibilitySupport,
 	accessibilityPageSize,
 	allowVariableLineHeights,
+	allowVariableFonts,
+	allowVariableFontsInAccessibilityMode,
 	ariaLabel,
 	ariaRequired,
 	autoClosingBrackets,
@@ -5657,6 +5713,7 @@ export const enum EditorOption {
 	inlineCompletionsAccessibilityVerbose,
 	effectiveEditContext,
 	scrollOnMiddleClick,
+	effectiveAllowVariableFonts
 }
 
 export const EditorOptions = {
@@ -5684,7 +5741,23 @@ export const EditorOptions = {
 			tags: ['accessibility']
 		})),
 	allowVariableLineHeights: register(new EditorBooleanOption(
-		EditorOption.allowVariableLineHeights, 'allowVariableLineHeights', true
+		EditorOption.allowVariableLineHeights, 'allowVariableLineHeights', true,
+		{
+			description: nls.localize('allowVariableLineHeights', "Controls whether to allow using variable line heights in the editor.")
+		}
+	)),
+	allowVariableFonts: register(new EditorBooleanOption(
+		EditorOption.allowVariableFonts, 'allowVariableFonts', true,
+		{
+			description: nls.localize('allowVariableFonts', "Controls whether to allow using variable fonts in the editor.")
+		}
+	)),
+	allowVariableFontsInAccessibilityMode: register(new EditorBooleanOption(
+		EditorOption.allowVariableFontsInAccessibilityMode, 'allowVariableFontsInAccessibilityMode', false,
+		{
+			description: nls.localize('allowVariableFontsInAccessibilityMode', "Controls whether to allow using variable fonts in the editor in the accessibility mode."),
+			tags: ['accessibility']
+		}
 	)),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
@@ -6504,7 +6577,8 @@ export const EditorOptions = {
 	wrappingInfo: register(new EditorWrappingInfoComputer()),
 	wrappingIndent: register(new WrappingIndentOption()),
 	wrappingStrategy: register(new WrappingStrategy()),
-	effectiveEditContextEnabled: register(new EffectiveEditContextEnabled())
+	effectiveEditContextEnabled: register(new EffectiveEditContextEnabled()),
+	effectiveAllowVariableFonts: register(new EffectiveAllowVariableFonts())
 };
 
 type EditorOptionsType = typeof EditorOptions;

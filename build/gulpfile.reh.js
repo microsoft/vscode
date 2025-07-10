@@ -58,6 +58,7 @@ const serverResourceIncludes = [
 
 	// NLS
 	'out-build/nls.messages.json',
+	'out-build/nls.keys.json',
 
 	// Process monitor
 	'out-build/vs/base/node/cpuUsage.sh',
