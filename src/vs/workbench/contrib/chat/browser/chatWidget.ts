@@ -749,7 +749,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// TODO@bhavyaus remove this startup experiment once settled
 			const startupExpValue = startupExpContext.getValue(this.contextKeyService);
 			const configuration = this.configurationService.inspect('workbench.secondarySideBar.defaultVisibility');
-			const expIsActive = configuration.value === 'hidden';
+			const expIsActive = configuration.defaultValue !== 'hidden';
+
+			const expEmptyState = this.configurationService.getValue<boolean>('chat.emptyChatState.enabled');
 
 			const chatSetupTriggerContext = ContextKeyExpr.or(
 				ChatContextKeys.Setup.installed.negate(),
@@ -761,12 +763,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
 			if ((startupExpValue === StartupExperimentGroup.MaximizedChat
 				|| startupExpValue === StartupExperimentGroup.SplitEmptyEditorChat
-				|| startupExpValue === StartupExperimentGroup.SplitWelcomeChat) && this.contextKeyService.contextMatchesRules(chatSetupTriggerContext)) {
+				|| startupExpValue === StartupExperimentGroup.SplitWelcomeChat
+				|| expIsActive) && this.contextKeyService.contextMatchesRules(chatSetupTriggerContext)) {
 				welcomeContent = this.getExpWelcomeViewContent();
 				this.container.classList.add('experimental-welcome-view');
 			}
-			else if (expIsActive) {
-				welcomeContent = this.getWelcomeViewContent(additionalMessage, expIsActive);
+			else if (expEmptyState) {
+				welcomeContent = this.getWelcomeViewContent(additionalMessage, expEmptyState);
 			}
 			else {
 				const tips = this.input.currentModeKind === ChatModeKind.Ask
@@ -792,11 +795,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined, expIsActive?: boolean): IChatViewWelcomeContent {
-		const disclaimerMessage = expIsActive
+	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined, expEmptyState?: boolean): IChatViewWelcomeContent {
+		const disclaimerMessage = expEmptyState
 			? localize('chatDisclaimer', "AI responses may be inaccurate.")
 			: localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.");
-		const icon = expIsActive ? Codicon.chatSparkle : Codicon.copilotLarge;
+		const icon = expEmptyState ? Codicon.chatSparkle : Codicon.copilotLarge;
 
 		if (this.input.currentModeKind === ChatModeKind.Ask) {
 			return {
@@ -807,7 +810,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			};
 		} else if (this.input.currentModeKind === ChatModeKind.Edit) {
 			const editsHelpMessage = localize('editsHelp', "Start your editing session by defining a set of files that you want to work with. Then ask Copilot for the changes you want to make.");
-			const message = expIsActive ? disclaimerMessage : `${editsHelpMessage}\n\n${disclaimerMessage}`;
+			const message = expEmptyState ? disclaimerMessage : `${editsHelpMessage}\n\n${disclaimerMessage}`;
 
 			return {
 				title: localize('editsTitle', "Edit in context."),
@@ -817,7 +820,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			};
 		} else {
 			const agentHelpMessage = localize('agentMessage', "Ask Copilot to edit your files in [agent mode]({0}). Copilot will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.", 'https://aka.ms/vscode-copilot-agent');
-			const message = expIsActive ? disclaimerMessage : `${agentHelpMessage}\n\n${disclaimerMessage}`;
+			const message = expEmptyState ? disclaimerMessage : `${agentHelpMessage}\n\n${disclaimerMessage}`;
 
 			return {
 				title: localize('agentTitle', "Build with agent mode."),

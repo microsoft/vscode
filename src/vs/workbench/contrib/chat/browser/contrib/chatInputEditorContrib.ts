@@ -132,7 +132,7 @@ class InputEditorDecorations extends Disposable {
 		if (!inputValue) {
 			const mode = this.widget.input.currentModeObs.get();
 			let description = mode.description.get();
-			if (this.configurationService.getValue<string>('workbench.secondarySideBar.defaultVisibility') === 'hidden') {
+			if (this.configurationService.getValue<boolean>('chat.emptyChatState.enabled')) {
 				if (mode.kind === ChatModeKind.Ask) {
 					description += ` ${localize('askPlaceholderHint', "# context, @ extensions, / commands")}`;
 				} else if (mode.kind === ChatModeKind.Edit || mode.kind === ChatModeKind.Agent) {
