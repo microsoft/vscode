@@ -16,7 +16,6 @@ import { ExtensionIdentifier } from '../../../platform/extensions/common/extensi
 import { ILogService } from '../../../platform/log/common/log.js';
 import { resizeImage } from '../../contrib/chat/browser/imageUtils.js';
 import { ILanguageModelIgnoredFilesService } from '../../contrib/chat/common/ignoredFiles.js';
-import { ILanguageModelStatsService } from '../../contrib/chat/common/languageModelStats.js';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
@@ -38,7 +37,6 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@ILanguageModelsService private readonly _chatProviderService: ILanguageModelsService,
-		@ILanguageModelStatsService private readonly _languageModelStatsService: ILanguageModelStatsService,
 		@ILogService private readonly _logService: ILogService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IAuthenticationAccessService private readonly _authenticationAccessService: IAuthenticationAccessService,
@@ -130,10 +128,6 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 
 	$selectChatModels(selector: ILanguageModelChatSelector): Promise<string[]> {
 		return this._chatProviderService.selectLanguageModels(selector);
-	}
-
-	$whenLanguageModelChatRequestMade(identifier: string, extensionId: ExtensionIdentifier, participant?: string | undefined, tokenCount?: number | undefined): void {
-		this._languageModelStatsService.update(identifier, extensionId, participant, tokenCount);
 	}
 
 	async $tryStartChatRequest(extension: ExtensionIdentifier, providerId: string, requestId: number, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: {}, token: CancellationToken): Promise<any> {
