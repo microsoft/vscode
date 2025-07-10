@@ -215,7 +215,8 @@ suite('TerminalInstance - Shell Type Detection', () => {
 			strictEqual(shellTypeChanges.length, 3);
 			strictEqual(shellTypeChanges[2], GeneralShellType.PowerShell);
 		});
-			const terminalInstance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
+
+		test('should handle multiple shell type transitions correctly', async () => {
 
 			// Track shell type changes
 			const shellTypeChanges: Array<any> = [];
