@@ -856,7 +856,7 @@ export interface Worktree {
 	readonly lockedReason?: string;
 }
 
-function parseGitWorktrees(raw: string): Worktree[] {
+export function parseGitWorktrees(raw: string): Worktree[] {
 	const lineSeparator = /\r?\n/;
 
 	const result: Worktree[] = [];
