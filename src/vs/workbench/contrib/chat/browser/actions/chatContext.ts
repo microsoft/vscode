@@ -62,6 +62,7 @@ class ToolsContextPickerPick implements IChatContextPickerItem {
 
 	readonly type = 'pickerPick';
 	readonly label: string = localize('chatContext.tools', 'Tools...');
+	readonly description: string = localize('chatContext.tools.description', 'Select tools and tool sets to assist with your request');
 	readonly icon: ThemeIcon = Codicon.tools;
 	readonly ordinal = -500;
 
@@ -144,6 +145,7 @@ class OpenEditorContextValuePick implements IChatContextValueItem {
 
 	readonly type = 'valuePick';
 	readonly label: string = localize('chatContext.editors', 'Open Editors');
+	readonly description: string = localize('chatContext.editors.description', 'Reference currently open files in the editor');
 	readonly icon: ThemeIcon = Codicon.file;
 	readonly ordinal = 800;
 
@@ -183,6 +185,7 @@ class RelatedFilesContextPickerPick implements IChatContextPickerItem {
 	readonly type = 'pickerPick';
 
 	readonly label: string = localize('chatContext.relatedFiles', 'Related Files');
+	readonly description: string = localize('chatContext.relatedFiles.description', 'Add files related to your current context');
 	readonly icon: ThemeIcon = Codicon.sparkle;
 	readonly ordinal = 300;
 
@@ -242,6 +245,7 @@ class RelatedFilesContextPickerPick implements IChatContextPickerItem {
 class ClipboardImageContextValuePick implements IChatContextValueItem {
 	readonly type = 'valuePick';
 	readonly label = localize('imageFromClipboard', 'Image from Clipboard');
+	readonly description = localize('imageFromClipboard.description', 'Include an image from your clipboard');
 	readonly icon = Codicon.fileMedia;
 
 	constructor(
@@ -275,6 +279,9 @@ class ScreenshotContextValuePick implements IChatContextValueItem {
 	readonly label = (isElectron
 		? localize('chatContext.attachScreenshot.labelElectron.Window', 'Screenshot Window')
 		: localize('chatContext.attachScreenshot.labelWeb', 'Screenshot'));
+	readonly description = (isElectron
+		? localize('chatContext.attachScreenshot.descriptionElectron.Window', 'Take and include a screenshot of the current window')
+		: localize('chatContext.attachScreenshot.descriptionWeb', 'Take and include a screenshot'));
 
 	constructor(
 		@IHostService private readonly _hostService: IHostService,
