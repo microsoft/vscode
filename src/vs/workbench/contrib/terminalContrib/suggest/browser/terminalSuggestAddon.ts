@@ -383,7 +383,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	async requestCompletions(explicitlyInvoked?: boolean): Promise<void> {
 		if (!this._promptInputModel) {
-			this._shouldSyncWhenReady = true;
+			if (explicitlyInvoked) {
+				// For explicit invocations, show "No suggestions" even if no prompt input model is available
+				this._showEmptyCompletionsForExplicitInvocation();
+			} else {
+				this._shouldSyncWhenReady = true;
+			}
 			return;
 		}
 
@@ -422,6 +427,25 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._inlineCompletionItem.completion.detail = undefined;
 			this._inlineCompletionItem.completion.documentation = undefined;
 		}
+	}
+
+	private _showEmptyCompletionsForExplicitInvocation(): void {
+		if (!this._terminal?.element) {
+			return;
+		}
+		
+		const suggestWidget = this._ensureSuggestWidget(this._terminal);
+		const cursorPosition = this._getCursorPosition(this._terminal);
+		if (!cursorPosition) {
+			return;
+		}
+
+		// Create an empty completion model
+		const lineContext = new LineContext('', 0);
+		const emptyModel = new TerminalCompletionModel([], lineContext);
+		
+		// Show the widget with the empty model to display "No suggestions"
+		this._showCompletions(emptyModel, true);
 	}
 
 	private _requestTriggerCharQuickSuggestCompletions(): boolean {
@@ -707,7 +731,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const suggestWidget = this._ensureSuggestWidget(this._terminal);
 		suggestWidget.setCompletionModel(model);
 		this._register(suggestWidget.onDidFocus(() => this._terminal?.focus()));
-		if (!this._promptInputModel || !explicitlyInvoked && model.items.length === 0) {
+		if (!explicitlyInvoked && (!this._promptInputModel || model.items.length === 0)) {
 			return;
 		}
 		this._model = model;
