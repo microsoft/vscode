@@ -17,6 +17,7 @@ import { IEditorPane } from '../../../common/editor.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IChatAgentResult } from './chatAgents.js';
 import { ChatModel, IChatResponseModel } from './chatModel.js';
+import { FileAndTextWorkspaceEdit } from './chatService.js';
 
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
 
@@ -149,7 +150,7 @@ export interface IChatEditingSession extends IDisposable {
 	 * @param edits Edit to make
 	 * @param inUndoStop The undo stop the edits will be grouped in
 	 */
-	makeWorkspaceEdit(editId: string | undefined, responseModel: IChatResponseModel, edits: WorkspaceEdit, inUndoStop: string | undefined): void;
+	makeWorkspaceEdit(editId: string | undefined, responseModel: IChatResponseModel, edits: FileAndTextWorkspaceEdit, inUndoStop: string | undefined): void;
 
 	/**
 	 * Gets the document diff of a change made to a URI between one undo stop and

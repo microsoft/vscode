@@ -84,11 +84,16 @@ declare module 'vscode' {
 		constructor(toolName: string);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatPrepareToolInvocationPart;
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatPrepareToolInvocationPart | ChatResponseWorkspaceEditPart;
 
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
 		constructor(value: string | MarkdownString);
+	}
+
+	export class ChatResponseWorkspaceEditPart {
+		value: WorkspaceEdit;
+		constructor(value: WorkspaceEdit);
 	}
 
 	export class ChatResponseProgressPart2 extends ChatResponseProgressPart {
@@ -190,6 +195,8 @@ declare module 'vscode' {
 		notebookEdit(target: Uri, edits: NotebookEdit | NotebookEdit[]): void;
 
 		notebookEdit(target: Uri, isDone: true): void;
+
+		workspaceEdit(edit: WorkspaceEdit): void;
 
 		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): void;
 		codeblockUri(uri: Uri, isEdit?: boolean): void;

@@ -1362,7 +1362,7 @@ export function chatAgentHistoryEntryToDto(entry: IChatAgentHistoryEntry): IChat
 	return {
 		request: entry.request,
 		// todo@connor4312 we don't yet have WorkspaceEdit->DTO code
-		response: entry.response.map((r): IChatContentProgressDto => r.kind === 'workspaceEdit' ? { ...r, edits: { edits: [] } } : r),
+		response: entry.response.map((r): IChatContentProgressDto => r.kind === 'workspaceEdit' ? { ...r, edit: { edits: [] } } : r),
 		result: entry.result
 	};
 }
@@ -1370,6 +1370,7 @@ export function chatAgentHistoryEntryToDto(entry: IChatAgentHistoryEntry): IChat
 export interface ExtHostChatAgentsShape2 {
 	$invokeAgent(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
 	$setRequestPaused(handle: number, requestId: string, isPaused: boolean): void;
+	$getWorkspaceEditDataTransfer(requestId: string, resourceId: string): Promise<VSBuffer | undefined>;
 	$provideFollowups(request: Dto<IChatAgentRequest>, handle: number, result: IChatAgentResult, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatFollowup[]>;
 	$acceptFeedback(handle: number, result: IChatAgentResult, voteAction: IChatVoteAction): void;
 	$acceptAction(handle: number, result: IChatAgentResult, action: IChatUserActionEvent): void;
@@ -1457,7 +1458,7 @@ export type IDocumentContextDto = {
 export interface IChatWorkspaceEditDto {
 	kind: 'workspaceEdit';
 	id: string;
-	edits: IWorkspaceEditDto;
+	edit: IWorkspaceEditDto;
 }
 
 export type IChatProgressDto =

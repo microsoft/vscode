@@ -2683,6 +2683,21 @@ export namespace ChatResponseWarningPart {
 	}
 }
 
+export namespace ChatResponseWorkspaceEditPart {
+	export function from(part: vscode.ChatResponseWorkspaceEditPart): extHostProtocol.IChatWorkspaceEditDto {
+		return {
+			kind: 'workspaceEdit',
+			edit: WorkspaceEdit.from(part.value),
+			id: (part instanceof types.ChatResponseWorkspaceEditPart && part._id) || generateUuid(),
+		};
+	}
+	export function to(dto: extHostProtocol.IChatWorkspaceEditDto): vscode.ChatResponseWorkspaceEditPart {
+		const part = new types.ChatResponseWorkspaceEditPart(WorkspaceEdit.to(dto.edit));
+		part._id = dto.id || generateUuid();
+		return part;
+	}
+}
+
 export namespace ChatResponseExtensionsPart {
 	export function from(part: vscode.ChatResponseExtensionsPart): Dto<IChatExtensionsContent> {
 		return {
@@ -2896,6 +2911,8 @@ export namespace ChatResponsePart {
 			return ChatResponseExtensionsPart.from(part);
 		} else if (part instanceof types.ChatPrepareToolInvocationPart) {
 			return ChatPrepareToolInvocationPart.from(part);
+		} else if (part instanceof types.ChatResponseWorkspaceEditPart) {
+			return ChatResponseWorkspaceEditPart.from(part);
 		}
 
 		return {

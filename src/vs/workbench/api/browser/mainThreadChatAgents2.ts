@@ -34,8 +34,10 @@ import { ChatAgentLocation, ChatModeKind } from '../../contrib/chat/common/const
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { chatAgentHistoryEntryToDto, ExtHostChatAgentsShape2, ExtHostContext, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
+import { chatAgentHistoryEntryToDto, ExtHostChatAgentsShape2, ExtHostContext, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatWorkspaceEditDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 import { NotebookDto } from './mainThreadNotebookDto.js';
+import { reviveWorkspaceEditDto } from './mainThreadBulkEdits.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 
 interface AgentData {
 	dispose: () => void;
@@ -256,6 +258,10 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			) {
 				// make sure to use the canonical uri
 				revivedProgress.uri = this._uriIdentityService.asCanonicalUri(revivedProgress.uri);
+			}
+
+			if (revivedProgress.kind === 'workspaceEdit') {
+				revivedProgress.edit = reviveWorkspaceEditDto((progress as IChatWorkspaceEditDto).edit, this._uriIdentityService, async id => await this._proxy.$getWorkspaceEditDataTransfer(requestId, id) || VSBuffer.alloc(0));
 			}
 
 			if (responsePartHandle !== undefined) {

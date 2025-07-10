@@ -12,14 +12,13 @@ import { revive } from '../../../base/common/marshalling.js';
 import { isAsyncIterable } from '../../../base/common/types.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { IChatTextEdit } from '../../contrib/chat/common/chatService.js';
 import { IPreparedToolInvocation, isToolInvocationContext, IToolInvocation, IToolInvocationContext, IToolInvocationPreparationContext, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import { ExtensionEditToolId, InternalEditToolId } from '../../contrib/chat/common/tools/editFileTool.js';
 import { InternalFetchWebPageToolId } from '../../contrib/chat/common/tools/tools.js';
 import { SearchExtensionsToolId } from '../../contrib/extensions/common/searchExtensionsTool.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto, SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostLanguageModelToolsShape, IChatNotebookEditDto, IChatWorkspaceEditDto, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
+import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
 import { ExtHostChatAgents2 } from './extHostChatAgents2.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import * as typeConvert from './extHostTypeConverters.js';
@@ -179,7 +178,9 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		const opStreamRef = { isDone: false };
 		if (isProposedApiEnabled(item.extension, 'chatParticipantAdditions') && dto.modelId) {
 			options.model = await this.getModel(dto.modelId, item.extension);
-			(options as vscode.LanguageModelToolInvocation<any>).operations = this.createOperationStream(dto.context?.sessionId, dto.chatRequestId, opStreamRef, token);
+			if (dto.context?.sessionId && dto.chatRequestId) {
+				(options as vscode.LanguageModelToolInvocation<any>).operations = this.createOperationStream(dto.context?.sessionId, dto.chatRequestId, opStreamRef, token);
+			}
 		}
 
 		if (dto.tokenBudget !== undefined) {
@@ -216,7 +217,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		}
 	}
 
-	private createOperationStream(chatSessionId: string | undefined, chatRequestId: string | undefined, ref: { isDone: boolean }, token: CancellationToken): vscode.LanguageModelToolOperationStream {
+	private createOperationStream(chatSessionId: string, chatRequestId: string, ref: { isDone: boolean }, token: CancellationToken): vscode.LanguageModelToolOperationStream {
 		function throwIfDone(source: Function | undefined) {
 			if (ref.isDone) {
 				const err = new Error('Tool call has completed');
@@ -224,29 +225,19 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				throw err;
 			}
 		}
-
-		const request = chatRequestId && this._chatAgents.getInFlightRequest(chatRequestId);
-		const report = async (dto: IChatWorkspaceEditDto | IChatNotebookEditDto | Dto<IChatTextEdit>) => {
-			if (request && chatSessionId) {
-				if (!dto.id) {
-					throw new Error('Tool edit must have an ID');
-				}
-				const waiter = this._chatAgents.awaitEditId(chatSessionId, dto.id, token);
-				request.stream.send(dto);
-				await waiter;
-			}
-		};
+		const request = this._chatAgents.getInFlightRequest(chatRequestId)!;
 
 		return {
 			notebookEdit: async (target, edits) => {
 				throwIfDone(this.createOperationStream);
 				const id = generateUuid();
+				const waiter = this._chatAgents.awaitEditId(chatSessionId, id, token);
+
 				if (isAsyncIterable(edits)) {
 					for await (const edit of edits) {
 						const part = new extHostTypes.ChatResponseNotebookEditPart(target, edit);
-						const dto = typeConvert.ChatResponseNotebookEditPart.from(part);
-						dto.id = id;
-						await report(dto);
+						part._id = id;
+						request.stream.apiObject.push(part);
 					}
 
 					edits = [];
@@ -254,19 +245,22 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 
 				const part = new extHostTypes.ChatResponseNotebookEditPart(target, []);
 				part.isDone = true;
-				const dto = typeConvert.ChatResponseNotebookEditPart.from(part);
-				await report(dto);
+				part._id = id;
+				request.stream.apiObject.push(part);
+
+				await waiter;
 			},
 
 			textEdit: async (target, edits) => {
 				throwIfDone(this.createOperationStream);
 				const id = generateUuid();
+				const waiter = this._chatAgents.awaitEditId(chatSessionId, id, token);
+
 				if (isAsyncIterable(edits)) {
 					for await (const edit of edits) {
 						const part = new extHostTypes.ChatResponseTextEditPart(target, edit);
-						const dto = typeConvert.ChatResponseTextEditPart.from(part);
-						dto.id = id;
-						await report(dto);
+						part._id = id;
+						request.stream.apiObject.push(part);
 					}
 
 					edits = [];
@@ -274,16 +268,17 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 
 				const part = new extHostTypes.ChatResponseTextEditPart(target, []);
 				part.isDone = true;
-				const dto = typeConvert.ChatResponseTextEditPart.from(part);
-				await report(dto);
+				part._id = id;
+				request.stream.apiObject.push(part);
+
+				await waiter;
 			},
 
 			workspaceEdit: async (edits) => {
-				await report({
-					kind: 'workspaceEdit',
-					id: generateUuid(),
-					edits: typeConvert.WorkspaceEdit.from(edits),
-				});
+				const id = generateUuid();
+				const part = new extHostTypes.ChatResponseWorkspaceEditPart(edits);
+				request.stream.apiObject.push(part);
+				await this._chatAgents.awaitEditId(chatSessionId!, id, token);
 			}
 		};
 	}

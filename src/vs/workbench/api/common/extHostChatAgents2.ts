@@ -33,6 +33,7 @@ import { ExtHostDocuments } from './extHostDocuments.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 
 class ChatAgentResponseStream {
 
@@ -41,6 +42,7 @@ class ChatAgentResponseStream {
 	private _firstProgress: number | undefined;
 	private _apiObject: vscode.ChatResponseStream | undefined;
 
+	private _workspaceEdits = new Set<extHostTypes.WorkspaceEdit>();
 	private _sendQueue: (IChatProgressDto | [IChatProgressDto, number])[] = [];
 	private _notify: Function[] = [];
 
@@ -54,6 +56,19 @@ class ChatAgentResponseStream {
 
 	close() {
 		this._isClosed = true;
+	}
+
+	async getWorkspaceEditDataTransfer(itemId: string) {
+		for (const edit of this._workspaceEdits) {
+			for (const e of edit._allEntries()) {
+				if (e._type === extHostTypes.FileEditType.File && e.options && !ArrayBuffer.isView(e.options.contents)) {
+					if ((e.options.contents as extHostTypes.DataTransferFile)._itemId === itemId) {
+						return VSBuffer.wrap(await (e.options.contents as extHostTypes.DataTransferFile).data());
+					}
+				}
+			}
+		}
+		return undefined;
 	}
 
 	send(chunk: IChatProgressDto): void;
@@ -192,6 +207,13 @@ class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
+				workspaceEdit(edit) {
+					throwIfDone(this.progress);
+					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
+					const part = new extHostTypes.ChatResponseWorkspaceEditPart(edit);
+					this.push(part);
+					return this;
+				},
 				reference(value, iconPath) {
 					return this.reference2(value, iconPath);
 				},
@@ -323,6 +345,12 @@ class ChatAgentResponseStream {
 						const dto = typeConvert.ChatPrepareToolInvocationPart.from(part);
 						_report(dto);
 						return this;
+					} else if (part instanceof extHostTypes.ChatResponseWorkspaceEditPart) {
+						checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
+						that._workspaceEdits.add(part.value as extHostTypes.WorkspaceEdit);
+						const dto = typeConvert.ChatResponseWorkspaceEditPart.from(part);
+						_report(dto);
+						return this;
 					} else {
 						const dto = typeConvert.ChatResponsePart.from(part, that._commandsConverter, that._sessionDisposables);
 						_report(dto);
@@ -432,6 +460,16 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			this._relatedFilesProviders.delete(handle);
 			this._proxy.$unregisterRelatedFilesProvider(handle);
 		});
+	}
+
+	async $getWorkspaceEditDataTransfer(requestId: string, resourceId: string): Promise<VSBuffer | undefined> {
+		for (const req of this._inFlightRequests) {
+			if (req.requestId === requestId) {
+				return req.stream.getWorkspaceEditDataTransfer(resourceId);
+			}
+		}
+
+		return undefined;
 	}
 
 	async $provideRelatedFiles(handle: number, request: IChatRequestDraft, token: CancellationToken): Promise<Dto<IChatRelatedFile>[] | undefined> {

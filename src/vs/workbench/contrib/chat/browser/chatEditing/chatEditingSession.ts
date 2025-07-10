@@ -14,7 +14,7 @@ import { autorun, IObservable, IReader, ITransaction, observableValue, transacti
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
-import { TextEdit, WorkspaceEdit } from '../../../../../editor/common/languages.js';
+import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
@@ -32,7 +32,7 @@ import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCo
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ISnapshotEntry, IStreamingEdits, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
-import { IChatService } from '../../common/chatService.js';
+import { FileAndTextWorkspaceEdit, IChatService } from '../../common/chatService.js';
 import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentEntry.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
@@ -405,7 +405,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return this._state.get() === ChatEditingSessionState.Disposed;
 	}
 
-	makeWorkspaceEdit(editId: string | undefined, responseModel: IChatResponseModel, edits: WorkspaceEdit, inUndoStop: string | undefined): void {
+	makeWorkspaceEdit(editId: string | undefined, responseModel: IChatResponseModel, edits: FileAndTextWorkspaceEdit, inUndoStop: string | undefined): void {
 		throw new Error('not implemented');
 	}
 

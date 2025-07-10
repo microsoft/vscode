@@ -4684,6 +4684,12 @@ export class ChatResponseWarningPart {
 	}
 }
 
+
+export class ChatResponseWorkspaceEditPart {
+	_id?: string;
+	constructor(public value: vscode.WorkspaceEdit) { }
+}
+
 export class ChatResponseCommandButtonPart {
 	value: vscode.Command;
 	constructor(value: vscode.Command) {
@@ -4741,6 +4747,7 @@ export class ChatResponseTextEditPart implements vscode.ChatResponseTextEditPart
 	uri: vscode.Uri;
 	edits: vscode.TextEdit[];
 	isDone?: boolean;
+	_id?: string;
 	constructor(uri: vscode.Uri, editsOrDone: vscode.TextEdit | vscode.TextEdit[] | true) {
 		this.uri = uri;
 		if (editsOrDone === true) {
@@ -4756,6 +4763,7 @@ export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebook
 	uri: vscode.Uri;
 	edits: vscode.NotebookEdit[];
 	isDone?: boolean;
+	_id?: string;
 	constructor(uri: vscode.Uri, editsOrDone: vscode.NotebookEdit | vscode.NotebookEdit[] | true) {
 		this.uri = uri;
 		if (editsOrDone === true) {
