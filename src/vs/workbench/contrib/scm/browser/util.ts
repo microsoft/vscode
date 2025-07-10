@@ -22,7 +22,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { escapeDoubleQuotes, escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { fromNow, safeIntl } from '../../../../base/common/date.js';
@@ -165,17 +165,19 @@ export function getHistoryItemHoverContent(themeService: IThemeService, historyI
 	const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 
 	if (historyItem.author) {
+		const escapedAuthor = escapeMarkdownSyntaxTokens(escapeDoubleQuotes(historyItem.author));
+
 		const icon = URI.isUri(historyItem.authorIcon)
-			? `![${historyItem.author}](${historyItem.authorIcon.toString()}|width=20,height=20)`
+			? `![${escapedAuthor}](${historyItem.authorIcon.toString()}|width=20,height=20)`
 			: ThemeIcon.isThemeIcon(historyItem.authorIcon)
 				? `$(${historyItem.authorIcon.id})`
 				: '$(account)';
 
 		if (historyItem.authorEmail) {
 			const emailTitle = localize('emailLinkTitle', "Email");
-			markdown.appendMarkdown(`${icon} [**${historyItem.author}**](mailto:${historyItem.authorEmail} "${emailTitle} ${historyItem.author}")`);
+			markdown.appendMarkdown(`${icon} [**${escapedAuthor}**](mailto:${historyItem.authorEmail} "${emailTitle} ${escapedAuthor}")`);
 		} else {
-			markdown.appendMarkdown(`${icon} **${historyItem.author}**`);
+			markdown.appendMarkdown(`${icon} **${escapedAuthor}**`);
 		}
 
 		if (historyItem.timestamp) {
