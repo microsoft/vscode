@@ -1248,13 +1248,13 @@ class ChatSetupController extends Disposable {
 			let session: AuthenticationSession | undefined;
 			let entitlement: ChatEntitlement | undefined;
 
-			const installation = this.doInstall();
-
 			// Entitlement Unknown or `forceSignIn`: we need to sign-in user
 			if (this.context.state.entitlement === ChatEntitlement.Unknown || options.forceSignIn) {
 				this.setStep(ChatSetupStep.SigningIn);
 				const result = await this.signIn({ useAlternateProvider: options.useAlternateProvider });
 				if (!result.session) {
+					this.doInstall(); // still install the extension in the background to remind the user to sign-in eventually
+
 					const provider = options.useAlternateProvider ? defaultChat.alternativeProviderId : options.useEnterpriseProvider ? defaultChat.enterpriseProviderId : defaultChat.providerId;
 					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotSignedIn', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
 					return undefined; // treat as cancelled because signing in already triggers an error dialog
@@ -1266,7 +1266,7 @@ class ChatSetupController extends Disposable {
 
 			// Await Install
 			this.setStep(ChatSetupStep.Installing);
-			success = await this.install(session, entitlement ?? this.context.state.entitlement, providerId, watch, installation, options);
+			success = await this.install(session, entitlement ?? this.context.state.entitlement, providerId, watch, options);
 		} finally {
 			this.setStep(ChatSetupStep.Initial);
 			this.context.resume();
@@ -1300,7 +1300,7 @@ class ChatSetupController extends Disposable {
 		return { session, entitlement: entitlements?.entitlement };
 	}
 
-	private async install(session: AuthenticationSession | undefined, entitlement: ChatEntitlement, providerId: string, watch: StopWatch, installation: Promise<void>, options: { useAlternateProvider?: boolean; useEnterpriseProvider?: boolean }): Promise<ChatSetupResultValue> {
+	private async install(session: AuthenticationSession | undefined, entitlement: ChatEntitlement, providerId: string, watch: StopWatch, options: { useAlternateProvider?: boolean; useEnterpriseProvider?: boolean }): Promise<ChatSetupResultValue> {
 		const wasRunning = this.context.state.installed && !this.context.state.disabled;
 		let signUpResult: boolean | { errorCode: number } | undefined = undefined;
 
@@ -1333,7 +1333,7 @@ class ChatSetupController extends Disposable {
 				}
 			}
 
-			await this.doInstallWithRetry(installation);
+			await this.doInstallWithRetry();
 		} catch (error) {
 			this.logService.error(`[chat setup] install: error ${error}`);
 			this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: isCancellationError(error) ? 'cancelled' : 'failedInstall', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
@@ -1344,17 +1344,21 @@ class ChatSetupController extends Disposable {
 			this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: wasRunning && !signUpResult ? 'alreadyInstalled' : 'installed', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
 		}
 
-		if (wasRunning && signUpResult === true) {
+		if (wasRunning) {
+			// We always trigger refresh of tokens to help the user
+			// get out of authentication issues that can happen when
+			// for example the sign-up ran after the extension tried
+			// to use the authentication information to mint a token
 			refreshTokens(this.commandService);
 		}
 
 		return true;
 	}
 
-	private async doInstallWithRetry(installation: Promise<void>): Promise<void> {
+	private async doInstallWithRetry(): Promise<void> {
 		let error: Error | undefined;
 		try {
-			await installation;
+			await this.doInstall();
 		} catch (e) {
 			this.logService.error(`[chat setup] install: error ${error}`);
 			error = e;
@@ -1370,7 +1374,7 @@ class ChatSetupController extends Disposable {
 				});
 
 				if (confirmed) {
-					return this.doInstallWithRetry(this.doInstall());
+					return this.doInstallWithRetry();
 				}
 			}
 

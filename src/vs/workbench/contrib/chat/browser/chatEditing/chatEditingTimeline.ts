@@ -6,7 +6,9 @@
 
 
 import { equals as arraysEqual, binarySearch2 } from '../../../../../base/common/arrays.js';
+import { equals as objectsEqual } from '../../../../../base/common/objects.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { derived, derivedOpts, IObservable, ITransaction, ObservablePromise, observableValue, transaction } from '../../../../../base/common/observable.js';
@@ -46,6 +48,22 @@ export class ChatEditingTimeline {
 	public readonly canUndo: IObservable<boolean>;
 	public readonly canRedo: IObservable<boolean>;
 
+	public readonly requestDisablement = derivedOpts<IChatRequestDisablement[]>({ equalsFn: (a, b) => arraysEqual(a, b, objectsEqual) }, reader => {
+		const history = this._linearHistory.read(reader);
+		const index = this._linearHistoryIndex.read(reader);
+		const undoRequests: IChatRequestDisablement[] = [];
+		for (const entry of history) {
+			if (!entry.requestId) {
+				// ignored
+			} else if (entry.startIndex >= index) {
+				undoRequests.push({ requestId: entry.requestId });
+			} else if (entry.startIndex + entry.stops.length > index) {
+				undoRequests.push({ requestId: entry.requestId, afterUndoStop: entry.stops[(index - 1) - entry.startIndex].stopId });
+			}
+		}
+		return undoRequests;
+	});
+
 	constructor(
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -76,7 +94,7 @@ export class ChatEditingTimeline {
 	 * Get the snapshot and history index for restoring, given requestId and stopId.
 	 * If requestId is undefined, returns undefined (pending snapshot is managed by session).
 	 */
-	public getSnapshotForRestore(requestId: string | undefined, stopId: string | undefined): { stop: IChatEditingSessionStop; historyIndex: number; apply(): void } | undefined {
+	public getSnapshotForRestore(requestId: string | undefined, stopId: string | undefined): { stop: IChatEditingSessionStop; apply(): void } | undefined {
 		if (requestId === undefined) {
 			return undefined;
 		}
@@ -85,7 +103,13 @@ export class ChatEditingTimeline {
 			return undefined;
 		}
 
-		return { stop: stopRef.stop, historyIndex: stopRef.historyIndex, apply: () => this._linearHistoryIndex.set(stopRef.historyIndex + 1, undefined) };
+		// When rolling back to the first snapshot taken for a request, mark the
+		// entire request as undone.
+		const toIndex = stopRef.stop.stopId === undefined ? stopRef.historyIndex : stopRef.historyIndex + 1;
+		return {
+			stop: stopRef.stop,
+			apply: () => this._linearHistoryIndex.set(toIndex, undefined)
+		};
 	}
 
 	/**
@@ -119,22 +143,21 @@ export class ChatEditingTimeline {
 			return;
 		}
 
-		const snap = history[snapIndex];
+		const snap = { ...history[snapIndex] };
 		let stopIndex = snap.stops.findIndex((s) => s.stopId === undoStop);
 		if (stopIndex === -1) {
 			return;
 		}
 
+		let linearHistoryIndexIncr = 0;
 		if (next) {
 			if (stopIndex === snap.stops.length - 1) {
-				const postEdit = new ResourceMap(snap.postEdit || ChatEditingTimeline.createEmptySnapshot(undefined).entries);
-				if (!snap.postEdit || !entry.equalsSnapshot(postEdit.get(entry.modifiedURI) as ISnapshotEntry | undefined)) {
-					postEdit.set(entry.modifiedURI, entry.createSnapshot(requestId, ChatEditingTimeline.POST_EDIT_STOP_ID));
-					const newHistory = history.slice();
-					newHistory[snapIndex] = { ...snap, postEdit };
-					this._linearHistory.set(newHistory, tx);
+				if (snap.stops[stopIndex].stopId === ChatEditingTimeline.POST_EDIT_STOP_ID) {
+					throw new Error('cannot duplicate post-edit stop');
 				}
-				return;
+
+				snap.stops = snap.stops.concat(ChatEditingTimeline.createEmptySnapshot(ChatEditingTimeline.POST_EDIT_STOP_ID));
+				linearHistoryIndexIncr++;
 			}
 			stopIndex++;
 		}
@@ -149,10 +172,15 @@ export class ChatEditingTimeline {
 
 		const newStop = snap.stops.slice();
 		newStop[stopIndex] = { ...stop, entries: newMap };
+		snap.stops = newStop;
 
 		const newHistory = history.slice();
-		newHistory[snapIndex] = { ...snap, stops: newStop };
+		newHistory[snapIndex] = snap;
+
 		this._linearHistory.set(newHistory, tx);
+		if (linearHistoryIndexIncr) {
+			this._linearHistoryIndex.set(this._linearHistoryIndex.get() + linearHistoryIndexIncr, tx);
+		}
 	}
 
 	/**
@@ -161,23 +189,40 @@ export class ChatEditingTimeline {
 	 * pushed into the history.
 	 */
 	public getUndoSnapshot(): { stop: IChatEditingSessionStop; apply(): void } | undefined {
-		const idx = this._linearHistoryIndex.get() - 2;
-		const entry = this.getHistoryEntryByLinearIndex(idx);
-		if (entry) {
-			return { stop: entry.stop, apply: () => this._linearHistoryIndex.set(idx + 1, undefined) };
-		}
-		return undefined;
+		return this.getUndoRedoSnapshot(-1);
 	}
 
 	/**
 	 * Get the redo snapshot (next in history), or undefined if at end.
 	 */
 	public getRedoSnapshot(): { stop: IChatEditingSessionStop; apply(): void } | undefined {
-		const idx = this._linearHistoryIndex.get();
-		const entry = this.getHistoryEntryByLinearIndex(idx);
+		return this.getUndoRedoSnapshot(1);
+	}
+
+	private getUndoRedoSnapshot(direction: number) {
+		let idx = this._linearHistoryIndex.get() - 1;
+		const max = getMaxHistoryIndex(this._linearHistory.get());
+		const startEntry = this.getHistoryEntryByLinearIndex(idx);
+		let entry = startEntry;
+		if (!startEntry) {
+			return undefined;
+		}
+
+		do {
+			idx += direction;
+			entry = this.getHistoryEntryByLinearIndex(idx);
+		} while (
+			idx + direction < max &&
+			idx + direction >= 0 &&
+			entry &&
+			!(direction === -1 && entry.entry.requestId !== startEntry.entry.requestId) &&
+			!stopProvidesNewData(startEntry.stop, entry.stop)
+		);
+
 		if (entry) {
 			return { stop: entry.stop, apply: () => this._linearHistoryIndex.set(idx + 1, undefined) };
 		}
+
 		return undefined;
 	}
 
@@ -221,7 +266,7 @@ export class ChatEditingTimeline {
 			if (entry.startIndex >= linearHistoryPtr) {
 				break;
 			} else if (linearHistoryPtr - entry.startIndex < entry.stops.length) {
-				newLinearHistory.push({ requestId: entry.requestId, stops: entry.stops.slice(0, linearHistoryPtr - entry.startIndex), startIndex: entry.startIndex, postEdit: undefined });
+				newLinearHistory.push({ requestId: entry.requestId, stops: entry.stops.slice(0, linearHistoryPtr - entry.startIndex), startIndex: entry.startIndex });
 			} else {
 				newLinearHistory.push(entry);
 			}
@@ -229,15 +274,19 @@ export class ChatEditingTimeline {
 
 		const lastEntry = newLinearHistory.at(-1);
 		if (requestId && lastEntry?.requestId === requestId) {
-			if (lastEntry.postEdit && undoStop) {
+			const hadPostEditStop = lastEntry.stops.at(-1)?.stopId === ChatEditingTimeline.POST_EDIT_STOP_ID && undoStop;
+			if (hadPostEditStop) {
 				const rebaseUri = (uri: URI) => uri.with({ query: uri.query.replace(ChatEditingTimeline.POST_EDIT_STOP_ID, undoStop) });
-				for (const [uri, prev] of lastEntry.postEdit.entries()) {
+				for (const [uri, prev] of lastEntry.stops.at(-1)!.entries) {
 					snapshot.entries.set(uri, { ...prev, snapshotUri: rebaseUri(prev.snapshotUri), resource: rebaseUri(prev.resource) });
 				}
 			}
-			newLinearHistory[newLinearHistory.length - 1] = { ...lastEntry, stops: [...lastEntry.stops, snapshot], postEdit: undefined };
+			newLinearHistory[newLinearHistory.length - 1] = {
+				...lastEntry,
+				stops: [...hadPostEditStop ? lastEntry.stops.slice(0, -1) : lastEntry.stops, snapshot]
+			};
 		} else {
-			newLinearHistory.push({ requestId, startIndex: lastEntry ? lastEntry.startIndex + lastEntry.stops.length : 0, stops: [snapshot], postEdit: undefined });
+			newLinearHistory.push({ requestId, startIndex: lastEntry ? lastEntry.startIndex + lastEntry.stops.length : 0, stops: [snapshot] });
 		}
 
 		transaction((tx) => {
@@ -245,25 +294,6 @@ export class ChatEditingTimeline {
 			this._linearHistory.set(newLinearHistory, tx);
 			this._linearHistoryIndex.set(last.startIndex + last.stops.length, tx);
 		});
-	}
-
-	/**
-	 * Gets chat disablement entries for the current timeline state.
-	 */
-	public getRequestDisablement() {
-		const history = this._linearHistory.get();
-		const index = this._linearHistoryIndex.get();
-		const undoRequests: IChatRequestDisablement[] = [];
-		for (const entry of history) {
-			if (!entry.requestId) {
-				// ignored
-			} else if (entry.startIndex >= index) {
-				undoRequests.push({ requestId: entry.requestId });
-			} else if (entry.startIndex + entry.stops.length > index) {
-				undoRequests.push({ requestId: entry.requestId, afterUndoStop: entry.stops[index - entry.startIndex].stopId });
-			}
-		}
-		return undoRequests;
 	}
 
 	/**
@@ -390,6 +420,10 @@ export class ChatEditingTimeline {
 	}
 }
 
+function stopProvidesNewData(origin: IChatEditingSessionStop, target: IChatEditingSessionStop) {
+	return Iterable.some(target.entries, ([uri, e]) => origin.entries.get(uri)?.current !== e.current);
+}
+
 function getMaxHistoryIndex(history: readonly IChatEditingSessionSnapshot[]) {
 	const lastHistory = history.at(-1);
 	return lastHistory ? lastHistory.startIndex + lastHistory.stops.length : 0;
@@ -415,14 +449,11 @@ function getCurrentAndNextStop(requestId: string, stopId: string | undefined, hi
 	const nextStop = stopIndex < snapshot.stops.length - 1
 		? snapshot.stops[stopIndex + 1]
 		: undefined;
-	const next = nextStop?.entries || snapshot.postEdit;
-
-
-	if (!next) {
+	if (!nextStop) {
 		return undefined;
 	}
 
-	return { current, currentStopId: currentStop.stopId, next, nextStopId: nextStop?.stopId || ChatEditingTimeline.POST_EDIT_STOP_ID };
+	return { current, currentStopId: currentStop.stopId, next: nextStop.entries, nextStopId: nextStop.stopId };
 }
 
 function getFirstAndLastStop(uri: URI, history: readonly IChatEditingSessionSnapshot[]) {
@@ -439,12 +470,6 @@ function getFirstAndLastStop(uri: URI, history: readonly IChatEditingSessionSnap
 	let lastStopWithUriId: string | undefined;
 	for (let i = history.length - 1; i >= 0; i--) {
 		const snapshot = history[i];
-		if (snapshot.postEdit?.has(uri)) {
-			lastStopWithUri = snapshot.postEdit;
-			lastStopWithUriId = ChatEditingTimeline.POST_EDIT_STOP_ID;
-			break;
-		}
-
 		const stop = findLast(snapshot.stops, s => s.entries.has(uri));
 		if (stop) {
 			lastStopWithUri = stop.entries;
