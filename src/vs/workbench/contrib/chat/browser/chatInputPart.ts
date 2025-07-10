@@ -1806,15 +1806,14 @@ class AddFilesButton extends DropdownMenuActionViewItem {
 		}
 
 		for (const item of this.contextPickService.items) {
-			// Check if item is enabled
+			// Check if item is enabled - for async checks, we'll include the item
+			// and let the action itself handle the enabled state
 			if (item.isEnabled) {
 				const isEnabled = item.isEnabled(widget);
-				if (isEnabled instanceof Promise) {
-					// For simplicity, assume enabled if it's a promise
-					// In a real implementation, we'd need to handle this properly
-				} else if (!isEnabled) {
+				if (typeof isEnabled === 'boolean' && !isEnabled) {
 					continue;
 				}
+				// If it's a Promise, we'll include the item and check in the action
 			}
 
 			const action = new class extends Action {
@@ -1825,6 +1824,14 @@ class AddFilesButton extends DropdownMenuActionViewItem {
 						ThemeIcon.asClassName(item.icon),
 						true,
 						async () => {
+							// Double-check if enabled in case it was async
+							if (item.isEnabled) {
+								const isEnabled = await item.isEnabled(widget);
+								if (!isEnabled) {
+									return;
+								}
+							}
+
 							if (item.type === 'valuePick') {
 								const value = await item.asAttachment(widget);
 								if (Array.isArray(value)) {
