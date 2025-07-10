@@ -45,7 +45,9 @@ export class MarkedKatexSupport {
 
 
 namespace MarkedKatexExtension {
-	type KatexOptions = import('katex').KatexOptions;
+	type KatexOptions = {
+		throwOnError?: boolean;
+	};
 
 	// From https://github.com/UziTech/marked-katex-extension/blob/main/src/index.js
 	export interface MarkedKatexOptions extends KatexOptions {
