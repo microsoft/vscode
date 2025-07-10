@@ -166,8 +166,9 @@ async function writeGlobalsCache(): Promise<void> {
 	}
 	try {
 		// Ensure the directory exists
-		await vscode.workspace.fs.createDirectory(globalStorageUri);
-		const cacheFile = vscode.Uri.joinPath(globalStorageUri, `${CACHE_KEY}.json`);
+		const terminalSuggestDir = vscode.Uri.joinPath(globalStorageUri, 'terminal-suggest');
+		await vscode.workspace.fs.createDirectory(terminalSuggestDir);
+		const cacheFile = vscode.Uri.joinPath(terminalSuggestDir, `${CACHE_KEY}.json`);
 		const data = Buffer.from(JSON.stringify(obj), 'utf8');
 		await vscode.workspace.fs.writeFile(cacheFile, data, { create: true, overwrite: true });
 	} catch (err) {
@@ -181,7 +182,8 @@ async function readGlobalsCache(): Promise<void> {
 		return;
 	}
 	try {
-		const cacheFile = vscode.Uri.joinPath(globalStorageUri, `${CACHE_KEY}.json`);
+		const terminalSuggestDir = vscode.Uri.joinPath(globalStorageUri, 'terminal-suggest');
+		const cacheFile = vscode.Uri.joinPath(terminalSuggestDir, `${CACHE_KEY}.json`);
 		const data = await vscode.workspace.fs.readFile(cacheFile);
 		const obj = JSON.parse(data.toString()) as Record<string, ShellGlobalsCacheEntryWithMeta>;
 		if (obj) {
