@@ -525,6 +525,8 @@ class MouseDownOperation extends Disposable {
 
 		const mouseColumn = this._getMouseColumn(e);
 
+		console.log('e.posy : ', e.posy);
+		console.log('editorContent.y : ', editorContent.y);
 		if (e.posy < editorContent.y) {
 			const outsideDistance = editorContent.y - e.posy;
 			const verticalOffset = Math.max(viewLayout.getCurrentScrollTop() - outsideDistance, 0);
@@ -540,6 +542,7 @@ class MouseDownOperation extends Disposable {
 			return MouseTarget.createOutsideEditor(mouseColumn, new Position(aboveLineNumber, 1), 'above', outsideDistance);
 		}
 
+		console.log('editorContent.y + editorContent.height : ', editorContent.y + editorContent.height);
 		if (e.posy > editorContent.y + editorContent.height) {
 			const outsideDistance = e.posy - editorContent.y - editorContent.height;
 			const verticalOffset = viewLayout.getCurrentScrollTop() + e.relativePos.y;
@@ -557,11 +560,13 @@ class MouseDownOperation extends Disposable {
 
 		const possibleLineNumber = viewLayout.getLineNumberAtVerticalOffset(viewLayout.getCurrentScrollTop() + e.relativePos.y);
 
+		console.log('editorContent.x : ', editorContent.x);
 		if (e.posx < editorContent.x) {
 			const outsideDistance = editorContent.x - e.posx;
 			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, 1), 'left', outsideDistance);
 		}
 
+		console.log('editorContent.x + editorContent.width : ', editorContent.x + editorContent.width);
 		if (e.posx > editorContent.x + editorContent.width) {
 			const outsideDistance = e.posx - editorContent.x - editorContent.width;
 			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, model.getLineMaxColumn(possibleLineNumber)), 'right', outsideDistance);
