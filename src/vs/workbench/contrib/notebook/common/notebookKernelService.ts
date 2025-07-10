@@ -143,6 +143,13 @@ export interface INotebookKernelService {
 	 */
 	updateKernelNotebookAffinity(kernel: INotebookKernel, notebook: URI, preference: number | undefined): void;
 
+	/**
+	 * Set a preference of a kernel for REPL editors based on document selector (language, notebookType).
+	 * This only applies to REPL editors and does not affect notebook kernel selection.
+	 * Higher values win, `undefined` removes the preference.
+	 */
+	updateKernelReplAffinity(kernel: INotebookKernel, selector: { language?: string; notebookType?: string }, preference: number | undefined): void;
+
 	//#region Kernel detection tasks
 	readonly onDidChangeKernelDetectionTasks: Event<string>;
 	registerNotebookKernelDetectionTask(task: INotebookKernelDetectionTask): IDisposable;

@@ -27,11 +27,50 @@ class KernelInfo {
 	readonly time: number;
 
 	readonly notebookPriorities = new ResourceMap<number>();
+	readonly replPriorities = new Map<string, number>(); // key: language/notebookType selector
 
 	constructor(kernel: INotebookKernel) {
 		this.kernel = kernel;
 		this.score = -1;
 		this.time = KernelInfo._logicClock++;
+	}
+
+	private static _selectorKey(selector: { language?: string; notebookType?: string }): string {
+		return `${selector.language ?? '*'}/${selector.notebookType ?? '*'}`;
+	}
+
+	setReplAffinity(selector: { language?: string; notebookType?: string }, preference: number | undefined): void {
+		const key = KernelInfo._selectorKey(selector);
+		if (preference === undefined) {
+			this.replPriorities.delete(key);
+		} else {
+			this.replPriorities.set(key, preference);
+		}
+	}
+
+	getReplAffinity(notebook: INotebookTextModelLike): number | undefined {
+		// For REPL editors, check for affinity based on document properties
+		if (notebook.notebookType !== 'repl') {
+			return undefined;
+		}
+
+		// For REPLs, we need to check various selector combinations
+		// Priority order: specific language + repl type, any language + repl type, specific language + any type, any language + any type
+		const candidates = [
+			// TODO: When language detection is available, we can use it here
+			// For now, we'll start with the broader selectors
+			KernelInfo._selectorKey({ language: undefined, notebookType: 'repl' }),
+			KernelInfo._selectorKey({ language: undefined, notebookType: undefined }),
+		];
+
+		for (const key of candidates) {
+			const priority = this.replPriorities.get(key);
+			if (priority !== undefined) {
+				return priority;
+			}
+		}
+
+		return undefined;
 	}
 }
 
@@ -239,10 +278,19 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		for (const info of this._kernels.values()) {
 			const score = NotebookKernelService._score(info.kernel, notebook);
 			if (score) {
+				// For REPL editors, check REPL-specific affinity first, then fall back to notebook affinity
+				let instanceAffinity: number;
+				if (notebook.notebookType === 'repl') {
+					const replAffinity = info.getReplAffinity(notebook);
+					instanceAffinity = replAffinity ?? info.notebookPriorities.get(notebook.uri) ?? 1 /* vscode.NotebookControllerPriority.Default */;
+				} else {
+					instanceAffinity = info.notebookPriorities.get(notebook.uri) ?? 1 /* vscode.NotebookControllerPriority.Default */;
+				}
+
 				kernels.push({
 					score,
 					kernel: info.kernel,
-					instanceAffinity: info.notebookPriorities.get(notebook.uri) ?? 1 /* vscode.NotebookControllerPriority.Default */,
+					instanceAffinity,
 				});
 			}
 		}
@@ -265,9 +313,23 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 			return info.selected;
 		}
 
-		const preferred = info.all.filter(kernel => this._kernels.get(kernel.id)?.notebookPriorities.get(notebook.uri) === 2 /* vscode.NotebookControllerPriority.Preferred */);
-		if (preferred.length === 1) {
-			return preferred[0];
+		// For REPL editors, consider REPL-specific preferred kernels
+		if (notebook.notebookType === 'repl') {
+			const preferred = info.all.filter(kernel => {
+				const kernelInfo = this._kernels.get(kernel.id);
+				if (!kernelInfo) return false;
+				const replAffinity = kernelInfo.getReplAffinity(notebook);
+				return replAffinity === 2 /* vscode.NotebookControllerPriority.Preferred */ ||
+					kernelInfo.notebookPriorities.get(notebook.uri) === 2 /* vscode.NotebookControllerPriority.Preferred */;
+			});
+			if (preferred.length === 1) {
+				return preferred[0];
+			}
+		} else {
+			const preferred = info.all.filter(kernel => this._kernels.get(kernel.id)?.notebookPriorities.get(notebook.uri) === 2 /* vscode.NotebookControllerPriority.Preferred */);
+			if (preferred.length === 1) {
+				return preferred[0];
+			}
 		}
 
 		return info.all.length === 1 ? info.all[0] : undefined;
@@ -308,6 +370,15 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		} else {
 			info.notebookPriorities.set(notebook, preference);
 		}
+		this._onDidChangeNotebookAffinity.fire();
+	}
+
+	updateKernelReplAffinity(kernel: INotebookKernel, selector: { language?: string; notebookType?: string }, preference: number | undefined): void {
+		const info = this._kernels.get(kernel.id);
+		if (!info) {
+			throw new Error(`UNKNOWN kernel '${kernel.id}'`);
+		}
+		info.setReplAffinity(selector, preference);
 		this._onDidChangeNotebookAffinity.fire();
 	}
 

@@ -179,6 +179,77 @@ suite('NotebookKernelService', () => {
 			assert.strictEqual(event2.newKernel, dotnetKernel.id);
 		}
 	});
+
+	test('REPL kernel affinity with updateKernelReplAffinity', function () {
+		const notebook = URI.parse('foo:///repl');
+		const repl = { uri: notebook, notebookType: 'repl' };
+
+		const pythonKernel = new TestNotebookKernel({ label: 'Python' });
+		pythonKernel.id = 'python-kernel';
+		pythonKernel.viewType = 'repl';
+		
+		const jupyterKernel = new TestNotebookKernel({ label: 'Jupyter' });
+		jupyterKernel.id = 'jupyter-kernel';
+		jupyterKernel.viewType = 'repl';
+		
+		disposables.add(kernelService.registerKernel(pythonKernel));
+		disposables.add(kernelService.registerKernel(jupyterKernel));
+
+		// Initially both kernels have equal affinity
+		let info = kernelService.getMatchingKernel(repl);
+		assert.strictEqual(info.all.length, 2);
+
+		// Set REPL affinity for Python kernel to be preferred for all REPLs
+		kernelService.updateKernelReplAffinity(pythonKernel, { notebookType: 'repl' }, 2); // Preferred
+
+		// Python kernel should now be first (highest affinity)
+		info = kernelService.getMatchingKernel(repl);
+		assert.strictEqual(info.all.length, 2);
+		assert.strictEqual(info.all[0], pythonKernel);
+		assert.strictEqual(info.all[1], jupyterKernel);
+
+		// Remove REPL affinity for Python kernel
+		kernelService.updateKernelReplAffinity(pythonKernel, { notebookType: 'repl' }, undefined);
+
+		// Now both should have default affinity again, ordered by label
+		info = kernelService.getMatchingKernel(repl);
+		assert.strictEqual(info.all.length, 2);
+		// Order should be by label (Jupyter < Python alphabetically)
+		assert.strictEqual(info.all[0], jupyterKernel);
+		assert.strictEqual(info.all[1], pythonKernel);
+	});
+
+	test('REPL affinity does not affect non-REPL notebooks', function () {
+		const notebook = URI.parse('foo:///regular');
+		const regular = { uri: notebook, notebookType: 'jupyter' };
+
+		const kernel1 = new TestNotebookKernel({ label: 'Kernel1' });
+		kernel1.id = 'kernel1';
+		kernel1.viewType = 'jupyter';
+		
+		const kernel2 = new TestNotebookKernel({ label: 'Kernel2' });
+		kernel2.id = 'kernel2';
+		kernel2.viewType = 'jupyter';
+		
+		disposables.add(kernelService.registerKernel(kernel1));
+		disposables.add(kernelService.registerKernel(kernel2));
+
+		// Set REPL affinity (should not affect regular notebooks)
+		kernelService.updateKernelReplAffinity(kernel1, { notebookType: 'repl' }, 2);
+
+		// Regular notebook should not be affected by REPL affinity
+		let info = kernelService.getMatchingKernel(regular);
+		assert.strictEqual(info.all.length, 2);
+		// Both should have equal default affinity, so order should be by label
+		assert.strictEqual(info.all[0].label <= info.all[1].label, true);
+
+		// Setting notebook affinity should still work
+		kernelService.updateKernelNotebookAffinity(kernel2, notebook, 2);
+		info = kernelService.getMatchingKernel(regular);
+		assert.strictEqual(info.all.length, 2);
+		assert.strictEqual(info.all[0], kernel2); // Higher notebook affinity
+		assert.strictEqual(info.all[1], kernel1);
+	});
 });
 
 class TestNotebookKernel implements INotebookKernel {
