@@ -2729,17 +2729,22 @@ export class Repository {
 
 	private async getWorktreesFS(): Promise<Worktree[]> {
 		const worktreesPath = path.join(this.repositoryRoot, '.git', 'worktrees');
-		const worktreeNames = await fs.readdir(worktreesPath);
-		const result: Worktree[] = [];
 
-		for (const name of worktreeNames) {
-			const gitdirPath = path.join(worktreesPath, name, 'gitdir');
-			const gitdirContent = (await fs.readFile(gitdirPath, 'utf8')).trim();
-			const gitdirTrimmed = gitdirContent.substring(0, gitdirContent.length - '/.git'.length); // Remove trailing '/.git'
-			result.push({ name: name, path: gitdirTrimmed });
+		try {
+			const raw = await fs.readdir(worktreesPath); // List all worktree folder names
+
+			const result: Worktree[] = [];
+			for (const name of raw) {
+				const gitdirPath = path.join(worktreesPath, name, 'gitdir');
+				const gitdirContent = (await fs.readFile(gitdirPath, 'utf8')).trim();
+				const gitdirTrimmed = gitdirContent.substring(0, gitdirContent.length - '/.git'.length); // Remove trailing '/.git'
+				result.push({ name: name, path: gitdirTrimmed });
+			}
+			return result;
 		}
-
-		return result;
+		catch (err) {
+			return []; // There is no worktrees folder, so no worktrees were created
+		}
 	}
 
 	async getRemotes(): Promise<Remote[]> {
