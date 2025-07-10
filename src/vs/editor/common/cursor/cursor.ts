@@ -20,9 +20,9 @@ import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, ICursorState
 import { RawContentChangedType, ModelInjectedTextChangedEvent, InternalModelContentChangeEvent } from '../textModelEvents.js';
 import { VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequestEvent } from '../viewEvents.js';
 import { dispose, Disposable } from '../../../base/common/lifecycle.js';
-import { ICoordinatesConverter } from '../viewModel.js';
 import { CursorStateChangedEvent, ViewModelEventsCollector } from '../viewModelEventDispatcher.js';
 import { TextModelEditReason, EditReasons } from '../textModelEditReason.js';
+import { ICoordinatesConverter } from '../coordinatesConverter.js';
 
 export class CursorsController extends Disposable {
 

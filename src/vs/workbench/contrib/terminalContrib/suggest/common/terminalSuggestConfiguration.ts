@@ -57,6 +57,7 @@ export interface ITerminalSuggestConfiguration {
 	providers: {
 		'terminal-suggest': boolean;
 		'pwsh-shell-integration': boolean;
+		[key: string]: boolean;
 	};
 	showStatusBar: boolean;
 	cdPath: 'off' | 'relative' | 'absolute';
@@ -78,7 +79,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		properties: {},
 		default: {
 			'terminal-suggest': true,
-			'pwsh-shell-integration': true,
+			'pwsh-shell-integration': false,
 			'lsp': true,
 		},
 		tags: ['preview'],

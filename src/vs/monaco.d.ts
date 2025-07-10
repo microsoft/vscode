@@ -1223,7 +1223,7 @@ declare namespace monaco.editor {
 		/**
 		 * The worker.
 		 */
-		worker: Worker;
+		worker: Worker | Promise<Worker>;
 		/**
 		 * An object that can be used by the web worker to make calls back to the main thread.
 		 */
@@ -7562,6 +7562,8 @@ declare namespace monaco.languages {
 		characterCountModified?: number;
 		disjointReplacements?: number;
 		sameShapeReplacements?: boolean;
+		typingInterval: number;
+		typingIntervalCharacterCount: number;
 	};
 
 	export interface CodeAction {
@@ -8540,7 +8542,7 @@ declare namespace monaco.worker {
 		getValue(): string;
 	}
 
-	export interface IWorkerContext<H = undefined> {
+	export interface IWorkerContext<H = {}> {
 		/**
 		 * A proxy to the main thread host object.
 		 */

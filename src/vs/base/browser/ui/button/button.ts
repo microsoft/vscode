@@ -333,9 +333,7 @@ export class Button extends Disposable implements IButton {
 	}
 
 	setTitle(title: string) {
-		if (this.options.hoverDelegate?.showNativeHover) {
-			this._element.title = title;
-		} else if (!this._hover && title !== '') {
+		if (!this._hover && title !== '') {
 			this._hover = this._register(getBaseLayerHoverDelegate().setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('element'), this._element, title));
 		} else if (this._hover) {
 			this._hover.update(title);

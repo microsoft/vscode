@@ -92,7 +92,8 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 							isCached: !!serverDefs,
 							load: () => this._activateExtensionServers(coll.id),
 							removed: () => extensionCollections.deleteAndDispose(id),
-						}
+						},
+						source: collections.description.identifier
 					});
 
 					extensionCollections.set(id, dispo);

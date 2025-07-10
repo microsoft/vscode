@@ -1086,7 +1086,7 @@ const menuContext = ContextKeyExpr.and(
 	ChatContextKeys.Setup.disabled.negate()
 );
 
-const title = localize('copilot', "Copilot");
+const title = localize('ai actions', "AI Actions");
 
 MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	submenu: MenuId.ChatTextEditorMenu,
@@ -1131,7 +1131,7 @@ registerAction2(class ToggleDefaultVisibilityAction extends Action2 {
 	async run(accessor: ServicesAccessor) {
 		const configurationService = accessor.get(IConfigurationService);
 
-		const currentValue = configurationService.getValue<'hidden' | 'visibleInWorkspace' | 'visible'>('workbench.secondarySideBar.defaultVisibility');
+		const currentValue = configurationService.getValue<'hidden' | unknown>('workbench.secondarySideBar.defaultVisibility');
 		configurationService.updateValue('workbench.secondarySideBar.defaultVisibility', currentValue !== 'hidden' ? 'hidden' : 'visible');
 	}
 });

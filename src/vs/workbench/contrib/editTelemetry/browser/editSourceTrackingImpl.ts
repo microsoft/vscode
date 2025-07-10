@@ -5,6 +5,7 @@
 
 import { reverseOrder, compareBy, numberComparator, sumBy } from '../../../../base/common/arrays.js';
 import { IntervalTimer, TimeoutTimer } from '../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { toDisposable, DisposableStore, Disposable } from '../../../../base/common/lifecycle.js';
 import { mapObservableArrayCached, derived, IReader, IObservable, observableSignal, runOnChange, IObservableWithChange, observableValue, transaction, derivedObservableWithCache } from '../../../../base/common/observable.js';
 import { isDefined } from '../../../../base/common/types.js';
@@ -100,6 +101,7 @@ class TrackedDocumentInfo extends Disposable {
 
 		const longtermResetSignal = observableSignal('resetSignal');
 
+		let longtermReason: '10hours' | 'hashChange' | 'branchChange' | 'closed' = 'closed';
 		this.longtermTracker = derived((reader) => {
 			if (!this._statsEnabled.read(reader)) { return undefined; }
 			longtermResetSignal.read(reader);
@@ -108,7 +110,7 @@ class TrackedDocumentInfo extends Disposable {
 			reader.store.add(toDisposable(() => {
 				// send long term document telemetry
 				if (!t.isEmpty()) {
-					this.sendTelemetry('longterm', t.getTrackedRanges());
+					this.sendTelemetry('longterm', longtermReason, t);
 				}
 				t.dispose();
 			}));
@@ -117,7 +119,9 @@ class TrackedDocumentInfo extends Disposable {
 
 		this._store.add(new IntervalTimer()).cancelAndSet(() => {
 			// Reset after 10 hours
+			longtermReason = '10hours';
 			longtermResetSignal.trigger(undefined);
+			longtermReason = 'closed';
 		}, 10 * 60 * 60 * 1000);
 
 		(async () => {
@@ -128,10 +132,14 @@ class TrackedDocumentInfo extends Disposable {
 			// Reset on branch change or commit
 			if (repo) {
 				this._store.add(runOnChange(repo.headCommitHashObs, () => {
+					longtermReason = 'hashChange';
 					longtermResetSignal.trigger(undefined);
+					longtermReason = 'closed';
 				}));
 				this._store.add(runOnChange(repo.headBranchNameObs, () => {
+					longtermReason = 'branchChange';
 					longtermResetSignal.trigger(undefined);
+					longtermReason = 'closed';
 				}));
 			}
 
@@ -156,7 +164,7 @@ class TrackedDocumentInfo extends Disposable {
 			const t = reader.store.add(new DocumentEditSourceTracker(docWithJustReason, undefined));
 			reader.store.add(toDisposable(async () => {
 				// send long term document telemetry
-				this.sendTelemetry('5minWindow', t.getTrackedRanges());
+				this.sendTelemetry('5minWindow', 'time', t);
 				t.dispose();
 			}));
 
@@ -166,16 +174,88 @@ class TrackedDocumentInfo extends Disposable {
 		this._repo = this._scm.getRepo(_doc.uri);
 	}
 
-	async sendTelemetry(mode: 'longterm' | '5minWindow', ranges: readonly TrackedEdit[]) {
+	async sendTelemetry(mode: 'longterm' | '5minWindow', trigger: string, t: DocumentEditSourceTracker) {
+		const ranges = t.getTrackedRanges();
 		if (ranges.length === 0) {
 			return;
 		}
 
 		const data = this.getTelemetryData(ranges);
-		const isTrackedByGit = await data.isTrackedByGit;
+
 
 		const statsUuid = generateUuid();
 
+		const sourceKeyToRepresentative = new Map<string, TextModelEditReason>();
+		for (const r of ranges) {
+			sourceKeyToRepresentative.set(r.sourceKey, r.sourceRepresentative);
+		}
+
+		const sums = sumByCategory(ranges, r => r.range.length, r => r.sourceKey);
+		const entries = Object.entries(sums).filter(([key, value]) => value !== undefined);
+		entries.sort(reverseOrder(compareBy(([key, value]) => value!, numberComparator)));
+		entries.length = mode === 'longterm' ? 30 : 10;
+
+		for (const [key, value] of Object.entries(sums)) {
+			if (value === undefined) {
+				continue;
+			}
+
+
+			const repr = sourceKeyToRepresentative.get(key);
+			const cleanedKey = repr?.toKey(1, { $extensionId: false, $extensionVersion: false });
+
+			const metadata = repr?.metadata;
+			const extensionId = metadata && '$extensionId' in metadata ? metadata.$extensionId : undefined;
+			const extensionVersion = metadata && '$extensionVersion' in metadata ? metadata.$extensionVersion : undefined;
+
+			const m = t.getChangedCharactersCount(key);
+
+			this._telemetryService.publicLog2<{
+				mode: string;
+				sourceKey: string;
+				extensionId: string;
+				extensionVersion: string;
+				sourceKeyWithoutExtId: string;
+				trigger: string;
+				languageId: string;
+				statsUuid: string;
+				modifiedCount: number;
+				deltaModifiedCount: number;
+				totalModifiedCount: number;
+			}, {
+				owner: 'hediet';
+				comment: 'Reports distribution of various edit kinds.';
+
+				sourceKey: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the edit.' };
+				mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'longterm or 5minWindow' };
+				languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
+				statsUuid: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The unique identifier for the telemetry event.' };
+				extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension id which provided this inline completion.' };
+				extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension.' };
+				sourceKeyWithoutExtId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the edit.' };
+				trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The trigger for the telemetry event.' };
+
+				modifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Fraction of nes modified characters'; isMeasurement: true };
+				deltaModifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Delta of modified characters'; isMeasurement: true };
+				totalModifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Total number of characters'; isMeasurement: true };
+
+			}>('editTelemetry.editSources.details', {
+				mode,
+				sourceKey: key,
+				extensionId: extensionId ?? '',
+				extensionVersion: extensionVersion ?? '',
+				sourceKeyWithoutExtId: cleanedKey ?? '',
+				trigger,
+				languageId: this._doc.languageId.get(),
+				statsUuid: statsUuid,
+				modifiedCount: value,
+				deltaModifiedCount: m,
+				totalModifiedCount: data.totalModifiedCharactersInFinalState,
+			});
+		}
+
+
+		const isTrackedByGit = await data.isTrackedByGit;
 		this._telemetryService.publicLog2<{
 			mode: string;
 			languageId: string;
@@ -223,66 +303,6 @@ class TrackedDocumentInfo extends Disposable {
 			externalModifiedCount: data.externalModifiedCount,
 			isTrackedByGit: isTrackedByGit ? 1 : 0,
 		});
-
-		const sourceKeyToRepresentative = new Map<string, TextModelEditReason>();
-		for (const r of ranges) {
-			sourceKeyToRepresentative.set(r.sourceKey, r.sourceRepresentative);
-		}
-
-		const sums = sumByCategory(ranges, r => r.range.length, r => r.sourceKey);
-		const entries = Object.entries(sums).filter(([key, value]) => value !== undefined);
-		entries.sort(reverseOrder(compareBy(([key, value]) => value!, numberComparator)));
-		entries.length = mode === 'longterm' ? 30 : 10;
-
-		for (const [key, value] of Object.entries(sums)) {
-			if (value === undefined) {
-				continue;
-			}
-
-
-			const repr = sourceKeyToRepresentative.get(key);
-			const cleanedKey = repr?.toKey(1, { $extensionId: false, $extensionVersion: false });
-
-			const metadata = repr?.metadata;
-			const extensionId = metadata && '$extensionId' in metadata ? metadata.$extensionId : undefined;
-			const extensionVersion = metadata && '$extensionVersion' in metadata ? metadata.$extensionVersion : undefined;
-
-			this._telemetryService.publicLog2<{
-				mode: string;
-				sourceKey: string;
-				extensionId: string;
-				extensionVersion: string;
-				sourceKeyWithoutExtId: string;
-				languageId: string;
-				statsUuid: string;
-				modifiedCount: number;
-				totalModifiedCount: number;
-			}, {
-				owner: 'hediet';
-				comment: 'Reports distribution of various edit kinds.';
-
-				sourceKey: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the edit.' };
-				mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'longterm or 5minWindow' };
-				languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
-				statsUuid: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The unique identifier for the telemetry event.' };
-				extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension id which provided this inline completion.' };
-				extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension.' };
-				sourceKeyWithoutExtId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the edit.' };
-
-				modifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Fraction of nes modified characters'; isMeasurement: true };
-				totalModifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Total number of characters'; isMeasurement: true };
-			}>('editTelemetry.editSources.details', {
-				mode,
-				sourceKey: key,
-				extensionId: extensionId ?? '',
-				extensionVersion: extensionVersion ?? '',
-				sourceKeyWithoutExtId: cleanedKey ?? '',
-				languageId: this._doc.languageId.get(),
-				statsUuid: statsUuid,
-				modifiedCount: value,
-				totalModifiedCount: data.totalModifiedCharactersInFinalState,
-			});
-		}
 	}
 
 	getTelemetryData(ranges: readonly TrackedEdit[]) {
@@ -353,18 +373,21 @@ class ArcTelemetrySender extends Disposable {
 
 		this._register(runOnChange(docWithAnnotatedEdits.value, (_val, _prev, changes) => {
 			const edit = AnnotatedStringEdit.compose(changes.map(c => c.edit));
-			if (edit.replacements.length !== 1) {
+
+			if (!edit.replacements.some(r => r.data.editReason.metadata.source === 'inlineCompletionAccept')) {
 				return;
 			}
-			const singleEdit = edit.replacements[0];
-			const data = singleEdit.data.editReason.metadata;
-			if (data?.source !== 'inlineCompletionAccept') {
+			if (!edit.replacements.every(r => r.data.editReason.metadata.source === 'inlineCompletionAccept')) {
+				onUnexpectedError(new Error('ArcTelemetrySender: Not all edits are inline completion accept edits!'));
 				return;
 			}
+			if (edit.replacements[0].data.editReason.metadata.source !== 'inlineCompletionAccept') {
+				return;
+			}
+			const data = edit.replacements[0].data.editReason.metadata;
 
 			const docWithJustReason = createDocWithJustReason(docWithAnnotatedEdits, this._store);
-			const reporter = this._instantiationService.createInstance(ArcTelemetryReporter, docWithJustReason, scmRepoBridge, singleEdit.toEdit(), res => {
-
+			const reporter = this._instantiationService.createInstance(ArcTelemetryReporter, docWithJustReason, scmRepoBridge, edit, res => {
 				res.telemetryService.publicLog2<{
 					extensionId: string;
 					extensionVersion: string;
@@ -437,6 +460,7 @@ export class ArcTelemetryReporter {
 		this._initialBranchName = this._gitRepo?.headBranchNameObs.get();
 
 		// This aligns with github inline completions
+		this._report(0); // for debugging
 		this._reportAfter(30 * 1000);
 		this._reportAfter(120 * 1000);
 		this._reportAfter(300 * 1000);

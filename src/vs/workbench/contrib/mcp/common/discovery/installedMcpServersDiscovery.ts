@@ -9,7 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
-import { McpServerDefinition, McpServerTransportType, IMcpWorkbenchService, IMcpConfigPath } from '../mcpTypes.js';
+import { McpServerDefinition, McpServerTransportType, IMcpWorkbenchService, IMcpConfigPath, IWorkbenchMcpServer } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
 import { mcpConfigurationSection } from '../mcpConfiguration.js';
 import { posix as pathPosix, win32 as pathWin32, sep as pathSep } from '../../../../../base/common/path.js';
@@ -58,7 +58,7 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 	private async sync(): Promise<void> {
 		try {
 			const remoteEnv = await this.remoteAgentService.getEnvironment();
-			const collections = new Map<string, [IMcpConfigPath | undefined, McpServerDefinition[]]>();
+			const collections = new Map<string, [IMcpConfigPath | undefined, McpServerDefinition[], IWorkbenchMcpServer]>();
 			const mcpConfigPathInfos = new ResourceMap<Promise<IMcpConfigPath & { locations: Map<string, Location> } | undefined>>();
 			for (const server of this.mcpWorkbenchService.local) {
 				if (!server.local) {
@@ -81,7 +81,7 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 
 				let definitions = collections.get(collectionId);
 				if (!definitions) {
-					definitions = [mcpConfigPath, []];
+					definitions = [mcpConfigPath, [], server];
 					collections.set(collectionId, definitions);
 				}
 
@@ -135,7 +135,7 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 			for (const [id, [mcpConfigPath, serverDefinitions]] of collections) {
 				this.collectionDisposables.deleteAndDispose(id);
 				this.collectionDisposables.set(id, this.mcpRegistry.registerCollection({
-					id: id,
+					id,
 					label: mcpConfigPath?.label ?? '',
 					presentation: {
 						order: serverDefinitions[0]?.presentation?.order,
