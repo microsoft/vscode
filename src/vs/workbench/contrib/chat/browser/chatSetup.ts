@@ -1196,7 +1196,7 @@ class ChatSetupController extends Disposable {
 		this._onDidChange.fire();
 	}
 
-	async setup(options?: { forceSignIn?: boolean; useAlternateProvider?: boolean; useEnterpriseProvider?: boolean }): Promise<ChatSetupResultValue> {
+	async setup(options?: { forceSignIn?: boolean; socialProviderId?: string; useEnterpriseProvider?: boolean }): Promise<ChatSetupResultValue> {
 		const watch = new StopWatch(false);
 		const title = localize('setupChatProgress', "Getting Copilot ready...");
 		const badge = this.activityService.showViewContainerActivity(CHAT_SIDEBAR_PANEL_ID, {
@@ -1275,11 +1275,11 @@ class ChatSetupController extends Disposable {
 		return { session, entitlement: entitlements?.entitlement };
 	}
 
-	private async install(session: AuthenticationSession | undefined, entitlement: ChatEntitlement, providerId: string, watch: StopWatch, options: { useAlternateProvider?: boolean; useEnterpriseProvider?: boolean }): Promise<ChatSetupResultValue> {
+	private async install(session: AuthenticationSession | undefined, entitlement: ChatEntitlement, providerId: string, watch: StopWatch, options: { socialProviderId?: string; useEnterpriseProvider?: boolean }): Promise<ChatSetupResultValue> {
 		const wasRunning = this.context.state.installed && !this.context.state.disabled;
 		let signUpResult: boolean | { errorCode: number } | undefined = undefined;
 
-		const provider = options.useAlternateProvider ? defaultChat.provider?.google.id : options.useEnterpriseProvider ? defaultChat.provider?.enterprise.id : defaultChat.provider?.default.id;
+		const provider = options.socialProviderId ?? options.useEnterpriseProvider ? defaultChat.provider?.enterprise.id : defaultChat.provider?.default.id;
 
 		try {
 
