@@ -855,9 +855,9 @@ export class ChatEntitlementRequests extends Disposable {
 		}
 	}
 
-	async signIn(options?: { socialProviderId?: string }) {
+	async signIn(options?: { useSocialProviderId?: string }) {
 		const providerId = ChatEntitlementRequests.providerId(this.configurationService);
-		const session = await this.authenticationService.createSession(providerId, defaultChat.providerScopes[0], options?.socialProviderId ? { provider: options.socialProviderId } : undefined);
+		const session = await this.authenticationService.createSession(providerId, defaultChat.providerScopes[0], options?.useSocialProviderId ? { provider: options.useSocialProviderId } : undefined);
 
 		this.authenticationExtensionsService.updateAccountPreference(defaultChat.extensionId, providerId, session.account);
 		this.authenticationExtensionsService.updateAccountPreference(defaultChat.chatExtensionId, providerId, session.account);

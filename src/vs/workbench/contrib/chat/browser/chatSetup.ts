@@ -1196,7 +1196,7 @@ class ChatSetupController extends Disposable {
 		this._onDidChange.fire();
 	}
 
-	async setup(options?: { forceSignIn?: boolean; socialProviderId?: string; useEnterpriseProvider?: boolean }): Promise<ChatSetupResultValue> {
+	async setup(options?: { forceSignIn?: boolean; useSocialProviderId?: string; useEnterpriseProvider?: boolean }): Promise<ChatSetupResultValue> {
 		const watch = new StopWatch(false);
 		const title = localize('setupChatProgress', "Getting Copilot ready...");
 		const badge = this.activityService.showViewContainerActivity(CHAT_SIDEBAR_PANEL_ID, {
@@ -1214,7 +1214,7 @@ class ChatSetupController extends Disposable {
 		}
 	}
 
-	private async doSetup(options: { forceSignIn?: boolean; socialProviderId?: string; useEnterpriseProvider?: boolean }, watch: StopWatch): Promise<ChatSetupResultValue> {
+	private async doSetup(options: { forceSignIn?: boolean; useSocialProviderId?: string; useEnterpriseProvider?: boolean }, watch: StopWatch): Promise<ChatSetupResultValue> {
 		this.context.suspend();  // reduces flicker
 
 		let success: ChatSetupResultValue = false;
@@ -1226,11 +1226,11 @@ class ChatSetupController extends Disposable {
 			// Entitlement Unknown or `forceSignIn`: we need to sign-in user
 			if (this.context.state.entitlement === ChatEntitlement.Unknown || options.forceSignIn) {
 				this.setStep(ChatSetupStep.SigningIn);
-				const result = await this.signIn({ socialProviderId: options.socialProviderId });
+				const result = await this.signIn(options);
 				if (!result.session) {
 					this.doInstall(); // still install the extension in the background to remind the user to sign-in eventually
 
-					const provider = options.socialProviderId ? defaultChat.provider?.google.id : options.useEnterpriseProvider ? defaultChat.provider?.enterprise.id : defaultChat.provider?.default.id;
+					const provider = options.useSocialProviderId ?? options.useEnterpriseProvider ? defaultChat.provider?.enterprise.id : defaultChat.provider?.default.id;
 					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotSignedIn', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
 					return undefined; // treat as cancelled because signing in already triggers an error dialog
 				}
@@ -1250,7 +1250,7 @@ class ChatSetupController extends Disposable {
 		return success;
 	}
 
-	private async signIn(options: { socialProviderId?: string }): Promise<{ session: AuthenticationSession | undefined; entitlement: ChatEntitlement | undefined }> {
+	private async signIn(options: { useSocialProviderId?: string }): Promise<{ session: AuthenticationSession | undefined; entitlement: ChatEntitlement | undefined }> {
 		let session: AuthenticationSession | undefined;
 		let entitlements;
 		try {
@@ -1262,7 +1262,7 @@ class ChatSetupController extends Disposable {
 		if (!session && !this.lifecycleService.willShutdown) {
 			const { confirmed } = await this.dialogService.confirm({
 				type: Severity.Error,
-				message: localize('unknownSignInError', "Failed to sign in to {0}. Would you like to try again?", options?.socialProviderId ? defaultChat.provider?.google.name : ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.provider?.enterprise.id ? defaultChat.provider?.enterprise.name : defaultChat.provider?.default.name),
+				message: localize('unknownSignInError', "Failed to sign in to {0}. Would you like to try again?", ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.provider?.enterprise.id ? defaultChat.provider?.enterprise.name : defaultChat.provider?.default.name),
 				detail: localize('unknownSignInErrorDetail', "You must be signed in to use Copilot."),
 				primaryButton: localize('retry', "Retry")
 			});
@@ -1275,11 +1275,11 @@ class ChatSetupController extends Disposable {
 		return { session, entitlement: entitlements?.entitlement };
 	}
 
-	private async install(session: AuthenticationSession | undefined, entitlement: ChatEntitlement, providerId: string, watch: StopWatch, options: { socialProviderId?: string; useEnterpriseProvider?: boolean }): Promise<ChatSetupResultValue> {
+	private async install(session: AuthenticationSession | undefined, entitlement: ChatEntitlement, providerId: string, watch: StopWatch, options: { useSocialProviderId?: string; useEnterpriseProvider?: boolean }): Promise<ChatSetupResultValue> {
 		const wasRunning = this.context.state.installed && !this.context.state.disabled;
 		let signUpResult: boolean | { errorCode: number } | undefined = undefined;
 
-		const provider = options.socialProviderId ?? options.useEnterpriseProvider ? defaultChat.provider?.enterprise.id : defaultChat.provider?.default.id;
+		const provider = options.useSocialProviderId ?? options.useEnterpriseProvider ? defaultChat.provider?.enterprise.id : defaultChat.provider?.default.id;
 
 		try {
 
