@@ -15,6 +15,7 @@ export class Editors {
 		} else {
 			await this.code.sendKeybinding('ctrl+s');
 		}
+		await this.code.waitForElements('.tab.active.dirty', false, results => results.length === 0);
 	}
 
 	async selectTab(fileName: string): Promise<void> {
