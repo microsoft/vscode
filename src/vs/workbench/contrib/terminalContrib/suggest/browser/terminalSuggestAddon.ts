@@ -908,7 +908,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	hideSuggestWidget(cancelAnyRequest: boolean): void {
-		console.log('hiding', cancelAnyRequest);
 		this._discoverability?.resetTimer();
 		if (cancelAnyRequest) {
 			this._cancellationTokenSource?.cancel();
