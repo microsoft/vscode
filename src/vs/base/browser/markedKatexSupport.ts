@@ -8,11 +8,13 @@ import { Lazy } from '../common/lazy.js';
 import type * as marked from '../common/marked/marked.js';
 import { CodeWindow } from './window.js';
 
+type KatexLib = any;
+
 export class MarkedKatexSupport {
 
-	public static _katex?: typeof import('katex').default;
+	public static _katex?: KatexLib;
 	public static _katexPromise = new Lazy(async () => {
-		this._katex = await importAMDNodeModule<typeof import('katex')>('katex', 'dist/katex.min.js');
+		this._katex = await importAMDNodeModule('katex', 'dist/katex.min.js');
 		return this._katex;
 	});
 
@@ -63,7 +65,7 @@ namespace MarkedKatexExtension {
 
 	const blockRule = /^(\${1,2})\n((?:\\[^]|[^\\])+?)\n\1(?:\n|$)/;
 
-	export function extension(katex: typeof import('katex').default, options: MarkedKatexOptions = {}): marked.MarkedExtension {
+	export function extension(katex: KatexLib, options: MarkedKatexOptions = {}): marked.MarkedExtension {
 		return {
 			extensions: [
 				inlineKatex(options, createRenderer(katex, options, false)),
@@ -72,7 +74,7 @@ namespace MarkedKatexExtension {
 		};
 	}
 
-	function createRenderer(katex: typeof import('katex').default, options: MarkedKatexOptions, newlineAfter: boolean): marked.RendererExtensionFunction {
+	function createRenderer(katex: KatexLib, options: MarkedKatexOptions, newlineAfter: boolean): marked.RendererExtensionFunction {
 		return (token: marked.Tokens.Generic) => {
 			return katex.renderToString(token.text, {
 				...options,
