@@ -104,5 +104,6 @@ export class NotebookCellLayoutManager extends Disposable {
 	override dispose() {
 		super.dispose();
 		this._isDisposed = true;
+		this._layoutDisposables.forEach(d => d.dispose());
 	}
 }
