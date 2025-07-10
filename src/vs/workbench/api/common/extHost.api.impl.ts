@@ -1264,6 +1264,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostSCM.getLastInputBox(extension)!; // Strict null override - Deprecated api
 			},
 			createSourceControl(id: string, label: string, rootUri?: vscode.Uri, parentRootUri?: vscode.Uri): vscode.SourceControl {
+				if (parentRootUri) {
+					checkProposedApiEnabled(extension, 'scmProviderOptions');
+				}
 				return extHostSCM.createSourceControl(extension, id, label, rootUri, parentRootUri);
 			}
 		};

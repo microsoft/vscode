@@ -449,7 +449,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	private eventuallyScanPossibleGitRepositories(): void {
 		for (const [id, paths] of this.possibleGitRepositoryPaths) {
 			for (const path of paths) {
-				this.openRepository(path, false, id);
+				this.openRepository(path, false, { parentRoot: id, contextValue: 'submodule' });
 			}
 		}
 
@@ -559,7 +559,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	}
 
 	@sequentialize
-	async openRepository(repoPath: string, openIfClosed = false, repoParentRoot: string | undefined = undefined): Promise<void> {
+	async openRepository(repoPath: string, openIfClosed = false, creationOptions: { parentRoot?: string; contextValue?: string } = {}): Promise<void> {
 		this.logger.trace(`[Model][openRepository] Repository: ${repoPath}`);
 		const existingRepository = await this.getRepositoryExact(repoPath);
 		if (existingRepository) {
@@ -646,7 +646,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 			// Open repository
 			const [dotGit, repositoryRootRealPath] = await Promise.all([this.git.getRepositoryDotGit(repositoryRoot), this.getRepositoryRootRealPath(repositoryRoot)]);
-			const repository = new Repository(this.git.open(repositoryRoot, repositoryRootRealPath, dotGit, this.logger), repoParentRoot, this, this, this, this, this, this, this.globalState, this.logger, this.telemetryReporter);
+			const repository = new Repository(this.git.open(repositoryRoot, repositoryRootRealPath, dotGit, this.logger), creationOptions, this, this, this, this, this, this, this.globalState, this.logger, this.telemetryReporter);
 
 			this.open(repository);
 			this._closedRepositoriesManager.deleteRepository(repository.root);

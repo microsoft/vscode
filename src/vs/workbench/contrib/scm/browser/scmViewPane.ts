@@ -1467,7 +1467,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 		this._disposables.value = new DisposableStore();
 
 		const contextKeyService = this.contextKeyService.createOverlay([
-			['scmProvider', input.repository.provider.contextValue],
+			['scmProvider', input.repository.provider.kind],
 			['scmProviderRootUri', input.repository.provider.rootUri?.toString()],
 			['scmProviderHasRootUri', !!input.repository.provider.rootUri]
 		]);
@@ -2767,7 +2767,7 @@ export class SCMViewPane extends ViewPane {
 
 		if (!alwaysShowRepositories && this.items.size === 1) {
 			const provider = Iterable.first(this.items.keys())!.provider;
-			this.scmProviderContextKey.set(provider.contextValue);
+			this.scmProviderContextKey.set(provider.kind);
 			this.scmProviderRootUriContextKey.set(provider.rootUri?.toString());
 			this.scmProviderHasRootUriContextKey.set(!!provider.rootUri);
 		} else {
