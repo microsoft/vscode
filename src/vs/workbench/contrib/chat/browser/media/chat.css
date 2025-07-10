@@ -1255,6 +1255,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	outline-offset: -4px;
 }
 
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button.codicon.codicon-plus {
+	font-size: 12px;
+}
+
 .chat-related-files .monaco-button.codicon.codicon-add:hover,
 .action-item.chat-attached-context-attachment.chat-add-files:hover,
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button:hover {
@@ -2060,4 +2064,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	top: -50000px;
 	width: 1px;
 	height: 1px;
+}
+
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled:hover {
+	cursor: pointer;
+	border-style: solid;
+	background-color: var(--vscode-toolbar-hoverBackground);
 }

@@ -9,10 +9,10 @@ import { Range } from '../core/range.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { IModelDecoration, ITextModel, PositionAffinity } from '../model.js';
 import { IViewModelLines } from './viewModelLines.js';
-import { ICoordinatesConverter } from '../viewModel.js';
 import { filterFontDecorations, filterValidationDecorations } from '../config/editorOptions.js';
 import { isModelDecorationVisible, ViewModelDecoration } from './viewModelDecoration.js';
 import { InlineDecoration, InlineDecorationType } from './inlineDecorations.js';
+import { ICoordinatesConverter } from '../coordinatesConverter.js';
 
 export interface IDecorationsViewportData {
 	/**

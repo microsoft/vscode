@@ -27,6 +27,9 @@ import { IWorkbenchLayoutService } from '../../../services/layout/browser/layout
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ViewContainerLocation } from '../../../common/views.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IChatService } from '../common/chatService.js';
+import { autorun } from '../../../../base/common/observable.js';
 
 class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -106,6 +109,27 @@ class ChatCommandLineHandler extends Disposable {
 	}
 }
 
+class ChatSuspendThrottlingHandler extends Disposable {
+
+	static readonly ID = 'workbench.contrib.chatSuspendThrottlingHandler';
+
+	constructor(
+		@INativeHostService nativeHostService: INativeHostService,
+		@IChatService chatService: IChatService
+	) {
+		super();
+
+		this._register(autorun(reader => {
+			const running = chatService.requestInProgressObs.read(reader);
+
+			// When a chat request is in progress, we must ensure that background
+			// throttling is not applied so that the chat session can continue
+			// even when the window is not in focus.
+			nativeHostService.setBackgroundThrottling(!running);
+		}));
+	}
+}
+
 registerAction2(StartVoiceChatAction);
 registerAction2(InstallSpeechProviderForVoiceChatAction);
 
@@ -126,3 +150,4 @@ registerChatDeveloperActions();
 registerWorkbenchContribution2(KeywordActivationContribution.ID, KeywordActivationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(NativeBuiltinToolsContribution.ID, NativeBuiltinToolsContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatCommandLineHandler.ID, ChatCommandLineHandler, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChatSuspendThrottlingHandler.ID, ChatSuspendThrottlingHandler, WorkbenchPhase.AfterRestored);

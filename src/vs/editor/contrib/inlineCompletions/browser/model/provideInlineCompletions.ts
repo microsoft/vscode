@@ -245,6 +245,8 @@ export type InlineSuggestRequestInfo = {
 	editorType: InlineCompletionEditorType;
 	languageId: string;
 	reason: string;
+	typingInterval: number;
+	typingIntervalCharacterCount: number;
 };
 
 export type InlineSuggestViewData = {
@@ -351,6 +353,8 @@ export class InlineSuggestData {
 				requestReason: this._requestInfo.reason,
 				viewKind: this._viewData.viewKind,
 				error: this._viewData.error,
+				typingInterval: this._requestInfo.typingInterval,
+				typingIntervalCharacterCount: this._requestInfo.typingIntervalCharacterCount,
 				...this._viewData.renderData,
 			};
 			this.source.provider.handleEndOfLifetime(this.source.inlineSuggestions, this.sourceInlineCompletion, reason, summary);
