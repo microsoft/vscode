@@ -169,7 +169,7 @@ async function writeGlobalsCache(): Promise<void> {
 		await vscode.workspace.fs.createDirectory(globalStorageUri);
 		const cacheFile = vscode.Uri.joinPath(globalStorageUri, `${CACHE_KEY}.json`);
 		const data = Buffer.from(JSON.stringify(obj), 'utf8');
-		await vscode.workspace.fs.writeFile(cacheFile, data);
+		await vscode.workspace.fs.writeFile(cacheFile, data, { create: true, overwrite: true });
 	} catch (err) {
 		console.error('Failed to write terminal suggest globals cache:', err);
 	}
@@ -189,7 +189,14 @@ async function readGlobalsCache(): Promise<void> {
 				cachedGlobals.set(key, obj[key]);
 			}
 		}
-	} catch { }
+	} catch (err) {
+		// File might not exist yet, which is expected on first run
+		if (err instanceof vscode.FileSystemError && err.code === 'FileNotFound') {
+			// This is expected on first run
+			return;
+		}
+		console.error('Failed to read terminal suggest globals cache:', err);
+	}
 }
 
 
