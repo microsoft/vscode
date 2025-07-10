@@ -2735,7 +2735,8 @@ export class Repository {
 		for (const name of worktreeNames) {
 			const gitdirPath = path.join(worktreesPath, name, 'gitdir');
 			const gitdirContent = (await fs.readFile(gitdirPath, 'utf8')).trim();
-			result.push({ name: name, path: gitdirContent });
+			const gitdirTrimmed = gitdirContent.substring(0, gitdirContent.length - '/.git'.length); // Remove trailing '/.git'
+			result.push({ name: name, path: gitdirTrimmed });
 		}
 
 		return result;
