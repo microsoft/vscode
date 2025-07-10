@@ -3,17 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { importAMDNodeModule, resolveAmdNodeModulePath } from '../../amdX.js';
-import { Lazy } from '../common/lazy.js';
-import type * as marked from '../common/marked/marked.js';
-import { CodeWindow } from './window.js';
-
-type KatexLib = any;
+import { importAMDNodeModule, resolveAmdNodeModulePath } from '../../../../../amdX.js';
+import { CodeWindow } from '../../../../../base/browser/window.js';
+import { Lazy } from '../../../../../base/common/lazy.js';
+import type * as marked from '../../../../../base/common/marked/marked.js';
 
 export class MarkedKatexSupport {
 
-	public static _katex?: KatexLib;
-	public static _katexPromise = new Lazy(async () => {
+	private static _katex?: typeof import('katex').default;
+	private static _katexPromise = new Lazy(async () => {
 		this._katex = await importAMDNodeModule('katex', 'dist/katex.min.js');
 		return this._katex;
 	});
@@ -47,9 +45,7 @@ export class MarkedKatexSupport {
 
 
 namespace MarkedKatexExtension {
-	type KatexOptions = {
-		throwOnError?: boolean;
-	};
+	type KatexOptions = import('katex').KatexOptions;
 
 	// From https://github.com/UziTech/marked-katex-extension/blob/main/src/index.js
 	export interface MarkedKatexOptions extends KatexOptions {
@@ -65,7 +61,7 @@ namespace MarkedKatexExtension {
 
 	const blockRule = /^(\${1,2})\n((?:\\[^]|[^\\])+?)\n\1(?:\n|$)/;
 
-	export function extension(katex: KatexLib, options: MarkedKatexOptions = {}): marked.MarkedExtension {
+	export function extension(katex: typeof import('katex').default, options: MarkedKatexOptions = {}): marked.MarkedExtension {
 		return {
 			extensions: [
 				inlineKatex(options, createRenderer(katex, options, false)),
@@ -74,7 +70,7 @@ namespace MarkedKatexExtension {
 		};
 	}
 
-	function createRenderer(katex: KatexLib, options: MarkedKatexOptions, newlineAfter: boolean): marked.RendererExtensionFunction {
+	function createRenderer(katex: typeof import('katex').default, options: MarkedKatexOptions, newlineAfter: boolean): marked.RendererExtensionFunction {
 		return (token: marked.Tokens.Generic) => {
 			return katex.renderToString(token.text, {
 				...options,

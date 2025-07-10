@@ -23,20 +23,18 @@ import dompurify from './dompurify/dompurify.js';
 import { DomEmitter } from './event.js';
 import { createElement, FormattedTextRenderOptions } from './formattedTextRenderer.js';
 import { StandardKeyboardEvent } from './keyboardEvent.js';
-import { MarkedKatexSupport } from './markedKatexSupport.js';
 import { StandardMouseEvent } from './mouseEvent.js';
 import { renderLabelWithIcons } from './ui/iconLabel/iconLabels.js';
-import { CodeWindow } from './window.js';
 
-export interface MarkedOptions extends Readonly<Omit<marked.MarkedOptions, 'extensions' | 'baseUrl'>> { }
+export interface MarkedOptions extends Readonly<Omit<marked.MarkedOptions, 'extensions' | 'baseUrl'>> {
+	readonly markedExtensions?: marked.MarkedExtension[];
+}
 
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
-	readonly enableMath?: { readonly window: CodeWindow };
-	readonly fillInIncompleteTokens?: boolean;
-
 	readonly codeBlockRenderer?: (languageId: string, value: string) => Promise<HTMLElement>;
 	readonly codeBlockRendererSync?: (languageId: string, value: string, raw?: string) => HTMLElement;
 	readonly asyncRenderCallback?: () => void;
+	readonly fillInIncompleteTokens?: boolean;
 	readonly remoteImageIsAllowed?: (uri: URI) => boolean;
 	readonly sanitizerOptions?: ISanitizerOptions;
 }
@@ -45,6 +43,7 @@ export interface ISanitizerOptions {
 	readonly replaceWithPlaintext?: boolean;
 	readonly allowedTags?: readonly string[];
 	readonly customAttrSanitizer?: (attrName: string, attrValue: string) => boolean | string;
+	readonly allowedSchemes?: readonly string[];
 	readonly allowedProductProtocols?: readonly string[];
 }
 
@@ -109,45 +108,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	const element = createElement(options);
 
-	const markedExtensions: marked.MarkedExtension[] = [];
-
-	if (options.enableMath) {
-		const existing = MarkedKatexSupport.getExtension(options.enableMath.window, {
-			throwOnError: false
-		});
-
-		if (existing) {
-			markedExtensions.push(existing);
-		} else {
-			// We need to load the extension
-			// However we don't want to make `renderMarkdown` async, so we kick off the loading in parallel and then
-			// insert the async rendered into the sync result
-			let disposed = false;
-			let disposable: IDisposable | undefined;
-
-			MarkedKatexSupport.loadExtension(options.enableMath.window, {
-				throwOnError: false
-			}).then(() => {
-				if (disposed) {
-					return;
-				}
-
-				const result = renderMarkdown(markdown, options, markedOptions);
-				disposable = result;
-				element.replaceChildren(...result.element.childNodes);
-			});
-
-			return {
-				element,
-				dispose: () => {
-					disposed = true;
-					disposable?.dispose();
-				}
-			};
-		}
-	}
-
-	const markedInstance = new marked.Marked(...markedExtensions);
+	const markedInstance = new marked.Marked(...(markedOptions.markedExtensions ?? []));
 	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(markedInstance, options, markedOptions, markdown);
 	const value = preprocessMarkdownString(markdown);
 
