@@ -699,10 +699,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			runtime: layoutRuntimeState,
 		};
 
-		if (this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED)) {
-			this.maximizedAuxiliaryBarState = this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY);
-		}
-
 		// Sidebar View Container To Restore
 		if (this.isVisible(Parts.SIDEBAR_PART)) {
 
@@ -2017,17 +2013,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private maximizedAuxiliaryBarState: {
-		sideBarVisible: boolean;
-		editorVisible: boolean;
-		panelVisible: boolean;
-		auxiliaryBarVisible: boolean;
-	} | undefined = undefined;
-
 	private inMaximizedAuxiliaryBarTransition = false;
 
 	isAuxiliaryBarMaximized(): boolean {
-		return !!this.maximizedAuxiliaryBarState;
+		return this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED);
 	}
 
 	toggleMaximizedAuxiliaryBar(): void {
@@ -2036,19 +2025,20 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	setAuxiliaryBarMaximized(maximized: boolean): boolean {
 		if (
-			this.inMaximizedAuxiliaryBarTransition ||			// prevent re-entrance
-			(!maximized && !this.maximizedAuxiliaryBarState)	// return early if not maximizing and no state
+			this.inMaximizedAuxiliaryBarTransition ||		// prevent re-entrance
+			(maximized === this.isAuxiliaryBarMaximized())	// return early if state is already present
 		) {
 			return false;
 		}
 
 		if (maximized) {
-			const state = this.maximizedAuxiliaryBarState = {
+			const state = {
 				sideBarVisible: this.isVisible(Parts.SIDEBAR_PART),
 				editorVisible: this.isVisible(Parts.EDITOR_PART),
 				panelVisible: this.isVisible(Parts.PANEL_PART),
 				auxiliaryBarVisible: this.isVisible(Parts.AUXILIARYBAR_PART)
 			};
+			this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, true);
 
 			this.inMaximizedAuxiliaryBarTransition = true;
 			try {
@@ -2074,8 +2064,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.inMaximizedAuxiliaryBarTransition = false;
 			}
 		} else {
-			const state = assertReturnsDefined(this.maximizedAuxiliaryBarState);
-			this.maximizedAuxiliaryBarState = undefined;
+			const state = assertReturnsDefined(this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY));
+			this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, false);
 
 			this.inMaximizedAuxiliaryBarTransition = true;
 			try {
@@ -2094,8 +2084,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		this.focusPart(Parts.AUXILIARYBAR_PART);
-
-		this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, maximized);
 
 		this._onDidChangeAuxiliaryBarMaximized.fire();
 
