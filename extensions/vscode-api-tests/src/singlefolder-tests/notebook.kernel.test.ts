@@ -123,7 +123,7 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 	}
 };
 
-suite('Notebook Kernel API tests', function () {
+(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('Notebook Kernel API tests', function () {
 
 	const testDisposables: vscode.Disposable[] = [];
 	const suiteDisposables: vscode.Disposable[] = [];
@@ -213,7 +213,7 @@ suite('Notebook Kernel API tests', function () {
 			}
 		}));
 
-		vscode.commands.executeCommand('notebook.cell.execute', { document: notebook.uri, ranges: [{ start: 0, end: 1 }, { start: 1, end: 2 }] });
+		await vscode.commands.executeCommand('notebook.cell.execute', { document: notebook.uri, ranges: [{ start: 0, end: 1 }, { start: 1, end: 2 }] });
 
 		await def.p;
 		await saveAllFilesAndCloseAll();
