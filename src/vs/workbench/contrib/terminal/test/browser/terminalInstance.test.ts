@@ -257,6 +257,55 @@ suite('Workbench - TerminalInstance', () => {
 			);
 		});
 	});
+
+	suite('setShellType', () => {
+		test('should handle undefined values correctly', async () => {
+			const terminalInstance = store.add(instantiationService.createInstance(TerminalInstance,
+				store.add(new TestTerminalChildProcess(false)),
+				{ executable: 'bash', args: [] }
+			));
+
+			// Initially should be undefined
+			strictEqual(terminalInstance.shellType, undefined);
+
+			// Set to a known shell type
+			terminalInstance.setShellType(GeneralShellType.PowerShell);
+			strictEqual(terminalInstance.shellType, GeneralShellType.PowerShell);
+
+			// Set back to undefined (this is the key test - should work after our fix)
+			terminalInstance.setShellType(undefined);
+			strictEqual(terminalInstance.shellType, undefined);
+		});
+
+		test('should not fire events when value is the same', async () => {
+			const terminalInstance = store.add(instantiationService.createInstance(TerminalInstance,
+				store.add(new TestTerminalChildProcess(false)),
+				{ executable: 'bash', args: [] }
+			));
+
+			let eventCount = 0;
+			terminalInstance.onDidChangeShellType(() => {
+				eventCount++;
+			});
+
+			// Set initial value
+			terminalInstance.setShellType(GeneralShellType.PowerShell);
+			strictEqual(eventCount, 1);
+
+			// Set same value - should not fire event
+			terminalInstance.setShellType(GeneralShellType.PowerShell);
+			strictEqual(eventCount, 1);
+
+			// Set to undefined
+			terminalInstance.setShellType(undefined);
+			strictEqual(eventCount, 2);
+
+			// Set to undefined again - should not fire event
+			terminalInstance.setShellType(undefined);
+			strictEqual(eventCount, 2);
+		});
+	});
+
 	suite('TerminalLabelComputer', () => {
 		let instantiationService: TestInstantiationService;
 		let capabilities: TerminalCapabilityStore;
