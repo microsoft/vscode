@@ -7,7 +7,6 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { MarkedOptions } from '../../../../../base/browser/markdownRenderer.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
-import { coalesce } from '../../../../../base/common/arrays.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -51,7 +50,6 @@ import '../media/chatCodeBlockPill.css';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
-import { MarkedKatexSupport } from './markedKatexSupport.js';
 import './media/chatMarkdownPart.css';
 
 const $ = dom.$;
@@ -161,22 +159,16 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		let globalCodeBlockIndexStart = codeBlockStartIndex;
 		let thisPartCodeBlockIndexStart = 0;
 
-		const markedExtensions = configurationService.getValue<boolean>(ChatConfiguration.EnableMath)
-			? coalesce([MarkedKatexSupport.getExtension(context.container, {
-				throwOnError: false
-			})])
-			: [];
-
 		// Don't set to 'false' for responses, respect defaults
-		const markedOpts: MarkedOptions = isRequestVM(element) || true ? {
+		const markedOpts: MarkedOptions = isRequestVM(element) ? {
 			gfm: true,
 			breaks: true,
-			markedExtensions,
-		} : {
-			markedExtensions,
-		};
+		} : {};
 
 		const result = this._register(renderer.render(markdown.content, {
+			enableMath: configurationService.getValue<boolean>(ChatConfiguration.EnableMath) ? {
+				window: dom.getWindow(context.container),
+			} : undefined,
 			sanitizerOptions: {
 				allowedTags: [
 					...dom.basicMarkupHtmlTags,

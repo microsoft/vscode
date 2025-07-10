@@ -3,36 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { importAMDNodeModule, resolveAmdNodeModulePath } from '../../../../../amdX.js';
-import * as dom from '../../../../../base/browser/dom.js';
-import type * as marked from '../../../../../base/common/marked/marked.js';
+import { importAMDNodeModule, resolveAmdNodeModulePath } from '../../amdX.js';
+import { Lazy } from '../common/lazy.js';
+import type * as marked from '../common/marked/marked.js';
+import { CodeWindow } from './window.js';
 
 export class MarkedKatexSupport {
 
 	public static _katex?: typeof import('katex').default;
+	public static _katexPromise = new Lazy(async () => {
+		this._katex = await importAMDNodeModule<typeof import('katex')>('katex', 'dist/katex.min.js');
+		return this._katex;
+	});
 
-	static {
-		// TODO: figure out a better way to do this
-		// I ran into two issues:
-		// - We don't support to level imports of node_modules so you have to use `import(...)`
-		// - I also didn't want to make all the callers to markdown rendering async to properly await
-		//     loading of the extension, especially because many of them are ctors.
-		importAMDNodeModule<typeof import('katex')>('katex', 'dist/katex.min.js').then(katex => {
-			this._katex = katex;
-		});
-	}
-
-	public static getExtension(container: HTMLElement, options: MarkedKatexExtension.MarkedKatexOptions = {}): marked.MarkedExtension | undefined {
+	public static getExtension(window: CodeWindow, options: MarkedKatexExtension.MarkedKatexOptions = {}): marked.MarkedExtension | undefined {
 		if (!this._katex) {
 			return undefined;
 		}
 
-		this.ensureKatexStyles(container);
+		this.ensureKatexStyles(window);
 		return MarkedKatexExtension.extension(this._katex, options);
 	}
 
-	public static ensureKatexStyles(container: HTMLElement) {
-		const doc = dom.getWindow(container).document;
+	public static async loadExtension(window: CodeWindow, options: MarkedKatexExtension.MarkedKatexOptions = {}): Promise<marked.MarkedExtension> {
+		const katex = await this._katexPromise.value;
+		this.ensureKatexStyles(window);
+		return MarkedKatexExtension.extension(katex, options);
+	}
+
+	public static ensureKatexStyles(window: CodeWindow) {
+		const doc = window.document;
 		if (!doc.querySelector('link.katex')) {
 			const katexStyle = document.createElement('link');
 			katexStyle.classList.add('katex');
