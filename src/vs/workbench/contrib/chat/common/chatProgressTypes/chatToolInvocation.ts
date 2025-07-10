@@ -82,6 +82,18 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		}
 
 		this._resultDetails = result?.toolResultDetails;
+
+		// Hack to convert data part over
+		const data = result?.content.find((part) => part.kind === 'data');
+		if (data) {
+			this._resultDetails = {
+				output: {
+					type: 'data',
+					mimeType: data.value.mimeType,
+					value: data.value.data,
+				}
+			};
+		}
 		this._isCompleteDeferred.complete();
 	}
 

@@ -111,6 +111,7 @@ import { ExtHostWebviewViews } from './extHostWebviewView.js';
 import { IExtHostWindow } from './extHostWindow.js';
 import { IExtHostWorkspace } from './extHostWorkspace.js';
 import { ExtHostAiSettingsSearch } from './extHostAiSettingsSearch.js';
+import { ExtHostChatOutputRenderer } from './extHostChatOutputRenderer.js';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -216,6 +217,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostTesting = rpcProtocol.set(ExtHostContext.ExtHostTesting, accessor.get(IExtHostTesting));
 	const extHostUriOpeners = rpcProtocol.set(ExtHostContext.ExtHostUriOpeners, new ExtHostUriOpeners(rpcProtocol));
 	const extHostProfileContentHandlers = rpcProtocol.set(ExtHostContext.ExtHostProfileContentHandlers, new ExtHostProfileContentHandlers(rpcProtocol));
+	const extHostChatOutputRenderer = rpcProtocol.set(ExtHostContext.ExtHostChatOutputRenderer, new ExtHostChatOutputRenderer(rpcProtocol, extHostWebviews));
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
 	const extHostLanguageModelTools = rpcProtocol.set(ExtHostContext.ExtHostLanguageModelTools, new ExtHostLanguageModelTools(rpcProtocol, extHostLanguageModels));
 	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, extHostDocuments, extHostLanguageModels, extHostDiagnostics, extHostLanguageModelTools));
@@ -1482,6 +1484,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidDisposeChatSession: (listeners, thisArgs?, disposables?) => {
 				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 				return _asExtensionEvent(extHostChatAgents2.onDidDisposeChatSession)(listeners, thisArgs, disposables);
+			},
+			registerChatOutputRenderer: (mime: string, renderer: vscode.ChatOutputRenderer) => {
+				checkProposedApiEnabled(extension, 'chatOutputRenderer');
+				return extHostChatOutputRenderer.registerChatOutputRenderer(extension, mime, renderer);
 			}
 		};
 
