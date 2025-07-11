@@ -100,7 +100,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		let thisPartCodeBlockIndexStart = 0;
 
 		this.domNode = document.createElement('div');
-		this.domNode.classList.add('chat-markdown-part');
+		this.domNode.classList.add('chat-markdown-part', 'rendered-markdown');
 
 		const enableMath = configurationService.getValue<boolean>(ChatConfiguration.EnableMath);
 
