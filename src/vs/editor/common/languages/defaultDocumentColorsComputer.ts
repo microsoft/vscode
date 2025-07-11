@@ -83,8 +83,6 @@ function _findHSLColorInformation(range: IRange | undefined, matches: RegExpMatc
 	const match = matches[0]!;
 	const captureGroups = match.values();
 	const parsedRegex = _parseCaptureGroups(captureGroups);
-	console.log('range : ', range);
-	console.log('parsedRegex : ', parsedRegex);
 	const colorEquivalent = new Color(new HSLA(parsedRegex[0], parsedRegex[1] / 100, parsedRegex[2] / 100, isAlpha ? parsedRegex[3] : 1));
 	return {
 		range: range,
