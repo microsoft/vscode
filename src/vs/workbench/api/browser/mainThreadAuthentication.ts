@@ -546,9 +546,32 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	async $promptForClientDetails(authorizationServerUrl: string): Promise<{ clientId: string; clientSecret?: string } | undefined> {
+		// Show modal dialog first to explain the situation and get user consent
+		const result = await this.dialogService.prompt({
+			type: Severity.Info,
+			message: nls.localize('dcrNotSupported', "Dynamic Client Registration not supported"),
+			detail: nls.localize('dcrNotSupportedDetail', "The authorization server '{0}' does not support automatic client registration. Do you want to manually provide a client registration (client ID)?\n\nNote: When registering your OAuth application, make sure to include these redirect URIs:\n• http://localhost:*\n• https://vscode.dev/redirect", authorizationServerUrl),
+			buttons: [
+				{
+					label: nls.localize('provideClientDetails', "Provide Client Details"),
+					run: () => true
+				}
+			],
+			cancelButton: {
+				label: nls.localize('cancel', "Cancel"),
+				run: () => false
+			}
+		});
+
+		if (!result) {
+			return undefined;
+		}
+
+		const sharedTitle = nls.localize('addClientRegistrationDetails', "Add Client Registration Details");
+
 		const clientId = await this.quickInputService.input({
-			title: nls.localize('clientIdPromptTitle', "OAuth Client ID Required"),
-			prompt: nls.localize('clientIdPrompt', "The authorization server '{0}' does not support automatic client registration. Please enter a client ID that has been registered for VS Code:", authorizationServerUrl),
+			title: sharedTitle,
+			prompt: nls.localize('clientIdPrompt', "Enter a client ID that has been registered for VS Code:"),
 			placeHolder: nls.localize('clientIdPlaceholder', "Enter your OAuth client ID"),
 			ignoreFocusLost: true,
 			validateInput: (value: string) => {
@@ -564,15 +587,11 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		}
 
 		const clientSecret = await this.quickInputService.input({
-			title: nls.localize('clientSecretPromptTitle', "OAuth Client Secret Required"),
-			prompt: nls.localize('clientSecretPrompt', "Please enter the client secret for the authorization server '{0}':", authorizationServerUrl),
+			title: sharedTitle,
+			prompt: nls.localize('clientSecretPrompt', "Enter the client secret for the authorization server '{0}':", authorizationServerUrl),
 			placeHolder: nls.localize('clientSecretPlaceholder', "Enter your OAuth client secret (optional)"),
 			password: true,
-			ignoreFocusLost: true,
-			validateInput: (value: string) => {
-				// Client secret is optional - some providers don't require it
-				return undefined;
-			}
+			ignoreFocusLost: true
 		});
 
 		return {
