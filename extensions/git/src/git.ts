@@ -2007,6 +2007,11 @@ export class Repository {
 		await this.exec(args);
 	}
 
+	async deleteWorktree(path: string): Promise<void> {
+		const args = ['worktree', 'remove', path];
+		await this.exec(args);
+	}
+
 	async deleteRemoteRef(remoteName: string, refName: string, options?: { force?: boolean }): Promise<void> {
 		const args = ['push', remoteName, '--delete'];
 
@@ -2732,18 +2737,20 @@ export class Repository {
 
 		try {
 			const raw = await fs.readdir(worktreesPath); // List all worktree folder names
-
 			const result: Worktree[] = [];
+
 			for (const name of raw) {
 				const gitdirPath = path.join(worktreesPath, name, 'gitdir');
 				const gitdirContent = (await fs.readFile(gitdirPath, 'utf8')).trim();
 				const gitdirTrimmed = gitdirContent.substring(0, gitdirContent.length - '/.git'.length); // Remove trailing '/.git'
 				result.push({ name: name, path: gitdirTrimmed });
 			}
+
 			return result;
 		}
 		catch (err) {
-			return []; // There is no worktrees folder, so no worktrees were created
+			// There is no worktrees folder, so no worktrees were created
+			return [];
 		}
 	}
 

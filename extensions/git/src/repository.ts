@@ -1676,6 +1676,10 @@ export class Repository implements Disposable {
 		return await this.run(Operation.GetRefs, () => this.repository.getRefs(query, cancellationToken));
 	}
 
+	async getWorktrees(): Promise<Worktree[]> {
+		return await this.run(Operation.GetWorktrees, () => this.repository.getWorktrees());
+	}
+
 	async getRemoteRefs(remote: string, opts?: { heads?: boolean; tags?: boolean }): Promise<Ref[]> {
 		return await this.run(Operation.GetRemoteRefs, () => this.repository.getRemoteRefs(remote, opts));
 	}
@@ -1702,6 +1706,10 @@ export class Repository implements Disposable {
 
 	async deleteTag(name: string): Promise<void> {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
+	}
+
+	async deleteWorktree(path: string): Promise<void> {
+		await this.run(Operation.DeleteWorktree, () => this.repository.deleteWorktree(path));
 	}
 
 	async deleteRemoteRef(remoteName: string, refName: string, options?: { force?: boolean }): Promise<void> {

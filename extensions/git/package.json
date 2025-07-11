@@ -539,6 +539,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.deleteWorktree",
+        "title": "%command.deleteWorktree%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.graph.deleteTag",
         "title": "%command.graphDeleteTag%",
         "category": "Git",
@@ -1289,6 +1295,10 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.deleteWorktree",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.deleteRemoteTag",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
@@ -1606,6 +1616,11 @@
         {
           "submenu": "git.tags",
           "group": "2_main@7",
+          "when": "scmProvider == git"
+        },
+        {
+          "submenu": "git.worktrees",
+          "group": "2_main@8",
           "when": "scmProvider == git"
         },
         {
@@ -2537,6 +2552,12 @@
           "command": "git.deleteRemoteTag",
           "group": "tags@3"
         }
+      ],
+      "git.worktrees": [
+        {
+          "command": "git.deleteWorktree",
+          "group": "worktrees@1"
+        }
       ]
     },
     "submenus": [
@@ -2567,6 +2588,10 @@
       {
         "id": "git.tags",
         "label": "%submenu.tags%"
+      },
+      {
+        "id": "git.worktrees",
+        "label": "%submenu.worktrees%"
       }
     ],
     "configuration": {
