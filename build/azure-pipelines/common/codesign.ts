@@ -25,6 +25,6 @@ export async function streamProcessOutputAndCheckResult(name: string, promise: P
 	throw new Error(`${name} failed: ${result.stderr}`);
 }
 
-export function spawnCodesignProcess(esrpCliDLLPath: string, type: 'sign-windows' | 'sign-windows-appx' | 'sign-pgp' | 'sign-darwin' | 'notarize-darwin', folder: string, glob: string): ProcessPromise {
+export function spawnCodesignProcess(esrpCliDLLPath: string, type: 'sign-windows' | 'sign-windows-appx' | 'sign-pgp' | 'sign-pgp-500207' | 'sign-darwin' | 'notarize-darwin', folder: string, glob: string): ProcessPromise {
 	return $`node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${folder} ${glob}`;
 }
