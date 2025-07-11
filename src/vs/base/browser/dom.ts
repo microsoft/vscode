@@ -1869,32 +1869,6 @@ export function safeInnerHtml(node: HTMLElement, value: string, extraDomPurifyCo
 	}
 }
 
-/**
- * Convert a Unicode string to a string in which each 16-bit unit occupies only one byte
- *
- * From https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/btoa
- */
-function toBinary(str: string): string {
-	const codeUnits = new Uint16Array(str.length);
-	for (let i = 0; i < codeUnits.length; i++) {
-		codeUnits[i] = str.charCodeAt(i);
-	}
-	let binary = '';
-	const uint8array = new Uint8Array(codeUnits.buffer);
-	for (let i = 0; i < uint8array.length; i++) {
-		binary += String.fromCharCode(uint8array[i]);
-	}
-	return binary;
-}
-
-/**
- * Version of the global `btoa` function that handles multi-byte characters instead
- * of throwing an exception.
- */
-export function multibyteAwareBtoa(str: string): string {
-	return btoa(toBinary(str));
-}
-
 type ModifierKey = 'alt' | 'ctrl' | 'shift' | 'meta';
 
 export interface IModifierKeyStatus {
