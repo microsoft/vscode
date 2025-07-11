@@ -42,7 +42,7 @@ import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/c
 import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatRequestVariableEntry, isImageVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
 import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatPrepareToolInvocationPart, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
-import { IToolData, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IToolData, IToolResult, IToolResultInputOutputDetails, IToolResultOutputDetails } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { IChatMessageDataPart, IChatResponseDataPart, IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from '../../contrib/debug/common/debug.js';
@@ -3335,11 +3335,12 @@ export namespace LanguageModelToolResult2 {
 			if (item.kind === 'text') {
 				return new types.LanguageModelTextPart(item.value);
 			} else if (item.kind === 'data') {
-				const mimeType = Object.values(types.ChatImageMimeType).includes(item.value.mimeType as types.ChatImageMimeType) ? item.value.mimeType as types.ChatImageMimeType : undefined;
-				if (!mimeType) {
-					throw new Error('Invalid MIME type');
-				}
-				return new types.LanguageModelDataPart(item.value.data.buffer, mimeType);
+				// TODO: make sure we can remove this
+				// const mimeType = Object.values(types.ChatImageMimeType).includes(item.value.mimeType as types.ChatImageMimeType) ? item.value.mimeType as types.ChatImageMimeType : undefined;
+				// // if (!mimeType) {
+				// // 	throw new Error('Invalid MIME type');
+				// // }
+				return new types.LanguageModelDataPart(item.value.data.buffer, item.value.mimeType);
 			} else {
 				return new types.LanguageModelPromptTsxPart(item.value);
 			}
@@ -3352,6 +3353,24 @@ export namespace LanguageModelToolResult2 {
 		}
 
 		let hasBuffers = false;
+		let detailsDto: Dto<Array<URI | types.Location> | IToolResultInputOutputDetails | IToolResultOutputDetails | undefined> = undefined;
+		if (Array.isArray(result.toolResultDetails)) {
+			detailsDto = result.toolResultDetails?.map(detail => {
+				return URI.isUri(detail) ? detail : Location.from(detail as vscode.Location);
+			});
+		} else {
+			if (result.toolResultDetails) {
+				detailsDto = {
+					output: {
+						type: 'data',
+						mimeType: (result.toolResultDetails as { mime: string; value: Uint8Array }).mime,
+						value: VSBuffer.wrap((result.toolResultDetails as { mime: string; value: Uint8Array }).value),
+					}
+				} satisfies IToolResultOutputDetails;
+				hasBuffers = true;
+			}
+		}
+
 		const dto: Dto<IToolResult> = {
 			content: result.content.map(item => {
 				if (item instanceof types.LanguageModelTextPart) {
@@ -3378,7 +3397,7 @@ export namespace LanguageModelToolResult2 {
 				}
 			}),
 			toolResultMessage: MarkdownString.fromStrict(result.toolResultMessage),
-			toolResultDetails: result.toolResultDetails?.map(detail => URI.isUri(detail) ? detail : Location.from(detail as vscode.Location)),
+			toolResultDetails: detailsDto,
 		};
 
 		return hasBuffers ? new SerializableObjectWithBuffers(dto) : dto;

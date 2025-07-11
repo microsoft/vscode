@@ -1463,6 +1463,15 @@ export interface ExtHostUriOpenersShape {
 	$openUri(id: string, context: { resolvedUri: UriComponents; sourceUri: UriComponents }, token: CancellationToken): Promise<void>;
 }
 
+export interface MainThreadChatOutputRendererShape extends IDisposable {
+	$registerChatOutputRenderer(mime: string): void;
+	$unregisterChatOutputRenderer(mime: string): void;
+}
+
+export interface ExtHostChatOutputRendererShape {
+	$renderChatPart(mime: string, valueData: VSBuffer, webviewHandle: string, token: CancellationToken): Promise<void>;
+}
+
 export interface MainThreadProfileContentHandlersShape {
 	$registerProfileContentHandler(id: string, name: string, description: string | undefined, extensionId: string): Promise<void>;
 	$unregisterProfileContentHandler(id: string): Promise<void>;
@@ -3180,6 +3189,7 @@ export const MainContext = {
 	MainThreadAiEmbeddingVector: createProxyIdentifier<MainThreadAiEmbeddingVectorShape>('MainThreadAiEmbeddingVector'),
 	MainThreadChatStatus: createProxyIdentifier<MainThreadChatStatusShape>('MainThreadChatStatus'),
 	MainThreadAiSettingsSearch: createProxyIdentifier<MainThreadAiSettingsSearchShape>('MainThreadAiSettingsSearch'),
+	MainThreadChatOutputRenderer: createProxyIdentifier<MainThreadChatOutputRendererShape>('MainThreadChatOutputRenderer'),
 };
 
 export const ExtHostContext = {
@@ -3225,6 +3235,7 @@ export const ExtHostContext = {
 	ExtHostStorage: createProxyIdentifier<ExtHostStorageShape>('ExtHostStorage'),
 	ExtHostUrls: createProxyIdentifier<ExtHostUrlsShape>('ExtHostUrls'),
 	ExtHostUriOpeners: createProxyIdentifier<ExtHostUriOpenersShape>('ExtHostUriOpeners'),
+	ExtHostChatOutputRenderer: createProxyIdentifier<ExtHostChatOutputRendererShape>('ExtHostChatOutputRenderer'),
 	ExtHostProfileContentHandlers: createProxyIdentifier<ExtHostProfileContentHandlersShape>('ExtHostProfileContentHandlers'),
 	ExtHostOutputService: createProxyIdentifier<ExtHostOutputServiceShape>('ExtHostOutputService'),
 	ExtHostLabelService: createProxyIdentifier<ExtHostLabelServiceShape>('ExtHostLabelService'),
