@@ -2747,8 +2747,11 @@ export class Repository {
 			return result;
 		}
 		catch (err) {
-			// There is no worktrees folder, so no worktrees were created
-			return [];
+			if (/ENOENT/.test(err.message)) {
+				return [];
+			}
+
+			throw err;
 		}
 	}
 
