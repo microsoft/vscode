@@ -733,6 +733,11 @@ export class TerminalService extends Disposable implements ITerminalService {
 		this._saveTerminalAndTaskState();
 	}
 
+	/**
+	 * Saves the current terminal and task state, tracking all terminals regardless of their source.
+	 * This includes user-created terminals, Copilot agent terminals, task terminals, 
+	 * extension terminals, and feature terminals.
+	 */
 	@debounce(500)
 	private _saveTerminalAndTaskState(): void {
 		if (this._isShuttingDown) {
@@ -784,6 +789,18 @@ export class TerminalService extends Disposable implements ITerminalService {
 	 */
 	public getTerminalsBySource(source: string): ITerminalAndTaskStateEntry[] {
 		return this._terminalAndTaskState.terminals.filter(t => t.source === source);
+	}
+
+	/**
+	 * Gets a summary of terminals by their sources for debugging purposes
+	 */
+	public getTerminalSourceSummary(): Record<string, number> {
+		const summary: Record<string, number> = {};
+		for (const terminal of this._terminalAndTaskState.terminals) {
+			const source = terminal.source || 'unknown';
+			summary[source] = (summary[source] || 0) + 1;
+		}
+		return summary;
 	}
 
 	@debounce(500)

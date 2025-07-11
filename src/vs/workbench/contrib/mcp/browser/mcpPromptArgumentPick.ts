@@ -292,6 +292,7 @@ export class McpPromptArgumentPick extends Disposable {
 				isFeatureTerminal: true,
 			},
 			location: TerminalLocation.Panel,
+			source: 'mcp'
 		})));
 
 		this._terminalService.setActiveInstance(terminal);

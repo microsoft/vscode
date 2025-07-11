@@ -103,4 +103,85 @@ suite('TerminalAndTaskState', () => {
 		assert.strictEqual(storedTerminal.name, 'Test Terminal');
 		assert.strictEqual(storedTerminal.createdAt, 1234567890);
 	});
+
+	test('should handle terminals with undefined source', () => {
+		const terminal: ITerminalAndTaskStateEntry = {
+			id: 1,
+			source: undefined,
+			type: 'Local',
+			isFeatureTerminal: false,
+			isExtensionOwnedTerminal: false,
+			name: 'Terminal without source',
+			createdAt: Date.now()
+		};
+
+		const state: ITerminalAndTaskState = { terminals: [terminal] };
+		assert.strictEqual(state.terminals.length, 1);
+		assert.strictEqual(state.terminals[0].source, undefined);
+	});
+
+	test('should track different terminal types correctly', () => {
+		const terminals: ITerminalAndTaskStateEntry[] = [
+			{
+				id: 1,
+				source: 'user',
+				type: 'Local',
+				isFeatureTerminal: false,
+				isExtensionOwnedTerminal: false,
+				name: 'User Terminal',
+				createdAt: Date.now()
+			},
+			{
+				id: 2,
+				source: 'task', 
+				type: 'Task',
+				isFeatureTerminal: false,
+				isExtensionOwnedTerminal: false,
+				name: 'Task Terminal',
+				createdAt: Date.now()
+			}
+		];
+
+		const state: ITerminalAndTaskState = { terminals };
+		
+		const userTerminals = state.terminals.filter(t => t.source === 'user');
+		const taskTerminals = state.terminals.filter(t => t.source === 'task');
+		
+		assert.strictEqual(userTerminals.length, 1);
+		assert.strictEqual(taskTerminals.length, 1);
+		assert.strictEqual(taskTerminals[0].type, 'Task');
+	});
+
+	test('should support all expected terminal sources', () => {
+		const expectedSources = [
+			'user',
+			'github.copilot.terminalPanel', 
+			'task',
+			'extension',
+			'feature',
+			'embedder',
+			'mcp'
+		];
+
+		const terminals: ITerminalAndTaskStateEntry[] = expectedSources.map((source, index) => ({
+			id: index + 1,
+			source: source,
+			type: source === 'task' ? 'Task' : 'Local',
+			isFeatureTerminal: source === 'feature',
+			isExtensionOwnedTerminal: source === 'extension',
+			name: `${source} Terminal`,
+			createdAt: Date.now()
+		}));
+
+		const state: ITerminalAndTaskState = { terminals };
+
+		// Verify all sources are tracked
+		for (const expectedSource of expectedSources) {
+			const sourceTerminals = state.terminals.filter(t => t.source === expectedSource);
+			assert.strictEqual(sourceTerminals.length, 1, `Expected exactly 1 terminal with source '${expectedSource}'`);
+		}
+
+		// Verify total count
+		assert.strictEqual(state.terminals.length, expectedSources.length);
+	});
 });

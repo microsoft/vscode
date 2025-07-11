@@ -68,6 +68,7 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 				config: embedderTerminal,
 				location: TerminalLocation.Panel,
 				skipContributedProfileCheck: true,
+				source: 'embedder'
 			});
 			terminalService.setActiveInstance(terminal);
 			await terminalService.revealActiveTerminal();

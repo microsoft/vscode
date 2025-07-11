@@ -330,6 +330,11 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 */
 	getTerminalsBySource(source: string): ITerminalAndTaskStateEntry[];
 
+	/**
+	 * Gets a summary of terminals by their sources for debugging purposes
+	 */
+	getTerminalSourceSummary(): Record<string, number>;
+
 	registerProcessSupport(isSupported: boolean): void;
 
 	showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined>;
