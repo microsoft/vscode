@@ -218,7 +218,8 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		// that are edit groups, and then this tracks the edit application for
 		// each of them. Note that text edit groups can be updated
 		// multiple times during the process of response streaming.
-		const editsSeen: ({ seen: number; streaming: IStreamingEdits } | undefined)[] = [];
+		// streaming is undefined for workspace edits.
+		const editsSeen: ({ seen: number; streaming?: IStreamingEdits } | undefined)[] = [];
 
 		let editorDidChange = false;
 		const editorListener = Event.once(this._editorService.onDidActiveEditorChange)(() => {
@@ -247,7 +248,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		const onResponseComplete = () => {
 			for (const remaining of editsSeen) {
-				remaining?.streaming.complete();
+				remaining?.streaming?.complete();
 			}
 			if (responseModel.result?.errorDetails && !responseModel.result.errorDetails.responseIsIncomplete) {
 				// Roll back everything
@@ -274,7 +275,10 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				}
 
 				if (part.kind === 'workspaceEdit') {
-					session.makeWorkspaceEdit(part.id, responseModel, part.edit, undoStop);
+					if (!editsSeen[i]) {
+						session.makeWorkspaceEdit(part.id, responseModel, part.edit, undoStop);
+						editsSeen[i] = { seen: 0 };
+					}
 					continue;
 				}
 
@@ -286,7 +290,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 				// get new edits and start editing session
 				let entry = editsSeen[i];
-				if (!entry) {
+				if (!entry?.streaming) {
 					entry = { seen: 0, streaming: session.startStreamingEdits(CellUri.parse(part.uri)?.notebook ?? part.uri, part.editId, responseModel, undoStop) };
 					editsSeen[i] = entry;
 				}
@@ -303,18 +307,18 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 								// Not possible, as Notebooks would have a different type.
 								return;
 							} else if (isCellTextEditOperation(edit)) {
-								entry.streaming.pushNotebookCellText(edit.uri, [edit.edit], done);
+								entry.streaming!.pushNotebookCellText(edit.uri, [edit.edit], done);
 							} else {
-								entry.streaming.pushNotebook([edit], done);
+								entry.streaming!.pushNotebook([edit], done);
 							}
 						});
 					} else if (part.kind === 'textEditGroup') {
-						entry.streaming.pushText(newEdits as TextEdit[], part.done ?? false);
+						entry.streaming!.pushText(newEdits as TextEdit[], part.done ?? false);
 					}
 				}
 
 				if (part.done) {
-					entry.streaming.complete();
+					entry.streaming!.complete();
 				}
 			}
 		};

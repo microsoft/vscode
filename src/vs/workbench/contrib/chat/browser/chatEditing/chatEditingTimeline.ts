@@ -26,6 +26,10 @@ import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookE
 import { IChatEditingSessionSnapshot, IChatEditingSessionStop } from './chatEditingSessionStorage.js';
 import { ChatEditingModifiedNotebookDiff } from './notebook/chatEditingModifiedNotebookDiff.js';
 
+export interface ISnapshotRestorationData {
+
+}
+
 /**
  * Timeline/undo-redo stack for ChatEditingSession.
  */
@@ -94,7 +98,7 @@ export class ChatEditingTimeline {
 	 * Get the snapshot and history index for restoring, given requestId and stopId.
 	 * If requestId is undefined, returns undefined (pending snapshot is managed by session).
 	 */
-	public getSnapshotForRestore(requestId: string | undefined, stopId: string | undefined): { stop: IChatEditingSessionStop; apply(): void } | undefined {
+	public getSnapshotForRestore(requestId: string | undefined, stopId: string | undefined): { stop: IChatEditingSessionStop; toDelete: ResourceMap<void>; apply(): void } | undefined {
 		if (requestId === undefined) {
 			return undefined;
 		}
@@ -106,8 +110,13 @@ export class ChatEditingTimeline {
 		// When rolling back to the first snapshot taken for a request, mark the
 		// entire request as undone.
 		const toIndex = stopRef.stop.stopId === undefined ? stopRef.historyIndex : stopRef.historyIndex + 1;
+
+		const snapshot = this.getSnapshotUntilPoint(stopRef.historyIndex);
+		const toDelete = this.getFilesCreatedAfterPoint(snapshot, stopRef.historyIndex, this._linearHistoryIndex.get());
+
 		return {
-			stop: stopRef.stop,
+			stop: snapshot,
+			toDelete,
 			apply: () => this._linearHistoryIndex.set(toIndex, undefined)
 		};
 	}
@@ -188,18 +197,18 @@ export class ChatEditingTimeline {
 	 * If the timeline is at the end of the history, it will return the last stop
 	 * pushed into the history.
 	 */
-	public getUndoSnapshot(): { stop: IChatEditingSessionStop; apply(): void } | undefined {
+	public getUndoSnapshot(): { stop: IChatEditingSessionStop; toDelete: ResourceMap<void>; apply(): void } | undefined {
 		return this.getUndoRedoSnapshot(-1);
 	}
 
 	/**
 	 * Get the redo snapshot (next in history), or undefined if at end.
 	 */
-	public getRedoSnapshot(): { stop: IChatEditingSessionStop; apply(): void } | undefined {
+	public getRedoSnapshot(): { stop: IChatEditingSessionStop; toDelete: ResourceMap<void>; apply(): void } | undefined {
 		return this.getUndoRedoSnapshot(1);
 	}
 
-	private getUndoRedoSnapshot(direction: number) {
+	private getUndoRedoSnapshot(direction: -1 | 1) {
 		let idx = this._linearHistoryIndex.get() - 1;
 		const max = getMaxHistoryIndex(this._linearHistory.get());
 		const startEntry = this.getHistoryEntryByLinearIndex(idx);
@@ -219,11 +228,7 @@ export class ChatEditingTimeline {
 			!stopProvidesNewData(startEntry.stop, entry.stop)
 		);
 
-		if (entry) {
-			return { stop: entry.stop, apply: () => this._linearHistoryIndex.set(idx + 1, undefined) };
-		}
-
-		return undefined;
+		return entry && this.getSnapshotForRestore(entry.entry.requestId, entry.stop.stopId);
 	}
 
 	/**
@@ -417,6 +422,46 @@ export class ChatEditingTimeline {
 
 			return observable;
 		}
+	}
+
+	private getSnapshotUntilPoint(untilIndex: number) {
+		const snapshot = ChatEditingTimeline.createEmptySnapshot(undefined);
+		let index = 0;
+		L: for (const entry of this._linearHistory.get()) {
+			for (const stop of entry.stops) {
+				for (const [uri, e] of stop.entries) {
+					snapshot.entries.set(uri, e);
+				}
+				index++;
+				if (index > untilIndex) {
+					break L;
+				}
+			}
+		}
+
+		return snapshot;
+	}
+
+	private getFilesCreatedAfterPoint(rollbackInSnapshot: IChatEditingSessionStop, startingAtIndex: number, untilIndex = Infinity) {
+		const createdFiles = new ResourceMap<void>();
+		let index = 0;
+		for (const entry of this._linearHistory.get()) {
+			if (entry.startIndex > startingAtIndex) {
+				for (const stop of entry.stops) {
+					index++;
+					if (index >= startingAtIndex && index < untilIndex) {
+						for (const [uri, e] of stop.entries) {
+							if (e.wasJustCreated) {
+								createdFiles.set(uri);
+							} else if (!rollbackInSnapshot.entries.has(uri)) {
+								rollbackInSnapshot.entries.set(uri, e);
+							}
+						}
+					}
+				}
+			}
+		}
+		return createdFiles;
 	}
 }
 
