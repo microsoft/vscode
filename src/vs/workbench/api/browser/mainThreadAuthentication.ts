@@ -230,10 +230,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	async $registerDynamicAuthenticationProvider(id: string, label: string, authorizationServer: UriComponents, clientId: string, clientSecret?: string): Promise<void> {
 		await this.$registerAuthenticationProvider(id, label, true, [authorizationServer]);
-		this.dynamicAuthProviderStorageService.storeClientId(id, URI.revive(authorizationServer).toString(true), clientId, label);
-		if (clientSecret) {
-			await this.dynamicAuthProviderStorageService.storeClientSecret(id, clientSecret);
-		}
+		await this.dynamicAuthProviderStorageService.storeClientCredentials(id, URI.revive(authorizationServer).toString(true), clientId, clientSecret, label);
 	}
 
 	async $setSessionsForDynamicAuthProvider(authProviderId: string, clientId: string, sessions: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<void> {
@@ -246,15 +243,15 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		if (!existing) {
 			throw new Error(`Dynamic authentication provider ${providerId} not found. Has it been registered?`);
 		}
-		this.dynamicAuthProviderStorageService.storeClientId(
+		
+		// Store client credentials together
+		await this.dynamicAuthProviderStorageService.storeClientCredentials(
 			providerId || existing.providerId,
 			authorizationServer ? URI.revive(authorizationServer).toString(true) : existing.authorizationServer,
 			clientId || existing.clientId,
+			clientSecret,
 			label || existing.label
 		);
-		if (clientSecret) {
-			await this.dynamicAuthProviderStorageService.storeClientSecret(providerId || existing.providerId, clientSecret);
-		}
 	}
 
 	private async loginPrompt(provider: IAuthenticationProvider, extensionName: string, recreatingSession: boolean, options?: AuthenticationInteractiveOptions): Promise<boolean> {

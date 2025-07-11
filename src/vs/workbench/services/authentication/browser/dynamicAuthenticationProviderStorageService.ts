@@ -51,24 +51,67 @@ export class DynamicAuthenticationProviderStorageService extends Disposable impl
 	}
 
 	getClientId(providerId: string): string | undefined {
+		// For backward compatibility, try old storage format first
 		const providers = this._getStoredProviders();
 		const provider = providers.find(p => p.providerId === providerId);
 		return provider?.clientId;
 	}
 
-	storeClientId(providerId: string, authorizationServer: string, clientId: string, label?: string): void {
-		// Store provider information in single location
+	async storeClientCredentials(providerId: string, authorizationServer: string, clientId: string, clientSecret?: string, label?: string): Promise<void> {
+		// Store provider information for backward compatibility and UI display
 		this._trackProvider(providerId, authorizationServer, clientId, label);
+		
+		// Store both client ID and secret together in SecretStorage
+		await this._storeCredentials(providerId, clientId, clientSecret);
+	}
+
+	storeClientId(providerId: string, authorizationServer: string, clientId: string, label?: string): void {
+		// Store provider information for backward compatibility and UI display
+		this._trackProvider(providerId, authorizationServer, clientId, label);
+		
+		// Store credentials asynchronously
+		this._storeCredentials(providerId, clientId, undefined).catch(err => {
+			this.logService.error(`Failed to store client credentials for ${providerId}:`, err);
+		});
 	}
 
 	async getClientSecret(providerId: string): Promise<string | undefined> {
+		// First try new combined SecretStorage format
+		const credentials = await this._getCredentials(providerId);
+		if (credentials?.clientSecret) {
+			return credentials.clientSecret;
+		}
+
+		// Fallback to old storage format for migration
 		const key = `dynamicAuthProvider:${providerId}:clientSecret`;
 		return await this.secretStorageService.get(key);
 	}
 
 	async storeClientSecret(providerId: string, clientSecret: string): Promise<void> {
-		const key = `dynamicAuthProvider:${providerId}:clientSecret`;
-		await this.secretStorageService.set(key, clientSecret);
+		// Get existing client ID if any
+		const existingClientId = this.getClientId(providerId);
+		
+		// Store both client ID and secret together in SecretStorage
+		await this._storeCredentials(providerId, existingClientId, clientSecret);
+	}
+
+	private async _storeCredentials(providerId: string, clientId?: string, clientSecret?: string): Promise<void> {
+		const key = `dynamicAuthProvider:${providerId}:credentials`;
+		const credentials = { clientId, clientSecret };
+		await this.secretStorageService.set(key, JSON.stringify(credentials));
+	}
+
+	private async _getCredentials(providerId: string): Promise<{ clientId?: string; clientSecret?: string } | undefined> {
+		const key = `dynamicAuthProvider:${providerId}:credentials`;
+		const value = await this.secretStorageService.get(key);
+		if (value) {
+			try {
+				return JSON.parse(value);
+			} catch {
+				return undefined;
+			}
+		}
+		return undefined;
 	}
 
 	private _trackProvider(providerId: string, authorizationServer: string, clientId: string, label?: string): void {
@@ -144,7 +187,11 @@ export class DynamicAuthenticationProviderStorageService extends Disposable impl
 			await this.secretStorageService.delete(secretKey);
 		}
 
-		// Remove client secret from secret storage
+		// Remove client credentials from new SecretStorage format
+		const credentialsKey = `dynamicAuthProvider:${providerId}:credentials`;
+		await this.secretStorageService.delete(credentialsKey);
+
+		// Remove client secret from old SecretStorage format (for migration)
 		const clientSecretKey = `dynamicAuthProvider:${providerId}:clientSecret`;
 		await this.secretStorageService.delete(clientSecretKey);
 	}
