@@ -439,7 +439,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	@debounce(500)
 	private eventuallyScanPossibleGitRepositories(): void {
 		for (const path of this.possibleGitRepositoryPaths) {
-			this.openRepository(path, false, { contextValue: 'submodule' });
+			this.openRepository(path);
 		}
 
 		this.possibleGitRepositoryPaths.clear();
@@ -548,7 +548,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	}
 
 	@sequentialize
-	async openRepository(repoPath: string, openIfClosed = false, creationOptions: { contextValue?: string } = {}): Promise<void> {
+	async openRepository(repoPath: string, openIfClosed = false): Promise<void> {
 		this.logger.trace(`[Model][openRepository] Repository: ${repoPath}`);
 		const existingRepository = await this.getRepositoryExact(repoPath);
 		if (existingRepository) {
@@ -635,13 +635,15 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 			// Open repository
 			const [dotGit, repositoryRootRealPath] = await Promise.all([this.git.getRepositoryDotGit(repositoryRoot), this.getRepositoryRootRealPath(repositoryRoot)]);
-			const repository = new Repository(this.git.open(repositoryRoot, repositoryRootRealPath, dotGit, this.logger), creationOptions, this, this, this, this, this, this, this.globalState, this.logger, this.telemetryReporter);
+			const gitRepository = this.git.open(repositoryRoot, repositoryRootRealPath, dotGit, this.logger);
+			const repository = new Repository(gitRepository, this, this, this, this, this, this, this.globalState, this.logger, this.telemetryReporter);
 
 			this.open(repository);
 			this._closedRepositoriesManager.deleteRepository(repository.root);
 
 			this.logger.info(`[Model][openRepository] Opened repository (path): ${repository.root}`);
 			this.logger.info(`[Model][openRepository] Opened repository (real path): ${repository.rootRealPath ?? repository.root}`);
+			this.logger.info(`[Model][openRepository] Opened repository (kind): ${gitRepository.kind}`);
 
 			// Do not await this, we want SCM
 			// to know about the repo asap

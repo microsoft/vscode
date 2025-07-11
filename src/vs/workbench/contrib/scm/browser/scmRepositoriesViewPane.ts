@@ -140,7 +140,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 		this.createTree(treeContainer);
 
-		this.onDidChangeBodyVisibility(visible => {
+		this.onDidChangeBodyVisibility(async visible => {
 			if (!visible) {
 				this.visibilityDisposables.clear();
 				return;
@@ -150,7 +150,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			this._register(this.treeViewModel);
 
 			// Initial rendering
-			this.tree.setInput(this.treeViewModel);
+			await this.tree.setInput(this.treeViewModel);
 
 			// scm.repositories.visible setting
 			this.visibilityDisposables.add(autorun(reader => {
