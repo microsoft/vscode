@@ -422,6 +422,7 @@ export class AttachContextAction extends Action2 {
 				kind: 'contextPick',
 				item,
 				label: item.label,
+				tooltip: item.tooltip,
 				iconClass: ThemeIcon.asClassName(item.icon),
 				keybinding: item.commandId ? keybindingService.lookupKeybinding(item.commandId, contextKeyService) : undefined,
 			});

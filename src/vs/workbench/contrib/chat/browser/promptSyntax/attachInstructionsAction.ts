@@ -219,6 +219,7 @@ export class ChatInstructionsPickerPick implements IChatContextPickerItem {
 
 	readonly type = 'pickerPick';
 	readonly label = localize('chatContext.attach.instructions.label', 'Instructions...');
+	readonly tooltip = localize('chatContext.attach.instructions.tooltip', 'Add instruction files to guide the AI\'s behavior');
 	readonly icon = Codicon.bookmark;
 	readonly commandId = ATTACH_INSTRUCTIONS_ACTION_ID;
 

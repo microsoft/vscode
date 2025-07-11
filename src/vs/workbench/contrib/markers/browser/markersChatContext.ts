@@ -21,6 +21,7 @@ class MarkerChatContextPick implements IChatContextPickerItem {
 
 	readonly type = 'pickerPick';
 	readonly label = localize('chatContext.diagnstic', 'Problems...');
+	readonly tooltip = localize('chatContext.diagnstic.tooltip', 'Include problems and diagnostics from your workspace');
 	readonly icon = Codicon.error;
 	readonly ordinal = -100;
 
