@@ -123,7 +123,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			create: async (authorizationServer, serverMetadata, resource) => {
 				// Auth Provider Id is a combination of the authorization server and the resource, if provided.
 				const authProviderId = resource ? `${authorizationServer.toString(true)} ${resource.resource}` : authorizationServer.toString(true);
-				const clientDetails = await this.dynamicAuthProviderStorageService.getClientDetails(authProviderId);
+				const clientDetails = await this.dynamicAuthProviderStorageService.getClientRegistration(authProviderId);
 				const clientId = clientDetails?.clientId;
 				const clientSecret = clientDetails?.clientSecret;
 				let initialTokens: (IAuthorizationTokenResponse & { created_at: number })[] | undefined = undefined;
@@ -231,7 +231,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	async $registerDynamicAuthenticationProvider(id: string, label: string, authorizationServer: UriComponents, clientId: string, clientSecret?: string): Promise<void> {
 		await this.$registerAuthenticationProvider(id, label, true, [authorizationServer]);
-		await this.dynamicAuthProviderStorageService.storeClientCredentials(id, URI.revive(authorizationServer).toString(true), clientId, clientSecret, label);
+		await this.dynamicAuthProviderStorageService.storeClientRegistration(id, URI.revive(authorizationServer).toString(true), clientId, clientSecret, label);
 	}
 
 	async $setSessionsForDynamicAuthProvider(authProviderId: string, clientId: string, sessions: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<void> {
@@ -244,9 +244,9 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		if (!existing) {
 			throw new Error(`Dynamic authentication provider ${providerId} not found. Has it been registered?`);
 		}
-		
+
 		// Store client credentials together
-		await this.dynamicAuthProviderStorageService.storeClientCredentials(
+		await this.dynamicAuthProviderStorageService.storeClientRegistration(
 			providerId || existing.providerId,
 			authorizationServer ? URI.revive(authorizationServer).toString(true) : existing.authorizationServer,
 			clientId || existing.clientId,
@@ -550,7 +550,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		const result = await this.dialogService.prompt({
 			type: Severity.Info,
 			message: nls.localize('dcrNotSupported', "Dynamic Client Registration not supported"),
-			detail: nls.localize('dcrNotSupportedDetail', "The authorization server '{0}' does not support automatic client registration. Do you want to manually provide a client registration (client ID)?\n\nNote: When registering your OAuth application, make sure to include these redirect URIs:\n• http://localhost:*\n• https://vscode.dev/redirect", authorizationServerUrl),
+			detail: nls.localize('dcrNotSupportedDetail', "The authorization server '{0}' does not support automatic client registration. Do you want to manually provide a client registration (client ID)?\n\nNote: When registering your OAuth application, make sure to include these redirect URIs:\nhttp://127.0.0.1:33418\nhttps://vscode.dev/redirect", authorizationServerUrl),
 			buttons: [
 				{
 					label: nls.localize('provideClientDetails', "Provide Client Details"),
@@ -574,7 +574,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			prompt: nls.localize('clientIdPrompt', "Enter a client ID that has been registered for VS Code:"),
 			placeHolder: nls.localize('clientIdPlaceholder', "Enter your OAuth client ID"),
 			ignoreFocusLost: true,
-			validateInput: (value: string) => {
+			validateInput: async (value: string) => {
 				if (!value || value.trim().length === 0) {
 					return nls.localize('clientIdRequired', "Client ID is required");
 				}

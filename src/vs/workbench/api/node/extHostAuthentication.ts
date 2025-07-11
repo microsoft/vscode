@@ -35,6 +35,7 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		serverMetadata: IAuthorizationServerMetadata,
 		resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
 		clientId: string,
+		clientSecret: string | undefined,
 		onDidDynamicAuthProviderTokensChange: Emitter<{ authProviderId: string; clientId: string; tokens: any[] }>,
 		initialTokens: any[]
 	) {
@@ -49,6 +50,7 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 			serverMetadata,
 			resourceMetadata,
 			clientId,
+			clientSecret,
 			onDidDynamicAuthProviderTokensChange,
 			initialTokens
 		);

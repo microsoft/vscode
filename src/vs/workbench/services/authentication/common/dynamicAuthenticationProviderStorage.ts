@@ -42,23 +42,7 @@ export interface IDynamicAuthenticationProviderStorageService {
 	 * @param providerId The provider ID or authorization server URL.
 	 * @returns The client details if they exist, undefined otherwise.
 	 */
-	getClientDetails(providerId: string): Promise<{ clientId?: string; clientSecret?: string } | undefined>;
-
-	/**
-	 * Get the client ID for a dynamic authentication provider.
-	 * @param providerId The provider ID or authorization server URL.
-	 * @returns The client ID if it exists, undefined otherwise.
-	 */
-	getClientId(providerId: string): string | undefined;
-
-	/**
-	 * Store the client ID for a dynamic authentication provider.
-	 * @param providerId The provider ID or authorization server URL.
-	 * @param clientId The client ID to store.
-	 * @param label Optional label for the provider.
-	 * @param authorizationServer Optional authorization server URL for the provider.
-	 */
-	storeClientId(providerId: string, authorizationServer: string, clientId: string, label?: string): void;
+	getClientRegistration(providerId: string): Promise<{ clientId?: string; clientSecret?: string } | undefined>;
 
 	/**
 	 * Store both client ID and client secret for a dynamic authentication provider.
@@ -68,21 +52,7 @@ export interface IDynamicAuthenticationProviderStorageService {
 	 * @param clientSecret Optional client secret to store.
 	 * @param label Optional label for the provider.
 	 */
-	storeClientCredentials(providerId: string, authorizationServer: string, clientId: string, clientSecret?: string, label?: string): Promise<void>;
-
-	/**
-	 * Get the client secret for a dynamic authentication provider.
-	 * @param providerId The provider ID or authorization server URL.
-	 * @returns The client secret if it exists, undefined otherwise.
-	 */
-	getClientSecret(providerId: string): Promise<string | undefined>;
-
-	/**
-	 * Store the client secret for a dynamic authentication provider.
-	 * @param providerId The provider ID or authorization server URL.
-	 * @param clientSecret The client secret to store.
-	 */
-	storeClientSecret(providerId: string, clientSecret: string): Promise<void>;
+	storeClientRegistration(providerId: string, authorizationServer: string, clientId: string, clientSecret?: string, label?: string): Promise<void>;
 
 	/**
 	 * Get all dynamic authentication providers that have been interacted with.
