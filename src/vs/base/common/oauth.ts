@@ -866,21 +866,3 @@ export function getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl: string): 
 
 	return baseUrl.toString();
 }
-
-/**
- * Normalizes a URL for comparison purposes by ensuring consistent formatting.
- * Handles differences in hostname case, trailing slashes for root paths, etc.
- *
- * @param url The URL to normalize
- * @returns The normalized URL string
- */
-export function normalizeUrlForComparison(url: string): string {
-	const parsed = new URL(url);
-	
-	// Ensure root paths have a trailing slash
-	if (!parsed.pathname || parsed.pathname === '') {
-		parsed.pathname = '/';
-	}
-	
-	return parsed.toString();
-}

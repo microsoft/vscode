@@ -10,7 +10,6 @@ import {
 	getDefaultMetadataForUrl,
 	getMetadataWithDefaultValues,
 	getResourceServerBaseUrlFromDiscoveryUrl,
-	normalizeUrlForComparison,
 	isAuthorizationAuthorizeResponse,
 	isAuthorizationDeviceResponse,
 	isAuthorizationErrorResponse,
@@ -755,60 +754,6 @@ suite('OAuth', () => {
 			const discoveryUrl = 'https://MCP.EXAMPLE.COM/.well-known/oauth-protected-resource';
 			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
 			assert.strictEqual(result, 'https://mcp.example.com/');
-		});
-	});
-
-	suite('normalizeUrlForComparison', () => {
-		test('should normalize URLs with missing trailing slash', () => {
-			const url1 = 'https://example.com';
-			const url2 = 'https://example.com/';
-			
-			const normalized1 = normalizeUrlForComparison(url1);
-			const normalized2 = normalizeUrlForComparison(url2);
-			
-			assert.strictEqual(normalized1, normalized2);
-			assert.strictEqual(normalized1, 'https://example.com/');
-		});
-
-		test('should normalize hostname case differences', () => {
-			const url1 = 'https://EXAMPLE.COM/';
-			const url2 = 'https://example.com/';
-			
-			const normalized1 = normalizeUrlForComparison(url1);
-			const normalized2 = normalizeUrlForComparison(url2);
-			
-			assert.strictEqual(normalized1, normalized2);
-			assert.strictEqual(normalized1, 'https://example.com/');
-		});
-
-		test('should handle subpaths without affecting trailing slash', () => {
-			const url1 = 'https://example.com/api';
-			const url2 = 'https://example.com/api';
-			
-			const normalized1 = normalizeUrlForComparison(url1);
-			const normalized2 = normalizeUrlForComparison(url2);
-			
-			assert.strictEqual(normalized1, normalized2);
-			assert.strictEqual(normalized1, 'https://example.com/api');
-		});
-
-		test('should handle complex URLs with query params and fragments', () => {
-			const url1 = 'https://EXAMPLE.COM/api?version=1#section';
-			const url2 = 'https://example.com/api?version=1#section';
-			
-			const normalized1 = normalizeUrlForComparison(url1);
-			const normalized2 = normalizeUrlForComparison(url2);
-			
-			assert.strictEqual(normalized1, normalized2);
-		});
-
-		test('should normalize empty pathname to root slash', () => {
-			// Simulate URLs that might have empty pathnames
-			const baseUrl = new URL('https://example.com');
-			baseUrl.pathname = '';
-			
-			const normalized = normalizeUrlForComparison(baseUrl.toString());
-			assert.strictEqual(normalized, 'https://example.com/');
 		});
 	});
 });
