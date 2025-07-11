@@ -289,7 +289,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: RerunAllRunningTasksCommandId,
-		title: nls.localize2('RerunAllRunningTasksAction.label', "Rerun All Running Tasks"),
+		title: nls.localize2('RerunAllRunningTasksAction.label', "Restart All Running Tasks"),
 		category: TASKS_CATEGORY
 	},
 	when: TaskExecutionSupportedContext
