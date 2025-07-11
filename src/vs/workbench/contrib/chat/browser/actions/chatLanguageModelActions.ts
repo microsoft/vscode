@@ -182,7 +182,7 @@ class ManageLanguageModelAuthenticationAction extends Action2 {
 				sortByLabel: true,
 				onDidTriggerSeparatorButton(context) {
 					// Handle separator button clicks
-					const extId = context.separator.id!;
+					const extId = context.separator.id;
 					if (extId) {
 						// Open the extension in the editor
 						void extensionsWorkbenchService.open(extId);
@@ -190,7 +190,7 @@ class ManageLanguageModelAuthenticationAction extends Action2 {
 				},
 				onDidTriggerItemButton(context) {
 					// Handle item button clicks
-					const extId = context.item.id!;
+					const extId = context.item.id;
 					if (extId) {
 						// Open the extension in the editor
 						void extensionsWorkbenchService.open(extId);
