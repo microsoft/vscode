@@ -14,6 +14,7 @@ import { IEditorDecorationsCollection } from '../../../../editor/common/editorCo
 import { CommentThreadState } from '../../../../editor/common/languages.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 
 export const overviewRulerCommentingRangeForeground = registerColor('editorGutter.commentRangeForeground', { dark: opaque(listInactiveSelectionBackground, editorBackground), light: darken(opaque(listInactiveSelectionBackground, editorBackground), .05), hcDark: Color.white, hcLight: Color.black }, nls.localize('editorGutterCommentRangeForeground', 'Editor gutter decoration color for commenting ranges. This color should be opaque.'));
 const overviewRulerCommentForeground = registerColor('editorOverviewRuler.commentForeground', overviewRulerCommentingRangeForeground, nls.localize('editorOverviewRuler.commentForeground', 'Editor overview ruler decoration color for resolved comments. This color should be opaque.'));
@@ -35,8 +36,8 @@ export class CommentGlyphWidget extends Disposable {
 
 	constructor(editor: ICodeEditor, lineNumber: number) {
 		super();
-		this._commentsOptions = this.createDecorationOptions();
 		this._editor = editor;
+		this._commentsOptions = this.createDecorationOptions();
 		this._commentsDecorations = this._editor.createDecorationsCollection();
 		this._register(this._commentsDecorations.onDidChange(e => {
 			const range = (this._commentsDecorations.length > 0 ? this._commentsDecorations.getRange(0) : null);
@@ -46,14 +47,26 @@ export class CommentGlyphWidget extends Disposable {
 			}
 		}));
 		this._register(toDisposable(() => this._commentsDecorations.clear()));
+		
+		// Listen to word wrap changes and update decorations accordingly
+		this._register(this._editor.onDidChangeConfiguration(e => {
+			if (e.hasChanged(EditorOption.wordWrap)) {
+				this._commentsOptions = this.createDecorationOptions();
+				this._updateDecorations();
+			}
+		}));
+		
 		this.setLineNumber(lineNumber);
 	}
 
 	private createDecorationOptions(): ModelDecorationOptions {
 		const unresolved = this._threadState === CommentThreadState.Unresolved;
+		const wordWrap = this._editor.getOption(EditorOption.wordWrap);
+		const isWordWrapEnabled = wordWrap !== 'off';
+		
 		const decorationOptions: IModelDecorationOptions = {
 			description: CommentGlyphWidget.description,
-			isWholeLine: true,
+			isWholeLine: !isWordWrapEnabled,
 			overviewRuler: {
 				color: themeColorFromId(unresolved ? overviewRulerCommentUnresolvedForeground : overviewRulerCommentForeground),
 				position: OverviewRulerLane.Center
@@ -74,10 +87,13 @@ export class CommentGlyphWidget extends Disposable {
 	}
 
 	private _updateDecorations(): void {
+		const wordWrap = this._editor.getOption(EditorOption.wordWrap);
+		const isWordWrapEnabled = wordWrap !== 'off';
+		
 		const commentsDecorations = [{
 			range: {
 				startLineNumber: this._lineNumber, startColumn: 1,
-				endLineNumber: this._lineNumber, endColumn: 1
+				endLineNumber: this._lineNumber, endColumn: isWordWrapEnabled ? 2 : 1
 			},
 			options: this._commentsOptions
 		}];
