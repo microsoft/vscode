@@ -629,6 +629,22 @@ impl ConnectionManager {
 				Quality::try_from(q).map_err(|_| CodeError::UpdatesNotConfigured("unknown quality"))
 			})?;
 
+		if let Some(commit) = &self.args.commit_id {
+			let release = Release {
+				name: commit.to_string(),
+				commit: commit.to_string(),
+				platform: self.platform,
+				target: target_kind,
+				quality,
+			};
+			debug!(
+				self.log,
+				"using provided commit instead of latest release: {}", release
+			);
+			*latest = Some((now, release.clone()));
+			return Ok(release);
+		}
+
 		let release = self
 			.update_service
 			.get_latest_commit(self.platform, target_kind, quality)
