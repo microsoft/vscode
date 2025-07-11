@@ -17,6 +17,7 @@ import { IChatWidget } from './chat.js';
 export interface IChatContextPickerPickItem {
 	label: string;
 	iconClass?: string;
+	iconClasses?: readonly string[];
 	description?: string;
 	detail?: string;
 	disabled?: boolean;
