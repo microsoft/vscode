@@ -525,6 +525,9 @@ export class McpServer extends Disposable implements IMcpServer {
 				case 'npx':
 					docsLink = `https://aka.ms/vscode-mcp-install/npx`;
 					break;
+				case 'dnx':
+					docsLink = `https://aka.ms/vscode-mcp-install/dnx`;
+					break;
 			}
 
 			const options: IPromptChoice[] = [{
