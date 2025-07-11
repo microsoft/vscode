@@ -61,6 +61,9 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		this._register(this._contentHoverWidget.onDidScroll((e) => {
 			this._participants.forEach(participant => participant.handleScroll?.(e));
 		}));
+		this._register(this._contentHoverWidget.onContentsChanged(() => {
+			this._participants.forEach(participant => participant.handleContentsChanged?.());
+		}));
 		return participants;
 	}
 
@@ -82,6 +85,9 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 			if (this._contentHoverWidget.position && this._currentResult) {
 				this._setCurrentResult(this._currentResult); // render again
 			}
+		}));
+		this._register(this._contentHoverWidget.onContentsChanged(() => {
+			this._onContentsChanged.fire();
 		}));
 	}
 
@@ -228,8 +234,7 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 			this.hide();
 		};
 		const onContentsChanged = () => {
-			this._onContentsChanged.fire();
-			this._contentHoverWidget.onContentsChanged();
+			this._contentHoverWidget.handleContentsChanged();
 		};
 		const setMinimumDimensions = (dimensions: dom.Dimension) => {
 			this._contentHoverWidget.setMinimumDimensions(dimensions);
