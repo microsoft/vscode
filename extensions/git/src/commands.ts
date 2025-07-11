@@ -60,7 +60,11 @@ class RefItemSeparator implements QuickPickItem {
 class WorktreeItem implements QuickPickItem {
 
 	get label(): string {
-		return `$(list-tree) ${this.worktree.path}`;
+		return `$(list-tree) ${this.worktree.name}`;
+	}
+
+	get description(): string {
+		return this.worktree.path;
 	}
 
 	constructor(readonly worktree: Worktree) { }
