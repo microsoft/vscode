@@ -642,8 +642,6 @@ MenuRegistry.appendMenuItem(MenuId.EditorLineNumberContext, {
 	group: '9_quickDiffDecorations'
 });
 
-
-
 registerSingleton(ISCMService, SCMService, InstantiationType.Delayed);
 registerSingleton(ISCMViewService, SCMViewService, InstantiationType.Delayed);
 registerSingleton(IQuickDiffService, QuickDiffService, InstantiationType.Delayed);
