@@ -1,4 +1,7 @@
 {
+	// --- Chat ---
+	"inlineChat.enableV2": true,
+
 	// --- Editor ---
 	"editor.insertSpaces": false,
 	"editor.experimental.asyncTokenization": true,
@@ -204,10 +207,5 @@
 		"msjsdiag.debugger-for-chrome": "workspace"
 	},
 	"terminal.integrated.suggest.enabled": true,
-	"inlineChat.enableV2": true,
-	"chat.instructionsFilesLocations": {
-		".github/instructions": true,
-		".vscode": true
-	},
 	"application.experimental.rendererProfiling": true
 }
