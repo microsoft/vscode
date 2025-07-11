@@ -578,6 +578,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 	}
 
 	disposeTemplate(templateData: HistoryItemTemplate): void {
+		templateData.elementDisposables.dispose();
 		templateData.disposables.dispose();
 	}
 }
@@ -747,6 +748,7 @@ class HistoryItemLoadMoreRenderer implements ICompressibleTreeRenderer<SCMHistor
 	}
 
 	disposeTemplate(templateData: LoadMoreTemplate): void {
+		templateData.elementDisposables.dispose();
 		templateData.disposables.dispose();
 	}
 }

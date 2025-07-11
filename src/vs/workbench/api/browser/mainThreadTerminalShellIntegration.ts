@@ -114,7 +114,6 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 
 	private _enableShellIntegration(instance: ITerminalInstance): void {
 		this._extensionService.activateByEvent('onTerminalShellIntegration:*');
-		this._register(instance.onDidChangeShellType(() => this._extensionService.activateByEvent(`onTerminalShellIntegration:${instance.shellType}`)));
 		if (instance.shellType) {
 			this._extensionService.activateByEvent(`onTerminalShellIntegration:${instance.shellType}`);
 		}

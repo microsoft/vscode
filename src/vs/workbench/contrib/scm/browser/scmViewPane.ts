@@ -392,6 +392,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 	}
 
 	disposeTemplate(templateData: InputTemplate): void {
+		templateData.elementDisposables.dispose();
 		templateData.templateDisposable.dispose();
 	}
 
@@ -1335,7 +1336,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: SCMInputWidgetCommandId.SetupAction,
-			title: localize('scmInputGenerateCommitMessage', "Generate Commit Message with Copilot"),
+			title: localize('scmInputGenerateCommitMessage', "Generate commit message"),
 			icon: Codicon.sparkle,
 			f1: false,
 			menu: {

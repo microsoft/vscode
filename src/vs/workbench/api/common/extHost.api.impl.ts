@@ -1357,11 +1357,20 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get taskExecutions(): vscode.TaskExecution[] {
 				return extHostTask.taskExecutions;
 			},
-			onDidStartTask: (listeners, thisArgs?, disposables?) => {
-				if (!isProposedApiEnabled(extension, 'taskExecutionTerminal')) {
-					thisArgs.terminal = undefined;
-				}
-				return _asExtensionEvent(extHostTask.onDidStartTask)(listeners, thisArgs, disposables);
+			onDidStartTask: (listener: (e: vscode.TaskStartEvent) => any, thisArgs?: any, disposables?) => {
+				const wrappedListener = (event: vscode.TaskStartEvent) => {
+					if (!isProposedApiEnabled(extension, 'taskExecutionTerminal')) {
+						if (event?.execution?.terminal !== undefined) {
+							event.execution.terminal = undefined;
+						}
+					}
+					const eventWithExecution = {
+						...event,
+						execution: event.execution
+					};
+					return listener.call(thisArgs, eventWithExecution);
+				};
+				return _asExtensionEvent(extHostTask.onDidStartTask)(wrappedListener, thisArgs, disposables);
 			},
 			onDidEndTask: (listeners, thisArgs?, disposables?) => {
 				return _asExtensionEvent(extHostTask.onDidEndTask)(listeners, thisArgs, disposables);
