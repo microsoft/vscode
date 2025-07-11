@@ -288,6 +288,61 @@ suite('NotebookKernelService', () => {
 		assert.strictEqual(info.all[0], kernel2); // Higher notebook affinity
 		assert.strictEqual(info.all[1], kernel1);
 	});
+
+	test('REPL kernel affinity works for any notebook type (not just repl)', function () {
+		// Test that REPL affinity is not restricted to 'repl' notebook type
+		const notebook = URI.parse('foo:///interactive-python');
+		const interactiveNotebook = { uri: notebook, notebookType: 'interactive', metadata: { language_info: { name: 'python' } } };
+
+		const pythonKernel = new TestNotebookKernel({ label: 'Python' });
+		pythonKernel.id = 'python-kernel';
+		pythonKernel.viewType = 'interactive';
+		
+		const generalKernel = new TestNotebookKernel({ label: 'General' });
+		generalKernel.id = 'general-kernel';
+		generalKernel.viewType = 'interactive';
+		
+		disposables.add(kernelService.registerKernel(pythonKernel));
+		disposables.add(kernelService.registerKernel(generalKernel));
+
+		// Set language-specific affinity for Python kernel on any notebook type
+		kernelService.updateKernelReplAffinity(pythonKernel, { language: 'python' }, 2);
+
+		// Python kernel should be preferred for Python interactive notebook
+		let info = kernelService.getMatchingKernel(interactiveNotebook);
+		assert.strictEqual(info.all.length, 2);
+		assert.strictEqual(info.all[0], pythonKernel); // Should be first due to affinity
+	});
+
+	test('REPL kernel affinity cleared for untitled documents', function () {
+		const untitledNotebook = URI.parse('untitled:///new-notebook');
+		const untitledREPL = { uri: untitledNotebook, notebookType: 'jupyter-notebook' };
+
+		const kernel = new TestNotebookKernel({ label: 'Test Kernel' });
+		kernel.id = 'test-kernel';
+		kernel.viewType = 'jupyter-notebook';
+		
+		disposables.add(kernelService.registerKernel(kernel));
+
+		// Set REPL affinity for the kernel
+		kernelService.updateKernelReplAffinity(kernel, { notebookType: 'jupyter-notebook' }, 2);
+		
+		// Verify affinity is set initially
+		let info = kernelService.getMatchingKernel(untitledREPL);
+		assert.strictEqual(info.all.length, 1);
+		assert.strictEqual(info.suggestions.length, 1); // Should be suggested due to affinity
+
+		// Select kernel for untitled document - this should clear affinity
+		kernelService.selectKernelForNotebook(kernel, untitledREPL);
+
+		// Create another similar REPL to test if affinity was cleared
+		const anotherREPL = { uri: URI.parse('file:///another-repl'), notebookType: 'jupyter-notebook' };
+		
+		// If affinity was cleared, this kernel should not have preferred status
+		info = kernelService.getMatchingKernel(anotherREPL);
+		assert.strictEqual(info.all.length, 1);
+		assert.strictEqual(info.suggestions.length, 0); // No suggestions since affinity was cleared
+	});
 });
 
 class TestNotebookKernel implements INotebookKernel {

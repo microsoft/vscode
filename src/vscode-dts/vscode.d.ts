@@ -16004,10 +16004,10 @@ declare module 'vscode' {
 		 * This only applies to REPL editors and does not affect notebook kernel selection.
 		 * This allows a controller to be presented more prominent for REPLs with specific characteristics.
 		 *
-		 * @param selector Document selector to match REPL editors by language and/or notebookType
+		 * @param selector Document filter to match REPL editors by language, notebookType, scheme, or pattern
 		 * @param affinity A controller affinity
 		 */
-		updateReplAffinity(selector: { language?: string; notebookType?: string }, affinity: NotebookControllerAffinity): void;
+		updateReplAffinity(selector: DocumentFilter, affinity: NotebookControllerAffinity): void;
 
 		/**
 		 * Dispose and free associated resources.

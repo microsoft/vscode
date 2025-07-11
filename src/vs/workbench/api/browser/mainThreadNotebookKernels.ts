@@ -294,7 +294,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		}
 	}
 
-	$updateReplPriority(handle: number, selector: { language?: string; notebookType?: string }, value: number | undefined): void {
+	$updateReplPriority(handle: number, selector: { language?: string; notebookType?: string; scheme?: string; pattern?: string | { baseUri: UriComponents; pattern: string } }, value: number | undefined): void {
 		const tuple = this._kernels.get(handle);
 		if (tuple) {
 			this._notebookKernelService.updateKernelReplAffinity(tuple[0], selector, value);
