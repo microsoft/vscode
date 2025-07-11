@@ -144,12 +144,6 @@ export interface IUserData {
 	content: string | null;
 }
 
-export function isUserData(thing: any): thing is IUserData {
-	return thing
-		&& isString(thing.ref)
-		&& (isString(thing.content) || thing.content === null);
-}
-
 export type IAuthenticationProvider = { id: string; scopes: string[] };
 
 export interface IUserDataSyncStore {

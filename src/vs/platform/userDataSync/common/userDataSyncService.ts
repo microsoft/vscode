@@ -205,7 +205,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		};
 	}
 
-	private async sync(manifest: IUserDataManifest | IUserDataSyncLatestData | null, preview: boolean, executionId: string, token: CancellationToken): Promise<void> {
+	private async sync(manifestOrLatestData: IUserDataManifest | IUserDataSyncLatestData | null, preview: boolean, executionId: string, token: CancellationToken): Promise<void> {
 		this._syncErrors = [];
 		try {
 			if (this.status !== SyncStatus.HasConflicts) {
@@ -214,7 +214,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 			// Sync Default Profile First
 			const defaultProfileSynchronizer = this.getOrCreateActiveProfileSynchronizer(this.userDataProfilesService.defaultProfile, undefined);
-			this._syncErrors.push(...await this.syncProfile(defaultProfileSynchronizer, manifest, preview, executionId, token));
+			this._syncErrors.push(...await this.syncProfile(defaultProfileSynchronizer, manifestOrLatestData, preview, executionId, token));
 
 			// Sync other profiles
 			const userDataProfileManifestSynchronizer = defaultProfileSynchronizer.enabled.find(s => s.resource === SyncResource.Profiles);
@@ -223,7 +223,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				if (token.isCancellationRequested) {
 					return;
 				}
-				await this.syncRemoteProfiles(syncProfiles, manifest, preview, executionId, token);
+				await this.syncRemoteProfiles(syncProfiles, manifestOrLatestData, preview, executionId, token);
 			}
 		} finally {
 			if (this.status !== SyncStatus.HasConflicts) {
@@ -258,7 +258,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 	}
 
-	private async applyManualSync(manifest: IUserDataManifest | IUserDataSyncLatestData | null, executionId: string, token: CancellationToken): Promise<void> {
+	private async applyManualSync(manifestOrLatestData: IUserDataManifest | IUserDataSyncLatestData | null, executionId: string, token: CancellationToken): Promise<void> {
 		try {
 			this.setStatus(SyncStatus.Syncing);
 			const profileSynchronizers = this.getActiveProfileSynchronizers();
@@ -280,18 +280,18 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			}
 
 			// Sync remote profiles which are not synced locally
-			const remoteProfiles = (await (userDataProfileManifestSynchronizer as UserDataProfilesManifestSynchroniser).getRemoteSyncedProfiles(getRefOrUserData(manifest, undefined, SyncResource.Profiles) ?? null)) || [];
+			const remoteProfiles = (await (userDataProfileManifestSynchronizer as UserDataProfilesManifestSynchroniser).getRemoteSyncedProfiles(getRefOrUserData(manifestOrLatestData, undefined, SyncResource.Profiles) ?? null)) || [];
 			const remoteProfilesToSync = remoteProfiles.filter(remoteProfile => profileSynchronizers.every(s => s.profile.id !== remoteProfile.id));
 			if (remoteProfilesToSync.length) {
-				await this.syncRemoteProfiles(remoteProfilesToSync, manifest, false, executionId, token);
+				await this.syncRemoteProfiles(remoteProfilesToSync, manifestOrLatestData, false, executionId, token);
 			}
 		} finally {
 			this.setStatus(SyncStatus.Idle);
 		}
 	}
 
-	private async syncProfile(profileSynchronizer: ProfileSynchronizer, manifest: IUserDataManifest | IUserDataSyncLatestData | null, preview: boolean, executionId: string, token: CancellationToken): Promise<IUserDataSyncResourceError[]> {
-		const errors = await profileSynchronizer.sync(manifest, preview, executionId, token);
+	private async syncProfile(profileSynchronizer: ProfileSynchronizer, manifestOrLatestData: IUserDataManifest | IUserDataSyncLatestData | null, preview: boolean, executionId: string, token: CancellationToken): Promise<IUserDataSyncResourceError[]> {
+		const errors = await profileSynchronizer.sync(manifestOrLatestData, preview, executionId, token);
 		return errors.map(([syncResource, error]) => ({ profile: profileSynchronizer.profile, syncResource, error }));
 	}
 
