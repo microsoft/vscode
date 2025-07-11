@@ -123,8 +123,9 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			create: async (authorizationServer, serverMetadata, resource) => {
 				// Auth Provider Id is a combination of the authorization server and the resource, if provided.
 				const authProviderId = resource ? `${authorizationServer.toString(true)} ${resource.resource}` : authorizationServer.toString(true);
-				const clientId = this.dynamicAuthProviderStorageService.getClientId(authProviderId);
-				const clientSecret = await this.dynamicAuthProviderStorageService.getClientSecret(authProviderId);
+				const clientDetails = await this.dynamicAuthProviderStorageService.getClientDetails(authProviderId);
+				const clientId = clientDetails?.clientId;
+				const clientSecret = clientDetails?.clientSecret;
 				let initialTokens: (IAuthorizationTokenResponse & { created_at: number })[] | undefined = undefined;
 				if (clientId) {
 					initialTokens = await this.dynamicAuthProviderStorageService.getSessionsForDynamicAuthProvider(authProviderId, clientId);

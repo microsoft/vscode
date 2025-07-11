@@ -50,6 +50,25 @@ export class DynamicAuthenticationProviderStorageService extends Disposable impl
 		}));
 	}
 
+	async getClientDetails(providerId: string): Promise<{ clientId?: string; clientSecret?: string } | undefined> {
+		// First try new combined SecretStorage format
+		const credentials = await this._getCredentials(providerId);
+		if (credentials && (credentials.clientId || credentials.clientSecret)) {
+			return credentials;
+		}
+
+		// Fallback to old storage format for migration
+		const clientId = this.getClientId(providerId);
+		const clientSecretKey = `dynamicAuthProvider:${providerId}:clientSecret`;
+		const clientSecret = await this.secretStorageService.get(clientSecretKey);
+
+		if (clientId || clientSecret) {
+			return { clientId, clientSecret };
+		}
+
+		return undefined;
+	}
+
 	getClientId(providerId: string): string | undefined {
 		// For backward compatibility, try old storage format first
 		const providers = this._getStoredProviders();

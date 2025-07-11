@@ -38,6 +38,13 @@ export interface IDynamicAuthenticationProviderStorageService {
 	readonly onDidChangeTokens: Event<DynamicAuthenticationProviderTokensChangeEvent>;
 
 	/**
+	 * Get the client details (ID and secret) for a dynamic authentication provider.
+	 * @param providerId The provider ID or authorization server URL.
+	 * @returns The client details if they exist, undefined otherwise.
+	 */
+	getClientDetails(providerId: string): Promise<{ clientId?: string; clientSecret?: string } | undefined>;
+
+	/**
 	 * Get the client ID for a dynamic authentication provider.
 	 * @param providerId The provider ID or authorization server URL.
 	 * @returns The client ID if it exists, undefined otherwise.
