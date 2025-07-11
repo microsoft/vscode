@@ -10,6 +10,7 @@ import { PositionOffsetTransformer } from './positionToOffsetImpl.js';
 import { Range } from '../range.js';
 import { LineRange } from '../ranges/lineRange.js';
 import { TextLength } from '../text/textLength.js';
+import { OffsetRange } from '../ranges/offsetRange.js';
 
 export abstract class AbstractText {
 	abstract getValueOfRange(range: Range): string;
@@ -25,6 +26,10 @@ export abstract class AbstractText {
 
 	getValue(): string {
 		return this.getValueOfRange(this.length.toRange());
+	}
+
+	getValueOfOffsetRange(range: OffsetRange): string {
+		return this.getValueOfRange(this.getTransformer().getRange(range));
 	}
 
 	getLineLength(lineNumber: number): number {
