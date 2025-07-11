@@ -64,15 +64,19 @@ export class CommentGlyphWidget extends Disposable {
 		const wordWrap = this._editor.getOption(EditorOption.wordWrap);
 		const isWordWrapEnabled = wordWrap !== 'off';
 		
+		const className = `comment-range-glyph comment-thread${unresolved ? '-unresolved' : ''}`;
 		const decorationOptions: IModelDecorationOptions = {
 			description: CommentGlyphWidget.description,
-			isWholeLine: !isWordWrapEnabled,
+			isWholeLine: true,
 			overviewRuler: {
 				color: themeColorFromId(unresolved ? overviewRulerCommentUnresolvedForeground : overviewRulerCommentForeground),
 				position: OverviewRulerLane.Center
 			},
 			collapseOnReplaceEdit: true,
-			linesDecorationsClassName: `comment-range-glyph comment-thread${unresolved ? '-unresolved' : ''}`
+			// When word wrap is enabled, use firstLineDecorationClassName to only show on first line
+			// When word wrap is disabled, use linesDecorationsClassName for the whole line
+			linesDecorationsClassName: isWordWrapEnabled ? undefined : className,
+			firstLineDecorationClassName: isWordWrapEnabled ? className : undefined,
 		};
 
 		return ModelDecorationOptions.createDynamic(decorationOptions);
@@ -87,13 +91,10 @@ export class CommentGlyphWidget extends Disposable {
 	}
 
 	private _updateDecorations(): void {
-		const wordWrap = this._editor.getOption(EditorOption.wordWrap);
-		const isWordWrapEnabled = wordWrap !== 'off';
-		
 		const commentsDecorations = [{
 			range: {
 				startLineNumber: this._lineNumber, startColumn: 1,
-				endLineNumber: this._lineNumber, endColumn: isWordWrapEnabled ? 2 : 1
+				endLineNumber: this._lineNumber, endColumn: 1
 			},
 			options: this._commentsOptions
 		}];
