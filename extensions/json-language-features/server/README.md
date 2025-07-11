@@ -90,7 +90,7 @@ The server supports the following settings:
                         "foo.json",
                         "*.superfoo.json"
                     ],
-                    "url": "http://json.schemastore.org/foo",
+                    "url": "http://www.schemastore.org/foo",
                     "schema": {
                         "type": "array"
                     }

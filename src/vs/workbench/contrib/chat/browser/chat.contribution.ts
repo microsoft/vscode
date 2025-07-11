@@ -262,6 +262,12 @@ configurationRegistry.registerConfiguration({
 			default: 'inline',
 			tags: ['experimental', 'onExp'],
 		},
+		'chat.emptyChatState.enabled': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.emptyChatState', "Shows a modified empty chat state with hints in the input placeholder text."),
+			tags: ['experimental', 'onExp'],
+		},
 		[mcpEnabledSection]: {
 			type: 'boolean',
 			description: nls.localize('chat.mcp.enabled', "Enables integration with Model Context Protocol servers to provide additional tools and functionality."),
@@ -331,6 +337,12 @@ configurationRegistry.registerConfiguration({
 				previewFeature: false,
 				defaultValue: false
 			}
+		},
+		[ChatConfiguration.EnableMath]: {
+			type: 'boolean',
+			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using Katex."),
+			default: false,
+			tags: ['preview'],
 		},
 		[mcpDiscoverySection]: {
 			oneOf: [
@@ -472,7 +484,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.setup.signInDialogVariant': { // TODO@bpasero remove me eventually
 			type: 'string',
-			enum: ['default', 'alternate-first', 'alternate-color', 'alternate-monochrome'],
+			enum: ['default', 'apple'],
 			description: nls.localize('chat.signInDialogVariant', "Control variations of the sign-in dialog."),
 			default: 'default',
 			tags: ['onExp', 'experimental']

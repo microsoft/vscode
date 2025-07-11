@@ -80,6 +80,22 @@ div.chat-welcome-view {
 		}
 	}
 
+	& > .chat-welcome-view-message.experimental-empty-state {
+		position: relative;
+		text-align: center;
+		max-width: 100%;
+		margin: 0 auto;
+		color: var(--vscode-input-placeholderForeground);
+
+		a {
+			color: var(--vscode-textLink-foreground);
+		}
+		p{
+			margin-top: 8px;
+			margin-bottom: 8px;
+		}
+	}
+
 	.monaco-button {
 		display: inline-block;
 		width: initial;

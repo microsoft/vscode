@@ -3,13 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// #234440
-declare module 'vscode' {
+.chat-markdown-part .katex-display {
+	overflow-x: scroll;
+}
 
-	export interface TaskExecution {
-		/**
-		 * The terminal associated with this task execution, if any.
-		 */
-		terminal?: Terminal;
+.chat-markdown-part {
+
+	h1,
+	h2,
+	h3,
+	h4,
+	h5,
+	h6 {
+		line-height: normal;
 	}
 }
