@@ -338,15 +338,41 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return this._providers.get(identifier.vendor)?.knownModels.find(model => model.id === identifier.id);
 	}
 
+	async resolveLanguageModels(vendors: string | string[], silent: boolean): Promise<ILanguageModelChatMetadata[]> {
+		if (typeof vendors === 'string') {
+			vendors = [vendors];
+		}
+		const result: ILanguageModelChatMetadata[] = [];
+		for (const vendor of vendors) {
+			const provider = this._providers.get(vendor)?.provider;
+			if (!provider) {
+				this._logService.warn(`[LM] No provider registered for vendor ${vendor}`);
+				continue;
+			}
+			try {
+				const models = await provider.prepareLanguageModelChat({ silent }, CancellationToken.None);
+				// Update our cached known models as well
+				this._providers.set(vendor, { provider, knownModels: models });
+				result.push(...models);
+			} catch (error) {
+				this._logService.error(`[LM] Error resolving language models for vendor ${vendor}:`, error);
+			}
+		}
+		return result;
+	}
+
 	async selectLanguageModels(selector: ILanguageModelChatSelector): Promise<ILanguageModelIdentifier[]> {
 
 		if (selector.vendor) {
 			// selective activation
 			await this._extensionService.activateByEvent(`onLanguageModelChat:${selector.vendor}}`);
+			await this.resolveLanguageModels([selector.vendor], true);
 		} else {
 			// activate all extensions that do language models
-			const all = Array.from(this._vendors).map(vendor => this._extensionService.activateByEvent(`onLanguageModelChat:${vendor}`));
+			const allVendors = Array.from(this._vendors.keys());
+			const all = allVendors.map(vendor => this._extensionService.activateByEvent(`onLanguageModelChat:${vendor}`));
 			await Promise.all(all);
+			await this.resolveLanguageModels(allVendors, true);
 		}
 
 		const result: ILanguageModelIdentifier[] = [];
