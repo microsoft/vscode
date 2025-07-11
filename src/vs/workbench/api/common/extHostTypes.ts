@@ -1422,9 +1422,6 @@ export class DocumentSymbol extends AbstractDocumentSymbol {
 	}
 
 	static override[Symbol.hasInstance](candidate: unknown): boolean {
-		if (!isObject(candidate)) {
-			throw new TypeError();
-		}
 		return candidate instanceof AbstractDocumentSymbol
 			|| candidate instanceof SymbolInformationAndDocumentSymbol;
 	}

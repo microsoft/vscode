@@ -1236,6 +1236,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						if (selection && !selection.isCollapsed && selection.toString().length > 0) {
 							return;
 						}
+
+						const clickedElement = e.target as HTMLElement;
+						if (clickedElement.tagName === 'A') {
+							return;
+						}
+
 						e.preventDefault();
 						e.stopPropagation();
 						this._onDidClickRequest.fire(templateData);

@@ -296,7 +296,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			const e_ai = this._originalToModifiedEdit;
 			const e_user = edit;
 
-			const e_user_r = e_user.tryRebase(e_ai.inverse(this.originalModel.getValue()), true);
+			const e_user_r = e_user.tryRebase(e_ai.inverse(this.originalModel.getValue()));
 
 			if (e_user_r === undefined) {
 				// user edits overlaps/conflicts with AI edits
@@ -304,7 +304,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			} else {
 				const edits = offsetEditToEditOperations(e_user_r, this.originalModel);
 				this.originalModel.applyEdits(edits);
-				this._originalToModifiedEdit = e_ai.tryRebase(e_user_r);
+				this._originalToModifiedEdit = e_ai.rebaseSkipConflicting(e_user_r);
 			}
 
 			this._allEditsAreFromUs = false;

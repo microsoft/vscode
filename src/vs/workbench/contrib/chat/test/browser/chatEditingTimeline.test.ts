@@ -9,6 +9,10 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { ChatEditingTimeline } from '../../browser/chatEditing/chatEditingTimeline.js';
 import { IChatEditingSessionStop } from '../../browser/chatEditing/chatEditingSessionStorage.js';
 import { transaction } from '../../../../../base/common/observable.js';
+import { IChatRequestDisablement } from '../../common/chatModel.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ISnapshotEntry } from '../../common/chatEditingService.js';
 
 suite('ChatEditingTimeline', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
@@ -28,10 +32,13 @@ suite('ChatEditingTimeline', () => {
 		});
 	});
 
-	function createSnapshot(stopId = 'stop', entries?: any): IChatEditingSessionStop {
+	function createSnapshot(stopId: string | undefined, requestId = 'req1'): IChatEditingSessionStop {
 		return {
 			stopId,
-			entries: entries || new Map(),
+			entries: stopId === undefined ? new ResourceMap() : new ResourceMap([[
+				URI.file(`file:///path/to/${stopId}`),
+				{ requestId, current: `Content for ${stopId}` } as Partial<ISnapshotEntry> as ISnapshotEntry
+			]]),
 		};
 	}
 
@@ -99,12 +106,12 @@ suite('ChatEditingTimeline', () => {
 
 		test('getRequestDisablement returns correct requests', () => {
 			timeline.pushSnapshot('req1', 'stop1', createSnapshot('stop1'));
-			timeline.pushSnapshot('req2', 'stop2', createSnapshot('stop2'));
+			timeline.pushSnapshot('req2', 'stop2', createSnapshot('stop2', 'req2'));
 
 			// Move back to first
 			timeline.getUndoSnapshot()?.apply();
 
-			const disables = timeline.getRequestDisablement();
+			const disables = timeline.requestDisablement.get();
 			assert.ok(Array.isArray(disables));
 			assert.ok(disables.some(d => d.requestId === 'req2'));
 		});
@@ -113,7 +120,7 @@ suite('ChatEditingTimeline', () => {
 	suite('Multiple requests', () => {
 		test('handles multiple requests with separate snapshots', () => {
 			timeline.pushSnapshot('req1', 'stop1', createSnapshot('stop1'));
-			timeline.pushSnapshot('req2', 'stop2', createSnapshot('stop2'));
+			timeline.pushSnapshot('req2', 'stop2', createSnapshot('stop2', 'req2'));
 			timeline.pushSnapshot('req3', 'stop3', createSnapshot('stop3'));
 
 			assert.strictEqual(timeline.canUndo.get(), true);
@@ -144,8 +151,8 @@ suite('ChatEditingTimeline', () => {
 		test('mixed requests and stops', () => {
 			timeline.pushSnapshot('req1', 'stop1', createSnapshot('stop1'));
 			timeline.pushSnapshot('req1', 'stop2', createSnapshot('stop2'));
-			timeline.pushSnapshot('req2', 'stop3', createSnapshot('stop3'));
-			timeline.pushSnapshot('req2', 'stop4', createSnapshot('stop4'));
+			timeline.pushSnapshot('req2', 'stop3', createSnapshot('stop3', 'req2'));
+			timeline.pushSnapshot('req2', 'stop4', createSnapshot('stop4', 'req2'));
 
 			const state = timeline.getStateForPersistence();
 			assert.strictEqual(state.history.length, 2);
@@ -190,7 +197,7 @@ suite('ChatEditingTimeline', () => {
 
 		test('branching from middle of history creates new branch', () => {
 			timeline.pushSnapshot('req1', 'stop1', createSnapshot('stop1'));
-			timeline.pushSnapshot('req2', 'stop2', createSnapshot('stop2'));
+			timeline.pushSnapshot('req2', 'stop2', createSnapshot('stop2', 'req2'));
 			timeline.pushSnapshot('req3', 'stop3', createSnapshot('stop3'));
 
 			// Undo to middle
@@ -208,7 +215,7 @@ suite('ChatEditingTimeline', () => {
 	suite('State persistence', () => {
 		test('getStateForPersistence returns complete state', () => {
 			timeline.pushSnapshot('req1', 'stop1', createSnapshot('stop1'));
-			timeline.pushSnapshot('req2', 'stop2', createSnapshot('stop2'));
+			timeline.pushSnapshot('req2', 'stop2', createSnapshot('stop2', 'req2'));
 
 			const state = timeline.getStateForPersistence();
 			assert.ok(state.history);
@@ -230,7 +237,7 @@ suite('ChatEditingTimeline', () => {
 			// Create complex state
 			timeline.pushSnapshot('req1', 'stop1', createSnapshot('stop1'));
 			timeline.pushSnapshot('req1', 'stop2', createSnapshot('stop2'));
-			timeline.pushSnapshot('req2', 'stop3', createSnapshot('stop3'));
+			timeline.pushSnapshot('req2', 'stop3', createSnapshot('stop3', 'req2'));
 
 			const originalState = timeline.getStateForPersistence();
 
@@ -248,36 +255,36 @@ suite('ChatEditingTimeline', () => {
 	suite('Request disablement', () => {
 		test('getRequestDisablement at various positions', () => {
 			timeline.pushSnapshot('req1', 'stop1', createSnapshot('stop1'));
-			timeline.pushSnapshot('req2', 'stop2', createSnapshot('stop2'));
+			timeline.pushSnapshot('req2', 'stop2', createSnapshot('stop2', 'req2'));
 			timeline.pushSnapshot('req3', 'stop3', createSnapshot('stop3'));
 
 			// At end - no disabled requests
-			let disables = timeline.getRequestDisablement();
+			let disables = timeline.requestDisablement.get();
 			assert.strictEqual(disables.length, 0);
 
 			// Move back one
 			timeline.getUndoSnapshot()?.apply();
-			disables = timeline.getRequestDisablement();
+			disables = timeline.requestDisablement.get();
 			assert.strictEqual(disables.length, 1);
 			assert.strictEqual(disables[0].requestId, 'req3');
 
 			// Move back to beginning
 			timeline.getUndoSnapshot()?.apply();
 			timeline.getUndoSnapshot()?.apply();
-			disables = timeline.getRequestDisablement();
+			disables = timeline.requestDisablement.get();
 			assert.strictEqual(disables.length, 2);
 		});
 
 		test('getRequestDisablement with mixed request/stop structure', () => {
 			timeline.pushSnapshot('req1', 'stop1', createSnapshot('stop1'));
 			timeline.pushSnapshot('req1', 'stop2', createSnapshot('stop2'));
-			timeline.pushSnapshot('req2', 'stop3', createSnapshot('stop3'));
+			timeline.pushSnapshot('req2', 'stop3', createSnapshot('stop3', 'req2'));
 
 			// Move to middle of req1
 			timeline.getUndoSnapshot()?.apply();
 			timeline.getUndoSnapshot()?.apply();
 
-			const disables = timeline.getRequestDisablement();
+			const disables = timeline.requestDisablement.get();
 			assert.strictEqual(disables.length, 2);
 
 			// Should have partial disable for req1 and full disable for req2
@@ -311,7 +318,7 @@ suite('ChatEditingTimeline', () => {
 
 		test('multiple undos and redos', () => {
 			timeline.pushSnapshot('req1', 'stop1', createSnapshot('stop1'));
-			timeline.pushSnapshot('req2', 'stop2', createSnapshot('stop2'));
+			timeline.pushSnapshot('req2', 'stop2', createSnapshot('stop2', 'req2'));
 			timeline.pushSnapshot('req3', 'stop3', createSnapshot('stop3'));
 
 			// Undo all
@@ -333,6 +340,40 @@ suite('ChatEditingTimeline', () => {
 				redoSnap = timeline.getRedoSnapshot();
 			}
 			assert.deepStrictEqual(redoStops, ['stop2', 'stop3']);
+		});
+
+		test('getRequestDisablement with root request ID', () => {
+			timeline.pushSnapshot('req1', undefined, createSnapshot(undefined));
+			timeline.pushSnapshot('req1', 'stop1', createSnapshot('stop1'));
+			timeline.pushSnapshot('req1', 'stop2', createSnapshot('stop2'));
+
+			timeline.pushSnapshot('req2', undefined, createSnapshot(undefined, 'req2'));
+			timeline.pushSnapshot('req2', 'stop1-2', createSnapshot('stop1-2', 'req2'));
+			timeline.pushSnapshot('req2', 'stop2-2', createSnapshot('stop2-2', 'req2'));
+
+			const expected: IChatRequestDisablement[][] = [
+				[{ requestId: 'req2', afterUndoStop: 'stop1-2' }],
+				[{ requestId: 'req2' }],
+				// stop2 is not in this because we're at stop2 when undoing req2
+				[{ requestId: 'req1', afterUndoStop: 'stop1' }, { requestId: 'req2' }],
+				[{ requestId: 'req1', afterUndoStop: undefined }, { requestId: 'req2' }],
+			];
+
+			let ei = 0;
+			while (timeline.canUndo.get()) {
+				timeline.getUndoSnapshot()!.apply();
+				const actual = timeline.requestDisablement.get();
+
+				assert.deepStrictEqual(actual, expected[ei++]);
+			}
+
+			expected.unshift([]);
+
+			while (timeline.canRedo.get()) {
+				timeline.getRedoSnapshot()!.apply();
+				const actual = timeline.requestDisablement.get();
+				assert.deepStrictEqual(actual, expected[--ei]);
+			}
 		});
 	});
 
@@ -384,7 +425,7 @@ suite('ChatEditingTimeline', () => {
 	suite('Complex scenarios', () => {
 		test('interleaved requests and undos', () => {
 			timeline.pushSnapshot('req1', 'stop1', createSnapshot('stop1'));
-			timeline.pushSnapshot('req2', 'stop2', createSnapshot('stop2'));
+			timeline.pushSnapshot('req2', 'stop2', createSnapshot('stop2', 'req2'));
 
 			// Undo req2
 			timeline.getUndoSnapshot()?.apply();
@@ -416,9 +457,9 @@ suite('ChatEditingTimeline', () => {
 			timeline.pushSnapshot('req1', 'stop1', createSnapshot('stop1'));
 
 			// Multi-stop request
-			timeline.pushSnapshot('req2', 'stop2a', createSnapshot('stop2a'));
-			timeline.pushSnapshot('req2', 'stop2b', createSnapshot('stop2b'));
-			timeline.pushSnapshot('req2', 'stop2c', createSnapshot('stop2c'));
+			timeline.pushSnapshot('req2', 'stop2a', createSnapshot('stop2a', 'req2'));
+			timeline.pushSnapshot('req2', 'stop2b', createSnapshot('stop2b', 'req2'));
+			timeline.pushSnapshot('req2', 'stop2c', createSnapshot('stop2c', 'req2'));
 
 			// Single stop request
 			timeline.pushSnapshot('req3', 'stop3', createSnapshot('stop3'));
@@ -460,7 +501,7 @@ suite('ChatEditingTimeline', () => {
 			// Should be safe to call methods on empty timeline
 			assert.strictEqual(timeline.getUndoSnapshot(), undefined);
 			assert.strictEqual(timeline.getRedoSnapshot(), undefined);
-			assert.deepStrictEqual(timeline.getRequestDisablement(), []);
+			assert.deepStrictEqual(timeline.requestDisablement.get(), []);
 		});
 	});
 });

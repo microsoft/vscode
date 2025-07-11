@@ -87,7 +87,7 @@ function getCurrentAndNextStop(requestId: string, stopId: string | undefined, hi
 	const current = snapshot.stops[stopIndex].entries;
 	const next = stopIndex < snapshot.stops.length - 1
 		? snapshot.stops[stopIndex + 1].entries
-		: snapshot.postEdit || history[snapshotIndex + 1]?.stops[0].entries;
+		: history[snapshotIndex + 1]?.stops[0].entries;
 
 
 	if (!next) {
@@ -152,6 +152,11 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			hasHistory && this._state.read(reader) === ChatEditingSessionState.Idle);
 		this.canUndo = this._timeline.canUndo.map((hasHistory, reader) =>
 			hasHistory && this._state.read(reader) === ChatEditingSessionState.Idle);
+
+		this._register(autorun(reader => {
+			const disabled = this._timeline.requestDisablement.read(reader);
+			this._chatService.getSession(this.chatSessionId)?.setDisabledRequests(disabled);
+		}));
 	}
 
 	public async awaitEditComplete(editId: string, token: CancellationToken): Promise<void> {
@@ -249,16 +254,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	public getSnapshot(requestId: string, undoStop: string | undefined, snapshotUri: URI): ISnapshotEntry | undefined {
-		let entries: ResourceMap<ISnapshotEntry> | undefined;
-		if (undoStop === ChatEditingTimeline.POST_EDIT_STOP_ID) {
-			// If postEdit, get from timeline state
-			const timelineState = this._timeline.getStateForPersistence();
-			const snap = timelineState.history.find(s => s.requestId === requestId);
-			entries = snap?.postEdit;
-		} else {
-			const stopRef = this._timeline.getSnapshotForRestore(requestId, undoStop);
-			entries = stopRef?.stop.entries;
-		}
+		const stopRef = this._timeline.getSnapshotForRestore(requestId, undoStop);
+		const entries = stopRef?.stop.entries;
 		return entries && [...entries.values()].find((e) => isEqual(e.snapshotUri, snapshotUri));
 	}
 
@@ -291,7 +288,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				this._ensurePendingSnapshot();
 				await this._restoreSnapshot(stopRef.stop);
 				stopRef.apply();
-				this._updateRequestHiddenState();
 			}
 		} else {
 			const pendingSnapshot = this._pendingSnapshot.get();
@@ -515,7 +511,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._ensurePendingSnapshot();
 		await this._restoreSnapshot(undo.stop);
 		undo.apply();
-		this._updateRequestHiddenState();
 	}
 
 	async redoInteraction(): Promise<void> {
@@ -530,7 +525,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		} else {
 			this._pendingSnapshot.set(undefined, undefined);
 		}
-		this._updateRequestHiddenState();
 	}
 
 	private addEditOperationPromise(editId: string | undefined, promise: Promise<void>) {
@@ -586,10 +580,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 			await this._resolve(responseModel.requestId, inUndoStop, uri);
 		}));
-	}
-
-	private _updateRequestHiddenState() {
-		this._chatService.getSession(this.chatSessionId)?.setDisabledRequests(this._timeline.getRequestDisablement());
 	}
 
 	private async _acceptStreamingEditsStart(responseModel: IChatResponseModel, undoStop: string | undefined, resource: URI) {

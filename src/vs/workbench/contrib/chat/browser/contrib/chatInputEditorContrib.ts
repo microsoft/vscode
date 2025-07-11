@@ -11,6 +11,8 @@ import { ICodeEditorService } from '../../../../../editor/browser/services/codeE
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../editor/common/editorCommon.js';
 import { TrackedRangeStickiness } from '../../../../../editor/common/model.js';
+import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { inputPlaceholderForeground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
@@ -18,6 +20,7 @@ import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../comm
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../common/chatColors.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../common/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
+import { ChatModeKind } from '../../common/constants.js';
 import { IChatWidget } from '../chat.js';
 import { ChatWidget } from '../chatWidget.js';
 import { dynamicVariableDecorationType } from './chatDynamicVariables.js';
@@ -44,6 +47,7 @@ class InputEditorDecorations extends Disposable {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -126,7 +130,16 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		if (!inputValue) {
-			const description = this.widget.input.currentModeObs.get().description.get();
+			const mode = this.widget.input.currentModeObs.get();
+			let description = mode.description.get();
+			if (this.configurationService.getValue<boolean>('chat.emptyChatState.enabled')) {
+				if (mode.kind === ChatModeKind.Ask) {
+					description += ` ${localize('askPlaceholderHint', "# context, @ extensions, / commands")}`;
+				} else if (mode.kind === ChatModeKind.Edit || mode.kind === ChatModeKind.Agent) {
+					description += ` ${localize('editPlaceholderHint', "# context")}`;
+				}
+			}
+
 			const decoration: IDecorationOptions[] = [
 				{
 					range: {

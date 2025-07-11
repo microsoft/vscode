@@ -199,7 +199,7 @@ CommandsRegistry.registerCommand({
 		};
 
 		const workspaceToOpen: IWorkspaceToOpen | IFolderToOpen = (hasWorkspaceFileExtension(uri) || uri.scheme === Schemas.untitled) ? { workspaceUri: uri } : { folderUri: uri };
-		const filesToOpen: IFileToOpen[] = typeof arg === 'object' ? arg.filesToOpen?.map(file => ({ fileUri: URI.from(file, true) })) ?? [] : [];
+		const filesToOpen: IFileToOpen[] = arg?.filesToOpen?.map(file => ({ fileUri: URI.from(file, true) })) ?? [];
 		return commandService.executeCommand('_files.windowOpen', [workspaceToOpen, ...filesToOpen], options);
 	},
 	metadata: {
@@ -220,7 +220,7 @@ CommandsRegistry.registerCommand({
 					'`forceTempProfile`: Whether to use a temporary profile when opening the folder/workspace. Defaults to false. ' +
 					'`filesToOpen`: An array of files to open in the new window. Defaults to an empty array. ' +
 					'Note, for backward compatibility, options can also be of type boolean, representing the `forceNewWindow` setting.',
-				constraint: (value: any) => value === undefined || typeof value === 'object' || typeof value === 'boolean'
+				constraint: (value: any) => value === undefined || (typeof value === 'object' && value !== null) || typeof value === 'boolean'
 			}
 		]
 	}
