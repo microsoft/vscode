@@ -169,7 +169,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		const terminal = Promises.withAsyncBody<ITerminalInstance>(async r => {
 			const terminal = await this._terminalService.createTerminal({
 				config: shellLaunchConfig,
-				location: await this._deserializeParentTerminal(launchConfig.location)
+				location: await this._deserializeParentTerminal(launchConfig.location),
+				source: 'extension'
 			});
 			r(terminal);
 		});

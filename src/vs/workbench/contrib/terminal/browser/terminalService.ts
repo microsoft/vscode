@@ -20,7 +20,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IPtyHostAttachTarget, IRawTerminalInstanceLayoutInfo, IRawTerminalTabLayoutInfo, IShellLaunchConfig, ITerminalBackend, ITerminalLaunchError, ITerminalLogService, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalExitReason, TerminalLocation, TerminalLocationString, TitleEventSource } from '../../../../platform/terminal/common/terminal.js';
+import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IPtyHostAttachTarget, IRawTerminalInstanceLayoutInfo, IRawTerminalTabLayoutInfo, IShellLaunchConfig, ITerminalAndTaskState, ITerminalAndTaskStateEntry, ITerminalBackend, ITerminalLaunchError, ITerminalLogService, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalExitReason, TerminalLocation, TerminalLocationString, TitleEventSource } from '../../../../platform/terminal/common/terminal.js';
 import { formatMessageForTerminal } from '../../../../platform/terminal/common/terminalStrings.js';
 import { iconForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
@@ -80,6 +80,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 	private _shutdownWindowCount?: number;
 
 	private _editable: { instance: ITerminalInstance; data: IEditableData } | undefined;
+	private _terminalAndTaskState: ITerminalAndTaskState = { terminals: [] };
 
 	get isProcessSupportRegistered(): boolean { return !!this._processSupportContextKey.get(); }
 
@@ -292,6 +293,9 @@ export class TerminalService extends Disposable implements ITerminalService {
 		const isPersistentRemote = !!this._environmentService.remoteAuthority && enableTerminalReconnection;
 
 		if (this._primaryBackend) {
+			// Load the existing terminal and task state
+			this._loadTerminalAndTaskState();
+			
 			this._register(this._primaryBackend.onDidRequestDetach(async (e) => {
 				const instanceToDetach = this.getInstanceFromResource(getTerminalUri(e.workspaceId, e.instanceId));
 				if (instanceToDetach) {
@@ -724,6 +728,62 @@ export class TerminalService extends Disposable implements ITerminalService {
 		const tabs = this._terminalGroupService.groups.map(g => g.getLayoutInfo(g === this._terminalGroupService.activeGroup));
 		const state: ITerminalsLayoutInfoById = { tabs };
 		this._primaryBackend?.setTerminalLayoutInfo(state);
+
+		// Also save the terminal and task state
+		this._saveTerminalAndTaskState();
+	}
+
+	@debounce(500)
+	private _saveTerminalAndTaskState(): void {
+		if (this._isShuttingDown) {
+			return;
+		}
+		if (!this._terminalConfigurationService.config.enablePersistentSessions) {
+			return;
+		}
+
+		// Track all terminals, regardless of source
+		const terminals: ITerminalAndTaskStateEntry[] = this.instances.map(instance => ({
+			id: instance.instanceId,
+			source: instance.shellLaunchConfig.source || 'user',
+			type: instance.shellLaunchConfig.type,
+			isFeatureTerminal: instance.shellLaunchConfig.isFeatureTerminal,
+			isExtensionOwnedTerminal: instance.shellLaunchConfig.isExtensionOwnedTerminal,
+			name: instance.title,
+			createdAt: Date.now()
+		}));
+
+		this._terminalAndTaskState = { terminals };
+		this._primaryBackend?.setTerminalAndTaskState(this._terminalAndTaskState);
+	}
+
+	private async _loadTerminalAndTaskState(): Promise<void> {
+		if (!this._primaryBackend) {
+			return;
+		}
+		try {
+			const state = await this._primaryBackend.getTerminalAndTaskState();
+			if (state) {
+				this._terminalAndTaskState = state;
+				this._logService.debug('Loaded terminal and task state', state);
+			}
+		} catch (error) {
+			this._logService.warn('Failed to load terminal and task state', error);
+		}
+	}
+
+	/**
+	 * Gets the current terminal and task state for debugging and monitoring purposes
+	 */
+	public getTerminalAndTaskState(): ITerminalAndTaskState {
+		return this._terminalAndTaskState;
+	}
+
+	/**
+	 * Gets terminals created by a specific source
+	 */
+	public getTerminalsBySource(source: string): ITerminalAndTaskStateEntry[] {
+		return this._terminalAndTaskState.terminals.filter(t => t.source === source);
 	}
 
 	@debounce(500)
@@ -1020,6 +1080,22 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}
 
 		this._evaluateLocalCwd(shellLaunchConfig);
+		
+		// Set the source for terminal tracking - determine the source of the terminal
+		if (!shellLaunchConfig.source) {
+			if (options?.source) {
+				shellLaunchConfig.source = options.source;
+			} else if (shellLaunchConfig.isFeatureTerminal) {
+				shellLaunchConfig.source = 'feature';
+			} else if (shellLaunchConfig.isExtensionOwnedTerminal) {
+				shellLaunchConfig.source = 'extension';
+			} else if (shellLaunchConfig.type === 'Task') {
+				shellLaunchConfig.source = 'task';
+			} else {
+				shellLaunchConfig.source = 'user';
+			}
+		}
+		
 		const location = await this.resolveLocation(options?.location) || this.defaultLocation;
 		const parent = await this._getSplitParent(options?.location);
 		this._terminalHasBeenCreated.set(true);

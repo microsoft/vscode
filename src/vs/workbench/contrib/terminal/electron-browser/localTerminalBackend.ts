@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ILocalPtyService, IProcessPropertyMap, IPtyHostLatencyMeasurement, IPtyService, IShellLaunchConfig, ITerminalBackend, ITerminalBackendRegistry, ITerminalChildProcess, ITerminalEnvironment, ITerminalLogService, ITerminalProcessOptions, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalExtensions, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from '../../../../platform/terminal/common/terminal.js';
+import { ILocalPtyService, IProcessPropertyMap, IPtyHostLatencyMeasurement, IPtyService, IShellLaunchConfig, ITerminalAndTaskState, ITerminalBackend, ITerminalBackendRegistry, ITerminalChildProcess, ITerminalEnvironment, ITerminalLogService, ITerminalProcessOptions, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalExtensions, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from '../../../../platform/terminal/common/terminal.js';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from '../../../../platform/terminal/common/terminalProcess.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -305,6 +305,28 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		// Store in the storage service as well to be used when reviving processes as normally this
 		// is stored in memory on the pty host
 		this._storageService.store(TerminalStorageKeys.TerminalLayoutInfo, JSON.stringify(args), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+
+	async setTerminalAndTaskState(state?: ITerminalAndTaskState): Promise<void> {
+		const storageKey = 'TerminalAndTaskState';
+		if (state) {
+			this._storageService.store(storageKey, JSON.stringify(state), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		} else {
+			this._storageService.remove(storageKey, StorageScope.WORKSPACE);
+		}
+	}
+
+	async getTerminalAndTaskState(): Promise<ITerminalAndTaskState | undefined> {
+		const storageKey = 'TerminalAndTaskState';
+		const serializedState = this._storageService.get(storageKey, StorageScope.WORKSPACE);
+		if (serializedState) {
+			try {
+				return JSON.parse(serializedState);
+			} catch {
+				return undefined;
+			}
+		}
+		return undefined;
 	}
 
 	async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {

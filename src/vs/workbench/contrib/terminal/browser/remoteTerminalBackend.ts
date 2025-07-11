@@ -16,7 +16,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISerializedTerminalCommand } from '../../../../platform/terminal/common/capabilities/capabilities.js';
-import { IPtyHostLatencyMeasurement, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalBackend, ITerminalBackendRegistry, ITerminalChildProcess, ITerminalEnvironment, ITerminalLogService, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalExtensions, TerminalIcon, TerminalSettingId, TitleEventSource } from '../../../../platform/terminal/common/terminal.js';
+import { IPtyHostLatencyMeasurement, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalAndTaskState, ITerminalBackend, ITerminalBackendRegistry, ITerminalChildProcess, ITerminalEnvironment, ITerminalLogService, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalExtensions, TerminalIcon, TerminalSettingId, TitleEventSource } from '../../../../platform/terminal/common/terminal.js';
 import { IProcessDetails } from '../../../../platform/terminal/common/terminalProcess.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -303,6 +303,22 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		}
 
 		return this._remoteTerminalChannel.setTerminalLayoutInfo(layout);
+	}
+
+	async setTerminalAndTaskState(state?: ITerminalAndTaskState): Promise<void> {
+		if (!this._remoteTerminalChannel) {
+			throw new Error(`Cannot call setTerminalAndTaskState when there is no remote`);
+		}
+
+		return this._remoteTerminalChannel.setTerminalAndTaskState(state);
+	}
+
+	async getTerminalAndTaskState(): Promise<ITerminalAndTaskState | undefined> {
+		if (!this._remoteTerminalChannel) {
+			throw new Error(`Cannot call getTerminalAndTaskState when there is no remote`);
+		}
+
+		return this._remoteTerminalChannel.getTerminalAndTaskState();
 	}
 
 	async reduceConnectionGraceTime(): Promise<void> {

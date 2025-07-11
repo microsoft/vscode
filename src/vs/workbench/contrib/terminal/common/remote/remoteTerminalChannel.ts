@@ -16,7 +16,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { Schemas } from '../../../../../base/common/network.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEnvironmentVariableService } from '../environmentVariable.js';
-import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfigDto, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TitleEventSource, ISerializedTerminalState, IPtyHostController, ITerminalProcessOptions, IProcessReadyEvent, ITerminalLogService, IPtyHostLatencyMeasurement } from '../../../../../platform/terminal/common/terminal.js';
+import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfigDto, ITerminalAndTaskState, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TitleEventSource, ISerializedTerminalState, IPtyHostController, ITerminalProcessOptions, IProcessReadyEvent, ITerminalLogService, IPtyHostLatencyMeasurement } from '../../../../../platform/terminal/common/terminal.js';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from '../../../../../platform/terminal/common/terminalProcess.js';
 import { IProcessEnvironment, OperatingSystem } from '../../../../../base/common/platform.js';
 import { ICompleteTerminalConfiguration } from '../terminal.js';
@@ -274,6 +274,14 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 			tabs: layout ? layout.tabs : []
 		};
 		return this._channel.call<void>(RemoteTerminalChannelRequest.SetTerminalLayoutInfo, args);
+	}
+
+	setTerminalAndTaskState(state?: ITerminalAndTaskState): Promise<void> {
+		return this._channel.call<void>(RemoteTerminalChannelRequest.SetTerminalAndTaskState, state);
+	}
+
+	getTerminalAndTaskState(): Promise<ITerminalAndTaskState | undefined> {
+		return this._channel.call<ITerminalAndTaskState | undefined>(RemoteTerminalChannelRequest.GetTerminalAndTaskState);
 	}
 
 	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<string> {

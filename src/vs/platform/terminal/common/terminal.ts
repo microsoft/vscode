@@ -218,6 +218,20 @@ export enum TitleEventSource {
 export type ITerminalsLayoutInfo = IRawTerminalsLayoutInfo<IPtyHostAttachTarget | null>;
 export type ITerminalsLayoutInfoById = IRawTerminalsLayoutInfo<number>;
 
+export interface ITerminalAndTaskStateEntry {
+	id: number;
+	source?: string;
+	type?: 'Task' | 'Local';
+	isFeatureTerminal?: boolean;
+	isExtensionOwnedTerminal?: boolean;
+	name?: string;
+	createdAt: number;
+}
+
+export interface ITerminalAndTaskState {
+	terminals: ITerminalAndTaskStateEntry[];
+}
+
 export enum TerminalIpcChannels {
 	/**
 	 * Communicates between the renderer process and shared process.
@@ -646,6 +660,11 @@ export interface IShellLaunchConfig {
 	 * Actions to include inline on hover of the terminal tab. E.g. the "Rerun task" action
 	 */
 	tabActions?: ITerminalTabAction[];
+	/**
+	 * The source that created this terminal (e.g., 'user', 'github.copilot.terminalPanel', 'task', 'extension')
+	 */
+	source?: string;
+
 	/**
 	 * Report terminal's shell environment variables to VS Code and extensions
 	 */
@@ -1120,6 +1139,8 @@ export interface ITerminalBackend extends ITerminalBackendPtyServiceContribution
 	getEnvironment(): Promise<IProcessEnvironment>;
 	getShellEnvironment(): Promise<IProcessEnvironment | undefined>;
 	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
+	setTerminalAndTaskState(state?: ITerminalAndTaskState): Promise<void>;
+	getTerminalAndTaskState(): Promise<ITerminalAndTaskState | undefined>;
 	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
 	updateIcon(id: number, userInitiated: boolean, icon: TerminalIcon, color?: string): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;

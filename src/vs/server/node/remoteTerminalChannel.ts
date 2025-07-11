@@ -14,7 +14,7 @@ import { IURITransformer } from '../../base/common/uriIpc.js';
 import { IServerChannel } from '../../base/parts/ipc/common/ipc.js';
 import { createRandomIPCHandle } from '../../base/parts/ipc/node/ipc.net.js';
 import { RemoteAgentConnectionContext } from '../../platform/remote/common/remoteAgentEnvironment.js';
-import { IPtyHostService, IShellLaunchConfig, ITerminalProfile } from '../../platform/terminal/common/terminal.js';
+import { IPtyHostService, IShellLaunchConfig, ITerminalAndTaskState, ITerminalProfile } from '../../platform/terminal/common/terminal.js';
 import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from '../../platform/terminal/common/terminalProcess.js';
 import { IWorkspaceFolder } from '../../platform/workspace/common/workspace.js';
 import { createURITransformer } from '../../workbench/api/node/uriTransformer.js';
@@ -147,6 +147,8 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case RemoteTerminalChannelRequest.GetWslPath: return this._getWslPath(args[0], args[1]);
 			case RemoteTerminalChannelRequest.GetTerminalLayoutInfo: return this._ptyHostService.getTerminalLayoutInfo(<IGetTerminalLayoutInfoArgs>args);
 			case RemoteTerminalChannelRequest.SetTerminalLayoutInfo: return this._ptyHostService.setTerminalLayoutInfo(<ISetTerminalLayoutInfoArgs>args);
+			case RemoteTerminalChannelRequest.SetTerminalAndTaskState: return this._setTerminalAndTaskState(args);
+			case RemoteTerminalChannelRequest.GetTerminalAndTaskState: return this._getTerminalAndTaskState();
 			case RemoteTerminalChannelRequest.SerializeTerminalState: return this._ptyHostService.serializeTerminalState.apply(this._ptyHostService, args);
 			case RemoteTerminalChannelRequest.ReviveTerminalProcesses: return this._ptyHostService.reviveTerminalProcesses.apply(this._ptyHostService, args);
 			case RemoteTerminalChannelRequest.GetRevivedPtyNewId: return this._ptyHostService.getRevivedPtyNewId.apply(this._ptyHostService, args);
@@ -335,6 +337,15 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		return this._ptyHostService.getWslPath(original, direction);
 	}
 
+	private _terminalAndTaskStateStorage: ITerminalAndTaskState | undefined = undefined;
+
+	private _setTerminalAndTaskState(state: ITerminalAndTaskState): void {
+		this._terminalAndTaskStateStorage = state;
+	}
+
+	private _getTerminalAndTaskState(): ITerminalAndTaskState | undefined {
+		return this._terminalAndTaskStateStorage;
+	}
 
 	private _reduceConnectionGraceTime(): Promise<void> {
 		return this._ptyHostService.reduceConnectionGraceTime();

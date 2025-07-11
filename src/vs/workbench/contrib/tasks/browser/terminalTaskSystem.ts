@@ -1171,7 +1171,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				env: { ...defaultProfile.env },
 				icon,
 				color: task.configurationProperties.icon?.color || undefined,
-				waitOnExit
+				waitOnExit,
+				source: 'task'
 			};
 			let shellSpecified: boolean = false;
 			const shellOptions: IShellConfiguration | undefined = task.command.options && task.command.options.shell;
@@ -1283,7 +1284,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				color: task.configurationProperties.icon?.color || undefined,
 				executable: executable,
 				args: args.map(a => Types.isString(a) ? a : a.value),
-				waitOnExit
+				waitOnExit,
+				source: 'task'
 			};
 			if (task.command.presentation && task.command.presentation.echo) {
 				const getArgsToEcho = (args: string | string[] | undefined): string => {
@@ -1457,7 +1459,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				}, 'Executing task: {0}', task._label), { excludeLeadingNewLine: true }) : undefined,
 				isFeatureTerminal: true,
 				icon: task.configurationProperties.icon?.id ? ThemeIcon.fromId(task.configurationProperties.icon.id) : undefined,
-				color: task.configurationProperties.icon?.color || undefined
+				color: task.configurationProperties.icon?.color || undefined,
+				source: 'task'
 			};
 		} else {
 			const resolvedResult: { command: CommandString; args: CommandString[] } = await this._resolveCommandAndArgs(resolver, task.command);

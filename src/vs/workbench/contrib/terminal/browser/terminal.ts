@@ -14,7 +14,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IKeyMods } from '../../../../platform/quickinput/common/quickInput.js';
 import { IMarkProperties, ITerminalCapabilityImplMap, ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IMergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
-import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalBackend, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue, type IDecorationAddon, type ShellIntegrationInjectionFailureReason } from '../../../../platform/terminal/common/terminal.js';
+import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalAndTaskState, ITerminalAndTaskStateEntry, ITerminalBackend, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue, type IDecorationAddon, type ShellIntegrationInjectionFailureReason } from '../../../../platform/terminal/common/terminal.js';
 import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -320,6 +320,16 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 */
 	refreshActiveGroup(): void;
 
+	/**
+	 * Gets the current terminal and task state for debugging and monitoring purposes
+	 */
+	getTerminalAndTaskState(): ITerminalAndTaskState;
+
+	/**
+	 * Gets terminals created by a specific source
+	 */
+	getTerminalsBySource(source: string): ITerminalAndTaskStateEntry[];
+
 	registerProcessSupport(isSupported: boolean): void;
 
 	showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined>;
@@ -457,6 +467,11 @@ export interface ICreateTerminalOptions {
 	 * when the workbench is not yet loaded.
 	 */
 	skipContributedProfileCheck?: boolean;
+
+	/**
+	 * The source that created this terminal (e.g., 'user', 'github.copilot.terminalPanel', 'task', 'extension')
+	 */
+	source?: string;
 }
 
 export interface TerminalEditorLocation {
