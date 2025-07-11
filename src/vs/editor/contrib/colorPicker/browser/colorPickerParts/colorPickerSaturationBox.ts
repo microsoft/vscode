@@ -53,10 +53,6 @@ export class SaturationBox extends Disposable {
 		return this._domNode;
 	}
 
-	public get canvas() {
-		return this._canvas;
-	}
-
 	private onPointerDown(e: PointerEvent): void {
 		if (!e.target || !(e.target instanceof Element)) {
 			return;

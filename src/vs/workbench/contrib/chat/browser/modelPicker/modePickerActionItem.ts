@@ -37,7 +37,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		@IChatModeService chatModeService: IChatModeService,
 		@IMenuService private readonly menuService: IMenuService
 	) {
-		const makeAction = (mode: IChatMode, includeCategory: boolean, currentMode: IChatMode): IActionWidgetDropdownAction => ({
+		const makeAction = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => ({
 			...action,
 			id: getOpenChatActionIdForMode(mode),
 			label: mode.name,
@@ -50,7 +50,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 				this.renderLabel(this.element!);
 				return result;
 			},
-			category: includeCategory ? { label: localize('built-in', "Built-In"), order: 0 } : undefined
+			category: { label: localize('built-in', "Built-In"), order: 0 }
 		});
 
 		const makeActionFromCustomMode = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => ({
@@ -72,9 +72,8 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				const modes = chatModeService.getModes();
-				const hasCustomModes = modes.custom && modes.custom.length > 0;
 				const currentMode = delegate.currentMode.get();
-				const agentStateActions: IActionWidgetDropdownAction[] = modes.builtin.map(mode => makeAction(mode, !!hasCustomModes, currentMode));
+				const agentStateActions: IActionWidgetDropdownAction[] = modes.builtin.map(mode => makeAction(mode, currentMode));
 				if (modes.custom) {
 					agentStateActions.push(...modes.custom.map(mode => makeActionFromCustomMode(mode, currentMode)));
 				}

@@ -34,6 +34,7 @@ import { ILabelService } from '../../../../../../../platform/label/common/label.
 import { ComputeAutomaticInstructions } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
+import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
 
 /**
  * Helper class to assert the properties of a link.
@@ -113,6 +114,7 @@ suite('PromptsService', () => {
 		instaService.stub(ILogService, new NullLogService());
 		instaService.stub(IWorkspacesService, {});
 		instaService.stub(IConfigurationService, new TestConfigurationService());
+		instaService.stub(IWorkbenchEnvironmentService, {});
 
 		const fileService = disposables.add(instaService.createInstance(FileService));
 		instaService.stub(IFileService, fileService);
@@ -180,7 +182,7 @@ suite('PromptsService', () => {
 
 			await parser1.settled();
 			assertLinks(
-				parser1.allReferences,
+				parser1.references,
 				[
 					new ExpectedLink(
 						URI.file('/Users/vscode/repos/test/file.md'),
@@ -277,7 +279,7 @@ suite('PromptsService', () => {
 			);
 
 			assertLinks(
-				parser2.allReferences,
+				parser2.references,
 				[
 					new ExpectedLink(
 						URI.file('/absolute/path.txt'),
@@ -296,7 +298,7 @@ suite('PromptsService', () => {
 
 			// parser1_1 has the same exact links as before
 			assertLinks(
-				parser1_1.allReferences,
+				parser1_1.references,
 				[
 					new ExpectedLink(
 						URI.file('/Users/vscode/repos/test/file.md'),
@@ -368,7 +370,7 @@ suite('PromptsService', () => {
 
 			// parser1_2 must have the same exact links as before
 			assertLinks(
-				parser1_2.allReferences,
+				parser1_2.references,
 				[
 					new ExpectedLink(
 						URI.file('/Users/vscode/repos/test/file.md'),
@@ -447,7 +449,7 @@ suite('PromptsService', () => {
 
 			// parser2_1 must have 2 links now
 			assertLinks(
-				parser2_1.allReferences,
+				parser2_1.references,
 				[
 					// the first link didn't change
 					new ExpectedLink(
@@ -490,7 +492,7 @@ suite('PromptsService', () => {
 			await parser.settled();
 
 			assertLinks(
-				parser.allReferences,
+				parser.references,
 				[
 					new ExpectedLink(
 						URI.file('/repos/file.md'),
@@ -515,7 +517,7 @@ suite('PromptsService', () => {
 			await parser.settled();
 
 			assertLinks(
-				parser.allReferences,
+				parser.references,
 				[
 					// link1 didn't change
 					new ExpectedLink(
@@ -685,8 +687,7 @@ suite('PromptsService', () => {
 				uri: file3,
 				metadata: {
 					promptType: PromptsType.prompt,
-					tools: ['my-tool1'],
-					mode: 'agent',
+					mode: 'edit',
 				},
 				topError: undefined,
 				references: [nonExistingFolder, yetAnotherFile]

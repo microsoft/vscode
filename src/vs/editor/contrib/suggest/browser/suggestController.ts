@@ -24,7 +24,7 @@ import { Range } from '../../../common/core/range.js';
 import { IEditorContribution, ScrollType } from '../../../common/editorCommon.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { ITextModel, TrackedRangeStickiness } from '../../../common/model.js';
-import { CompletionItemInsertTextRule, CompletionItemProvider, CompletionTriggerKind } from '../../../common/languages.js';
+import { CompletionItemInsertTextRule, CompletionItemProvider, CompletionTriggerKind, ProviderId } from '../../../common/languages.js';
 import { SnippetController2 } from '../../snippet/browser/snippetController2.js';
 import { SnippetParser } from '../../snippet/browser/snippetParser.js';
 import { ISuggestMemoryService } from './suggestMemory.js';
@@ -459,7 +459,7 @@ export class SuggestController implements IEditorContribution {
 			adjustWhitespace: !(item.completion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace),
 			clipboardText: event.model.clipboardText,
 			overtypingCapturer: this._overtypingCapturer.value,
-			reason: EditReasons.suggest({ extensionId: item.extensionId?.value }),
+			reason: EditReasons.suggest({ providerId: ProviderId.fromExtensionId(item.extensionId?.value) }),
 		});
 
 		if (!(flags & InsertFlags.NoAfterUndoStop)) {

@@ -310,7 +310,7 @@ export async function applyCodeAction(
 			code: 'undoredo.codeAction',
 			respectAutoSaveConfig: codeActionReason !== ApplyCodeActionReason.OnSave,
 			showPreview: options?.preview,
-			reason: EditReasons.codeAction({ kind: item.action.kind, extensionId: item.provider?.extensionId }),
+			reason: EditReasons.codeAction({ kind: item.action.kind, providerId: languages.ProviderId.fromExtensionId(item.provider?.extensionId) }),
 		});
 
 		if (!result.isApplied) {

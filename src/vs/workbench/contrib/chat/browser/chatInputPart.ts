@@ -23,7 +23,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { assertType } from '../../../../base/common/types.js';
@@ -102,6 +102,8 @@ import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
 import { resizeImage } from './imageUtils.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { isLocation } from '../../../../editor/common/languages.js';
 
 const $ = dom.$;
 
@@ -169,7 +171,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		contextArr.add(...this.attachmentModel.attachments);
 
-		if (this.implicitContext?.enabled && this.implicitContext.value) {
+		if ((this.implicitContext?.enabled && this.implicitContext?.value) || (isLocation(this.implicitContext?.value) && this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext'))) {
 			const implicitChatVariables = this.implicitContext.toBaseEntries();
 			contextArr.add(...implicitChatVariables);
 		}
@@ -271,6 +273,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatModeKindKey: IContextKey<ChatModeKind>;
 
 	private modelWidget: ModelPickerActionItem | undefined;
+	private modeWidget: ModePickerActionItem | undefined;
 	private readonly _waitForPersistedLanguageModel: MutableDisposable<IDisposable>;
 	private _onDidChangeCurrentLanguageModel: Emitter<ILanguageModelChatMetadataAndIdentifier>;
 
@@ -441,6 +444,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (this._inputEditor) {
 				this._inputEditor.updateOptions({ ariaLabel: this._getAriaLabel() });
 			}
+
+			if (this.implicitContext && this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext')) {
+				this.implicitContext.enabled = this._currentModeObservable.get() !== ChatMode.Agent;
+			}
 		}));
 		this._register(this._onDidChangeCurrentLanguageModel.event(() => {
 			if (this._currentLanguageModel?.metadata.name) {
@@ -448,6 +455,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}));
 		this._register(this.chatModeService.onDidChangeChatModes(() => this.validateCurrentChatMode()));
+		this._register(autorun(r => {
+			const mode = this._currentModeObservable.read(r);
+			const model = mode.model?.read(r);
+			if (model) {
+				this.switchModelByQualifiedName(model);
+			}
+		}));
 	}
 
 	private getSelectedModelStorageKey(): string {
@@ -510,6 +524,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
+	public switchModelByQualifiedName(qualifiedModelName: string): boolean {
+		const models = this.getModels();
+		const model = models.find(m => ILanguageModelChatMetadata.asQualifiedName(m.metadata) === qualifiedModelName);
+		if (model) {
+			this.setCurrentLanguageModel(model);
+			return true;
+		}
+		return false;
+	}
+
 	public switchToNextModel(): void {
 		const models = this.getModels();
 		if (models.length > 0) {
@@ -521,6 +545,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public openModelPicker(): void {
 		this.modelWidget?.show();
+	}
+
+	public openModePicker(): void {
+		this.modeWidget?.show();
 	}
 
 	private checkModelSupported(): void {
@@ -560,10 +588,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private modelSupportedForDefaultAgent(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 		// Probably this logic could live in configuration on the agent, or somewhere else, if it gets more complex
 		if (this.currentModeKind === ChatModeKind.Agent || (this.currentModeKind === ChatModeKind.Edit && this.configurationService.getValue(ChatConfiguration.Edits2Enabled))) {
-			const supportsToolsAgent = typeof model.metadata.capabilities?.agentMode === 'undefined' || model.metadata.capabilities.agentMode;
-
-			// Filter out models that don't support tool calling, and models that don't support enough context to have a good experience with the tools agent
-			return supportsToolsAgent && !!model.metadata.capabilities?.toolCalling;
+			return ILanguageModelChatMetadata.suitableForAgentMode(model.metadata);
 		}
 
 		return true;
@@ -1135,7 +1160,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					const delegate: IModePickerDelegate = {
 						currentMode: this._currentModeObservable
 					};
-					return this.instantiationService.createInstance(ModePickerActionItem, action, delegate);
+					return this.modeWidget = this.instantiationService.createInstance(ModePickerActionItem, action, delegate);
 				}
 
 				return undefined;
@@ -1282,8 +1307,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._indexOfLastOpenedContext = -1;
 		}
 
-		if (this.implicitContext?.value) {
-			const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, this.implicitContext, this._contextResourceLabels));
+		const isSuggestedEnabled = this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext');
+
+		if (this.implicitContext?.value && !isSuggestedEnabled) {
+			const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, this.implicitContext, this._contextResourceLabels, this.attachmentModel));
 			container.appendChild(implicitPart.domNode);
 		}
 
@@ -1336,6 +1363,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 		}
 
+		const implicitUri = this.implicitContext?.value;
+		const isUri = URI.isUri(implicitUri);
+
+		if (isSuggestedEnabled && implicitUri && (isUri || isLocation(implicitUri))) {
+			const targetUri = isUri ? implicitUri : implicitUri.uri;
+			const currentlyAttached = attachments.some(([, attachment]) => URI.isUri(attachment.value) && isEqual(attachment.value, targetUri));
+
+			const shouldShowImplicit = isUri ? !currentlyAttached : implicitUri.range;
+			if (shouldShowImplicit) {
+				const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, this.implicitContext, this._contextResourceLabels, this._attachmentModel));
+				container.appendChild(implicitPart.domNode);
+			}
+		}
 
 		if (oldHeight !== this.attachmentsContainer.offsetHeight) {
 			this._onDidChangeHeight.fire();
@@ -1350,8 +1390,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._indexOfLastAttachedContextDeletedWithKeyboard = index;
 		}
 
-
 		this._attachmentModel.delete(attachment.id);
+
+
+		if (this.configurationService.getValue<boolean>('chat.implicitContext.enableImplicitContext')) {
+			// if currently opened file is deleted, do not show implicit context
+			const implicitValue = URI.isUri(this.implicitContext?.value) && URI.isUri(attachment.value) && isEqual(this.implicitContext.value, attachment.value);
+
+			if (this.implicitContext?.isFile && implicitValue) {
+				this.implicitContext.enabled = false;
+			}
+		}
 
 		if (this._attachmentModel.size === 0) {
 			this.focus();

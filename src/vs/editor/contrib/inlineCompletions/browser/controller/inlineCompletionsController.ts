@@ -320,6 +320,27 @@ export class InlineCompletionsController extends Disposable {
 			const state = model?.inlineCompletionState.read(reader);
 			return !!state?.inlineCompletion && state?.primaryGhostText !== undefined && !state?.primaryGhostText.isEmpty();
 		}));
+		const firstGhostTextPos = derived(this, reader => {
+			const model = this.model.read(reader);
+			const state = model?.inlineCompletionState.read(reader);
+			const primaryGhostText = state?.primaryGhostText;
+			if (!primaryGhostText) {
+				return undefined;
+			}
+			const firstPartPos = new Position(primaryGhostText.lineNumber, primaryGhostText.parts[0].column);
+			return firstPartPos;
+		});
+		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.cursorBeforeGhostText, reader => {
+			const firstPartPos = firstGhostTextPos.read(reader);
+			if (!firstPartPos) {
+				return false;
+			}
+			const cursorPos = this._editorObs.cursorPosition.read(reader);
+			if (!cursorPos) {
+				return false;
+			}
+			return firstPartPos.equals(cursorPos);
+		}));
 
 		this._register(this._instantiationService.createInstance(TextModelChangeRecorder, this.editor));
 	}

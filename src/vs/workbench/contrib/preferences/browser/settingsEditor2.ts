@@ -23,6 +23,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, dispose, type IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import * as platform from '../../../../base/common/platform.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
@@ -58,7 +59,7 @@ import { nullRange, Settings2EditorModel } from '../../../services/preferences/c
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
 import { SuggestEnabledInput } from '../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, ENABLE_LANGUAGE_FILTER, EXTENSION_FETCH_TIMEOUT_MS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, getExperimentalExtensionToggleData, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, WorkbenchSettingsEditorSettings, WORKSPACE_TRUST_SETTING_TAG } from '../common/preferences.js';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EMBEDDINGS_SEARCH_PROVIDER_NAME, ENABLE_LANGUAGE_FILTER, EXTENSION_FETCH_TIMEOUT_MS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, FILTER_MODEL_SEARCH_PROVIDER_NAME, getExperimentalExtensionToggleData, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, LLM_RANKED_SEARCH_PROVIDER_NAME, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, STRING_MATCH_SEARCH_PROVIDER_NAME, TF_IDF_SEARCH_PROVIDER_NAME, WorkbenchSettingsEditorSettings, WORKSPACE_TRUST_SETTING_TAG } from '../common/preferences.js';
 import { settingsHeaderBorder, settingsSashBorder, settingsTextInputBorder } from '../common/settingsEditorColorRegistry.js';
 import './media/settingsEditor2.css';
 import { preferencesAiResultsIcon, preferencesClearInputIcon, preferencesFilterIcon } from './preferencesIcons.js';
@@ -191,6 +192,8 @@ export class SettingsEditor2 extends EditorPane {
 	private searchInProgress: CancellationTokenSource | null = null;
 	private aiSearchPromise: CancelablePromise<void> | null = null;
 
+	private stopWatch: StopWatch;
+
 	private showAiResultsAction: Action | null = null;
 
 	private searchInputDelayer: Delayer<void>;
@@ -276,6 +279,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.settingRowFocused = CONTEXT_SETTINGS_ROW_FOCUS.bindTo(contextKeyService);
 
 		this.scheduledRefreshes = new Map<string, DisposableStore>();
+		this.stopWatch = new StopWatch(false);
 
 		this.editorMemento = this.getEditorMemento<ISettingsEditor2State>(editorGroupService, textResourceConfigurationService, SETTINGS_EDITOR_STATE_KEY);
 
@@ -1778,7 +1782,7 @@ export class SettingsEditor2 extends EditorPane {
 						matchType: SettingMatchType.None,
 						keyMatchScore: 0,
 						score: 0,
-						providerName: 'filterModel'
+						providerName: FILTER_MODEL_SEARCH_PROVIDER_NAME
 					});
 				}
 			}
@@ -1857,7 +1861,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	private doLocalSearch(query: string, token: CancellationToken): Promise<ISearchResult | null> {
 		const localSearchProvider = this.preferencesSearchService.getLocalSearchProvider(query);
-		return this.searchWithProvider(SearchResultIdx.Local, localSearchProvider, token);
+		return this.searchWithProvider(SearchResultIdx.Local, localSearchProvider, STRING_MATCH_SEARCH_PROVIDER_NAME, token);
 	}
 
 	private doRemoteSearch(query: string, token: CancellationToken): Promise<ISearchResult | null> {
@@ -1865,7 +1869,7 @@ export class SettingsEditor2 extends EditorPane {
 		if (!remoteSearchProvider) {
 			return Promise.resolve(null);
 		}
-		return this.searchWithProvider(SearchResultIdx.Remote, remoteSearchProvider, token);
+		return this.searchWithProvider(SearchResultIdx.Remote, remoteSearchProvider, TF_IDF_SEARCH_PROVIDER_NAME, token);
 	}
 
 	private async doAiSearch(query: string, token: CancellationToken): Promise<ISearchResult | null> {
@@ -1874,7 +1878,7 @@ export class SettingsEditor2 extends EditorPane {
 			return null;
 		}
 
-		const embeddingsResults = await this.searchWithProvider(SearchResultIdx.Embeddings, aiSearchProvider, token);
+		const embeddingsResults = await this.searchWithProvider(SearchResultIdx.Embeddings, aiSearchProvider, EMBEDDINGS_SEARCH_PROVIDER_NAME, token);
 		if (!embeddingsResults || token.isCancellationRequested) {
 			return null;
 		}
@@ -1896,24 +1900,60 @@ export class SettingsEditor2 extends EditorPane {
 			return null;
 		}
 
+		this.stopWatch.reset();
 		const result = await aiSearchProvider.getLLMRankedResults(token);
-		if (!result || token.isCancellationRequested) {
+		this.stopWatch.stop();
+
+		if (token.isCancellationRequested) {
 			return null;
+		}
+
+		// Only log the elapsed time if there are actual results.
+		if (result && result.filterMatches.length > 0) {
+			const elapsed = this.stopWatch.elapsed();
+			this.logSearchPerformance(LLM_RANKED_SEARCH_PROVIDER_NAME, elapsed);
 		}
 
 		this.searchResultModel!.setResult(SearchResultIdx.AiSelected, result);
 		return result;
 	}
 
-	private async searchWithProvider(type: SearchResultIdx, searchProvider: ISearchProvider, token: CancellationToken): Promise<ISearchResult | null> {
+	private async searchWithProvider(type: SearchResultIdx, searchProvider: ISearchProvider, providerName: string, token: CancellationToken): Promise<ISearchResult | null> {
+		this.stopWatch.reset();
 		const result = await this._searchPreferencesModel(this.defaultSettingsEditorModel, searchProvider, token);
+		this.stopWatch.stop();
+
 		if (token.isCancellationRequested) {
 			// Handle cancellation like this because cancellation is lost inside the search provider due to async/await
 			return null;
 		}
+
+		// Only log the elapsed time if there are actual results.
+		if (result && result.filterMatches.length > 0) {
+			const elapsed = this.stopWatch.elapsed();
+			this.logSearchPerformance(providerName, elapsed);
+		}
+
 		this.searchResultModel ??= this.instantiationService.createInstance(SearchResultModel, this.viewState, this.settingsOrderByTocIndex, this.workspaceTrustManagementService.isWorkspaceTrusted());
 		this.searchResultModel.setResult(type, result);
 		return result;
+	}
+
+	private logSearchPerformance(providerName: string, elapsed: number): void {
+		type SettingsEditorSearchPerformanceEvent = {
+			providerName: string | undefined;
+			elapsedMs: number;
+		};
+		type SettingsEditorSearchPerformanceClassification = {
+			providerName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the search provider, if applicable.' };
+			elapsedMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time taken to perform the search, in milliseconds.' };
+			owner: 'rzhao271';
+			comment: 'Event emitted when the Settings editor calls a search provider to search for a setting';
+		};
+		this.telemetryService.publicLog2<SettingsEditorSearchPerformanceEvent, SettingsEditorSearchPerformanceClassification>('settingsEditor.searchPerformance', {
+			providerName,
+			elapsedMs: elapsed,
+		});
 	}
 
 	private renderResultCountMessages(showAiResultsMessage: boolean) {
