@@ -56,7 +56,7 @@ import { ResourceMap } from '../../../../../base/common/map.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { AbstractTreePart } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { ITestService, testsInFile, testsUnderUri } from '../../../testing/common/testService.js';
+import { ITestService, testsInFile } from '../../../testing/common/testService.js';
 import { TestingContextKeys } from '../../../testing/common/testingContextKeys.js';
 
 
@@ -635,27 +635,24 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			return;
 		}
 
-		// For more comprehensive check, try async discovery
+		// For more comprehensive check, try async discovery for files only
 		try {
-			// Check if it's a file or folder and use appropriate method
+			// Check if it's a file or folder
 			const stat = await this.fileService.stat(resource);
-			let hasTests = false;
 
 			if (stat.isFile) {
 				// For files, use testsInFile to discover tests
+				let hasTests = false;
 				for await (const _test of testsInFile(this.testService, this.uriIdentityService, resource, false)) {
 					hasTests = true;
 					break; // Found at least one test, that's enough
 				}
+				this.explorerResourceHasTests.set(hasTests);
 			} else if (stat.isDirectory) {
-				// For folders, use testsUnderUri to check for tests in any file under this URI
-				for await (const _test of testsUnderUri(this.testService, this.uriIdentityService, resource, false)) {
-					hasTests = true;
-					break; // Found at least one test, that's enough
-				}
+				// For folders, always show test actions to avoid expensive recursive checking
+				// This ensures good performance while still providing useful functionality
+				this.explorerResourceHasTests.set(true);
 			}
-
-			this.explorerResourceHasTests.set(hasTests);
 		} catch (error) {
 			// If there's an error (e.g., resource doesn't exist), set to false
 			this.explorerResourceHasTests.set(false);
