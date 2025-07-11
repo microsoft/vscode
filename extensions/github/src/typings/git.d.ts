@@ -218,8 +218,6 @@ export interface Repository {
 	tag(name: string, upstream: string): Promise<void>;
 	deleteTag(name: string): Promise<void>;
 
-	deleteWorktree(path: string): Promise<void>;
-
 	status(): Promise<void>;
 	checkout(treeish: string): Promise<void>;
 

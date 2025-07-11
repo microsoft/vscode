@@ -238,10 +238,6 @@ export class ApiRepository implements Repository {
 		return this.#repository.deleteTag(name);
 	}
 
-	deleteWorktree(path: string): Promise<void> {
-		return this.#repository.deleteWorktree(path);
-	}
-
 	status(): Promise<void> {
 		return this.#repository.status();
 	}
