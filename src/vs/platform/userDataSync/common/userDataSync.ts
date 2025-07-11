@@ -144,6 +144,12 @@ export interface IUserData {
 	content: string | null;
 }
 
+export function isUserData(thing: any): thing is IUserData {
+	return thing
+		&& isString(thing.ref)
+		&& (isString(thing.content) || thing.content === null);
+}
+
 export type IAuthenticationProvider = { id: string; scopes: string[] };
 
 export interface IUserDataSyncStore {
@@ -200,7 +206,15 @@ export interface IUserDataManifest {
 	readonly collections?: IUserDataCollectionManifest;
 }
 
-export interface IUserDataActivityData {
+export function isUserDataManifest(thing: any): thing is IUserDataManifest {
+	return thing
+		&& isString(thing.session)
+		&& isString(thing.ref)
+		&& (isObject(thing.latest) || thing.latest === undefined)
+		&& (isObject(thing.collections) || thing.collections === undefined);
+}
+
+export interface IUserDataSyncActivityData {
 	resources?: {
 		[resourceId: string]: { created: number; content: string }[];
 	};
@@ -208,6 +222,19 @@ export interface IUserDataActivityData {
 		[collectionId: string]: {
 			resources?: {
 				[resourceId: string]: { created: number; content: string }[];
+			} | undefined;
+		};
+	};
+}
+
+export interface IUserDataSyncLatestData {
+	resources?: {
+		[resourceId: string]: IUserData & { uri: string };
+	};
+	collections?: {
+		[collectionId: string]: {
+			resources?: {
+				[resourceId: string]: IUserData & { uri: string };
 			} | undefined;
 		};
 	};
@@ -251,6 +278,7 @@ export interface IUserDataSyncStoreService {
 	createCollection(headers?: IHeaders): Promise<string>;
 	deleteCollection(collection?: string, headers?: IHeaders): Promise<void>;
 
+	getLatestData(headers?: IHeaders): Promise<IUserDataSyncLatestData | null>;
 	getActivityData(): Promise<VSBufferReadableStream>;
 
 	clear(): Promise<void>;
@@ -500,7 +528,7 @@ export interface IUserDataSynchroniser {
 
 	readonly onDidChangeLocal: Event<void>;
 
-	sync(manifest: IUserDataResourceManifest | null, preview: boolean, userDataSyncConfiguration: IUserDataSyncConfiguration, headers: IHeaders): Promise<IUserDataSyncResourcePreview | null>;
+	sync(refOrUserData: string | IUserData | null, preview: boolean, userDataSyncConfiguration: IUserDataSyncConfiguration, headers: IHeaders): Promise<IUserDataSyncResourcePreview | null>;
 	accept(resource: URI, content?: string | null): Promise<IUserDataSyncResourcePreview | null>;
 	apply(force: boolean, headers: IHeaders): Promise<IUserDataSyncResourcePreview | null>;
 	stop(): Promise<void>;
