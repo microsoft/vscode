@@ -83,8 +83,9 @@ export class ChatSelectedTools extends Disposable {
 			const currentMode = this._mode.read(r);
 
 			let currentMap = this._sessionStates.get(currentMode.id);
-			if (!currentMap && currentMode.kind === ChatModeKind.Agent && currentMode.customTools) {
-				currentMap = this._toolsService.toToolAndToolSetEnablementMap(currentMode.customTools.read(r));
+			const modeTools = currentMode.customTools?.read(r);
+			if (!currentMap && currentMode.kind === ChatModeKind.Agent && modeTools) {
+				currentMap = this._toolsService.toToolAndToolSetEnablementMap(modeTools);
 			}
 			if (currentMap) {
 				for (const tool of this._allTools.read(r)) {
@@ -118,7 +119,7 @@ export class ChatSelectedTools extends Disposable {
 		if (this._sessionStates.has(mode.id)) {
 			return ToolsScope.Session;
 		}
-		if (mode.kind === ChatModeKind.Agent && mode.customTools && mode.uri) {
+		if (mode.kind === ChatModeKind.Agent && mode.customTools?.get() && mode.uri) {
 			return ToolsScope.Mode;
 		}
 		return ToolsScope.Global;
@@ -143,7 +144,7 @@ export class ChatSelectedTools extends Disposable {
 			this._sessionStates.set(mode.id, enablementMap);
 			return;
 		}
-		if (mode.kind === ChatModeKind.Agent && mode.customTools && mode.uri) {
+		if (mode.kind === ChatModeKind.Agent && mode.customTools?.get() && mode.uri) {
 			// apply directly to mode file.
 			this.updateCustomModeTools(mode.uri.get(), enablementMap);
 			return;
