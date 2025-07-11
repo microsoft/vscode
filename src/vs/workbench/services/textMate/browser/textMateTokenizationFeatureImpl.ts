@@ -6,7 +6,7 @@
 import { canASAR, importAMDNodeModule, resolveAmdNodeModulePath } from '../../../../amdX.js';
 import * as domStylesheets from '../../../../base/browser/domStylesheets.js';
 import { equals as equalArray } from '../../../../base/common/arrays.js';
-import { Color } from '../../../../base/common/color.js';
+import { Color, RGBColorSpace } from '../../../../base/common/color.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from '../../../../base/common/network.js';
@@ -20,7 +20,7 @@ import { ITokenizationSupport, LazyTokenizationSupport, TokenizationRegistry } f
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { generateTokensCSSForColorMap } from '../../../../editor/common/languages/supports/tokenization.js';
 import * as nls from '../../../../nls.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
 import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -96,6 +96,12 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 			this._updateTheme(this._themeService.getColorTheme(), false);
 		}));
 
+		this._register(this._configurationService.onDidChangeConfiguration((event: IConfigurationChangeEvent) => {
+			if (event.affectsConfiguration('workbench.highlightingColorSpace')) {
+				this._updateTheme(this._themeService.getColorTheme(), true);
+			}
+		}));
+
 		this._register(this._languageService.onDidRequestRichLanguageFeatures((languageId) => {
 			this._createdModes.push(languageId);
 		}));
@@ -107,6 +113,10 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 
 	private getAsyncTokenizationVerification(): boolean {
 		return !!this._configurationService.getValue<boolean>('editor.experimental.asyncTokenizationVerification');
+	}
+
+	private getHighlightingColorSpace(): RGBColorSpace {
+		return this._configurationService.getValue<RGBColorSpace>('workbench.highlightingColorSpace') ?? 'srgb';
 	}
 
 	private _handleGrammarsExtPoint(extensions: readonly IExtensionPointUser<ITMSyntaxExtensionPoint[]>[]): void {
@@ -343,8 +353,11 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 
 		this._grammarFactory?.setTheme(this._currentTheme, this._currentTokenColorMap);
 		const colorMap = toColorMap(this._currentTokenColorMap);
-		const cssRules = generateTokensCSSForColorMap(colorMap);
+		const highlightingColorSpace = this.getHighlightingColorSpace();
+		const cssRules = generateTokensCSSForColorMap(colorMap, highlightingColorSpace);
 		this._styleElement.textContent = cssRules;
+
+		TokenizationRegistry.setHighlightingColorSpace(highlightingColorSpace);
 		TokenizationRegistry.setColorMap(colorMap);
 
 		if (this._currentTheme && this._currentTokenColorMap) {

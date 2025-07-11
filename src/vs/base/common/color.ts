@@ -10,6 +10,8 @@ function roundFloat(number: number, decimalPoints: number): number {
 	return Math.round(number * decimal) / decimal;
 }
 
+export type RGBColorSpace = 'srgb' | 'display-p3' | 'a98-rgb' | 'prophoto-rgb' | 'rec2020';
+
 export class RGBA {
 	_rgbaBrand: void = undefined;
 
@@ -552,6 +554,23 @@ export class Color {
 			this._toString = Color.Format.CSS.format(this);
 		}
 		return this._toString;
+	}
+
+	/**
+	 * Returns a CSS color(<color-space> ...) string for this color.
+	 */
+	toColorSpaceString(space: RGBColorSpace): string {
+		if (space === 'srgb') {
+			return this.toString();
+		}
+
+		const r = +(this.rgba.r / 255).toFixed(3);
+		const g = +(this.rgba.g / 255).toFixed(3);
+		const b = +(this.rgba.b / 255).toFixed(3);
+		const a = this.rgba.a;
+		const alpha = a === 1 ? '' : ` / ${+a.toFixed(3)}`;
+
+		return `color(${space} ${r} ${g} ${b}${alpha})`;
 	}
 
 	private _toNumber32Bit?: number;

@@ -35,8 +35,9 @@ export class GettingStartedDetailsRenderer {
 		const content = await this.readAndCacheStepMarkdown(path, base);
 		const nonce = generateUuid();
 		const colorMap = TokenizationRegistry.getColorMap();
+		const highlightingColorSpace = TokenizationRegistry.getHighlightingColorSpace();
 
-		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
+		const css = colorMap ? generateTokensCSSForColorMap(colorMap, highlightingColorSpace) : '';
 
 		const inDev = document.location.protocol === 'http:';
 		const imgSrcCsp = inDev ? 'img-src https: data: http:' : 'img-src https: data:';
@@ -173,8 +174,9 @@ export class GettingStartedDetailsRenderer {
 		const content = await this.readAndCacheSVGFile(path);
 		const nonce = generateUuid();
 		const colorMap = TokenizationRegistry.getColorMap();
+		const highlightingColorSpace = TokenizationRegistry.getHighlightingColorSpace();
 
-		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
+		const css = colorMap ? generateTokensCSSForColorMap(colorMap, highlightingColorSpace) : '';
 		return `<!DOCTYPE html>
 		<html>
 			<head>

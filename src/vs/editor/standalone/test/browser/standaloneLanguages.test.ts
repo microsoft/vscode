@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Color } from '../../../../base/common/color.js';
+import { Color, RGBColorSpace } from '../../../../base/common/color.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -78,6 +78,8 @@ suite('TokenizationSupport2Adapter', () => {
 			};
 		}
 		setColorMapOverride(colorMapOverride: Color[] | null): void {
+		}
+		setHighlightingColorSpace(highlightingColorSpace: RGBColorSpace): void {
 		}
 		public getFileIconTheme(): IFileIconTheme {
 			return {

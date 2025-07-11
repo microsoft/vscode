@@ -273,7 +273,8 @@ export class ReleaseNotesManager {
 			}]
 		});
 		const colorMap = TokenizationRegistry.getColorMap();
-		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
+		const highlightingColorSpace = TokenizationRegistry.getHighlightingColorSpace();
+		const css = colorMap ? generateTokensCSSForColorMap(colorMap, highlightingColorSpace) : '';
 		const showReleaseNotes = Boolean(this._configurationService.getValue<boolean>('update.showReleaseNotes'));
 
 		return `<!DOCTYPE html>

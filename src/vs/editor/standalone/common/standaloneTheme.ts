@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color } from '../../../base/common/color.js';
+import { Color, RGBColorSpace } from '../../../base/common/color.js';
 import { ITokenThemeRule, TokenTheme } from '../../common/languages/supports/tokenization.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IColorTheme, IThemeService } from '../../../platform/theme/common/themeService.js';
@@ -38,5 +38,7 @@ export interface IStandaloneThemeService extends IThemeService {
 	getColorTheme(): IStandaloneTheme;
 
 	setColorMapOverride(colorMapOverride: Color[] | null): void;
+
+	setHighlightingColorSpace(highlightingColorSpace: RGBColorSpace): void;
 
 }

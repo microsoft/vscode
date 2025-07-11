@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color } from '../../base/common/color.js';
+import { Color, RGBColorSpace } from '../../base/common/color.js';
 import { Emitter, Event } from '../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { ITokenizationRegistry, ITokenizationSupportChangedEvent, ILazyTokenizationSupport } from './languages.js';
@@ -18,6 +18,7 @@ export class TokenizationRegistry<TSupport> implements ITokenizationRegistry<TSu
 	public readonly onDidChange: Event<ITokenizationSupportChangedEvent> = this._onDidChange.event;
 
 	private _colorMap: Color[] | null;
+	private _highlightingColorSpace: RGBColorSpace = 'srgb';
 
 	constructor() {
 		this._colorMap = null;
@@ -26,7 +27,8 @@ export class TokenizationRegistry<TSupport> implements ITokenizationRegistry<TSu
 	public handleChange(languageIds: string[]): void {
 		this._onDidChange.fire({
 			changedLanguages: languageIds,
-			changedColorMap: false
+			changedColorMap: false,
+			changedHighlightingColorSpace: false
 		});
 	}
 
@@ -96,12 +98,30 @@ export class TokenizationRegistry<TSupport> implements ITokenizationRegistry<TSu
 		this._colorMap = colorMap;
 		this._onDidChange.fire({
 			changedLanguages: Array.from(this._tokenizationSupports.keys()),
-			changedColorMap: true
+			changedColorMap: true,
+			changedHighlightingColorSpace: false
 		});
 	}
 
 	public getColorMap(): Color[] | null {
 		return this._colorMap;
+	}
+
+	public getHighlightingColorSpace(): RGBColorSpace {
+		return this._highlightingColorSpace;
+	}
+
+	public setHighlightingColorSpace(space: RGBColorSpace): void {
+		if (this._highlightingColorSpace === space) {
+			return;
+		}
+
+		this._highlightingColorSpace = space;
+		this._onDidChange.fire({
+			changedLanguages: Array.from(this._tokenizationSupports.keys()),
+			changedColorMap: false,
+			changedHighlightingColorSpace: true
+		});
 	}
 
 	public getDefaultBackground(): Color | null {
