@@ -193,7 +193,7 @@ export interface MainThreadAuthenticationShape extends IDisposable {
 	$waitForUriHandler(expectedUri: UriComponents): Promise<UriComponents>;
 	$showContinueNotification(message: string): Promise<boolean>;
 	$showDeviceCodeModal(userCode: string, verificationUri: string): Promise<boolean>;
-	$promptForClientDetails(authorizationServerUrl: string): Promise<{ clientId: string; clientSecret?: string } | undefined>;
+	$promptForClientRegistration(authorizationServerUrl: string): Promise<{ clientId: string; clientSecret?: string } | undefined>;
 	$registerDynamicAuthenticationProvider(id: string, label: string, authorizationServer: UriComponents, clientId: string, clientSecret?: string): Promise<void>;
 	$setSessionsForDynamicAuthProvider(authProviderId: string, clientId: string, sessions: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<void>;
 	$sendDidChangeDynamicProviderInfo({ providerId, clientId, authorizationServer, label, clientSecret }: { providerId: string; clientId?: string; authorizationServer?: UriComponents; label?: string; clientSecret?: string }): Promise<void>;

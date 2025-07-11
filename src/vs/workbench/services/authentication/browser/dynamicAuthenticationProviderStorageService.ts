@@ -162,12 +162,8 @@ export class DynamicAuthenticationProviderStorageService extends Disposable impl
 		}
 
 		// Remove client credentials from new SecretStorage format
-		const credentialsKey = `dynamicAuthProvider:${providerId}:credentials`;
+		const credentialsKey = `dynamicAuthProvider:clientRegistration:${providerId}`;
 		await this.secretStorageService.delete(credentialsKey);
-
-		// Remove client secret from old SecretStorage format (for migration)
-		const clientSecretKey = `dynamicAuthProvider:${providerId}:clientSecret`;
-		await this.secretStorageService.delete(clientSecretKey);
 	}
 
 	async getSessionsForDynamicAuthProvider(authProviderId: string, clientId: string): Promise<(IAuthorizationTokenResponse & { created_at: number })[] | undefined> {

@@ -545,15 +545,15 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return false;
 	}
 
-	async $promptForClientDetails(authorizationServerUrl: string): Promise<{ clientId: string; clientSecret?: string } | undefined> {
+	async $promptForClientRegistration(authorizationServerUrl: string): Promise<{ clientId: string; clientSecret?: string } | undefined> {
 		// Show modal dialog first to explain the situation and get user consent
 		const result = await this.dialogService.prompt({
 			type: Severity.Info,
 			message: nls.localize('dcrNotSupported', "Dynamic Client Registration not supported"),
-			detail: nls.localize('dcrNotSupportedDetail', "The authorization server '{0}' does not support automatic client registration. Do you want to manually provide a client registration (client ID)?\n\nNote: When registering your OAuth application, make sure to include these redirect URIs:\nhttp://127.0.0.1:33418\nhttps://vscode.dev/redirect", authorizationServerUrl),
+			detail: nls.localize('dcrNotSupportedDetail', "The authorization server '{0}' does not support automatic client registration. Do you want to proceed by manually providing a client registration (client ID)?\n\nNote: When registering your OAuth application, make sure to include these redirect URIs:\nhttp://127.0.0.1:33418\nhttps://vscode.dev/redirect", authorizationServerUrl),
 			buttons: [
 				{
-					label: nls.localize('provideClientDetails', "Provide Client Details"),
+					label: nls.localize('provideClientDetails', "Proceed"),
 					run: () => true
 				}
 			],
@@ -571,8 +571,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 		const clientId = await this.quickInputService.input({
 			title: sharedTitle,
-			prompt: nls.localize('clientIdPrompt', "Enter a client ID that has been registered for VS Code:"),
-			placeHolder: nls.localize('clientIdPlaceholder', "Enter your OAuth client ID"),
+			prompt: nls.localize('clientIdPrompt', "Enter an existing client ID that has been registered with the following redirect URIs: http://127.0.0.1:33418, https://vscode.dev/redirect"),
+			placeHolder: nls.localize('clientIdPlaceholder', "OAuth client ID (azye39d...)"),
 			ignoreFocusLost: true,
 			validateInput: async (value: string) => {
 				if (!value || value.trim().length === 0) {
@@ -588,8 +588,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 		const clientSecret = await this.quickInputService.input({
 			title: sharedTitle,
-			prompt: nls.localize('clientSecretPrompt', "Enter the client secret for the authorization server '{0}':", authorizationServerUrl),
-			placeHolder: nls.localize('clientSecretPlaceholder', "Enter your OAuth client secret (optional)"),
+			prompt: nls.localize('clientSecretPrompt', "(optional) Enter an existing client secret associated with the client id '{0}' or leave this field blank", clientId),
+			placeHolder: nls.localize('clientSecretPlaceholder', "OAuth client secret (wer32o50f...) or leave it blank"),
 			password: true,
 			ignoreFocusLost: true
 		});

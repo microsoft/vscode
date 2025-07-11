@@ -200,7 +200,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 				this._logService.info(`Dynamic registration failed for ${authorizationServer.toString()}: ${err.message}. Prompting user for client ID and client secret.`);
 
 				try {
-					const clientDetails = await this._proxy.$promptForClientDetails(authorizationServer.toString());
+					const clientDetails = await this._proxy.$promptForClientRegistration(authorizationServer.toString());
 					if (!clientDetails) {
 						throw new Error('User did not provide client details');
 					}
@@ -672,7 +672,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 			this._logger.info(`Dynamic registration failed for ${this.authorizationServer.toString()}: ${err}. Prompting user for client ID and client secret.`);
 
 			try {
-				const clientDetails = await this._proxy.$promptForClientDetails(this.authorizationServer.toString());
+				const clientDetails = await this._proxy.$promptForClientRegistration(this.authorizationServer.toString());
 				if (!clientDetails) {
 					throw new Error('User did not provide client details');
 				}
