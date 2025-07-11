@@ -1,0 +1,36 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+declare module 'vscode' {
+	// https://github.com/microsoft/vscode/issues/254910
+
+	export interface SourceControl {
+		readonly parentRootUri: Uri | undefined;
+
+		/**
+		 * Context value of the source control. This can be used to contribute source control specific actions.
+		 * For example, if a source control is given a context value of `git`, when contributing actions to `scm/sourceControl/context`
+		 * using `menus` extension point, you can specify context value for key `scmProvider` in `when` expressions, like `scmProvider == git`.
+		 * ```json
+		 * "contributes": {
+		 *   "menus": {
+		 *     "scm/sourceControl/context": [
+		 *       {
+		 *         "command": "extension.gitAction",
+		 *         "when": "scmProvider == git"
+		 *       }
+		 *     ]
+		 *   }
+		 * }
+		 * ```
+		 * This will show action `extension.gitAction` only for source controls with `contextValue` equal to `git`.
+		 */
+		contextValue?: string;
+	}
+
+	export namespace scm {
+		export function createSourceControl(id: string, label: string, rootUri?: Uri, parentRootUri?: Uri): SourceControl;
+	}
+}

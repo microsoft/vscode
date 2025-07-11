@@ -70,8 +70,8 @@ export interface ISCMResourceGroup {
 
 export interface ISCMProvider extends IDisposable {
 	readonly id: string;
+	readonly kind: string;
 	readonly label: string;
-	readonly contextValue: string;
 	readonly name: string;
 
 	readonly groups: readonly ISCMResourceGroup[];
@@ -79,7 +79,9 @@ export interface ISCMProvider extends IDisposable {
 	readonly onDidChangeResources: Event<void>;
 
 	readonly rootUri?: URI;
+	readonly parentRootUri?: URI;
 	readonly inputBoxTextModel: ITextModel;
+	readonly contextValue: IObservable<string | undefined>;
 	readonly count: IObservable<number | undefined>;
 	readonly commitTemplate: IObservable<string>;
 	readonly historyProvider: IObservable<ISCMHistoryProvider | undefined>;
@@ -190,8 +192,8 @@ export interface ISCMTitleMenu {
 
 export interface ISCMRepositoryMenus {
 	readonly titleMenu: ISCMTitleMenu;
-	readonly repositoryMenu: IMenu;
 	readonly repositoryContextMenu: IMenu;
+	getRepositoryMenu(repository: ISCMRepository): IMenu;
 	getResourceGroupMenu(group: ISCMResourceGroup): IMenu;
 	getResourceMenu(resource: ISCMResource): IMenu;
 	getResourceFolderMenu(group: ISCMResourceGroup): IMenu;

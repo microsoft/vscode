@@ -244,6 +244,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 	private static ID_HANDLE = 0;
 	private _id = `scm${MainThreadSCMProvider.ID_HANDLE++}`;
 	get id(): string { return this._id; }
+	get kind(): string { return this._providerId; }
 
 	readonly groups: MainThreadSCMResourceGroup[] = [];
 	private readonly _onDidChangeResourceGroups = new Emitter<void>();
@@ -270,8 +271,11 @@ class MainThreadSCMProvider implements ISCMProvider {
 	get handle(): number { return this._handle; }
 	get label(): string { return this._label; }
 	get rootUri(): URI | undefined { return this._rootUri; }
+	get parentRootUri(): URI | undefined { return this._parentRootUri; }
 	get inputBoxTextModel(): ITextModel { return this._inputBoxTextModel; }
-	get contextValue(): string { return this._providerId; }
+
+	private readonly _contextValue = observableValue<string | undefined>(this, undefined);
+	get contextValue(): IObservable<string | undefined> { return this._contextValue; }
 
 	get acceptInputCommand(): Command | undefined { return this.features.acceptInputCommand; }
 
@@ -302,6 +306,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 		private readonly _providerId: string,
 		private readonly _label: string,
 		private readonly _rootUri: URI | undefined,
+		private readonly _parentRootUri: URI | undefined,
 		private readonly _inputBoxTextModel: ITextModel,
 		private readonly _quickDiffService: IQuickDiffService,
 		private readonly _uriIdentService: IUriIdentityService,
@@ -326,6 +331,10 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 		if (typeof features.actionButton !== 'undefined') {
 			this._actionButton.set(features.actionButton ?? undefined, undefined);
+		}
+
+		if (typeof features.contextValue !== 'undefined') {
+			this._contextValue.set(features.contextValue, undefined);
 		}
 
 		if (typeof features.count !== 'undefined') {
@@ -560,11 +569,11 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._disposables.dispose();
 	}
 
-	async $registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined, inputBoxDocumentUri: UriComponents): Promise<void> {
+	async $registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined, parentRootUri: UriComponents | undefined, inputBoxDocumentUri: UriComponents): Promise<void> {
 		this._repositoryBarriers.set(handle, new Barrier());
 
 		const inputBoxTextModelRef = await this.textModelService.createModelReference(URI.revive(inputBoxDocumentUri));
-		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, inputBoxTextModelRef.object.textEditorModel, this.quickDiffService, this._uriIdentService, this.workspaceContextService);
+		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, parentRootUri ? URI.revive(parentRootUri) : undefined, inputBoxTextModelRef.object.textEditorModel, this.quickDiffService, this._uriIdentService, this.workspaceContextService);
 		const repository = this.scmService.registerSCMProvider(provider);
 		this._repositories.set(handle, repository);
 
