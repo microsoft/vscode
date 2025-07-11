@@ -419,11 +419,11 @@ interface IQuotas {
 export class ChatEntitlementRequests extends Disposable {
 
 	static providerId(configurationService: IConfigurationService): string {
-		if (configurationService.getValue<string | undefined>(`${defaultChat.completionsAdvancedSetting}.authProvider`) === defaultChat.provider?.enterprise.id) {
-			return defaultChat.provider!.enterprise.id;
+		if (configurationService.getValue<string | undefined>(`${defaultChat.completionsAdvancedSetting}.authProvider`) === defaultChat.provider.enterprise.id) {
+			return defaultChat.provider.enterprise.id;
 		}
 
-		return defaultChat.provider!.default.id;
+		return defaultChat.provider.default.id;
 	}
 
 	private state: IEntitlements;
@@ -566,7 +566,7 @@ export class ChatEntitlementRequests extends Disposable {
 	}
 
 	private async doResolveEntitlement(session: AuthenticationSession, token: CancellationToken): Promise<IEntitlements | undefined> {
-		if (ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.provider?.enterprise.id) {
+		if (ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.provider.enterprise.id) {
 			this.logService.trace('[chat entitlement]: enterprise provider, assuming Enterprise plan');
 			return { entitlement: ChatEntitlement.Enterprise };
 		}
