@@ -6,7 +6,7 @@
 import type * as vscode from 'vscode';
 import { AsyncIterableObject, AsyncIterableSource, RunOnceScheduler } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { CancellationError, SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
+import { SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -16,7 +16,7 @@ import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IE
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { Progress } from '../../../platform/progress/common/progress.js';
-import { ChatImageMimeType, IChatMessage, IChatResponseFragment, IChatResponsePart, ILanguageModelChatMetadata } from '../../contrib/chat/common/languageModels.js';
+import { ChatImageMimeType, IChatMessage, IChatResponseFragment, IChatResponsePart, ILanguageModelChatMetadata, ILanguageModelIdentifier } from '../../contrib/chat/common/languageModels.js';
 import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtHostLanguageModelsShape, MainContext, MainThreadLanguageModelsShape } from './extHost.protocol.js';
@@ -26,6 +26,7 @@ import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../contrib/chat/common/modelPicker/modelPickerWidget.js';
 
 export interface IExtHostLanguageModels extends ExtHostLanguageModels { }
 
@@ -156,9 +157,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	readonly onDidChangeProviders = this._onDidChangeProviders.event;
 
 	private readonly _languageModelProviders = new Map<string, LanguageModelProviderData>();
-	private readonly _allLanguageModelData = new Map<string, { metadata: ILanguageModelChatMetadata; apiObjects: ExtensionIdentifierMap<vscode.LanguageModelChat> }>(); // these are ALL models, not just the one in this EH
 	private readonly _modelAccessList = new ExtensionIdentifierMap<ExtensionIdentifierSet>();
-	private readonly _pendingRequest = new Map<number, { languageModelId: string; res: LanguageModelResponse }>();
+	private readonly _pendingRequest = new Map<number, { languageModelId: ILanguageModelIdentifier; res: LanguageModelResponse }>();
 	private readonly _ignoredFileProviders = new Map<number, vscode.LanguageModelIgnoredFileProvider>();
 
 	constructor(
@@ -179,7 +179,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		this._languageModelProviders.set(vendor, { extension: extension.identifier, extensionName: extension.displayName || extension.name, provider, knownModels: [] });
 		return toDisposable(() => {
 			this._languageModelProviders.delete(vendor);
-			this._proxy.$unregisterProvider(handle);
+			this._proxy.$unregisterProvider(vendor);
 		});
 	}
 
@@ -189,8 +189,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			return [];
 		}
 		const modelInformation = await data.provider.prepareLanguageModelChat(options, token) ?? [];
-		this._languageModelProviders.set(vendor, { ...data, knownModels: modelInformation });
-		return modelInformation.map(m => {
+		const modelMetadata = modelInformation.map(m => {
 			let auth;
 			if (m.auth) {
 				auth = {
@@ -199,6 +198,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				};
 			}
 			return {
+				...m,
 				extension: data.extension,
 				id: m.id,
 				vendor,
@@ -220,6 +220,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				} : undefined,
 			};
 		});
+		this._languageModelProviders.set(vendor, { ...data, knownModels: modelInformation });
+		return modelMetadata;
 	}
 
 	async $startChatRequest(model: ILanguageModelChatMetadata, requestId: number, from: ExtensionIdentifier, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: vscode.LanguageModelChatRequestOptions, token: CancellationToken): Promise<void> {
@@ -305,9 +307,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 	//#region --- token counting
 
-	$provideTokenLength(model: ILanguageModelChatMetadata, value: string, token: CancellationToken): Promise<number> {
+	$provideTokenLength(model: ILanguageModelIdentifier, value: string, token: CancellationToken): Promise<number> {
 		const data = this._languageModelProviders.get(model.vendor);
-		const knownModel = data?.knownModels.find(m => m.id === model.id && m.family === model.family);
+		const knownModel = data?.knownModels.find(m => m.id === model.id);
 		if (!data || !knownModel) {
 			return Promise.resolve(0);
 		}
@@ -317,85 +319,63 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 	//#region --- making request
 
-	$acceptChatModelMetadata(data: { added?: { identifier: string; metadata: ILanguageModelChatMetadata }[] | undefined; removed?: string[] | undefined }): void {
-		if (data.added) {
-			for (const { identifier, metadata } of data.added) {
-				this._allLanguageModelData.set(identifier, { metadata, apiObjects: new ExtensionIdentifierMap() });
-			}
-		}
-		if (data.removed) {
-			for (const id of data.removed) {
-				// clean up
-				this._allLanguageModelData.delete(id);
-
-				// cancel pending requests for this model
-				for (const [key, value] of this._pendingRequest) {
-					if (value.languageModelId === id) {
-						value.res.reject(new CancellationError());
-						this._pendingRequest.delete(key);
-					}
-				}
-			}
-		}
-
-		// TODO@jrieken@TylerLeonhardt - this is a temporary hack to populate the auth providers
-		data.added?.forEach(added => this._fakeAuthPopulate(added.metadata));
-
-		this._onDidChangeProviders.fire(undefined);
-	}
-
 	async getDefaultLanguageModel(extension: IExtensionDescription): Promise<vscode.LanguageModelChat | undefined> {
-		const defaultModelId = Iterable.find(this._allLanguageModelData.entries(), ([, value]) => !!value.metadata.isDefault)?.[0];
+		let defaultModelId: ILanguageModelIdentifier | undefined;
+		for (const provider of this._languageModelProviders.values()) {
+			const defaultModel = provider.knownModels.find(m => m.isDefault);
+			if (defaultModel) {
+				defaultModelId = { id: defaultModel.id, vendor: provider.extension.value };
+				break;
+			}
+		}
 		if (!defaultModelId) {
 			return;
 		}
-
 		return this.getLanguageModelByIdentifier(extension, defaultModelId);
 	}
 
-	async getLanguageModelByIdentifier(extension: IExtensionDescription, identifier: string): Promise<vscode.LanguageModelChat | undefined> {
+	async getLanguageModelByIdentifier(extension: IExtensionDescription, modelIdentifier: ILanguageModelIdentifier): Promise<vscode.LanguageModelChat | undefined> {
 
-		const data = this._allLanguageModelData.get(identifier);
-		if (!data) {
+		const modelInfo = this._languageModelProviders.get(modelIdentifier.vendor)?.knownModels.find(m => m.id === modelIdentifier.id);
+		if (!modelInfo) {
 			// model gone? is this an error on us?
 			return;
 		}
 
 		// make sure auth information is correct
-		if (this._isUsingAuth(extension.identifier, data.metadata)) {
-			await this._fakeAuthPopulate(data.metadata);
+		if (this._isUsingAuth(extension.identifier, modelInfo)) {
+			await this._fakeAuthPopulate(modelInfo);
 		}
 
-		let apiObject = data.apiObjects.get(extension.identifier);
+		let apiObject: vscode.LanguageModelChat | undefined;
 		if (!apiObject) {
 			const that = this;
 			apiObject = {
-				id: data.metadata.id,
-				vendor: data.metadata.vendor,
-				family: data.metadata.family,
-				version: data.metadata.version,
-				name: data.metadata.name,
+				id: modelInfo.id,
+				vendor: modelIdentifier.vendor,
+				family: modelInfo.family,
+				version: modelInfo.version,
+				name: modelInfo.name,
 				capabilities: {
-					supportsImageToText: data.metadata.capabilities?.vision ?? false,
-					supportsToolCalling: data.metadata.capabilities?.toolCalling ?? false,
+					supportsImageToText: modelInfo.capabilities?.vision ?? false,
+					supportsToolCalling: !!modelInfo.capabilities?.toolCalling,
 				},
-				maxInputTokens: data.metadata.maxInputTokens,
+				maxInputTokens: modelInfo.maxInputTokens,
 				countTokens(text, token) {
-					if (!that._allLanguageModelData.has(identifier)) {
-						throw extHostTypes.LanguageModelError.NotFound(identifier);
+					if (!that._languageModelProviders.get(modelIdentifier.vendor)?.knownModels.find(m => m.id === modelInfo.id)) {
+						throw extHostTypes.LanguageModelError.NotFound(`${modelIdentifier.vendor}/${modelIdentifier.id}`);
 					}
-					return that._computeTokenLength(identifier, text, token ?? CancellationToken.None);
+					return that._computeTokenLength({ id: modelInfo.id, vendor: modelIdentifier.vendor }, text, token ?? CancellationToken.None);
 				},
 				sendRequest(messages, options, token) {
-					if (!that._allLanguageModelData.has(identifier)) {
-						throw extHostTypes.LanguageModelError.NotFound(identifier);
+					if (!that._languageModelProviders.get(modelIdentifier.vendor)?.knownModels.find(m => m.id === modelInfo.id)) {
+						throw extHostTypes.LanguageModelError.NotFound(`${modelIdentifier.vendor}/${modelIdentifier.id}`);
 					}
-					return that._sendChatRequest(extension, identifier, messages, options ?? {}, token ?? CancellationToken.None);
+					return that._sendChatRequest(extension, { id: modelInfo.id, vendor: modelIdentifier.vendor }, messages, options ?? {}, token ?? CancellationToken.None);
 				}
 			};
 
 			Object.freeze(apiObject);
-			data.apiObjects.set(extension.identifier, apiObject);
 		}
 
 		return apiObject;
@@ -418,7 +398,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return result;
 	}
 
-	private async _sendChatRequest(extension: IExtensionDescription, languageModelId: string, messages: vscode.LanguageModelChatMessage2[], options: vscode.LanguageModelChatRequestOptions, token: CancellationToken) {
+	private async _sendChatRequest(extension: IExtensionDescription, languageModelId: ILanguageModelIdentifier, messages: vscode.LanguageModelChatMessage2[], options: vscode.LanguageModelChatRequestOptions, token: CancellationToken) {
 
 		const internalMessages: IChatMessage[] = this._convertMessages(extension, messages);
 
@@ -539,20 +519,14 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		}
 	}
 
-	private async _computeTokenLength(languageModelId: string, value: string | vscode.LanguageModelChatMessage2, token: vscode.CancellationToken): Promise<number> {
+	private async _computeTokenLength(languageModelId: ILanguageModelIdentifier, value: string | vscode.LanguageModelChatMessage2, token: vscode.CancellationToken): Promise<number> {
 
-		const data = this._allLanguageModelData.get(languageModelId);
+		const data = this._languageModelProviders.get(languageModelId.vendor)?.knownModels.find(m => m.id === languageModelId.id);
 		if (!data) {
-			throw extHostTypes.LanguageModelError.NotFound(`Language model '${languageModelId}' is unknown.`);
+			throw extHostTypes.LanguageModelError.NotFound(`Language model '${languageModelId.vendor}/${languageModelId.id}' is unknown.`);
 		}
-
-		const local = Iterable.find(this._languageModelProviders.values(), candidate => candidate.languageModelId === languageModelId);
-		if (local) {
-			// stay inside the EH
-			return local.provider.provideTokenCount(value, token);
-		}
-
-		return this._proxy.$countTokens(languageModelId, (typeof value === 'string' ? value : typeConvert.LanguageModelChatMessage2.from(value)), token);
+		return this._languageModelProviders.get(languageModelId.vendor)?.provider.provideTokenCount(data, value, token) ?? 0;
+		// return this._proxy.$countTokens(languageModelId, (typeof value === 'string' ? value : typeConvert.LanguageModelChatMessage2.from(value)), token);
 	}
 
 	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void {

@@ -24,6 +24,7 @@ import { IChatParserContext } from './chatRequestParser.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
+import { ILanguageModelIdentifier } from './languageModels.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult } from './languageModelToolsService.js';
 
 export interface IChatRequest {
@@ -509,7 +510,7 @@ export type IChatLocationData = IChatEditorLocationData | IChatNotebookLocationD
 
 export interface IChatSendRequestOptions {
 	mode?: ChatModeKind;
-	userSelectedModelId?: string;
+	userSelectedModelId?: ILanguageModelIdentifier;
 	userSelectedTools?: Record<string, boolean>;
 	modeInstructions?: string;
 	location?: ChatAgentLocation;

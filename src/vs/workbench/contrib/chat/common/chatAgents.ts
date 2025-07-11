@@ -29,6 +29,7 @@ import { IChatAgentEditedFileEvent, IChatProgressHistoryResponseContent, IChatRe
 import { IRawChatCommandContribution } from './chatParticipantContribTypes.js';
 import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from './chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from './constants.js';
+import { ILanguageModelIdentifier } from './languageModels.js';
 
 //#region agent service, commands etc
 
@@ -137,7 +138,7 @@ export interface IChatAgentRequest {
 	locationData?: IChatLocationData;
 	acceptedConfirmationData?: any[];
 	rejectedConfirmationData?: any[];
-	userSelectedModelId?: string;
+	userSelectedModelId?: ILanguageModelIdentifier;
 	userSelectedTools?: Record<string, boolean>;
 	modeInstructions?: string;
 	editedFileEvents?: IChatAgentEditedFileEvent[];

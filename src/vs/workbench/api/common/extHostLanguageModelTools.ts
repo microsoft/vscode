@@ -20,6 +20,7 @@ import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import { SearchExtensionsToolId } from '../../contrib/extensions/common/searchExtensionsTool.js';
+import { ILanguageModelIdentifier } from '../../contrib/chat/common/languageModels.js';
 
 class Tool {
 
@@ -205,7 +206,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		return typeConvert.LanguageModelToolResult2.from(extensionResult, item.extension);
 	}
 
-	private async getModel(modelId: string, extension: IExtensionDescription): Promise<vscode.LanguageModelChat> {
+	private async getModel(modelId: ILanguageModelIdentifier, extension: IExtensionDescription): Promise<vscode.LanguageModelChat> {
 		let model: vscode.LanguageModelChat | undefined;
 		if (modelId) {
 			model = await this._languageModels.getLanguageModelByIdentifier(extension, modelId);
