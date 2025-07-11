@@ -218,7 +218,7 @@ export class TextEdit {
 		}
 
 		return this.replacements.map(r => {
-			const maxLength = 30;
+			const maxLength = 10;
 			const originalText = text.getValueOfRange(r.range);
 
 			// Get text before the edit
