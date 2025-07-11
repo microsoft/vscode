@@ -4,6 +4,14 @@
 
 Visual Studio Code is built with a layered architecture using TypeScript, web APIs and Electron, combining web technologies with native app capabilities. The codebase is organized into key architectural layers:
 
+### Root Folders
+-   `src/`: Main TypeScript source code
+-   `build/`: Build scripts and CI/CD tools
+-   `extensions/`: Built-in extensions that ship with VS Code
+-   `test/`: Integration tests and test infrastructure
+-   `scripts/`: Development and build scripts
+-   `resources/`: Static resources (icons, themes, etc.)
+
 ### Core Architecture (`src/` folder)
 - **`src/vs/base/`** - Foundation utilities and cross-platform abstractions
 - **`src/vs/platform/`** - Platform services and dependency injection infrastructure
@@ -16,7 +24,7 @@ Visual Studio Code is built with a layered architecture using TypeScript, web AP
 - **`src/vs/code/`** - Electron main process specific implementation
 - **`src/vs/server/`** - Server specific implementation
 
-#### Key Design Principles
+The core architecture follows these principles:
 - **Layered architecture** - Base → Platform → Editor → Workbench
 - **Dependency injection** - Services are injected through constructor parameters
 - **Contribution model** - Features contribute to registries and extension points
@@ -30,6 +38,15 @@ The `extensions/` directory contains first-party extensions that ship with VS Co
 - **Development tools** - `extension-editing/`, `vscode-api-tests/`
 
 Each extension follows the standard VS Code extension structure with `package.json`, TypeScript sources, and contribution points to extend the workbench through the Extension API.
+
+### Build, Development & Testing Tools
+
+-   Use `npm install` to install dependencies
+-   Use `npm run compile` for development builds
+-   Use `npm run watch` for development builds in watch mode
+-   Use `scripts/test.sh` (or `scripts\test.bat` on Windows) for unit tests
+-   Use `scripts/test-integration.sh` (or `scripts\test-integration.bat` on Windows) for integration tests
+-   Use `npm run valid-layers-check` to check for layering issues
 
 ## Coding Guidelines
 
@@ -89,3 +106,9 @@ function f(x: number, y: string): void { }
 ```
 
 * Whenever possible, use in top-level scopes `export function x(…) {…}` instead of `export const x = (…) => {…}`. One advantage of using the `function` keyword is that the stack-trace shows a good name when debugging.
+
+### Code Quality
+
+* All files must include Microsoft copyright header
+* Prefer async/await over Promises, handle cancellation with `CancellationToken`
+* All user facing messages must be localized using the applicable localization framework (for example `nls.localize()` method)
