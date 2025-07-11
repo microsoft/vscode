@@ -141,7 +141,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	}
 
 	async $awaitEditId(chatSessionId: string, editId: string, token: CancellationToken): Promise<void> {
-		this._chatEditingService.getEditingSession(chatSessionId)?.awaitEditComplete(editId, token);
+		await this._chatEditingService.getEditingSession(chatSessionId)?.awaitEditComplete(editId, token);
 	}
 
 	$transferActiveChatSession(toWorkspace: UriComponents): void {

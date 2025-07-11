@@ -12,6 +12,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { matchesSomeScheme, Schemas } from '../../../../../base/common/network.js';
+import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { basename } from '../../../../../base/common/path.js';
 import { basenameOrAuthority, isEqualAuthority } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -52,7 +53,8 @@ const $ = dom.$;
 export interface IChatReferenceListItem extends IChatContentReference {
 	title?: string;
 	description?: string;
-	state?: ModifiedFileEntryState;
+	state?: IObservable<ModifiedFileEntryState>;
+	deleted?: IObservable<boolean>;
 	excluded?: boolean;
 }
 
@@ -286,6 +288,7 @@ interface ICollapsibleListTemplate {
 	readonly contextKeyService?: IContextKeyService;
 	readonly label: IResourceLabel;
 	readonly templateDisposables: DisposableStore;
+	readonly elementDisposables: DisposableStore;
 	toolbar: MenuWorkbenchToolBar | undefined;
 	actionBarContainer?: HTMLElement;
 }
@@ -318,7 +321,8 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			label.element.appendChild(actionBarContainer);
 		}
 
-		return { templateDisposables, label, toolbar, actionBarContainer, contextKeyService };
+		const elementDisposables = templateDisposables.add(new DisposableStore());
+		return { templateDisposables, elementDisposables, label, toolbar, actionBarContainer, contextKeyService };
 	}
 
 
@@ -401,25 +405,27 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			}
 		}
 
-		if (data.state !== undefined) {
+		const contextKey = templateData.contextKeyService && chatEditingWidgetFileStateContextKey.bindTo(templateData.contextKeyService);
+		templateData.elementDisposables.add(autorun(reader => {
+			const state = data.state?.read(reader) ?? ModifiedFileEntryState.Accepted;
+			contextKey?.set(state);
+			const modified = data.state?.read(reader) === ModifiedFileEntryState.Modified;
+			const deleted = !!data.deleted?.read(reader);
 			if (templateData.actionBarContainer) {
-				if (data.state === ModifiedFileEntryState.Modified && !templateData.actionBarContainer.classList.contains('modified')) {
-					templateData.actionBarContainer.classList.add('modified');
-					templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.add('modified');
-				} else if (data.state !== ModifiedFileEntryState.Modified) {
-					templateData.actionBarContainer.classList.remove('modified');
-					templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.remove('modified');
-				}
+				templateData.actionBarContainer.classList.toggle('modified', modified);
+				templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.toggle('modified', modified);
+				templateData.actionBarContainer.classList.toggle('deleted', deleted);
+				templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.toggle('deleted', deleted);
 			}
-			if (templateData.toolbar) {
-				templateData.toolbar.context = arg;
-			}
-			if (templateData.contextKeyService) {
-				if (data.state !== undefined) {
-					chatEditingWidgetFileStateContextKey.bindTo(templateData.contextKeyService).set(data.state);
-				}
-			}
+		}));
+
+		if (templateData.toolbar) {
+			templateData.toolbar.context = arg;
 		}
+	}
+
+	disposeElement(element: IChatCollapsibleListItem, index: number, templateData: ICollapsibleListTemplate): void {
+		templateData.elementDisposables.clear();
 	}
 
 	disposeTemplate(templateData: ICollapsibleListTemplate): void {

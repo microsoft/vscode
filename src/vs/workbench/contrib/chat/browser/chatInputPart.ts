@@ -1462,7 +1462,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			seenEntries.add(entry.modifiedURI);
 			return {
 				reference: entry.modifiedURI,
-				state: entry.state.get(),
+				state: entry.state,
+				deleted: entry.willBeDeleted,
 				kind: 'reference',
 			};
 		}) ?? [];
@@ -1480,7 +1481,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (!seenEntries.has(entry.modifiedURI)) {
 				entries.unshift({
 					reference: entry.modifiedURI,
-					state: entry.state.get(),
+					state: entry.state,
+					deleted: entry.willBeDeleted,
 					kind: 'reference',
 				});
 				seenEntries.add(entry.modifiedURI);
@@ -1489,10 +1491,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		entries.sort((a, b) => {
 			if (a.kind === 'reference' && b.kind === 'reference') {
-				if (a.state === b.state || a.state === undefined || b.state === undefined) {
+				const aState = a.state?.get();
+				const bState = a.state?.get();
+				if (aState === bState || aState === undefined || bState === undefined) {
 					return a.reference.toString().localeCompare(b.reference.toString());
 				}
-				return a.state - b.state;
+				return aState - bState;
 			}
 			return 0;
 		});

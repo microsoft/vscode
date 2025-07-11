@@ -1597,6 +1597,9 @@ export class ChatModel extends Disposable implements IChatModel {
 		} else if (progress.kind === 'codeblockUri' && progress.isEdit) {
 			request.response.addUndoStop({ id: generateUuid(), kind: 'undoStop' });
 			request.response.updateContent(progress, quiet);
+		} else if (progress.kind === 'workspaceEdit') {
+			request.response.addUndoStop({ id: progress.id, kind: 'undoStop' });
+			request.response.updateContent(progress, quiet);
 		} else if (progress.kind === 'progressTaskResult') {
 			// Should have been handled upstream, not sent to model
 			this.logService.error(`Couldn't handle progress: ${JSON.stringify(progress)}`);

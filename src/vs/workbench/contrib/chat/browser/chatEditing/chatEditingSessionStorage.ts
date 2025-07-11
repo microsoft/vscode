@@ -80,6 +80,8 @@ export class ChatEditingSessionStorage {
 				current: await getFileContent(entry.currentHash),
 				state: entry.state,
 				snapshotUri: URI.parse(entry.snapshotUri),
+				deleted: entry.wasJustCreated,
+				wasJustCreated: entry.wasJustCreated,
 				telemetryInfo: { requestId: entry.telemetryInfo.requestId, agentId: entry.telemetryInfo.agentId, command: entry.telemetryInfo.command, sessionId: this.chatSessionId, result: undefined }
 			} satisfies ISnapshotEntry;
 		};
@@ -191,6 +193,8 @@ export class ChatEditingSessionStorage {
 				currentHash: await addFileContent(entry.current),
 				state: entry.state,
 				snapshotUri: entry.snapshotUri.toString(),
+				deleted: entry.deleted,
+				wasJustCreated: entry.wasJustCreated,
 				telemetryInfo: { requestId: entry.telemetryInfo.requestId, agentId: entry.telemetryInfo.agentId, command: entry.telemetryInfo.command }
 			};
 		};
@@ -279,6 +283,8 @@ interface ISnapshotEntryDTO {
 	readonly currentHash: string;
 	readonly state: ModifiedFileEntryState;
 	readonly snapshotUri: string;
+	readonly wasJustCreated: boolean | undefined;
+	readonly deleted: boolean | undefined;
 	readonly telemetryInfo: IModifiedEntryTelemetryInfoDTO;
 }
 

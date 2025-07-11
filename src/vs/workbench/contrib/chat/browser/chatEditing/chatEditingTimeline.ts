@@ -76,7 +76,7 @@ export class ChatEditingTimeline {
 	 * Get the snapshot and history index for restoring, given requestId and stopId.
 	 * If requestId is undefined, returns undefined (pending snapshot is managed by session).
 	 */
-	public getSnapshotForRestore(requestId: string | undefined, stopId: string | undefined): { stop: IChatEditingSessionStop; historyIndex: number; apply(): void } | undefined {
+	public getSnapshotForRestore(requestId: string | undefined, stopId: string | undefined): { stop: IChatEditingSessionStop; toDelete: ResourceMap<void>; apply(): void } | undefined {
 		if (requestId === undefined) {
 			return undefined;
 		}
@@ -85,7 +85,35 @@ export class ChatEditingTimeline {
 			return undefined;
 		}
 
-		return { stop: stopRef.stop, historyIndex: stopRef.historyIndex, apply: () => this._linearHistoryIndex.set(stopRef.historyIndex + 1, undefined) };
+		const snapshot = ChatEditingTimeline.createEmptySnapshot(stopRef.stop.stopId);
+		const currentIndex = this._linearHistoryIndex.get();
+		const direction = stopRef.historyIndex < currentIndex ? -1 : 1;
+
+		const deletedResources = new ResourceMap<void>();
+		const deletedOnNextStep = new ResourceMap<void>();
+
+		for (let i = currentIndex - 1; direction === -1 ? i >= stopRef.historyIndex : i <= stopRef.historyIndex; i--) {
+			for (const resource of deletedOnNextStep.keys()) {
+				deletedResources.set(resource);
+			}
+			deletedOnNextStep.clear();
+
+			const entry = this.getHistoryEntryByLinearIndex(i)!;
+			for (const [uri, entrySnapshot] of entry.stop.entries) {
+				if (entrySnapshot.wasJustCreated && direction === -1) { // If we're going backwards before an entry was created, make it to delete on if we step again
+					deletedOnNextStep.set(uri);
+				} else if (entrySnapshot.deleted) { // Going forward to a deleted entry always deletes it
+					deletedResources.set(uri);
+				} else {
+					deletedOnNextStep.delete(uri);
+					deletedResources.delete(uri);
+				}
+
+				snapshot.entries.set(uri, entrySnapshot);
+			}
+		}
+
+		return { stop: snapshot, toDelete: deletedResources, apply: () => this._linearHistoryIndex.set(stopRef.historyIndex + 1, undefined) };
 	}
 
 	/**

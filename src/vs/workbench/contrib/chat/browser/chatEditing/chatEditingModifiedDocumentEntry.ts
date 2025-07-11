@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ITransaction, autorun, transaction } from '../../../../../base/common/observable.js';
 import { assertType } from '../../../../../base/common/types.js';
@@ -17,7 +18,7 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { IUndoRedoElement, IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
@@ -150,14 +151,23 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(this._telemetryInfo.sessionId, requestId, undoStop, this.modifiedURI.path),
 			original: this.originalModel.getValue(),
 			current: this.modifiedModel.getValue(),
+			wasJustCreated: this._wasJustCreated.get() ? true : undefined,
+			deleted: this._willBeDeleted.get() ? true : undefined,
 			state: this.state.get(),
 			telemetryInfo: this._telemetryInfo
 		};
 	}
 
 	async restoreFromSnapshot(snapshot: ISnapshotEntry, restoreToDisk = true) {
-		this._stateObs.set(snapshot.state, undefined);
+		transaction(tx => {
+			this._stateObs.set(snapshot.state, tx);
+			this._wasJustCreated.set(!!snapshot.wasJustCreated, tx);
+			this._willBeDeleted.set(snapshot.deleted ? VSBuffer.fromString(snapshot.current) : undefined, tx);
+		});
 		await this._textModelChangeService.resetDocumentValues(snapshot.original, restoreToDisk ? snapshot.current : undefined);
+		if (snapshot.deleted) {
+			this.acceptAgentDelete(snapshot.resource);
+		}
 	}
 
 	async resetToInitialContent() {
@@ -179,8 +189,18 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		return new SingleModelEditStackElement(label, 'chat.edit', this.modifiedModel, null);
 	}
 
-	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
+	async acceptAgentDelete(resource: URI) {
+		this._willBeDeleted.set(VSBuffer.fromString(this.modifiedModel.getValue()), undefined);
+		await this._fileService.del(resource).catch(err => {
+			if (err instanceof FileOperationError && err.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+				return;
+			}
 
+			throw err;
+		});
+	}
+
+	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
 		const result = await this._textModelChangeService.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel);
 
 		transaction((tx) => {
@@ -208,29 +228,31 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		this._textModelChangeService.keep();
 		this._multiDiffEntryDelegate.collapse(undefined);
 
-		const config = this._fileConfigService.getAutoSaveConfiguration(this.modifiedURI);
-		if (!config.autoSave || !this._textFileService.isDirty(this.modifiedURI)) {
-			// SAVE after accept for manual-savers, for auto-savers
-			// trigger explict save to get save participants going
-			try {
-				await this._textFileService.save(this.modifiedURI, {
-					reason: SaveReason.EXPLICIT,
-					force: true,
-					ignoreErrorHandler: true
-				});
-			} catch {
-				// ignored
+		if (!this._willBeDeleted.get()) {
+			const config = this._fileConfigService.getAutoSaveConfiguration(this.modifiedURI);
+			if (!config.autoSave || !this._textFileService.isDirty(this.modifiedURI)) {
+				// SAVE after accept for manual-savers, for auto-savers
+				// trigger explict save to get save participants going
+				try {
+					await this._textFileService.save(this.modifiedURI, {
+						reason: SaveReason.EXPLICIT,
+						force: true,
+						ignoreErrorHandler: true
+					});
+				} catch {
+					// ignored
+				}
 			}
 		}
 	}
 
 	protected override async _doReject(): Promise<void> {
-		if (this.createdInRequestId === this._telemetryInfo.requestId) {
+		if (this._wasJustCreated.get()) {
 			if (isTextFileEditorModel(this._docFileEditorModel)) {
 				await this._docFileEditorModel.revert({ soft: true });
 				await this._fileService.del(this.modifiedURI);
 			}
-			this._onDidDelete.fire();
+			this._fileIsDeleted.set(true, undefined);
 		} else {
 			this._textModelChangeService.undo();
 			if (this._textModelChangeService.allEditsAreFromUs && isTextFileEditorModel(this._docFileEditorModel)) {

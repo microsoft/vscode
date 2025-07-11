@@ -179,7 +179,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		if (isProposedApiEnabled(item.extension, 'chatParticipantAdditions') && dto.modelId) {
 			options.model = await this.getModel(dto.modelId, item.extension);
 			if (dto.context?.sessionId && dto.chatRequestId) {
-				(options as vscode.LanguageModelToolInvocation<any>).operations = this.createOperationStream(dto.context?.sessionId, dto.chatRequestId, opStreamRef, token);
+				(options as vscode.LanguageModelToolInvocation<any>).operations = this.createOperationStream(dto.context.sessionId, opStreamRef, token);
 			}
 		}
 
@@ -217,7 +217,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		}
 	}
 
-	private createOperationStream(chatSessionId: string, chatRequestId: string, ref: { isDone: boolean }, token: CancellationToken): vscode.LanguageModelToolOperationStream {
+	private createOperationStream(chatSessionId: string, ref: { isDone: boolean }, token: CancellationToken): vscode.LanguageModelToolOperationStream {
 		function throwIfDone(source: Function | undefined) {
 			if (ref.isDone) {
 				const err = new Error('Tool call has completed');
@@ -225,7 +225,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				throw err;
 			}
 		}
-		const request = this._chatAgents.getInFlightRequest(chatRequestId)!;
+		const request = this._chatAgents.getInFlightRequestForSession(chatSessionId)!;
 
 		return {
 			notebookEdit: async (target, edits) => {
@@ -277,6 +277,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			workspaceEdit: async (edits) => {
 				const id = generateUuid();
 				const part = new extHostTypes.ChatResponseWorkspaceEditPart(edits);
+				part._id = id;
 				request.stream.apiObject.push(part);
 				await this._chatAgents.awaitEditId(chatSessionId!, id, token);
 			}

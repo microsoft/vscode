@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
@@ -37,7 +37,6 @@ export const pendingRewriteMinimap = registerColor('minimap.chatEditHighlight',
 	transparent(editorBackground, 0.6),
 	localize('editorSelectionBackground', "Color of pending edit regions in the minimap"));
 
-
 export abstract class AbstractChatEditingModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 
 	static readonly scheme = 'modified-file-entry';
@@ -46,8 +45,8 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	readonly entryId = `${AbstractChatEditingModifiedFileEntry.scheme}::${++AbstractChatEditingModifiedFileEntry.lastEntryId}`;
 
-	protected readonly _onDidDelete = this._register(new Emitter<void>());
-	readonly onDidDelete = this._onDidDelete.event;
+	protected readonly _fileIsDeleted = observableValue('isDeleted', false);
+	readonly fileIsDeleted: IObservable<boolean> = this._fileIsDeleted;
 
 	protected readonly _stateObs = observableValue<ModifiedFileEntryState>(this, ModifiedFileEntryState.Modified);
 	readonly state: IObservable<ModifiedFileEntryState> = this._stateObs;
@@ -76,11 +75,16 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	protected readonly _autoAcceptTimeout: IObservable<number>;
 
+	protected _wasJustCreated = observableValue<boolean>(this, false);
+	readonly wasJustCreated = this._wasJustCreated;
+
+	// contains the contents of the file when it was deleted, if any
+	protected _willBeDeleted = observableValue<VSBuffer | undefined>(this, undefined);
+	readonly willBeDeleted = this._willBeDeleted.map(v => !!v);
+
 	get telemetryInfo(): IModifiedEntryTelemetryInfo {
 		return this._telemetryInfo;
 	}
-
-	readonly createdInRequestId: string | undefined;
 
 	get lastModifyingRequestId() {
 		return this._telemetryInfo.requestId;
@@ -106,14 +110,18 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		super();
 
 		if (kind === ChatEditKind.Created) {
-			this.createdInRequestId = this._telemetryInfo.requestId;
+			this._wasJustCreated.set(true, undefined);
 		}
 
 		if (this.modifiedURI.scheme !== Schemas.untitled && this.modifiedURI.scheme !== Schemas.vscodeNotebookCell) {
 			this._register(this._fileService.watch(this.modifiedURI));
 			this._register(this._fileService.onDidFilesChange(e => {
-				if (e.affects(this.modifiedURI) && kind === ChatEditKind.Created && e.gotDeleted()) {
-					this._onDidDelete.fire();
+				if (e.affects(this.modifiedURI)) {
+					if (e.gotDeleted()) {
+						this._fileIsDeleted.set(true, undefined);
+					} else if (e.gotAdded()) {
+						this._fileIsDeleted.set(false, undefined);
+					}
 				}
 			}));
 		}
@@ -211,9 +219,12 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		}
 
 		await this._doAccept();
+
 		transaction(tx => {
 			this._stateObs.set(ModifiedFileEntryState.Accepted, tx);
 			this._autoAcceptCtrl.set(undefined, tx);
+			this._wasJustCreated.set(false, tx);
+			this._willBeDeleted.set(undefined, tx);
 		});
 
 		this._notifyAction('accepted');
@@ -228,10 +239,18 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		}
 
 		this._notifyAction('rejected');
+
+		const contentsToRestore = this._willBeDeleted.get();
+		if (contentsToRestore) {
+			await this._fileService.writeFile(this.modifiedURI, contentsToRestore);
+		}
 		await this._doReject();
+
 		transaction(tx => {
 			this._stateObs.set(ModifiedFileEntryState.Rejected, tx);
 			this._autoAcceptCtrl.set(undefined, tx);
+			this._wasJustCreated.set(false, tx);
+			this._willBeDeleted.set(undefined, tx);
 		});
 	}
 
@@ -282,6 +301,8 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	}
 
 	protected abstract _createUndoRedoElement(response: IChatResponseModel): IUndoRedoElement | undefined;
+
+	abstract acceptAgentDelete(resource: URI): Promise<void>;
 
 	abstract acceptAgentEdits(uri: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void>;
 

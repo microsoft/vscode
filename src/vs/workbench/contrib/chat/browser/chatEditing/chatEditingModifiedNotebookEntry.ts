@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { streamToBuffer } from '../../../../../base/common/buffer.js';
+import { streamToBuffer, VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { ITransaction, IObservable, observableValue, autorun, transaction, ObservablePromise } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, ITransaction, ObservablePromise, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
 import { nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping, RangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
@@ -418,31 +418,33 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		this.initializeModelsFromDiff();
 		await this._collapse(undefined);
 
-		const config = this._fileConfigService.getAutoSaveConfiguration(this.modifiedURI);
-		if (this.modifiedModel.uri.scheme !== Schemas.untitled && (!config.autoSave || !this.notebookResolver.isDirty(this.modifiedURI))) {
-			// SAVE after accept for manual-savers, for auto-savers
-			// trigger explict save to get save participants going
-			await this._applyEdits(async () => {
-				try {
-					await this.modifiedResourceRef.object.save({
-						reason: SaveReason.EXPLICIT,
-						force: true,
-					});
-				} catch {
-					// ignored
-				}
-			});
+		if (!this._willBeDeleted.get()) {
+			const config = this._fileConfigService.getAutoSaveConfiguration(this.modifiedURI);
+			if (this.modifiedModel.uri.scheme !== Schemas.untitled && (!config.autoSave || !this.notebookResolver.isDirty(this.modifiedURI))) {
+				// SAVE after accept for manual-savers, for auto-savers
+				// trigger explict save to get save participants going
+				await this._applyEdits(async () => {
+					try {
+						await this.modifiedResourceRef.object.save({
+							reason: SaveReason.EXPLICIT,
+							force: true,
+						});
+					} catch {
+						// ignored
+					}
+				});
+			}
 		}
 	}
 
 	protected override async _doReject(): Promise<void> {
 		this.updateCellDiffInfo([], undefined);
-		if (this.createdInRequestId === this._telemetryInfo.requestId) {
+		if (this._wasJustCreated.get()) {
 			await this._applyEdits(async () => {
 				await this.modifiedResourceRef.object.revert({ soft: true });
 				await this._fileService.del(this.modifiedURI);
 			});
-			this._onDidDelete.fire();
+			this._fileIsDeleted.set(true, undefined);
 		} else {
 			await this._applyEdits(async () => {
 				const snapshot = createSnapshot(this.originalModel, this.transientOptions, this.configurationService);
@@ -533,6 +535,11 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	private _areOriginalAndModifiedIdenticalImpl(): boolean {
 		const snapshot = createSnapshot(this.originalModel, this.transientOptions, this.configurationService);
 		return new SnapshotComparer(snapshot).isEqual(this.modifiedModel);
+	}
+
+	override async acceptAgentDelete(resource: URI): Promise<void> {
+		this._willBeDeleted.set((await this._fileService.readFile(resource)).value, undefined);
+		await this._fileService.del(resource);
 	}
 
 	private newNotebookEditGenerator?: ChatEditingNewNotebookContentEdits;
@@ -916,6 +923,8 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			snapshotUri: getNotebookSnapshotFileURI(this._telemetryInfo.sessionId, requestId, undoStop, this.modifiedURI.path, this.modifiedModel.viewType),
 			original: createSnapshot(this.originalModel, this.transientOptions, this.configurationService),
 			current: createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService),
+			wasJustCreated: this._wasJustCreated.get() ? true : undefined,
+			deleted: this._willBeDeleted.get() ? true : undefined,
 			state: this.state.get(),
 			telemetryInfo: this.telemetryInfo,
 		};
@@ -931,13 +940,20 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	}
 
 	override async restoreFromSnapshot(snapshot: ISnapshotEntry, restoreToDisk = true): Promise<void> {
-		this.updateCellDiffInfo([], undefined);
-		this._stateObs.set(snapshot.state, undefined);
+		transaction(tx => {
+			this.updateCellDiffInfo([], tx);
+			this._stateObs.set(snapshot.state, tx);
+			this._wasJustCreated.set(!!snapshot.wasJustCreated, tx);
+			this._willBeDeleted.set(snapshot.deleted ? VSBuffer.fromString(snapshot.current) : undefined, tx);
+		});
 		restoreSnapshot(this.originalModel, snapshot.original);
 		if (restoreToDisk) {
 			this.restoreSnapshotInModifiedModel(snapshot.current);
 		}
 		this.initializeModelsFromDiff();
+		if (snapshot.deleted) {
+			this.acceptAgentDelete(snapshot.resource);
+		}
 	}
 
 	override async resetToInitialContent(): Promise<void> {

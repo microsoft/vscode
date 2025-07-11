@@ -3,17 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { findLastIdx } from '../../../../../base/common/arraysFind.js';
 import { DeferredPromise, ITask, Sequencer, SequencerByKey, timeout } from '../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { Disposable, dispose } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, dispose } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { autorun, IObservable, IReader, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
+import { IBulkEditService, ResourceTextEdit } from '../../../../../editor/browser/services/bulkEditService.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -22,6 +24,7 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
@@ -103,6 +106,9 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	 */
 	private readonly _initialFileContents = new ResourceMap<string>();
 
+	private readonly _editsInProgressDidChange = this._register(new Emitter<void>());
+	private readonly _editsInProgress = new Map<string, Promise<void>>();
+
 	private readonly _entriesObs = observableValue<readonly AbstractChatEditingModifiedFileEntry[]>(this, []);
 	public get entries(): IObservable<readonly IModifiedFileEntry[]> {
 		this._assertNotDisposed();
@@ -138,6 +144,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		@IChatService private readonly _chatService: IChatService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 		this._timeline = _instantiationService.createInstance(ChatEditingTimeline);
@@ -147,8 +154,20 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			hasHistory && this._state.read(reader) === ChatEditingSessionState.Idle);
 	}
 
-	public async awaitEditComplete() {
+	public async awaitEditComplete(editId: string, token: CancellationToken): Promise<void> {
+		const store = new DisposableStore();
+		return new Promise<void>(resolve => {
+			const check = () => {
+				const promise = this._editsInProgress.get(editId);
+				if (promise) {
+					promise.then(resolve, resolve);
+				}
+			};
 
+			store.add(this._editsInProgressDidChange.event(check));
+			store.add(token.onCancellationRequested(resolve));
+			check();
+		}).finally(() => store.dispose());
 	}
 
 	public async init(): Promise<void> {
@@ -285,17 +304,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	private async _restoreSnapshot({ entries }: IChatEditingSessionStop, restoreResolvedToDisk = true): Promise<void> {
-
-		// Reset all the files which are modified in this session state
-		// but which are not found in the snapshot
-		for (const entry of this._entriesObs.get()) {
-			const snapshotEntry = entries.get(entry.modifiedURI);
-			if (!snapshotEntry) {
-				await entry.resetToInitialContent();
-				entry.dispose();
-			}
-		}
-
 		const entriesArr: AbstractChatEditingModifiedFileEntry[] = [];
 		// Restore all entries from the snapshot
 		for (const snapshotEntry of entries.values()) {
@@ -405,13 +413,42 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return this._state.get() === ChatEditingSessionState.Disposed;
 	}
 
-	makeWorkspaceEdit(editId: string | undefined, responseModel: IChatResponseModel, edits: FileAndTextWorkspaceEdit, inUndoStop: string | undefined): void {
-		throw new Error('not implemented');
+	async makeWorkspaceEdit(editId: string | undefined, responseModel: IChatResponseModel, edits: FileAndTextWorkspaceEdit, inUndoStop: string | undefined): Promise<void> {
+		const uris = getAllUrisAffectedByEdit(edits);
+
+		// Promise acrobatics: acquire a lock on each resource the workspace edit affects,
+		// resolving Promise.all once the lock is acquired, and release those locks once
+		// `completePromise` is resolved. Keep track of when they're all dequeued
+		// so we can reset the state afterwards.
+		const completePromise = new DeferredPromise<void>();
+		this.addEditOperationPromise(editId, completePromise.p);
+
+		const editsDequeued: Promise<void>[] = [];
+		await Promise.all([...uris.keys()].map(uri => {
+			return new Promise<void>(ready => {
+				editsDequeued.push(this._streamingEditLocks.queue(uri.toString(), () => {
+					ready();
+					return completePromise.p;
+				}));
+			});
+		}));
+
+		try {
+			await this._applyWorkspaceEdit(responseModel, edits, inUndoStop);
+		} finally {
+			completePromise.complete();
+			await Promise.all(editsDequeued);
+
+			if (Iterable.isEmpty(this._streamingEditLocks.keys())) {
+				this._state.set(ChatEditingSessionState.Idle, undefined);
+			}
+		}
 	}
 
 	startStreamingEdits(resource: URI, editId: string | undefined, responseModel: IChatResponseModel, inUndoStop: string | undefined): IStreamingEdits {
 		const completePromise = new DeferredPromise<void>();
 		const startPromise = new DeferredPromise<void>();
+		this.addEditOperationPromise(editId, completePromise.p);
 
 		// Sequence all edits made this this resource in this streaming edits instance,
 		// and also sequence the resource overall in the rare (currently invalid?) case
@@ -496,6 +533,61 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._updateRequestHiddenState();
 	}
 
+	private addEditOperationPromise(editId: string | undefined, promise: Promise<void>) {
+		if (editId) {
+			this._editsInProgress.set(editId, promise);
+			this._editsInProgressDidChange.fire();
+		}
+	}
+
+	private async _applyWorkspaceEdit(responseModel: IChatResponseModel, edits: FileAndTextWorkspaceEdit, inUndoStop: string | undefined) {
+		type Op = TextEdit[] | 'delete';
+
+		const editOps = new ResourceMap<Op[]>();
+		function appendOp(resource: URI, op: Op) {
+			const todo = editOps.get(resource) || [];
+			const prev = todo.at(-1);
+			if (op instanceof Array && prev instanceof Array) {
+				prev.push(...op);
+			} else {
+				todo.push(op);
+			}
+
+			editOps.set(resource, todo);
+		}
+
+		for (const edit of edits.edits) {
+			if (ResourceTextEdit.is(edit)) {
+				appendOp(edit.resource, [edit.textEdit]);
+			} else {
+				if (edit.newResource) {
+					const content = (await edit.options?.contents) || (edit.oldResource ? (await this._fileService.readFile(edit.oldResource)).value : VSBuffer.alloc(0));
+					appendOp(edit.newResource, [{ text: content.toString(), range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 } }]);
+				}
+				if (edit.oldResource) {
+					appendOp(edit.oldResource, 'delete');
+				}
+			}
+		}
+
+		await Promise.all([...editOps].map(async ([uri, ops]) => {
+			await this._acceptStreamingEditsStart(responseModel, inUndoStop, uri);
+
+			const entry = await this._getOrCreateModifiedFileEntry(uri, this._getTelemetryInfoForModel(responseModel));
+			const lastEditIndex = findLastIdx(ops, op => op instanceof Array);
+			for (let i = 0; i < ops.length; i++) {
+				const op = ops[i];
+				if (op === 'delete') {
+					entry.acceptAgentDelete(uri);
+				} else {
+					entry.acceptAgentEdits(uri, op, /* isLastEdits= */ i === lastEditIndex, responseModel);
+				}
+			}
+
+			await this._resolve(responseModel.requestId, inUndoStop, uri);
+		}));
+	}
+
 	private _updateRequestHiddenState() {
 		this._chatService.getSession(this.chatSessionId)?.setDisabledRequests(this._timeline.getRequestDisablement());
 	}
@@ -511,7 +603,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	private async _acceptEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
 		const entry = await this._getOrCreateModifiedFileEntry(resource, this._getTelemetryInfoForModel(responseModel));
-		await entry.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel);
+		entry.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel);
 	}
 
 	private _getTelemetryInfoForModel(responseModel: IChatResponseModel): IModifiedEntryTelemetryInfo {
@@ -538,7 +630,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 		this._timeline.ensureEditInUndoStopMatches(requestId, undoStop, entry, /* next= */ true, undefined);
 		return entry.acceptStreamingEditsEnd();
-
 	}
 
 	/**
@@ -574,7 +665,15 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		// If an entry is deleted e.g. reverting a created file,
 		// remove it from the entries and don't show it in the working set anymore
 		// so that it can be recreated e.g. through retry
-		const listener = entry.onDidDelete(() => {
+		const deleteListener = autorun(reader => {
+			if (!entry.fileIsDeleted.read(reader)) {
+				return; // don't remove the entry if it is not deleted
+			}
+
+			if (entry.willBeDeleted.read(reader)) {
+				return; // don't remove the entry if the delete is yet to be accepted
+			}
+
 			const newEntries = this._entriesObs.get().filter(e => !isEqual(e.modifiedURI, entry.modifiedURI));
 			this._entriesObs.set(newEntries, undefined);
 			this._editorService.closeEditors(this._editorService.findEditors(entry.modifiedURI));
@@ -584,9 +683,9 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				entry.dispose();
 			}
 
-			this._store.delete(listener);
+			this._store.delete(deleteListener);
 		});
-		this._store.add(listener);
+		this._store.add(deleteListener);
 
 		const entriesArr = [...this._entriesObs.get(), entry];
 		this._entriesObs.set(entriesArr, undefined);
@@ -629,4 +728,18 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				?.collapsed.set(true, transaction);
 		}
 	}
+}
+
+function getAllUrisAffectedByEdit(edits: FileAndTextWorkspaceEdit) {
+	const uris = new ResourceMap<void>();
+	for (const edit of edits.edits) {
+		if (ResourceTextEdit.is(edit)) {
+			uris.set(edit.resource);
+		} else {
+			if (edit.newResource) { uris.set(edit.newResource); }
+			if (edit.oldResource) { uris.set(edit.oldResource); }
+		}
+	}
+
+	return uris;
 }

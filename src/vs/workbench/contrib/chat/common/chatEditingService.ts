@@ -8,7 +8,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { TextEdit, WorkspaceEdit } from '../../../../editor/common/languages.js';
+import { TextEdit } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -96,6 +96,8 @@ export interface ISnapshotEntry {
 	readonly snapshotUri: URI;
 	readonly original: string;
 	readonly current: string;
+	readonly wasJustCreated: boolean | undefined;
+	readonly deleted: boolean | undefined;
 	readonly state: ModifiedFileEntryState;
 	telemetryInfo: IModifiedEntryTelemetryInfo;
 }
@@ -253,6 +255,11 @@ export interface IModifiedFileEntry {
 	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined>;
 	readonly lastModifyingResponse: IObservable<IChatResponseModel | undefined>;
 	readonly rewriteRatio: IObservable<number>;
+
+	/** True if the file was deleted and will remain deleted if the edits are accepted. */
+	readonly willBeDeleted: IObservable<boolean>;
+	/** True if the entry was just created and would be deleted if the edits are rejected */
+	readonly wasJustCreated: IObservable<boolean>;
 
 	readonly waitsForLastEdits: IObservable<boolean>;
 

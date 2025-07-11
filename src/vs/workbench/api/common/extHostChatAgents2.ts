@@ -367,6 +367,7 @@ class ChatAgentResponseStream {
 
 interface InFlightChatRequest {
 	requestId: string;
+	sessionId: string;
 	extRequest: vscode.ChatRequest;
 	stream: ChatAgentResponseStream;
 }
@@ -591,7 +592,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				agent.extension,
 				this._logService
 			);
-			inFlightRequest = { requestId: requestDto.requestId, extRequest, stream };
+			inFlightRequest = { requestId: requestDto.requestId, sessionId: requestDto.sessionId, extRequest, stream };
 			this._inFlightRequests.add(inFlightRequest);
 
 			const task = agent.invoke(
@@ -642,8 +643,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		}
 	}
 
-	public getInFlightRequest(requestId: string): InFlightChatRequest | undefined {
-		return Iterable.find(this._inFlightRequests, r => r.requestId === requestId);
+	public getInFlightRequestForSession(sessionId: string): InFlightChatRequest | undefined {
+		return Iterable.find(this._inFlightRequests, r => r.sessionId === sessionId);
 	}
 
 	private getDiagnosticsWhenEnabled(extension: Readonly<IRelaxedExtensionDescription>) {
