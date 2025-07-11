@@ -126,12 +126,10 @@ export class TerminalVoiceSession extends Disposable {
 			this._acceptTranscriptionScheduler!.cancel();
 			this._sendText();
 		}
-		this._marker?.dispose();
-		this._ghostTextMarker?.dispose();
-		this._ghostText?.dispose();
 		this._ghostText = undefined;
-		this._decoration?.dispose();
 		this._decoration = undefined;
+		this._marker = undefined;
+		this._ghostTextMarker = undefined;
 		this._cancellationTokenSource?.cancel();
 		this._disposables.clear();
 		this._input = '';
@@ -163,11 +161,15 @@ export class TerminalVoiceSession extends Disposable {
 		if (!this._marker) {
 			return;
 		}
+		this._disposables.add(this._marker);
 		this._decoration = xterm.registerDecoration({
 			marker: this._marker,
 			layer: 'top',
 			x: xterm.buffer.active.cursorX ?? 0,
 		});
+		if (this._decoration) {
+			this._disposables.add(this._decoration);
+		}
 		this._decoration?.onRender((e: HTMLElement) => {
 			e.classList.add(...ThemeIcon.asClassNameArray(Codicon.micFilled), 'terminal-voice', 'recording');
 			e.style.transform = onFirstLine ? 'translate(10px, -2px)' : 'translate(-6px, -5px)';
@@ -193,12 +195,16 @@ export class TerminalVoiceSession extends Disposable {
 		if (!this._ghostTextMarker) {
 			return;
 		}
+		this._disposables.add(this._ghostTextMarker);
 		const onFirstLine = xterm.buffer.active.cursorY === 0;
 		this._ghostText = xterm.registerDecoration({
 			marker: this._ghostTextMarker,
 			layer: 'top',
 			x: onFirstLine ? xterm.buffer.active.cursorX + 4 : xterm.buffer.active.cursorX + 1,
 		});
+		if (this._ghostText) {
+			this._disposables.add(this._ghostText);
+		}
 		this._ghostText?.onRender((e: HTMLElement) => {
 			e.classList.add('terminal-voice-progress-text');
 			e.textContent = text;
