@@ -56,7 +56,7 @@ import { ResourceMap } from '../../../../../base/common/map.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { AbstractTreePart } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { ITestService } from '../../../testing/common/testService.js';
+import { ITestService, testsInFile, testsUnderUri } from '../../../testing/common/testService.js';
 import { TestingContextKeys } from '../../../testing/common/testingContextKeys.js';
 
 
@@ -612,12 +612,52 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			const overrides = resource ? this.editorResolverService.getEditors(resource).map(editor => editor.id) : [];
 			this.availableEditorIdsContext.set(overrides.join(','));
 			
-			// Check if the resource has tests using the test collection
-			// Use the same pattern as activeEditorHasTests in the test service
-			const hasTests = this.testService?.collection && !Iterable.isEmpty(this.testService.collection.getNodeByUrl(resource));
-			this.explorerResourceHasTests.set(!!hasTests);
+			// Update test context asynchronously
+			this.updateExplorerResourceTestsContext(resource);
 		} else {
 			this.availableEditorIdsContext.reset();
+			this.explorerResourceHasTests.set(false);
+		}
+	}
+
+	private async updateExplorerResourceTestsContext(resource: URI): Promise<void> {
+		if (!this.testService?.collection) {
+			this.explorerResourceHasTests.set(false);
+			return;
+		}
+
+		// First, try synchronous check for immediate feedback (same as activeEditorHasTests)
+		const immediateResult = !Iterable.isEmpty(this.testService.collection.getNodeByUrl(resource));
+		this.explorerResourceHasTests.set(immediateResult);
+
+		// If immediate check found tests, no need for async check
+		if (immediateResult) {
+			return;
+		}
+
+		// For more comprehensive check, try async discovery
+		try {
+			// Check if it's a file or folder and use appropriate method
+			const stat = await this.fileService.stat(resource);
+			let hasTests = false;
+
+			if (stat.isFile) {
+				// For files, use testsInFile to discover tests
+				for await (const _test of testsInFile(this.testService, this.uriIdentityService, resource, false)) {
+					hasTests = true;
+					break; // Found at least one test, that's enough
+				}
+			} else if (stat.isDirectory) {
+				// For folders, use testsUnderUri to check for tests in any file under this URI
+				for await (const _test of testsUnderUri(this.testService, this.uriIdentityService, resource, false)) {
+					hasTests = true;
+					break; // Found at least one test, that's enough
+				}
+			}
+
+			this.explorerResourceHasTests.set(hasTests);
+		} catch (error) {
+			// If there's an error (e.g., resource doesn't exist), set to false
 			this.explorerResourceHasTests.set(false);
 		}
 	}
