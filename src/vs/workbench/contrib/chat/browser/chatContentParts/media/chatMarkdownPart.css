@@ -6,3 +6,15 @@
 .chat-markdown-part .katex-display {
 	overflow-x: scroll;
 }
+
+.chat-markdown-part {
+
+	h1,
+	h2,
+	h3,
+	h4,
+	h5,
+	h6 {
+		line-height: normal;
+	}
+}
