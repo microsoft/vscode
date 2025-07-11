@@ -44,13 +44,31 @@ export async function createColorHover(editorModel: ITextModel, colorInfo: IColo
 
 export function updateEditorModel(editor: IActiveCodeEditor, range: Range, model: ColorPickerModel): Range {
 	const textEdits: ISingleEditOperation[] = [];
-	const edit = model.presentation.textEdit ?? { range, text: model.presentation.label, forceMoveMarkers: false };
-	textEdits.push(edit);
+	const colorText = model.presentation.label;
+	
+	// Check if there are multiple selections (cursors)
+	const selections = editor.getSelections();
+	if (selections && selections.length > 1) {
+		// Apply color insertion to all cursor positions
+		for (const selection of selections) {
+			const selectionRange = new Range(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn);
+			textEdits.push({
+				range: selectionRange,
+				text: colorText,
+				forceMoveMarkers: false
+			});
+		}
+	} else {
+		// Single cursor - use original logic
+		const edit = model.presentation.textEdit ?? { range, text: colorText, forceMoveMarkers: false };
+		textEdits.push(edit);
+	}
 
 	if (model.presentation.additionalTextEdits) {
 		textEdits.push(...model.presentation.additionalTextEdits);
 	}
-	const replaceRange = Range.lift(edit.range);
+	
+	const replaceRange = Range.lift(textEdits[0].range);
 	const trackedRange = editor.getModel()._setTrackedRange(null, replaceRange, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
 	editor.executeEdits('colorpicker', textEdits);
 	editor.pushUndoStop();
