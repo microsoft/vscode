@@ -1869,6 +1869,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.interactive-item-container.interactive-request {
+
+		p {
+			margin: 0px;
+		}
+
 		align-items: flex-end;
 		padding-bottom: 0px;
 	}
@@ -1881,7 +1886,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		align-items: flex-start;
 	}
 
-	.interactive-item-container.interactive-request .value .rendered-markdown {
+	.interactive-item-container.interactive-request .value .chat-markdown-part {
 		background-color: var(--vscode-chat-requestBubbleBackground);
 		border-radius: 8px;
 		padding: 8px 12px;
@@ -1892,25 +1897,25 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		position: relative;
 	}
 
-	.interactive-item-container.interactive-request .value .rendered-markdown {
+	.interactive-item-container.interactive-request .value .chat-markdown-part {
 		margin-left: auto;
 	}
 
-	.interactive-item-container.interactive-request .value .rendered-markdown.clickable:hover {
+	.interactive-item-container.interactive-request .value .chat-markdown-part.clickable:hover {
 		cursor: text;
 		background-color: var(--vscode-chat-requestBubbleHoverBackground);
 	}
 
-	.hc-black .interactive-item-container.interactive-request .value .rendered-markdown,
-	.hc-light .interactive-item-container.interactive-request .value .rendered-markdown {
+	.hc-black .interactive-item-container.interactive-request .value .chat-markdown-part,
+	.hc-light .interactive-item-container.interactive-request .value .chat-markdown-part {
 		border: 1px dotted var(--vscode-focusBorder);
 	}
 
-	.interactive-item-container.interactive-request .value .rendered-markdown > :last-child {
+	.interactive-item-container.interactive-request .value .chat-markdown-part > :last-child {
 		margin-bottom: 0px;
 	}
 
-	.interactive-item-container.interactive-request .value > .rendered-markdown p {
+	.interactive-item-container.interactive-request .value > .chat-markdown-part p {
 		width: fit-content;
 	}
 
@@ -1991,7 +1996,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.interactive-list > .monaco-list:focus > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused.request {
 		outline: none !important;
 
-		.interactive-item-container .value .rendered-markdown {
+		.interactive-item-container .value .chat-markdown-part {
 			outline: 1px solid var(--vscode-focusBorder);
 		}
 
@@ -2000,12 +2005,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		}
 	}
 
-	.interactive-request.editing .rendered-markdown,
+	.interactive-request.editing .chat-markdown-part,
 	.interactive-request.editing .value {
 		display: none;
 	}
 
-	.interactive-request.editing-input .rendered-markdown {
+	.interactive-request.editing-input .chat-markdown-part {
 		outline: 1px solid var(--vscode-focusBorder);
 	}
 
