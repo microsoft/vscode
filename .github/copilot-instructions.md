@@ -14,6 +14,7 @@ Visual Studio Code is built with a layered architecture using TypeScript, web AP
   - **`workbench/contrib/`** - Feature contributions (git, debug, search, terminal, etc.)
   - **`workbench/api/`** - Extension host and VS Code API implementation
 - **`src/vs/code/`** - Electron main process specific implementation
+- **`src/vs/server/`** - Server specific implementation
 
 #### Key Design Principles
 - **Layered architecture** - Base → Platform → Editor → Workbench
