@@ -338,6 +338,12 @@ configurationRegistry.registerConfiguration({
 				defaultValue: false
 			}
 		},
+		[ChatConfiguration.EnableMath]: {
+			type: 'boolean',
+			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using Katex."),
+			default: false,
+			tags: ['preview'],
+		},
 		[mcpDiscoverySection]: {
 			oneOf: [
 				{ type: 'boolean' },
@@ -478,7 +484,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.setup.signInDialogVariant': { // TODO@bpasero remove me eventually
 			type: 'string',
-			enum: ['default', 'alternate-first', 'alternate-color', 'alternate-monochrome'],
+			enum: ['default', 'apple'],
 			description: nls.localize('chat.signInDialogVariant', "Control variations of the sign-in dialog."),
 			default: 'default',
 			tags: ['onExp', 'experimental']

@@ -25,6 +25,12 @@ export interface IGit {
 	version: string;
 }
 
+export interface IDotGit {
+	readonly path: string;
+	readonly commonPath?: string;
+	readonly superProjectPath?: string;
+}
+
 export interface IFileStatus {
 	x: string;
 	y: string;
@@ -403,7 +409,7 @@ export class Git {
 		return Versions.compare(Versions.fromString(this.version), Versions.fromString(version));
 	}
 
-	open(repositoryRoot: string, repositoryRootRealPath: string | undefined, dotGit: { path: string; commonPath?: string }, logger: LogOutputChannel): Repository {
+	open(repositoryRoot: string, repositoryRootRealPath: string | undefined, dotGit: IDotGit, logger: LogOutputChannel): Repository {
 		return new Repository(this, repositoryRoot, repositoryRootRealPath, dotGit, logger);
 	}
 
@@ -539,9 +545,16 @@ export class Git {
 		return repositoryRootPath;
 	}
 
-	async getRepositoryDotGit(repositoryPath: string): Promise<{ path: string; commonPath?: string }> {
-		const result = await this.exec(repositoryPath, ['rev-parse', '--git-dir', '--git-common-dir']);
-		let [dotGitPath, commonDotGitPath] = result.stdout.split('\n').map(r => r.trim());
+	async getRepositoryDotGit(repositoryPath: string): Promise<IDotGit> {
+		let dotGitPath: string | undefined, commonDotGitPath: string | undefined, superProjectPath: string | undefined;
+
+		const args = ['rev-parse', '--git-dir', '--git-common-dir'];
+		if (this.compareGitVersionTo('2.13.0') >= 0) {
+			args.push('--show-superproject-working-tree');
+		}
+
+		const result = await this.exec(repositoryPath, args);
+		[dotGitPath, commonDotGitPath, superProjectPath] = result.stdout.split('\n').map(r => r.trim());
 
 		if (!path.isAbsolute(dotGitPath)) {
 			dotGitPath = path.join(repositoryPath, dotGitPath);
@@ -553,11 +566,13 @@ export class Git {
 				commonDotGitPath = path.join(repositoryPath, commonDotGitPath);
 			}
 			commonDotGitPath = path.normalize(commonDotGitPath);
-
-			return { path: dotGitPath, commonPath: commonDotGitPath !== dotGitPath ? commonDotGitPath : undefined };
 		}
 
-		return { path: dotGitPath };
+		return {
+			path: dotGitPath,
+			commonPath: commonDotGitPath !== dotGitPath ? commonDotGitPath : undefined,
+			superProjectPath: superProjectPath ? path.normalize(superProjectPath) : undefined
+		};
 	}
 
 	async exec(cwd: string, args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
@@ -1213,9 +1228,20 @@ export class Repository {
 		private _git: Git,
 		private repositoryRoot: string,
 		private repositoryRootRealPath: string | undefined,
-		readonly dotGit: { path: string; commonPath?: string },
+		readonly dotGit: IDotGit,
 		private logger: LogOutputChannel
-	) { }
+	) {
+		this._kind = this.dotGit.commonPath
+			? 'worktree'
+			: this.dotGit.superProjectPath
+				? 'submodule'
+				: 'repository';
+	}
+
+	private readonly _kind: 'repository' | 'submodule' | 'worktree';
+	get kind(): 'repository' | 'submodule' | 'worktree' {
+		return this._kind;
+	}
 
 	get git(): Git {
 		return this._git;

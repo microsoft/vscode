@@ -83,7 +83,7 @@
 			"fileMatch": [
 				"cgmanifest.json"
 			],
-			"url": "https://json.schemastore.org/component-detection-manifest.json",
+			"url": "https://www.schemastore.org/component-detection-manifest.json",
 		},
 		{
 			"fileMatch": [

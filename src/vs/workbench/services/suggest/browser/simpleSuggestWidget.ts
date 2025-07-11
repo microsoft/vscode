@@ -719,76 +719,85 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 			this._status.element.style.height = `${info.itemHeight}px`;
 		}
 
-		// if (this._state === State.Empty || this._state === State.Loading) {
-		// 	// showing a message only
-		// 	height = info.itemHeight + info.borderHeight;
-		// 	width = info.defaultSize.width / 2;
-		// 	this.element.enableSashes(false, false, false, false);
-		// 	this.element.minSize = this.element.maxSize = new dom.Dimension(width, height);
-		// 	this._contentWidget.setPreference(ContentWidgetPositionPreference.BELOW);
-
-		// } else {
-		// showing items
-
-		// width math
-		const maxWidth = bodyBox.width - info.borderHeight - 2 * info.horizontalPadding;
-		if (width > maxWidth) {
-			width = maxWidth;
-		}
-		const preferredWidth = this._completionModel ? this._completionModel.stats.pLabelLen * info.typicalHalfwidthCharacterWidth : width;
-
-		// height math
-		const fullHeight = info.statusBarHeight + this._list.contentHeight + this._messageElement.clientHeight + info.borderHeight;
-		const minHeight = info.itemHeight + info.statusBarHeight;
-		// const editorBox = dom.getDomNodePagePosition(this.editor.getDomNode());
-		// const cursorBox = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
-		const editorBox = dom.getDomNodePagePosition(this._container);
-		const cursorBox = this._cursorPosition; //this.editor.getScrolledVisiblePosition(this.editor.getPosition());
-		const cursorBottom = editorBox.top + cursorBox.top + cursorBox.height;
-		const maxHeightBelow = Math.min(bodyBox.height - cursorBottom - info.verticalPadding, fullHeight);
-		const availableSpaceAbove = editorBox.top + cursorBox.top - info.verticalPadding;
-		const maxHeightAbove = Math.min(availableSpaceAbove, fullHeight);
-		let maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow) + info.borderHeight, fullHeight);
-
-		if (height === this._cappedHeight?.capped) {
-			// Restore the old (wanted) height when the current
-			// height is capped to fit
-			height = this._cappedHeight.wanted;
-		}
-
-		if (height < minHeight) {
-			height = minHeight;
-		}
-		if (height > maxHeight) {
-			height = maxHeight;
-		}
-
-		const forceRenderingAboveRequiredSpace = 150;
-		if (height > maxHeightBelow || (this._forceRenderingAbove && availableSpaceAbove > forceRenderingAboveRequiredSpace)) {
-			this._preference = WidgetPositionPreference.Above;
-			this.element.enableSashes(true, true, false, false);
-			maxHeight = maxHeightAbove;
-		} else {
+		if (this._state === State.Empty || this._state === State.Loading) {
+			// showing a message only
+			height = info.itemHeight + info.borderHeight;
+			width = info.defaultSize.width / 2;
+			this.element.enableSashes(false, false, false, false);
+			this.element.minSize = this.element.maxSize = new dom.Dimension(width, height);
 			this._preference = WidgetPositionPreference.Below;
-			this.element.enableSashes(false, true, true, false);
-			maxHeight = maxHeightBelow;
-		}
-		this.element.preferredSize = new dom.Dimension(preferredWidth, info.defaultSize.height);
-		this.element.maxSize = new dom.Dimension(maxWidth, maxHeight);
-		this.element.minSize = new dom.Dimension(220, minHeight);
 
-		// Know when the height was capped to fit and remember
-		// the wanted height for later. This is required when going
-		// left to widen suggestions.
-		this._cappedHeight = height === fullHeight
-			? { wanted: this._cappedHeight?.wanted ?? size.height, capped: height }
-			: undefined;
-		// }
-		this.element.domNode.style.left = `${this._cursorPosition.left}px`;
-		if (this._preference === WidgetPositionPreference.Above) {
-			this.element.domNode.style.top = `${this._cursorPosition.top - height - info.borderHeight}px`;
 		} else {
-			this.element.domNode.style.top = `${this._cursorPosition.top + this._cursorPosition.height}px`;
+			// showing items
+
+			// width math
+			const maxWidth = bodyBox.width - info.borderHeight - 2 * info.horizontalPadding;
+			if (width > maxWidth) {
+				width = maxWidth;
+			}
+			const preferredWidth = this._completionModel ? this._completionModel.stats.pLabelLen * info.typicalHalfwidthCharacterWidth : width;
+
+			// height math
+			const fullHeight = info.statusBarHeight + this._list.contentHeight + this._messageElement.clientHeight + info.borderHeight;
+			const minHeight = info.itemHeight + info.statusBarHeight;
+			// const editorBox = dom.getDomNodePagePosition(this.editor.getDomNode());
+			// const cursorBox = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
+			const editorBox = dom.getDomNodePagePosition(this._container);
+			const cursorBox = this._cursorPosition; //this.editor.getScrolledVisiblePosition(this.editor.getPosition());
+			const cursorBottom = editorBox.top + cursorBox.top + cursorBox.height;
+			const maxHeightBelow = Math.min(bodyBox.height - cursorBottom - info.verticalPadding, fullHeight);
+			const availableSpaceAbove = editorBox.top + cursorBox.top - info.verticalPadding;
+			const maxHeightAbove = Math.min(availableSpaceAbove, fullHeight);
+			let maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow) + info.borderHeight, fullHeight);
+
+			if (height === this._cappedHeight?.capped) {
+				// Restore the old (wanted) height when the current
+				// height is capped to fit
+				height = this._cappedHeight.wanted;
+			}
+
+			if (height < minHeight) {
+				height = minHeight;
+			}
+			if (height > maxHeight) {
+				height = maxHeight;
+			}
+
+			const forceRenderingAboveRequiredSpace = 150;
+			if (height > maxHeightBelow || (this._forceRenderingAbove && availableSpaceAbove > forceRenderingAboveRequiredSpace)) {
+				this._preference = WidgetPositionPreference.Above;
+				this.element.enableSashes(true, true, false, false);
+				maxHeight = maxHeightAbove;
+			} else {
+				this._preference = WidgetPositionPreference.Below;
+				this.element.enableSashes(false, true, true, false);
+				maxHeight = maxHeightBelow;
+			}
+			this.element.preferredSize = new dom.Dimension(preferredWidth, info.defaultSize.height);
+			this.element.maxSize = new dom.Dimension(maxWidth, maxHeight);
+			this.element.minSize = new dom.Dimension(220, minHeight);
+
+			// Know when the height was capped to fit and remember
+			// the wanted height for later. This is required when going
+			// left to widen suggestions.
+			this._cappedHeight = height === fullHeight
+				? { wanted: this._cappedHeight?.wanted ?? size.height, capped: height }
+				: undefined;
+			// }
+			this.element.domNode.style.left = `${this._cursorPosition.left}px`;
+
+			// Move anchor if widget will overflow the edge of the container
+			const containerWidth = this._container.clientWidth;
+			let anchorLeft = this._cursorPosition.left;
+			if (width > containerWidth) {
+				anchorLeft = Math.max(0, this._cursorPosition.left - width + containerWidth);
+				this.element.domNode.style.left = `${anchorLeft}px`;
+			}
+			if (this._preference === WidgetPositionPreference.Above) {
+				this.element.domNode.style.top = `${this._cursorPosition.top - height - info.borderHeight}px`;
+			} else {
+				this.element.domNode.style.top = `${this._cursorPosition.top + this._cursorPosition.height}px`;
+			}
 		}
 		this._resize(width, height);
 	}
