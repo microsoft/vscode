@@ -472,7 +472,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 		const property: IRegisteredConfigurationPropertySchema = {
 			type: 'object',
 			default: newDefaultOverride.value,
-			description: nls.localize('defaultLanguageConfiguration.description', "Configure settings to be overridden for the {0} language.", getLanguageTagSettingPlainKey(key)),
+			description: nls.localize('defaultLanguageConfiguration.description', "Configure settings to be overridden for {0}.", getLanguageTagSettingPlainKey(key)),
 			$ref: resourceLanguageSettingsSchemaId,
 			defaultDefaultValue: newDefaultOverride.value,
 			source,

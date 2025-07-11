@@ -46,18 +46,18 @@ export class PromptDecorator extends ProviderInstanceBase {
 		this.watchCursorPosition();
 	}
 
-	protected override onPromptSettled(
+	protected override async onPromptSettled(
 		_error?: Error,
-	): this {
+	): Promise<void> {
 		// by the time the promise above completes, either this object
 		// or the text model might be already has been disposed
 		if (this.isDisposed || this.model.isDisposed()) {
-			return this;
+			return;
 		}
 
 		this.addDecorations();
 
-		return this;
+		return;
 	}
 
 	/**

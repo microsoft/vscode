@@ -124,6 +124,11 @@ import { IExtensionGalleryManifestService } from '../../../platform/extensionMan
 import { ExtensionGalleryManifestIPCService } from '../../../platform/extensionManagement/common/extensionGalleryManifestServiceIpc.js';
 import { ISharedWebContentExtractorService } from '../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { SharedWebContentExtractorService } from '../../../platform/webContentExtractor/node/sharedWebContentExtractorService.js';
+import { McpManagementService } from '../../../platform/mcp/node/mcpManagementService.js';
+import { IMcpGalleryService, IMcpManagementService } from '../../../platform/mcp/common/mcpManagement.js';
+import { IMcpResourceScannerService, McpResourceScannerService } from '../../../platform/mcp/common/mcpResourceScannerService.js';
+import { McpGalleryService } from '../../../platform/mcp/common/mcpGalleryService.js';
+import { McpManagementChannel } from '../../../platform/mcp/common/mcpManagementIpc.js';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
@@ -310,7 +315,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 			telemetryService = new TelemetryService({
 				appenders,
-				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, this.configuration.sqmId, this.configuration.devDeviceId, internalTelemetry),
+				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, this.configuration.sqmId, this.configuration.devDeviceId, internalTelemetry, productService.date),
 				sendErrorTelemetry: true,
 				piiPaths: getPiiPathsFromEnvironment(environmentService),
 			}, configurationService, productService);
@@ -333,6 +338,11 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService, undefined, true));
 		services.set(IAllowedExtensionsService, new SyncDescriptor(AllowedExtensionsService, undefined, true));
 		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService, undefined, true));
+
+		// MCP Management
+		services.set(IMcpGalleryService, new SyncDescriptor(McpGalleryService, undefined, true));
+		services.set(IMcpResourceScannerService, new SyncDescriptor(McpResourceScannerService, undefined, true));
+		services.set(IMcpManagementService, new SyncDescriptor(McpManagementService, undefined, true));
 
 		// Extension Gallery
 		services.set(IExtensionGalleryManifestService, new ExtensionGalleryManifestIPCService(this.server, productService));
@@ -387,6 +397,10 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// Extensions Management
 		const channel = new ExtensionManagementChannel(accessor.get(IExtensionManagementService), () => null);
 		this.server.registerChannel('extensions', channel);
+
+		// Mcp Management
+		const mcpManagementChannel = new McpManagementChannel(accessor.get(IMcpManagementService), () => null);
+		this.server.registerChannel('mcpManagement', mcpManagementChannel);
 
 		// Language Packs
 		const languagePacksChannel = ProxyChannel.fromService(accessor.get(ILanguagePackService), this._store);

@@ -1071,6 +1071,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return _asExtensionEvent(extHostDocuments.onDidRemoveDocument)(listener, thisArgs, disposables);
 			},
 			onDidChangeTextDocument: (listener, thisArgs?, disposables?) => {
+				if (isProposedApiEnabled(extension, 'textDocumentChangeReason')) {
+					return _asExtensionEvent(extHostDocuments.onDidChangeDocumentWithReason)(listener, thisArgs, disposables);
+				}
 				return _asExtensionEvent(extHostDocuments.onDidChangeDocument)(listener, thisArgs, disposables);
 			},
 			onDidSaveTextDocument: (listener, thisArgs?, disposables?) => {
@@ -1354,8 +1357,20 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get taskExecutions(): vscode.TaskExecution[] {
 				return extHostTask.taskExecutions;
 			},
-			onDidStartTask: (listeners, thisArgs?, disposables?) => {
-				return _asExtensionEvent(extHostTask.onDidStartTask)(listeners, thisArgs, disposables);
+			onDidStartTask: (listener: (e: vscode.TaskStartEvent) => any, thisArgs?: any, disposables?) => {
+				const wrappedListener = (event: vscode.TaskStartEvent) => {
+					if (!isProposedApiEnabled(extension, 'taskExecutionTerminal')) {
+						if (event?.execution?.terminal !== undefined) {
+							event.execution.terminal = undefined;
+						}
+					}
+					const eventWithExecution = {
+						...event,
+						execution: event.execution
+					};
+					return listener.call(thisArgs, eventWithExecution);
+				};
+				return _asExtensionEvent(extHostTask.onDidStartTask)(wrappedListener, thisArgs, disposables);
 			},
 			onDidEndTask: (listeners, thisArgs?, disposables?) => {
 				return _asExtensionEvent(extHostTask.onDidEndTask)(listeners, thisArgs, disposables);

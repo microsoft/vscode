@@ -19,7 +19,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ChatResponseResource, getAttachableImageExtension } from '../../chat/common/chatModel.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/languageModelToolsService.js';
 import { McpCommandIds } from './mcpCommandIds.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
@@ -246,7 +246,7 @@ class McpToolImplementation implements IToolImpl {
 		@IProductService private readonly _productService: IProductService,
 	) { }
 
-	async prepareToolInvocation(parameters: any): Promise<IPreparedToolInvocation> {
+	async prepareToolInvocation(context: IToolInvocationPreparationContext): Promise<IPreparedToolInvocation> {
 		const tool = this._tool;
 		const server = this._server;
 
@@ -277,7 +277,7 @@ class McpToolImplementation implements IToolImpl {
 			}), { isTrusted: true }),
 			toolSpecificData: {
 				kind: 'input',
-				rawInput: parameters
+				rawInput: context.parameters
 			}
 		};
 	}

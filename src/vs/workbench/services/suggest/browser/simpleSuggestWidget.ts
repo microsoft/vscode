@@ -26,9 +26,9 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../plat
 import * as strings from '../../../../base/common/strings.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { isWindows } from '../../../../base/common/platform.js';
-import { editorSuggestWidgetSelectedBackground } from '../../../../editor/contrib/suggest/browser/suggestWidget.js';
+import { editorSuggestWidgetForeground, editorSuggestWidgetSelectedBackground } from '../../../../editor/contrib/suggest/browser/suggestWidget.js';
 import { getListStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { activeContrastBorder, focusBorder, listFocusForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { activeContrastBorder, focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
 
 const $ = dom.$;
 
@@ -98,6 +98,10 @@ export const enum SuggestSelectionMode {
 	 * User needs to press down to select.
 	 */
 	Never = 'never'
+}
+
+const enum Classes {
+	PartialSelection = 'partial-selection',
 }
 
 export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TItem extends SimpleCompletionItem> extends Disposable {
@@ -486,6 +490,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		if (this._options.selectionModeSettingId) {
 			const selectionMode = this._configurationService.getValue<SuggestSelectionMode>(this._options.selectionModeSettingId);
 			this._list.style(getListStylesWithMode(selectionMode === SuggestSelectionMode.Partial));
+			this.element.domNode.classList.toggle(Classes.PartialSelection, selectionMode === SuggestSelectionMode.Partial);
 		}
 	}
 
@@ -720,7 +725,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		// 	width = info.defaultSize.width / 2;
 		// 	this.element.enableSashes(false, false, false, false);
 		// 	this.element.minSize = this.element.maxSize = new dom.Dimension(width, height);
-		// 	this._contentWidget.setPreference(ContentWidgetPositionPreference.BELOW);
+		// 	this._preference = WidgetPositionPreference.Below;
 
 		// } else {
 		// showing items
@@ -780,11 +785,20 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 			: undefined;
 		// }
 		this.element.domNode.style.left = `${this._cursorPosition.left}px`;
+
+		// Move anchor if widget will overflow the edge of the container
+		const containerWidth = this._container.clientWidth;
+		let anchorLeft = this._cursorPosition.left;
+		if (width > containerWidth) {
+			anchorLeft = Math.max(0, this._cursorPosition.left - width + containerWidth);
+			this.element.domNode.style.left = `${anchorLeft}px`;
+		}
 		if (this._preference === WidgetPositionPreference.Above) {
 			this.element.domNode.style.top = `${this._cursorPosition.top - height - info.borderHeight}px`;
 		} else {
 			this.element.domNode.style.top = `${this._cursorPosition.top + this._cursorPosition.height}px`;
 		}
+		// }
 		this._resize(width, height);
 	}
 
@@ -875,7 +889,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	}
 
 	selectNext(): boolean {
-		this._list.style(getListStylesWithMode(false));
+		this._clearPartialSelectionState();
 		this._list.focusNext(1, true);
 		const focus = this._list.getFocus();
 		if (focus.length > 0) {
@@ -885,6 +899,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	}
 
 	selectNextPage(): boolean {
+		this._clearPartialSelectionState();
 		this._list.focusNextPage();
 		const focus = this._list.getFocus();
 		if (focus.length > 0) {
@@ -894,6 +909,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	}
 
 	selectPrevious(): boolean {
+		this._clearPartialSelectionState();
 		this._list.focusPrevious(1, true);
 		const focus = this._list.getFocus();
 		if (focus.length > 0) {
@@ -903,12 +919,18 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	}
 
 	selectPreviousPage(): boolean {
+		this._clearPartialSelectionState();
 		this._list.focusPreviousPage();
 		const focus = this._list.getFocus();
 		if (focus.length > 0) {
 			this._list.reveal(focus[0]);
 		}
 		return true;
+	}
+
+	private _clearPartialSelectionState(): void {
+		this._list.style(getListStylesWithMode(false));
+		this.element.domNode.classList.remove(Classes.PartialSelection);
 	}
 
 	getFocusedItem(): ISimpleSelectedSuggestion<TItem> | undefined {
@@ -943,9 +965,17 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 }
 
 function getListStylesWithMode(partial?: boolean): IListStyles {
+	// The suggest widget uses the list's inactive focus to mean selection since it's not actually
+	// focused.
 	if (partial) {
-		return getListStyles({ listInactiveFocusOutline: focusBorder, listInactiveFocusForeground: listFocusForeground });
+		return getListStyles({
+			listInactiveFocusOutline: focusBorder,
+			listInactiveFocusForeground: editorSuggestWidgetForeground,
+		});
 	} else {
-		return getListStyles({ listInactiveFocusBackground: editorSuggestWidgetSelectedBackground, listInactiveFocusOutline: activeContrastBorder });
+		return getListStyles({
+			listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
+			listInactiveFocusOutline: activeContrastBorder
+		});
 	}
 }

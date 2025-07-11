@@ -373,6 +373,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IPathService private readonly _pathService: IPathService,
+		@IFileService private readonly _fileService: IFileService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
@@ -488,6 +489,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			}
 		}));
+		this._register(this.onDidChangeShellType(() => refreshShellIntegrationInfoStatus(this)));
 		this._register(this.capabilities.onDidRemoveCapabilityType(capability => {
 			capabilityListeners.get(capability)?.dispose();
 		}));
@@ -1959,11 +1961,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._shellType === shellType) {
 			return;
 		}
-		if (shellType) {
-			this._shellType = shellType;
+		this._shellType = shellType;
+		if (shellType === undefined) {
+			this._terminalShellTypeContextKey.reset();
+		} else {
 			this._terminalShellTypeContextKey.set(shellType?.toString());
-			this._onDidChangeShellType.fire(shellType);
 		}
+		this._onDidChangeShellType.fire(shellType);
+
 	}
 
 	private _setAriaLabel(xterm: XTermTerminal | undefined, terminalId: number, title: string | undefined): void {
@@ -2216,13 +2221,30 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._initialCwd;
 	}
 
-	async getCwd(): Promise<string> {
+	async getSpeculativeCwd(): Promise<string> {
 		if (this.capabilities.has(TerminalCapability.CwdDetection)) {
 			return this.capabilities.get(TerminalCapability.CwdDetection)!.getCwd();
 		} else if (this.capabilities.has(TerminalCapability.NaiveCwdDetection)) {
 			return this.capabilities.get(TerminalCapability.NaiveCwdDetection)!.getCwd();
 		}
 		return this._processManager.initialCwd;
+	}
+
+	async getCwdResource(): Promise<URI | undefined> {
+		const cwd = this.capabilities.get(TerminalCapability.CwdDetection)?.getCwd();
+		if (!cwd) {
+			return undefined;
+		}
+		let resource: URI;
+		if (this.remoteAuthority) {
+			resource = await this._pathService.fileURI(cwd);
+		} else {
+			resource = URI.file(cwd);
+		}
+		if (await this._fileService.exists(resource)) {
+			return resource;
+		}
+		return undefined;
 	}
 
 	private async _refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]> {

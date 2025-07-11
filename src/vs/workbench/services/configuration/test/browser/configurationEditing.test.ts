@@ -336,6 +336,18 @@ suite('ConfigurationEditing', () => {
 		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
 	});
 
+	test('write user standalone mcp setting - existing file', async () => {
+		const target = joinPath(environmentService.userRoamingDataHome, USER_STANDALONE_CONFIGURATIONS['mcp']);
+		await fileService.writeFile(target, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
+
+		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'mcp.service.testSetting', value: 'value' });
+
+		const contents = await fileService.readFile(target);
+		const parsed = json.parse(contents.value.toString());
+		assert.strictEqual(parsed['service.testSetting'], 'value');
+		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
+	});
+
 	test('write workspace standalone setting - empty file - full JSON', async () => {
 		await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } });
 

@@ -20,11 +20,12 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IGalleryMcpServer, ILocalMcpServer, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
-import { IMcpDevModeConfig } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IInstallableMcpServer as IInstallableMcpServer, IGalleryMcpServer, IQueryOptions, IMcpServerManifest } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IMcpDevModeConfig, IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceFolder, IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkbenchLocalMcpServer, IWorkbencMcpServerInstallOptions } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { IMcpServerSamplingConfiguration } from './mcpConfiguration.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
@@ -69,6 +70,8 @@ export interface McpCollectionDefinition {
 		/** Called after `load()` if the extension is not found. */
 		removed?(): void;
 	};
+
+	readonly source?: IWorkbenchMcpServer | ExtensionIdentifier;
 
 	readonly presentation?: {
 		/** Sort order of the collection. */
@@ -550,19 +553,56 @@ export class MpcResponseError extends Error {
 
 export class McpConnectionFailedError extends Error { }
 
+export interface IMcpConfigPath {
+	id: string;
+	key: 'userLocalValue' | 'userRemoteValue' | 'workspaceValue' | 'workspaceFolderValue';
+	label: string;
+	scope: StorageScope;
+	target: ConfigurationTarget;
+	order: number;
+	remoteAuthority?: string;
+	uri: URI | undefined;
+	section?: string[];
+	workspaceFolder?: IWorkspaceFolder;
+}
+
 export interface IMcpServerContainer extends IDisposable {
 	mcpServer: IWorkbenchMcpServer | null;
 	update(): void;
 }
 
+export interface IMcpServerEditorOptions extends IEditorOptions {
+	tab?: McpServerEditorTab;
+	sideByside?: boolean;
+}
+
+export const enum McpServerInstallState {
+	Installing,
+	Installed,
+	Uninstalling,
+	Uninstalled
+}
+
+export const enum McpServerEditorTab {
+	Readme = 'readme',
+	Manifest = 'manifest',
+	Configuration = 'configuration',
+}
+
 export interface IWorkbenchMcpServer {
 	readonly gallery: IGalleryMcpServer | undefined;
-	readonly local: ILocalMcpServer | undefined;
+	readonly local: IWorkbenchLocalMcpServer | undefined;
+	readonly installable: IInstallableMcpServer | undefined;
+	readonly installState: McpServerInstallState;
 	readonly id: string;
 	readonly name: string;
 	readonly label: string;
 	readonly description: string;
-	readonly iconUrl?: string;
+	readonly icon?: {
+		readonly dark: string;
+		readonly light: string;
+	};
+	readonly codicon?: string;
 	readonly publisherUrl?: string;
 	readonly publisherDisplayName?: string;
 	readonly installCount?: number;
@@ -570,19 +610,25 @@ export interface IWorkbenchMcpServer {
 	readonly rating?: number;
 	readonly url?: string;
 	readonly repository?: string;
+	readonly config?: IMcpServerConfiguration | undefined;
+	readonly readmeUrl?: URI;
 	getReadme(token: CancellationToken): Promise<string>;
+	getManifest(token: CancellationToken): Promise<IMcpServerManifest>;
 }
 
 export const IMcpWorkbenchService = createDecorator<IMcpWorkbenchService>('IMcpWorkbenchService');
 export interface IMcpWorkbenchService {
 	readonly _serviceBrand: undefined;
 	readonly onChange: Event<IWorkbenchMcpServer | undefined>;
+	readonly onReset: Event<void>;
 	readonly local: readonly IWorkbenchMcpServer[];
 	queryLocal(): Promise<IWorkbenchMcpServer[]>;
 	queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IWorkbenchMcpServer[]>;
-	install(mcpServer: IWorkbenchMcpServer): Promise<void>;
+	install(server: IWorkbenchMcpServer, installOptions?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchMcpServer>;
 	uninstall(mcpServer: IWorkbenchMcpServer): Promise<void>;
-	open(extension: IWorkbenchMcpServer | string, options?: IEditorOptions): Promise<void>;
+	getMcpConfigPath(arg: IWorkbenchLocalMcpServer): IMcpConfigPath | undefined;
+	getMcpConfigPath(arg: URI): Promise<IMcpConfigPath | undefined>;
+	open(extension: IWorkbenchMcpServer | string, options?: IMcpServerEditorOptions): Promise<void>;
 }
 
 export class McpServerContainers extends Disposable {
@@ -612,7 +658,7 @@ export class McpServerContainers extends Disposable {
 }
 
 export const McpServersGalleryEnabledContext = new RawContextKey<boolean>('mcpServersGalleryEnabled', false);
-export const HasInstalledMcpServersContext = new RawContextKey<boolean>('hasInstalledMcpServers', false);
+export const HasInstalledMcpServersContext = new RawContextKey<boolean>('hasInstalledMcpServers', true);
 export const InstalledMcpServersViewId = 'workbench.views.mcp.installed';
 export const mcpServerIcon = registerIcon('mcp-server', Codicon.mcp, localize('mcpServer', 'Icon used for the MCP server.'));
 
@@ -634,7 +680,7 @@ export namespace McpResourceURI {
 		});
 	}
 
-	export function toServer(uri: URI | string): { definitionId: string; resourceURI: URI } {
+	export function toServer(uri: URI | string): { definitionId: string; resourceURL: URL } {
 		if (typeof uri === 'string') {
 			uri = URI.parse(uri);
 		}
@@ -646,13 +692,16 @@ export namespace McpResourceURI {
 			throw new Error(`Invalid MCP resource URI: ${uri.toString()}`);
 		}
 		const [, serverScheme, authority, ...path] = parts;
+
+		// URI cannot correctly stringify empty authorities (#250905) so we use URL instead to construct
+		const url = new URL(`${serverScheme}://${authority.toLowerCase() === emptyAuthorityPlaceholder ? '' : authority}`);
+		url.pathname = path.length ? ('/' + path.join('/')) : '';
+		url.search = uri.query;
+		url.hash = uri.fragment;
+
 		return {
 			definitionId: decodeHex(uri.authority).toString(),
-			resourceURI: uri.with({
-				scheme: serverScheme,
-				authority: authority.toLowerCase() === emptyAuthorityPlaceholder ? '' : authority,
-				path: path.length ? ('/' + path.join('/')) : '',
-			}),
+			resourceURL: url,
 		};
 	}
 

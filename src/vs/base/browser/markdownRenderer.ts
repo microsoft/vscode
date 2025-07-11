@@ -40,8 +40,11 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 }
 
 export interface ISanitizerOptions {
-	replaceWithPlaintext?: boolean;
-	allowedTags?: string[];
+	readonly replaceWithPlaintext?: boolean;
+	readonly allowedTags?: readonly string[];
+	readonly customAttrSanitizer?: (attrName: string, attrValue: string) => boolean | string;
+	readonly allowedSchemes?: readonly string[];
+	readonly allowedProductProtocols?: readonly string[];
 }
 
 const defaultMarkedRenderers = Object.freeze({
@@ -106,14 +109,14 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	const element = createElement(options);
 
 	const markedInstance = new marked.Marked(...(markedOptions.markedExtensions ?? []));
-	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(markedInstance, options, markdown);
+	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(markedInstance, options, markedOptions, markdown);
 	const value = preprocessMarkdownString(markdown);
 
 	let renderedMarkdown: string;
 	if (options.fillInIncompleteTokens) {
 		// The defaults are applied by parse but not lexer()/parser(), and they need to be present
 		const opts: MarkedOptions = {
-			...marked.defaults,
+			...markedInstance.defaults,
 			...markedOptions,
 			renderer
 		};
@@ -244,8 +247,8 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 	}
 }
 
-function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOptions, markdown: IMarkdownString): { renderer: marked.Renderer; codeBlocks: Promise<[string, HTMLElement]>[]; syncCodeBlocks: [string, HTMLElement][] } {
-	const renderer = new marked.Renderer();
+function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOptions, markedOptions: MarkedOptions, markdown: IMarkdownString): { renderer: marked.Renderer; codeBlocks: Promise<[string, HTMLElement]>[]; syncCodeBlocks: [string, HTMLElement][] } {
+	const renderer = new marked.Renderer(markedOptions);
 	renderer.image = defaultMarkedRenderers.image;
 	renderer.link = defaultMarkedRenderers.link;
 	renderer.paragraph = defaultMarkedRenderers.paragraph;
@@ -396,7 +399,7 @@ function resolveWithBaseUri(baseUri: URI, href: string): string {
 }
 
 interface IInternalSanitizerOptions extends ISanitizerOptions {
-	isTrusted?: boolean | MarkdownStringTrustedOptions;
+	readonly isTrusted?: boolean | MarkdownStringTrustedOptions;
 }
 
 const selfClosingTags = ['area', 'base', 'br', 'col', 'command', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
@@ -408,6 +411,21 @@ function sanitizeRenderedMarkdown(
 	const { config, allowedSchemes } = getSanitizerOptions(options);
 	const store = new DisposableStore();
 	store.add(addDompurifyHook('uponSanitizeAttribute', (element, e) => {
+		if (options.customAttrSanitizer) {
+			const result = options.customAttrSanitizer(e.attrName, e.attrValue);
+			if (typeof result === 'string') {
+				if (result) {
+					e.attrValue = result;
+					e.keepAttr = true;
+				} else {
+					e.keepAttr = false;
+				}
+			} else {
+				e.keepAttr = result;
+			}
+			return;
+		}
+
 		if (e.attrName === 'style' || e.attrName === 'class') {
 			if (element.tagName === 'SPAN') {
 				if (e.attrName === 'style') {
@@ -418,6 +436,7 @@ function sanitizeRenderedMarkdown(
 					return;
 				}
 			}
+
 			e.keepAttr = false;
 			return;
 		} else if (element.tagName === 'INPUT' && element.attributes.getNamedItem('type')?.value === 'checkbox') {
@@ -535,13 +554,17 @@ function getSanitizerOptions(options: IInternalSanitizerOptions): { config: domp
 		allowedSchemes.push(Schemas.command);
 	}
 
+	if (options.allowedProductProtocols) {
+		allowedSchemes.push(...options.allowedProductProtocols);
+	}
+
 	return {
 		config: {
 			// allowedTags should included everything that markdown renders to.
 			// Since we have our own sanitize function for marked, it's possible we missed some tag so let dompurify make sure.
 			// HTML tags that can result from markdown are from reading https://spec.commonmark.org/0.29/
 			// HTML table tags that can result from markdown are from https://github.github.com/gfm/#tables-extension-
-			ALLOWED_TAGS: options.allowedTags ?? [...DOM.basicMarkupHtmlTags],
+			ALLOWED_TAGS: options.allowedTags ? [...options.allowedTags] : [...DOM.basicMarkupHtmlTags],
 			ALLOWED_ATTR: allowedMarkdownAttr,
 			ALLOW_UNKNOWN_PROTOCOLS: true,
 		},
@@ -722,7 +745,7 @@ function completeSingleLinePattern(token: marked.Tokens.Text | marked.Tokens.Par
 			}
 
 			// Contains the start of link text, and no following tokens contain the link target
-			else if (lastLine.match(/(^|\s)\[\w*/)) {
+			else if (lastLine.match(/(^|\s)\[\w*[^\]]*$/)) {
 				return completeLinkText(token);
 			}
 		}
@@ -822,6 +845,12 @@ function completeListItemPattern(list: marked.Tokens.List): marked.Tokens.List |
 	return newList;
 }
 
+function completeHeading(token: marked.Tokens.Heading, fullRawText: string): marked.TokensList | void {
+	if (token.raw.match(/-\s*$/)) {
+		return marked.lexer(fullRawText + ' &nbsp;');
+	}
+}
+
 const maxIncompleteTokensFixRounds = 3;
 export function fillInIncompleteTokens(tokens: marked.TokensList): marked.TokensList {
 	for (let i = 0; i < maxIncompleteTokensFixRounds; i++) {
@@ -846,22 +875,23 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 			newTokens = completeTable(tokens.slice(i));
 			break;
 		}
+	}
 
-		if (i === tokens.length - 1 && token.type === 'list') {
-			const newListToken = completeListItemPattern(token as marked.Tokens.List);
-			if (newListToken) {
-				newTokens = [newListToken];
-				break;
-			}
+	const lastToken = tokens.at(-1);
+	if (!newTokens && lastToken?.type === 'list') {
+		const newListToken = completeListItemPattern(lastToken as marked.Tokens.List);
+		if (newListToken) {
+			newTokens = [newListToken];
+			i = tokens.length - 1;
 		}
+	}
 
-		if (i === tokens.length - 1 && token.type === 'paragraph') {
-			// Only operates on a single token, because any newline that follows this should break these patterns
-			const newToken = completeSingleLinePattern(token as marked.Tokens.Paragraph);
-			if (newToken) {
-				newTokens = [newToken];
-				break;
-			}
+	if (!newTokens && lastToken?.type === 'paragraph') {
+		// Only operates on a single token, because any newline that follows this should break these patterns
+		const newToken = completeSingleLinePattern(lastToken as marked.Tokens.Paragraph);
+		if (newToken) {
+			newTokens = [newToken];
+			i = tokens.length - 1;
 		}
 	}
 
@@ -872,6 +902,13 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 		];
 		(newTokensList as marked.TokensList).links = tokens.links;
 		return newTokensList as marked.TokensList;
+	}
+
+	if (lastToken?.type === 'heading') {
+		const completeTokens = completeHeading(lastToken as marked.Tokens.Heading, mergeRawTokenText(tokens));
+		if (completeTokens) {
+			return completeTokens;
+		}
 	}
 
 	return null;
@@ -891,15 +928,15 @@ function completeUnderscore(tokens: marked.Token): marked.Token {
 }
 
 function completeLinkTarget(tokens: marked.Token): marked.Token {
-	return completeWithString(tokens, ')');
+	return completeWithString(tokens, ')', false);
 }
 
 function completeLinkTargetArg(tokens: marked.Token): marked.Token {
-	return completeWithString(tokens, '")');
+	return completeWithString(tokens, '")', false);
 }
 
 function completeLinkText(tokens: marked.Token): marked.Token {
-	return completeWithString(tokens, '](https://microsoft.com)');
+	return completeWithString(tokens, '](https://microsoft.com)', false);
 }
 
 function completeDoublestar(tokens: marked.Token): marked.Token {
@@ -910,12 +947,13 @@ function completeDoubleUnderscore(tokens: marked.Token): marked.Token {
 	return completeWithString(tokens, '__');
 }
 
-function completeWithString(tokens: marked.Token[] | marked.Token, closingString: string): marked.Token {
+function completeWithString(tokens: marked.Token[] | marked.Token, closingString: string, shouldTrim = true): marked.Token {
 	const mergedRawText = mergeRawTokenText(Array.isArray(tokens) ? tokens : [tokens]);
 
 	// If it was completed correctly, this should be a single token.
 	// Expecting either a Paragraph or a List
-	return marked.lexer(mergedRawText + closingString)[0] as marked.Token;
+	const trimmedRawText = shouldTrim ? mergedRawText.trimEnd() : mergedRawText;
+	return marked.lexer(trimmedRawText + closingString)[0] as marked.Token;
 }
 
 function completeTable(tokens: marked.Token[]): marked.Token[] | undefined {

@@ -39,7 +39,7 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { env } from '../../../../../base/common/process.js';
 import { PYLANCE_DEBUG_DISPLAY_NAME } from './lspTerminalUtil.js';
-
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -286,6 +286,26 @@ registerTerminalAction({
 	run: (c, accessor) => accessor.get(IPreferencesService).openSettings({ query: terminalSuggestConfigSection })
 });
 
+registerTerminalAction({
+	id: TerminalSuggestCommandId.LearnMore,
+	title: localize2('workbench.action.terminal.learnMore', 'Learn More'),
+	f1: false,
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+	menu: {
+		id: MenuId.MenubarTerminalSuggestStatusMenu,
+		group: 'center',
+		order: 1
+	},
+	keybinding: {
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL,
+		weight: KeybindingWeight.WorkbenchContrib + 1,
+		when: TerminalContextKeys.suggestWidgetVisible
+	},
+	run: (c, accessor) => {
+		(accessor.get(IOpenerService)).open('https://aka.ms/vscode-terminal-intellisense');
+	}
+});
+
 registerActiveInstanceAction({
 	id: TerminalSuggestCommandId.RequestCompletions,
 	title: localize2('workbench.action.terminal.requestCompletions', 'Request Completions'),
@@ -407,11 +427,12 @@ registerActiveInstanceAction({
 	keybinding: [{
 		primary: KeyCode.Tab,
 		// Tab is bound to other workbench keybindings that this needs to beat
-		weight: KeybindingWeight.WorkbenchContrib + 1
+		weight: KeybindingWeight.WorkbenchContrib + 2,
+		when: ContextKeyExpr.and(SimpleSuggestContext.HasFocusedSuggestion)
 	},
 	{
 		primary: KeyCode.Enter,
-		when: ContextKeyExpr.or(ContextKeyExpr.notEquals(`config.${TerminalSuggestSettingId.SelectionMode}`, 'partial'), ContextKeyExpr.or(SimpleSuggestContext.FirstSuggestionFocused.toNegated(), SimpleSuggestContext.HasNavigated)),
+		when: ContextKeyExpr.and(SimpleSuggestContext.HasFocusedSuggestion, ContextKeyExpr.or(ContextKeyExpr.notEquals(`config.${TerminalSuggestSettingId.SelectionMode}`, 'partial'), ContextKeyExpr.or(SimpleSuggestContext.FirstSuggestionFocused.toNegated(), SimpleSuggestContext.HasNavigated))),
 		weight: KeybindingWeight.WorkbenchContrib + 1
 	}],
 	menu: {

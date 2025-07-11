@@ -881,6 +881,8 @@ class AbstractProfileResourceTreeRenderer extends Disposable {
 				return localize('snippets', "Snippets");
 			case ProfileResourceType.Tasks:
 				return localize('tasks', "Tasks");
+			case ProfileResourceType.Mcp:
+				return localize('mcp', "MCP Servers");
 			case ProfileResourceType.Extensions:
 				return localize('extensions', "Extensions");
 		}

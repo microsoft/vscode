@@ -83,8 +83,8 @@ export async function getFigSuggestions(
 				: availableCommands.filter(command => specLabel === (command.definitionCommand ?? (typeof command.label === 'string' ? command.label : command.label.label))));
 			if (
 				!(osIsWindows()
-					? commandAndAliases.some(e => currentCommand.startsWith(removeAnyFileExtension((typeof e.label === 'string' ? e.label : e.label.label))))
-					: commandAndAliases.some(e => currentCommand.startsWith(typeof e.label === 'string' ? e.label : e.label.label)))
+					? commandAndAliases.some(e => currentCommand === (removeAnyFileExtension((typeof e.label === 'string' ? e.label : e.label.label))))
+					: commandAndAliases.some(e => currentCommand === (typeof e.label === 'string' ? e.label : e.label.label)))
 			) {
 				continue;
 			}

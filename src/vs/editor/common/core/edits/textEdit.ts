@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from '../../../../base/common/arrays.js';
+import { compareBy, equals } from '../../../../base/common/arrays.js';
 import { assertFn, checkAdjacentItems } from '../../../../base/common/assert.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { commonPrefixLength, commonSuffixLength } from '../../../../base/common/strings.js';
@@ -24,8 +24,17 @@ export class TextEdit {
 		return new TextEdit([new TextReplacement(originalRange, newText)]);
 	}
 
+	public static delete(range: Range): TextEdit {
+		return new TextEdit([new TextReplacement(range, '')]);
+	}
+
 	public static insert(position: Position, newText: string): TextEdit {
 		return new TextEdit([new TextReplacement(Range.fromPositions(position, position), newText)]);
+	}
+
+	public static fromParallelReplacementsUnsorted(replacements: readonly TextReplacement[]): TextEdit {
+		const r = replacements.slice().sort(compareBy(i => i.range, Range.compareRangesUsingStarts));
+		return new TextEdit(r);
 	}
 
 	constructor(
@@ -285,6 +294,10 @@ export class TextReplacement {
 		return new TextReplacement(initialState.getTransformer().getRange(replacement.replaceRange), replacement.newText);
 	}
 
+	public static delete(range: Range): TextReplacement {
+		return new TextReplacement(range, '');
+	}
+
 	constructor(
 		public readonly range: Range,
 		public readonly text: string,
@@ -334,6 +347,12 @@ export class TextReplacement {
 		return this.extendToCoverRange(newRange, initialValue);
 	}
 
+	public removeCommonPrefixAndSuffix(text: AbstractText): TextReplacement {
+		const prefix = this.removeCommonPrefix(text);
+		const suffix = prefix.removeCommonSuffix(text);
+		return suffix;
+	}
+
 	public removeCommonPrefix(text: AbstractText): TextReplacement {
 		const normalizedOriginalText = text.getValueOfRange(this.range).replaceAll('\r\n', '\n');
 		const normalizedModifiedText = this.text.replaceAll('\r\n', '\n');
@@ -344,6 +363,19 @@ export class TextReplacement {
 
 		const newText = normalizedModifiedText.substring(commonPrefixLen);
 		const range = Range.fromPositions(start, this.range.getEndPosition());
+		return new TextReplacement(range, newText);
+	}
+
+	public removeCommonSuffix(text: AbstractText): TextReplacement {
+		const normalizedOriginalText = text.getValueOfRange(this.range).replaceAll('\r\n', '\n');
+		const normalizedModifiedText = this.text.replaceAll('\r\n', '\n');
+
+		const commonSuffixLen = commonSuffixLength(normalizedOriginalText, normalizedModifiedText);
+		const end = TextLength.ofText(normalizedOriginalText.substring(0, normalizedOriginalText.length - commonSuffixLen))
+			.addToPosition(this.range.getStartPosition());
+
+		const newText = normalizedModifiedText.substring(0, normalizedModifiedText.length - commonSuffixLen);
+		const range = Range.fromPositions(this.range.getStartPosition(), end);
 		return new TextReplacement(range, newText);
 	}
 
@@ -358,6 +390,12 @@ export class TextReplacement {
 		existingText = existingText.substring(0, existingText.length - r);
 
 		return newText === '';
+	}
+
+	public toString(): string {
+		const start = this.range.getStartPosition();
+		const end = this.range.getEndPosition();
+		return `(${start.lineNumber},${start.column} -> ${end.lineNumber},${end.column}): "${this.text}"`;
 	}
 }
 

@@ -24,7 +24,7 @@ import { InlineEditsGutterIndicator } from './components/gutterIndicatorView.js'
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
 import { GhostTextIndicator, InlineEditHost, InlineEditModel } from './inlineEditsModel.js';
 import { InlineEditsOnboardingExperience } from './inlineEditsNewUsers.js';
-import { IInlineEditModel, InlineCompletionViewKind, InlineEditTabAction } from './inlineEditsViewInterface.js';
+import { IInlineEditModel, InlineCompletionViewData, InlineCompletionViewKind, InlineEditTabAction } from './inlineEditsViewInterface.js';
 import { InlineEditsCollapsedView } from './inlineEditsViews/inlineEditsCollapsedView.js';
 import { InlineEditsCustomView } from './inlineEditsViews/inlineEditsCustomView.js';
 import { InlineEditsDeletionView } from './inlineEditsViews/inlineEditsDeletionView.js';
@@ -105,10 +105,10 @@ export class InlineEditsView extends Disposable {
 			}
 
 			if (model.showCollapsed.read(reader) && !this._indicator.read(reader)?.isHoverVisible.read(reader)) {
-				state = { kind: InlineCompletionViewKind.Collapsed as const };
+				state = { kind: InlineCompletionViewKind.Collapsed as const, viewData: state.viewData };
 			}
 
-			model.handleInlineEditShown(state.kind);
+			model.handleInlineEditShown(state.kind, state.viewData);
 
 			return {
 				state,
@@ -436,20 +436,40 @@ export class InlineEditsView extends Disposable {
 
 		this._previousView = { id: this.getCacheId(model), view, editorWidth: this._editor.getLayoutInfo().width, timestamp: Date.now() };
 
-		switch (view) {
-			case InlineCompletionViewKind.InsertionInline: return { kind: InlineCompletionViewKind.InsertionInline as const };
-			case InlineCompletionViewKind.SideBySide: return { kind: InlineCompletionViewKind.SideBySide as const };
-			case InlineCompletionViewKind.Collapsed: return { kind: InlineCompletionViewKind.Collapsed as const };
-			case InlineCompletionViewKind.Custom: return { kind: InlineCompletionViewKind.Custom as const, displayLocation: model.displayLocation };
-		}
-
 		const inner = diff.flatMap(d => d.innerChanges ?? []);
+		const textModel = this._editor.getModel()!;
+		const stringChanges = inner.map(m => ({
+			originalRange: m.originalRange,
+			modifiedRange: m.modifiedRange,
+			original: textModel.getValueInRange(m.originalRange),
+			modified: newText.getValueOfRange(m.modifiedRange)
+		}));
+
+		const cursorPosition = inlineEdit.cursorPosition;
+		const viewData: InlineCompletionViewData = {
+			cursorColumnDistance: inlineEdit.edit.replacements[0].range.getStartPosition().column - cursorPosition.column,
+			cursorLineDistance: inlineEdit.lineEdit.lineRange.startLineNumber - cursorPosition.lineNumber,
+			lineCountOriginal: inlineEdit.lineEdit.lineRange.length,
+			lineCountModified: inlineEdit.lineEdit.newLines.length,
+			characterCountOriginal: stringChanges.reduce((acc, r) => acc + r.original.length, 0),
+			characterCountModified: stringChanges.reduce((acc, r) => acc + r.modified.length, 0),
+			disjointReplacements: stringChanges.length,
+			sameShapeReplacements: stringChanges.length > 1 ? stringChanges.every(r => r.original === stringChanges[0].original && r.modified === stringChanges[0].modified) : undefined,
+		};
+
+		switch (view) {
+			case InlineCompletionViewKind.InsertionInline: return { kind: InlineCompletionViewKind.InsertionInline as const, viewData };
+			case InlineCompletionViewKind.SideBySide: return { kind: InlineCompletionViewKind.SideBySide as const, viewData };
+			case InlineCompletionViewKind.Collapsed: return { kind: InlineCompletionViewKind.Collapsed as const, viewData };
+			case InlineCompletionViewKind.Custom: return { kind: InlineCompletionViewKind.Custom as const, displayLocation: model.displayLocation, viewData };
+		}
 
 		if (view === InlineCompletionViewKind.Deletion) {
 			return {
 				kind: InlineCompletionViewKind.Deletion as const,
 				originalRange: inlineEdit.originalLineRange,
 				deletions: inner.map(m => m.originalRange),
+				viewData,
 			};
 		}
 
@@ -460,10 +480,11 @@ export class InlineEditsView extends Disposable {
 				lineNumber: change.originalRange.startLineNumber,
 				column: change.originalRange.startColumn,
 				text: newText.getValueOfRange(change.modifiedRange),
+				viewData,
 			};
 		}
 
-		const replacements = inner.map(m => new TextReplacement(m.originalRange, newText.getValueOfRange(m.modifiedRange)));
+		const replacements = stringChanges.map(m => new TextReplacement(m.originalRange, m.modified));
 		if (replacements.length === 0) {
 			return undefined;
 		}
@@ -478,6 +499,7 @@ export class InlineEditsView extends Disposable {
 			return {
 				kind: InlineCompletionViewKind.WordReplacements as const,
 				replacements: grownEdits,
+				viewData,
 			};
 		}
 
@@ -488,6 +510,7 @@ export class InlineEditsView extends Disposable {
 				modifiedRange: inlineEdit.modifiedLineRange,
 				modifiedLines: inlineEdit.modifiedLineRange.mapToLineArray(line => newText.getLineAt(line)),
 				replacements: inner.map(m => ({ originalRange: m.originalRange, modifiedRange: m.modifiedRange })),
+				viewData,
 			};
 		}
 
