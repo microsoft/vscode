@@ -3,12 +3,93 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { importAMDNodeModule, resolveAmdNodeModulePath } from '../../../../../amdX.js';
-import { CodeWindow } from '../../../../../base/browser/window.js';
-import { Lazy } from '../../../../../base/common/lazy.js';
-import type * as marked from '../../../../../base/common/marked/marked.js';
+import { importAMDNodeModule, resolveAmdNodeModulePath } from '../../../../amdX.js';
+import { ISanitizerOptions } from '../../../../base/browser/markdownRenderer.js';
+import { CodeWindow } from '../../../../base/browser/window.js';
+import * as dom from '../../../../base/browser/dom.js';
+import { Lazy } from '../../../../base/common/lazy.js';
+import type * as marked from '../../../../base/common/marked/marked.js';
 
 export class MarkedKatexSupport {
+
+	public static getSanitizerOptions(): ISanitizerOptions {
+		return {
+			allowedTags: [
+				...dom.basicMarkupHtmlTags,
+				...dom.trustedMathMlTags,
+			],
+			customAttrSanitizer: (attrName, attrValue) => {
+				if (attrName === 'class') {
+					return true; // TODO: allows all classes for now since we don't have a list of possible katex classes
+				} else if (attrName === 'style') {
+					return this.sanitizeKatexStyles(attrValue);
+				}
+
+				return false;
+			},
+		};
+	}
+
+	private static tempSanitizerRule = new Lazy(() => {
+		// Create a CSSStyleDeclaration object via a style sheet rule
+		const styleSheet = new CSSStyleSheet();
+		styleSheet.insertRule(`.temp{}`);
+		const rule = styleSheet.cssRules[0];
+		if (!(rule instanceof CSSStyleRule)) {
+			throw new Error('Invalid CSS rule');
+		}
+		return rule.style;
+	});
+
+	private static sanitizeStyles(styleString: string, allowedProperties: readonly string[]): string {
+		const style = this.tempSanitizerRule.value;
+		style.cssText = styleString;
+
+		const sanitizedProps = [];
+
+		for (let i = 0; i < style.length; i++) {
+			const prop = style[i];
+			if (allowedProperties.includes(prop)) {
+				const value = style.getPropertyValue(prop);
+				// Allow through lists of numbers with units or bare words like 'block'
+				// Main goal is to block things like 'url()'.
+				if (/^(([\d\.\-]+\w*\s?)+|\w+)$/.test(value)) {
+					sanitizedProps.push(`${prop}: ${value}`);
+				}
+			}
+		}
+
+		return sanitizedProps.join('; ');
+	}
+
+	private static sanitizeKatexStyles(styleString: string): string {
+		const allowedProperties = [
+			'display',
+			'position',
+			'font-family',
+			'font-style',
+			'font-weight',
+			'font-size',
+			'height',
+			'width',
+			'margin',
+			'padding',
+			'top',
+			'left',
+			'right',
+			'bottom',
+			'vertical-align',
+			'transform',
+			'border',
+			'color',
+			'white-space',
+			'text-align',
+			'line-height',
+			'float',
+			'clear',
+		];
+		return this.sanitizeStyles(styleString, allowedProperties);
+	}
 
 	private static _katex?: typeof import('katex').default;
 	private static _katexPromise = new Lazy(async () => {
@@ -44,17 +125,12 @@ export class MarkedKatexSupport {
 }
 
 
-namespace MarkedKatexExtension {
+export namespace MarkedKatexExtension {
 	type KatexOptions = import('katex').KatexOptions;
 
 	// From https://github.com/UziTech/marked-katex-extension/blob/main/src/index.js
-	export interface MarkedKatexOptions extends KatexOptions {
-		/**
-		 * If true, the extension will try to parse $ and $$ even if there are no spaces before and after $ or $$.
-		 * This is non-standard behavior and may not work with all markdown parsers.
-		 */
-		nonStandard?: boolean;
-	}
+	// From https://github.com/UziTech/marked-katex-extension/blob/main/src/index.js
+	export interface MarkedKatexOptions extends KatexOptions { }
 
 	const inlineRule = /^(\${1,2})(?!\$)((?:\\.|[^\\\n])*?(?:\\.|[^\\\n\$]))\1(?=[\s?!\.,:'\uff1f\uff01\u3002\uff0c\uff1a']|$)/;
 	const inlineRuleNonStandard = /^(\${1,2})(?!\$)((?:\\.|[^\\\n])*?(?:\\.|[^\\\n\$]))\1/; // Non-standard, even if there are no spaces before and after $ or $$, try to parse
@@ -80,7 +156,7 @@ namespace MarkedKatexExtension {
 	}
 
 	function inlineKatex(options: MarkedKatexOptions, renderer: marked.RendererExtensionFunction): marked.TokenizerAndRendererExtension {
-		const nonStandard = options && options.nonStandard;
+		const nonStandard = true;
 		const ruleReg = nonStandard ? inlineRuleNonStandard : inlineRule;
 		return {
 			name: 'inlineKatex',
