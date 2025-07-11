@@ -492,12 +492,30 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	toToolAndToolSetEnablementMap(enabledToolOrToolSetNames: readonly string[] | undefined): Map<ToolSet | IToolData, boolean> {
 		const toolOrToolSetNames = enabledToolOrToolSetNames ? new Set(enabledToolOrToolSetNames) : undefined;
 		const result = new Map<ToolSet | IToolData, boolean>();
-		for (const tool of this._tools.values()) {
-			result.set(tool.data, tool.data.toolReferenceName !== undefined && (toolOrToolSetNames === undefined || toolOrToolSetNames.has(tool.data.toolReferenceName)));
-		}
+
+		// First, determine which tool sets are enabled
+		const enabledToolSets = new Set<ToolSet>();
 		for (const toolSet of this._toolSets) {
-			result.set(toolSet, (toolOrToolSetNames === undefined || toolOrToolSetNames.has(toolSet.referenceName)));
+			const isEnabled = (toolOrToolSetNames === undefined || toolOrToolSetNames.has(toolSet.referenceName));
+			result.set(toolSet, isEnabled);
+			if (isEnabled) {
+				enabledToolSets.add(toolSet);
+			}
 		}
+
+		// Then enable tools either directly or through their tool set
+		for (const tool of this._tools.values()) {
+			const directlyEnabled = tool.data.toolReferenceName !== undefined &&
+				(toolOrToolSetNames === undefined || toolOrToolSetNames.has(tool.data.toolReferenceName));
+
+			// Check if tool is in any enabled tool set
+			const inEnabledToolSet = Array.from(enabledToolSets).some(toolSet =>
+				Array.from(toolSet.getTools()).some(setTool => setTool.id === tool.data.id)
+			);
+
+			result.set(tool.data, directlyEnabled || inEnabledToolSet);
+		}
+
 		return result;
 	}
 
