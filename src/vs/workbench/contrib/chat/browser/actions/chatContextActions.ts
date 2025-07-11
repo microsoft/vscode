@@ -122,6 +122,18 @@ class AttachFileToChatAction extends AttachResourceAction {
 				order: 1,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, SearchContext.FileMatchOrMatchFocusKey, SearchContext.SearchResultHeaderFocused.negate()),
 			}, {
+				id: MenuId.ExplorerContext,
+				group: 'z_copilot',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ExplorerFolderContext.negate(),
+					ContextKeyExpr.or(
+						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)
+					)
+				),
+			}, {
 				id: MenuId.ChatExplorerMenu,
 				group: 'zContext',
 				order: 1,
@@ -185,7 +197,19 @@ class AttachFolderToChatAction extends AttachResourceAction {
 			title: localize2('workbench.action.chat.attachFolder.label', "Add Folder to Chat"),
 			category: CHAT_CATEGORY,
 			f1: false,
-			menu: {
+			menu: [{
+				id: MenuId.ExplorerContext,
+				group: 'z_copilot',
+				order: 2,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ExplorerFolderContext,
+					ContextKeyExpr.or(
+						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)
+					)
+				)
+			}, {
 				id: MenuId.ChatExplorerMenu,
 				group: 'zContext',
 				order: 1,
@@ -197,7 +221,7 @@ class AttachFolderToChatAction extends AttachResourceAction {
 						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)
 					)
 				)
-			}
+			}]
 		});
 	}
 
