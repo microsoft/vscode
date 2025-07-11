@@ -2725,24 +2725,22 @@ export class Repository {
 	}
 
 	async getWorktrees(): Promise<Worktree[]> {
-		const worktrees: Worktree[] = [];
-
-		worktrees.push(...await this.getWorktreesFS());
-
-		return worktrees;
+		return await this.getWorktreesFS();
 	}
 
 	private async getWorktreesFS(): Promise<Worktree[]> {
 		const worktreesPath = path.join(this.repositoryRoot, '.git', 'worktrees');
 
 		try {
-			const raw = await fs.readdir(worktreesPath); // List all worktree folder names
+			// List all worktree folder names
+			const raw = await fs.readdir(worktreesPath);
 			const result: Worktree[] = [];
 
 			for (const name of raw) {
 				const gitdirPath = path.join(worktreesPath, name, 'gitdir');
 				const gitdirContent = (await fs.readFile(gitdirPath, 'utf8')).trim();
-				const gitdirTrimmed = gitdirContent.substring(0, gitdirContent.length - '/.git'.length); // Remove trailing '/.git'
+				// Remove trailing '/.git'
+				const gitdirTrimmed = gitdirContent.substring(0, gitdirContent.length - '/.git'.length);
 				result.push({ name: name, path: gitdirTrimmed });
 			}
 
