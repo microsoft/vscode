@@ -444,9 +444,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 		const queryString = new URLSearchParams(params).toString();
 
-		// Workaround for https://bugzilla.mozilla.org/show_bug.cgi?id=1754872
-		const fileName = isFirefox ? 'index-no-csp.html' : 'index.html';
-
+		const fileName = 'index.html';
 		this.element!.setAttribute('src', `${this.webviewContentEndpoint(encodedWebviewOrigin)}/${fileName}?${queryString}`);
 	}
 

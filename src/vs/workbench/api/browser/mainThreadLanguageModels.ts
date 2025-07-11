@@ -32,7 +32,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	private readonly _proxy: ExtHostLanguageModelsShape;
 	private readonly _store = new DisposableStore();
 	private readonly _providerRegistrations = new DisposableMap<number>();
-	private readonly _pendingProgress = new Map<number, { defer: DeferredPromise<any>; stream: AsyncIterableSource<IChatResponseFragment> }>();
+	private readonly _pendingProgress = new Map<number, { defer: DeferredPromise<any>; stream: AsyncIterableSource<IChatResponseFragment | IChatResponseFragment[]> }>();
 	private readonly _ignoredFileProviderRegistrations = new DisposableMap<number>();
 
 	constructor(
@@ -63,7 +63,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 			sendChatRequest: async (messages, from, options, token) => {
 				const requestId = (Math.random() * 1e6) | 0;
 				const defer = new DeferredPromise<any>();
-				const stream = new AsyncIterableSource<IChatResponseFragment>();
+				const stream = new AsyncIterableSource<IChatResponseFragment | IChatResponseFragment[]>();
 
 				try {
 					this._pendingProgress.set(requestId, { defer, stream });
@@ -95,7 +95,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		this._providerRegistrations.set(handle, dipsosables);
 	}
 
-	async $reportResponsePart(requestId: number, chunk: IChatResponseFragment): Promise<void> {
+	async $reportResponsePart(requestId: number, chunk: IChatResponseFragment | IChatResponseFragment[]): Promise<void> {
 		const data = this._pendingProgress.get(requestId);
 		this._logService.trace('[LM] report response PART', Boolean(data), requestId, chunk);
 		if (data) {
@@ -256,6 +256,10 @@ class LanguageModelAccessAuthProvider implements IAuthenticationProvider {
 			this._session = undefined;
 		}
 		return Promise.resolve();
+	}
+
+	confirmation(extensionName: string, _recreatingSession: boolean): string {
+		return localize('confirmLanguageModelAccess', "The extension '{0}' wants to access the language models provided by {1}.", extensionName, this.label);
 	}
 
 	private _createFakeSession(scopes: string[]): AuthenticationSession {

@@ -372,7 +372,7 @@ export function move(array: unknown[], from: number, to: number): void {
 /**
  * @returns false if the provided object is an array and not empty.
  */
-export function isFalsyOrEmpty(obj: any): boolean {
+export function isFalsyOrEmpty(obj: unknown): boolean {
 	return !Array.isArray(obj) || obj.length === 0;
 }
 
@@ -624,35 +624,7 @@ function getActualStartIndex<T>(array: T[], start: number): number {
 	return start < 0 ? Math.max(start + array.length, 0) : Math.min(start, array.length);
 }
 
-/**
- * Utility that helps to pick a property from an object.
- *
- * ## Examples
- *
- * ```typescript
- * interface IObject = {
- *   a: number,
- *   b: string,
- * };
- *
- * const list: IObject[] = [
- *   { a: 1, b: 'foo' },
- *   { a: 2, b: 'bar' },
- * ];
- *
- * assert.deepStrictEqual(
- *   list.map(pick('a')),
- *   [1, 2],
- * );
- * ```
- */
-export const pick = <TObject, TKeyName extends keyof TObject>(
-	key: TKeyName,
-) => {
-	return (obj: TObject): TObject[TKeyName] => {
-		return obj[key];
-	};
-};
+
 
 /**
  * When comparing two values,
@@ -941,4 +913,12 @@ export async function findAsync<T>(array: readonly T[], predicate: (element: T, 
 	));
 
 	return results.find(r => r.ok)?.element;
+}
+
+export function sum(array: readonly number[]): number {
+	return array.reduce((acc, value) => acc + value, 0);
+}
+
+export function sumBy<T>(array: readonly T[], selector: (value: T) => number): number {
+	return array.reduce((acc, value) => acc + selector(value), 0);
 }

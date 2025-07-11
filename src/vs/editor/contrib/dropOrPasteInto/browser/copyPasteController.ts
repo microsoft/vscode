@@ -25,7 +25,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { ClipboardEventUtils } from '../../../browser/controller/editContext/clipboardUtils.js';
-import { toExternalVSDataTransfer, toVSDataTransfer } from '../../../browser/dnd.js';
+import { toExternalVSDataTransfer, toVSDataTransfer } from '../../../browser/dataTransfer.js';
 import { ICodeEditor, PastePayload } from '../../../browser/editorBrowser.js';
 import { IBulkEditService } from '../../../browser/services/bulkEditService.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
@@ -145,11 +145,11 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		this._postPasteWidgetManager.tryShowSelector();
 	}
 
-	public pasteAs(preferred?: PastePreference) {
+	public async pasteAs(preferred?: PastePreference) {
 		this._editor.focus();
 		try {
 			this._pasteAsActionContext = { preferred };
-			this._commandService.executeCommand('editor.action.clipboardPasteAction');
+			await this._commandService.executeCommand('editor.action.clipboardPasteAction');
 		} finally {
 			this._pasteAsActionContext = undefined;
 		}
@@ -409,19 +409,14 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 		this._pasteProgressManager.showWhile(selections[0].getEndPosition(), localize('pasteIntoEditorProgress', "Running paste handlers. Click to cancel and do basic paste"), p, {
 			cancel: async () => {
-				try {
-					p.cancel();
-
-					if (editorStateCts.token.isCancellationRequested) {
-						return;
-					}
-
-					await this.applyDefaultPasteHandler(dataTransfer, metadata, editorStateCts.token, clipboardEvent);
-				} finally {
-					editorStateCts.dispose();
+				p.cancel();
+				if (editorStateCts.token.isCancellationRequested) {
+					return;
 				}
+
+				await this.applyDefaultPasteHandler(dataTransfer, metadata, editorStateCts.token, clipboardEvent);
 			}
-		}).then(() => {
+		}).finally(() => {
 			editorStateCts.dispose();
 		});
 		this._currentPasteOperation = p;

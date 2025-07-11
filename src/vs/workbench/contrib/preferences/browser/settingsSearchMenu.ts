@@ -11,7 +11,7 @@ import { SuggestController } from '../../../../editor/contrib/suggest/browser/su
 import { localize } from '../../../../nls.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { SuggestEnabledInput } from '../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
-import { EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, GENERAL_TAG_SETTING_TAG, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG } from '../common/preferences.js';
+import { EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, GENERAL_TAG_SETTING_TAG, ID_SETTING_TAG, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG } from '../common/preferences.js';
 
 export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 	private readonly suggestController: SuggestController | null;
@@ -141,6 +141,13 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 				localize('policySettingsSearch', "Policy services"),
 				localize('policySettingsSearchTooltip', "Show settings for policy services"),
 				`@${POLICY_SETTING_TAG}`
+			),
+			this.createAction(
+				'idSettingsSearch',
+				localize('idSettingsSearch', "Setting ID"),
+				localize('idSettingsSearchTooltip', "Add Setting ID filter"),
+				`@${ID_SETTING_TAG}`,
+				false
 			)
 		];
 	}

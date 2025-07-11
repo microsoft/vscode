@@ -127,13 +127,58 @@ export function isFileToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFileToOp
 	return !!(uriToOpen as IFileToOpen).fileUri;
 }
 
+export const enum MenuSettings {
+	MenuStyle = 'window.menuStyle',
+	MenuBarVisibility = 'window.menuBarVisibility'
+}
+
+export const enum MenuStyleConfiguration {
+	CUSTOM = 'custom',
+	NATIVE = 'native',
+	INHERIT = 'inherit',
+}
+
+export function hasNativeContextMenu(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
+	if (isWeb) {
+		return false;
+	}
+
+	const nativeTitle = hasNativeTitlebar(configurationService, titleBarStyle);
+	const windowConfigurations = configurationService.getValue<IWindowSettings | undefined>('window');
+
+	if (windowConfigurations?.menuStyle === MenuStyleConfiguration.NATIVE) {
+		// Do not support native menu with custom title bar
+		if (!isMacintosh && !nativeTitle) {
+			return false;
+		}
+		return true;
+	}
+
+	if (windowConfigurations?.menuStyle === MenuStyleConfiguration.CUSTOM) {
+		return false;
+	}
+
+	return nativeTitle; // Default to inherit from title bar style
+}
+
+export function hasNativeMenu(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
+	if (isWeb) {
+		return false;
+	}
+
+	if (isMacintosh) {
+		return true;
+	}
+
+	return hasNativeContextMenu(configurationService, titleBarStyle);
+}
+
 export type MenuBarVisibility = 'classic' | 'visible' | 'toggle' | 'hidden' | 'compact';
 
 export function getMenuBarVisibility(configurationService: IConfigurationService): MenuBarVisibility {
-	const nativeTitleBarEnabled = hasNativeTitlebar(configurationService);
-	const menuBarVisibility = configurationService.getValue<MenuBarVisibility | 'default'>('window.menuBarVisibility');
+	const menuBarVisibility = configurationService.getValue<MenuBarVisibility | 'default'>(MenuSettings.MenuBarVisibility);
 
-	if (menuBarVisibility === 'default' || (nativeTitleBarEnabled && menuBarVisibility === 'compact') || (isMacintosh && isNative)) {
+	if (menuBarVisibility === 'default' || (menuBarVisibility === 'compact' && hasNativeMenu(configurationService)) || (isMacintosh && isNative)) {
 		return 'classic';
 	} else {
 		return menuBarVisibility;
@@ -153,6 +198,7 @@ export interface IWindowSettings {
 	readonly zoomLevel: number;
 	readonly titleBarStyle: TitlebarStyle;
 	readonly controlsStyle: WindowControlsStyle;
+	readonly menuStyle: MenuStyleConfiguration;
 	readonly autoDetectHighContrast: boolean;
 	readonly autoDetectColorScheme: boolean;
 	readonly menuBarVisibility: MenuBarVisibility;
@@ -164,6 +210,7 @@ export interface IWindowSettings {
 	readonly clickThroughInactive: boolean;
 	readonly newWindowProfile: string;
 	readonly density: IDensitySettings;
+	readonly border: 'off' | 'default' | string /* color in RGB or other formats */;
 }
 
 export interface IDensitySettings {
@@ -429,4 +476,3 @@ export function zoomLevelToZoomFactor(zoomLevel = 0): number {
 
 export const DEFAULT_WINDOW_SIZE = { width: 1200, height: 800 } as const;
 export const DEFAULT_AUX_WINDOW_SIZE = { width: 1024, height: 768 } as const;
-export const DEFAULT_COMPACT_AUX_WINDOW_SIZE = { width: 640, height: 640 } as const;

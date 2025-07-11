@@ -19,6 +19,7 @@ import { getFlatActionBarActions } from '../../../../../platform/actions/browser
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPickerWidget.js';
 
 export interface IModelPickerDelegate {
 	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
@@ -35,7 +36,7 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate): I
 					id: model.metadata.id,
 					enabled: true,
 					checked: model.metadata.id === delegate.getCurrentModel()?.metadata.id,
-					category: model.metadata.modelPickerCategory,
+					category: model.metadata.modelPickerCategory || DEFAULT_MODEL_PICKER_CATEGORY,
 					class: undefined,
 					description: model.metadata.cost,
 					tooltip: model.metadata.description ?? model.metadata.name,
@@ -61,8 +62,8 @@ function getModelPickerActionBarActions(menuService: IMenuService, contextKeySer
 		additionalActions.push(...menuContributions);
 	}
 
-	// Add upgrade option if entitlement is limited
-	if (chatEntitlementService.entitlement === ChatEntitlement.Limited) {
+	// Add upgrade option if entitlement is free
+	if (chatEntitlementService.entitlement === ChatEntitlement.Free) {
 		additionalActions.push({
 			id: 'moreModels',
 			label: localize('chat.moreModels', "Add Premium Models"),
@@ -119,8 +120,8 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		this.setAriaLabelAttributes(element);
 		dom.reset(element, dom.$('span.chat-model-label', undefined, this.currentModel.metadata.name), ...renderLabelWithIcons(`$(chevron-down)`));
+		this.setAriaLabelAttributes(element);
 		return null;
 	}
 

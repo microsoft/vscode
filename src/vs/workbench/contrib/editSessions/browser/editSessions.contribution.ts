@@ -407,7 +407,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					// Open the URI
 					that.logService.info(`Opening ${uri.toString()}`);
 					await that.openerService.open(uri, { openExternal: true });
-				} else if (!shouldStoreEditSession && uri !== 'noDestinationUri') {
+				} else if ((!shouldStoreEditSession || ref === undefined) && uri !== 'noDestinationUri') {
 					// Open the URI without an edit session ref
 					that.logService.info(`Opening ${uri.toString()}`);
 					await that.openerService.open(uri, { openExternal: true });

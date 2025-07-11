@@ -25,6 +25,7 @@ import * as languages from '../../../common/languages.js';
 import { ITextModel } from '../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { IModelService } from '../../../common/services/model.js';
+import { EditReasons } from '../../../common/textModelEditReason.js';
 import { TextModelCancellationTokenSource } from '../../editorState/browser/editorState.js';
 import { CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource, filtersAction, mayIncludeActionsOfKind } from '../common/types.js';
 
@@ -36,6 +37,7 @@ export const refactorPreviewCommandId = 'editor.action.refactor.preview';
 export const sourceActionCommandId = 'editor.action.sourceAction';
 export const organizeImportsCommandId = 'editor.action.organizeImports';
 export const fixAllCommandId = 'editor.action.fixAll';
+const CODE_ACTION_SOUND_APPLIED_DURATION = 1000;
 
 class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 
@@ -308,6 +310,7 @@ export async function applyCodeAction(
 			code: 'undoredo.codeAction',
 			respectAutoSaveConfig: codeActionReason !== ApplyCodeActionReason.OnSave,
 			showPreview: options?.preview,
+			reason: EditReasons.codeAction({ kind: item.action.kind, providerId: languages.ProviderId.fromExtensionId(item.provider?.extensionId) }),
 		});
 
 		if (!result.isApplied) {
@@ -327,7 +330,7 @@ export async function applyCodeAction(
 		}
 	}
 	// ensure the start sound and end sound do not overlap
-	setTimeout(() => accessibilitySignalService.playSignal(AccessibilitySignal.codeActionApplied), 100);
+	setTimeout(() => accessibilitySignalService.playSignal(AccessibilitySignal.codeActionApplied), CODE_ACTION_SOUND_APPLIED_DURATION);
 }
 
 function asMessage(err: any): string | undefined {

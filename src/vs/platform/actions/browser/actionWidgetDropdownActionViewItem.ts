@@ -60,11 +60,17 @@ export class ActionWidgetDropdownActionViewItem extends BaseActionViewItem {
 		return null;
 	}
 
+	protected override updateAriaLabel(): void {
+		if (this.element) {
+			this.setAriaLabelAttributes(this.element);
+		}
+	}
+
 	protected setAriaLabelAttributes(element: HTMLElement): void {
 		element.setAttribute('role', 'button');
 		element.setAttribute('aria-haspopup', 'true');
 		element.setAttribute('aria-expanded', 'false');
-		element.ariaLabel = this._action.label || '';
+		element.ariaLabel = (this.getTooltip() + ' - ' + (element.textContent || this._action.label)) || '';
 	}
 
 	protected override getTooltip() {

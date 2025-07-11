@@ -133,6 +133,7 @@ export interface ITerminalGroup {
 	activeInstance: ITerminalInstance | undefined;
 	terminalInstances: ITerminalInstance[];
 	title: string;
+	readonly hadFocusOnExit: boolean;
 
 	readonly onDidDisposeInstance: Event<ITerminalInstance>;
 	readonly onDisposed: Event<ITerminalGroup>;
@@ -675,6 +676,11 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	readonly hasFocus: boolean;
 
 	/**
+	 * The ID of the session that this terminal is connected to
+	 */
+	readonly sessionId: string;
+
+	/**
 	 * Get or set the behavior of the terminal when it closes. This was indented only to be called
 	 * after reconnecting to a terminal.
 	 */
@@ -900,6 +906,13 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	sendText(text: string, shouldExecute: boolean, bracketedPasteMode?: boolean): Promise<void>;
 
 	/**
+	 * Sends a signal to the terminal instance's process.
+	 *
+	 * @param signal The signal to send (e.g., 'SIGTERM', 'SIGINT', 'SIGKILL').
+	 */
+	sendSignal(signal: string): Promise<void>;
+
+	/**
 	 * Sends a path to the terminal instance, preparing it as needed based on the detected shell
 	 * running within the terminal. The text is written to the stdin of the underlying pty process
 	 * (shell) of the terminal instance.
@@ -999,7 +1012,12 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * from the backend. This will return the initial cwd if cwd detection is not available (ie.
 	 * on Windows when shell integration is disabled).
 	 */
-	getCwd(): Promise<string>;
+	getSpeculativeCwd(): Promise<string>;
+
+	/**
+	 * Gets the cwd as a URI that has been validated to exist.
+	 */
+	getCwdResource(): Promise<URI | undefined>;
 
 	/**
 	 * Sets the title of the terminal to the provided string. If no title is provided, it will reset

@@ -3,46 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ITextModel } from '../../../../../editor/common/model.js';
-import { PROMPT_FILE_EXTENSION } from '../../../../../platform/prompts/common/constants.js';
-import { TextModelPromptParser } from '../../common/promptSyntax/parsers/textModelPromptParser.js';
-import { IChatPromptSlashCommand, IMetadata, IPromptPath, IPromptsService, TCombinedToolsMetadata, TPromptsType } from '../../common/promptSyntax/service/types.js';
+import { ICustomChatMode, IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 
 export class MockPromptsService implements IPromptsService {
-	getCombinedToolsMetadata(files: readonly URI[]): Promise<TCombinedToolsMetadata> {
-		throw new Error('Method not implemented.');
-	}
-	getAllMetadata(files: readonly URI[]): Promise<readonly IMetadata[]> {
-		throw new Error('Method not implemented.');
-	}
 	_serviceBrand: undefined;
-	getSyntaxParserFor(model: ITextModel): TextModelPromptParser & { disposed: false } {
-		throw new Error('Method not implemented.');
+
+	private readonly _onDidChangeCustomChatModes = new Emitter<void>();
+	readonly onDidChangeCustomChatModes = this._onDidChangeCustomChatModes.event;
+
+	private _customModes: ICustomChatMode[] = [];
+
+	setCustomModes(modes: ICustomChatMode[]): void {
+		this._customModes = modes;
+		this._onDidChangeCustomChatModes.fire();
 	}
-	listPromptFiles(type: TPromptsType): Promise<readonly IPromptPath[]> {
-		throw new Error('Method not implemented.');
+
+	async getCustomChatModes(token: CancellationToken): Promise<readonly ICustomChatMode[]> {
+		return this._customModes;
 	}
-	getSourceFolders(type: TPromptsType): readonly IPromptPath[] {
-		throw new Error('Method not implemented.');
-	}
-	public asPromptSlashCommand(name: string): IChatPromptSlashCommand | undefined {
-		if (name.endsWith(PROMPT_FILE_EXTENSION)) {
-			const command = `prompt:${name.substring(0, -PROMPT_FILE_EXTENSION.length)}`;
-			return {
-				command, detail: name,
-			};
-		}
-		return undefined;
-	}
-	resolvePromptSlashCommand(data: IChatPromptSlashCommand): Promise<IPromptPath | undefined> {
-		throw new Error('Method not implemented.');
-	}
-	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]> {
-		throw new Error('Method not implemented.');
-	}
-	findInstructionFilesFor(files: readonly URI[]): Promise<readonly URI[]> {
-		throw new Error('Method not implemented.');
-	}
+
+	// Stub implementations for required interface methods
+	getSyntaxParserFor(_model: any): any { throw new Error('Not implemented'); }
+	listPromptFiles(_type: any): Promise<readonly any[]> { throw new Error('Not implemented'); }
+	getSourceFolders(_type: any): readonly any[] { throw new Error('Not implemented'); }
+	asPromptSlashCommand(_command: string): any { return undefined; }
+	resolvePromptSlashCommand(_data: any, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
+	findPromptSlashCommands(): Promise<any[]> { throw new Error('Not implemented'); }
+	parse(_uri: URI, _type: any, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
+	getPromptFileType(_resource: URI): any { return undefined; }
 	dispose(): void { }
 }

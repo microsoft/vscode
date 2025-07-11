@@ -450,6 +450,27 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.chatModelPicker', "The chat model picker dropdown menu"),
 		supportsSubmenus: false,
 		proposed: 'chatParticipantPrivate'
+	},
+	{
+		key: 'explorer/context/chat',
+		id: MenuId.ChatExplorerMenu,
+		description: localize('menus.chatExplorer', "The Chat submenu in the explorer context menu."),
+		supportsSubmenus: false,
+		proposed: 'chatParticipantPrivate'
+	},
+	{
+		key: 'editor/context/chat',
+		id: MenuId.ChatTextEditorMenu,
+		description: localize('menus.chatTextEditor', "The Chat submenu in the text editor context menu."),
+		supportsSubmenus: false,
+		proposed: 'chatParticipantPrivate'
+	},
+	{
+		key: 'terminal/context/chat',
+		id: MenuId.ChatTerminalMenu,
+		description: localize('menus.chatTerminal', "The Chat submenu in the terminal context menu."),
+		supportsSubmenus: false,
+		proposed: 'chatParticipantPrivate'
 	}
 ];
 

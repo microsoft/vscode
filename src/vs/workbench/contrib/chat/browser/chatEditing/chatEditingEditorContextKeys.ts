@@ -113,18 +113,10 @@ class ContextKeyGroup {
 
 			const chatModel = chatService.getSession(session.chatSessionId);
 
-			const lastResponse = chatModel
-				? observableFromEvent(this, chatModel.onDidChange, () => chatModel.getRequests().at(-1)?.response).read(r)
-				: undefined;
-
-			const isRequestInProgress = lastResponse
-				? observableFromEvent(this, lastResponse.onDidChange, () => !lastResponse.isPendingConfirmation && !lastResponse.isComplete)
-				: constObservable(false);
-
 			this._ctxHasEditorModification.set(entry?.state.read(r) === ModifiedFileEntryState.Modified);
 			this._ctxIsGlobalEditingSession.set(session.isGlobalEditingSession);
 			this._ctxReviewModeEnabled.set(entry ? entry.reviewMode.read(r) : false);
-			this._ctxHasRequestInProgress.set(isRequestInProgress.read(r));
+			this._ctxHasRequestInProgress.set(chatModel?.requestInProgressObs.read(r) ?? false);
 
 			// number of requests
 			const requestCount = chatModel

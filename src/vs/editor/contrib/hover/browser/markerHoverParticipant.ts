@@ -71,7 +71,11 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		}
 
 		const model = this._editor.getModel();
-		const lineNumber = anchor.range.startLineNumber;
+		const anchorRange = anchor.range;
+		if (!model.isValidRange(anchor.range)) {
+			return [];
+		}
+		const lineNumber = anchorRange.startLineNumber;
 		const maxColumn = model.getLineMaxColumn(lineNumber);
 		const result: MarkerHover[] = [];
 		for (const d of lineDecorations) {

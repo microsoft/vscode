@@ -292,18 +292,19 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 				if (newEdits.length > 0 || isFirst) {
 					if (part.kind === 'notebookEditGroup') {
-						newEdits.forEach(edit => {
+						newEdits.forEach((edit, idx) => {
+							const done = part.done ? idx === newEdits.length - 1 : false;
 							if (TextEdit.isTextEdit(edit)) {
 								// Not possible, as Notebooks would have a different type.
 								return;
 							} else if (isCellTextEditOperation(edit)) {
-								entry.streaming.pushNotebookCellText(edit.uri, [edit.edit]);
+								entry.streaming.pushNotebookCellText(edit.uri, [edit.edit], done);
 							} else {
-								entry.streaming.pushNotebook([edit]);
+								entry.streaming.pushNotebook([edit], done);
 							}
 						});
 					} else if (part.kind === 'textEditGroup') {
-						entry.streaming.pushText(newEdits as TextEdit[]);
+						entry.streaming.pushText(newEdits as TextEdit[], part.done ?? false);
 					}
 				}
 
@@ -404,16 +405,17 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 		return uri.filter(entry => !entry.isCurrentlyBeingModifiedBy.read(r) && entry.state.read(r) === ModifiedFileEntryState.Modified).map(entry => entry.modifiedURI);
 	});
 
-	public readonly onDidChange = Event.any(
-		observeArrayChanges(this._currentlyEditingUris, compareBy(uri => uri.toString(), compare), this._store),
-		observeArrayChanges(this._modifiedUris, compareBy(uri => uri.toString(), compare), this._store),
-	);
+	readonly onDidChange: Event<URI[]>;
 
 	constructor(
 		private readonly _sessions: IObservable<readonly IChatEditingSession[]>,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService
 	) {
 		super();
+		this.onDidChange = Event.any(
+			observeArrayChanges(this._currentlyEditingUris, compareBy(uri => uri.toString(), compare), this._store),
+			observeArrayChanges(this._modifiedUris, compareBy(uri => uri.toString(), compare), this._store),
+		);
 	}
 
 	provideDecorations(uri: URI, _token: CancellationToken): IDecorationData | undefined {

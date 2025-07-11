@@ -36,10 +36,10 @@ export interface IChatMessageImagePart {
 	value: IChatImageURLPart;
 }
 
-export interface IChatMessageExtraDataPart {
-	type: 'extra_data';
-	kind: string;
-	data: any;
+export interface IChatMessageDataPart {
+	type: 'data';
+	mimeType: string;
+	data: VSBuffer;
 }
 
 export interface IChatImageURLPart {
@@ -81,7 +81,7 @@ export interface IChatMessageToolResultPart {
 	isError?: boolean;
 }
 
-export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart | IChatResponseToolUsePart | IChatMessageImagePart | IChatMessageExtraDataPart;
+export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart | IChatResponseToolUsePart | IChatMessageImagePart | IChatMessageDataPart;
 
 export interface IChatMessage {
 	readonly name?: string | undefined;
@@ -134,7 +134,7 @@ export interface ILanguageModelChatMetadata {
 
 	readonly isDefault?: boolean;
 	readonly isUserSelectable?: boolean;
-	readonly modelPickerCategory: { label: string; order: number };
+	readonly modelPickerCategory: { label: string; order: number } | undefined;
 	readonly auth?: {
 		readonly providerLabel: string;
 		readonly accountLabel?: string;
@@ -146,8 +146,23 @@ export interface ILanguageModelChatMetadata {
 	};
 }
 
+export namespace ILanguageModelChatMetadata {
+	export function suitableForAgentMode(metadata: ILanguageModelChatMetadata): boolean {
+		const supportsToolsAgent = typeof metadata.capabilities?.agentMode === 'undefined' || metadata.capabilities.agentMode;
+		return supportsToolsAgent && !!metadata.capabilities?.toolCalling;
+	}
+
+	export function asQualifiedName(metadata: ILanguageModelChatMetadata): string {
+		if (metadata.modelPickerCategory === undefined) {
+			// in the others category
+			return `${metadata.name} (${metadata.family})`;
+		}
+		return metadata.name;
+	}
+}
+
 export interface ILanguageModelChatResponse {
-	stream: AsyncIterable<IChatResponseFragment>;
+	stream: AsyncIterable<IChatResponseFragment | IChatResponseFragment[]>;
 	result: Promise<any>;
 }
 

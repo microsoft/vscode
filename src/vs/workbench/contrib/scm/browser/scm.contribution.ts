@@ -45,6 +45,7 @@ import { RemoteNameContext } from '../../../common/contextkeys.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SCMAccessibilityHelp } from './scmAccessibilityHelp.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { SCMHistoryItemContextContribution } from './scmHistoryChatContext.js';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -161,6 +162,12 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 registerWorkbenchContribution2(
 	SCMWorkingSetController.ID,
 	SCMWorkingSetController,
+	WorkbenchPhase.AfterRestored
+);
+
+registerWorkbenchContribution2(
+	SCMHistoryItemContextContribution.ID,
+	SCMHistoryItemContextContribution,
 	WorkbenchPhase.AfterRestored
 );
 
@@ -633,6 +640,12 @@ MenuRegistry.appendMenuItem(MenuId.EditorLineNumberContext, {
 		ContextKeyExpr.equals('config.scm.diffDecorations', 'all'),
 		ContextKeyExpr.equals('config.scm.diffDecorations', 'gutter')),
 	group: '9_quickDiffDecorations'
+});
+
+MenuRegistry.appendMenuItem(MenuId.SCMHistoryItemContext, {
+	title: localize('scmHistoryItemChatContext', "Copilot"),
+	submenu: MenuId.SCMHistoryItemChatContext,
+	group: '8_chat'
 });
 
 registerSingleton(ISCMService, SCMService, InstantiationType.Delayed);

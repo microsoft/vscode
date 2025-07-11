@@ -179,6 +179,17 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 		assert.strictEqual(manager.heightForLineNumber(5), 10);
 	});
 
+	test('handles deleting lines at the very beginning', () => {
+		const manager = new LineHeightsManager(10, []);
+		manager.insertOrChangeCustomLineHeight('decA', 1, 1, 40);
+		manager.commit();
+
+		manager.onLinesDeleted(2, 4); // Delete lines 2-4 after the variable line height
+
+		// Check individual line heights
+		assert.strictEqual(manager.heightForLineNumber(1), 40);
+	});
+
 	test('handles inserting lines before custom line heights', () => {
 		const manager = new LineHeightsManager(10, []);
 		manager.insertOrChangeCustomLineHeight('dec1', 5, 7, 20);

@@ -21,7 +21,7 @@ import { InlineChatController } from '../../../../inlineChat/browser/inlineChatC
 import { CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION } from '../../controller/chat/notebookChatContext.js';
 import { INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, findTargetCellEditor } from '../../controller/coreActions.js';
 import { CellEditState } from '../../notebookBrowser.js';
-import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from '../../../common/notebookCommon.js';
+import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY } from '../../../common/notebookCommon.js';
 import { NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_INPUT_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_CELL_EDITOR_FOCUSED, IS_COMPOSITE_NOTEBOOK } from '../../../common/notebookContextKeys.js';
 
 const NOTEBOOK_FOCUS_TOP = 'notebook.focusTop';
@@ -77,6 +77,10 @@ registerAction2(class FocusNextCellAction extends NotebookCellAction {
 							EditorContextKeys.editorTextFocus,
 							NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('top'),
 							NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none'),
+							ContextKeyExpr.or(
+								NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY.isEqualTo('end'),
+								NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY.isEqualTo('both')
+							)
 						),
 						EditorContextKeys.isEmbeddedDiffEditor.negate()
 					),
@@ -158,6 +162,10 @@ registerAction2(class FocusPreviousCellAction extends NotebookCellAction {
 							EditorContextKeys.editorTextFocus,
 							NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('bottom'),
 							NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none'),
+							ContextKeyExpr.or(
+								NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY.isEqualTo('start'),
+								NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY.isEqualTo('both')
+							)
 						),
 						EditorContextKeys.isEmbeddedDiffEditor.negate()
 					),

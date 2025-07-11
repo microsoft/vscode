@@ -638,8 +638,8 @@ class EditorGroupRenderer implements IListRenderer<IEditorGroup, IEditorGroupTem
 class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplateData> {
 	static readonly ID = 'openeditor';
 
-	private readonly closeEditorAction = this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL);
-	private readonly unpinEditorAction = this.instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL);
+	private readonly closeEditorAction;
+	private readonly unpinEditorAction;
 
 	constructor(
 		private labels: ResourceLabels,
@@ -647,6 +647,8 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 		private keybindingService: IKeybindingService,
 		private configurationService: IConfigurationService
 	) {
+		this.closeEditorAction = this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL);
+		this.unpinEditorAction = this.instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL);
 		// noop
 	}
 

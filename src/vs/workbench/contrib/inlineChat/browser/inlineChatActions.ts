@@ -68,11 +68,15 @@ export class StartSessionAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			},
 			icon: START_INLINE_CHAT,
-			menu: {
+			menu: [{
 				id: MenuId.ChatTitleBarMenu,
 				group: 'a_open',
 				order: 3,
-			}
+			}, {
+				id: MenuId.ChatTextEditorMenu,
+				group: 'a_open',
+				order: 1
+			}]
 		});
 	}
 	override run(accessor: ServicesAccessor, ...args: any[]): any {
@@ -405,10 +409,7 @@ export class CloseAction extends AbstractInline1ChatAction {
 			}, {
 				id: MENU_INLINE_CHAT_SIDE,
 				group: 'navigation',
-				when: ContextKeyExpr.and(
-					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.None),
-					CTX_INLINE_CHAT_HAS_AGENT2.negate(),
-				)
+				when: CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.None)
 			}]
 		});
 	}
@@ -624,10 +625,10 @@ class KeepOrUndoSessionAction extends AbstractInline2ChatAction {
 			icon: _keep ? Codicon.check : Codicon.discard,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, ctxHasRequestInProgress.negate()),
 			keybinding: [{
-				weight: KeybindingWeight.WorkbenchContrib,
+				weight: KeybindingWeight.WorkbenchContrib + 10, // win over new-window-action
 				primary: _keep
-					? KeyMod.CtrlCmd | KeyCode.Enter
-					: KeyMod.CtrlCmd | KeyCode.Backspace
+					? KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyY
+					: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyN
 			}],
 			menu: [{
 				id: MENU_INLINE_CHAT_WIDGET_STATUS,
