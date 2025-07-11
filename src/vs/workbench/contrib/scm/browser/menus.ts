@@ -201,7 +201,7 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 		@IMenuService private readonly menuService: IMenuService
 	) {
 		this.contextKeyService = contextKeyService.createOverlay([
-			['scmProvider', provider.kind],
+			['scmProvider', provider.providerId],
 			['scmProviderRootUri', provider.rootUri?.toString()],
 			['scmProviderHasRootUri', !!provider.rootUri],
 		]);
@@ -232,7 +232,7 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 		let item = this.contextualRepositoryMenus.get(contextValue);
 
 		if (!item) {
-			const contextKeyService = this.contextKeyService.createOverlay([['scmProviderKind', contextValue]]);
+			const contextKeyService = this.contextKeyService.createOverlay([['scmProviderContext', contextValue]]);
 			const menu = this.menuService.createMenu(MenuId.SCMSourceControlInline, contextKeyService);
 
 			item = {

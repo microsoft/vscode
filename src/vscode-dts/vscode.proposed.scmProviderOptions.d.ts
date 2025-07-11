@@ -10,14 +10,14 @@ declare module 'vscode' {
 		/**
 		 * Context value of the source control. This can be used to contribute source control specific actions.
 		 * For example, if a source control is given a context value of `git`, when contributing actions to `scm/sourceControl/context`
-		 * using `menus` extension point, you can specify context value for key `scmProviderKind` in `when` expressions, like `scmProviderKind == repository`.
+		 * using `menus` extension point, you can specify context value for key `scmProviderContext` in `when` expressions, like `scmProviderContext == repository`.
 		 * ```json
 		 * "contributes": {
 		 *   "menus": {
 		 *     "scm/sourceControl/context": [
 		 *       {
 		 *         "command": "extension.gitAction",
-		 *         "when": "scmProviderKind == repository"
+		 *         "when": "scmProviderContext == repository"
 		 *       }
 		 *     ]
 		 *   }

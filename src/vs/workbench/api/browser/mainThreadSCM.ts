@@ -244,7 +244,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 	private static ID_HANDLE = 0;
 	private _id = `scm${MainThreadSCMProvider.ID_HANDLE++}`;
 	get id(): string { return this._id; }
-	get kind(): string { return this._providerId; }
+	get providerId(): string { return this._providerId; }
 
 	readonly groups: MainThreadSCMResourceGroup[] = [];
 	private readonly _onDidChangeResourceGroups = new Emitter<void>();
