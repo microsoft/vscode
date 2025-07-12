@@ -1095,12 +1095,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	when: menuContext
 });
 
-MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	submenu: MenuId.ChatExplorerMenu,
-	group: '5_copilot',
-	title,
-	when: menuContext
-});
+
 
 MenuRegistry.appendMenuItem(MenuId.TerminalInstanceContext, {
 	submenu: MenuId.ChatTerminalMenu,
