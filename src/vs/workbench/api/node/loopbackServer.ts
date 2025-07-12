@@ -53,8 +53,8 @@ export class LoopbackAuthServer implements ILoopbackServer {
 		private readonly _appUri: URI,
 		private readonly _appName: string
 	) {
-		const deferredPromise = new DeferredPromise<IOAuthResult>();
-		this._resultPromise = deferredPromise.p;
+		let deferred: { resolve: (result: IOAuthResult) => void; reject: (reason: any) => void };
+		this._resultPromise = new Promise<IOAuthResult>((resolve, reject) => deferred = { resolve, reject });
 
 		this._server = http.createServer((req, res) => {
 			const reqUrl = new URL(req.url!, `http://${req.headers.host}`);
@@ -66,7 +66,7 @@ export class LoopbackAuthServer implements ILoopbackServer {
 					if (error) {
 						res.writeHead(302, { location: `/done?error=${reqUrl.searchParams.get('error_description') || error}` });
 						res.end();
-						deferredPromise.error(new Error(error));
+						deferred.reject(new Error(error));
 						break;
 					}
 					if (!code || !state) {
@@ -77,10 +77,10 @@ export class LoopbackAuthServer implements ILoopbackServer {
 					if (this.state !== state) {
 						res.writeHead(302, { location: `/done?error=${encodeURIComponent('State does not match.')}` });
 						res.end();
-						deferredPromise.error(new Error('State does not match.'));
+						deferred.reject(new Error('State does not match.'));
 						break;
 					}
-					deferredPromise.complete({ code, state });
+					deferred.resolve({ code, state });
 					res.writeHead(302, { location: '/done' });
 					res.end();
 					break;
@@ -102,7 +102,7 @@ export class LoopbackAuthServer implements ILoopbackServer {
 		if (this._port === undefined) {
 			throw new Error('Server is not started yet');
 		}
-		return `http://127.0.0.1:${this._port}/`;
+		return `http://localhost:${this._port}/`;
 	}
 
 	private _sendPage(res: http.ServerResponse): void {
@@ -139,7 +139,7 @@ export class LoopbackAuthServer implements ILoopbackServer {
 			if ('code' in err && err.code === 'EADDRINUSE') {
 				this._logger.error('Address in use, retrying with a different port...');
 				// Best effort to use a specific port, but fallback to a random one if it is in use
-				this._server.listen(0, '127.0.0.1');
+				this._server.listen(0, 'localhost');
 				return;
 			}
 			clearTimeout(portTimeout);
@@ -149,7 +149,7 @@ export class LoopbackAuthServer implements ILoopbackServer {
 			deferredPromise.error(new Error('Closed'));
 		});
 		// Best effort to use a specific port, but fallback to a random one if it is in use
-		this._server.listen(DEFAULT_AUTH_FLOW_PORT, '127.0.0.1');
+		this._server.listen(DEFAULT_AUTH_FLOW_PORT, 'localhost');
 		return deferredPromise.p;
 	}
 
@@ -319,7 +319,7 @@ export class LoopbackAuthServer implements ILoopbackServer {
 		} else {
 			// Redirect to the app URI after a 1-second delay to allow page to load
 			setTimeout(function() {
-				window.location.href = '${this._appUri.toString(true)}';
+				// window.location.href = '${this._appUri.toString(true)}';
 			}, 1000);
 		}
 	</script>

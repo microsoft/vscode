@@ -96,10 +96,6 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		if (scopeString) {
 			authorizationUrl.searchParams.append('scope', scopeString);
 		}
-		if (this._resourceMetadata?.resource) {
-			// If a resource is specified, include it in the request
-			authorizationUrl.searchParams.append('resource', this._resourceMetadata.resource);
-		}
 
 		// Create and start the loopback server
 		const server = new LoopbackAuthServer(
