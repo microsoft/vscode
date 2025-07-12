@@ -240,10 +240,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 						throw new Error(localize('promptParser.notCompleted', "Prompt parser for {0} did not complete.", uri.toString()));
 					}
 
-					const { description, model, tools } = parser.metadata as TModeMetadata;
+					const { description, model, tools, name } = parser.metadata as TModeMetadata;
 					const body = await parser.getBody();
-					const name = getCleanPromptName(uri);
-					return { uri: uri, name, description, tools, model, body };
+					const modeName = name || getCleanPromptName(uri);
+					return { uri: uri, name: modeName, description, tools, model, body };
 				} finally {
 					parser?.dispose();
 				}

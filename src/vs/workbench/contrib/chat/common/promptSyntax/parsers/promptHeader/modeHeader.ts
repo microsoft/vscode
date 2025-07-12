@@ -8,11 +8,17 @@ import { PromptsType } from '../../promptTypes.js';
 import { FrontMatterRecord } from '../../codecs/base/frontMatterCodec/tokens/index.js';
 import { PromptModelMetadata } from './metadata/model.js';
 import { PromptToolsMetadata } from './metadata/tools.js';
+import { PromptNameMetadata } from './metadata/name.js';
 
 /**
  * Metadata utility object for mode files.
  */
 interface IModeMetadata extends IHeaderMetadata {
+	/**
+	 * Name metadata in the mode header.
+	 */
+	name: PromptNameMetadata;
+
 	/**
 	 * Tools metadata in the mode header.
 	 */
@@ -34,6 +40,15 @@ export type TModeMetadata = Partial<TDehydrated<IModeMetadata>> & { promptType: 
  */
 export class ModeHeader extends HeaderBase<IModeMetadata> {
 	protected override handleToken(token: FrontMatterRecord): boolean {
+		// if the record might be a "name" metadata
+		// add it to the list of parsed metadata records
+		if (PromptNameMetadata.isNameRecord(token)) {
+			const metadata = new PromptNameMetadata(token, this.languageId);
+
+			this.issues.push(...metadata.validate());
+			this.meta.name = metadata;
+			return true;
+		}
 		// if the record might be a "tools" metadata
 		// add it to the list of parsed metadata records
 		if (PromptToolsMetadata.isToolsRecord(token)) {
