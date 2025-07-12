@@ -17,9 +17,10 @@ import { Disposable, DisposableStore, dispose } from '../../../base/common/lifec
 import Severity from '../../../base/common/severity.js';
 import { isString } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
-import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus, QuickInputType } from '../common/quickInput.js';
+import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickTree, IQuickTreeItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus, QuickInputType } from '../common/quickInput.js';
 import { QuickInputBox } from './quickInputBox.js';
 import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget, InQuickInputContextKey, QuickInputTypeContextKey, EndOfQuickInputBoxContextKey, QuickInputAlignmentContextKey } from './quickInput.js';
+import { QuickTree } from './tree/quickTree.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -155,6 +156,7 @@ export class QuickInputController extends Disposable {
 		const headerContainer = dom.append(container, $('.quick-input-header'));
 
 		const checkAll = this._register(new Checkbox(localize('quickInput.checkAll', "Toggle all checkboxes"), false, { ...defaultCheckboxStyles, size: 15 }));
+		checkAll.domNode.classList.add('quick-input-check-all');
 		dom.append(headerContainer, checkAll.domNode);
 		this._register(checkAll.onChange(() => {
 			const checked = checkAll.checked;
@@ -639,12 +641,38 @@ export class QuickInputController extends Disposable {
 		return new QuickWidget(ui);
 	}
 
+	createQuickTree<T extends IQuickTreeItem>(): IQuickTree<T> {
+		const ui = this.getUI(true);
+		return this.instantiationService.createInstance(QuickTree<T>, ui, { hoverDelegate: this.options.hoverDelegate, styles: this.options.styles });
+	}
+
 	private show(controller: IQuickInput) {
 		const ui = this.getUI(true);
 		this.onShowEmitter.fire();
 		const oldController = this.controller;
 		this.controller = controller;
 		oldController?.didHide();
+
+		// Handle QuickTree keyboard navigation and checked count updates
+		if (controller instanceof QuickTree) {
+			this._register(controller.onDidLeave(() => {
+				// Defer to avoid the input field reacting to the triggering key.
+				setTimeout(() => {
+					if (!this.controller) {
+						return;
+					}
+					ui.inputBox.setFocus();
+					if (this.controller instanceof QuickTree && this.controller.canSelectMany) {
+						// For QuickTree, we don't clear focus since it manages its own focus
+					}
+				}, 0);
+			}));
+
+			// Listen to checked count changes for QuickTree
+			this._register(controller.onChangedCheckedCount(c => {
+				ui.count.setCount(c);
+			}));
+		}
 
 		this.setEnabled(true);
 		ui.leftActionBar.clear();
