@@ -459,7 +459,7 @@ export function registerChatActions() {
 				}));
 				store.add(picker.onDidTriggerItemButton(async context => {
 					if (context.button === openInEditorButton) {
-						const options: IChatEditorOptions = { target: { sessionId: context.item.chat.sessionId }, pinned: true };
+						const options: IChatEditorOptions = { target: { sessionId: context.item.chat.sessionId }, pinned: true, viewState: { inputState: { chatMode: context.item.chat.mode } } };
 						editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, ACTIVE_GROUP);
 						picker.hide();
 					} else if (context.button === deleteButton) {
@@ -479,7 +479,7 @@ export function registerChatActions() {
 					try {
 						const item = picker.selectedItems[0];
 						const sessionId = item.chat.sessionId;
-						await view.loadSession(sessionId);
+						await view.loadSession(sessionId, { inputState: { chatMode: item.chat.mode } });
 					} finally {
 						picker.hide();
 					}

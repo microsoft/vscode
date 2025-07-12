@@ -27,7 +27,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IChatAgent, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges, getLastRequestChatMode } from './chatModel.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from './chatParserTypes.js';
 import { ChatRequestParser } from './chatRequestParser.js';
 import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
@@ -401,6 +401,7 @@ export class ChatService extends Disposable implements IChatService {
 						title,
 						lastMessageDate: session.lastMessageDate,
 						isActive: true,
+						mode: session.lastRequestChatMode,
 					} satisfies IChatDetail;
 				});
 
@@ -427,6 +428,7 @@ export class ChatService extends Disposable implements IChatService {
 					title,
 					lastMessageDate: session.lastMessageDate,
 					isActive: false,
+					mode: getLastRequestChatMode(session),
 				} satisfies IChatDetail;
 			});
 		const liveSessionItems = Array.from(this._sessionModels.values())
@@ -438,6 +440,7 @@ export class ChatService extends Disposable implements IChatService {
 					title,
 					lastMessageDate: session.lastMessageDate,
 					isActive: true,
+					mode: session.lastRequestChatMode,
 				} satisfies IChatDetail;
 			});
 		return [...liveSessionItems, ...persistedSessionItems];

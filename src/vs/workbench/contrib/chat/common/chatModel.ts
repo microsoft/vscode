@@ -239,6 +239,10 @@ export class ChatRequestModel implements IChatRequestModel {
 		return this.session.requesterUsername;
 	}
 
+	public get mode(): ChatModeKind | undefined {
+		return this.response?.agent?.modes[0];
+	}
+
 	public get avatarIconUri(): URI | undefined {
 		return this.session.requesterAvatarIconUri;
 	}
@@ -1011,6 +1015,17 @@ export type ISerializableChatData = ISerializableChatData3;
 export type ISerializableChatDataIn = ISerializableChatData1 | ISerializableChatData2 | ISerializableChatData3;
 
 /**
+ * Returns the chat mode of the last request from the chat data.
+ */
+export function getLastRequestChatMode(chatData: ISerializableChatData): ChatModeKind | undefined {
+	const lastRequest = chatData.requests[chatData.requests.length - 1];
+	if (lastRequest.agent?.modes.length) {
+		return lastRequest.agent?.modes[0];
+	}
+	return undefined;
+}
+
+/**
  * Normalize chat data from storage to the current format.
  * TODO- ChatModel#_deserialize and reviveSerializedAgent also still do some normalization and maybe that should be done in here too.
  */
@@ -1271,6 +1286,10 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	get editingSession(): IChatEditingSession | undefined {
 		return this._editingSession?.promiseResult.get()?.data;
+	}
+
+	get lastRequestChatMode(): ChatModeKind | undefined {
+		return this.lastRequest?.mode;
 	}
 
 	constructor(
