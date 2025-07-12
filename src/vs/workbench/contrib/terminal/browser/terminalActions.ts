@@ -29,7 +29,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { FileKind } from '../../../../platform/files/common/files.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IListService } from '../../../../platform/list/browser/listService.js';
@@ -52,6 +52,7 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { accessibleViewCurrentProviderId, accessibleViewIsShown, accessibleViewOnLastLine } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { HasSpeechProvider } from '../../speech/common/speechService.js';
 import { IRemoteTerminalAttachTarget, ITerminalProfileResolverService, ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../common/terminal.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { terminalStrings } from '../common/terminalStrings.js';
@@ -61,6 +62,7 @@ import { getColorClass, getIconId, getUriClasses } from './terminalIcon.js';
 import { killTerminalIcon, newTerminalIcon } from './terminalIcons.js';
 import { ITerminalQuickPickItem } from './terminalProfileQuickpick.js';
 import { TerminalTabList } from './terminalTabsList.js';
+import { TerminalVoiceSession } from './terminalVoice.js';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -1391,6 +1393,28 @@ export function registerTerminalActions() {
 			} else {
 				console.warn(`Unmatched terminal item: "${item}"`);
 			}
+		}
+	});
+
+	registerActiveInstanceAction({
+		id: TerminalCommandId.StartVoice,
+		title: localize2('workbench.action.terminal.startDictation', "Start Dictation in Terminal"),
+		precondition: ContextKeyExpr.and(HasSpeechProvider, sharedWhenClause.terminalAvailable),
+		f1: true,
+		run: (activeInstance, c, accessor) => {
+			const instantiationService = accessor.get(IInstantiationService);
+			TerminalVoiceSession.getInstance(instantiationService).start();
+		}
+	});
+
+	registerActiveInstanceAction({
+		id: TerminalCommandId.StopVoice,
+		title: localize2('workbench.action.terminal.stopDictation', "Stop Dictation in Terminal"),
+		precondition: ContextKeyExpr.and(HasSpeechProvider, sharedWhenClause.terminalAvailable),
+		f1: true,
+		run: (activeInstance, c, accessor) => {
+			const instantiationService = accessor.get(IInstantiationService);
+			TerminalVoiceSession.getInstance(instantiationService).stop(true);
 		}
 	});
 }
