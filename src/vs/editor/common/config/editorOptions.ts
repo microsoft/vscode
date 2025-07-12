@@ -413,7 +413,7 @@ export interface IEditorOptions {
 	 */
 	mouseWheelScrollSensitivity?: number;
 	/**
-	 * FastScrolling mulitplier speed when pressing `Alt`
+	 * FastScrolling multiplier speed when pressing `Alt`
 	 * Defaults to 5.
 	 */
 	fastScrollSensitivity?: number;
