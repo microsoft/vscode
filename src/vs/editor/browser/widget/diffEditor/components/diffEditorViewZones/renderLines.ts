@@ -219,7 +219,7 @@ function renderOriginalLine(
 		options.renderWhitespace,
 		options.renderControlCharacters,
 		options.fontLigatures !== EditorFontLigatures.OFF,
-		null // Send no selections, original line cannot be selected
+		[] // Allow selections on original line
 	), sb);
 
 	sb.appendString('</div>');
