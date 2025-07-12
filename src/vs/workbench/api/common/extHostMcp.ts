@@ -392,7 +392,8 @@ class McpHTTPHandle extends Disposable {
 		const body = await resourceMetadataResponse.json();
 		if (isAuthorizationProtectedResourceMetadata(body)) {
 			const resolvedResource = getResourceServerBaseUrlFromDiscoveryUrl(resourceMetadata);
-			if (body.resource !== resolvedResource) {
+			// Use URL constructor for normalization - it handles hostname case and trailing slashes
+			if (new URL(body.resource).toString() !== new URL(resolvedResource).toString()) {
 				throw new Error(`Protected Resource Metadata resource "${body.resource}" does not match MCP server resolved resource "${resolvedResource}". The MCP server must follow OAuth spec https://datatracker.ietf.org/doc/html/rfc9728#PRConfigurationValidation`);
 			}
 			return body;
