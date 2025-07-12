@@ -14,16 +14,16 @@ Visual Studio Code is built with a layered architecture using TypeScript, web AP
 - `out/`: Compiled JavaScript output (generated during build)
 
 ### Core Architecture (`src/` folder)
-- **`src/vs/base/`** - Foundation utilities and cross-platform abstractions
-- **`src/vs/platform/`** - Platform services and dependency injection infrastructure
-- **`src/vs/editor/`** - Text editor implementation with language services, syntax highlighting, and editing features
-- **`src/vs/workbench/`** - Main application workbench for web and desktop
-  - **`workbench/browser/`** - Core workbench UI components (parts, layout, actions)
-  - **`workbench/services/`** - Service implementations
-  - **`workbench/contrib/`** - Feature contributions (git, debug, search, terminal, etc.)
-  - **`workbench/api/`** - Extension host and VS Code API implementation
-- **`src/vs/code/`** - Electron main process specific implementation
-- **`src/vs/server/`** - Server specific implementation
+- `src/vs/base/` - Foundation utilities and cross-platform abstractions
+- `src/vs/platform/` - Platform services and dependency injection infrastructure
+- `src/vs/editor/` - Text editor implementation with language services, syntax highlighting, and editing features
+- `src/vs/workbench/` - Main application workbench for web and desktop
+  - `workbench/browser/` - Core workbench UI components (parts, layout, actions)
+  - `workbench/services/` - Service implementations
+  - `workbench/contrib/` - Feature contributions (git, debug, search, terminal, etc.)
+  - `workbench/api/` - Extension host and VS Code API implementation
+- `src/vs/code/` - Electron main process specific implementation
+- `src/vs/server/` - Server specific implementation
 
 The core architecture follows these principles:
 - **Layered architecture** - from `base`, `platform`, `editor`, to `workbench`
