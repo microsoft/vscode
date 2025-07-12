@@ -620,7 +620,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
-		if (element.errorDetails?.message && element.errorDetails.message !== canceledName) {
+		if (element.model.response === element.model.entireResponse && element.errorDetails?.message && element.errorDetails.message !== canceledName) {
 			content.push({ kind: 'errorDetails', errorDetails: element.errorDetails, isLast: index === this.delegate.getListLength() - 1 });
 		}
 
@@ -1236,6 +1236,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						if (selection && !selection.isCollapsed && selection.toString().length > 0) {
 							return;
 						}
+
+						const clickedElement = e.target as HTMLElement;
+						if (clickedElement.tagName === 'A') {
+							return;
+						}
+
 						e.preventDefault();
 						e.stopPropagation();
 						this._onDidClickRequest.fire(templateData);

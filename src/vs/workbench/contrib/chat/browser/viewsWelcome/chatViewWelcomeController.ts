@@ -20,6 +20,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidgetService } from '../chat.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { chatViewsWelcomeRegistry, IChatViewsWelcomeDescriptor } from './chatViewsWelcome.js';
 
 const $ = dom.$;
@@ -142,6 +143,7 @@ export class ChatViewWelcomePart extends Disposable {
 		@ILogService private logService: ILogService,
 		@IChatWidgetService private chatWidgetService: IChatWidgetService,
 		@ITelemetryService private telemetryService: ITelemetryService,
+		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 		super();
 		this.element = dom.$('.chat-welcome-view');
@@ -160,13 +162,15 @@ export class ChatViewWelcomePart extends Disposable {
 			title.textContent = content.title;
 
 			// Preview indicator
-			if (typeof content.message !== 'function' && options?.isWidgetAgentWelcomeViewContent) {
+			const expEmptyState = this.configurationService.getValue<boolean>('chat.emptyChatState.enabled');
+			if (typeof content.message !== 'function' && options?.isWidgetAgentWelcomeViewContent && !expEmptyState) {
 				const container = dom.append(this.element, $('.chat-welcome-view-indicator-container'));
 				dom.append(container, $('.chat-welcome-view-subtitle', undefined, localize('agentModeSubtitle', "Agent Mode")));
 			}
 
 			// Message
 			const message = dom.append(this.element, content.isExperimental ? $('.chat-welcome-experimental-view-message') : $('.chat-welcome-view-message'));
+			message.classList.toggle('experimental-empty-state', expEmptyState);
 			if (typeof content.message === 'function') {
 				dom.append(message, content.message(this._register(new DisposableStore())));
 			} else {

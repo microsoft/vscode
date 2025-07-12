@@ -29,19 +29,19 @@ type BucketPick = IQuickPickItem & { picked: boolean; ordinal: BucketOrdinal; st
 type ToolSetPick = IQuickPickItem & { picked: boolean; toolset: ToolSet; parent: BucketPick };
 type ToolPick = IQuickPickItem & { picked: boolean; tool: IToolData; parent: BucketPick };
 type CallbackPick = IQuickPickItem & { pickable: false; run: () => void };
-type MyPick = BucketPick | ToolSetPick | ToolPick | CallbackPick;
+type AnyPick = BucketPick | ToolSetPick | ToolPick | CallbackPick;
 type ActionableButton = IQuickInputButton & { action: () => void };
 
 function isBucketPick(obj: any): obj is BucketPick {
 	return Boolean((obj as BucketPick).children);
 }
-function isToolSetPick(obj: MyPick): obj is ToolSetPick {
+function isToolSetPick(obj: AnyPick): obj is ToolSetPick {
 	return Boolean((obj as ToolSetPick).toolset);
 }
-function isToolPick(obj: MyPick): obj is ToolPick {
+function isToolPick(obj: AnyPick): obj is ToolPick {
 	return Boolean((obj as ToolPick).tool);
 }
-function isCallbackPick(obj: MyPick): obj is CallbackPick {
+function isCallbackPick(obj: AnyPick): obj is CallbackPick {
 	return Boolean((obj as CallbackPick).run);
 }
 function isActionableButton(obj: IQuickInputButton): obj is ActionableButton {
@@ -237,7 +237,7 @@ export async function showToolsPicker(
 
 	const store = new DisposableStore();
 
-	const picks: (MyPick | IQuickPickSeparator)[] = [];
+	const picks: (AnyPick | IQuickPickSeparator)[] = [];
 
 	for (const bucket of Array.from(toolBuckets.values()).sort((a, b) => a.ordinal - b.ordinal)) {
 		picks.push({
@@ -249,8 +249,9 @@ export async function showToolsPicker(
 		picks.push(...bucket.children.sort((a, b) => a.label.localeCompare(b.label)));
 	}
 
-	const picker = store.add(quickPickService.createQuickPick<MyPick>({ useSeparators: true }));
+	const picker = store.add(quickPickService.createQuickPick<AnyPick>({ useSeparators: true }));
 	picker.placeholder = placeHolder;
+	picker.ignoreFocusOut = true;
 	picker.description = description;
 	picker.canSelectMany = true;
 	picker.keepScrollPosition = true;
@@ -272,7 +273,7 @@ export async function showToolsPicker(
 		);
 	}
 
-	let lastSelectedItems = new Set<MyPick>();
+	let lastSelectedItems = new Set<AnyPick>();
 	let ignoreEvent = false;
 
 	const result = new Map<IToolData | ToolSet, boolean>();
@@ -280,7 +281,7 @@ export async function showToolsPicker(
 	const _update = () => {
 		ignoreEvent = true;
 		try {
-			const items = picks.filter((p): p is MyPick => p.type === 'item' && Boolean(p.picked));
+			const items = picks.filter((p): p is AnyPick => p.type === 'item' && Boolean(p.picked));
 			lastSelectedItems = new Set(items);
 			picker.selectedItems = items;
 

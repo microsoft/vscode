@@ -153,17 +153,21 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			return this._collectCompletions(providers, shellType, promptValue, cursorPosition, allowFallbackCompletions, capabilities, token, explicitlyInvoked);
 		}
 
-		const providerConfig: { [key: string]: boolean } = this._configurationService.getValue(TerminalSuggestSettingId.Providers);
-		providers = providers.filter(p => {
-			const providerId = p.id;
-			return providerId && providerId in providerConfig && providerConfig[providerId] !== false;
-		});
+		providers = this._getEnabledProviders(providers);
 
 		if (!providers.length) {
 			return;
 		}
 
 		return this._collectCompletions(providers, shellType, promptValue, cursorPosition, allowFallbackCompletions, capabilities, token, explicitlyInvoked);
+	}
+
+	protected _getEnabledProviders(providers: ITerminalCompletionProvider[]): ITerminalCompletionProvider[] {
+		const providerConfig: { [key: string]: boolean } = this._configurationService.getValue(TerminalSuggestSettingId.Providers);
+		return providers.filter(p => {
+			const providerId = p.id;
+			return providerId && (!(providerId in providerConfig) || providerConfig[providerId] !== false);
+		});
 	}
 
 	private async _collectCompletions(providers: ITerminalCompletionProvider[], shellType: TerminalShellType | undefined, promptValue: string, cursorPosition: number, allowFallbackCompletions: boolean, capabilities: ITerminalCapabilityStore, token: CancellationToken, explicitlyInvoked?: boolean): Promise<ITerminalCompletion[] | undefined> {

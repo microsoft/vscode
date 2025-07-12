@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-gEAyFzmkyqMoTTnN+3KReFUYoHsK4RAJEb+6eiul+UY=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-l9e7E37hgQqoIAqcFRgQ5/0NqMMW93mQmYAsUcDUyZ4=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -221,9 +221,9 @@
 							});
 						};
 					})();
-					delete window.parent;
-					delete window.top;
-					delete window.frameElement;
+					window.parent = window;
+					window.top = window;
+					window.frameElement = null;
 				`;
 		}
 

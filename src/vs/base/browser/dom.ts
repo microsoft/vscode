@@ -1770,9 +1770,87 @@ export const basicMarkupHtmlTags = Object.freeze([
 	'wbr',
 ]);
 
+export const trustedMathMlTags = Object.freeze([
+	'semantics',
+	'annotation',
+	'math',
+	'menclose',
+	'merror',
+	'mfenced',
+	'mfrac',
+	'mglyph',
+	'mi',
+	'mlabeledtr',
+	'mmultiscripts',
+	'mn',
+	'mo',
+	'mover',
+	'mpadded',
+	'mphantom',
+	'mroot',
+	'mrow',
+	'ms',
+	'mspace',
+	'msqrt',
+	'mstyle',
+	'msub',
+	'msup',
+	'msubsup',
+	'mtable',
+	'mtd',
+	'mtext',
+	'mtr',
+	'munder',
+	'munderover',
+	'mprescripts',
+
+	// svg tags
+	'svg',
+	'altglyph',
+	'altglyphdef',
+	'altglyphitem',
+	'circle',
+	'clippath',
+	'defs',
+	'desc',
+	'ellipse',
+	'filter',
+	'font',
+	'g',
+	'glyph',
+	'glyphref',
+	'hkern',
+	'line',
+	'lineargradient',
+	'marker',
+	'mask',
+	'metadata',
+	'mpath',
+	'path',
+	'pattern',
+	'polygon',
+	'polyline',
+	'radialgradient',
+	'rect',
+	'stop',
+	'style',
+	'switch',
+	'symbol',
+	'text',
+	'textpath',
+	'title',
+	'tref',
+	'tspan',
+	'view',
+	'vkern',
+]);
+
+
+export const defaultAllowedAttrs = Object.freeze(['href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code', 'width', 'height', 'align', 'x-dispatch', 'required', 'checked', 'placeholder', 'type', 'start']);
+
 const defaultDomPurifyConfig = Object.freeze<dompurify.Config & { RETURN_TRUSTED_TYPE: true }>({
 	ALLOWED_TAGS: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
-	ALLOWED_ATTR: ['href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code', 'width', 'height', 'align', 'x-dispatch', 'required', 'checked', 'placeholder', 'type', 'start'],
+	ALLOWED_ATTR: [...defaultAllowedAttrs],
 	RETURN_DOM: false,
 	RETURN_DOM_FRAGMENT: false,
 	RETURN_TRUSTED_TYPE: true
@@ -1789,32 +1867,6 @@ export function safeInnerHtml(node: HTMLElement, value: string, extraDomPurifyCo
 	} finally {
 		hook.dispose();
 	}
-}
-
-/**
- * Convert a Unicode string to a string in which each 16-bit unit occupies only one byte
- *
- * From https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/btoa
- */
-function toBinary(str: string): string {
-	const codeUnits = new Uint16Array(str.length);
-	for (let i = 0; i < codeUnits.length; i++) {
-		codeUnits[i] = str.charCodeAt(i);
-	}
-	let binary = '';
-	const uint8array = new Uint8Array(codeUnits.buffer);
-	for (let i = 0; i < uint8array.length; i++) {
-		binary += String.fromCharCode(uint8array[i]);
-	}
-	return binary;
-}
-
-/**
- * Version of the global `btoa` function that handles multi-byte characters instead
- * of throwing an exception.
- */
-export function multibyteAwareBtoa(str: string): string {
-	return btoa(toBinary(str));
 }
 
 type ModifierKey = 'alt' | 'ctrl' | 'shift' | 'meta';
