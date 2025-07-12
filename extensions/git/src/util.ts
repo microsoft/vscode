@@ -790,3 +790,14 @@ export function toDiagnosticSeverity(value: DiagnosticSeverityConfig): Diagnosti
 				? DiagnosticSeverity.Information
 				: DiagnosticSeverity.Hint;
 }
+
+// From src/vs/base/common/htmlContent.ts
+export function escapeMarkdownSyntaxTokens(text: string): string {
+	// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
+	return text.replace(/[\\`*_{}[\]()#+\-!~]/g, '\\$&'); // CodeQL [SM02383] Backslash is escaped in the character class
+}
+
+// From src/vs/base/common/htmlContent.ts
+export function escapeDoubleQuotes(input: string) {
+	return input.replace(/"/g, '&quot;');
+}
