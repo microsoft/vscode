@@ -50,6 +50,16 @@ suite('Prompt Constants', () => {
 				getCleanPromptName(URI.parse('untitled:Untitled-1')),
 				'Untitled-1',
 			);
+
+			assert.strictEqual(
+				getCleanPromptName(URI.file('/path/to/learn.chatmode.md')),
+				'learn',
+			);
+
+			assert.strictEqual(
+				getCleanPromptName(URI.file('/path/to/plan.chatmode.md')),
+				'plan',
+			);
 		});
 	});
 
