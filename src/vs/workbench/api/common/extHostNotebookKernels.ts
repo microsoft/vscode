@@ -282,6 +282,9 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				}
 				that._proxy.$updateNotebookPriority(handle, notebook.uri, priority);
 			},
+			updateReplAffinity(selector, priority) {
+				that._proxy.$updateReplPriority(handle, selector, priority);
+			},
 			// --- ipc
 			onDidReceiveMessage: onDidReceiveMessage.event,
 			postMessage(message, editor) {
