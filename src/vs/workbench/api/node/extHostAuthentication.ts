@@ -35,6 +35,7 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		serverMetadata: IAuthorizationServerMetadata,
 		resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
 		clientId: string,
+		clientSecret: string | undefined,
 		onDidDynamicAuthProviderTokensChange: Emitter<{ authProviderId: string; clientId: string; tokens: any[] }>,
 		initialTokens: any[]
 	) {
@@ -49,12 +50,13 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 			serverMetadata,
 			resourceMetadata,
 			clientId,
+			clientSecret,
 			onDidDynamicAuthProviderTokensChange,
 			initialTokens
 		);
 
 		// Prepend Node-specific flows to the existing flows
-		if (!initData.remote.isRemote) {
+		if (!initData.remote.isRemote && serverMetadata.authorization_endpoint) {
 			// If we are not in a remote environment, we can use the loopback server for authentication
 			this._createFlows.unshift({
 				label: nls.localize('loopback', "Loopback Server"),
@@ -72,6 +74,13 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 	}
 
 	private async _createWithLoopbackServer(scopes: string[], progress: vscode.Progress<IProgressStep>, token: vscode.CancellationToken): Promise<IAuthorizationTokenResponse> {
+		if (!this._serverMetadata.authorization_endpoint) {
+			throw new Error('Authorization Endpoint required');
+		}
+		if (!this._serverMetadata.token_endpoint) {
+			throw new Error('Token endpoint not available in server metadata');
+		}
+
 		// Generate PKCE code verifier (random string) and code challenge (SHA-256 hash of verifier)
 		const codeVerifier = this.generateRandomString(64);
 		const codeChallenge = await this.generateCodeChallenge(codeVerifier);
@@ -87,7 +96,7 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		}
 
 		// Prepare the authorization request URL
-		const authorizationUrl = new URL(this._serverMetadata.authorization_endpoint!);
+		const authorizationUrl = new URL(this._serverMetadata.authorization_endpoint);
 		authorizationUrl.searchParams.append('client_id', this._clientId);
 		authorizationUrl.searchParams.append('response_type', 'code');
 		authorizationUrl.searchParams.append('code_challenge', codeChallenge);

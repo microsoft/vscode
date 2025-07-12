@@ -27,6 +27,7 @@ import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
 import { IAuthorizationTokenResponse } from '../../../base/common/oauth.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
+import { IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
 
 export interface AuthenticationInteractiveOptions {
 	detail?: string;
@@ -94,7 +95,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@ILogService private readonly logService: ILogService,
 		@IURLService private readonly urlService: IURLService,
 		@IDynamicAuthenticationProviderStorageService private readonly dynamicAuthProviderStorageService: IDynamicAuthenticationProviderStorageService,
-		@IClipboardService private readonly clipboardService: IClipboardService
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
@@ -121,7 +123,9 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			create: async (authorizationServer, serverMetadata, resource) => {
 				// Auth Provider Id is a combination of the authorization server and the resource, if provided.
 				const authProviderId = resource ? `${authorizationServer.toString(true)} ${resource.resource}` : authorizationServer.toString(true);
-				const clientId = this.dynamicAuthProviderStorageService.getClientId(authProviderId);
+				const clientDetails = await this.dynamicAuthProviderStorageService.getClientRegistration(authProviderId);
+				const clientId = clientDetails?.clientId;
+				const clientSecret = clientDetails?.clientSecret;
 				let initialTokens: (IAuthorizationTokenResponse & { created_at: number })[] | undefined = undefined;
 				if (clientId) {
 					initialTokens = await this.dynamicAuthProviderStorageService.getSessionsForDynamicAuthProvider(authProviderId, clientId);
@@ -131,6 +135,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 					serverMetadata,
 					resource,
 					clientId,
+					clientSecret,
 					initialTokens
 				);
 			}
@@ -224,25 +229,28 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return deferredPromise.p;
 	}
 
-	async $registerDynamicAuthenticationProvider(id: string, label: string, authorizationServer: UriComponents, clientId: string): Promise<void> {
+	async $registerDynamicAuthenticationProvider(id: string, label: string, authorizationServer: UriComponents, clientId: string, clientSecret?: string): Promise<void> {
 		await this.$registerAuthenticationProvider(id, label, true, [authorizationServer]);
-		this.dynamicAuthProviderStorageService.storeClientId(id, URI.revive(authorizationServer).toString(true), clientId, label);
+		await this.dynamicAuthProviderStorageService.storeClientRegistration(id, URI.revive(authorizationServer).toString(true), clientId, clientSecret, label);
 	}
 
 	async $setSessionsForDynamicAuthProvider(authProviderId: string, clientId: string, sessions: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<void> {
 		await this.dynamicAuthProviderStorageService.setSessionsForDynamicAuthProvider(authProviderId, clientId, sessions);
 	}
 
-	async $sendDidChangeDynamicProviderInfo({ providerId, clientId, authorizationServer, label }: Partial<{ providerId: string; clientId: string; authorizationServer: UriComponents; label: string }>): Promise<void> {
+	async $sendDidChangeDynamicProviderInfo({ providerId, clientId, authorizationServer, label, clientSecret }: Partial<{ providerId: string; clientId: string; authorizationServer: UriComponents; label: string; clientSecret: string }>): Promise<void> {
 		this.logService.info(`Client ID for authentication provider ${providerId} changed to ${clientId}`);
 		const existing = this.dynamicAuthProviderStorageService.getInteractedProviders().find(p => p.providerId === providerId);
 		if (!existing) {
 			throw new Error(`Dynamic authentication provider ${providerId} not found. Has it been registered?`);
 		}
-		this.dynamicAuthProviderStorageService.storeClientId(
+
+		// Store client credentials together
+		await this.dynamicAuthProviderStorageService.storeClientRegistration(
 			providerId || existing.providerId,
 			authorizationServer ? URI.revive(authorizationServer).toString(true) : existing.authorizationServer,
 			clientId || existing.clientId,
+			clientSecret,
 			label || existing.label
 		);
 	}
@@ -535,5 +543,60 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			}
 		}
 		return false;
+	}
+
+	async $promptForClientRegistration(authorizationServerUrl: string): Promise<{ clientId: string; clientSecret?: string } | undefined> {
+		// Show modal dialog first to explain the situation and get user consent
+		const result = await this.dialogService.prompt({
+			type: Severity.Info,
+			message: nls.localize('dcrNotSupported', "Dynamic Client Registration not supported"),
+			detail: nls.localize('dcrNotSupportedDetail', "The authorization server '{0}' does not support automatic client registration. Do you want to proceed by manually providing a client registration (client ID)?\n\nNote: When registering your OAuth application, make sure to include these redirect URIs:\nhttp://127.0.0.1:33418\nhttps://vscode.dev/redirect", authorizationServerUrl),
+			buttons: [
+				{
+					label: nls.localize('provideClientDetails', "Proceed"),
+					run: () => true
+				}
+			],
+			cancelButton: {
+				label: nls.localize('cancel', "Cancel"),
+				run: () => false
+			}
+		});
+
+		if (!result) {
+			return undefined;
+		}
+
+		const sharedTitle = nls.localize('addClientRegistrationDetails', "Add Client Registration Details");
+
+		const clientId = await this.quickInputService.input({
+			title: sharedTitle,
+			prompt: nls.localize('clientIdPrompt', "Enter an existing client ID that has been registered with the following redirect URIs: http://127.0.0.1:33418, https://vscode.dev/redirect"),
+			placeHolder: nls.localize('clientIdPlaceholder', "OAuth client ID (azye39d...)"),
+			ignoreFocusLost: true,
+			validateInput: async (value: string) => {
+				if (!value || value.trim().length === 0) {
+					return nls.localize('clientIdRequired', "Client ID is required");
+				}
+				return undefined;
+			}
+		});
+
+		if (!clientId || clientId.trim().length === 0) {
+			return undefined;
+		}
+
+		const clientSecret = await this.quickInputService.input({
+			title: sharedTitle,
+			prompt: nls.localize('clientSecretPrompt', "(optional) Enter an existing client secret associated with the client id '{0}' or leave this field blank", clientId),
+			placeHolder: nls.localize('clientSecretPlaceholder', "OAuth client secret (wer32o50f...) or leave it blank"),
+			password: true,
+			ignoreFocusLost: true
+		});
+
+		return {
+			clientId: clientId.trim(),
+			clientSecret: clientSecret?.trim() || undefined
+		};
 	}
 }
