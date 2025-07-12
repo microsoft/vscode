@@ -313,11 +313,12 @@ export class EditorPool extends Disposable {
 		options: ChatEditorOptions,
 		delegate: IChatRendererDelegate,
 		overflowWidgetsDomNode: HTMLElement | undefined,
+		private readonly isSimpleWidget: boolean = false,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 		this._pool = this._register(new ResourcePool(() => {
-			return instantiationService.createInstance(CodeBlockPart, options, MenuId.ChatCodeBlock, delegate, overflowWidgetsDomNode);
+			return instantiationService.createInstance(CodeBlockPart, options, MenuId.ChatCodeBlock, delegate, overflowWidgetsDomNode, this.isSimpleWidget);
 		}));
 	}
 
