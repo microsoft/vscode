@@ -220,6 +220,12 @@
     ],
     "markdown.previewStyles": [
       "./markdown.css"
+    ],
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "github-mcp-provider",
+        "label": "GitHub"
+      }
     ]
   },
   "scripts": {
