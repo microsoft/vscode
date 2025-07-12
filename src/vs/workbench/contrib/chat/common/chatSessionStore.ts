@@ -20,7 +20,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
-import { ChatModel, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData } from './chatModel.js';
+import { ChatModel, ISerializableChatData, getLastRequestChatMode, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData } from './chatModel.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
 
 const maxPersistedSessions = 25;
@@ -396,6 +396,7 @@ interface IChatSessionEntryMetadata {
 	 * filter the old ones out of history.
 	 */
 	isEmpty?: boolean;
+	mode?: ChatModeKind;
 }
 
 function isChatSessionEntryMetadata(obj: unknown): obj is IChatSessionEntryMetadata {
@@ -438,6 +439,13 @@ function isChatSessionIndex(data: unknown): data is IChatSessionIndexData {
 	}
 
 	return true;
+}
+
+export function getSessionLastRequestMode(session: ChatModel | ISerializableChatData): ChatModeKind | undefined {
+	if (session instanceof ChatModel) {
+		return session.lastRequestChatMode;
+	}
+	return getLastRequestChatMode(session);
 }
 
 function getSessionMetadata(session: ChatModel | ISerializableChatData): IChatSessionEntryMetadata {
