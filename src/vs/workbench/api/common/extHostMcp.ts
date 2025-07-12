@@ -16,7 +16,7 @@ import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionStat
 import { ExtHostMcpShape, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as Convert from './extHostTypeConverters.js';
-import { AUTH_SERVER_METADATA_DISCOVERY_PATH, getDefaultMetadataForUrl, getMetadataWithDefaultValues, getResourceServerBaseUrlFromDiscoveryUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
+import { AUTH_SERVER_METADATA_DISCOVERY_PATH, getDefaultMetadataForUrl, getResourceServerBaseUrlFromDiscoveryUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
 import { URI } from '../../../base/common/uri.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { CancellationError } from '../../../base/common/errors.js';
@@ -347,10 +347,9 @@ class McpHTTPHandle extends Disposable {
 		}
 		try {
 			const serverMetadataResponse = await this._getAuthorizationServerMetadata(serverMetadataUrl, addtionalHeaders);
-			const serverMetadataWithDefaults = getMetadataWithDefaultValues(serverMetadataResponse);
 			this._authMetadata = {
 				authorizationServer: URI.parse(serverMetadataUrl),
-				serverMetadata: serverMetadataWithDefaults,
+				serverMetadata: serverMetadataResponse,
 				resourceMetadata: resource
 			};
 			return;

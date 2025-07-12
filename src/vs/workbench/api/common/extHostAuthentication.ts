@@ -190,30 +190,30 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		initialTokens: IAuthorizationToken[] | undefined
 	): Promise<string> {
 		if (!clientId) {
-			try {
-				const registration = await fetchDynamicRegistration(serverMetadata, this._initData.environment.appName, resourceMetadata?.scopes_supported);
-				clientId = registration.client_id;
-				clientSecret = registration.client_secret;
-			} catch (err) {
-				// When DCR fails, try to prompt the user for a client ID and client secret
-				const authorizationServer = URI.revive(authorizationServerComponents);
-				this._logService.info(`Dynamic registration failed for ${authorizationServer.toString()}: ${err.message}. Prompting user for client ID and client secret.`);
-
+			const authorizationServer = URI.revive(authorizationServerComponents);
+			if (serverMetadata.registration_endpoint) {
 				try {
-					const clientDetails = await this._proxy.$promptForClientRegistration(authorizationServer.toString());
-					if (!clientDetails) {
-						throw new Error('User did not provide client details');
-					}
-					clientId = clientDetails.clientId;
-					clientSecret = clientDetails.clientSecret;
-					this._logService.info(`User provided client ID for ${authorizationServer.toString()}`);
-					if (clientSecret) {
-						this._logService.info(`User provided client secret for ${authorizationServer.toString()}`);
-					} else {
-						this._logService.info(`User did not provide client secret for ${authorizationServer.toString()} (optional)`);
-					}
-				} catch (promptErr) {
-					throw new Error(`Dynamic registration failed and user did not provide client ID: ${err.message}`);
+					const registration = await fetchDynamicRegistration(serverMetadata, this._initData.environment.appName, resourceMetadata?.scopes_supported);
+					clientId = registration.client_id;
+					clientSecret = registration.client_secret;
+				} catch (err) {
+					this._logService.warn(`Dynamic registration failed for ${authorizationServer.toString()}: ${err.message}. Prompting user for client ID and client secret...`);
+				}
+			}
+			// Still no client id so dynamic client registration was either not supported or failed
+			if (!clientId) {
+				this._logService.info(`Prompting user for client registration details for ${authorizationServer.toString()}`);
+				const clientDetails = await this._proxy.$promptForClientRegistration(authorizationServer.toString());
+				if (!clientDetails) {
+					throw new Error('User did not provide client details');
+				}
+				clientId = clientDetails.clientId;
+				clientSecret = clientDetails.clientSecret;
+				this._logService.info(`User provided client registration for ${authorizationServer.toString()}`);
+				if (clientSecret) {
+					this._logService.trace(`User provided client secret for ${authorizationServer.toString()}`);
+				} else {
+					this._logService.trace(`User did not provide client secret for ${authorizationServer.toString()}`);
 				}
 			}
 		}
@@ -338,10 +338,13 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		));
 		this._disposable.add(this._tokenStore.onDidChangeSessions(e => this._onDidChangeSessions.fire(e)));
 		// Will be extended later to support other flows
-		this._createFlows = [{
-			label: nls.localize('url handler', "URL Handler"),
-			handler: (scopes, progress, token) => this._createWithUrlHandler(scopes, progress, token)
-		}];
+		this._createFlows = [];
+		if (_serverMetadata.authorization_endpoint) {
+			this._createFlows.push({
+				label: nls.localize('url handler', "URL Handler"),
+				handler: (scopes, progress, token) => this._createWithUrlHandler(scopes, progress, token)
+			});
+		}
 	}
 
 	get clientId(): string {
@@ -480,6 +483,13 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 	}
 
 	private async _createWithUrlHandler(scopes: string[], progress: vscode.Progress<IProgressStep>, token: vscode.CancellationToken): Promise<IAuthorizationTokenResponse> {
+		if (!this._serverMetadata.authorization_endpoint) {
+			throw new Error('Authorization Endpoint required');
+		}
+		if (!this._serverMetadata.token_endpoint) {
+			throw new Error('Token endpoint not available in server metadata');
+		}
+
 		// Generate PKCE code verifier (random string) and code challenge (SHA-256 hash of verifier)
 		const codeVerifier = this.generateRandomString(64);
 		const codeChallenge = await this.generateCodeChallenge(codeVerifier);
@@ -495,7 +505,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		}
 
 		// Prepare the authorization request URL
-		const authorizationUrl = new URL(this._serverMetadata.authorization_endpoint!);
+		const authorizationUrl = new URL(this._serverMetadata.authorization_endpoint);
 		authorizationUrl.searchParams.append('client_id', this._clientId);
 		authorizationUrl.searchParams.append('response_type', 'code');
 		authorizationUrl.searchParams.append('state', state.toString());

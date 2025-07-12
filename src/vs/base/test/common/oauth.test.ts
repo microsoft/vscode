@@ -8,7 +8,6 @@ import * as sinon from 'sinon';
 import {
 	getClaimsFromJWT,
 	getDefaultMetadataForUrl,
-	getMetadataWithDefaultValues,
 	getResourceServerBaseUrlFromDiscoveryUrl,
 	isAuthorizationAuthorizeResponse,
 	isAuthorizationDeviceResponse,
@@ -188,37 +187,6 @@ suite('OAuth', () => {
 			assert.strictEqual(metadata.token_endpoint, 'https://auth.example.com/token');
 			assert.strictEqual(metadata.registration_endpoint, 'https://auth.example.com/register');
 			assert.deepStrictEqual(metadata.response_types_supported, ['code', 'id_token', 'id_token token']);
-		});
-
-		test('getMetadataWithDefaultValues should fill in missing endpoints', () => {
-			const minimal: IAuthorizationServerMetadata = {
-				issuer: 'https://auth.example.com',
-				response_types_supported: ['code']
-			};
-
-			const complete = getMetadataWithDefaultValues(minimal);
-
-			assert.strictEqual(complete.issuer, 'https://auth.example.com');
-			assert.strictEqual(complete.authorization_endpoint, 'https://auth.example.com/authorize');
-			assert.strictEqual(complete.token_endpoint, 'https://auth.example.com/token');
-			assert.strictEqual(complete.registration_endpoint, 'https://auth.example.com/register');
-			assert.deepStrictEqual(complete.response_types_supported, ['code']);
-		});
-
-		test('getMetadataWithDefaultValues should preserve custom endpoints', () => {
-			const custom: IAuthorizationServerMetadata = {
-				issuer: 'https://auth.example.com',
-				authorization_endpoint: 'https://auth.example.com/custom-authorize',
-				token_endpoint: 'https://auth.example.com/custom-token',
-				registration_endpoint: 'https://auth.example.com/custom-register',
-				response_types_supported: ['code', 'token']
-			};
-
-			const complete = getMetadataWithDefaultValues(custom);
-
-			assert.strictEqual(complete.authorization_endpoint, 'https://auth.example.com/custom-authorize');
-			assert.strictEqual(complete.token_endpoint, 'https://auth.example.com/custom-token');
-			assert.strictEqual(complete.registration_endpoint, 'https://auth.example.com/custom-register');
 		});
 	});
 
