@@ -129,7 +129,6 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	private readonly globalActionsMenuId: MenuId;
 	private globalToolBar: MenuWorkbenchToolBar | undefined;
-	private actionsSeparator: HTMLElement | undefined;
 
 	private blockOpening: DeferredPromise<PaneComposite | undefined> | undefined = undefined;
 	protected contentDimension: Dimension | undefined;
@@ -352,9 +351,6 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			this.onTitleAreaContextMenu(new StandardMouseEvent(getWindow(titleArea), e));
 		}));
 
-		// Add separator between view actions and global panel actions
-		this.actionsSeparator = titleArea.appendChild($('.actions-separator'));
-
 		const globalTitleActionsContainer = titleArea.appendChild($('.global-actions'));
 
 		// Global Actions Toolbar
@@ -370,17 +366,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 				hoverDelegate: this.toolbarHoverDelegate,
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
 				highlightToggledItems: true,
-				telemetrySource: this.nameForTelemetry
+				telemetrySource: this.nameForTelemetry,
+				separate: true
 			}
 		));
-
-		// Update separator visibility when global toolbar changes
-		this._register(this.globalToolBar.onDidChangeMenuItems(() => {
-			this.updateSeparatorVisibility();
-		}));
-
-		// Initial separator visibility update
-		this.updateSeparatorVisibility();
 
 		return titleArea;
 	}
@@ -548,9 +537,6 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			const result = this.openComposite(id, focus) as PaneComposite | undefined;
 			blockOpening?.complete(result);
 
-			// Update separator visibility when a new composite is opened
-			this.updateSeparatorVisibility();
-
 			return result;
 		} catch (error) {
 			blockOpening?.error(error);
@@ -707,14 +693,6 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			return viewsActions.length > 1 && viewsActions.some(a => a.enabled) ? new SubmenuAction('views', localize('views', "Views"), viewsActions) : undefined;
 		}
 		return undefined;
-	}
-
-	private updateSeparatorVisibility(): void {
-		if (this.actionsSeparator && this.globalToolBar) {
-			// Show separator only when global toolbar has actions
-			const hasGlobalActions = this.globalToolBar.getItemsLength() > 0;
-			this.actionsSeparator.style.display = hasGlobalActions ? '' : 'none';
-		}
 	}
 
 	protected abstract shouldShowCompositeBar(): boolean;

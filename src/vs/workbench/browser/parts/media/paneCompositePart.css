@@ -12,6 +12,10 @@
 	margin-right: 4px;
 }
 
+.monaco-workbench .pane-composite-part > .title.has-composite-bar > .global-actions .monaco-action-bar .action-item .separator {
+	background-color: var(--vscode-disabledForeground);
+}
+
 .monaco-workbench .pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item .action-label {
 	outline-offset: -2px;
 }
@@ -22,15 +26,6 @@
 
 .monaco-workbench .pane-composite-part.empty > .title.has-composite-bar > .title-label {
 	border-bottom: none !important;
-}
-
-/* Separator between view actions and global panel actions */
-.monaco-workbench .pane-composite-part > .title > .actions-separator {
-	width: 1px;
-	height: 16px;
-	margin: 5px 4px;
-	background-color: var(--vscode-panel-border);
-	flex-shrink: 0;
 }
 
 .monaco-workbench .pane-composite-part > .header-or-footer {

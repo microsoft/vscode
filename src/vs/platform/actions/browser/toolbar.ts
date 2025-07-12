@@ -320,6 +320,8 @@ export interface IMenuWorkbenchToolBarOptions extends IWorkbenchToolBarOptions {
 	 * Customize the debounce delay for menu updates
 	 */
 	eventDebounceDelay?: number;
+
+	separate?: boolean;
 }
 
 /**
@@ -369,6 +371,9 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 				options?.toolbarOptions?.primaryGroup, options?.toolbarOptions?.shouldInlineSubmenu, options?.toolbarOptions?.useSeparatorsInPrimaryActions
 			);
 			container.classList.toggle('has-no-actions', primary.length === 0 && secondary.length === 0);
+			if (options?.separate && primary.length > 0) {
+				primary.unshift(new Separator());
+			}
 			super.setActions(primary, secondary);
 		};
 
