@@ -860,6 +860,11 @@ export class GitStatusParser {
 	}
 }
 
+export interface Worktree {
+	readonly name: string;
+	readonly path: string;
+}
+
 export interface Submodule {
 	name: string;
 	path: string;
@@ -2028,6 +2033,11 @@ export class Repository {
 		await this.exec(args);
 	}
 
+	async deleteWorktree(path: string): Promise<void> {
+		const args = ['worktree', 'remove', path];
+		await this.exec(args);
+	}
+
 	async deleteRemoteRef(remoteName: string, refName: string, options?: { force?: boolean }): Promise<void> {
 		const args = ['push', remoteName, '--delete'];
 
@@ -2738,6 +2748,37 @@ export class Repository {
 	async getStashes(): Promise<Stash[]> {
 		const result = await this.exec(['stash', 'list', `--format=${STASH_FORMAT}`, '-z']);
 		return parseGitStashes(result.stdout.trim());
+	}
+
+	async getWorktrees(): Promise<Worktree[]> {
+		return await this.getWorktreesFS();
+	}
+
+	private async getWorktreesFS(): Promise<Worktree[]> {
+		const worktreesPath = path.join(this.repositoryRoot, '.git', 'worktrees');
+
+		try {
+			// List all worktree folder names
+			const raw = await fs.readdir(worktreesPath);
+			const result: Worktree[] = [];
+
+			for (const name of raw) {
+				const gitdirPath = path.join(worktreesPath, name, 'gitdir');
+				const gitdirContent = (await fs.readFile(gitdirPath, 'utf8')).trim();
+				// Remove trailing '/.git'
+				const gitdirTrimmed = gitdirContent.replace(/\.git.*$/, '');
+				result.push({ name: name, path: gitdirTrimmed });
+			}
+
+			return result;
+		}
+		catch (err) {
+			if (/ENOENT/.test(err.message)) {
+				return [];
+			}
+
+			throw err;
+		}
 	}
 
 	async getRemotes(): Promise<Remote[]> {
