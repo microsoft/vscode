@@ -1678,6 +1678,12 @@ declare namespace monaco.editor {
 		sectionHeaderText?: string | null;
 	}
 
+	export enum TextDirection {
+		LTR = 0,
+
+		RTL = 1,
+	}
+
 	/**
 	 * Options for a model decoration.
 	 */
@@ -1812,6 +1818,11 @@ declare namespace monaco.editor {
 		 * If set, text will be injected in the view before the range.
 		 */
 		before?: InjectedTextOptions | null;
+
+		/**
+		 * The text direction of the decoration.
+		 */
+		textDirection?: TextDirection | null;
 	}
 
 	/**

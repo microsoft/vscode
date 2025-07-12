@@ -20,6 +20,7 @@ import type { ViewLineOptions } from './viewLineOptions.js';
 import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
+import { TextDirection } from '../../../common/standalone/standaloneEnums.js';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -166,7 +167,9 @@ export class ViewLine implements IVisibleLine {
 			renderWhitespace,
 			options.renderControlCharacters,
 			options.fontLigatures !== EditorFontLigatures.OFF,
-			selectionsOnLine
+			selectionsOnLine,
+			lineData.textDirection,
+			options.verticalScrollbarSize
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
@@ -174,12 +177,22 @@ export class ViewLine implements IVisibleLine {
 			return false;
 		}
 
-		sb.appendString('<div style="top:');
+		sb.appendString('<div ');
+		if (lineData.textDirection === TextDirection.RTL) {
+			sb.appendString('dir="rtl" ');
+		} else if (lineData.containsRTL) {
+			sb.appendString('dir="ltr" ');
+		}
+		sb.appendString('style="top:');
 		sb.appendString(String(deltaTop));
 		sb.appendString('px;height:');
 		sb.appendString(String(lineHeight));
 		sb.appendString('px;line-height:');
 		sb.appendString(String(lineHeight));
+		if (lineData.textDirection === TextDirection.RTL) {
+			sb.appendString('px;padding-right:');
+			sb.appendString(String(options.verticalScrollbarSize));
+		}
 		sb.appendString('px;" class="');
 		sb.appendString(ViewLine.CLASS_NAME);
 		sb.appendString('">');
@@ -520,20 +533,6 @@ class RenderedViewLine implements IRenderedViewLine {
 		if (!this.domNode) {
 			return null;
 		}
-		if (this._pixelOffsetCache !== null) {
-			// the text is LTR
-			const startOffset = this._readPixelOffset(this.domNode, lineNumber, startColumn, context);
-			if (startOffset === -1) {
-				return null;
-			}
-
-			const endOffset = this._readPixelOffset(this.domNode, lineNumber, endColumn, context);
-			if (endOffset === -1) {
-				return null;
-			}
-
-			return [new FloatHorizontalRange(startOffset, endOffset - startOffset)];
-		}
 
 		return this._readVisibleRangesForRange(this.domNode, lineNumber, startColumn, endColumn, context);
 	}
@@ -604,7 +603,9 @@ class RenderedViewLine implements IRenderedViewLine {
 
 		if (column === this._characterMapping.length && this._isWhitespaceOnly && this._containsForeignElements === ForeignElementType.None) {
 			// This branch helps in the case of whitespace only lines which have a width set
-			return this.getWidth(context);
+			return this.input.textDirection === TextDirection.RTL
+				? this.domNode!.domNode.clientWidth - this.getWidth(context) - this.input.verticalScrollbarSize
+				: this.getWidth(context);
 		}
 
 		const domPosition = this._characterMapping.getDomPosition(column);
@@ -625,13 +626,6 @@ class RenderedViewLine implements IRenderedViewLine {
 	}
 
 	private _readRawVisibleRangesForRange(domNode: FastDomNode<HTMLElement>, startColumn: number, endColumn: number, context: DomReadingContext): FloatHorizontalRange[] | null {
-
-		if (startColumn === 1 && endColumn === this._characterMapping.length) {
-			// This branch helps IE with bidi text & gives a performance boost to other browsers when reading visible ranges for an entire line
-
-			return [new FloatHorizontalRange(0, this.getWidth(context))];
-		}
-
 		const startDomPosition = this._characterMapping.getDomPosition(startColumn);
 		const endDomPosition = this._characterMapping.getDomPosition(endColumn);
 

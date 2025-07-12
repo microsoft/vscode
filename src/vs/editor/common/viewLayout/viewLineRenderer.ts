@@ -12,6 +12,7 @@ import { LineDecoration, LineDecorationsNormalizer } from './lineDecorations.js'
 import { LinePart, LinePartMetadata } from './linePart.js';
 import { OffsetRange } from '../core/ranges/offsetRange.js';
 import { InlineDecorationType } from '../viewModel/inlineDecorations.js';
+import { TextDirection } from '../standalone/standaloneEnums.js';
 
 export const enum RenderWhitespace {
 	None = 0,
@@ -41,6 +42,8 @@ export class RenderLineInput {
 	public readonly renderWhitespace: RenderWhitespace;
 	public readonly renderControlCharacters: boolean;
 	public readonly fontLigatures: boolean;
+	public readonly textDirection: TextDirection | null;
+	public readonly verticalScrollbarSize: number;
 
 	/**
 	 * Defined only when renderWhitespace is 'selection'. Selections are non-overlapping,
@@ -67,7 +70,9 @@ export class RenderLineInput {
 		renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all',
 		renderControlCharacters: boolean,
 		fontLigatures: boolean,
-		selectionsOnLine: OffsetRange[] | null
+		selectionsOnLine: OffsetRange[] | null,
+		textDirection: TextDirection | null,
+		verticalScrollbarSize: number
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.canUseHalfwidthRightwardsArrow = canUseHalfwidthRightwardsArrow;
@@ -96,6 +101,8 @@ export class RenderLineInput {
 		this.renderControlCharacters = renderControlCharacters;
 		this.fontLigatures = fontLigatures;
 		this.selectionsOnLine = selectionsOnLine && selectionsOnLine.sort((a, b) => a.start < b.start ? -1 : 1);
+		this.textDirection = textDirection;
+		this.verticalScrollbarSize = verticalScrollbarSize;
 
 		const wsmiddotDiff = Math.abs(wsmiddotWidth - spaceWidth);
 		const middotDiff = Math.abs(middotWidth - spaceWidth);
@@ -918,7 +925,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 	let partDisplacement = 0;
 
 	if (containsRTL) {
-		sb.appendString('<span dir="ltr">');
+		sb.appendString('<span>');
 	} else {
 		sb.appendString('<span>');
 	}
