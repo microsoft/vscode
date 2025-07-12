@@ -24,6 +24,15 @@
 	border-bottom: none !important;
 }
 
+/* Separator between view actions and global panel actions */
+.monaco-workbench .pane-composite-part > .title > .actions-separator {
+	width: 1px;
+	height: 16px;
+	margin: 5px 4px;
+	background-color: var(--vscode-panel-border);
+	flex-shrink: 0;
+}
+
 .monaco-workbench .pane-composite-part > .header-or-footer {
 	padding-left: 4px;
 	padding-right: 4px;
