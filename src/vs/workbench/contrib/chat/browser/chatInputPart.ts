@@ -1080,7 +1080,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			showSnippets: false,
 			showWords: true,
 			showStatusBar: false,
-			insertMode: 'replace',
+			insertMode: 'insert',
 		};
 		options.scrollbar = { ...(options.scrollbar ?? {}), vertical: 'hidden' };
 		options.stickyScroll = { enabled: false };
