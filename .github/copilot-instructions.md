@@ -43,11 +43,17 @@ Each extension follows the standard VS Code extension structure with `package.js
 ### Build, Development & Testing Tools
 
 - Use `npm install` to install dependencies
-- Use `npm run compile` to compile TypeScript (required before testing code changes)
-- Use `npm run watch` to compile TypeScript incrementally (preferred for faster iteration)
 - Use `scripts/test.sh` (or `scripts\test.bat` on Windows) for unit tests
 - Use `scripts/test-integration.sh` (or `scripts\test-integration.bat` on Windows) for integration tests
 - Use `npm run valid-layers-check` to check for layering issues
+
+After modifying files, always ensure there are no TypeScript compilation errors by running the "Core - Build" and "Ext - Build" tasks:
+- **Core - Build**: Compiles the main VS Code TypeScript sources
+- **Ext - Build**: Compiles the built-in extensions
+- These background tasks may already be running from previous development sessions
+- If not already running, start them to get real-time compilation feedback
+- Always check the task output for any compilation errors before submitting changes
+- The tasks provide incremental compilation, so they will automatically recompile when files change
 
 ### Finding Related Code
 1. **Semantic search first**: Use file search for general concepts
