@@ -1,5 +1,4 @@
 ---
-name: 'Plan'
 description: 'Plan the solution for a problem.'
 tools: ['codebase', 'findTestFiles', 'githubRepo', 'search', 'searchResults', 'usages']
 ---

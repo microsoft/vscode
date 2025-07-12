@@ -17,7 +17,7 @@ import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActi
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
-import { IChatMode, IChatModeService } from '../../common/chatModes.js';
+import { IChatMode, IChatModeService, isBuiltinChatMode } from '../../common/chatModes.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { getOpenChatActionIdForMode } from '../actions/chatActions.js';
 import { IToggleChatModeArgs } from '../actions/chatExecuteActions.js';
@@ -56,7 +56,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		const makeActionFromCustomMode = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => ({
 			...action,
 			id: getOpenChatActionIdForMode(mode),
-			label: mode.name,
+			label: mode.name.charAt(0).toUpperCase() + mode.name.slice(1),
 			class: undefined,
 			enabled: true,
 			checked: currentMode.id === mode.id,
@@ -111,8 +111,9 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 			return null;
 		}
 		this.setAriaLabelAttributes(element);
-		const state = this.delegate.currentMode.get().name;
-		dom.reset(element, dom.$('span.chat-model-label', undefined, state), ...renderLabelWithIcons(`$(chevron-down)`));
+		const currentMode = this.delegate.currentMode.get();
+		const displayName = isBuiltinChatMode(currentMode) ? currentMode.name : currentMode.name.charAt(0).toUpperCase() + currentMode.name.slice(1);
+		dom.reset(element, dom.$('span.chat-model-label', undefined, displayName), ...renderLabelWithIcons(`$(chevron-down)`));
 		return null;
 	}
 

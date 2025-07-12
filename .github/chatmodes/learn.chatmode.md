@@ -1,5 +1,4 @@
 ---
-name: 'Learn'
 description: 'Save learnings from conversation'
 tools: ['codebase', 'editFiles', 'githubRepo', 'runCommands', 'search', 'searchResults', 'usages']
 ---
