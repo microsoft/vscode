@@ -2850,7 +2850,7 @@ export class CommandCenter {
 					throw err;
 				}
 
-				const stash = l10n.t('Stash & Checkout');
+				const stash = l10n.t('Stash (Save Work) & Checkout');
 				const migrate = l10n.t('Migrate Changes');
 				const force = l10n.t('Force Checkout');
 				const choice = await window.showWarningMessage(l10n.t('Your local changes would be overwritten by checkout.'), { modal: true }, stash, migrate, force);
@@ -3562,7 +3562,7 @@ export class CommandCenter {
 			forcePushMode = useForcePushWithLease ? useForcePushIfIncludes ? ForcePushMode.ForceWithLeaseIfIncludes : ForcePushMode.ForceWithLease : ForcePushMode.Force;
 
 			if (config.get<boolean>('confirmForcePush')) {
-				const message = l10n.t('You are about to force push your changes, this can be destructive and could inadvertently overwrite changes made by others.\n\nAre you sure to continue?');
+				const message = l10n.t('You are about to force push your changes. This will overwrite the remote branch to match your local branch, potentially erasing commits that others have pushed.\n\nAre you sure you want to continue?');
 				const yes = l10n.t('OK');
 				const neverAgain = l10n.t('OK, Don\'t Ask Again');
 				const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
@@ -4029,8 +4029,8 @@ export class CommandCenter {
 
 		message = await window.showInputBox({
 			value: message,
-			prompt: l10n.t('Optionally provide a stash message'),
-			placeHolder: l10n.t('Stash message')
+			prompt: l10n.t('Optionally provide a message to describe what you are saving'),
+			placeHolder: l10n.t('Description of saved work')
 		});
 
 		if (typeof message === 'undefined') {
@@ -4070,7 +4070,7 @@ export class CommandCenter {
 
 	@command('git.stashPop', { repository: true })
 	async stashPop(repository: Repository): Promise<void> {
-		const placeHolder = l10n.t('Pick a stash to pop');
+		const placeHolder = l10n.t('Pick saved work to restore and remove from stash list');
 		const stash = await this.pickStash(repository, placeHolder);
 
 		if (!stash) {
@@ -4105,7 +4105,7 @@ export class CommandCenter {
 
 	@command('git.stashApply', { repository: true })
 	async stashApply(repository: Repository): Promise<void> {
-		const placeHolder = l10n.t('Pick a stash to apply');
+		const placeHolder = l10n.t('Pick saved work to restore (keep in stash list)');
 		const stash = await this.pickStash(repository, placeHolder);
 
 		if (!stash) {
@@ -4140,7 +4140,7 @@ export class CommandCenter {
 
 	@command('git.stashDrop', { repository: true })
 	async stashDrop(repository: Repository): Promise<void> {
-		const placeHolder = l10n.t('Pick a stash to drop');
+		const placeHolder = l10n.t('Pick saved work to permanently delete');
 		const stash = await this.pickStash(repository, placeHolder);
 
 		if (!stash) {
