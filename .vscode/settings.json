@@ -187,5 +187,8 @@
 		".vscode": true
 	},
 	"githubPullRequests.codingAgent.enabled": true,
-	"githubPullRequests.codingAgent.uiIntegration": true
+	"githubPullRequests.codingAgent.uiIntegration": true,
+	"marquee.widgets.npm-stats.packageNames": [
+		"code-oss-dev"
+	]
 }
