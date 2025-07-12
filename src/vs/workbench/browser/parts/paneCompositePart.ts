@@ -367,7 +367,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
 				highlightToggledItems: true,
 				telemetrySource: this.nameForTelemetry,
-				separate: true
+				toolbarOptions: { forceLeadingSeparatorInPrimaryActions: true /* separate from view toolbar */ }
 			}
 		));
 
