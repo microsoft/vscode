@@ -325,8 +325,6 @@ export interface IMenuWorkbenchToolBarOptions extends IWorkbenchToolBarOptions {
 	 * Customize the debounce delay for menu updates
 	 */
 	eventDebounceDelay?: number;
-
-	separate?: boolean;
 }
 
 /**
