@@ -84,10 +84,9 @@ export class Terminal {
 		const keepOpen = commandId === TerminalCommandId.Join;
 		await this.quickaccess.runCommand(commandId, { keepOpen });
 		if (keepOpen) {
-			await this.code.sendKeybinding('enter');
-			// TODO https://github.com/microsoft/vscode/issues/242535
-			await wait(100);
-			await this.quickinput.waitForQuickInputClosed();
+			await this.code.dispatchKeybinding('enter', async () => {
+				await this.quickinput.waitForQuickInputClosed();
+			});
 		}
 		switch (commandId) {
 			case TerminalCommandId.Show:
@@ -121,14 +120,16 @@ export class Terminal {
 			await this.quickinput.type(value);
 		} else if (commandId === TerminalCommandIdWithValue.Rename) {
 			// Reset
-			await this.code.sendKeybinding('Backspace');
-			// TODO https://github.com/microsoft/vscode/issues/242535
-			await wait(100);
+			await this.code.dispatchKeybinding('Backspace', async () => {
+				// TODO https://github.com/microsoft/vscode/issues/242535
+				await wait(100);
+			});
 		}
 		await this.code.wait(100);
-		await this.code.sendKeybinding(altKey ? 'Alt+Enter' : 'enter');
-		// TODO https://github.com/microsoft/vscode/issues/242535
-		await wait(100);
+		await this.code.dispatchKeybinding(altKey ? 'Alt+Enter' : 'enter', async () => {
+			// TODO https://github.com/microsoft/vscode/issues/242535
+			await wait(100);
+		});
 		await this.quickinput.waitForQuickInputClosed();
 		if (commandId === TerminalCommandIdWithValue.NewWithProfile) {
 			await this._waitForTerminal();
@@ -138,9 +139,10 @@ export class Terminal {
 	async runCommandInTerminal(commandText: string, skipEnter?: boolean): Promise<void> {
 		await this.code.writeInTerminal(Selector.Xterm, commandText);
 		if (!skipEnter) {
-			await this.code.sendKeybinding('enter');
-			// TODO https://github.com/microsoft/vscode/issues/242535
-			await wait(100);
+			await this.code.dispatchKeybinding('enter', async () => {
+				// TODO https://github.com/microsoft/vscode/issues/242535
+				await wait(100);
+			});
 		}
 	}
 

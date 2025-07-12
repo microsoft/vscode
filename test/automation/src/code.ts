@@ -145,7 +145,20 @@ export class Code {
 		return await this.driver.stopTracing(name, persist);
 	}
 
-	async sendKeybinding(keybinding: string, accept?: () => Promise<void> | void): Promise<void> {
+	/**
+	 * Dispatch a keybinding to the application.
+	 * @param keybinding The keybinding to dispatch, e.g. 'ctrl+shift+p'.
+	 * @param accept The acceptance function to await before returning. Wherever
+	 * possible this should verify that the keybinding did what was expected,
+	 * otherwise it will likely be a cause of difficult to investigate race
+	 * conditions. This is particularly insidious when used in the automation
+	 * library as it can surface across many test suites.
+	 *
+	 * This requires an async function even when there's no implementation to
+	 * force the author to think about the accept callback and prevent mistakes
+	 * like not making it async.
+	 */
+	async dispatchKeybinding(keybinding: string, accept: () => Promise<void>): Promise<void> {
 		await this.driver.sendKeybinding(keybinding, accept);
 	}
 
