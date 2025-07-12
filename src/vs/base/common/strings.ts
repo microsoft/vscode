@@ -82,11 +82,46 @@ export function escape(html: string): string {
 	});
 }
 
+const CONTROL_ESCAPES = new Map(Object.entries({ '\t': 't', '\n': 'n', '\v': 'v', '\f': 'f', '\r': 'r' }));
+const SYNTAX_CHARACTERS = /[\^$\\.*+?()[\]{}|/]/;
+const HEX_ESCAPABLE = /[,\-=<>#&!%:;@~'`"\t\v\f\uFEFF\p{Zs}\n\r\u2028\u2029\uD800-\uDFFF]/u;
+const ASCII_ALPHANUMERIC = /[a-zA-Z0-9]/;
+
+function hexEscapeChar(char: string): string {
+	const escaped = char.charCodeAt(0) > 0xff
+		? `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`
+		: `\\x${char.charCodeAt(0).toString(16).padStart(2, '0')}`;
+	return escaped + (char[1] ? hexEscapeChar(char[1]) : '');
+}
+
+function regExpEscapeChar(char: string) {
+	const controlEscape = CONTROL_ESCAPES.get(char);
+	return controlEscape
+		? '\\' + controlEscape
+		: SYNTAX_CHARACTERS.test(char)
+			? '\\' + char
+			: HEX_ESCAPABLE.test(char)
+				? hexEscapeChar(char)
+				: char;
+}
+
 /**
  * Escapes regular expression characters in a given string
+ * using identical logic to `RegExp.escape` (not yet available in vscode's current Electron version)
  */
-export function escapeRegExpCharacters(value: string): string {
-	return value.replace(/[\\\{\}\*\+\?\|\^\$\.\[\]\(\)]/g, '\\$&');
+export let escapeRegExpCharacters = (value: string): string => {
+	let escaped = '';
+	for (const char of value) {
+		escaped += escaped === '' && ASCII_ALPHANUMERIC.test(char)
+			? hexEscapeChar(char)
+			: regExpEscapeChar(char);
+	}
+	return escaped;
+};
+
+if (typeof (RegExp as any).escape === 'function') {
+	escapeRegExpCharacters = (RegExp as any).escape;
+	console.log(`\x1b[36mNative RegExp.escape can replace ponyfill in ${import.meta.url}\x1b[0m`);
 }
 
 /**
@@ -201,7 +236,11 @@ export interface RegExpOptions {
 	wholeWord?: boolean;
 	multiline?: boolean;
 	global?: boolean;
-	unicode?: boolean;
+	/**
+	 * - `true`: `u` flag
+	 * - `'unicodeSets'`: `v` flag
+	 */
+	unicode?: boolean | 'unicodeSets';
 }
 
 export function createRegExp(searchString: string, isRegex: boolean, options: RegExpOptions = {}): RegExp {
@@ -229,8 +268,11 @@ export function createRegExp(searchString: string, isRegex: boolean, options: Re
 	if (options.multiline) {
 		modifiers += 'm';
 	}
-	if (options.unicode) {
+	if (options.unicode === true) {
 		modifiers += 'u';
+	}
+	if (options.unicode === 'unicodeSets') {
+		modifiers += 'v';
 	}
 
 	return new RegExp(searchString, modifiers);

@@ -300,6 +300,48 @@ suite('Strings', () => {
 		assert(regExpWithFlags.global);
 		assert(!regExpWithFlags.ignoreCase);
 		assert(regExpWithFlags.multiline);
+
+		const regExpUnicodeMode = strings.createRegExp('abc', true, { unicode: true });
+		assert.strictEqual(regExpUnicodeMode.flags, 'u');
+
+		const regExpVnicodeMode = strings.createRegExp('abc', true, { unicode: 'unicodeSets' });
+		assert.strictEqual(regExpVnicodeMode.flags, 'v');
+	});
+
+	test('escapeRegExpCharacters', () => {
+		const tests: [input: string, escaped: string][] = [
+			['', ''],
+			['\n', '\\n'],
+			['\r', '\\r'],
+			['\t', '\\t'],
+			['\v', '\\v'],
+			['\f', '\\f'],
+			['_foo', '_foo'],
+			['foo', String.raw`\x66oo`],
+			['_123', '_123'],
+			['123', String.raw`\x3123`],
+			[
+				' !"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~',
+				String.raw`\x20\x21\x22\x23\$\x25\x26\x27\(\)\*\+\x2c\x2d\.\/0123456789\x3a\x3b\x3c\x3d\x3e\?\x40ABCDEFGHIJKLMNOPQRSTUVWXYZ\[\\\]\^_\x60abcdefghijklmnopqrstuvwxyz\{\|\}\x7e`,
+			],
+			['你好，🌍！', '你好，🌍！'],
+		];
+
+		for (const [input, escaped] of tests) {
+			assert.strictEqual(strings.escapeRegExpCharacters(input), escaped);
+			for (const flags of ['', 'u', 'v']) {
+				const regExp = new RegExp(`^${strings.escapeRegExpCharacters(input)}$`, flags);
+				assert.strictEqual(regExp.test(input), true);
+
+				const anyCharRegExp = new RegExp(`^[${strings.escapeRegExpCharacters(input)}]$`, flags);
+				assert.strictEqual(anyCharRegExp.test(''), false);
+				assert.strictEqual(anyCharRegExp.test('\0'), false);
+
+				for (const char of flags === '' ? input.split('') : input) {
+					assert.strictEqual(anyCharRegExp.test(char), true);
+				}
+			}
+		}
 	});
 
 	test('getLeadingWhitespace', () => {
