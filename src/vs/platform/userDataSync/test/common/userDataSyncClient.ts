@@ -156,7 +156,12 @@ export class UserDataSyncClient extends Disposable {
 		return this.instantiationService.get(IUserDataSyncStoreService).readResource(resource, null, collection);
 	}
 
-	async getResourceManifest(): Promise<IUserDataResourceManifest | null> {
+	async getLatestRef(resource: SyncResource): Promise<string | null> {
+		const manifest = await this._getResourceManifest();
+		return manifest?.[resource] ?? null;
+	}
+
+	async _getResourceManifest(): Promise<IUserDataResourceManifest | null> {
 		const manifest = await this.instantiationService.get(IUserDataSyncStoreService).manifest(null);
 		return manifest?.latest ?? null;
 	}
