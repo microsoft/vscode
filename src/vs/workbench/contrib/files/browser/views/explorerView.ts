@@ -53,8 +53,11 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
 import { EditorOpenSource } from '../../../../../platform/editor/common/editor.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
 import { AbstractTreePart } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { ITestService, testsInFile } from '../../../testing/common/testService.js';
+import { TestingContextKeys } from '../../../testing/common/testingContextKeys.js';
 
 
 function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, treeInput: ExplorerItem[]): boolean {
@@ -165,6 +168,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 	private rootContext: IContextKey<boolean>;
 	private resourceMoveableToTrash: IContextKey<boolean>;
+	private explorerResourceHasTests: IContextKey<boolean>;
 
 	private renderer!: FilesRenderer;
 
@@ -209,7 +213,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		@IFileService private readonly fileService: IFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@ITestService private readonly testService: ITestService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -227,6 +232,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.compressedFocusFirstContext = ExplorerCompressedFirstFocusContext.bindTo(contextKeyService);
 		this.compressedFocusLastContext = ExplorerCompressedLastFocusContext.bindTo(contextKeyService);
 		this.viewHasSomeCollapsibleRootItem = ViewHasSomeCollapsibleRootItemContext.bindTo(contextKeyService);
+		this.explorerResourceHasTests = TestingContextKeys.explorerResourceHasTests.bindTo(contextKeyService);
 		this.viewVisibleContextKey = FoldersViewVisibleContext.bindTo(contextKeyService);
 
 
@@ -605,8 +611,51 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		if (resource) {
 			const overrides = resource ? this.editorResolverService.getEditors(resource).map(editor => editor.id) : [];
 			this.availableEditorIdsContext.set(overrides.join(','));
+			
+			// Update test context asynchronously
+			this.updateExplorerResourceTestsContext(resource);
 		} else {
 			this.availableEditorIdsContext.reset();
+			this.explorerResourceHasTests.set(false);
+		}
+	}
+
+	private async updateExplorerResourceTestsContext(resource: URI): Promise<void> {
+		if (!this.testService?.collection) {
+			this.explorerResourceHasTests.set(false);
+			return;
+		}
+
+		// First, try synchronous check for immediate feedback (same as activeEditorHasTests)
+		const immediateResult = !Iterable.isEmpty(this.testService.collection.getNodeByUrl(resource));
+		this.explorerResourceHasTests.set(immediateResult);
+
+		// If immediate check found tests, no need for async check
+		if (immediateResult) {
+			return;
+		}
+
+		// For more comprehensive check, try async discovery for files only
+		try {
+			// Check if it's a file or folder
+			const stat = await this.fileService.stat(resource);
+
+			if (stat.isFile) {
+				// For files, use testsInFile to discover tests
+				let hasTests = false;
+				for await (const _test of testsInFile(this.testService, this.uriIdentityService, resource, false)) {
+					hasTests = true;
+					break; // Found at least one test, that's enough
+				}
+				this.explorerResourceHasTests.set(hasTests);
+			} else if (stat.isDirectory) {
+				// For folders, always show test actions to avoid expensive recursive checking
+				// This ensures good performance while still providing useful functionality
+				this.explorerResourceHasTests.set(true);
+			}
+		} catch (error) {
+			// If there's an error (e.g., resource doesn't exist), set to false
+			this.explorerResourceHasTests.set(false);
 		}
 	}
 

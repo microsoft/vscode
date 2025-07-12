@@ -84,4 +84,8 @@ export namespace TestingContextKeys {
 		type: 'string',
 		description: localize('testing.profile.context.group', 'Type of menu where the configure testing profile submenu exists. Either "run", "debug", or "coverage"')
 	});
+	export const explorerResourceHasTests = new RawContextKey<boolean>('testing.explorerResourceHasTests', false, {
+		type: 'boolean',
+		description: localize('testing.explorerResourceHasTests', 'Indicates whether the selected resource in the explorer contains tests')
+	});
 }

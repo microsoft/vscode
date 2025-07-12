@@ -1179,7 +1179,10 @@ abstract class ExecuteTestsUnderUriAction extends Action2 {
 			...options,
 			menu: [{
 				id: MenuId.ExplorerContext,
-				when: TestingContextKeys.capabilityToContextKey[group].isEqualTo(true),
+				when: ContextKeyExpr.and(
+					TestingContextKeys.capabilityToContextKey[group].isEqualTo(true),
+					TestingContextKeys.explorerResourceHasTests.isEqualTo(true)
+				),
 				group: '6.5_testing',
 				order: (group === TestRunProfileBitset.Run ? ActionOrder.Run : ActionOrder.Debug) + 0.1,
 			}],
