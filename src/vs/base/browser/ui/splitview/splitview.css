@@ -52,8 +52,8 @@
 .monaco-split-view2.separator-border > .monaco-scrollable-element > .split-view-container > .split-view-view:not(:first-child)::before {
 	content: ' ';
 	position: absolute;
-	top: 0;
-	left: 0;
+	top: var(--vscode-static-spacing-none);
+	left: var(--vscode-static-spacing-none);
 	z-index: 5;
 	pointer-events: none;
 	background-color: var(--separator-border);
@@ -61,10 +61,10 @@
 
 .monaco-split-view2.separator-border.horizontal > .monaco-scrollable-element > .split-view-container > .split-view-view:not(:first-child)::before {
 	height: 100%;
-	width: 1px;
+	width: var(--vscode-splitview-line-width);
 }
 
 .monaco-split-view2.separator-border.vertical > .monaco-scrollable-element > .split-view-container > .split-view-view:not(:first-child)::before {
-	height: 1px;
+	height: var(--vscode-splitview-line-width);
 	width: 100%;
 }
