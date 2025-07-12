@@ -216,6 +216,9 @@ pub struct ServeWebArgs {
 	/// Specifies the directory that server data is kept in.
 	#[clap(long)]
 	pub server_data_dir: Option<String>,
+	/// Use a specific commit SHA for the client.
+	#[clap(long)]
+	pub commit_id: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]
