@@ -558,6 +558,24 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		return this._rootUri;
 	}
 
+	private _contextValue: string | undefined = undefined;
+
+	get contextValue(): string | undefined {
+		checkProposedApiEnabled(this._extension, 'scmProviderOptions');
+		return this._contextValue;
+	}
+
+	set contextValue(contextValue: string | undefined) {
+		checkProposedApiEnabled(this._extension, 'scmProviderOptions');
+
+		if (this._contextValue === contextValue) {
+			return;
+		}
+
+		this._contextValue = contextValue;
+		this.#proxy.$updateSourceControl(this.handle, { contextValue });
+	}
+
 	private _inputBox: ExtHostSCMInputBox;
 	get inputBox(): ExtHostSCMInputBox { return this._inputBox; }
 

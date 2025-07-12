@@ -888,6 +888,7 @@ export class Repository implements Disposable {
 
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root);
+		this._sourceControl.contextValue = repository.kind;
 
 		this._sourceControl.quickDiffProvider = this;
 		this._sourceControl.secondaryQuickDiffProvider = new StagedResourceQuickDiffProvider(this, logger);

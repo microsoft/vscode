@@ -244,6 +244,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 	private static ID_HANDLE = 0;
 	private _id = `scm${MainThreadSCMProvider.ID_HANDLE++}`;
 	get id(): string { return this._id; }
+	get providerId(): string { return this._providerId; }
 
 	readonly groups: MainThreadSCMResourceGroup[] = [];
 	private readonly _onDidChangeResourceGroups = new Emitter<void>();
@@ -271,7 +272,9 @@ class MainThreadSCMProvider implements ISCMProvider {
 	get label(): string { return this._label; }
 	get rootUri(): URI | undefined { return this._rootUri; }
 	get inputBoxTextModel(): ITextModel { return this._inputBoxTextModel; }
-	get contextValue(): string { return this._providerId; }
+
+	private readonly _contextValue = observableValue<string | undefined>(this, undefined);
+	get contextValue(): IObservable<string | undefined> { return this._contextValue; }
 
 	get acceptInputCommand(): Command | undefined { return this.features.acceptInputCommand; }
 
@@ -326,6 +329,10 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 		if (typeof features.actionButton !== 'undefined') {
 			this._actionButton.set(features.actionButton ?? undefined, undefined);
+		}
+
+		if (typeof features.contextValue !== 'undefined') {
+			this._contextValue.set(features.contextValue, undefined);
 		}
 
 		if (typeof features.count !== 'undefined') {

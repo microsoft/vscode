@@ -28,7 +28,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
 
 function getProviderStorageKey(provider: ISCMProvider): string {
-	return `${provider.contextValue}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
+	return `${provider.providerId}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
 }
 
 function getRepositoryName(workspaceContextService: IWorkspaceContextService, repository: ISCMRepository): string {
