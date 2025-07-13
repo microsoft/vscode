@@ -30,6 +30,7 @@ import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/c
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 import { OpaqueEdits, ResourceAttachmentEdit } from './opaqueEdits.js';
 import { TextModelEditReason } from '../../../../editor/common/textModelEditReason.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
 
 function liftEdits(edits: ResourceEdit[]): ResourceEdit[] {
 	return edits.map(edit => {
@@ -295,30 +296,24 @@ export class BulkEditService implements IBulkEditService {
 
 	private async _shouldVeto(label: string | undefined, reason: ShutdownReason): Promise<boolean> {
 		let message: string;
-		let primaryButton: string;
 		switch (reason) {
 			case ShutdownReason.CLOSE:
 				message = localize('closeTheWindow.message', "Are you sure you want to close the window?");
-				primaryButton = localize({ key: 'closeTheWindow', comment: ['&& denotes a mnemonic'] }, "&&Close Window");
 				break;
 			case ShutdownReason.LOAD:
 				message = localize('changeWorkspace.message', "Are you sure you want to change the workspace?");
-				primaryButton = localize({ key: 'changeWorkspace', comment: ['&& denotes a mnemonic'] }, "Change &&Workspace");
 				break;
 			case ShutdownReason.RELOAD:
 				message = localize('reloadTheWindow.message', "Are you sure you want to reload the window?");
-				primaryButton = localize({ key: 'reloadTheWindow', comment: ['&& denotes a mnemonic'] }, "&&Reload Window");
 				break;
 			default:
-				message = localize('quit.message', "Are you sure you want to quit?");
-				primaryButton = localize({ key: 'quit', comment: ['&& denotes a mnemonic'] }, "&&Quit");
+				message = isMacintosh ? localize('quitMessageMac', "Are you sure you want to quit?") : localize('quitMessage', "Are you sure you want to exit?");
 				break;
 		}
 
 		const result = await this._dialogService.confirm({
 			message,
 			detail: localize('areYouSureQuiteBulkEdit.detail', "'{0}' is in progress.", label || localize('fileOperation', "File operation")),
-			primaryButton
 		});
 
 		return !result.confirmed;
