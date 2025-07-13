@@ -1090,14 +1090,8 @@ const title = localize('ai actions', "AI Actions");
 
 MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	submenu: MenuId.ChatTextEditorMenu,
-	group: '1_copilot',
-	title,
-	when: menuContext
-});
-
-MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	submenu: MenuId.ChatExplorerMenu,
-	group: '5_copilot',
+	group: '1_chat',
+	order: 3,
 	title,
 	when: menuContext
 });
