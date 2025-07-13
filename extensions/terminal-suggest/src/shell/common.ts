@@ -86,7 +86,7 @@ export async function getAliasesHelper(command: string, args: string[], regex: R
 		}
 		definitionCommand = match.groups.resolved.substring(0, definitionIndex);
 		result.push({
-			label: match.groups.alias,
+			label: { label: match.groups.alias, description: match.groups.resolved },
 			detail: match.groups.resolved,
 			kind: vscode.TerminalCompletionItemKind.Alias,
 			definitionCommand,
@@ -95,16 +95,3 @@ export async function getAliasesHelper(command: string, args: string[], regex: R
 	return result;
 }
 
-export async function getZshBashBuiltins(options: ExecOptionsWithStringEncoding, scriptToRun: string, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
-	const compgenOutput = await execHelper(scriptToRun, options);
-	const filter = (cmd: string) => cmd && !existingCommands?.has(cmd);
-	let builtins: (string | ICompletionResource)[] = compgenOutput.split('\n').filter(filter);
-	if (builtins.find(r => r === '.')) {
-		builtins = builtins.filter(r => r !== '.');
-		builtins.push({
-			label: '.',
-			detail: 'Source a file in the current shell'
-		});
-	}
-	return builtins;
-}

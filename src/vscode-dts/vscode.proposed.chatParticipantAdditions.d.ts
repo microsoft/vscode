@@ -30,8 +30,9 @@ declare module 'vscode' {
 	}
 
 	export class ChatResponseCodeblockUriPart {
+		isEdit?: boolean;
 		value: Uri;
-		constructor(value: Uri);
+		constructor(value: Uri, isEdit?: boolean);
 	}
 
 	/**
@@ -55,6 +56,14 @@ declare module 'vscode' {
 		constructor(uri: Uri, edits: TextEdit | TextEdit[]);
 	}
 
+	export class ChatResponseNotebookEditPart {
+		uri: Uri;
+		edits: NotebookEdit[];
+		isDone?: boolean;
+		constructor(uri: Uri, done: true);
+		constructor(uri: Uri, edits: NotebookEdit | NotebookEdit[]);
+	}
+
 	export class ChatResponseConfirmationPart {
 		title: string;
 		message: string;
@@ -70,7 +79,12 @@ declare module 'vscode' {
 		constructor(value: Uri, license: string, snippet: string);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart;
+	export class ChatPrepareToolInvocationPart {
+		toolName: string;
+		constructor(toolName: string);
+	}
+
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatPrepareToolInvocationPart;
 
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
@@ -150,6 +164,13 @@ declare module 'vscode' {
 		resolve?(token: CancellationToken): Thenable<void>;
 	}
 
+	export class ChatResponseExtensionsPart {
+
+		readonly extensions: string[];
+
+		constructor(extensions: string[]);
+	}
+
 	export interface ChatResponseStream {
 
 		/**
@@ -166,8 +187,12 @@ declare module 'vscode' {
 
 		textEdit(target: Uri, isDone: true): void;
 
+		notebookEdit(target: Uri, edits: NotebookEdit | NotebookEdit[]): void;
+
+		notebookEdit(target: Uri, isDone: true): void;
+
 		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): void;
-		codeblockUri(uri: Uri): void;
+		codeblockUri(uri: Uri, isEdit?: boolean): void;
 		push(part: ChatResponsePart | ChatResponseTextEditPart | ChatResponseWarningPart | ChatResponseProgressPart2): void;
 
 		/**
@@ -197,6 +222,8 @@ declare module 'vscode' {
 
 		codeCitation(value: Uri, license: string, snippet: string): void;
 
+		prepareToolInvocation(toolName: string): void;
+
 		push(part: ExtendedChatResponsePart): void;
 	}
 
@@ -205,6 +232,7 @@ declare module 'vscode' {
 		Partial = 2,
 		Omitted = 3
 	}
+
 
 	/**
 	 * Does this piggy-back on the existing ChatRequest, or is it a different type of request entirely?
@@ -222,6 +250,14 @@ declare module 'vscode' {
 		rejectedConfirmationData?: any[];
 	}
 
+	export interface ChatRequest {
+
+		/**
+		 * A map of all tools that should (`true`) and should not (`false`) be used in this request.
+		 */
+		readonly tools: Map<string, boolean>;
+	}
+
 	// TODO@API fit this into the stream
 	export interface ChatUsedContext {
 		documents: ChatDocumentContext[];
@@ -235,7 +271,7 @@ declare module 'vscode' {
 
 		/**
 		 * Event that fires when a request is paused or unpaused.
-		 * Chat requests are initialy unpaused in the {@link requestHandler}.
+		 * Chat requests are initially unpaused in the {@link requestHandler}.
 		 */
 		onDidChangePauseState: Event<ChatParticipantPauseStateEvent>;
 	}
@@ -298,6 +334,10 @@ declare module 'vscode' {
 		copiedCharacters: number;
 		totalCharacters: number;
 		copiedText: string;
+		totalLines: number;
+		copiedLines: number;
+		modelId: string;
+		languageId?: string;
 	}
 
 	export interface ChatInsertAction {
@@ -305,6 +345,9 @@ declare module 'vscode' {
 		kind: 'insert';
 		codeBlockIndex: number;
 		totalCharacters: number;
+		totalLines: number;
+		languageId?: string;
+		modelId: string;
 		newFile?: boolean;
 	}
 
@@ -313,6 +356,9 @@ declare module 'vscode' {
 		kind: 'apply';
 		codeBlockIndex: number;
 		totalCharacters: number;
+		totalLines: number;
+		languageId?: string;
+		modelId: string;
 		newFile?: boolean;
 		codeMapper?: string;
 	}
@@ -378,7 +424,7 @@ declare module 'vscode' {
 	}
 
 	export namespace lm {
-		export function fileIsIgnored(uri: Uri, token: CancellationToken): Thenable<boolean>;
+		export function fileIsIgnored(uri: Uri, token?: CancellationToken): Thenable<boolean>;
 	}
 
 	export interface ChatVariableValue {
@@ -405,5 +451,13 @@ declare module 'vscode' {
 		Short = 1,
 		Medium = 2,
 		Full = 3
+	}
+
+	export interface LanguageModelToolInvocationOptions<T> {
+		model?: LanguageModelChat;
+	}
+
+	export interface ChatRequest {
+		modeInstructions?: string;
 	}
 }

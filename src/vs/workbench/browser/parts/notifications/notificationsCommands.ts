@@ -169,6 +169,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 			}
 			actionRunner.run(primaryAction, notification);
 			notification.close();
+			actionRunner.dispose();
 		}
 	});
 

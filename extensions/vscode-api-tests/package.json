@@ -27,7 +27,6 @@
     "interactive",
     "languageStatusText",
     "nativeWindowHandle",
-    "notebookCellExecutionState",
     "notebookDeprecated",
     "notebookLiveShare",
     "notebookMessaging",
@@ -251,7 +250,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
-    "@types/node": "20.x",
+    "@types/node": "22.x",
     "@types/node-forge": "^1.3.11",
     "node-forge": "^1.3.1",
     "straightforward": "^4.2.2"

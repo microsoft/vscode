@@ -56,7 +56,6 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { EditorGroupView } from '../../../../browser/parts/editor/editorGroupView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 
 const $ = dom.$;
 
@@ -88,14 +87,14 @@ export class OpenEditorsView extends ViewPane {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IOpenerService openerService: IOpenerService,
 		@IFileService private readonly fileService: IFileService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.structuralRefreshDelay = 0;
 		this.sortOrder = configurationService.getValue('explorer.openEditors.sortOrder');
@@ -639,8 +638,8 @@ class EditorGroupRenderer implements IListRenderer<IEditorGroup, IEditorGroupTem
 class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplateData> {
 	static readonly ID = 'openeditor';
 
-	private readonly closeEditorAction = this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL);
-	private readonly unpinEditorAction = this.instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL);
+	private readonly closeEditorAction;
+	private readonly unpinEditorAction;
 
 	constructor(
 		private labels: ResourceLabels,
@@ -648,6 +647,8 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 		private keybindingService: IKeybindingService,
 		private configurationService: IConfigurationService
 	) {
+		this.closeEditorAction = this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL);
+		this.unpinEditorAction = this.instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL);
 		// noop
 	}
 
@@ -942,26 +943,5 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const commandService = accessor.get(ICommandService);
 		await commandService.executeCommand(NEW_UNTITLED_FILE_COMMAND_ID);
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'openEditors.configure',
-			title: nls.localize('configureOpenEditorsView', 'Configure \'{0}\'', OpenEditorsView.NAME.value),
-			f1: false,
-			icon: Codicon.gear,
-			menu: {
-				id: MenuId.ViewTitle,
-				group: '9_configure',
-				when: ContextKeyExpr.equals('view', OpenEditorsView.ID),
-				order: 10
-			}
-		});
-	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const preferencesService = accessor.get(IPreferencesService);
-		preferencesService.openSettings({ jsonEditor: false, query: '@feature:explorer openEditors' });
 	}
 });

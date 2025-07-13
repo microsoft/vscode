@@ -295,4 +295,19 @@ suite('vscode API - editors', () => {
 
 		assert.strictEqual(document.getText(), Buffer.from(await workspace.fs.readFile(file)).toString());
 	}
+
+	test('extEditor.selection can be empty #18075', async function () {
+		await withRandomFileEditor('foo', async editor => {
+
+			assert.ok(editor.selections.length > 0);
+
+			editor.selections = [];
+
+			assert.strictEqual(editor.selections.length, 1);
+			assert.strictEqual(editor.selections[0].start.line, 0);
+			assert.strictEqual(editor.selections[0].start.character, 0);
+			assert.strictEqual(editor.selections[0].end.line, 0);
+			assert.strictEqual(editor.selections[0].end.character, 0);
+		});
+	});
 });

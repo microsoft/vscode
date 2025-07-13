@@ -2,11 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import assert from 'assert';
+import assert, { notStrictEqual, strictEqual } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TerminalCompletionModel } from '../../browser/terminalCompletionModel.js';
 import { LineContext } from '../../../../../services/suggest/browser/simpleCompletionModel.js';
 import { TerminalCompletionItem, TerminalCompletionItemKind, type ITerminalCompletion } from '../../browser/terminalCompletionItem.js';
+import type { CompletionItemLabel } from '../../../../../services/suggest/browser/simpleCompletionItem.js';
 
 function createItem(options: Partial<ITerminalCompletion>): TerminalCompletionItem {
 	return new TerminalCompletionItem({
@@ -41,7 +42,7 @@ function createFolderItemsModel(...labels: string[]): TerminalCompletionModel {
 	);
 }
 
-function assertItems(model: TerminalCompletionModel, labels: string[]): void {
+function assertItems(model: TerminalCompletionModel, labels: (string | CompletionItemLabel)[]): void {
 	assert.deepStrictEqual(model.items.map(i => i.completion.label), labels);
 	assert.strictEqual(model.items.length, labels.length); // sanity check
 }
@@ -214,6 +215,193 @@ suite('TerminalCompletionModel', function () {
 				'__init__.py',
 				'__pycache',
 			]);
+		});
+	});
+
+	suite('Punctuation', () => {
+		test('punctuation chars should be below other methods', function () {
+			const items = [
+				createItem({ label: 'a' }),
+				createItem({ label: 'b' }),
+				createItem({ label: ',' }),
+				createItem({ label: ';' }),
+				createItem({ label: ':' }),
+				createItem({ label: 'c' }),
+				createItem({ label: '[' }),
+				createItem({ label: '...' }),
+			];
+			model = new TerminalCompletionModel(items, new LineContext('', 0));
+			assertItems(model, ['a', 'b', 'c', ',', ';', ':', '[', '...']);
+		});
+		test('punctuation chars should be below other files', function () {
+			const items = [
+				createItem({ label: '..' }),
+				createItem({ label: '...' }),
+				createItem({ label: '../' }),
+				createItem({ label: './a/' }),
+				createItem({ label: './b/' }),
+			];
+			model = new TerminalCompletionModel(items, new LineContext('', 0));
+			assertItems(model, ['./a/', './b/', '..', '...', '../']);
+		});
+	});
+
+	suite('inline completions', () => {
+		function createItems(kind: TerminalCompletionItemKind.InlineSuggestion | TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop) {
+			return [
+				...createFolderItems('a', 'c'),
+				...createFileItems('b', 'd'),
+				new TerminalCompletionItem({
+					label: 'ab',
+					provider: 'core',
+					replacementIndex: 0,
+					replacementLength: 0,
+					kind
+				})
+			];
+		}
+		suite('InlineSuggestion', () => {
+			test('should put on top generally', function () {
+				const model = new TerminalCompletionModel(createItems(TerminalCompletionItemKind.InlineSuggestion), new LineContext('', 0));
+				strictEqual(model.items[0].completion.label, 'ab');
+			});
+			test('should NOT put on top when there\'s an exact match of another item', function () {
+				const model = new TerminalCompletionModel(createItems(TerminalCompletionItemKind.InlineSuggestion), new LineContext('a', 0));
+				notStrictEqual(model.items[0].completion.label, 'ab');
+				strictEqual(model.items[1].completion.label, 'ab');
+			});
+		});
+		suite('InlineSuggestionAlwaysOnTop', () => {
+			test('should put on top generally', function () {
+				const model = new TerminalCompletionModel(createItems(TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop), new LineContext('', 0));
+				strictEqual(model.items[0].completion.label, 'ab');
+			});
+			test('should put on top even if there\'s an exact match of another item', function () {
+				const model = new TerminalCompletionModel(createItems(TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop), new LineContext('a', 0));
+				strictEqual(model.items[0].completion.label, 'ab');
+			});
+		});
+	});
+
+	suite('lsp priority sorting', () => {
+
+		suite('Sort Python provider items', () => {
+			test('Prioritize items with "python" in provider name when inside REPL', () => {
+				const items = [
+					createItem({ label: 'b_default_provider', provider: 'defaultProvider' }),
+					createItem({ label: 'a_python_provider', provider: 'ms-python.python' })
+				];
+				const model = new TerminalCompletionModel(items, new LineContext('', 0));
+				assertItems(model, ['a_python_provider', 'b_default_provider']);
+			});
+
+			test('should sort "python" provider items above others', () => {
+				const items = [
+					createItem({ label: 'z_default', provider: 'default' }),
+					createItem({ label: 'c_python', provider: 'ms-python.pylance' }),
+					createItem({ label: 'a_default', provider: 'default' }),
+					createItem({ label: 'b_python', provider: 'ms-python.python' })
+				];
+				const model = new TerminalCompletionModel(items, new LineContext('', 0));
+				assertItems(model, ['b_python', 'c_python', 'a_default', 'z_default']);
+			});
+
+			test('InlineSuggestionAlwaysOnTop should still be prioritized over "python" provider', () => {
+				const items = [
+					createItem({ label: 'b_python', provider: 'python_provider' }),
+					new TerminalCompletionItem({
+						label: 'a_always_on_top',
+						provider: 'core',
+						replacementIndex: 0,
+						replacementLength: 0,
+						kind: TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop
+					}),
+					createItem({ label: 'c_default', provider: 'default_provider' })
+				];
+				const model = new TerminalCompletionModel(items, new LineContext('', 0));
+				assertItems(model, ['a_always_on_top', 'b_python', 'c_default']);
+			});
+		});
+
+
+	});
+
+	suite('git branch priority sorting', () => {
+		test('should prioritize main and master branches for git commands', () => {
+			const items = [
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'feature-branch' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'master' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'development' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'main' })
+			];
+			const model = new TerminalCompletionModel(items, new LineContext('git checkout ', 0));
+			assertItems(model, ['main', 'master', 'development', 'feature-branch']);
+		});
+
+		test('should prioritize main and master branches for git switch command', () => {
+			const items = [
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'feature-branch' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'main' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'another-feature' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'master' })
+			];
+			const model = new TerminalCompletionModel(items, new LineContext('git switch ', 0));
+			assertItems(model, ['main', 'master', 'another-feature', 'feature-branch']);
+		});
+
+		test('should not prioritize main and master for non-git commands', () => {
+			const items = [
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'feature-branch' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'master' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'main' })
+			];
+			const model = new TerminalCompletionModel(items, new LineContext('ls ', 0));
+			assertItems(model, ['feature-branch', 'main', 'master']);
+		});
+
+		test('should handle git commands with leading whitespace', () => {
+			const items = [
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'feature-branch' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'master' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'main' })
+			];
+			const model = new TerminalCompletionModel(items, new LineContext('  git checkout ', 0));
+			assertItems(model, ['main', 'master', 'feature-branch']);
+		});
+
+		test('should work with complex label objects', () => {
+			const items = [
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: { label: 'feature-branch', description: 'Feature branch' } }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: { label: 'master', description: 'Master branch' } }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: { label: 'main', description: 'Main branch' } })
+			];
+			const model = new TerminalCompletionModel(items, new LineContext('git checkout ', 0));
+			assertItems(model, [
+				{ label: "main", description: "Main branch" },
+				{ label: "master", description: "Master branch" },
+				{ label: "feature-branch", description: "Feature branch" },
+			]);
+		});
+
+		test('should not prioritize branches with similar names', () => {
+			const items = [
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'mainline' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'masterpiece' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'main' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'master' })
+			];
+			const model = new TerminalCompletionModel(items, new LineContext('git checkout ', 0));
+			assertItems(model, ['main', 'master', 'mainline', 'masterpiece']);
+		});
+
+		test('should prioritize for git branch -d', () => {
+			const items = [
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'main' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'master' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'dev' })
+			];
+			const model = new TerminalCompletionModel(items, new LineContext('git branch -d ', 0));
+			assertItems(model, ['main', 'master', 'dev']);
 		});
 	});
 });

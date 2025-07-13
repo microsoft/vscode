@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AutorunObserver } from '../autorun.js';
-import { IObservable, TransactionImpl } from '../base.js';
-import { Derived } from '../derived.js';
+import { IObservable } from '../base.js';
+import { TransactionImpl } from '../transaction.js';
 import { IObservableLogger, IChangeInformation, addLogger } from './logging.js';
-import { FromEventObservable } from '../utils.js';
+import { FromEventObservable } from '../observables/observableFromEvent.js';
+import { getClassName } from '../debugName.js';
+import { Derived } from '../observables/derivedImpl.js';
+import { AutorunObserver } from '../reactions/autorunImpl.js';
 
 let consoleObservableLogger: ConsoleObservableLogger | undefined;
 
@@ -321,6 +323,7 @@ export function formatValue(value: unknown, availableLen: number): string {
 			return '' + value;
 	}
 }
+
 function formatArray(value: unknown[], availableLen: number): string {
 	let result = '[ ';
 	let first = true;
@@ -338,6 +341,7 @@ function formatArray(value: unknown[], availableLen: number): string {
 	result += ' ]';
 	return result;
 }
+
 function formatObject(value: object, availableLen: number): string {
 	if (typeof value.toString === 'function' && value.toString !== Object.prototype.toString) {
 		const val = value.toString();
@@ -347,7 +351,9 @@ function formatObject(value: object, availableLen: number): string {
 		return val.substring(0, availableLen - 3) + '...';
 	}
 
-	let result = '{ ';
+	const className = getClassName(value);
+
+	let result = className ? className + '(' : '{ ';
 	let first = true;
 	for (const [key, val] of Object.entries(value)) {
 		if (!first) {
@@ -360,9 +366,10 @@ function formatObject(value: object, availableLen: number): string {
 		first = false;
 		result += `${key}: ${formatValue(val, availableLen - result.length)}`;
 	}
-	result += ' }';
+	result += className ? ')' : ' }';
 	return result;
 }
+
 function repeat(str: string, count: number): string {
 	let result = '';
 	for (let i = 1; i <= count; i++) {
@@ -370,6 +377,7 @@ function repeat(str: string, count: number): string {
 	}
 	return result;
 }
+
 function padStr(str: string, length: number): string {
 	while (str.length < length) {
 		str += ' ';

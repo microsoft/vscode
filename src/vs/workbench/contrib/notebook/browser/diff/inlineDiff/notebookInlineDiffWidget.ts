@@ -5,7 +5,6 @@
 
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { CodeWindow } from '../../../../../../base/browser/window.js';
-import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { EditorExtensionsRegistry } from '../../../../../../editor/browser/editorExtensions.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
@@ -49,10 +48,8 @@ export class NotebookInlineDiffWidget extends Disposable {
 		}
 
 		if (model) {
-			this._register(Event.once(this.widget.value!.onDidAttachViewModel)(async () => {
-				await this.widget.value?.setOptions({ ...options });
-				this.widget.value?.notebookOptions.previousModelToCompare.set(previousModel, undefined);
-			}));
+			await this.widget.value?.setOptions({ ...options });
+			this.widget.value?.notebookOptions.previousModelToCompare.set(previousModel, undefined);
 
 			await this.widget.value!.setModel(model, options?.viewState);
 		}

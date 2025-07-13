@@ -92,7 +92,7 @@ declare namespace monaco.editor {
 #includeAll(vs/editor/standalone/browser/standaloneEditor;languages.Token=>Token):
 #include(vs/editor/standalone/common/standaloneTheme): BuiltinTheme, IStandaloneThemeData, IColors
 #include(vs/editor/common/languages/supports/tokenization): ITokenThemeRule
-#include(vs/editor/standalone/browser/standaloneWebWorker): MonacoWebWorker, IWebWorkerOptions
+#include(vs/editor/standalone/browser/standaloneWebWorker): MonacoWebWorker, IInternalWebWorkerOptions
 #include(vs/editor/standalone/browser/standaloneCodeEditor): IActionDescriptor, IGlobalEditorOptions, IStandaloneEditorConstructionOptions, IStandaloneDiffEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor
 export interface ICommandHandler {
 	(...args: any[]): void;
@@ -114,7 +114,7 @@ export interface ICommandMetadata {
 #include(vs/editor/common/core/wordHelper): IWordAtPosition
 #includeAll(vs/editor/common/model): IScrollEvent
 #include(vs/editor/common/diff/legacyLinesDiffComputer): IChange, ICharChange, ILineChange
-#include(vs/editor/common/core/dimension): IDimension
+#include(vs/editor/common/core/2d/dimension): IDimension
 #includeAll(vs/editor/common/editorCommon): IScrollEvent
 #includeAll(vs/editor/common/textModelEvents):
 #includeAll(vs/editor/common/cursorEvents):
@@ -145,7 +145,7 @@ declare namespace monaco.languages {
 declare namespace monaco.worker {
 
 #include(vs/editor/common/model/mirrorTextModel): IMirrorTextModel
-#includeAll(vs/editor/common/services/editorSimpleWorker;):
+#includeAll(vs/editor/common/services/editorWebWorker;):
 
 }
 

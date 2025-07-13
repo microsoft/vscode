@@ -105,6 +105,7 @@
 
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .range {
 	opacity: 0.8;
+	overflow: visible;
 }
 
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-snippet-container .text code {

@@ -224,7 +224,7 @@ class LanguageStatus {
 				text: isOneBusy ? '$(loading~spin)' : text,
 			};
 			if (!this._combinedEntry) {
-				this._combinedEntry = this._statusBarService.addEntry(props, LanguageStatus._id, StatusbarAlignment.RIGHT, { id: 'status.editor.mode', alignment: StatusbarAlignment.LEFT, compact: true });
+				this._combinedEntry = this._statusBarService.addEntry(props, LanguageStatus._id, StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.LEFT, compact: true });
 			} else {
 				this._combinedEntry.update(props);
 			}
@@ -274,7 +274,7 @@ class LanguageStatus {
 			const props = LanguageStatus._asStatusbarEntry(status);
 			let entry = this._dedicatedEntries.get(status.id);
 			if (!entry) {
-				entry = this._statusBarService.addEntry(props, status.id, StatusbarAlignment.RIGHT, { id: 'status.editor.mode', alignment: StatusbarAlignment.RIGHT });
+				entry = this._statusBarService.addEntry(props, status.id, StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.RIGHT });
 			} else {
 				entry.update(props);
 				this._dedicatedEntries.delete(status.id);
@@ -308,16 +308,10 @@ class LanguageStatus {
 		left.classList.add('left');
 		element.appendChild(left);
 
-		const label = document.createElement('span');
-		label.classList.add('label');
-		const labelValue = typeof status.label === 'string' ? status.label : status.label.value;
-		dom.append(label, ...renderLabelWithIcons(computeText(labelValue, status.busy)));
-		left.appendChild(label);
+		const label = typeof status.label === 'string' ? status.label : status.label.value;
+		dom.append(left, ...renderLabelWithIcons(computeText(label, status.busy)));
 
-		const detail = document.createElement('span');
-		detail.classList.add('detail');
-		this._renderTextPlus(detail, status.detail, store);
-		left.appendChild(detail);
+		this._renderTextPlus(left, status.detail, store);
 
 		const right = document.createElement('div');
 		right.classList.add('right');
@@ -379,7 +373,12 @@ class LanguageStatus {
 	}
 
 	private _renderTextPlus(target: HTMLElement, text: string, store: DisposableStore): void {
+		let didRenderSeparator = false;
 		for (const node of parseLinkedText(text).nodes) {
+			if (!didRenderSeparator) {
+				dom.append(target, dom.$('span.separator'));
+				didRenderSeparator = true;
+			}
 			if (typeof node === 'string') {
 				const parts = renderLabelWithIcons(node);
 				dom.append(target, ...parts);

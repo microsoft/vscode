@@ -42,10 +42,10 @@ export const upstreamSpecs = [
 	'npm',
 	'yarn',
 	'python',
+	'python3',
 	'pnpm',
 	'node',
 	'nvm',
-	'npx',
 ];
 
 

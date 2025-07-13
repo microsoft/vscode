@@ -80,12 +80,12 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this.$el = dom.$('div.debug-toolbar');
 
 		// Note: changes to this setting require a restart, so no need to listen to it.
-		const customTitleBar = getTitleBarStyle(this.configurationService) === TitlebarStyle.CUSTOM;
+		const controlsOnTitlebar = getTitleBarStyle(this.configurationService) === TitlebarStyle.CUSTOM;
 
 		// Do not allow the widget to overflow or underflow window controls.
 		// Use CSS calculations to avoid having to force layout with `.clientWidth`
-		const controlsOnLeft = customTitleBar && platform === Platform.Mac;
-		const controlsOnRight = customTitleBar && (platform === Platform.Windows || platform === Platform.Linux);
+		const controlsOnLeft = controlsOnTitlebar && platform === Platform.Mac;
+		const controlsOnRight = controlsOnTitlebar && (platform === Platform.Windows || platform === Platform.Linux);
 		this.$el.style.transform = `translate(
 			min(
 				max(${controlsOnLeft ? '60px' : '0px'}, calc(-50% + (100vw * var(--x-position)))),
@@ -93,8 +93,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			),
 			var(--y-position)
 		)`;
-
-
 
 		this.dragArea = dom.append(this.$el, dom.$('div.drag-area' + ThemeIcon.asCSSSelector(icons.debugGripper)));
 

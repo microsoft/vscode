@@ -149,12 +149,13 @@ export interface IRenderedHoverParts<T extends IHoverPart> extends IDisposable {
  */
 export class RenderedHoverParts<T extends IHoverPart> implements IRenderedHoverParts<T> {
 
-	constructor(public readonly renderedHoverParts: IRenderedHoverPart<T>[]) { }
+	constructor(public readonly renderedHoverParts: IRenderedHoverPart<T>[], private readonly disposables?: IDisposable) { }
 
 	dispose() {
 		for (const part of this.renderedHoverParts) {
 			part.dispose();
 		}
+		this.disposables?.dispose();
 	}
 }
 
@@ -168,6 +169,7 @@ export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	getAccessibleContent(hoverPart: T): string;
 	handleResize?(): void;
 	handleHide?(): void;
+	handleContentsChanged?(): void;
 	handleScroll?(e: ScrollEvent): void;
 }
 

@@ -11,18 +11,18 @@
   "browser": "./dist/browser/cssServerMain",
   "dependencies": {
     "@vscode/l10n": "^0.0.18",
-    "vscode-css-languageservice": "^6.3.2",
-    "vscode-languageserver": "^10.0.0-next.11",
-    "vscode-uri": "^3.0.8"
+    "vscode-css-languageservice": "^6.3.7",
+    "vscode-languageserver": "^10.0.0-next.13",
+    "vscode-uri": "^3.1.0"
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
-    "@types/node": "20.x"
+    "@types/node": "22.x"
   },
   "scripts": {
     "compile": "gulp compile-extension:css-language-features-server",
     "watch": "gulp watch-extension:css-language-features-server",
-    "install-service-next": "npm install vscode-css-languageservice@next",
+    "install-service-next": "npm install vscode-css-languageservice",
     "install-service-local": "npm link vscode-css-languageservice",
     "install-server-next": "npm install vscode-languageserver@next",
     "install-server-local": "npm install vscode-languageserver",

@@ -185,7 +185,7 @@ class WorkbenchDynamicLabelStrategy implements IActionLayoutStrategy {
 			return undefined;
 		} else {
 			if (action instanceof MenuItemAction) {
-				this.instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate });
+				return this.instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate });
 			}
 
 			if (action instanceof SubmenuItemAction) {
@@ -353,7 +353,7 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 
 		// Make sure both toolbars have the same hover delegate for instant hover to work
 		// Due to the elements being further apart than normal toolbars, the default time limit is to short and has to be increased
-		const hoverDelegate = this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', true, {}));
+		const hoverDelegate = this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, {}));
 		hoverDelegate.setInstantHoverTimeLimit(600);
 
 		const leftToolbarOptions: IWorkbenchToolBarOptions = {
@@ -372,9 +372,6 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 			this._notebookTopLeftToolbarContainer,
 			leftToolbarOptions
 		);
-
-
-
 		this._register(this._notebookLeftToolbar);
 		this._notebookLeftToolbar.context = context;
 

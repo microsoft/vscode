@@ -121,7 +121,7 @@
 			"pattern": "^(\\t|[ ])*[ ]\\*[^/]*\\*/\\s*$|^(\\t|[ ])*[ ]\\*/\\s*$|^(\\t|[ ])*[ ]\\*([ ]([^\\*]|\\*(?!/))*)?$"
 		},
 		"indentNextLinePattern": {
-			"pattern": "^((.*=>\\s*)|((.*[^\\w]+|\\s*)(if|while|for)\\s*\\(.*\\)\\s*))$"
+			"pattern": "^((.*=>\\s*)|((.*[^\\w]+|\\s*)((if|while|for)\\s*\\(.*\\)\\s*|else\\s*)))$"
 		}
 	},
 	"onEnterRules": [
@@ -230,12 +230,8 @@
 		},
 		// Add // when pressing enter from inside line comment
 		{
-			"beforeText": {
-				"pattern": "(?<!\\w:)\/\/.*"
-			},
-			"afterText": {
-				"pattern": "^(?!\\s*$).+"
-			},
+			"beforeText": "(?<!\\\\|\\w:)\/\/\\s*\\S",
+			"afterText": "^(?!\\s*$).+",
 			"action": {
 				"indent": "none",
 				"appendText": "// "

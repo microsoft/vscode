@@ -179,6 +179,7 @@ export interface ITerminalConfiguration {
 	showExitAlert: boolean;
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
+	windowsUseConptyDll?: boolean;
 	wordSeparators: string;
 	enableFileLinks: 'off' | 'on' | 'notRemote';
 	allowedLinkSchemes: string[];
@@ -211,9 +212,6 @@ export interface ITerminalConfiguration {
 		enabled: boolean;
 		featureSettings: string;
 		fallbackLigatures: string[];
-	};
-	experimental?: {
-		windowsUseConptyDll?: boolean;
 	};
 	hideOnLastClosed: boolean;
 }
@@ -298,6 +296,7 @@ export interface ITerminalProcessManager extends IDisposable, ITerminalProcessIn
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined>;
 	relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, reset: boolean): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined>;
 	write(data: string): Promise<void>;
+	sendSignal(signal: string): Promise<void>;
 	setDimensions(cols: number, rows: number): Promise<void>;
 	setDimensions(cols: number, rows: number, sync: false): Promise<void>;
 	setDimensions(cols: number, rows: number, sync: true): void;
@@ -372,6 +371,10 @@ export interface ITerminalStatus {
 	 * What to show for this status in the terminal's hover.
 	 */
 	tooltip?: string | undefined;
+	/**
+	 * What to show for this status in the terminal's hover when details are toggled.
+	 */
+	detailedTooltip?: string | undefined;
 	/**
 	 * Actions to expose on hover.
 	 */
@@ -471,6 +474,7 @@ export const enum TerminalCommandId {
 	SelectToPreviousLine = 'workbench.action.terminal.selectToPreviousLine',
 	SelectToNextLine = 'workbench.action.terminal.selectToNextLine',
 	SendSequence = 'workbench.action.terminal.sendSequence',
+	SendSignal = 'workbench.action.terminal.sendSignal',
 	AttachToSession = 'workbench.action.terminal.attachToSession',
 	DetachSession = 'workbench.action.terminal.detachSession',
 	MoveToEditor = 'workbench.action.terminal.moveToEditor',

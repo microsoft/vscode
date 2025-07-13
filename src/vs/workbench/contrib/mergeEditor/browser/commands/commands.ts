@@ -22,6 +22,10 @@ import { MergeEditor } from '../view/mergeEditor.js';
 import { MergeEditorViewModel } from '../view/viewModel.js';
 import { ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop, ctxMergeEditorShowNonConflictingChanges, StorageCloseWithConflicts } from '../../common/mergeEditor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { transaction } from '../../../../../base/common/observable.js';
+import { ModifiedBaseRangeStateKind } from '../model/modifiedBaseRange.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 
 abstract class MergeEditorAction extends Action2 {
 	constructor(desc: Readonly<IAction2Options>) {
@@ -513,7 +517,7 @@ export class AcceptAllInput1 extends MergeEditorAction {
 		super({
 			id: 'merge.acceptAllInput1',
 			category: mergeEditorCategory,
-			title: localize2('merge.acceptAllInput1', "Accept All Changes from Left"),
+			title: localize2('merge.acceptAllInput1', "Accept All Incoming Changes from Left"),
 			f1: true,
 			precondition: ctxIsMergeEditor,
 			menu: { id: MenuId.MergeInput1Toolbar, group: 'primary' },
@@ -531,7 +535,7 @@ export class AcceptAllInput2 extends MergeEditorAction {
 		super({
 			id: 'merge.acceptAllInput2',
 			category: mergeEditorCategory,
-			title: localize2('merge.acceptAllInput2', "Accept All Changes from Right"),
+			title: localize2('merge.acceptAllInput2', "Accept All Current Changes from Right"),
 			f1: true,
 			precondition: ctxIsMergeEditor,
 			menu: { id: MenuId.MergeInput2Toolbar, group: 'primary' },
@@ -577,6 +581,41 @@ export class ResetCloseWithConflictsChoice extends Action2 {
 	}
 }
 
+export class AcceptAllCombination extends MergeEditorAction2 {
+	constructor() {
+		super({
+			id: 'mergeEditor.acceptAllCombination',
+			category: mergeEditorCategory,
+			title: localize2('mergeEditor.acceptAllCombination', "Accept All Combination"),
+			f1: true,
+		});
+	}
+
+	override runWithMergeEditor(context: MergeEditorAction2Args, accessor: ServicesAccessor, ...args: any[]) {
+		const { viewModel } = context;
+		const modifiedBaseRanges = viewModel.model.modifiedBaseRanges.get();
+		const model = viewModel.model;
+		transaction((tx) => {
+			for (const m of modifiedBaseRanges) {
+				const state = model.getState(m).get();
+				if (state.kind !== ModifiedBaseRangeStateKind.unrecognized && !state.isInputIncluded(1) && (!state.isInputIncluded(2) || !viewModel.shouldUseAppendInsteadOfAccept.get()) && m.canBeCombined) {
+					model.setState(
+						m,
+						state
+							.withInputValue(1, true)
+							.withInputValue(2, true, true),
+						true,
+						tx
+					);
+					model.telemetry.reportSmartCombinationInvoked(state.includesInput(2));
+				}
+			}
+		});
+		return { success: true };
+
+	}
+}
+
 // this is an API command
 export class AcceptMerge extends MergeEditorAction2 {
 	constructor() {
@@ -584,8 +623,15 @@ export class AcceptMerge extends MergeEditorAction2 {
 			id: 'mergeEditor.acceptMerge',
 			category: mergeEditorCategory,
 			title: localize2('mergeEditor.acceptMerge', "Complete Merge"),
-			f1: false,
-			precondition: ctxIsMergeEditor
+			f1: true,
+			precondition: ctxIsMergeEditor,
+			keybinding: [
+				{
+					primary: KeyMod.CtrlCmd | KeyCode.Enter,
+					weight: KeybindingWeight.EditorContrib,
+					when: ctxIsMergeEditor,
+				}
+			]
 		});
 	}
 
@@ -613,5 +659,36 @@ export class AcceptMerge extends MergeEditorAction2 {
 		return {
 			successful: true
 		};
+	}
+}
+
+export class ToggleBetweenInputs extends MergeEditorAction2 {
+	constructor() {
+		super({
+			id: 'mergeEditor.toggleBetweenInputs',
+			category: mergeEditorCategory,
+			title: localize2('mergeEditor.toggleBetweenInputs', "Toggle Between Merge Editor Inputs"),
+			f1: true,
+			precondition: ctxIsMergeEditor,
+			keybinding: [
+				{
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyT,
+					// Override reopen closed editor
+					weight: KeybindingWeight.WorkbenchContrib + 10,
+					when: ctxIsMergeEditor,
+				}
+			]
+		});
+	}
+
+	override runWithMergeEditor({ viewModel }: MergeEditorAction2Args, accessor: ServicesAccessor) {
+		const input1IsFocused = viewModel.inputCodeEditorView1.editor.hasWidgetFocus();
+
+		// Toggle focus between inputs
+		if (input1IsFocused) {
+			viewModel.inputCodeEditorView2.editor.focus();
+		} else {
+			viewModel.inputCodeEditorView1.editor.focus();
+		}
 	}
 }

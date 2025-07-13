@@ -7,7 +7,7 @@ import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelega
 import { AbstractTree, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, IStickyScrollDelegate, StickyScrollNode } from './abstractTree.js';
 import { CompressibleObjectTreeModel, ElementMapper, ICompressedTreeElement, ICompressedTreeNode } from './compressedObjectTreeModel.js';
 import { IObjectTreeModel, ObjectTreeModel } from './objectTreeModel.js';
-import { ICollapseStateChangeEvent, IObjectTreeElement, ITreeModel, ITreeNode, ITreeRenderer, ITreeSorter } from './tree.js';
+import { ICollapseStateChangeEvent, IObjectTreeElement, ITreeElementRenderDetails, ITreeModel, ITreeNode, ITreeRenderer, ITreeSorter } from './tree.js';
 import { memoize } from '../../../common/decorators.js';
 import { Event } from '../../../common/event.js';
 import { Iterable } from '../../../common/iterator.js';
@@ -91,8 +91,8 @@ interface ICompressedTreeNodeProvider<T, TFilterData> {
 }
 
 export interface ICompressibleTreeRenderer<T, TFilterData = void, TTemplateData = void> extends ITreeRenderer<T, TFilterData, TTemplateData> {
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<T>, TFilterData>, index: number, templateData: TTemplateData, height: number | undefined): void;
-	disposeCompressedElements?(node: ITreeNode<ICompressedTreeNode<T>, TFilterData>, index: number, templateData: TTemplateData, height: number | undefined): void;
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<T>, TFilterData>, index: number, templateData: TTemplateData, details?: ITreeElementRenderDetails): void;
+	disposeCompressedElements?(node: ITreeNode<ICompressedTreeNode<T>, TFilterData>, index: number, templateData: TTemplateData, details?: ITreeElementRenderDetails): void;
 }
 
 interface CompressibleTemplateData<T, TFilterData, TTemplateData> {
@@ -123,7 +123,7 @@ class CompressibleRenderer<T extends NonNullable<any>, TFilterData, TTemplateDat
 		return { compressedTreeNode: undefined, data };
 	}
 
-	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: CompressibleTemplateData<T, TFilterData, TTemplateData>, height: number | undefined): void {
+	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: CompressibleTemplateData<T, TFilterData, TTemplateData>, details?: ITreeElementRenderDetails): void {
 		let compressedTreeNode = this.stickyScrollDelegate.getCompressedNode(node);
 		if (!compressedTreeNode) {
 			compressedTreeNode = this.compressedTreeNodeProvider.getCompressedTreeNode(node.element) as ITreeNode<ICompressedTreeNode<T>, TFilterData>;
@@ -131,18 +131,18 @@ class CompressibleRenderer<T extends NonNullable<any>, TFilterData, TTemplateDat
 
 		if (compressedTreeNode.element.elements.length === 1) {
 			templateData.compressedTreeNode = undefined;
-			this.renderer.renderElement(node, index, templateData.data, height);
+			this.renderer.renderElement(node, index, templateData.data, details);
 		} else {
 			templateData.compressedTreeNode = compressedTreeNode;
-			this.renderer.renderCompressedElements(compressedTreeNode, index, templateData.data, height);
+			this.renderer.renderCompressedElements(compressedTreeNode, index, templateData.data, details);
 		}
 	}
 
-	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: CompressibleTemplateData<T, TFilterData, TTemplateData>, height: number | undefined): void {
+	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: CompressibleTemplateData<T, TFilterData, TTemplateData>, details?: ITreeElementRenderDetails): void {
 		if (templateData.compressedTreeNode) {
-			this.renderer.disposeCompressedElements?.(templateData.compressedTreeNode, index, templateData.data, height);
+			this.renderer.disposeCompressedElements?.(templateData.compressedTreeNode, index, templateData.data, details);
 		} else {
-			this.renderer.disposeElement?.(node, index, templateData.data, height);
+			this.renderer.disposeElement?.(node, index, templateData.data, details);
 		}
 	}
 
@@ -150,11 +150,8 @@ class CompressibleRenderer<T extends NonNullable<any>, TFilterData, TTemplateDat
 		this.renderer.disposeTemplate(templateData.data);
 	}
 
-	renderTwistie?(element: T, twistieElement: HTMLElement): boolean {
-		if (this.renderer.renderTwistie) {
-			return this.renderer.renderTwistie(element, twistieElement);
-		}
-		return false;
+	renderTwistie(element: T, twistieElement: HTMLElement): boolean {
+		return this.renderer.renderTwistie?.(element, twistieElement) ?? false;
 	}
 }
 

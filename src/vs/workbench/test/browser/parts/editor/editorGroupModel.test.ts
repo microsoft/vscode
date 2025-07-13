@@ -236,10 +236,12 @@ suite('EditorGroupModel', () => {
 
 	class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 
-		readonly preferredResource = this.resource;
+		readonly preferredResource;
 
 		constructor(public id: string, public resource: URI) {
 			super();
+
+			this.preferredResource = this.resource;
 		}
 		override get typeId() { return 'testFileEditorInputForGroups'; }
 		override get editorId() { return this.id; }

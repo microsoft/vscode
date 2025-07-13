@@ -656,11 +656,11 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 
 	updateEditState(newState: CellEditState, source: string) {
-		this._editStateSource = source;
 		if (newState === this._editState) {
 			return;
 		}
 
+		this._editStateSource = source;
 		this._editState = newState;
 		this._onDidChangeState.fire({ editStateChanged: true });
 		if (this._editState === CellEditState.Preview) {

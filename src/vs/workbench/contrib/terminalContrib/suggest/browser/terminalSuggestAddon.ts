@@ -5,27 +5,23 @@
 
 import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 import * as dom from '../../../../../base/browser/dom.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { combinedDisposable, Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { sep } from '../../../../../base/common/path.js';
 import { commonPrefixLength } from '../../../../../base/common/strings.js';
-import { editorSuggestWidgetSelectedBackground } from '../../../../../editor/contrib/suggest/browser/suggestWidget.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TerminalCapability, type ITerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import type { IPromptInputModel, IPromptInputModelState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
-import { getListStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { activeContrastBorder } from '../../../../../platform/theme/common/colorRegistry.js';
 import type { IXtermCore } from '../../../terminal/browser/xterm-private.js';
 import { TerminalStorageKeys } from '../../../terminal/common/terminalStorageKeys.js';
 import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
 import { LineContext } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import { ITerminalCompletionService } from './terminalCompletionService.js';
-import { TerminalSettingId, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { TerminalSettingId, TerminalShellType, PosixShellType, WindowsShellType, GeneralShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -36,6 +32,10 @@ import { GOLDEN_LINE_HEIGHT_RATIO, MINIMUM_LINE_HEIGHT } from '../../../../../ed
 import { TerminalCompletionModel } from './terminalCompletionModel.js';
 import { TerminalCompletionItem, TerminalCompletionItemKind, type ITerminalCompletion } from './terminalCompletionItem.js';
 import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
+import { localize } from '../../../../../nls.js';
+import { TerminalSuggestTelemetry } from './terminalSuggestTelemetry.js';
+import { terminalSymbolAliasIcon, terminalSymbolArgumentIcon, terminalSymbolEnumMember, terminalSymbolFileIcon, terminalSymbolFlagIcon, terminalSymbolInlineSuggestionIcon, terminalSymbolMethodIcon, terminalSymbolOptionIcon, terminalSymbolFolderIcon, terminalSymbolSymbolicLinkFileIcon, terminalSymbolSymbolicLinkFolderIcon } from './terminalSymbolIcons.js';
+import { TerminalSuggestShownTracker } from './terminalSuggestShownTracker.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -44,8 +44,20 @@ export interface ISuggestController {
 	selectNextSuggestion(): void;
 	selectNextPageSuggestion(): void;
 	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion<TerminalCompletionItem>, 'item' | 'model'>): void;
-	hideSuggestWidget(): void;
+	hideSuggestWidget(cancelAnyRequests: boolean, wasClosedByUser?: boolean): void;
 }
+
+export function isInlineCompletionSupported(shellType: TerminalShellType | undefined): boolean {
+	if (!shellType) {
+		return false;
+	}
+	return shellType === PosixShellType.Bash ||
+		shellType === PosixShellType.Zsh ||
+		shellType === PosixShellType.Fish ||
+		shellType === GeneralShellType.PowerShell ||
+		shellType === WindowsShellType.GitBash;
+}
+
 export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggestController {
 	private _terminal?: Terminal;
 
@@ -75,6 +87,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _cancellationTokenSource: CancellationTokenSource | undefined;
 
+	private _discoverability: TerminalSuggestShownTracker | undefined;
+
 	isPasting: boolean = false;
 	shellType: TerminalShellType | undefined;
 	private readonly _shellTypeInit: Promise<void>;
@@ -89,29 +103,57 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	readonly onDidFontConfigurationChange = this._onDidFontConfigurationChange.event;
 
 	private _kindToIconMap = new Map<number, ThemeIcon>([
-		[TerminalCompletionItemKind.File, Codicon.file],
-		[TerminalCompletionItemKind.Folder, Codicon.folder],
-		[TerminalCompletionItemKind.Flag, Codicon.symbolProperty],
-		[TerminalCompletionItemKind.Method, Codicon.symbolMethod],
-		[TerminalCompletionItemKind.Argument, Codicon.symbolVariable],
-		[TerminalCompletionItemKind.Alias, Codicon.replace],
-		[TerminalCompletionItemKind.InlineSuggestion, Codicon.star],
+		[TerminalCompletionItemKind.File, terminalSymbolFileIcon],
+		[TerminalCompletionItemKind.Folder, terminalSymbolFolderIcon],
+		[TerminalCompletionItemKind.SymbolicLinkFile, terminalSymbolSymbolicLinkFileIcon],
+		[TerminalCompletionItemKind.SymbolicLinkFolder, terminalSymbolSymbolicLinkFolderIcon],
+		[TerminalCompletionItemKind.Method, terminalSymbolMethodIcon],
+		[TerminalCompletionItemKind.Alias, terminalSymbolAliasIcon],
+		[TerminalCompletionItemKind.Argument, terminalSymbolArgumentIcon],
+		[TerminalCompletionItemKind.Option, terminalSymbolOptionIcon],
+		[TerminalCompletionItemKind.OptionValue, terminalSymbolEnumMember],
+		[TerminalCompletionItemKind.Flag, terminalSymbolFlagIcon],
+		[TerminalCompletionItemKind.InlineSuggestion, terminalSymbolInlineSuggestionIcon],
+		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, terminalSymbolInlineSuggestionIcon],
+	]);
+
+	private _kindToKindLabelMap = new Map<number, string>([
+		[TerminalCompletionItemKind.File, localize('file', 'File')],
+		[TerminalCompletionItemKind.Folder, localize('folder', 'Folder')],
+		[TerminalCompletionItemKind.SymbolicLinkFile, localize('symbolicLinkFile', 'Symbolic Link File')],
+		[TerminalCompletionItemKind.SymbolicLinkFolder, localize('symbolicLinkFolder', 'Symbolic Link Folder')],
+		[TerminalCompletionItemKind.Method, localize('method', 'Method')],
+		[TerminalCompletionItemKind.Alias, localize('alias', 'Alias')],
+		[TerminalCompletionItemKind.Argument, localize('argument', 'Argument')],
+		[TerminalCompletionItemKind.Option, localize('option', 'Option')],
+		[TerminalCompletionItemKind.OptionValue, localize('optionValue', 'Option Value')],
+		[TerminalCompletionItemKind.Flag, localize('flag', 'Flag')],
+		[TerminalCompletionItemKind.InlineSuggestion, localize('inlineSuggestion', 'Inline Suggestion')],
+		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, localize('inlineSuggestionAlwaysOnTop', 'Inline Suggestion')],
 	]);
 
 	private readonly _inlineCompletion: ITerminalCompletion = {
 		label: '',
+		// Right arrow is used to accept the completion. This is a common keybinding in pwsh, zsh
+		// and fish.
+		inputData: '\x1b[C',
 		replacementIndex: 0,
 		replacementLength: 0,
 		provider: 'core',
 		detail: 'Inline suggestion',
 		kind: TerminalCompletionItemKind.InlineSuggestion,
+		kindLabel: 'Inline suggestion',
 		icon: this._kindToIconMap.get(TerminalCompletionItemKind.InlineSuggestion),
 	};
 	private readonly _inlineCompletionItem = new TerminalCompletionItem(this._inlineCompletion);
 
 	private _shouldSyncWhenReady: boolean = false;
+	private _suggestTelemetry: TerminalSuggestTelemetry | undefined;
+
+	private _completionRequestTimestamp: number | undefined;
 
 	constructor(
+		private readonly _sessionId: string,
 		shellType: TerminalShellType | undefined,
 		private readonly _capabilities: ITerminalCapabilityStore,
 		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>,
@@ -119,7 +161,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService
 	) {
 		super();
 
@@ -154,21 +196,41 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			if (commandDetection) {
 				if (this._promptInputModel !== commandDetection.promptInputModel) {
 					this._promptInputModel = commandDetection.promptInputModel;
+					this._suggestTelemetry = this._register(this._instantiationService.createInstance(TerminalSuggestTelemetry, commandDetection, this._promptInputModel));
 					this._promptInputModelSubscriptions.value = combinedDisposable(
 						this._promptInputModel.onDidChangeInput(e => this._sync(e)),
-						this._promptInputModel.onDidFinishInput(() => this.hideSuggestWidget()),
+						this._promptInputModel.onDidFinishInput(() => {
+							this.hideSuggestWidget(true);
+						}),
 					);
 					if (this._shouldSyncWhenReady) {
 						this._sync(this._promptInputModel);
 						this._shouldSyncWhenReady = false;
 					}
 				}
-				this._register(commandDetection.onCommandExecuted(() => this.hideSuggestWidget()));
 			} else {
 				this._promptInputModel = undefined;
 			}
 		}));
 		this._register(this._terminalConfigurationService.onConfigChanged(() => this._cachedFontInfo = undefined));
+		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
+			if (!e || e.affectsConfiguration(TerminalSuggestSettingId.InlineSuggestion)) {
+				const value = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).inlineSuggestion;
+				this._inlineCompletionItem.isInvalid = value === 'off';
+				switch (value) {
+					case 'alwaysOnTopExceptExactMatch': {
+						this._inlineCompletion.kind = TerminalCompletionItemKind.InlineSuggestion;
+						break;
+					}
+					case 'alwaysOnTop':
+					default: {
+						this._inlineCompletion.kind = TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop;
+						break;
+					}
+				}
+				this._model?.forceRefilterAll();
+			}
+		}));
 	}
 
 	activate(xterm: Terminal): void {
@@ -177,6 +239,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._lastUserData = e.key;
 			this._lastUserDataTimestamp = Date.now();
 		}));
+		this._register(xterm.onScroll(() => this.hideSuggestWidget(true)));
 	}
 
 	private async _handleCompletionProviders(terminal: Terminal | undefined, token: CancellationToken, explicitlyInvoked?: boolean): Promise<void> {
@@ -190,18 +253,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
-		// Require a shell type for completions. This will wait a short period after launching to
-		// wait for the shell type to initialize. This prevents user requests sometimes getting lost
-		// if requested shortly after the terminal is created.
+		// Wait for the shell type to initialize. This will wait a short period after launching to
+		// allow the shell type to be set if possible. This prevents user requests sometimes getting
+		// lost if requested shortly after the terminal is created. Completion providers can still
+		// work with undefined shell types such as Pseudoterminal-based extension terminals.
 		await this._shellTypeInit;
-		if (!this.shellType) {
-			return;
-		}
 
 		let doNotRequestExtensionCompletions = false;
 		// Ensure that a key has been pressed since the last accepted completion in order to prevent
 		// completions being requested again right after accepting a completion
-		if (this._lastUserDataTimestamp < SuggestAddon.lastAcceptedCompletionTimestamp) {
+		if (this._promptInputModel.value !== '' && this._lastUserDataTimestamp < SuggestAddon.lastAcceptedCompletionTimestamp) {
 			doNotRequestExtensionCompletions = true;
 		}
 
@@ -217,9 +278,20 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		};
 		this._requestedCompletionsIndex = this._currentPromptInputState.cursorIndex;
 
-		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._currentPromptInputState.prefix, this._currentPromptInputState.cursorIndex, this.shellType, this._capabilities, token, doNotRequestExtensionCompletions);
+		// Show loading indicator before making async completion request (only for explicit invocations)
+		if (explicitlyInvoked) {
+			const suggestWidget = this._ensureSuggestWidget(terminal);
+			const cursorPosition = this._getCursorPosition(terminal);
+			if (cursorPosition) {
+				suggestWidget.showTriggered(true, cursorPosition);
+			}
+		}
 
-		if (!providedCompletions?.length || token.isCancellationRequested) {
+		const quickSuggestionsConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).quickSuggestions;
+		const allowFallbackCompletions = explicitlyInvoked || quickSuggestionsConfig.unknown === 'on';
+		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._currentPromptInputState.prefix, this._currentPromptInputState.cursorIndex, allowFallbackCompletions, this.shellType, this._capabilities, token, false, doNotRequestExtensionCompletions, explicitlyInvoked);
+
+		if (token.isCancellationRequested) {
 			return;
 		}
 		this._onDidReceiveCompletions.fire();
@@ -227,8 +299,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._cursorIndexDelta = this._promptInputModel.cursorIndex - this._requestedCompletionsIndex;
 		this._leadingLineContent = this._promptInputModel.prefix.substring(0, this._requestedCompletionsIndex + this._cursorIndexDelta);
 
-		const completions = providedCompletions.flat();
-		if (!completions?.length) {
+		const completions = providedCompletions?.flat() || [];
+		if (!explicitlyInvoked && !completions.length) {
+			this.hideSuggestWidget(true);
 			return;
 		}
 
@@ -248,33 +321,39 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._isFilteringDirectories = completions.some(e => e.kind === TerminalCompletionItemKind.Folder);
 		if (this._isFilteringDirectories) {
 			const firstDir = completions.find(e => e.kind === TerminalCompletionItemKind.Folder);
-			this._pathSeparator = firstDir?.label.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
+			const textLabel = typeof firstDir?.label === 'string' ? firstDir.label : firstDir?.label.label;
+			this._pathSeparator = textLabel?.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
 			normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 		}
 
 		// Add any "ghost text" suggestion suggested by the shell. This aligns with behavior of the
 		// editor and how it interacts with inline completions. This object is tracked and reused as
 		// it may change on input.
-		this._refreshInlineCompletion();
+		this._refreshInlineCompletion(completions);
 
 		// Add any missing icons based on the completion item kind
 		for (const completion of completions) {
 			if (!completion.icon && completion.kind !== undefined) {
 				completion.icon = this._kindToIconMap.get(completion.kind);
+				completion.kindLabel = this._kindToKindLabelMap.get(completion.kind);
 			}
 		}
 
 		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
+		const items = completions.filter(c => !!c.label).map(c => new TerminalCompletionItem(c));
+		if (isInlineCompletionSupported(this.shellType)) {
+			items.push(this._inlineCompletionItem);
+		}
+
 		const model = new TerminalCompletionModel(
-			[
-				...completions.filter(c => !!c.label).map(c => new TerminalCompletionItem(c)),
-				this._inlineCompletionItem,
-			],
+			items,
 			lineContext
 		);
 		if (token.isCancellationRequested) {
+			this._completionRequestTimestamp = undefined;
 			return;
 		}
+
 		this._showCompletions(model, explicitlyInvoked);
 	}
 
@@ -317,13 +396,70 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		this._cancellationTokenSource = new CancellationTokenSource();
 		const token = this._cancellationTokenSource.token;
+
+		// Track the time when completions are requested
+		this._completionRequestTimestamp = Date.now();
+
 		await this._handleCompletionProviders(this._terminal, token, explicitlyInvoked);
+
+		// If completions are not shown (widget not visible), reset the tracker
+		if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
+			this._completionRequestTimestamp = undefined;
+		}
+	}
+
+	private _addPropertiesToInlineCompletionItem(completions: ITerminalCompletion[]): void {
+		const inlineCompletionLabel = (typeof this._inlineCompletionItem.completion.label === 'string' ? this._inlineCompletionItem.completion.label : this._inlineCompletionItem.completion.label.label).trim();
+		const inlineCompletionMatchIndex = completions.findIndex(c => typeof c.label === 'string' ? c.label === inlineCompletionLabel : c.label.label === inlineCompletionLabel);
+		if (inlineCompletionMatchIndex !== -1) {
+			// Remove the existing inline completion item from the completions list
+			const richCompletionMatchingInline = completions.splice(inlineCompletionMatchIndex, 1)[0];
+			// Apply its properties to the inline completion item
+			this._inlineCompletionItem.completion.label = richCompletionMatchingInline.label;
+			this._inlineCompletionItem.completion.detail = richCompletionMatchingInline.detail;
+			this._inlineCompletionItem.completion.documentation = richCompletionMatchingInline.documentation;
+		} else if (this._inlineCompletionItem.completion) {
+			this._inlineCompletionItem.completion.detail = undefined;
+			this._inlineCompletionItem.completion.documentation = undefined;
+		}
+	}
+
+	private _requestTriggerCharQuickSuggestCompletions(): boolean {
+		if (!this._wasLastInputVerticalArrowKey() && !this._wasLastInputTabKey()) {
+			// Only request on trigger character when it's a regular input, or on an arrow if the widget
+			// is already visible
+			if (!this._wasLastInputIncludedEscape() || this._terminalSuggestWidgetVisibleContextKey.get()) {
+				this.requestCompletions();
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private _wasLastInputRightArrowKey(): boolean {
+		return !!this._lastUserData?.match(/^\x1b[\[O]?C$/);
+	}
+
+	private _wasLastInputVerticalArrowKey(): boolean {
+		return !!this._lastUserData?.match(/^\x1b[\[O]?[A-B]$/);
+	}
+
+	/**
+	 * Whether the last input included the escape character. Typically this will mean it was more
+	 * than just a simple character, such as arrow keys, home, end, etc.
+	 */
+	private _wasLastInputIncludedEscape(): boolean {
+		return !!this._lastUserData?.includes('\x1b');
 	}
 
 	private _wasLastInputArrowKey(): boolean {
 		// Never request completions if the last key sequence was up or down as the user was likely
 		// navigating history
 		return !!this._lastUserData?.match(/^\x1b[\[O]?[A-D]$/);
+	}
+
+	private _wasLastInputTabKey(): boolean {
+		return this._lastUserData === '\t';
 	}
 
 	private _sync(promptInputState: IPromptInputModelState): void {
@@ -335,12 +471,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			if (!this._mostRecentPromptInputState || promptInputState.cursorIndex > this._mostRecentPromptInputState.cursorIndex) {
 				// Quick suggestions - Trigger whenever a new non-whitespace character is used
 				if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
-					if (config.quickSuggestions) {
+					const commandLineHasSpace = promptInputState.prefix.trim().match(/\s/);
+					if (
+						(!commandLineHasSpace && config.quickSuggestions.commands !== 'off') ||
+						(commandLineHasSpace && config.quickSuggestions.arguments !== 'off')
+					) {
 						if (promptInputState.prefix.match(/[^\s]$/)) {
-							if (!this._wasLastInputArrowKey()) {
-								this.requestCompletions();
-								sent = true;
-							}
+							sent = this._requestTriggerCharQuickSuggestCompletions();
 						}
 					}
 				}
@@ -356,10 +493,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						// with git branches in particular
 						this._isFilteringDirectories && prefix?.match(/[\\\/]$/)
 					) {
-						if (!this._wasLastInputArrowKey()) {
-							this.requestCompletions();
-							sent = true;
-						}
+						sent = this._requestTriggerCharQuickSuggestCompletions();
 					}
 					if (!sent) {
 						for (const provider of this._terminalCompletionService.providers) {
@@ -368,10 +502,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 							}
 							for (const char of provider.triggerCharacters) {
 								if (prefix?.endsWith(char)) {
-									if (!this._wasLastInputArrowKey()) {
-										this.requestCompletions();
-										sent = true;
-									}
+									sent = this._requestTriggerCharQuickSuggestCompletions();
 									break;
 								}
 							}
@@ -381,22 +512,33 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			}
 
 			// If the cursor moved to the left
-			if (this._mostRecentPromptInputState && promptInputState.cursorIndex < this._mostRecentPromptInputState.cursorIndex) {
-				// Backspace or left past a trigger character
-				if (config.suggestOnTriggerCharacters && !sent && this._mostRecentPromptInputState.cursorIndex > 0) {
-					const char = this._mostRecentPromptInputState.value[this._mostRecentPromptInputState.cursorIndex - 1];
-					if (
-						// Only trigger on `\` and `/` if it's a directory. Not doing so causes problems
-						// with git branches in particular
-						this._isFilteringDirectories && char.match(/[\\\/]$/)
-					) {
-						if (!this._wasLastInputArrowKey()) {
-							this.requestCompletions();
-							sent = true;
+			if (this._mostRecentPromptInputState && promptInputState.cursorIndex < this._mostRecentPromptInputState.cursorIndex && promptInputState.cursorIndex > 0) {
+				// We only want to refresh via trigger characters in this case if the widget is
+				// already visible
+				if (this._terminalSuggestWidgetVisibleContextKey.get()) {
+					// Backspace or left past a trigger character
+					if (config.suggestOnTriggerCharacters && !sent && this._mostRecentPromptInputState.cursorIndex > 0) {
+						const char = this._mostRecentPromptInputState.value[this._mostRecentPromptInputState.cursorIndex - 1];
+						if (
+							// Only trigger on `\` and `/` if it's a directory. Not doing so causes problems
+							// with git branches in particular
+							this._isFilteringDirectories && char.match(/[\\\/]$/)
+						) {
+							sent = this._requestTriggerCharQuickSuggestCompletions();
 						}
 					}
 				}
 			}
+		}
+
+		// Hide the widget if ghost text was just completed via right arrow
+		if (
+			this._wasLastInputRightArrowKey() &&
+			this._mostRecentPromptInputState?.ghostTextIndex !== -1 &&
+			promptInputState.ghostTextIndex === -1 &&
+			this._mostRecentPromptInputState?.value === promptInputState.value
+		) {
+			this.hideSuggestWidget(false);
 		}
 
 		this._mostRecentPromptInputState = promptInputState;
@@ -404,12 +546,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
+		const previousPromptInputState = this._currentPromptInputState;
 		this._currentPromptInputState = promptInputState;
 
 		// Hide the widget if the latest character was a space
 		if (this._currentPromptInputState.cursorIndex > 1 && this._currentPromptInputState.value.at(this._currentPromptInputState.cursorIndex - 1) === ' ') {
-			this.hideSuggestWidget();
-			return;
+			if (!this._wasLastInputArrowKey()) {
+				this.hideSuggestWidget(false);
+				return;
+			}
 		}
 
 		// Hide the widget if the cursor moves to the left and invalidates the completions.
@@ -417,8 +562,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// requested, but since extensions are expected to allow the client-side to filter, they are
 		// only invalidated when whitespace is encountered.
 		if (this._currentPromptInputState && this._currentPromptInputState.cursorIndex < this._leadingLineContent.length) {
-			if (this._currentPromptInputState.cursorIndex <= 0 || this._currentPromptInputState.value[this._currentPromptInputState.cursorIndex - 1].match(/\s/)) {
-				this.hideSuggestWidget();
+			if (this._currentPromptInputState.cursorIndex <= 0 || previousPromptInputState?.value[this._currentPromptInputState.cursorIndex]?.match(/[\\\/\s]/)) {
+				this.hideSuggestWidget(false);
 				return;
 			}
 		}
@@ -433,49 +578,56 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._suggestWidget.setLineContext(lineContext);
 		}
 
-		this._refreshInlineCompletion();
+		this._refreshInlineCompletion(this._model?.items.map(i => i.completion) || []);
 
 		// Hide and clear model if there are no more items
 		if (!this._suggestWidget.hasCompletions()) {
-			this.hideSuggestWidget();
+			this.hideSuggestWidget(false);
 			return;
 		}
 
-		const dimensions = this._getTerminalDimensions();
-		if (!dimensions.width || !dimensions.height) {
+		const cursorPosition = this._getCursorPosition(this._terminal);
+		if (!cursorPosition) {
 			return;
 		}
-		const xtermBox = this._screen!.getBoundingClientRect();
-		this._suggestWidget.showSuggestions(0, false, false, {
-			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
-			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
-			height: dimensions.height
-		});
+		this._suggestWidget.showSuggestions(0, false, true, cursorPosition);
 	}
 
-	private _refreshInlineCompletion() {
+	private _refreshInlineCompletion(completions: ITerminalCompletion[]): void {
+		if (!isInlineCompletionSupported(this.shellType)) {
+			// If the shell type is not supported, the inline completion item is invalid
+			return;
+		}
 		const oldIsInvalid = this._inlineCompletionItem.isInvalid;
 		if (!this._currentPromptInputState || this._currentPromptInputState.ghostTextIndex === -1) {
 			this._inlineCompletionItem.isInvalid = true;
 		} else {
 			this._inlineCompletionItem.isInvalid = false;
 			// Update properties
-			const suggestion = this._currentPromptInputState.value;
+			const spaceIndex = this._currentPromptInputState.value.lastIndexOf(' ', this._currentPromptInputState.ghostTextIndex - 1);
+			const replacementIndex = spaceIndex === -1 ? 0 : spaceIndex + 1;
+			const suggestion = this._currentPromptInputState.value.substring(replacementIndex);
 			this._inlineCompletion.label = suggestion;
-			this._inlineCompletion.replacementIndex = 0;
-			this._inlineCompletion.replacementLength = this._currentPromptInputState.ghostTextIndex;
+			this._inlineCompletion.replacementIndex = replacementIndex;
+			// Note that the cursor index delta must be taken into account here, otherwise filtering
+			// wont work correctly.
+			this._inlineCompletion.replacementLength = this._currentPromptInputState.cursorIndex - replacementIndex - this._cursorIndexDelta;
 			// Reset the completion item as the object reference must remain the same but its
 			// contents will differ across syncs. This is done so we don't need to reassign the
 			// model and the slowdown/flickering that could potentially cause.
+			this._addPropertiesToInlineCompletionItem(completions);
+
 			const x = new TerminalCompletionItem(this._inlineCompletion);
 			this._inlineCompletionItem.idx = x.idx;
 			this._inlineCompletionItem.score = x.score;
 			this._inlineCompletionItem.labelLow = x.labelLow;
+			this._inlineCompletionItem.textLabel = x.textLabel;
 			this._inlineCompletionItem.fileExtLow = x.fileExtLow;
 			this._inlineCompletionItem.labelLowExcludeFileExt = x.labelLowExcludeFileExt;
 			this._inlineCompletionItem.labelLowNormalizedPath = x.labelLowNormalizedPath;
-			this._inlineCompletionItem.underscorePenalty = x.underscorePenalty;
+			this._inlineCompletionItem.punctuationPenalty = x.punctuationPenalty;
 			this._inlineCompletionItem.word = x.word;
+			this._model?.forceRefilterAll();
 		}
 
 		// Force a filter all in order to re-evaluate the inline completion
@@ -489,6 +641,19 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		return {
 			width: cssCellDims.width,
 			height: cssCellDims.height,
+		};
+	}
+
+	private _getCursorPosition(terminal: Terminal): { top: number; left: number; height: number } | undefined {
+		const dimensions = this._getTerminalDimensions();
+		if (!dimensions.width || !dimensions.height) {
+			return undefined;
+		}
+		const xtermBox = this._screen!.getBoundingClientRect();
+		return {
+			left: xtermBox.left + terminal.buffer.active.cursorX * dimensions.width,
+			top: xtermBox.top + terminal.buffer.active.cursorY * dimensions.height,
+			height: dimensions.height
 		};
 	}
 
@@ -531,6 +696,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		return fontInfo;
 	}
 
+	private _getAdvancedExplainModeDetails(): string | undefined {
+		return `promptInputModel: ${this._promptInputModel?.getCombinedString()}`;
+	}
+
 	private _showCompletions(model: TerminalCompletionModel, explicitlyInvoked?: boolean): void {
 		if (!this._terminal?.element) {
 			return;
@@ -542,17 +711,21 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 		this._model = model;
-		const dimensions = this._getTerminalDimensions();
-		if (!dimensions.width || !dimensions.height) {
+		const cursorPosition = this._getCursorPosition(this._terminal);
+		if (!cursorPosition) {
 			return;
 		}
-		const xtermBox = this._screen!.getBoundingClientRect();
-
-		suggestWidget.showSuggestions(0, false, false, {
-			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
-			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
-			height: dimensions.height
-		});
+		// Track the time when completions are shown for the first time
+		if (this._completionRequestTimestamp !== undefined) {
+			const completionLatency = Date.now() - this._completionRequestTimestamp;
+			if (this._suggestTelemetry && this._discoverability) {
+				const firstShown = this._discoverability.getFirstShown(this.shellType);
+				this._discoverability.updateShown();
+				this._suggestTelemetry.logCompletionLatency(this._sessionId, completionLatency, firstShown);
+			}
+			this._completionRequestTimestamp = undefined;
+		}
+		suggestWidget.showSuggestions(0, false, !explicitlyInvoked, cursorPosition);
 	}
 
 
@@ -564,15 +737,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				this._instantiationService.createInstance(PersistedWidgetSize),
 				{
 					statusBarMenuId: MenuId.MenubarTerminalSuggestStatusMenu,
-					showStatusBarSettingId: TerminalSuggestSettingId.ShowStatusBar
+					showStatusBarSettingId: TerminalSuggestSettingId.ShowStatusBar,
+					selectionModeSettingId: TerminalSuggestSettingId.SelectionMode,
 				},
 				this._getFontInfo.bind(this),
-				this._onDidFontConfigurationChange.event.bind(this)
+				this._onDidFontConfigurationChange.event.bind(this),
+				this._getAdvancedExplainModeDetails.bind(this)
 			)) as any as SimpleSuggestWidget<TerminalCompletionModel, TerminalCompletionItem>;
-			this._suggestWidget.list.style(getListStyles({
-				listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
-				listInactiveFocusOutline: activeContrastBorder
-			}));
 			this._register(this._suggestWidget.onDidSelect(async e => this.acceptSelectedSuggestion(e)));
 			this._register(this._suggestWidget.onDidHide(() => this._terminalSuggestWidgetVisibleContextKey.reset()));
 			this._register(this._suggestWidget.onDidShow(() => this._terminalSuggestWidgetVisibleContextKey.set(true)));
@@ -592,6 +763,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				}));
 			}
 
+			this._register(this._suggestWidget.onDidShow(() => this._updateDiscoverabilityState()));
 			this._register(this._suggestWidget.onDidBlurDetails((e) => {
 				const elt = e.relatedTarget as HTMLElement;
 				if (this._terminal?.element?.contains(elt)) {
@@ -605,6 +777,21 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._terminalSuggestWidgetVisibleContextKey.set(false);
 		}
 		return this._suggestWidget;
+	}
+
+	private _updateDiscoverabilityState(): void {
+		if (!this._discoverability) {
+			this._discoverability = this._register(this._instantiationService.createInstance(TerminalSuggestShownTracker, this.shellType));
+		}
+
+		if (!this._suggestWidget || this._discoverability?.done) {
+			return;
+		}
+		this._discoverability?.update(this._suggestWidget.element.domNode);
+	}
+
+	resetDiscoverability(): void {
+		this._discoverability?.resetState();
 	}
 
 	selectPreviousSuggestion(): void {
@@ -627,8 +814,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!suggestion) {
 			suggestion = this._suggestWidget?.getFocusedItem();
 		}
+
 		const initialPromptInputState = this._mostRecentPromptInputState;
-		if (!suggestion || !initialPromptInputState || this._leadingLineContent === undefined || !this._model) {
+		if (!suggestion?.item || !initialPromptInputState || this._leadingLineContent === undefined || !this._model) {
+			this._suggestTelemetry?.acceptCompletion(this._sessionId, undefined, this._mostRecentPromptInputState?.value);
 			return;
 		}
 		SuggestAddon.lastAcceptedCompletionTimestamp = Date.now();
@@ -656,64 +845,74 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		const completion = suggestion.item.completion;
-		let completionText = completion.label;
-		if ((completion.kind === TerminalCompletionItemKind.Folder || completion.isFileOverride) && completionText.includes(' ')) {
-			// Escape spaces in files or folders so they're valid paths
-			completionText = completionText.replaceAll(' ', '\\ ');
-		}
-		let runOnEnter = false;
-		if (respectRunOnEnter) {
-			const runOnEnterConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).runOnEnter;
-			switch (runOnEnterConfig) {
-				case 'always': {
-					runOnEnter = true;
-					break;
-				}
-				case 'exactMatch': {
-					runOnEnter = replacementText.toLowerCase() === completionText.toLowerCase();
-					break;
-				}
-				case 'exactMatchIgnoreExtension': {
-					runOnEnter = replacementText.toLowerCase() === completionText.toLowerCase();
-					if (completion.isFileOverride) {
-						runOnEnter ||= replacementText.toLowerCase() === completionText.toLowerCase().replace(/\.[^\.]+$/, '');
+		let resultSequence = completion.inputData;
+
+		// Use for amend the label if inputData is not defined
+		if (resultSequence === undefined) {
+			let completionText = typeof completion.label === 'string' ? completion.label : completion.label.label;
+			if ((completion.kind === TerminalCompletionItemKind.Folder || completion.isFileOverride) && completionText.includes(' ')) {
+				// Escape spaces in files or folders so they're valid paths
+				completionText = completionText.replaceAll(' ', '\\ ');
+			}
+			let runOnEnter = false;
+			if (respectRunOnEnter) {
+				const runOnEnterConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).runOnEnter;
+				switch (runOnEnterConfig) {
+					case 'always': {
+						runOnEnter = true;
+						break;
 					}
-					break;
+					case 'exactMatch': {
+						runOnEnter = replacementText.toLowerCase() === completionText.toLowerCase();
+						break;
+					}
+					case 'exactMatchIgnoreExtension': {
+						runOnEnter = replacementText.toLowerCase() === completionText.toLowerCase();
+						if (completion.isFileOverride) {
+							runOnEnter ||= replacementText.toLowerCase() === completionText.toLowerCase().replace(/\.[^\.]+$/, '');
+						}
+						break;
+					}
 				}
+			}
+
+			const commonPrefixLen = commonPrefixLength(replacementText, completionText);
+			const commonPrefix = replacementText.substring(replacementText.length - 1 - commonPrefixLen, replacementText.length - 1);
+			const completionSuffix = completionText.substring(commonPrefixLen);
+			if (currentPromptInputState.suffix.length > 0 && currentPromptInputState.prefix.endsWith(commonPrefix) && currentPromptInputState.suffix.startsWith(completionSuffix)) {
+				// Move right to the end of the completion
+				resultSequence = '\x1bOC'.repeat(completionText.length - commonPrefixLen);
+			} else {
+				resultSequence = [
+					// Backspace (left) to remove all additional input
+					'\x7F'.repeat(replacementText.length - commonPrefixLen),
+					// Delete (right) to remove any additional text in the same word
+					'\x1b[3~'.repeat(rightSideReplacementText.length),
+					// Write the completion
+					completionSuffix,
+					// Run on enter if needed
+					runOnEnter ? '\r' : ''
+				].join('');
 			}
 		}
 
 		// For folders, allow the next completion request to get completions for that folder
-		if (completion.icon === Codicon.folder) {
+		if (completion.kind === TerminalCompletionItemKind.Folder) {
 			SuggestAddon.lastAcceptedCompletionTimestamp = 0;
-		}
-
-		const commonPrefixLen = commonPrefixLength(replacementText, completionText);
-		const commonPrefix = replacementText.substring(replacementText.length - 1 - commonPrefixLen, replacementText.length - 1);
-		const completionSuffix = completionText.substring(commonPrefixLen);
-		let resultSequence: string;
-		if (currentPromptInputState.suffix.length > 0 && currentPromptInputState.prefix.endsWith(commonPrefix) && currentPromptInputState.suffix.startsWith(completionSuffix)) {
-			// Move right to the end of the completion
-			resultSequence = '\x1bOC'.repeat(completion.label.length - commonPrefixLen);
-		} else {
-			resultSequence = [
-				// Backspace (left) to remove all additional input
-				'\x7F'.repeat(replacementText.length - commonPrefixLen),
-				// Delete (right) to remove any additional text in the same word
-				'\x1b[3~'.repeat(rightSideReplacementText.length),
-				// Write the completion
-				completionSuffix,
-				// Run on enter if needed
-				runOnEnter ? '\r' : ''
-			].join('');
 		}
 
 		// Send the completion
 		this._onAcceptedCompletion.fire(resultSequence);
-		this.hideSuggestWidget();
+		this._suggestTelemetry?.acceptCompletion(this._sessionId, completion, this._mostRecentPromptInputState?.value);
+		this.hideSuggestWidget(true);
 	}
 
-	hideSuggestWidget(): void {
+	hideSuggestWidget(cancelAnyRequest: boolean): void {
+		this._discoverability?.resetTimer();
+		if (cancelAnyRequest) {
+			this._cancellationTokenSource?.cancel();
+			this._cancellationTokenSource = undefined;
+		}
 		this._currentPromptInputState = undefined;
 		this._leadingLineContent = undefined;
 		this._suggestWidget?.hide();
@@ -757,3 +956,4 @@ export function normalizePathSeparator(path: string, sep: string): string {
 	}
 	return path.replaceAll('/', '\\');
 }
+
