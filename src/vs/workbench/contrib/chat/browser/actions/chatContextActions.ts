@@ -157,8 +157,8 @@ class AttachFileToChatAction extends AttachResourceAction {
 					)
 				),
 			}, {
-				id: MenuId.ChatTextEditorMenu,
-				group: 'zContext',
+				id: MenuId.EditorContext,
+				group: '1_chat',
 				order: 2,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.enabled,
@@ -239,8 +239,8 @@ class AttachSelectionToChatAction extends Action2 {
 			f1: true,
 			precondition: ChatContextKeys.enabled,
 			menu: {
-				id: MenuId.ChatTextEditorMenu,
-				group: 'zContext',
+				id: MenuId.EditorContext,
+				group: '1_chat',
 				order: 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.enabled,
