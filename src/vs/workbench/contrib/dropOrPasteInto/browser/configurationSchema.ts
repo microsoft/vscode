@@ -86,10 +86,10 @@ export class DropOrPasteSchemaContribution extends Disposable implements IWorkbe
 					this._onDidChangeSchemaContributions.fire();
 				}));
 
-		keybindingService.registerSchemaContribution({
+		this._register(keybindingService.registerSchemaContribution({
 			getSchemaAdditions: () => this.getKeybindingSchemaAdditions(),
 			onDidChange: this._onDidChangeSchemaContributions.event,
-		});
+		}));
 	}
 
 	private updateProvidedKinds(): void {

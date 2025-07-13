@@ -8,6 +8,7 @@ import type { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import type * as webviewMessages from './webviewMessages.js';
 import type { NotebookCellMetadata } from '../../../common/notebookCommon.js';
 import type * as rendererApi from 'vscode-notebook-renderer';
+import type { NotebookCellOutputTransferData } from '../../../../../../platform/dnd/browser/dnd.js';
 
 // !! IMPORTANT !! ----------------------------------------------------------------------------------
 // import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -499,7 +500,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		private readonly _observer: ResizeObserver;
 
 		private readonly _observedElements = new WeakMap<Element, IObservedElement>();
-		private _outputResizeTimer: any;
+		private _outputResizeTimer: Timeout | undefined;
 
 		constructor() {
 			this._observer = new ResizeObserver(entries => {
@@ -583,7 +584,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	};
 
 	let previousDelta: number | undefined;
-	let scrollTimeout: any /* NodeJS.Timeout */ | undefined;
+	let scrollTimeout: Timeout | undefined;
 	let scrolledElement: Element | undefined;
 	let lastTimeScrolled: number | undefined;
 	function flagRecentlyScrolled(node: Element, deltaY?: number) {
@@ -1069,7 +1070,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				},
 
 				blob(): Blob {
-					return new Blob([valueBytes], { type: this.mime });
+					return new Blob([valueBytes as Uint8Array<ArrayBuffer>], { type: this.mime });
 				},
 
 				get _allOutputItems() {
@@ -1583,12 +1584,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 		});
 	};
 
-	const copyOutputImage = async (outputId: string, altOutputId: string, retries = 5) => {
+	const copyOutputImage = async (outputId: string, altOutputId: string, textAlternates?: { mimeType: string; content: string }[], retries = 5) => {
 		if (!window.document.hasFocus() && retries > 0) {
 			// copyImage can be called from outside of the webview, which means this function may be running whilst the webview is gaining focus.
 			// Since navigator.clipboard.write requires the document to be focused, we need to wait for focus.
 			// We cannot use a listener, as there is a high chance the focus is gained during the setup of the listener resulting in us missing it.
-			setTimeout(() => { copyOutputImage(outputId, altOutputId, retries - 1); }, 50);
+			setTimeout(() => { copyOutputImage(outputId, altOutputId, textAlternates, retries - 1); }, 50);
 			return;
 		}
 
@@ -1610,7 +1611,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			if (image) {
 				const imageToCopy = image;
-				await navigator.clipboard.write([new ClipboardItem({
+
+				// Build clipboard data with both image and text formats
+				const clipboardData: Record<string, any> = {
 					'image/png': new Promise((resolve) => {
 						const canvas = document.createElement('canvas');
 						canvas.width = imageToCopy.naturalWidth;
@@ -1627,7 +1630,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 							canvas.remove();
 						}, 'image/png');
 					})
-				})]);
+				};
+
+				// Add text alternates if provided
+				if (textAlternates) {
+					for (const alternate of textAlternates) {
+						clipboardData[alternate.mimeType] = alternate.content;
+					}
+				}
+
+				await navigator.clipboard.write([new ClipboardItem(clipboardData)]);
 			} else {
 				console.error('Could not find image element to copy for output with id', outputId);
 			}
@@ -1737,7 +1749,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			}
 			case 'copyImage': {
-				await copyOutputImage(event.data.outputId, event.data.altOutputId);
+				await copyOutputImage(event.data.outputId, event.data.altOutputId, event.data.textAlternates);
 				break;
 			}
 			case 'ack-dimension': {
@@ -2519,7 +2531,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				},
 
 				blob(): Blob {
-					return new Blob([this.data()], { type: this.mime });
+					return new Blob([this.data() as Uint8Array<ArrayBuffer>], { type: this.mime });
 				},
 
 				_allOutputItems: [{
@@ -2894,6 +2906,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		private hasResizeObserver = false;
 
 		private renderTaskAbort?: AbortController;
+		private isImageOutput = false;
 
 		constructor(
 			private readonly outputId: string,
@@ -2914,6 +2927,37 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.element.addEventListener('mouseleave', () => {
 				postNotebookMessage<webviewMessages.IMouseLeaveMessage>('mouseleave', { id: outputId });
 			});
+
+			// Add drag handler
+			this.element.addEventListener('dragstart', (e: DragEvent) => {
+				if (!e.dataTransfer) {
+					return;
+				}
+
+				const outputData: NotebookCellOutputTransferData = {
+					outputId: this.outputId,
+				};
+
+				e.dataTransfer.setData('notebook-cell-output', JSON.stringify(outputData));
+			});
+
+			// Add alt key handlers
+			window.addEventListener('keydown', (e) => {
+				if (e.altKey) {
+					this.element.draggable = true;
+				}
+			});
+
+			window.addEventListener('keyup', (e) => {
+				if (!e.altKey) {
+					this.element.draggable = this.isImageOutput;
+				}
+			});
+
+			// Handle window blur to reset draggable state
+			window.addEventListener('blur', () => {
+				this.element.draggable = this.isImageOutput;
+			});
 		}
 
 		public dispose() {
@@ -2933,6 +2977,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 				const errors = preloadErrors.filter((e): e is Error => e instanceof Error);
 				showRenderError(`Error loading preloads`, this.element, errors);
 			} else {
+
+				const imageMimeTypes = ['image/png', 'image/jpeg', 'image/svg'];
+				this.isImageOutput = imageMimeTypes.includes(content.output.mime);
+				this.element.draggable = this.isImageOutput;
+
 				const item = createOutputItem(this.outputId, content.output.mime, content.metadata, content.output.valueBytes, content.allOutputs, content.output.appended);
 
 				const controller = new AbortController();

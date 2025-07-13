@@ -39,6 +39,7 @@ import { localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { IOutputService } from '../../../services/output/common/output.js';
 import { ILoggerResource, ILoggerService, LogLevel } from '../../../../platform/log/common/log.js';
+import { VerifyExtensionSignatureConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 
 type TelemetryData = {
 	mimeType: TelemetryTrustedValue<string>;
@@ -382,7 +383,7 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 				}>('window.titleBarStyle', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
-			case 'extensions.verifySignature':
+			case VerifyExtensionSignatureConfigKey:
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'sandy081';
 					comment: 'This is used to know if extensions signature verification is enabled or not';

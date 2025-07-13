@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CanonicalUriProvider, CanonicalUriRequestOptions, Disposable, ProviderResult, Uri, workspace } from 'vscode';
-import { API } from './typings/git';
+import { API } from './typings/git.js';
 
 const SUPPORTED_SCHEMES = ['ssh', 'https', 'file'];
 

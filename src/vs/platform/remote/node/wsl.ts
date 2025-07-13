@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as cp from 'child_process';
-import * as path from 'path';
+import { join } from '../../../base/common/path.js';
 
 let hasWSLFeaturePromise: Promise<boolean> | undefined;
 
@@ -59,7 +59,7 @@ function getSystem32Path(subPath: string): string | undefined {
 	const systemRoot = process.env['SystemRoot'];
 	if (systemRoot) {
 		const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
-		return path.join(systemRoot, is32ProcessOn64Windows ? 'Sysnative' : 'System32', subPath);
+		return join(systemRoot, is32ProcessOn64Windows ? 'Sysnative' : 'System32', subPath);
 	}
 	return undefined;
 }

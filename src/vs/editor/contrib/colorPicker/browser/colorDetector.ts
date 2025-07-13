@@ -47,7 +47,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 	private readonly _ruleFactory: DynamicCssRules;
 
-	private readonly _decoratorLimitReporter = new DecoratorLimitReporter();
+	private readonly _decoratorLimitReporter = this._register(new DecoratorLimitReporter());
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -269,8 +269,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	}
 }
 
-export class DecoratorLimitReporter {
-	private _onDidChange = new Emitter<void>();
+export class DecoratorLimitReporter extends Disposable {
+	private _onDidChange = this._register(new Emitter<void>());
 	public readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private _computed: number = 0;

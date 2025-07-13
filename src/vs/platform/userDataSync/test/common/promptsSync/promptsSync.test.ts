@@ -54,7 +54,7 @@ suite('PromptsSync', () => {
 		await client2.setUp(true);
 	});
 
-	test('• when prompts does not exist', async () => {
+	test('when prompts does not exist', async () => {
 		const fileService = testClient.instantiationService.get(IFileService);
 		const promptsResource = testClient.instantiationService.get(IUserDataProfilesService).defaultProfile.promptsHome;
 
@@ -91,7 +91,7 @@ suite('PromptsSync', () => {
 		assert.deepStrictEqual(server.requests, []);
 	});
 
-	test('• when prompt is created after first sync', async () => {
+	test('when prompt is created after first sync', async () => {
 		await testObject.sync(await testClient.getResourceManifest());
 		await updatePrompt('prompt3.prompt.md', PROMPT3_TEXT, testClient);
 
@@ -126,7 +126,7 @@ suite('PromptsSync', () => {
 		);
 	});
 
-	test('• first time sync - outgoing to server (no prompts)', async () => {
+	test('first time sync - outgoing to server (no prompts)', async () => {
 		await updatePrompt('prompt3.prompt.md', PROMPT3_TEXT, testClient);
 		await updatePrompt('prompt1.prompt.md', PROMPT1_TEXT, testClient);
 
@@ -149,7 +149,7 @@ suite('PromptsSync', () => {
 			});
 	});
 
-	test('• first time sync - incoming from server (no prompts)', async () => {
+	test('first time sync - incoming from server (no prompts)', async () => {
 		await updatePrompt('prompt3.prompt.md', PROMPT3_TEXT, client2);
 		await updatePrompt('prompt1.prompt.md', PROMPT1_TEXT, client2);
 		await client2.sync();
@@ -164,7 +164,7 @@ suite('PromptsSync', () => {
 		assert.strictEqual(actual2, PROMPT1_TEXT);
 	});
 
-	test('• first time sync when prompts exists', async () => {
+	test('first time sync when prompts exists', async () => {
 		await updatePrompt('prompt3.prompt.md', PROMPT3_TEXT, client2);
 		await client2.sync();
 
@@ -193,7 +193,7 @@ suite('PromptsSync', () => {
 			});
 	});
 
-	test('• first time sync when prompts exists - has conflicts', async () => {
+	test('first time sync when prompts exists - has conflicts', async () => {
 		await updatePrompt('prompt3.prompt.md', PROMPT3_TEXT, client2);
 		await client2.sync();
 
@@ -212,7 +212,7 @@ suite('PromptsSync', () => {
 		assertPreviews(testObject.conflicts.conflicts, [local]);
 	});
 
-	test('• first time sync when prompts exists - has conflicts and accept conflicts', async () => {
+	test('first time sync when prompts exists - has conflicts and accept conflicts', async () => {
 		await updatePrompt('prompt3.prompt.md', PROMPT3_TEXT, client2);
 		await client2.sync();
 
@@ -238,7 +238,7 @@ suite('PromptsSync', () => {
 		assert.deepStrictEqual(actual, { 'prompt3.prompt.md': PROMPT3_TEXT });
 	});
 
-	test('• first time sync when prompts exists - has multiple conflicts', async () => {
+	test('first time sync when prompts exists - has multiple conflicts', async () => {
 		await updatePrompt('prompt3.prompt.md', PROMPT3_TEXT, client2);
 		await updatePrompt('prompt1.prompt.md', PROMPT1_TEXT, client2);
 		await client2.sync();
@@ -254,7 +254,7 @@ suite('PromptsSync', () => {
 		assertPreviews(testObject.conflicts.conflicts, [local1, local2]);
 	});
 
-	test('• first time sync when prompts exists - has multiple conflicts and accept one conflict', async () => {
+	test('first time sync when prompts exists - has multiple conflicts and accept one conflict', async () => {
 		await updatePrompt('prompt3.prompt.md', PROMPT3_TEXT, client2);
 		await updatePrompt('prompt1.prompt.md', PROMPT1_TEXT, client2);
 		await client2.sync();
@@ -273,7 +273,7 @@ suite('PromptsSync', () => {
 		assertPreviews(testObject.conflicts.conflicts, [local]);
 	});
 
-	test('• first time sync when prompts exists - has multiple conflicts and accept all conflicts', async () => {
+	test('first time sync when prompts exists - has multiple conflicts and accept all conflicts', async () => {
 		await updatePrompt('prompt3.prompt.md', PROMPT3_TEXT, client2);
 		await updatePrompt('prompt1.prompt.md', PROMPT1_TEXT, client2);
 		await client2.sync();
@@ -305,7 +305,7 @@ suite('PromptsSync', () => {
 		assert.deepStrictEqual(actual, { 'prompt3.prompt.md': PROMPT4_TEXT, 'prompt1.prompt.md': PROMPT1_TEXT });
 	});
 
-	test('• sync adding a prompt', async () => {
+	test('sync adding a prompt', async () => {
 		await updatePrompt('prompt3.prompt.md', PROMPT3_TEXT, testClient);
 		await testObject.sync(await testClient.getResourceManifest());
 
@@ -325,7 +325,7 @@ suite('PromptsSync', () => {
 		assert.deepStrictEqual(actual, { 'prompt3.prompt.md': PROMPT3_TEXT, 'prompt1.prompt.md': PROMPT1_TEXT });
 	});
 
-	test('• sync adding a prompt - accept', async () => {
+	test('sync adding a prompt - accept', async () => {
 		await updatePrompt('prompt3.prompt.md', PROMPT3_TEXT, client2);
 		await client2.sync();
 		await testObject.sync(await testClient.getResourceManifest());
@@ -343,7 +343,7 @@ suite('PromptsSync', () => {
 		assert.strictEqual(actual2, PROMPT1_TEXT);
 	});
 
-	test('• sync updating a prompt', async () => {
+	test('sync updating a prompt', async () => {
 		await updatePrompt('default.prompt.md', PROMPT3_TEXT, testClient);
 		await testObject.sync(await testClient.getResourceManifest());
 
@@ -361,7 +361,7 @@ suite('PromptsSync', () => {
 		assert.deepStrictEqual(actual, { 'default.prompt.md': PROMPT4_TEXT });
 	});
 
-	test('• sync updating a prompt - accept', async () => {
+	test('sync updating a prompt - accept', async () => {
 		await updatePrompt('my.prompt.md', PROMPT3_TEXT, client2);
 		await client2.sync();
 		await testObject.sync(await testClient.getResourceManifest());
@@ -377,7 +377,7 @@ suite('PromptsSync', () => {
 		assert.strictEqual(actual1, PROMPT4_TEXT);
 	});
 
-	test('• sync updating a prompt - conflict', async () => {
+	test('sync updating a prompt - conflict', async () => {
 		await updatePrompt('some.prompt.md', PROMPT3_TEXT, client2);
 		await client2.sync();
 		await testObject.sync(await testClient.getResourceManifest());
@@ -393,7 +393,7 @@ suite('PromptsSync', () => {
 		assertPreviews(testObject.conflicts.conflicts, [local]);
 	});
 
-	test('• sync updating a prompt - resolve conflict', async () => {
+	test('sync updating a prompt - resolve conflict', async () => {
 		await updatePrompt('advanced.prompt.md', PROMPT3_TEXT, client2);
 		await client2.sync();
 		await testObject.sync(await testClient.getResourceManifest());
@@ -418,7 +418,7 @@ suite('PromptsSync', () => {
 		assert.deepStrictEqual(actual, { 'advanced.prompt.md': PROMPT4_TEXT });
 	});
 
-	test('• sync removing a prompt', async () => {
+	test('sync removing a prompt', async () => {
 		await updatePrompt('another.prompt.md', PROMPT3_TEXT, testClient);
 		await updatePrompt('chat.prompt.md', PROMPT1_TEXT, testClient);
 		await testObject.sync(await testClient.getResourceManifest());
@@ -443,7 +443,7 @@ suite('PromptsSync', () => {
 		assert.deepStrictEqual(actual, { 'chat.prompt.md': PROMPT1_TEXT });
 	});
 
-	test('• sync removing a prompt - accept', async () => {
+	test('sync removing a prompt - accept', async () => {
 		await updatePrompt('my-query.prompt.md', PROMPT3_TEXT, client2);
 		await updatePrompt('summarize.prompt.md', PROMPT1_TEXT, client2);
 		await client2.sync();
@@ -462,7 +462,7 @@ suite('PromptsSync', () => {
 		assert.strictEqual(actual2, null);
 	});
 
-	test('• sync removing a prompt locally and updating it remotely', async () => {
+	test('sync removing a prompt locally and updating it remotely', async () => {
 		await updatePrompt('some.prompt.md', PROMPT3_TEXT, client2);
 		await updatePrompt('important.prompt.md', PROMPT1_TEXT, client2);
 		await client2.sync();
@@ -483,7 +483,7 @@ suite('PromptsSync', () => {
 		assert.strictEqual(actual2, PROMPT4_TEXT);
 	});
 
-	test('• sync removing a prompt - conflict', async () => {
+	test('sync removing a prompt - conflict', async () => {
 		await updatePrompt('common.prompt.md', PROMPT3_TEXT, client2);
 		await updatePrompt('rare.prompt.md', PROMPT1_TEXT, client2);
 		await client2.sync();
@@ -501,7 +501,7 @@ suite('PromptsSync', () => {
 		assertPreviews(testObject.conflicts.conflicts, [local]);
 	});
 
-	test('• sync removing a prompt - resolve conflict', async () => {
+	test('sync removing a prompt - resolve conflict', async () => {
 		await updatePrompt('uncommon.prompt.md', PROMPT3_TEXT, client2);
 		await updatePrompt('hot.prompt.md', PROMPT1_TEXT, client2);
 		await client2.sync();
@@ -533,7 +533,7 @@ suite('PromptsSync', () => {
 		assert.deepStrictEqual(actual, { 'hot.prompt.md': PROMPT1_TEXT, 'uncommon.prompt.md': PROMPT5_TEXT });
 	});
 
-	test('• sync removing a prompt - resolve conflict by removing', async () => {
+	test('sync removing a prompt - resolve conflict by removing', async () => {
 		await updatePrompt('prompt3.prompt.md', PROMPT3_TEXT, client2);
 		await updatePrompt('refactor.prompt.md', PROMPT1_TEXT, client2);
 		await client2.sync();
@@ -565,7 +565,7 @@ suite('PromptsSync', () => {
 		assert.deepStrictEqual(actual, { 'refactor.prompt.md': PROMPT1_TEXT });
 	});
 
-	test('• sync prompts', async () => {
+	test('sync prompts', async () => {
 		await updatePrompt('first.prompt.md', PROMPT6_TEXT, client2);
 		await updatePrompt('roaming.prompt.md', PROMPT3_TEXT, client2);
 		await client2.sync();
@@ -589,7 +589,7 @@ suite('PromptsSync', () => {
 		assert.deepStrictEqual(actual, { 'roaming.prompt.md': PROMPT3_TEXT, 'first.prompt.md': PROMPT6_TEXT });
 	});
 
-	test('• sync should ignore non prompts', async () => {
+	test('sync should ignore non prompts', async () => {
 		await updatePrompt('my.prompt.md', PROMPT6_TEXT, client2);
 		await updatePrompt('html.html', PROMPT3_TEXT, client2);
 		await updatePrompt('shared.prompt.md', PROMPT1_TEXT, client2);
@@ -612,7 +612,7 @@ suite('PromptsSync', () => {
 		assert.deepStrictEqual(actual, { 'shared.prompt.md': PROMPT1_TEXT, 'my.prompt.md': PROMPT6_TEXT });
 	});
 
-	test('• previews are reset after all conflicts resolved', async () => {
+	test('previews are reset after all conflicts resolved', async () => {
 		await updatePrompt('html.prompt.md', PROMPT3_TEXT, client2);
 		await updatePrompt('css.prompt.md', PROMPT1_TEXT, client2);
 		await client2.sync();
@@ -628,7 +628,7 @@ suite('PromptsSync', () => {
 		assert.ok(!await fileService.exists(dirname(conflicts[0].previewResource)));
 	});
 
-	test('• merge when there are multiple prompts and all prompts are merged', async () => {
+	test('merge when there are multiple prompts and all prompts are merged', async () => {
 		const environmentService = testClient.instantiationService.get(IEnvironmentService);
 
 		await updatePrompt('sublime.prompt.md', PROMPT4_TEXT, testClient);
@@ -644,7 +644,7 @@ suite('PromptsSync', () => {
 		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
 	});
 
-	test('• merge when there are multiple prompts and all prompts are merged and applied', async () => {
+	test('merge when there are multiple prompts and all prompts are merged and applied', async () => {
 		await updatePrompt('short.prompt.md', PROMPT4_TEXT, testClient);
 		await updatePrompt('long.prompt.md', PROMPT2_TEXT, testClient);
 		let preview = await testObject.sync(await testClient.getResourceManifest(), true);
@@ -655,7 +655,7 @@ suite('PromptsSync', () => {
 		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
 	});
 
-	test('• merge when there are multiple prompts and one prompt has no changes and one prompt is merged', async () => {
+	test('merge when there are multiple prompts and one prompt has no changes and one prompt is merged', async () => {
 		const environmentService = testClient.instantiationService.get(IEnvironmentService);
 
 		await updatePrompt('coding.prompt.md', PROMPT3_TEXT, client2);
@@ -674,7 +674,7 @@ suite('PromptsSync', () => {
 		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
 	});
 
-	test('• merge when there are multiple prompts and one prompt has no changes and prompts is merged and applied', async () => {
+	test('merge when there are multiple prompts and one prompt has no changes and prompts is merged and applied', async () => {
 		await updatePrompt('quick.prompt.md', PROMPT3_TEXT, client2);
 		await client2.sync();
 
@@ -689,7 +689,7 @@ suite('PromptsSync', () => {
 		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
 	});
 
-	test('• merge when there are multiple prompts with conflicts and all prompts are merged', async () => {
+	test('merge when there are multiple prompts with conflicts and all prompts are merged', async () => {
 		const environmentService = testClient.instantiationService.get(IEnvironmentService);
 
 		await updatePrompt('reverse.prompt.md', PROMPT3_TEXT, client2);
@@ -713,7 +713,7 @@ suite('PromptsSync', () => {
 			]);
 	});
 
-	test('• accept when there are multiple prompts with conflicts and only one prompt is accepted', async () => {
+	test('accept when there are multiple prompts with conflicts and only one prompt is accepted', async () => {
 		const environmentService = testClient.instantiationService.get(IEnvironmentService);
 
 		await updatePrompt('current.prompt.md', PROMPT3_TEXT, client2);
@@ -750,7 +750,7 @@ suite('PromptsSync', () => {
 			]);
 	});
 
-	test('• accept when there are multiple prompts with conflicts and all prompts are accepted', async () => {
+	test('accept when there are multiple prompts with conflicts and all prompts are accepted', async () => {
 		const environmentService = testClient.instantiationService.get(IEnvironmentService);
 
 		await updatePrompt('dynamic.prompt.md', PROMPT3_TEXT, client2);
@@ -785,7 +785,7 @@ suite('PromptsSync', () => {
 		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
 	});
 
-	test('• accept when there are multiple prompts with conflicts and all prompts are accepted and applied', async () => {
+	test('accept when there are multiple prompts with conflicts and all prompts are accepted and applied', async () => {
 		const environmentService = testClient.instantiationService.get(IEnvironmentService);
 		await updatePrompt('edicational.prompt.md', PROMPT3_TEXT, client2);
 		await updatePrompt('unknown.prompt.md', PROMPT1_TEXT, client2);
@@ -833,7 +833,7 @@ suite('PromptsSync', () => {
 		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
 	});
 
-	test('• sync profile prompts', async () => {
+	test('sync profile prompts', async () => {
 		const client2 = disposableStore.add(new UserDataSyncClient(server));
 		await client2.setUp(true);
 		const profile = await client2.instantiationService.get(IUserDataProfilesService).createNamedProfile('profile1');

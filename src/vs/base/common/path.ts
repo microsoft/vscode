@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // NOTE: VSCode's copy of nodejs path library to be usable in common (non-node) namespace
-// Copied from: https://github.com/nodejs/node/commits/v20.18.2/lib/path.js
+// Copied from: https://github.com/nodejs/node/commits/v22.15.0/lib/path.js
 // Excluding: the change that adds primordials
 // (https://github.com/nodejs/node/commit/187a862d221dec42fa9a5c4214e7034d9092792f and others)
 // Excluding: the change that adds glob matching

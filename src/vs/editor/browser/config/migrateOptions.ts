@@ -196,6 +196,17 @@ registerEditorSettingMigration('experimental.stickyScroll.maxLineCount', (value,
 	}
 });
 
+// Edit Context
+
+registerEditorSettingMigration('editor.experimentalEditContextEnabled', (value, read, write) => {
+	if (typeof value === 'boolean') {
+		write('editor.experimentalEditContextEnabled', undefined);
+		if (typeof read('editor.editContext') === 'undefined') {
+			write('editor.editContext', value);
+		}
+	}
+});
+
 // Code Actions on Save
 registerEditorSettingMigration('codeActionsOnSave', (value, read, write) => {
 	if (value && typeof value === 'object') {

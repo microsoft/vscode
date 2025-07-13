@@ -141,7 +141,8 @@ function extractEditor(options) {
     delete tsConfig.compilerOptions.moduleResolution;
     writeOutputFile('tsconfig.json', JSON.stringify(tsConfig, null, '\t'));
     [
-        'vs/loader.js'
+        'vs/loader.js',
+        'typings/css.d.ts'
     ].forEach(copyFile);
 }
 function transportCSS(module, enqueue, write) {

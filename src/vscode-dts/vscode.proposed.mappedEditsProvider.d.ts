@@ -75,6 +75,8 @@ declare module 'vscode' {
 		readonly codeBlocks: { code: string; resource: Uri; markdownBeforeBlock?: string }[];
 		readonly location?: string;
 		readonly chatRequestId?: string;
+		readonly chatRequestModel?: string;
+		readonly chatSessionId?: string;
 	}
 
 	export interface MappedEditsResponseStream {

@@ -216,6 +216,9 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	input(id: number, data: string): Promise<void> {
 		return this._channel.call(RemoteTerminalChannelRequest.Input, [id, data]);
 	}
+	sendSignal(id: number, signal: string): Promise<void> {
+		return this._channel.call(RemoteTerminalChannelRequest.SendSignal, [id, signal]);
+	}
 	acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
 		return this._channel.call(RemoteTerminalChannelRequest.AcknowledgeDataEvent, [id, charCount]);
 	}

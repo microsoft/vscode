@@ -99,11 +99,7 @@ export class TestExplorerFilterState extends Disposable implements ITestExplorer
 	public readonly text = this._register(new MutableObservableValue(''));
 
 	/** @inheritdoc */
-	public readonly fuzzy = this._register(MutableObservableValue.stored(new StoredValue<boolean>({
-		key: 'testHistoryFuzzy',
-		scope: StorageScope.PROFILE,
-		target: StorageTarget.USER,
-	}, this.storageService), false));
+	public readonly fuzzy: MutableObservableValue<boolean>;
 
 	public readonly reveal: ISettableObservable<string | undefined> = observableValue('TestExplorerFilterState.reveal', undefined);
 
@@ -113,9 +109,14 @@ export class TestExplorerFilterState extends Disposable implements ITestExplorer
 	public readonly onDidSelectTestInExplorer = this.selectTestInExplorerEmitter.event;
 
 	constructor(
-		@IStorageService private readonly storageService: IStorageService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
+		this.fuzzy = this._register(MutableObservableValue.stored(new StoredValue<boolean>({
+			key: 'testHistoryFuzzy',
+			scope: StorageScope.PROFILE,
+			target: StorageTarget.USER,
+		}, storageService), false));
 	}
 
 	/** @inheritdoc */

@@ -12,14 +12,13 @@ import { ICodeEditor, IViewZone, IViewZoneChangeAccessor } from '../../../../edi
 import { StableEditorScrollState } from '../../../../editor/browser/stableEditorScroll.js';
 import { LineSource, RenderOptions, renderLines } from '../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
-import { LineRange } from '../../../../editor/common/core/lineRange.js';
+import { LineRange } from '../../../../editor/common/core/ranges/lineRange.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, IValidEditOperation, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from '../../../../editor/common/model.js';
 import { ModelDecorationOptions } from '../../../../editor/common/model/textModel.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
-import { InlineDecoration, InlineDecorationType } from '../../../../editor/common/viewModel.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
 import { SaveReason } from '../../../common/editor.js';
@@ -41,6 +40,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { ConflictActionsFactory, IContentWidgetAction } from '../../mergeEditor/browser/view/conflictActions.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { IMenuService, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { InlineDecoration, InlineDecorationType } from '../../../../editor/common/viewModel/inlineDecorations.js';
 
 export interface IEditObserver {
 	start(): void;

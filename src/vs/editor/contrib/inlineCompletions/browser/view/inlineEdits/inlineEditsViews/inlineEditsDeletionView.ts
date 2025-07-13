@@ -11,9 +11,10 @@ import { editorBackground } from '../../../../../../../platform/theme/common/col
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Rect } from '../../../../../../browser/rect.js';
-import { LineRange } from '../../../../../../common/core/lineRange.js';
-import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
+import { Rect } from '../../../../../../common/core/2d/rect.js';
+import { EditorOption } from '../../../../../../common/config/editorOptions.js';
+import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
+import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../../../common/core/position.js';
 import { Range } from '../../../../../../common/core/range.js';
 import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
@@ -25,6 +26,7 @@ const HORIZONTAL_PADDING = 0;
 const VERTICAL_PADDING = 0;
 const BORDER_WIDTH = 1;
 const WIDGET_SEPARATOR_WIDTH = 1;
+const WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH = 3;
 const BORDER_RADIUS = 4;
 
 export class InlineEditsDeletionView extends Disposable implements IInlineEditsView {
@@ -45,6 +47,7 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 		private readonly _uiState: IObservable<{
 			originalRange: LineRange;
 			deletions: Range[];
+			inDiffEditor: boolean;
 		} | undefined>,
 		private readonly _tabAction: IObservable<InlineEditTabAction>,
 	) {
@@ -115,8 +118,9 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 
 		const editorLayout = this._editorObs.layoutInfo.read(reader);
 		const horizontalScrollOffset = this._editorObs.scrollLeft.read(reader);
+		const w = this._editorObs.getOption(EditorOption.fontInfo).map(f => f.typicalHalfwidthCharacterWidth).read(reader);
 
-		const right = editorLayout.contentLeft + this._editorMaxContentWidthInRange.read(reader) - horizontalScrollOffset;
+		const right = editorLayout.contentLeft + Math.max(this._editorMaxContentWidthInRange.read(reader), w) - horizontalScrollOffset;
 
 		const range = inlineEdit.originalLineRange;
 		const selectionTop = this._originalVerticalStartPosition.read(reader) ?? this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader);
@@ -157,7 +161,8 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 			return rect.intersectHorizontal(new OffsetRange(overlayHider.left, Number.MAX_SAFE_INTEGER));
 		});
 
-		const separatorRect = overlayRect.map(rect => rect.withMargin(WIDGET_SEPARATOR_WIDTH, WIDGET_SEPARATOR_WIDTH));
+		const separatorWidth = this._uiState.map(s => s?.inDiffEditor ? WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH : WIDGET_SEPARATOR_WIDTH).read(reader);
+		const separatorRect = overlayRect.map(rect => rect.withMargin(separatorWidth, separatorWidth));
 
 		return [
 			n.div({
@@ -165,7 +170,7 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 				style: {
 					...separatorRect.read(reader).toStyles(),
 					borderRadius: `${BORDER_RADIUS}px`,
-					border: `${BORDER_WIDTH + WIDGET_SEPARATOR_WIDTH}px solid ${asCssVariable(editorBackground)}`,
+					border: `${BORDER_WIDTH + separatorWidth}px solid ${asCssVariable(editorBackground)}`,
 					boxSizing: 'border-box',
 				}
 			}),
@@ -196,7 +201,6 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 			overflow: 'visible',
 			top: '0px',
 			left: '0px',
-			zIndex: '0',
 			display: this._display,
 		},
 	}, [

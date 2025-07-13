@@ -16,6 +16,7 @@ function isCancellationToken(value: any): value is vscode.CancellationToken {
 
 interface RequestArgs {
 	readonly file?: unknown;
+	readonly $traceId?: unknown;
 }
 
 export class TSServerRequestCommand implements Command {
@@ -31,11 +32,18 @@ export class TSServerRequestCommand implements Command {
 		}
 		if (args && typeof args === 'object' && !Array.isArray(args)) {
 			const requestArgs = args as RequestArgs;
-			let newArgs: any = undefined;
-			if (requestArgs.file instanceof vscode.Uri) {
-				newArgs = { ...args };
-				const client = this.lazyClientHost.value.serviceClient;
-				newArgs.file = client.toOpenTsFilePath(requestArgs.file);
+			const hasFile = requestArgs.file instanceof vscode.Uri;
+			const hasTraceId = typeof requestArgs.$traceId === 'string';
+			if (hasFile || hasTraceId) {
+				const newArgs = { ...args };
+				if (hasFile) {
+					const client = this.lazyClientHost.value.serviceClient;
+					newArgs.file = client.toOpenTsFilePath(requestArgs.file);
+				}
+				if (hasTraceId) {
+					const telemetryReporter = this.lazyClientHost.value.serviceClient.telemetryReporter;
+					telemetryReporter.logTraceEvent('TSServerRequestCommand.execute', requestArgs.$traceId, JSON.stringify({ command }));
+				}
 				args = newArgs;
 			}
 		}
