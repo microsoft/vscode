@@ -207,7 +207,7 @@ export class DebugService implements IDebugService {
 		this.disposables.add(extensionService.onWillStop(evt => {
 			evt.veto(
 				this.model.getSessions().length > 0,
-				nls.localize('active debug session', 'A debug session is still running.'),
+				nls.localize('active debug session', 'A debug session is still running that would terminate.'),
 			);
 		}));
 
@@ -338,7 +338,7 @@ export class DebugService implements IDebugService {
 		if (!this.haveDoneLazySetup) {
 			// Registering fs providers is slow
 			// https://github.com/microsoft/vscode/issues/159886
-			this.disposables.add(this.fileService.registerProvider(DEBUG_MEMORY_SCHEME, new DebugMemoryFileSystemProvider(this)));
+			this.disposables.add(this.fileService.registerProvider(DEBUG_MEMORY_SCHEME, this.disposables.add(new DebugMemoryFileSystemProvider(this))));
 			this.haveDoneLazySetup = true;
 		}
 	}
@@ -867,7 +867,7 @@ export class DebugService implements IDebugService {
 		// the session, then start the test run again; tests have no notion of restarts.
 		if (session.correlatedTestRun) {
 			if (!session.correlatedTestRun.completedAt) {
-				this.testService.cancelTestRun(session.correlatedTestRun.id);
+				session.cancelCorrelatedTestRun();
 				await Event.toPromise(session.correlatedTestRun.onComplete);
 				// todo@connor4312 is there any reason to wait for the debug session to
 				// terminate? I don't think so, test extension should already handle any
@@ -954,7 +954,9 @@ export class DebugService implements IDebugService {
 			try {
 				return await dbg.substituteVariables(folder, config);
 			} catch (err) {
-				this.showError(err.message, undefined, !!launch?.getConfiguration(config.name));
+				if (err.message !== errors.canceledName) {
+					this.showError(err.message, undefined, !!launch?.getConfiguration(config.name));
+				}
 				return undefined;	// bail out
 			}
 		}

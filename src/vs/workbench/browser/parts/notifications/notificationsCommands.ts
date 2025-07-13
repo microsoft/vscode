@@ -12,12 +12,10 @@ import { MenuRegistry, MenuId } from '../../../../platform/actions/common/action
 import { localize, localize2 } from '../../../../nls.js';
 import { IListService, WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { NotificationMetrics, NotificationMetricsClassification, notificationToMetrics } from './notificationsTelemetry.js';
 import { NotificationFocusedContext, NotificationsCenterVisibleContext, NotificationsToastsVisibleContext } from '../../../common/contextkeys.js';
-import { INotificationService, INotificationSourceFilter, NotificationPriority, NotificationsFilter } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, INotificationSourceFilter, NotificationsFilter } from '../../../../platform/notification/common/notification.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ActionRunner, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../base/common/actions.js';
-import { hash } from '../../../../base/common/hash.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
@@ -109,16 +107,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		weight: KeybindingWeight.WorkbenchContrib + 50,
 		when: NotificationsCenterVisibleContext,
 		primary: KeyCode.Escape,
-		handler: accessor => {
-			const telemetryService = accessor.get(ITelemetryService);
-			for (const notification of model.notifications) {
-				if (notification.visible) {
-					telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:hide', notificationToMetrics(notification.message.original, notification.sourceId, notification.priority === NotificationPriority.SILENT));
-				}
-			}
-
-			center.hide();
-		}
+		handler: () => center.hide()
 	});
 
 	// Toggle Notifications Center
@@ -180,6 +169,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 			}
 			actionRunner.run(primaryAction, notification);
 			notification.close();
+			actionRunner.dispose();
 		}
 	});
 
@@ -210,12 +200,6 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 
 	// Hide Toasts
 	CommandsRegistry.registerCommand(HIDE_NOTIFICATION_TOAST, accessor => {
-		const telemetryService = accessor.get(ITelemetryService);
-		for (const notification of model.notifications) {
-			if (notification.visible) {
-				telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:hide', notificationToMetrics(notification.message.original, notification.sourceId, notification.priority === NotificationPriority.SILENT));
-			}
-		}
 		toasts.hide();
 	});
 
@@ -342,22 +326,6 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 }
 
 
-interface NotificationActionMetrics {
-	readonly id: string;
-	readonly actionLabel: string;
-	readonly source: string;
-	readonly silent: boolean;
-}
-
-type NotificationActionMetricsClassification = {
-	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the action that was run from a notification.' };
-	actionLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The label of the action that was run from a notification.' };
-	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the notification where an action was run.' };
-	silent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the notification where an action was run is silent or not.' };
-	owner: 'bpasero';
-	comment: 'Tracks when actions are fired from notifcations and how they were fired.';
-};
-
 export class NotificationActionRunner extends ActionRunner {
 
 	constructor(
@@ -369,17 +337,6 @@ export class NotificationActionRunner extends ActionRunner {
 
 	protected override async runAction(action: IAction, context: unknown): Promise<void> {
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: action.id, from: 'message' });
-
-		if (isNotificationViewItem(context)) {
-			// Log some additional telemetry specifically for actions
-			// that are triggered from within notifications.
-			this.telemetryService.publicLog2<NotificationActionMetrics, NotificationActionMetricsClassification>('notification:actionExecuted', {
-				id: hash(context.message.original.toString()).toString(),
-				actionLabel: action.label,
-				source: context.sourceId || 'core',
-				silent: context.priority === NotificationPriority.SILENT
-			});
-		}
 
 		// Run and make sure to notify on any error again
 		try {

@@ -88,7 +88,7 @@ Object.assign(globalThis, {
 	__mkdirPInTests: path => fs.promises.mkdir(path, { recursive: true }),
 });
 
-const IS_CI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY;
+const IS_CI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || !!process.env.GITHUB_WORKSPACE;
 const _tests_glob = '**/test/**/*.test.js';
 
 
@@ -171,7 +171,14 @@ async function loadTestModules(opts) {
 
 	const pattern = opts.runGlob || _tests_glob;
 	const files = await globAsync(pattern, { cwd: loadFn._out });
-	const modules = files.map(file => file.replace(/\.js$/, ''));
+	let modules = files.map(file => file.replace(/\.js$/, ''));
+	if (opts.testSplit) {
+		const [i, n] = opts.testSplit.split('/').map(Number);
+		const chunkSize = Math.floor(modules.length / n);
+		const start = (i - 1) * chunkSize;
+		const end = i === n ? modules.length : i * chunkSize;
+		modules = modules.slice(start, end);
+	}
 	return loadModules(modules);
 }
 
@@ -294,10 +301,12 @@ async function loadTests(opts) {
 		// should not have unexpected errors
 		const errors = _unexpectedErrors.concat(_loaderErrors);
 		if (errors.length) {
+			const msg = [];
 			for (const error of errors) {
 				console.error(`Error: Test run should not have unexpected errors:\n${error}`);
+				msg.push(String(error))
 			}
-			assert.ok(false, 'Error: Test run should not have unexpected errors.');
+			assert.ok(false, `Error: Test run should not have unexpected errors:\n${msg.join('\n')}`);
 		}
 	});
 
@@ -370,7 +379,7 @@ function safeStringify(obj) {
 
 function isObject(obj) {
 	// The method can't do a type cast since there are type (like strings) which
-	// are subclasses of any put not positvely matched by the function. Hence type
+	// are subclasses of any put not positively matched by the function. Hence type
 	// narrowing results in wrong results.
 	return typeof obj === 'object'
 		&& obj !== null
@@ -396,22 +405,63 @@ class IPCReporter {
 	}
 }
 
+const $globalThis = globalThis;
+const setTimeout0IsFaster = (typeof $globalThis.postMessage === 'function' && !$globalThis.importScripts);
+
+/**
+ * See https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#:~:text=than%204%2C%20then-,set%20timeout%20to%204,-.
+ *
+ * Works similarly to `setTimeout(0)` but doesn't suffer from the 4ms artificial delay
+ * that browsers set when the nesting level is > 5.
+ */
+const setTimeout0 = (() => {
+	if (setTimeout0IsFaster) {
+		const pending = [];
+
+		$globalThis.addEventListener('message', (e) => {
+			if (e.data && e.data.vscodeScheduleAsyncWork) {
+				for (let i = 0, len = pending.length; i < len; i++) {
+					const candidate = pending[i];
+					if (candidate.id === e.data.vscodeScheduleAsyncWork) {
+						pending.splice(i, 1);
+						candidate.callback();
+						return;
+					}
+				}
+			}
+		});
+		let lastId = 0;
+		return (callback) => {
+			const myId = ++lastId;
+			pending.push({
+				id: myId,
+				callback: callback
+			});
+			$globalThis.postMessage({ vscodeScheduleAsyncWork: myId }, '*');
+		};
+	}
+	return (callback) => setTimeout(callback);
+})();
+
 async function runTests(opts) {
+	// @ts-expect-error
+	Mocha.Runner.immediately = setTimeout0;
+
+	mocha.setup({
+		ui: 'tdd',
+		// @ts-expect-error
+		reporter: opts.dev ? 'html' : IPCReporter,
+		grep: opts.grep,
+		timeout: opts.timeout ?? (IS_CI ? 30000 : 5000),
+		forbidOnly: IS_CI // disallow .only() when running on build machine
+	});
+
 	// this *must* come before loadTests, or it doesn't work.
 	if (opts.timeout !== undefined) {
 		mocha.timeout(opts.timeout);
 	}
 
 	await loadTests(opts);
-
-	if (opts.grep) {
-		mocha.grep(opts.grep);
-	}
-
-	if (!opts.dev) {
-		// @ts-expect-error
-		mocha.reporter(IPCReporter);
-	}
 
 	const runner = mocha.run(async () => {
 		await createCoverageReport(opts)

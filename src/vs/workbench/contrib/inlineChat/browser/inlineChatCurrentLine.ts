@@ -8,13 +8,13 @@ import { ICodeEditor, MouseTargetType } from '../../../../editor/browser/editorB
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { InlineChatController, State } from './inlineChatController.js';
+import { InlineChatController } from './inlineChatController.js';
 import { ACTION_START, CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
 import { EditorAction2, ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { EditOperation } from '../../../../editor/common/core/editOperation.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IPosition, Position } from '../../../../editor/common/core/position.js';
-import { AbstractInlineChatAction } from './inlineChatActions.js';
+import { AbstractInline1ChatAction } from './inlineChatActions.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IValidEditOperation, TrackedRangeStickiness } from '../../../../editor/common/model.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -27,7 +27,7 @@ import './media/inlineChat.css';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
-import { ChatAgentLocation, IChatAgentService } from '../../chat/common/chatAgents.js';
+import { IChatAgentService } from '../../chat/common/chatAgents.js';
 import { IMarkerDecorationsService } from '../../../../editor/common/services/markerDecorations.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { toAction } from '../../../../base/common/actions.js';
@@ -38,6 +38,21 @@ import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modes
 import { createStyleSheet2 } from '../../../../base/browser/domStylesheets.js';
 import { stringValue } from '../../../../base/browser/cssValue.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { ChatAgentLocation } from '../../chat/common/constants.js';
+import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../chat/common/promptSyntax/promptTypes.js';
+import { MODE_FILE_EXTENSION } from '../../chat/common/promptSyntax/config/promptFileLocations.js';
+
+/**
+ * Set of language IDs where inline chat hints should not be shown.
+ */
+const IGNORED_LANGUAGE_IDS = new Set([
+	PLAINTEXT_LANGUAGE_ID,
+	'markdown',
+	'search-result',
+	INSTRUCTIONS_LANGUAGE_ID,
+	PROMPT_LANGUAGE_ID,
+	MODE_FILE_EXTENSION
+]);
 
 export const CTX_INLINE_CHAT_SHOWING_HINT = new RawContextKey<boolean>('inlineChatShowingHint', false, localize('inlineChatShowingHint', "Whether inline chat shows a contextual hint"));
 
@@ -48,7 +63,7 @@ export class InlineChatExpandLineAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: _inlineChatActionId,
-			category: AbstractInlineChatAction.category,
+			category: AbstractInline1ChatAction.category,
 			title: localize2('startWithCurrentLine', "Start in Editor with Current Line"),
 			f1: true,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE.negate(), CTX_INLINE_CHAT_HAS_AGENT, EditorContextKeys.writable),
@@ -83,22 +98,14 @@ export class InlineChatExpandLineAction extends EditorAction2 {
 			return null;
 		});
 
-		let lastState: State | undefined;
-		const d = ctrl.onDidEnterState(e => lastState = e);
+		// trigger chat
+		const accepted = await ctrl.run({
+			autoSend: true,
+			message: lineContent.trim(),
+			position: new Position(lineNumber, startColumn)
+		});
 
-		try {
-			// trigger chat
-			await ctrl.run({
-				autoSend: true,
-				message: lineContent.trim(),
-				position: new Position(lineNumber, startColumn)
-			});
-
-		} finally {
-			d.dispose();
-		}
-
-		if (lastState === State.CANCEL) {
+		if (!accepted) {
 			model.pushEditOperations(null, undoEdits, () => null);
 		}
 	}
@@ -109,7 +116,7 @@ export class ShowInlineChatHintAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'inlineChat.showHint',
-			category: AbstractInlineChatAction.category,
+			category: AbstractInline1ChatAction.category,
 			title: localize2('showHint', "Show Inline Chat Hint"),
 			f1: false,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE.negate(), CTX_INLINE_CHAT_HAS_AGENT, EditorContextKeys.writable),
@@ -140,14 +147,32 @@ export class ShowInlineChatHintAction extends EditorAction2 {
 
 		model.tokenization.forceTokenization(position.lineNumber);
 		const tokens = model.tokenization.getLineTokens(position.lineNumber);
-		const tokenIndex = tokens.findTokenIndexAtOffset(position.column - 1);
-		const tokenType = tokens.getStandardTokenType(tokenIndex);
 
-		if (tokenType === StandardTokenType.Comment) {
+		let totalLength = 0;
+		let specialLength = 0;
+		let lastTokenType: StandardTokenType | undefined;
+
+		tokens.forEach(idx => {
+			const tokenType = tokens.getStandardTokenType(idx);
+			const startOffset = tokens.getStartOffset(idx);
+			const endOffset = tokens.getEndOffset(idx);
+			totalLength += endOffset - startOffset;
+
+			if (tokenType !== StandardTokenType.Other) {
+				specialLength += endOffset - startOffset;
+			}
+			lastTokenType = tokenType;
+		});
+
+		if (specialLength / totalLength > 0.25) {
 			ctrl.hide();
-		} else {
-			ctrl.show();
+			return;
 		}
+		if (lastTokenType === StandardTokenType.Comment) {
+			ctrl.hide();
+			return;
+		}
+		ctrl.show();
 	}
 }
 
@@ -212,7 +237,7 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 		const configHintEmpty = observableConfigValue(InlineChatConfigKeys.LineEmptyHint, false, this._configurationService);
 		const configHintNL = observableConfigValue(InlineChatConfigKeys.LineNLHint, false, this._configurationService);
 
-		const showDataObs = derived(r => {
+		const showDataObs = derived((r) => {
 			const ghostState = ghostCtrl?.model.read(r)?.state.read(r);
 
 			const textFocus = editorObs.isTextFocused.read(r);
@@ -225,9 +250,11 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 				return undefined;
 			}
 
-			if (model.getLanguageId() === PLAINTEXT_LANGUAGE_ID || model.getLanguageId() === 'markdown') {
+			if (IGNORED_LANGUAGE_IDS.has(model.getLanguageId())) {
 				return undefined;
 			}
+
+			editorObs.versionId.read(r);
 
 			const visible = this._visibilityObs.read(r);
 			const isEol = model.getLineMaxColumn(position.lineNumber) === position.column;

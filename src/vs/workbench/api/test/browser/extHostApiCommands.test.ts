@@ -167,6 +167,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				uri: model.uri,
 				lines: model.getValue().split(model.getEOL()),
 				EOL: model.getEOL(),
+				encoding: 'utf8'
 			}]
 		});
 		const extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
@@ -773,8 +774,9 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.strictEqual(values.length, 2);
 				const [first, second] = values;
 				assert.strictEqual(first instanceof types.SymbolInformation, true);
-				assert.strictEqual(first instanceof types.DocumentSymbol, false);
+				assert.strictEqual(first instanceof types.DocumentSymbol, true);
 				assert.strictEqual(second instanceof types.SymbolInformation, true);
+				assert.strictEqual(second instanceof types.DocumentSymbol, true);
 				assert.strictEqual(first.name, 'DocumentSymbol');
 				assert.strictEqual(first.children.length, 1);
 				assert.strictEqual(second.name, 'SymbolInformation');

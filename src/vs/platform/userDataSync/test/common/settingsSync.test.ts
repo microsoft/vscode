@@ -569,7 +569,7 @@ suite('SettingsSync - Manual', () => {
 }`;
 		await updateSettings(settingsContent, client);
 
-		let preview = await testObject.preview(await client.getResourceManifest(), {});
+		let preview = await testObject.sync(await client.getResourceManifest(), true);
 		assert.strictEqual(testObject.status, SyncStatus.Syncing);
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.apply(false);
