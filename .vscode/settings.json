@@ -1,6 +1,6 @@
 {
 	// --- Chat ---
-	"inlineChat.enableV2": true,
+	// "inlineChat.enableV2": true,
 
 	// --- Editor ---
 	"editor.insertSpaces": false,
