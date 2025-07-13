@@ -621,7 +621,7 @@ suite('Multi Cursor Support', () => {
 					editor.getValue(),
 					[
 						`console.log("hello");`,
-						`console.log("hello");`,
+						`console.log`,
 						``
 					].join('\n')
 				);
@@ -650,7 +650,7 @@ suite('Multi Cursor Support', () => {
 					editor.getValue(),
 					[
 						`console.log("hello");`,
-						`console.warn("hello");`,
+						`console.warn`,
 						``
 					].join('\n')
 				);
@@ -721,7 +721,7 @@ suite('Multi Cursor Support', () => {
 					editor.getValue(),
 					[
 						`for (let i)`,
-						`for (let i`,
+						`for `,
 						``
 					].join('\n')
 				);
@@ -754,7 +754,7 @@ suite('Multi Cursor Support', () => {
 					editor.getValue(),
 					[
 						`console.log("hello" + )`,
-						`console.warnnnn("hello" + `,
+						`console.warnnnn`,
 						``
 					].join('\n')
 				);

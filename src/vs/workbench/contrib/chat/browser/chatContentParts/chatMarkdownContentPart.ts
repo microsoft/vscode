@@ -100,7 +100,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		let thisPartCodeBlockIndexStart = 0;
 
 		this.domNode = document.createElement('div');
-		this.domNode.classList.add('chat-markdown-part');
+		this.domNode.classList.add('chat-markdown-part', 'rendered-markdown');
 
 		const enableMath = configurationService.getValue<boolean>(ChatConfiguration.EnableMath);
 
@@ -313,11 +313,12 @@ export class EditorPool extends Disposable {
 		options: ChatEditorOptions,
 		delegate: IChatRendererDelegate,
 		overflowWidgetsDomNode: HTMLElement | undefined,
+		private readonly isSimpleWidget: boolean = false,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 		this._pool = this._register(new ResourcePool(() => {
-			return instantiationService.createInstance(CodeBlockPart, options, MenuId.ChatCodeBlock, delegate, overflowWidgetsDomNode);
+			return instantiationService.createInstance(CodeBlockPart, options, MenuId.ChatCodeBlock, delegate, overflowWidgetsDomNode, this.isSimpleWidget);
 		}));
 	}
 

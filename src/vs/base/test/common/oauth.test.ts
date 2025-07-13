@@ -749,5 +749,11 @@ suite('OAuth', () => {
 			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
 			assert.strictEqual(result, 'https://example.com/api%20v1');
 		});
+
+		test('should normalize hostname case consistently', () => {
+			const discoveryUrl = 'https://MCP.EXAMPLE.COM/.well-known/oauth-protected-resource';
+			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
+			assert.strictEqual(result, 'https://mcp.example.com/');
+		});
 	});
 });
