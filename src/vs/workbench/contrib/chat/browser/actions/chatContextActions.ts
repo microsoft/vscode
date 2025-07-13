@@ -122,8 +122,8 @@ class AttachFileToChatAction extends AttachResourceAction {
 				order: 1,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, SearchContext.FileMatchOrMatchFocusKey, SearchContext.SearchResultHeaderFocused.negate()),
 			}, {
-				id: MenuId.ChatExplorerMenu,
-				group: 'zContext',
+				id: MenuId.ExplorerContext,
+				group: '5_copilot',
 				order: 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.enabled,
@@ -186,8 +186,8 @@ class AttachFolderToChatAction extends AttachResourceAction {
 			category: CHAT_CATEGORY,
 			f1: false,
 			menu: {
-				id: MenuId.ChatExplorerMenu,
-				group: 'zContext',
+				id: MenuId.ExplorerContext,
+				group: '5_copilot',
 				order: 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.enabled,
