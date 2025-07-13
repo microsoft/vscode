@@ -515,6 +515,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.squash",
+        "title": "%command.squash%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.mergeAbort",
         "title": "%command.mergeAbort%",
         "category": "Git",
@@ -1270,6 +1276,10 @@
         },
         {
           "command": "git.merge",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.squash",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
@@ -2442,8 +2452,12 @@
           "group": "1_merge@1"
         },
         {
-          "command": "git.rebase",
+          "command": "git.squash",
           "group": "1_merge@2"
+        },
+        {
+          "command": "git.rebase",
+          "group": "1_merge@3"
         },
         {
           "command": "git.branch",

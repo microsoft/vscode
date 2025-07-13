@@ -294,6 +294,10 @@ export class ApiRepository implements Repository {
 		return this.#repository.merge(ref);
 	}
 
+	squash(ref: string): Promise<void> {
+		return this.#repository.squash(ref);
+	}
+
 	mergeAbort(): Promise<void> {
 		return this.#repository.mergeAbort();
 	}
