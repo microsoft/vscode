@@ -135,7 +135,7 @@ class AttachFileToChatAction extends AttachResourceAction {
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, SearchContext.FileMatchOrMatchFocusKey, SearchContext.SearchResultHeaderFocused.negate()),
 			}, {
 				id: MenuId.ExplorerContext,
-				group: '5_copilot',
+				group: '5_chat',
 				order: 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.enabled,
@@ -147,7 +147,7 @@ class AttachFileToChatAction extends AttachResourceAction {
 				),
 			}, {
 				id: MenuId.EditorTitleContext,
-				group: 'zContext',
+				group: '2_chat',
 				order: 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.enabled,
@@ -199,7 +199,7 @@ class AttachFolderToChatAction extends AttachResourceAction {
 			f1: false,
 			menu: {
 				id: MenuId.ExplorerContext,
-				group: '5_copilot',
+				group: '5_chat',
 				order: 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.enabled,
