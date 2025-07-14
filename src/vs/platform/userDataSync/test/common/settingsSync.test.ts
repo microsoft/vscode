@@ -58,9 +58,7 @@ suite('SettingsSync - Auto', () => {
 		server.reset();
 		await testObject.sync(manifest);
 
-		assert.deepStrictEqual(server.requests, [
-			{ type: 'GET', url: `${server.url}/v1/resource/${testObject.resource}/latest`, headers: {} },
-		]);
+		assert.deepStrictEqual(server.requests, []);
 		assert.ok(!await fileService.exists(settingResource));
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();

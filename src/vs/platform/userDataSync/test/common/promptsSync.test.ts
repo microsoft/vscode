@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from '../../../../../base/common/uri.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { IFileService } from '../../../../files/common/files.js';
-import { assertDefined } from '../../../../../base/common/types.js';
-import { dirname, joinPath } from '../../../../../base/common/resources.js';
-import { IStringDictionary } from '../../../../../base/common/collections.js';
-import { PromptsSynchronizer } from '../../../common/promptsSync/promptsSync.js';
-import { IEnvironmentService } from '../../../../environment/common/environment.js';
-import { UserDataSyncClient, UserDataSyncTestServer } from '../userDataSyncClient.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IUserDataProfile, IUserDataProfilesService } from '../../../../userDataProfile/common/userDataProfile.js';
-import { IResourcePreview, ISyncData, IUserDataSyncStoreService, PREVIEW_DIR_NAME, SyncResource, SyncStatus } from '../../../common/userDataSync.js';
+import { URI } from '../../../../base/common/uri.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { IFileService } from '../../../files/common/files.js';
+import { assertDefined } from '../../../../base/common/types.js';
+import { dirname, joinPath } from '../../../../base/common/resources.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { PromptsSynchronizer } from '../../common/promptsSync/promptsSync.js';
+import { IEnvironmentService } from '../../../environment/common/environment.js';
+import { UserDataSyncClient, UserDataSyncTestServer } from './userDataSyncClient.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IUserDataProfile, IUserDataProfilesService } from '../../../userDataProfile/common/userDataProfile.js';
+import { IResourcePreview, ISyncData, IUserDataSyncStoreService, PREVIEW_DIR_NAME, SyncResource, SyncStatus } from '../../common/userDataSync.js';
 
 const PROMPT1_TEXT = 'Write a poem about a programmer who falls in love with their code.';
 const PROMPT2_TEXT = 'Explain quantum physics using only emojis and cat memes.';
@@ -63,9 +63,7 @@ suite('PromptsSync', () => {
 		server.reset();
 		await testObject.sync(manifest);
 
-		assert.deepStrictEqual(server.requests, [
-			{ type: 'GET', url: `${server.url}/v1/resource/${testObject.resource}/latest`, headers: {} },
-		]);
+		assert.deepStrictEqual(server.requests, []);
 		assert.ok(!(await fileService.exists(promptsResource)));
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
