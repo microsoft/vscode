@@ -151,6 +151,7 @@ export class TestNativeHostService implements INativeHostService {
 	async openDevTools(options?: Partial<Electron.OpenDevToolsOptions> & INativeHostOptions | undefined): Promise<void> { }
 	async toggleDevTools(): Promise<void> { }
 	async stopTracing(): Promise<void> { }
+	async openDevToolsWindow(url: string): Promise<void> { }
 	async openGPUInfoWindow(): Promise<void> { }
 	async resolveProxy(url: string): Promise<string | undefined> { return undefined; }
 	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> { return undefined; }

@@ -211,6 +211,7 @@ export interface ICommonNativeHostService {
 	openDevTools(options?: Partial<OpenDevToolsOptions> & INativeHostOptions): Promise<void>;
 	toggleDevTools(options?: INativeHostOptions): Promise<void>;
 	openGPUInfoWindow(): Promise<void>;
+	openDevToolsWindow(url: string): Promise<void>;
 	stopTracing(): Promise<void>;
 
 	// Perf Introspection
