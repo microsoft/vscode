@@ -417,22 +417,36 @@ class McpHTTPHandle extends Disposable {
 			}
 		});
 		if (authServerMetadataResponse.status !== 200) {
-			// Try fetching the other discovery URL. For the openid metadata discovery
-			// path, we _ADD_ the well known path after the existing path.
-			// https://datatracker.ietf.org/doc/html/rfc8414#section-3
-			authServerMetadataResponse = await this._fetch(
-				URI.joinPath(URI.parse(authorizationServer), '.well-known', 'openid-configuration').toString(true),
-				{
-					method: 'GET',
-					headers: {
-						...addtionalHeaders,
-						'Accept': 'application/json',
-						'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
-					}
+			// Try fetching the OpenID Connect Discovery with path insertion.
+			// For issuer URLs with path components, this inserts the well-known path
+			// after the origin and before the path.
+			const openidPathInsertionUrl = new URL('/.well-known/openid-configuration', authorizationServer).toString() + extraPath;
+			authServerMetadataResponse = await this._fetch(openidPathInsertionUrl, {
+				method: 'GET',
+				headers: {
+					...addtionalHeaders,
+					'Accept': 'application/json',
+					'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
 				}
-			);
+			});
 			if (authServerMetadataResponse.status !== 200) {
-				throw new Error(`Failed to fetch authorization server metadata: ${authServerMetadataResponse.status} ${await this._getErrText(authServerMetadataResponse)}`);
+				// Try fetching the other discovery URL. For the openid metadata discovery
+				// path, we _ADD_ the well known path after the existing path.
+				// https://datatracker.ietf.org/doc/html/rfc8414#section-3
+				authServerMetadataResponse = await this._fetch(
+					URI.joinPath(URI.parse(authorizationServer), '.well-known', 'openid-configuration').toString(true),
+					{
+						method: 'GET',
+						headers: {
+							...addtionalHeaders,
+							'Accept': 'application/json',
+							'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
+						}
+					}
+				);
+				if (authServerMetadataResponse.status !== 200) {
+					throw new Error(`Failed to fetch authorization server metadata: ${authServerMetadataResponse.status} ${await this._getErrText(authServerMetadataResponse)}`);
+				}
 			}
 		}
 		const body = await authServerMetadataResponse.json();
