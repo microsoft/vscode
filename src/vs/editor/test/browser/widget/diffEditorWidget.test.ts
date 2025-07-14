@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { UnchangedRegion } from '../../../browser/widget/diffEditor/diffEditorViewModel.js';
-import { LineRange } from '../../../common/core/lineRange.js';
+import { LineRange } from '../../../common/core/ranges/lineRange.js';
 import { DetailedLineRangeMapping } from '../../../common/diff/rangeMapping.js';
 
 suite('DiffEditorWidget2', () => {

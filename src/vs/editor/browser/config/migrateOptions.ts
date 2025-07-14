@@ -196,6 +196,17 @@ registerEditorSettingMigration('experimental.stickyScroll.maxLineCount', (value,
 	}
 });
 
+// Edit Context
+
+registerEditorSettingMigration('editor.experimentalEditContextEnabled', (value, read, write) => {
+	if (typeof value === 'boolean') {
+		write('editor.experimentalEditContextEnabled', undefined);
+		if (typeof read('editor.editContext') === 'undefined') {
+			write('editor.editContext', value);
+		}
+	}
+});
+
 // Code Actions on Save
 registerEditorSettingMigration('codeActionsOnSave', (value, read, write) => {
 	if (value && typeof value === 'object') {
@@ -232,3 +243,10 @@ registerEditorSettingMigration('lightbulb.enabled', (value, read, write) => {
 	}
 });
 
+// NES Code Shifting
+registerEditorSettingMigration('inlineSuggest.edits.codeShifting', (value, read, write) => {
+	if (typeof value === 'boolean') {
+		write('inlineSuggest.edits.codeShifting', undefined);
+		write('inlineSuggest.edits.allowCodeShifting', value ? 'always' : 'never');
+	}
+});

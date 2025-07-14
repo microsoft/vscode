@@ -338,7 +338,13 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 		}
 	}
 
-	const guessed = jschardet.detect(binaryString, candidateGuessEncodings ? { detectEncodings: candidateGuessEncodings } : undefined);
+	let guessed: { encoding: string | undefined } | undefined;
+	try {
+		guessed = jschardet.detect(binaryString, candidateGuessEncodings ? { detectEncodings: candidateGuessEncodings } : undefined);
+	} catch (error) {
+		return null; // jschardet throws for unknown encodings (https://github.com/microsoft/vscode/issues/239928)
+	}
+
 	if (!guessed || !guessed.encoding) {
 		return null;
 	}
@@ -371,7 +377,7 @@ function toJschardetEncoding(encodingName: string): string | undefined {
 	const normalizedEncodingName = normalizeEncoding(encodingName);
 	const mapped = GUESSABLE_ENCODINGS[normalizedEncodingName];
 
-	return mapped.guessableName;
+	return mapped ? mapped.guessableName : undefined;
 }
 
 function encodeLatin1(buffer: Uint8Array): string {

@@ -7,6 +7,7 @@
 	opacity: 0;
 	transition: opacity 0.2s ease-in-out;
 	display: flex;
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 }
 
 .chat-diff-change-content-widget.hover {

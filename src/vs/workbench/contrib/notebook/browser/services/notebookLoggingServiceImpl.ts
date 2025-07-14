@@ -7,6 +7,7 @@ import * as nls from '../../../../../nls.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { INotebookLoggingService } from '../../common/notebookLoggingService.js';
 import { ILogger, ILoggerService } from '../../../../../platform/log/common/log.js';
+import { windowLogGroup } from '../../../../services/log/common/logConstants.js';
 
 const logChannelId = 'notebook.rendering';
 
@@ -20,7 +21,7 @@ export class NotebookLoggingService extends Disposable implements INotebookLoggi
 		@ILoggerService loggerService: ILoggerService,
 	) {
 		super();
-		this._logger = this._register(loggerService.createLogger(logChannelId, { name: nls.localize('renderChannelName', "Notebook") }));
+		this._logger = this._register(loggerService.createLogger(logChannelId, { name: nls.localize('renderChannelName', "Notebook"), group: windowLogGroup }));
 	}
 
 	debug(category: string, output: string): void {

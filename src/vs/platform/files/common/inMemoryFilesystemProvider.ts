@@ -279,7 +279,7 @@ export class InMemoryFileSystemProvider extends Disposable implements
 	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
 
 	private _bufferedChanges: IFileChange[] = [];
-	private _fireSoonHandle?: any;
+	private _fireSoonHandle?: Timeout;
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
 		// ignore, fires for all changes...

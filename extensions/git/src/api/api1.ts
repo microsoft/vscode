@@ -7,13 +7,13 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions } from './git';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions, SourceControlHistoryItemDetailsProvider, GitErrorCodes } from './git';
 import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands, CancellationToken } from 'vscode';
 import { combinedDisposable, filterEvent, mapEvent } from '../util';
 import { toGitUri } from '../uri';
 import { GitExtensionImpl } from './extension';
 import { GitBaseApi } from '../git-base';
-import { PickRemoteSourceOptions } from './git-base';
+import { PickRemoteSourceOptions } from '../typings/git-base';
 import { OperationKind, OperationResult } from '../operation';
 
 class ApiInputBox implements InputBox {
@@ -110,6 +110,10 @@ export class ApiRepository implements Repository {
 
 	setConfig(key: string, value: string): Promise<string> {
 		return this.#repository.setConfig(key, value);
+	}
+
+	unsetConfig(key: string): Promise<string> {
+		return this.#repository.unsetConfig(key);
 	}
 
 	getGlobalConfig(key: string): Promise<string> {
@@ -367,6 +371,27 @@ export class ApiImpl implements API {
 		return result ? new ApiRepository(result) : null;
 	}
 
+	async getRepositoryRoot(uri: Uri): Promise<Uri | null> {
+		const repository = this.getRepository(uri);
+		if (repository) {
+			return repository.rootUri;
+		}
+
+		try {
+			const root = await this.#model.git.getRepositoryRoot(uri.fsPath);
+			return Uri.file(root);
+		} catch (err) {
+			if (
+				err.gitErrorCode === GitErrorCodes.NotAGitRepository ||
+				err.gitErrorCode === GitErrorCodes.NotASafeGitRepository
+			) {
+				return null;
+			}
+
+			throw err;
+		}
+	}
+
 	async init(root: Uri, options?: InitOptions): Promise<Repository | null> {
 		const path = root.fsPath;
 		await this.#model.git.init(path, options);
@@ -408,6 +433,10 @@ export class ApiImpl implements API {
 
 	registerPushErrorHandler(handler: PushErrorHandler): Disposable {
 		return this.#model.registerPushErrorHandler(handler);
+	}
+
+	registerSourceControlHistoryItemDetailsProvider(provider: SourceControlHistoryItemDetailsProvider): Disposable {
+		return this.#model.registerSourceControlHistoryItemDetailsProvider(provider);
 	}
 
 	registerBranchProtectionProvider(root: Uri, provider: BranchProtectionProvider): Disposable {
