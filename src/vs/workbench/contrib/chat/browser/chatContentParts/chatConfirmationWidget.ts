@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { renderStringAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { Button, ButtonWithDropdown, IButton, IButtonOptions } from '../../../../../base/browser/ui/button/button.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -120,7 +121,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 	private readonly notification = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
-		title: string | IMarkdownString,
+		private title: string | IMarkdownString,
 		subtitle: string | IMarkdownString | undefined,
 		buttons: IChatConfirmationButton[],
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
@@ -200,18 +201,26 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
 
 		// Notify
-		const notification = await dom.triggerNotification(localize('notificationTitle', "Chat: Confirmation Required"),
+		const title = renderStringAsPlaintext(this.title);
+		const notification = await dom.triggerNotification(title ? localize('notificationTitle', "Chat: {0}", title) : localize('defaultTitle', "Chat: Confirmation Required"),
 			{
-				detail: localize('notificationDetail', "The current chat session requires your confirmation to proceed"),
+				detail: localize('notificationDetail', "The current chat session requires your confirmation to proceed."),
 				sticky: true
 			}
 		);
 		if (notification) {
-			this.notification.value = new DisposableStore();
-			this.notification.value.add(notification);
+			const disposables = this.notification.value = new DisposableStore();
+			disposables.add(notification);
 
-			this.notification.value.add(Event.once(notification.onClick)(() => {
+			disposables.add(Event.once(notification.onClick)(() => {
+				this._hostService.focus(targetWindow, { mode: FocusMode.Force });
 				showChatView(this._viewsService);
+			}));
+
+			disposables.add(this._hostService.onDidChangeFocus(focus => {
+				if (focus) {
+					disposables.dispose();
+				}
 			}));
 		}
 	}
