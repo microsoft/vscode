@@ -5693,6 +5693,8 @@ export const enum EditorOption {
 	scrollPredominantAxis,
 	selectionClipboard,
 	selectionHighlight,
+	selectionHighlightMaxLength,
+	selectionHighlightMultiline,
 	selectOnLineNumbers,
 	showFoldingControls,
 	showUnused,
@@ -5740,9 +5742,7 @@ export const enum EditorOption {
 	inlineCompletionsAccessibilityVerbose,
 	effectiveEditContext,
 	scrollOnMiddleClick,
-	effectiveAllowVariableFonts,
-	selectionHighlightMultiline,
-	selectionHighlightMaxLength
+	effectiveAllowVariableFonts
 }
 
 export const EditorOptions = {
@@ -6388,14 +6388,14 @@ export const EditorOptions = {
 		EditorOption.selectionHighlight, 'selectionHighlight', true,
 		{ description: nls.localize('selectionHighlight', "Controls whether the editor should highlight matches similar to the selection.") }
 	)),
-	selectionHighlightMultiline: register(new EditorBooleanOption(
-		EditorOption.selectionHighlightMultiline, 'selectionHighlightMultiline', false,
-		{ description: nls.localize('selectionHighlightMultiline', "Controls whether the editor should highlight selection matches that span multiple lines.") }
-	)),
 	selectionHighlightMaxLength: register(new EditorIntOption(
 		EditorOption.selectionHighlightMaxLength, 'selectionHighlightMaxLength',
 		200, 0, Constants.MAX_SAFE_SMALL_INTEGER,
 		{ description: nls.localize('selectionHighlightMaxLength', "Controls how many characters can be in the selection before similiar matches are not highlighted. Set to zero for unlimited.") }
+	)),
+	selectionHighlightMultiline: register(new EditorBooleanOption(
+		EditorOption.selectionHighlightMultiline, 'selectionHighlightMultiline', false,
+		{ description: nls.localize('selectionHighlightMultiline', "Controls whether the editor should highlight selection matches that span multiple lines.") }
 	)),
 	selectOnLineNumbers: register(new EditorBooleanOption(
 		EditorOption.selectOnLineNumbers, 'selectOnLineNumbers', true,
