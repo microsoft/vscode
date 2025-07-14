@@ -22,6 +22,7 @@ import { IRemoteAgentService } from '../../../../services/remote/common/remoteAg
 import type { IChatTerminalToolInvocationData } from '../../../chat/common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
+import { ITerminalProfileResolverService } from '../../../terminal/common/terminal.js';
 import { getRecommendedToolsOverRunInTerminal } from './alternativeRecommendation.js';
 import { CommandLineAutoApprover } from './commandLineAutoApprover.js';
 import { BasicExecuteStrategy } from './executeStrategy/basicExecuteStrategy.js';
@@ -88,6 +89,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
+		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -104,10 +106,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._alternativeRecommendation = getRecommendedToolsOverRunInTerminal(args.command, this._languageModelToolsService);
 		const presentation = this._alternativeRecommendation ? 'hidden' : undefined;
 
-		// TODO: This isn't good enough, it should pull from the shell type that is active or is about to be launched
 		const os = await this._osBackend.value;
-		// TODO: Fix pulling default shell (was this.envService.shell)
-		const shell = 'pwsh';
+		const shell = await this._terminalProfileResolverService.getDefaultShell({
+			os,
+			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority
+		});
 		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
 
 		let confirmationMessages: IToolConfirmationMessages | undefined;
