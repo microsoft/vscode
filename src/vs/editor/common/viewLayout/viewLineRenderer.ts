@@ -12,7 +12,7 @@ import { LineDecoration, LineDecorationsNormalizer } from './lineDecorations.js'
 import { LinePart, LinePartMetadata } from './linePart.js';
 import { OffsetRange } from '../core/ranges/offsetRange.js';
 import { InlineDecorationType } from '../viewModel/inlineDecorations.js';
-import { TextDirection } from '../standalone/standaloneEnums.js';
+import { TextDirection } from '../model.js';
 
 export const enum RenderWhitespace {
 	None = 0,

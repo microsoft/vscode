@@ -20,7 +20,7 @@ import type { ViewLineOptions } from './viewLineOptions.js';
 import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
-import { TextDirection } from '../../../common/standalone/standaloneEnums.js';
+import { TextDirection } from '../../../common/model.js';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {

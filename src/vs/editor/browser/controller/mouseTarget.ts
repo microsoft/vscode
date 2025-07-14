@@ -18,12 +18,11 @@ import { IViewModel } from '../../common/viewModel.js';
 import { CursorColumns } from '../../common/core/cursorColumns.js';
 import * as dom from '../../../base/browser/dom.js';
 import { AtomicTabMoveOperations, Direction } from '../../common/cursor/cursorAtomicMoveOperations.js';
-import { PositionAffinity } from '../../common/model.js';
+import { PositionAffinity, TextDirection } from '../../common/model.js';
 import { InjectedText } from '../../common/modelLineProjectionData.js';
 import { Mutable } from '../../../base/common/types.js';
 import { Lazy } from '../../../base/common/lazy.js';
 import type { ViewLinesGpu } from '../viewParts/viewLinesGpu/viewLinesGpu.js';
-import { TextDirection } from '../../common/standalone/standaloneEnums.js';
 
 const enum HitTestResultType {
 	Unknown,

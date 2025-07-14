@@ -27,7 +27,6 @@ import { TokenArray } from './tokens/lineTokens.js';
 import { IEditorModel } from './editorCommon.js';
 import { TextModelEditReason } from './textModelEditReason.js';
 import { TextEdit } from './core/edits/textEdit.js';
-import { TextDirection } from './standalone/standaloneEnums.js';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -311,6 +310,15 @@ export interface IModelDecorationOptions {
 	 * The text direction of the decoration.
 	 */
 	textDirection?: TextDirection | null;
+}
+
+/**
+ * Text Direction for a decoration.
+ */
+export enum TextDirection {
+	LTR = 0,
+
+	RTL = 1,
 }
 
 /**

@@ -50,7 +50,6 @@ import { TokenArray } from '../tokens/lineTokens.js';
 import { SetWithKey } from '../../../base/common/collections.js';
 import { EditReasons, TextModelEditReason } from '../textModelEditReason.js';
 import { TextEdit } from '../core/edits/textEdit.js';
-import { TextDirection } from '../standalone/standaloneEnums.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -2430,7 +2429,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly hideInCommentTokens: boolean | null;
 	readonly hideInStringTokens: boolean | null;
 	readonly affectsFont: boolean | null;
-	readonly textDirection?: TextDirection | null | undefined;
+	readonly textDirection?: model.TextDirection | null | undefined;
 
 	private constructor(options: model.IModelDecorationOptions) {
 		this.description = options.description;

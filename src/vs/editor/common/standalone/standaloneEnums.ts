@@ -902,12 +902,11 @@ export enum SymbolTag {
 }
 
 /**
- * The text direction of a line or decoration.
+ * Text Direction for a decoration.
  */
 export enum TextDirection {
 	LTR = 0,
-
-	RTL = 1,
+	RTL = 1
 }
 
 /**

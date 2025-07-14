@@ -11,7 +11,7 @@ import { IPosition, Position } from '../core/position.js';
 import { Range } from '../core/range.js';
 import { ICommandMetadata } from '../../../platform/commands/common/commands.js';
 import { IViewModel } from '../viewModel.js';
-import { TextDirection } from '../standalone/standaloneEnums.js';
+import { TextDirection } from '../model.js';
 
 export class CursorMoveCommands {
 

@@ -26,7 +26,7 @@ import { Viewport } from '../../../common/viewModel.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { ViewLineOptions } from './viewLineOptions.js';
 import type { ViewGpuContext } from '../../gpu/viewGpuContext.js';
-import { TextDirection } from '../../../common/standalone/standaloneEnums.js';
+import { TextDirection } from '../../../common/model.js';
 
 class LastRenderedData {
 
