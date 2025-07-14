@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
 import { localize } from '../../../../../nls.js';
-import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../chat/common/languageModelToolsService.js';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../chat/common/languageModelToolsService.js';
+import { getRecommendedToolsOverRunInTerminal } from './alternativeRecommendation.js';
 
 export const RunInTerminalToolData: IToolData = {
 	id: 'vscode_runInTerminal',
@@ -48,7 +50,13 @@ interface IInputParams {
 }
 
 export class RunInTerminalTool extends Disposable implements IToolImpl {
+	// TODO: These should not be part of the state as different sessions could get confused
+	private _alternativeRecommendation?: IToolResult;
+	private _rewrittenCommand?: string;
+
 	constructor(
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService
 	) {
 		super();
 
@@ -57,21 +65,55 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IInputParams;
+
+		this._alternativeRecommendation = getRecommendedToolsOverRunInTerminal(args.command, this._languageModelToolsService);
+		// TODO: What does presentation do? Test with alternativeRecommendation
+		// const presentation = this.alternativeRecommendation ? 'hidden' : undefined;
+
+		const remoteEnv = await this._remoteAgentService.getEnvironment();
+		// TODO: This isn't good enough, it should pull from the shell type that is active or is about to be launched
+		const language = (remoteEnv?.os ?? OS) === OperatingSystem.Windows ? 'pwsh' : 'sh';
+
+		let confirmationMessages: IToolConfirmationMessages | undefined;
+		if (this._alternativeRecommendation) {
+			confirmationMessages = undefined;
+		} else {
+			// 	const subCommands = splitCommandLineIntoSubCommands(options.input.command, this.envService.shell, this.envService.OS);
+			// 	const inlineSubCommands = subCommands.map(e => Array.from(extractInlineSubCommands(e, this.envService.shell, this.envService.OS))).flat();
+			// 	const allSubCommands = [...subCommands, ...inlineSubCommands];
+			// 	if (allSubCommands.every(e => this._commandLineAutoApprover.isAutoApproved(e))) {
+			// 		confirmationMessages = undefined;
+			// 	} else {
+			// 		confirmationMessages = {
+			// 			title: options.input.isBackground ?
+			// 				l10n.t`Run command in background terminal` :
+			// 				l10n.t`Run command in terminal`,
+			// 			message: new MarkdownString(
+			// 				options.input.explanation
+			// 			),
+			// 		};
+			// 	}
+		}
+
+		// const rewrittenCommand = await this._rewriteCommandIfNeeded(options);
+		// if (rewrittenCommand && rewrittenCommand !== options.input.command) {
+		// 	this.rewrittenCommand = rewrittenCommand;
+		// } else {
+		// 	this.rewrittenCommand = undefined;
+		// }
+
 		return {
-			confirmationMessages: {
-				title: localize('runInTerminalTool.title', 'Run in Terminal'),
-				message: new MarkdownString(localize('runInTerminalTool.confirmationMessage', "Review blah blah.")),
-			},
+			confirmationMessages,
 			toolSpecificData: {
 				kind: 'terminal',
-				command: 'echo hello world',
-				language: 'shellscript',
+				command: this._rewrittenCommand ?? args.command,
+				language,
 			}
 		};
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		const args = invocation.parameters as IInputParams;
+		// const args = invocation.parameters as IInputParams;
 		return {
 			content: [{
 				kind: 'text',
