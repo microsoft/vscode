@@ -180,7 +180,7 @@ describe('API Integration Tests', function (): void {
 						values: ['wcag2a']
 					}
 				});
-			});
+			}, customReporter);
 
 			// Log passed elements
 			axeResults.passes.forEach((pass: any) => {
