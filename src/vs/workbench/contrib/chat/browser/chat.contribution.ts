@@ -214,7 +214,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.notifyWindowOnConfirmation': {
 			type: 'boolean',
-			description: nls.localize('chat.notifyWindowOnConfirmation', "Controls whether the Copilot window should notify the user when a confirmation is needed."),
+			description: nls.localize('chat.notifyWindowOnConfirmation', "Controls whether the Copilot window should notify the user when a confirmation is needed while the window is not in focus. This includes a window badge as well as notification toast."),
 			default: true,
 		},
 		'chat.tools.autoApprove': {

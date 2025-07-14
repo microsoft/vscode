@@ -117,6 +117,8 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 	private readonly messageElement: HTMLElement;
 	protected readonly markdownRenderer: MarkdownRenderer;
 
+	private readonly notification = this._register(new MutableDisposable());
+
 	constructor(
 		title: string | IMarkdownString,
 		subtitle: string | IMarkdownString | undefined,
@@ -203,6 +205,8 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 			detail: localize('notificationDetail', "The current chat session requires your confirmation to proceed")
 		});
 		if (notification) {
+			this.notification.value = notification;
+
 			Event.once(notification.onClick)(() => {
 				showChatView(this._viewsService);
 			});
