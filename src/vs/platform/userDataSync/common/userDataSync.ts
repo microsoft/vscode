@@ -222,14 +222,10 @@ export interface IUserDataSyncActivityData {
 }
 
 export interface IUserDataSyncLatestData {
-	resources?: {
-		[resourceId: string]: IUserData & { uri: string };
-	};
+	resources?: IStringDictionary<IUserData>;
 	collections?: {
 		[collectionId: string]: {
-			resources?: {
-				[resourceId: string]: IUserData & { uri: string };
-			} | undefined;
+			resources?: IStringDictionary<IUserData>;
 		};
 	};
 }
