@@ -504,7 +504,6 @@ suite('viewLineRenderer.renderLine', () => {
 
 		assert.deepStrictEqual(inflateRenderLineOutput(_actual), ({
 			html: [
-				'<span>',
 				'<span class="mtk6">var</span>',
 				'<span style="unicode-bidi:isolate" class="mtk1">\u00a0קודמות\u00a0=\u00a0</span>',
 				'<span style="unicode-bidi:isolate" class="mtk20">"מיותר\u00a0קודמות\u00a0צ\'ט\u00a0של,\u00a0אם\u00a0לשון\u00a0העברית\u00a0שינויים\u00a0ויש,\u00a0אם"</span>',
@@ -560,7 +559,6 @@ suite('viewLineRenderer.renderLine', () => {
 
 		assert.deepStrictEqual(inflateRenderLineOutput(_actual), ({
 			html: [
-				'<span>',
 				'<span class="mtk2">&lt;</span>',
 				'<span class="mtk3">option</span>',
 				'<span class="mtk4">\u00a0</span>',
@@ -624,7 +622,6 @@ suite('viewLineRenderer.renderLine', () => {
 
 		assert.deepStrictEqual(inflateRenderLineOutput(_actual), ({
 			html: [
-				'<span>',
 				'<span class="mtkw">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
 				'<span class="mtk2">[</span>',
 				'<span style="unicode-bidi:isolate" class="mtk3">"🖨️\u00a0چاپ\u00a0فاکتور"</span>',
