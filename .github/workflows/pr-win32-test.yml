@@ -80,7 +80,7 @@ jobs:
           VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          GITHUB_TOKEN: ${{ IS_FORK && secrets.GITHUB_TOKEN || secrets.VSCODE_OSS }}
+          GITHUB_TOKEN: ${{ env.IS_FORK && secrets.GITHUB_TOKEN || secrets.VSCODE_OSS }}
 
       - name: Create node_modules archive
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -111,7 +111,7 @@ jobs:
         if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
         run: node build/lib/builtInExtensions.js
         env:
-          GITHUB_TOKEN: ${{ IS_FORK && secrets.GITHUB_TOKEN || secrets.VSCODE_OSS }}
+          GITHUB_TOKEN: ${{ env.IS_FORK && secrets.GITHUB_TOKEN || secrets.VSCODE_OSS }}
 
       - name: Transpile client and extensions
         shell: pwsh
@@ -135,7 +135,7 @@ jobs:
             }
           }
         env:
-          GITHUB_TOKEN: ${{ IS_FORK && secrets.GITHUB_TOKEN || secrets.VSCODE_OSS }}
+          GITHUB_TOKEN: ${{ env.IS_FORK && secrets.GITHUB_TOKEN || secrets.VSCODE_OSS }}
 
       - name: 🧪 Run unit tests (Electron)
         if: ${{ inputs.electron_tests }}
