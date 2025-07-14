@@ -95,6 +95,11 @@ export interface ICustomChatMode {
 	readonly tools?: readonly string[];
 
 	/**
+	 * Model metadata in the prompt header.
+	 */
+	readonly model?: string;
+
+	/**
 	 * Contents of the custom chat mode file body.
 	 */
 	readonly body: string;

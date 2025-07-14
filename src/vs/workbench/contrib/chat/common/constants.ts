@@ -9,6 +9,7 @@ export enum ChatConfiguration {
 	Edits2Enabled = 'chat.edits2.enabled',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
 	EditRequests = 'chat.editRequests',
+	EnableMath = 'chat.math.enabled',
 }
 
 /**
@@ -18,18 +19,6 @@ export enum ChatModeKind {
 	Ask = 'ask',
 	Edit = 'edit',
 	Agent = 'agent'
-}
-
-export function modeToString(mode: ChatModeKind) {
-	switch (mode) {
-		case ChatModeKind.Agent:
-			return 'Agent';
-		case ChatModeKind.Edit:
-			return 'Edit';
-		case ChatModeKind.Ask:
-		default:
-			return 'Ask';
-	}
 }
 
 export function validateChatMode(mode: unknown): ChatModeKind | undefined {

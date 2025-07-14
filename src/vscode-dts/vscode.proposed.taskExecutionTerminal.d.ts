@@ -3,6 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { PromptModeMetadata } from './mode.js';
-export { PromptToolsMetadata } from './tools.js';
-export { PromptDescriptionMetadata } from './description.js';
+// #234440
+declare module 'vscode' {
+
+	export interface TaskExecution {
+		/**
+		 * The terminal associated with this task execution, if any.
+		 */
+		terminal?: Terminal;
+	}
+}

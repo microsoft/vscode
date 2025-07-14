@@ -207,13 +207,6 @@ class ToggleChatModeAction extends Action2 {
 				ChatContextKeys.enabled,
 				ChatContextKeys.requestInProgress.negate()),
 			tooltip: localize('setChatMode', "Set Mode"),
-			keybinding: {
-				when: ContextKeyExpr.and(
-					ChatContextKeys.inChatInput,
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)),
-				primary: KeyMod.CtrlCmd | KeyCode.Period,
-				weight: KeybindingWeight.EditorContrib
-			},
 			menu: [
 				{
 					id: MenuId.ChatInput,
@@ -377,6 +370,35 @@ class OpenModelPickerAction extends Action2 {
 	}
 }
 
+class OpenModePickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.openModePicker';
+
+	constructor() {
+		super({
+			id: OpenModePickerAction.ID,
+			title: localize2('interactive.openModePicker.label', "Open Mode Picker"),
+			category: CHAT_CATEGORY,
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+			keybinding: {
+				when: ContextKeyExpr.and(
+					ChatContextKeys.inChatInput,
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)),
+				primary: KeyMod.CtrlCmd | KeyCode.Period,
+				weight: KeybindingWeight.EditorContrib
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = widgetService.lastFocusedWidget;
+		if (widget) {
+			widget.input.openModePicker();
+		}
+	}
+}
+
 export const ChangeChatModelActionId = 'workbench.action.chat.changeModel';
 class ChangeChatModelAction extends Action2 {
 	static readonly ID = ChangeChatModelActionId;
@@ -504,13 +526,14 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 		super({
 			id: CreateRemoteAgentJobAction.ID,
-			title: localize2('actions.chat.createRemoteJob', "Push to Coding Agent"),
+			// TODO(joshspicer): Generalize title, pull from contribution
+			title: localize2('actions.chat.createRemoteJob', "Delegate to coding agent"),
 			icon: Codicon.cloudUpload,
 			precondition,
 			toggled: {
 				condition: ChatContextKeys.remoteJobCreating,
 				icon: Codicon.sync,
-				tooltip: localize('remoteJobCreating', "Pushing to Coding Agent"),
+				tooltip: localize('remoteJobCreating', "Delegating to coding agent"),
 			},
 			menu: {
 				id: MenuId.ChatExecute,
@@ -542,13 +565,19 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				return;
 			}
 
-			const userPrompt = widget.getInput();
-			widget.setInput();
 
 			const chatModel = widget.viewModel?.model;
 			if (!chatModel) {
 				return;
 			}
+
+			const userPrompt = widget.getInput();
+			if (!userPrompt) {
+				return;
+			}
+
+			widget.input.acceptInput(true);
+
 			const chatRequests = chatModel.getRequests();
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 
@@ -574,6 +603,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			}
 
 			let summary: string | undefined;
+			let followup: string | undefined;
 			if (defaultAgent && chatRequests.length > 0) {
 				chatModel.acceptResponseProgress(addedRequest, {
 					kind: 'progressMessage',
@@ -582,6 +612,15 @@ export class CreateRemoteAgentJobAction extends Action2 {
 						CreateRemoteAgentJobAction.markdownStringTrustedOptions
 					)
 				});
+
+				// Forward useful metadata about conversation to the implementing extension
+				if (agent.followUpRegex) {
+					const regex = new RegExp(agent.followUpRegex);
+					followup = chatRequests
+						.map(req => req.response?.response.toString() ?? '')
+						.reverse()
+						.find(text => regex.test(text));
+				}
 
 				const historyEntries: IChatAgentHistoryEntry[] = chatRequests
 					.map(req => ({
@@ -606,7 +645,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			chatModel.acceptResponseProgress(addedRequest, {
 				kind: 'progressMessage',
 				content: new MarkdownString(
-					localize('creatingRemoteJob', "Pushing state to coding agent"),
+					localize('creatingRemoteJob', "Delegating to coding agent"),
 					CreateRemoteAgentJobAction.markdownStringTrustedOptions
 				)
 			});
@@ -614,7 +653,8 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			// Execute the remote command
 			const resultMarkdown: string | undefined = await commandService.executeCommand(agent.command, {
 				userPrompt,
-				summary: summary || userPrompt
+				summary: summary || userPrompt,
+				followup,
 			});
 
 			let content = new MarkdownString(
@@ -631,6 +671,12 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			chatModel.acceptResponseProgress(addedRequest, { content, kind: 'markdownContent' });
 			chatModel.setResponse(addedRequest, {});
 			chatModel.completeResponse(addedRequest);
+
+			// Clear chat (start a new chat)
+			if (resultMarkdown) {
+				widget.clear();
+			}
+
 		} finally {
 			remoteJobCreatingKey.set(false);
 		}
@@ -757,7 +803,11 @@ export class CancelAction extends Action2 {
 			icon: Codicon.stopCircle,
 			menu: [{
 				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.requestInProgress),
+				when: ContextKeyExpr.and(
+					ChatContextKeys.isRequestPaused.negate(),
+					ChatContextKeys.requestInProgress,
+					ChatContextKeys.remoteJobCreating.negate()
+				),
 				order: 4,
 				group: 'navigation',
 			},
@@ -840,6 +890,7 @@ export function registerChatExecuteActions() {
 	registerAction2(ToggleRequestPausedAction);
 	registerAction2(SwitchToNextModelAction);
 	registerAction2(OpenModelPickerAction);
+	registerAction2(OpenModePickerAction);
 	registerAction2(ChangeChatModelAction);
 	registerAction2(CancelEdit);
 }

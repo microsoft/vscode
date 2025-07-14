@@ -93,7 +93,7 @@ import { EditorOption, EditorOptions, IEditorOptions } from '../../../../editor/
 import { IAsyncDataTreeViewState, ITreeCompressionDelegate } from '../../../../base/browser/ui/tree/asyncDataTree.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { EditOperation } from '../../../../editor/common/core/editOperation.js';
-import { IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { HiddenItemStrategy, IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { clamp, rot } from '../../../../base/common/numbers.js';
@@ -392,6 +392,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 	}
 
 	disposeTemplate(templateData: InputTemplate): void {
+		templateData.elementDisposables.dispose();
 		templateData.templateDisposable.dispose();
 	}
 
@@ -1335,7 +1336,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: SCMInputWidgetCommandId.SetupAction,
-			title: localize('scmInputGenerateCommitMessage', "Generate Commit Message with Copilot"),
+			title: localize('scmInputGenerateCommitMessage', "Generate commit message"),
 			icon: Codicon.sparkle,
 			f1: false,
 			menu: {
@@ -1449,7 +1450,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(container, { resetMenu: MenuId.SCMInputBox, ...options }, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
+		super(container, options, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
 
 		this._dropdownAction = new Action(
 			'scmInputMoreActions',
@@ -1467,7 +1468,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 		this._disposables.value = new DisposableStore();
 
 		const contextKeyService = this.contextKeyService.createOverlay([
-			['scmProvider', input.repository.provider.contextValue],
+			['scmProvider', input.repository.provider.providerId],
 			['scmProviderRootUri', input.repository.provider.rootUri?.toString()],
 			['scmProviderHasRootUri', !!input.repository.provider.rootUri]
 		]);
@@ -1561,7 +1562,6 @@ class SCMInputWidgetEditorOptions {
 		return {
 			...getSimpleEditorOptions(this.configurationService),
 			...this.getEditorOptions(),
-			allowVariableLineHeights: false,
 			dragAndDrop: true,
 			dropIntoEditor: { enabled: true },
 			formatOnType: true,
@@ -1947,6 +1947,7 @@ class SCMInputWidget {
 
 				return createActionViewItem(instantiationService, action, options);
 			},
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			menuOptions: {
 				shouldForwardArgs: true
 			}
@@ -2767,7 +2768,7 @@ export class SCMViewPane extends ViewPane {
 
 		if (!alwaysShowRepositories && this.items.size === 1) {
 			const provider = Iterable.first(this.items.keys())!.provider;
-			this.scmProviderContextKey.set(provider.contextValue);
+			this.scmProviderContextKey.set(provider.providerId);
 			this.scmProviderRootUriContextKey.set(provider.rootUri?.toString());
 			this.scmProviderHasRootUriContextKey.set(!!provider.rootUri);
 		} else {

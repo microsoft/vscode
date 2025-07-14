@@ -25,6 +25,8 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ExpectedDiagnosticError, ExpectedDiagnosticWarning, TExpectedDiagnostic } from '../testUtils/expectedDiagnostic.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
+
 
 /**
  * Test helper to run unit tests for the {@link TextModelPromptParser}
@@ -69,15 +71,16 @@ class TextModelPromptParserTest extends Disposable {
 
 		// create the parser instance
 		this.parser = this._register(
-			instantiationService.createInstance(TextModelPromptParser, this.model, { seenReferences: [], allowNonPromptFiles: true, languageId: undefined }),
+			instantiationService.createInstance(TextModelPromptParser, this.model, { allowNonPromptFiles: true, languageId: undefined, updateOnChange: true }),
 		).start();
 	}
 
 	/**
 	 * Wait for the prompt parsing/resolve process to finish.
 	 */
-	public allSettled(): Promise<TextModelPromptParser> {
-		return this.parser.allSettled();
+	public async allSettled(): Promise<TextModelPromptParser> {
+		await this.parser.settled();
+		return this.parser;
 	}
 
 	/**
@@ -86,7 +89,7 @@ class TextModelPromptParserTest extends Disposable {
 	public async validateReferences(
 		expectedReferences: readonly ExpectedReference[],
 	) {
-		await this.parser.allSettled();
+		await this.parser.settled();
 
 		const { references } = this.parser;
 		for (let i = 0; i < expectedReferences.length; i++) {
@@ -113,7 +116,7 @@ class TextModelPromptParserTest extends Disposable {
 	public async validateHeaderDiagnostics(
 		expectedDiagnostics: readonly TExpectedDiagnostic[],
 	) {
-		await this.parser.allSettled();
+		await this.parser.settled();
 
 		const { header } = this.parser;
 		assertDefined(
@@ -156,6 +159,7 @@ suite('TextModelPromptParser', () => {
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IFileService, disposables.add(instantiationService.createInstance(FileService)));
+		instantiationService.stub(IWorkbenchEnvironmentService, {});
 	});
 
 	/**
@@ -436,12 +440,13 @@ suite('TextModelPromptParser', () => {
 					/* 05 */"	tools: [ 'tool_name3', \"tool_name4\" ]", /* duplicate `tools` record is ignored */
 					/* 06 */"	tools: 'tool_name5'", /* duplicate `tools` record with invalid value is ignored */
 					/* 07 */"	mode: 'agent'",
-					/* 07 */"	applyTo: 'frontend/**/*spec.ts'",
-					/* 08 */"---",
-					/* 09 */"The cactus on my desk has a thriving Instagram account.",
-					/* 10 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
-					/* 11 */"In an alternate universe, pigeons deliver sushi by drone.",
-					/* 12 */"Lunar rainbows only appear when you sing in falsetto.",
+					/* 08 */"	applyTo: 'frontend/**/*spec.ts'",
+					/* 09 */"	model: 'Super Finetune Turbo 2.3-o1'",
+					/* 10 */"---",
+					/* 11 */"The cactus on my desk has a thriving Instagram account.",
+					/* 12 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
+					/* 13 */"In an alternate universe, pigeons deliver sushi by drone.",
+					/* 14 */"Lunar rainbows only appear when you sing in falsetto.",
 					/* 13 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
 						],
 						PROMPT_LANGUAGE_ID,
@@ -452,7 +457,7 @@ suite('TextModelPromptParser', () => {
 							uri: URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
 							text: '[text](./foo-bar-baz/another-file.ts)',
 							path: './foo-bar-baz/another-file.ts',
-							startLine: 11,
+							startLine: 12,
 							startColumn: 43,
 							pathStartColumn: 50,
 						}),
@@ -476,6 +481,7 @@ suite('TextModelPromptParser', () => {
 							mode: 'agent',
 							description: 'My prompt.',
 							tools: ['tool_name1', 'tool_name2'],
+							model: 'Super Finetune Turbo 2.3-o1',
 						},
 						'Must have correct metadata.',
 					);
@@ -567,9 +573,40 @@ suite('TextModelPromptParser', () => {
 						metadata,
 						{
 							promptType: PromptsType.mode,
-							mode: 'agent',
 							description: 'My mode.',
 							tools: ['tool_name1', 'tool_name2'],
+						},
+						'Must have correct metadata.',
+					);
+				});
+
+				test(`has model metadata`, async () => {
+					const test = createTest(
+						URI.file('/absolute/folder/and/a/filename1.txt'),
+						[
+					/* 01 */"---",
+					/* 02 */"description: 'My mode.'\t\t",
+					/* 03 */"model: Martin Finetune Turbo",
+					/* 04 */"---",
+					/* 05 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
+						],
+						MODE_LANGUAGE_ID,
+					);
+
+					await test.allSettled();
+
+					const { header, metadata } = test.parser;
+					assertDefined(
+						header,
+						'header must be defined.',
+					);
+
+					assert.deepStrictEqual(
+						metadata,
+						{
+							promptType: PromptsType.mode,
+							description: 'My mode.',
+							model: 'Martin Finetune Turbo',
 						},
 						'Must have correct metadata.',
 					);
@@ -620,8 +657,7 @@ suite('TextModelPromptParser', () => {
 					metadata,
 					{
 						promptType: PromptsType.prompt,
-						mode: 'agent',
-						tools: ['tool_name1', 'tool_name2'],
+						mode: 'ask',
 					},
 					'Must have correct metadata.',
 				);
@@ -633,7 +669,7 @@ suite('TextModelPromptParser', () => {
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(4, 2, 4, 2 + 15),
-						'Unknown metadata \'something\' will be ignored.',
+						'Unknown property \'something\' will be ignored.',
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(5, 38, 5, 38 + 12),
@@ -641,11 +677,11 @@ suite('TextModelPromptParser', () => {
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(5, 52, 5, 52 + 4),
-						'Unexpected tool name \'true\', expected \'string\'.',
+						'Unexpected tool name \'true\', expected a string literal.',
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(5, 58, 5, 58 + 5),
-						'Unexpected tool name \'false\', expected \'string\'.',
+						'Unexpected tool name \'false\', expected a string literal.',
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(5, 65, 5, 65 + 2),
@@ -656,16 +692,16 @@ suite('TextModelPromptParser', () => {
 						'Duplicate tool name \'tool_name2\'.',
 					),
 					new ExpectedDiagnosticWarning(
-						new Range(3, 2, 3, 2 + 11),
-						`Record 'mode' is implied to have the 'agent' value if 'tools' record is present so the specified value will be ignored.`,
+						new Range(5, 1, 5, 84),
+						`Tools can only be used when in 'agent' mode, but the mode is set to 'ask'. The tools will be ignored.`,
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(6, 3, 6, 3 + 37),
-						`Duplicate metadata 'tools' will be ignored.`,
+						`Duplicate property 'tools' will be ignored.`,
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(7, 1, 7, 1 + 19),
-						`Duplicate metadata 'tools' will be ignored.`,
+						`Duplicate property 'tools' will be ignored.`,
 					),
 				]);
 			});
@@ -742,7 +778,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
 								new Range(2, 1, 2, 1 + 15),
-								`Unknown metadata 'applyTo' will be ignored.`,
+								`Unknown property 'applyTo' will be ignored.`,
 							),
 						]);
 					});
@@ -780,7 +816,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
 								new Range(3, 1, 3, 13),
-								`Unknown metadata 'mode' will be ignored.`,
+								`Unknown property 'mode' will be ignored.`,
 							),
 						]);
 					});
@@ -819,7 +855,7 @@ suite('TextModelPromptParser', () => {
 				await test.validateHeaderDiagnostics([
 					new ExpectedDiagnosticWarning(
 						new Range(2, 1, 2, 14),
-						`Unknown metadata 'mode' will be ignored.`,
+						`Unknown property 'mode' will be ignored.`,
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(3, 10, 3, 10 + 2),
@@ -853,7 +889,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
 								new Range(2, 1, 2, 7 + 9),
-								`Unknown metadata 'mode' will be ignored.`,
+								`Unknown property 'mode' will be ignored.`,
 							),
 						]);
 					});
@@ -881,7 +917,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
 								new Range(2, 1, 2, 7 + 6),
-								`Unknown metadata 'mode' will be ignored.`,
+								`Unknown property 'mode' will be ignored.`,
 							),
 						]);
 					});
@@ -909,7 +945,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
 								new Range(2, 1, 2, 7 + 7),
-								`Unknown metadata 'mode' will be ignored.`,
+								`Unknown property 'mode' will be ignored.`,
 							),
 						]);
 					});
@@ -937,7 +973,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
 								new Range(2, 1, 2, 7 + 20),
-								`Unknown metadata 'mode' will be ignored.`,
+								`Unknown property 'mode' will be ignored.`,
 							),
 						]);
 					});
@@ -966,7 +1002,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
 								new Range(3, 1, 3, 7 + 6),
-								`Unknown metadata 'mode' will be ignored.`,
+								`Unknown property 'mode' will be ignored.`,
 							),
 						]);
 					});
@@ -996,7 +1032,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
 								new Range(2, 2, 2, 9 + `${booleanValue}`.length),
-								`Unknown metadata 'mode' will be ignored.`,
+								`Unknown property 'mode' will be ignored.`,
 							),
 						]);
 					});
@@ -1028,7 +1064,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
 								new Range(2, 3, 2, 9 + `${quotedString}`.length),
-								`Unknown metadata 'mode' will be ignored.`,
+								`Unknown property 'mode' will be ignored.`,
 							),
 						]);
 					});
@@ -1060,7 +1096,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
 								new Range(2, 3, 2, 9),
-								`Unknown metadata 'mode' will be ignored.`,
+								`Unknown property 'mode' will be ignored.`,
 							),
 						]);
 					});
@@ -1088,7 +1124,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
 								new Range(2, 2, 2, 8),
-								`Unknown metadata 'mode' will be ignored.`,
+								`Unknown property 'mode' will be ignored.`,
 							),
 						]);
 					});
@@ -1124,21 +1160,22 @@ suite('TextModelPromptParser', () => {
 						);
 
 						const { tools, mode } = metadata;
-						assertDefined(
+						assert.equal(
 							tools,
-							'Tools metadata must be defined.',
+							undefined,
+							'Tools metadata must not be defined.',
 						);
 
 						assert.strictEqual(
 							mode,
-							ChatModeKind.Agent,
+							ChatModeKind.Ask,
 							'Mode metadata must have correct value.',
 						);
 
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
-								new Range(3, 1, 3, 1 + 11),
-								'Record \'mode\' is implied to have the \'agent\' value if \'tools\' record is present so the specified value will be ignored.',
+								new Range(2, 1, 2, 38),
+								'Tools can only be used when in \'agent\' mode, but the mode is set to \'ask\'. The tools will be ignored.',
 							),
 						]);
 					});
@@ -1170,21 +1207,22 @@ suite('TextModelPromptParser', () => {
 						);
 
 						const { tools, mode } = metadata;
-						assertDefined(
+						assert.equal(
 							tools,
-							'Tools metadata must be defined.',
+							undefined,
+							'Tools metadata must not be defined.',
 						);
 
 						assert.strictEqual(
 							mode,
-							ChatModeKind.Agent,
+							ChatModeKind.Edit,
 							'Mode metadata must have correct value.',
 						);
 
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
-								new Range(3, 1, 3, 1 + 12),
-								'Record \'mode\' is implied to have the \'agent\' value if \'tools\' record is present so the specified value will be ignored.',
+								new Range(2, 1, 2, 38),
+								'Tools can only be used when in \'agent\' mode, but the mode is set to \'edit\'. The tools will be ignored.',
 							),
 						]);
 					});

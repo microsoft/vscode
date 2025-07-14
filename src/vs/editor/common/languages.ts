@@ -905,6 +905,9 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 */
 	groupId?: InlineCompletionProviderGroupId;
 
+	/** @internal */
+	providerId?: ProviderId;
+
 	/**
 	 * Returns a list of preferred provider {@link groupId}s.
 	 * The current provider is only requested for completions if no provider with a preferred group id returned a result.
@@ -916,6 +919,49 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	debounceDelayMs?: number;
 
 	toString?(): string;
+}
+
+
+/** @internal */
+export class ProviderId {
+	public static fromExtensionId(extensionId: string | undefined): ProviderId {
+		return new ProviderId(extensionId, undefined, undefined);
+	}
+
+	constructor(
+		public readonly extensionId: string | undefined,
+		public readonly extensionVersion: string | undefined,
+		public readonly providerId: string | undefined
+	) {
+	}
+
+	toString(): string {
+		let result = '';
+		if (this.extensionId) {
+			result += this.extensionId;
+		}
+		if (this.extensionVersion) {
+			result += `@${this.extensionVersion}`;
+		}
+		if (this.providerId) {
+			result += `:${this.providerId}`;
+		}
+		if (result.length === 0) {
+			result = 'unknown';
+		}
+		return result;
+	}
+}
+
+/** @internal */
+export class VersionedExtensionId {
+	constructor(
+		public readonly extensionId: string,
+		public readonly version: string,
+	) { }
+	toString(): string {
+		return `${this.extensionId}@${this.version}`;
+	}
 }
 
 export type InlineCompletionsDisposeReason = { kind: 'lostRace' | 'tokenCancellation' | 'other' | 'empty' | 'notTaken' };
@@ -956,6 +1002,8 @@ export type LifetimeSummary = {
 	characterCountModified?: number;
 	disjointReplacements?: number;
 	sameShapeReplacements?: boolean;
+	typingInterval: number;
+	typingIntervalCharacterCount: number;
 };
 
 export interface CodeAction {

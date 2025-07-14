@@ -484,13 +484,31 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return result;
 	}
 
-	toToolAndToolSetEnablementMap(toolOrToolSetNames: Set<string>): Map<ToolSet | IToolData, boolean> {
+	/**
+	 * Create a map that contains all tools and toolsets with their enablement state.
+	 * @param toolOrToolSetNames A list of tool or toolset names to check for enablement. If undefined, all tools and toolsets are enabled.
+	 * @returns A map of tool or toolset instances to their enablement state.
+	 */
+	toToolAndToolSetEnablementMap(enabledToolOrToolSetNames: readonly string[] | undefined): Map<ToolSet | IToolData, boolean> {
+		const toolOrToolSetNames = enabledToolOrToolSetNames ? new Set(enabledToolOrToolSetNames) : undefined;
 		const result = new Map<ToolSet | IToolData, boolean>();
-		for (const tool of this._tools.values()) {
-			result.set(tool.data, tool.data.toolReferenceName !== undefined && toolOrToolSetNames.has(tool.data.toolReferenceName));
+		for (const tool of this.getTools()) {
+			if (tool.canBeReferencedInPrompt) {
+				result.set(tool, toolOrToolSetNames === undefined || toolOrToolSetNames.has(tool.toolReferenceName ?? tool.displayName));
+			}
 		}
 		for (const toolSet of this._toolSets) {
-			result.set(toolSet, toolOrToolSetNames.has(toolSet.referenceName));
+			const enabled = toolOrToolSetNames === undefined || toolOrToolSetNames.has(toolSet.referenceName);
+			result.set(toolSet, enabled);
+
+			// if a mcp toolset is enabled, all tools in it are enabled
+			if (enabled && toolSet.source.type === 'mcp') {
+				for (const tool of toolSet.getTools()) {
+					if (tool.canBeReferencedInPrompt) {
+						result.set(tool, enabled);
+					}
+				}
+			}
 		}
 		return result;
 	}

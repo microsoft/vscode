@@ -87,15 +87,15 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		return galleryServers;
 	}
 
-	async getMcpServer(name: string): Promise<IGalleryMcpServer | undefined> {
+	async getMcpServers(names: string[]): Promise<IGalleryMcpServer[]> {
 		const mcpUrl = this.getMcpGalleryUrl() ?? this.productService.extensionsGallery?.mcpUrl;
 		if (!mcpUrl) {
-			return undefined;
+			return [];
 		}
 
 		const { servers } = await this.fetchGallery(mcpUrl, CancellationToken.None);
-		const server = servers.find(item => item.name === name);
-		return server ? this.toGalleryMcpServer(server) : undefined;
+		const filteredServers = servers.filter(item => names.includes(item.name));
+		return filteredServers.map(item => this.toGalleryMcpServer(item));
 	}
 
 	async getManifest(gallery: IGalleryMcpServer, token: CancellationToken): Promise<IMcpServerManifest> {
@@ -177,6 +177,22 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			}
 		}
 
+		let icon: { light: string; dark: string } | undefined;
+		if (this.productService.extensionsGallery?.mcpUrl !== this.getMcpGalleryUrl()) {
+			if (item.iconUrl) {
+				icon = {
+					light: item.iconUrl,
+					dark: item.iconUrl
+				};
+			}
+			if (item.iconUrlLight && item.iconUrlDark) {
+				icon = {
+					light: item.iconUrlLight,
+					dark: item.iconUrlDark
+				};
+			}
+		}
+
 		return {
 			id: item.id ?? item.name,
 			name: item.name,
@@ -187,6 +203,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			lastUpdated: item.version_detail ? Date.parse(item.version_detail.release_date) : undefined,
 			repositoryUrl: item.repository?.url,
 			codicon: item.codicon,
+			icon,
 			readmeUrl: item.readmeUrl,
 			manifestUrl: this.getManifestUrl(item),
 			packageTypes: item.package_types ?? [],
