@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { isCancellationError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction2, EditorContributionInstantiation, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { PeekContext } from 'vs/editor/contrib/peekView/browser/peekView';
-import { localize, localize2 } from 'vs/nls';
-import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { TypeHierarchyTreePeekWidget } from 'vs/workbench/contrib/typeHierarchy/browser/typeHierarchyPeek';
-import { TypeHierarchyDirection, TypeHierarchyModel, TypeHierarchyProviderRegistry } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
+import { Event } from '../../../../base/common/event.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { EditorAction2, EditorContributionInstantiation, registerEditorContribution, ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
+import { PeekContext } from '../../../../editor/contrib/peekView/browser/peekView.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { TypeHierarchyTreePeekWidget } from './typeHierarchyPeek.js';
+import { TypeHierarchyDirection, TypeHierarchyModel, TypeHierarchyProviderRegistry } from '../common/typeHierarchy.js';
 
 
 const _ctxHasTypeHierarchyProvider = new RawContextKey<boolean>('editorHasTypeHierarchyProvider', false, localize('editorHasTypeHierarchyProvider', 'Whether a type hierarchy provider is available'));

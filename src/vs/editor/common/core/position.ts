@@ -56,7 +56,7 @@ export class Position {
 	 * @param deltaColumn column delta
 	 */
 	delta(deltaLineNumber: number = 0, deltaColumn: number = 0): Position {
-		return this.with(this.lineNumber + deltaLineNumber, this.column + deltaColumn);
+		return this.with(Math.max(1, this.lineNumber + deltaLineNumber), Math.max(1, this.column + deltaColumn));
 	}
 
 	/**

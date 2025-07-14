@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { speechLanguageConfigToLanguage } from 'vs/workbench/contrib/speech/common/speechService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { speechLanguageConfigToLanguage } from '../../common/speechService.js';
 
 suite('SpeechService', () => {
 

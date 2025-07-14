@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OperatingSystem, OS } from 'vs/base/common/platform';
-import type { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
+import { OperatingSystem, OS } from '../../../base/common/platform.js';
+import type { IShellLaunchConfig } from './terminal.js';
 
 /**
  * Aggressively escape non-windows paths to prepare for being sent to a shell. This will do some

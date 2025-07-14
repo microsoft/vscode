@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { ScrollType } from 'vs/editor/common/editorCommon';
+import { ICodeEditor } from './editorBrowser.js';
+import { Position } from '../common/core/position.js';
+import { ScrollType } from '../common/editorCommon.js';
 
 export class StableEditorScrollState {
 
@@ -20,16 +20,6 @@ export class StableEditorScrollState {
 		const visibleRanges = editor.getVisibleRanges();
 		if (visibleRanges.length > 0) {
 			visiblePosition = visibleRanges[0].getStartPosition();
-
-			const cursorPos = editor.getPosition();
-			if (cursorPos) {
-				const isVisible = visibleRanges.some(range => range.containsPosition(cursorPos));
-				if (isVisible) {
-					// Keep cursor pos fixed if it is visible
-					visiblePosition = cursorPos;
-				}
-			}
-
 			const visiblePositionScrollTop = editor.getTopForPosition(visiblePosition.lineNumber, visiblePosition.column);
 			visiblePositionScrollDelta = editor.getScrollTop() - visiblePositionScrollTop;
 		}

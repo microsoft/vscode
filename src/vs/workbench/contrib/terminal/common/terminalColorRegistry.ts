@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { editorOverviewRulerBorder } from 'vs/editor/common/core/editorColorRegistry';
-import * as nls from 'vs/nls';
+import { editorOverviewRulerBorder } from '../../../../editor/common/core/editorColorRegistry.js';
+import * as nls from '../../../../nls.js';
 
-import { registerColor, ColorIdentifier, ColorDefaults, editorFindMatch, editorFindMatchHighlight, overviewRulerFindMatchForeground, editorSelectionBackground, transparent, editorHoverHighlight } from 'vs/platform/theme/common/colorRegistry';
-import { EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_BORDER, TAB_ACTIVE_BORDER } from 'vs/workbench/common/theme';
+import { registerColor, ColorIdentifier, ColorDefaults, editorFindMatch, editorFindMatchHighlight, overviewRulerFindMatchForeground, editorSelectionBackground, transparent, editorHoverHighlight } from '../../../../platform/theme/common/colorRegistry.js';
+import { EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_BORDER, TAB_ACTIVE_BORDER } from '../../../common/theme.js';
 
 /**
  * The color identifiers for the terminal's ansi colors. The index in the array corresponds to the index

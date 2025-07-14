@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { extname } from 'vs/base/common/path';
+import { extname } from './path.js';
 
 export const Mimes = Object.freeze({
 	text: 'text/plain',
@@ -12,6 +12,7 @@ export const Mimes = Object.freeze({
 	markdown: 'text/markdown',
 	latex: 'text/latex',
 	uriList: 'text/uri-list',
+	html: 'text/html',
 });
 
 interface MapExtToMediaMimes {

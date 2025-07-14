@@ -9,8 +9,8 @@ import { setTerminalTestSettings } from './terminal-helpers';
 const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
 const ANY_PROFILE_NAME = '^((?!JavaScript Debug Terminal).)*$';
 
-export function setup() {
-	describe('Terminal Profiles', () => {
+export function setup(options?: { skipSuite: boolean }) {
+	(options?.skipSuite ? describe.skip : describe)('Terminal Profiles', () => {
 		// Acquire automation API
 		let terminal: Terminal;
 		let settingsEditor: SettingsEditor;
@@ -31,13 +31,13 @@ export function setup() {
 			await terminal.assertSingleTab({ name: ANY_PROFILE_NAME });
 		});
 
-		it.skip('should set the default profile to a contributed one', async () => {
+		it('should set the default profile to a contributed one', async () => {
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.SelectDefaultProfile, CONTRIBUTED_PROFILE_NAME);
 			await terminal.createTerminal();
 			await terminal.assertSingleTab({ name: CONTRIBUTED_PROFILE_NAME });
 		});
 
-		it.skip('should use the default contributed profile on panel open and for splitting', async () => {
+		it('should use the default contributed profile on panel open and for splitting', async () => {
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.SelectDefaultProfile, CONTRIBUTED_PROFILE_NAME);
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommand(TerminalCommandId.Split);
@@ -62,7 +62,7 @@ export function setup() {
 			await terminal.assertSingleTab({ name: ANY_PROFILE_NAME });
 		});
 
-		it.skip('createWithProfile command should create a terminal with a contributed profile', async () => {
+		it('createWithProfile command should create a terminal with a contributed profile', async () => {
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, CONTRIBUTED_PROFILE_NAME);
 			await terminal.assertSingleTab({ name: CONTRIBUTED_PROFILE_NAME });
 		});

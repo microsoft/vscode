@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
-import { AccessibleViewType, AccessibleContentProvider, ExtensionContentProvider, IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
-import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { accessibleViewIsShown } from './accessibilityConfiguration.js';
+import { AccessibilityHelpAction, AccessibleViewAction } from './accessibleViewActions.js';
+import { AccessibleViewType, AccessibleContentProvider, ExtensionContentProvider, IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 
 export class AccesibleViewHelpContribution extends Disposable {
 	static ID: 'accesibleViewHelpContribution';

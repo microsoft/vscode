@@ -5,15 +5,15 @@
 
 
 import assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { NotebookCellsLayout } from 'vs/workbench/contrib/notebook/browser/view/notebookCellListView';
-import { FoldingModel } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
-import { CellEditType, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { NotebookCellsLayout } from '../../browser/view/notebookCellListView.js';
+import { FoldingModel } from '../../browser/viewModel/foldingModel.js';
+import { CellEditType, CellKind } from '../../common/notebookCommon.js';
+import { createNotebookCellList, setupInstantiationService, withTestNotebook } from './testNotebookEditor.js';
 
 suite('NotebookRangeMap', () => {
 
@@ -562,6 +562,119 @@ suite('NotebookRangeMap with whitesspaces', () => {
 				});
 			});
 	});
+
+	test('Multiple Whitespaces 3', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markup, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['# header c', 'markdown', CellKind.Markup, [], {}]
+			],
+			async (editor, viewModel, disposables) => {
+				viewModel.restoreEditorViewState({
+					editingCells: [false, false, false, false, false],
+					cellLineNumberStates: {},
+					editorViewStates: [null, null, null, null, null],
+					cellTotalHeights: [50, 100, 50, 100, 50],
+					collapsedInputCells: {},
+					collapsedOutputCells: {},
+				});
+
+				const cellList = createNotebookCellList(instantiationService, disposables);
+				disposables.add(cellList);
+				cellList.attachViewModel(viewModel);
+
+				// render height 210, it can render 3 full cells and 1 partial cell
+				cellList.layout(210, 100);
+				assert.strictEqual(cellList.scrollHeight, 350);
+
+				cellList.changeViewZones(accessor => {
+					const first = accessor.addZone({
+						afterModelPosition: 1,
+						heightInPx: 20,
+						domNode: document.createElement('div')
+					});
+					accessor.layoutZone(first);
+
+					const second = accessor.addZone({
+						afterModelPosition: 2,
+						heightInPx: 20,
+						domNode: document.createElement('div')
+					});
+					accessor.layoutZone(second);
+
+					assert.strictEqual(cellList.scrollHeight, 390);
+					assert.strictEqual(cellList._getView().getWhitespacePosition(first), 50);
+					assert.strictEqual(cellList._getView().getWhitespacePosition(second), 170);
+
+					accessor.removeZone(first);
+					accessor.removeZone(second);
+				});
+			});
+	});
+
+	// test('Multiple Whitespaces 4', async function () {
+	// 	await withTestNotebook(
+	// 		[
+	// 			['# header a', 'markdown', CellKind.Markup, [], {}],
+	// 			['var b = 1;', 'javascript', CellKind.Code, [], {}],
+	// 			['# header b', 'markdown', CellKind.Markup, [], {}],
+	// 			['var b = 2;', 'javascript', CellKind.Code, [], {}],
+	// 			['# header c', 'markdown', CellKind.Markup, [], {}]
+	// 		],
+	// 		async (editor, viewModel, disposables) => {
+	// 			viewModel.restoreEditorViewState({
+	// 				editingCells: [false, false, false, false, false],
+	// 				cellLineNumberStates: {},
+	// 				editorViewStates: [null, null, null, null, null],
+	// 				cellTotalHeights: [50, 100, 50, 100, 50],
+	// 				collapsedInputCells: {},
+	// 				collapsedOutputCells: {},
+	// 			});
+
+	// 			const cellList = createNotebookCellList(instantiationService, disposables);
+	// 			disposables.add(cellList);
+	// 			cellList.attachViewModel(viewModel);
+
+	// 			// render height 210, it can render 3 full cells and 1 partial cell
+	// 			cellList.layout(210, 100);
+	// 			assert.strictEqual(cellList.scrollHeight, 350);
+
+	// 			cellList.changeViewZones(accessor => {
+	// 				const first = accessor.addZone({
+	// 					afterModelPosition: 1,
+	// 					heightInPx: 20,
+	// 					domNode: document.createElement('div')
+	// 				});
+	// 				accessor.layoutZone(first);
+
+	// 				const second = accessor.addZone({
+	// 					afterModelPosition: 1,
+	// 					heightInPx: 20,
+	// 					domNode: document.createElement('div')
+	// 				});
+	// 				accessor.layoutZone(second);
+
+	// 				const third = accessor.addZone({
+	// 					afterModelPosition: 2,
+	// 					heightInPx: 20,
+	// 					domNode: document.createElement('div')
+	// 				});
+	// 				accessor.layoutZone(second);
+
+	// 				assert.strictEqual(cellList.scrollHeight, 410);
+	// 				assert.strictEqual(cellList._getView().getWhitespacePosition(first), 50);
+	// 				assert.strictEqual(cellList._getView().getWhitespacePosition(second), 70);
+	// 				assert.strictEqual(cellList._getView().getWhitespacePosition(third), 190);
+
+	// 				accessor.removeZone(first);
+	// 				accessor.removeZone(second);
+	// 				accessor.removeZone(third);
+	// 			});
+	// 		});
+	// });
 
 	test('Whitespace with folding support', async function () {
 		await withTestNotebook(

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IIPCLogger, IMessagePassingProtocol, IPCClient } from 'vs/base/parts/ipc/common/ipc';
+import { VSBuffer } from '../../../common/buffer.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../common/lifecycle.js';
+import { IIPCLogger, IMessagePassingProtocol, IPCClient } from './ipc.js';
 
 export const enum SocketDiagnosticsEventType {
 	Created = 'created',
@@ -66,7 +66,7 @@ export namespace SocketDiagnostics {
 	const socketIds = new WeakMap<any, string>();
 	let lastUsedSocketId = 0;
 
-	function getSocketId(nativeObject: any, label: string): string {
+	function getSocketId(nativeObject: unknown, label: string): string {
 		if (!socketIds.has(nativeObject)) {
 			const id = String(++lastUsedSocketId);
 			socketIds.set(nativeObject, id);
@@ -74,7 +74,7 @@ export namespace SocketDiagnostics {
 		return socketIds.get(nativeObject)!;
 	}
 
-	export function traceSocketEvent(nativeObject: any, socketDebugLabel: string, type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | any): void {
+	export function traceSocketEvent(nativeObject: unknown, socketDebugLabel: string, type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | any): void {
 		if (!enableDiagnostics) {
 			return;
 		}
@@ -497,7 +497,7 @@ class ProtocolWriter {
 		}
 	}
 
-	private _writeNowTimeout: any = null;
+	private _writeNowTimeout: Timeout | null = null;
 	private _scheduleWriting(): void {
 		if (this._writeNowTimeout) {
 			return;
@@ -815,14 +815,14 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private _outgoingUnackMsg: Queue<ProtocolMessage>;
 	private _outgoingMsgId: number;
 	private _outgoingAckId: number;
-	private _outgoingAckTimeout: any | null;
+	private _outgoingAckTimeout: Timeout | null;
 
 	private _incomingMsgId: number;
 	private _incomingAckId: number;
 	private _incomingMsgLastTime: number;
-	private _incomingAckTimeout: any | null;
+	private _incomingAckTimeout: Timeout | null;
 
-	private _keepAliveInterval: any | null;
+	private _keepAliveInterval: Timeout | null;
 
 	private _lastReplayRequestTime: number;
 	private _lastSocketTimeoutTime: number;
@@ -1187,39 +1187,3 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._socketWriter.write(msg);
 	}
 }
-
-// (() => {
-// 	if (!SocketDiagnostics.enableDiagnostics) {
-// 		return;
-// 	}
-// 	if (typeof require.__$__nodeRequire !== 'function') {
-// 		console.log(`Can only log socket diagnostics on native platforms.`);
-// 		return;
-// 	}
-// 	const type = (
-// 		process.argv.includes('--type=renderer')
-// 			? 'renderer'
-// 			: (process.argv.includes('--type=extensionHost')
-// 				? 'extensionHost'
-// 				: (process.argv.some(item => item.includes('server-main'))
-// 					? 'server'
-// 					: 'unknown'
-// 				)
-// 			)
-// 	);
-// 	setTimeout(() => {
-// 		SocketDiagnostics.records.forEach(r => {
-// 			if (r.buff) {
-// 				r.data = Buffer.from(r.buff.buffer).toString('base64');
-// 				r.buff = undefined;
-// 			}
-// 		});
-
-// 		const fs = <typeof import('fs')>require.__$__nodeRequire('fs');
-// 		const path = <typeof import('path')>require.__$__nodeRequire('path');
-// 		const logPath = path.join(process.cwd(),`${type}-${process.pid}`);
-
-// 		console.log(`dumping socket diagnostics at ${logPath}`);
-// 		fs.writeFileSync(logPath, JSON.stringify(SocketDiagnostics.records));
-// 	}, 20000);
-// })();

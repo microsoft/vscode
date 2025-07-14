@@ -5,19 +5,19 @@
 
 import * as fs from 'fs';
 import * as cp from 'child_process';
-import { Codicon } from 'vs/base/common/codicons';
-import { basename, delimiter, normalize } from 'vs/base/common/path';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { isString } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import * as pfs from 'vs/base/node/pfs';
-import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITerminalEnvironment, ITerminalExecutable, ITerminalProfile, ITerminalProfileSource, ITerminalUnsafePath, ProfileSource, TerminalIcon, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { dirname, resolve } from 'path';
+import { Codicon } from '../../../base/common/codicons.js';
+import { basename, delimiter, normalize, dirname, resolve } from '../../../base/common/path.js';
+import { isLinux, isWindows } from '../../../base/common/platform.js';
+import { findExecutable } from '../../../base/node/processes.js';
+import { isString } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
+import * as pfs from '../../../base/node/pfs.js';
+import { enumeratePowerShellInstallations } from '../../../base/node/powershell.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { ILogService } from '../../log/common/log.js';
+import { ITerminalEnvironment, ITerminalExecutable, ITerminalProfile, ITerminalProfileSource, ITerminalUnsafePath, ProfileSource, TerminalIcon, TerminalSettingId } from '../common/terminal.js';
+import { getWindowsBuildNumber } from './terminalEnvironment.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
 
 const enum Constants {
 	UnixShellsPath = '/etc/shells'
@@ -84,11 +84,7 @@ async function detectAvailableWindowsProfiles(
 	const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
 	const system32Path = `${process.env['windir']}\\${is32ProcessOn64Windows ? 'Sysnative' : 'System32'}`;
 
-	let useWSLexe = false;
-
-	if (getWindowsBuildNumber() >= 16299) {
-		useWSLexe = true;
-	}
+	const useWSLexe = getWindowsBuildNumber() >= 22000;
 
 	await initializeWindowsProfiles(testPwshSourcePaths);
 

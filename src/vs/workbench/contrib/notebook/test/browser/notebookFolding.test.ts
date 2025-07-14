@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { CellKind } from '../../common/notebookCommon.js';
+import { setupInstantiationService, withTestNotebook } from './testNotebookEditor.js';
+import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { FoldingModel, updateFoldingStateAtIndex } from '../../browser/viewModel/foldingModel.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('Notebook Folding', () => {
 	let disposables: DisposableStore;

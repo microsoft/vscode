@@ -1,8 +1,8 @@
 steps:
-  - task: AzureKeyVault@1
+  - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
+      azureSubscription: vscode
       KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password"
 
@@ -51,6 +51,5 @@ steps:
 
       unzip $ArchivePath -d .build
       mv .build/microsoft-vscode-distro-$DistroVersion .build/distro
-      cp remote/.yarnrc .build/distro/npm/remote/.yarnrc
     condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
     displayName: Download distro (non-Windows)
