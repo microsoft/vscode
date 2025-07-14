@@ -8,7 +8,7 @@ import { Button, ButtonWithDropdown, IButton, IButtonOptions } from '../../../..
 import { Action } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IMarkdownRenderResult, MarkdownRenderer, openLinkFromMarkdown } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -117,7 +117,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 	private readonly messageElement: HTMLElement;
 	protected readonly markdownRenderer: MarkdownRenderer;
 
-	private readonly notification = this._register(new MutableDisposable());
+	private readonly notification = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		title: string | IMarkdownString,
@@ -207,11 +207,12 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 			}
 		);
 		if (notification) {
-			this.notification.value = notification;
+			this.notification.value = new DisposableStore();
+			this.notification.value.add(notification);
 
-			Event.once(notification.onClick)(() => {
+			this.notification.value.add(Event.once(notification.onClick)(() => {
 				showChatView(this._viewsService);
-			});
+			}));
 		}
 	}
 }
