@@ -79,6 +79,9 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 	}
 
 	private async doGetKeys(extensionId: string): Promise<string[]> {
+		if (!this.secretStorageService.keys) {
+			throw new Error('Secret storage service does not support keys() method');
+		}
 		const allKeys = await this.secretStorageService.keys();
 		const keys = allKeys
 			.map(key => this.parseKey(key))
