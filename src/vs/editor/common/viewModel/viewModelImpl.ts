@@ -820,8 +820,8 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public getTextDirection(lineNumber: number): TextDirection {
-		const decorations = this.getDecorationsInViewport(new Range(lineNumber, 1, lineNumber, this.getLineMaxColumn(lineNumber)));
-		return this._getTextDirection(lineNumber, decorations);
+		const viewportData = this._decorations.getLineViewportData(lineNumber);
+		return this._getTextDirection(lineNumber, viewportData.decorations);
 	}
 
 	public getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
