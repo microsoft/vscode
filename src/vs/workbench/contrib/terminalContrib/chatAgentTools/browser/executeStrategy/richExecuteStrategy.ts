@@ -8,7 +8,8 @@ import type { CancellationToken } from '../../../../../../base/common/cancellati
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { isNumber } from '../../../../../../base/common/types.js';
+import type { ICommandDetectionCapability, ITerminalCommand } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { sanitizeTerminalOutput } from '../runInTerminalHelpers.js';
@@ -35,16 +36,11 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 	async execute(commandLine: string, token: CancellationToken): Promise<{ result: string; exitCode?: number; error?: string }> {
 		const store = new DisposableStore();
 		try {
-			const onDone = Promise.race([
-				// TODO: Implement core waiting for command to finish
-				// Event.toPromise(Event.filter(
-				// 	this._terminalService.onDidEndTerminalShellExecution as Event<vscode.TerminalShellExecutionEndEvent>,
-				// 	e => e.terminal === this._terminal,
-				// 	store
-				// ), store).then(e => {
-				// 	this._logService.debug('RunInTerminalTool#Rich: onDone via end event');
-				// 	return e;
-				// }),
+			const onDone: Promise<ITerminalCommand | void> = Promise.race([
+				Event.toPromise(this._commandDetection.onCommandFinished, store).then(e => {
+					this._logService.debug('RunInTerminalTool#Rich: onDone via end event');
+					return e;
+				}),
 				Event.toPromise(token.onCancellationRequested as Event<undefined>, store).then(() => {
 					this._logService.debug('RunInTerminalTool#Rich: onDone via cancellation');
 				}),
@@ -87,7 +83,7 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 			this._instance.onData(e => dataEvents.push(e));
 
 			this._logService.debug(`RunInTerminalTool#Rich: Waiting for done event`);
-			/*const doneData = */await onDone;
+			const finishedCommand = await onDone;
 
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
@@ -109,20 +105,31 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 				}
 			}
 
-			// TODO: Pull the result from the buffer, not the data stream!
-			let result = sanitizeTerminalOutput(dataEvents.join(''));
+			let result: string | undefined;
+			if (finishedCommand) {
+				const commandOutput = finishedCommand?.getOutput();
+				if (commandOutput !== undefined) {
+					this._logService.debug('RunInTerminalTool#Rich: Fetched output via finished command');
+					result = commandOutput;
+				}
+			}
+			if (result === undefined) {
+				this._logService.debug('RunInTerminalTool#Rich: Fetched output via data events');
+				result = sanitizeTerminalOutput(dataEvents.join(''));
+			}
+
 			if (!result.trim()) {
 				result = 'Command produced no output';
 			}
-			// TODO: Return exit code
-			// if (doneData && typeof doneData.exitCode === 'number' && doneData.exitCode > 0) {
-			// 	result += `\n\nCommand exited with code ${doneData.exitCode}`;
-			// }
+
+			const exitCode = finishedCommand?.exitCode;
+			if (isNumber(exitCode) && exitCode > 0) {
+				result += `\n\nCommand exited with code ${exitCode}`;
+			}
 
 			return {
 				result,
-				// TODO: Return exit code
-				exitCode: 0, // doneData?.exitCode,
+				exitCode,
 			};
 		} finally {
 			store.dispose();
