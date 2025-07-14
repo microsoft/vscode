@@ -49,7 +49,7 @@ suite('LanguageModels', function () {
 
 		store.add(languageModels.registerLanguageModelProvider('test-vendor', {
 			prepareLanguageModelChat: async () => {
-				return [
+				const modelMetadata = [
 					{
 						extension: nullExtensionDescription.identifier,
 						name: 'Pretty Name',
@@ -73,6 +73,11 @@ suite('LanguageModels', function () {
 						maxOutputTokens: 100,
 					}
 				];
+				const modelMetadataAndIdentifier = modelMetadata.map(m => ({
+					metadata: m,
+					identifier: m.id,
+				}));
+				return modelMetadataAndIdentifier;
 			},
 			sendChatRequest: async () => {
 				throw new Error();
@@ -117,7 +122,7 @@ suite('LanguageModels', function () {
 
 		store.add(languageModels.registerLanguageModelProvider('actual-vendor', {
 			prepareLanguageModelChat: async () => {
-				return [
+				const modelMetadata = [
 					{
 						extension: nullExtensionDescription.identifier,
 						name: 'Pretty Name',
@@ -130,6 +135,11 @@ suite('LanguageModels', function () {
 						modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
 					}
 				];
+				const modelMetadataAndIdentifier = modelMetadata.map(m => ({
+					metadata: m,
+					identifier: m.id,
+				}));
+				return modelMetadataAndIdentifier;
 			},
 			sendChatRequest: async (modelId: string, messages: IChatMessage[], _from: ExtensionIdentifier, _options: { [name: string]: any }, token: CancellationToken) => {
 				// const message = messages.at(-1);

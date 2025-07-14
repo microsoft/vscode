@@ -163,7 +163,7 @@ export interface ILanguageModelChatResponse {
 }
 
 export interface ILanguageModelChatProvider {
-	prepareLanguageModelChat(options: { silent: boolean }, token: CancellationToken): Promise<ILanguageModelChatMetadata[]>;
+	prepareLanguageModelChat(options: { silent: boolean }, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]>;
 	sendChatRequest(modelId: string, messages: IChatMessage[], from: ExtensionIdentifier, options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse>;
 	provideTokenCount(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number>;
 }
@@ -355,15 +355,15 @@ export class LanguageModelsService implements ILanguageModelsService {
 				continue;
 			}
 			try {
-				const models = await provider.prepareLanguageModelChat({ silent }, CancellationToken.None);
-				for (const model of models) {
-					if (this._modelCache.has(model.id)) {
-						this._logService.warn(`[LM] Model ${model.id} for vendor ${vendor} is already registered. Skipping.`);
+				const modelsAndIdentifiers = await provider.prepareLanguageModelChat({ silent }, CancellationToken.None);
+				for (const modelAndIdentifier of modelsAndIdentifiers) {
+					if (this._modelCache.has(modelAndIdentifier.identifier)) {
+						this._logService.warn(`[LM] Model ${modelAndIdentifier.identifier} is already registered. Skipping.`);
 						continue;
 					}
-					this._modelCache.set(model.id, model);
+					this._modelCache.set(modelAndIdentifier.identifier, modelAndIdentifier.metadata);
 				}
-				this._logService.trace(`[LM] Resolved language models for vendor ${vendor}`, models);
+				this._logService.trace(`[LM] Resolved language models for vendor ${vendor}`, modelsAndIdentifiers);
 			} catch (error) {
 				this._logService.error(`[LM] Error resolving language models for vendor ${vendor}:`, error);
 			}
@@ -386,12 +386,12 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 		const result: string[] = [];
 
-		for (const [_, model] of this._modelCache) {
+		for (const [internalModelIdentifier, model] of this._modelCache) {
 			if ((selector.vendor === undefined || model.vendor === selector.vendor)
 				&& (selector.family === undefined || model.family === selector.family)
 				&& (selector.version === undefined || model.version === selector.version)
 				&& (selector.id === undefined || model.id === selector.id)) {
-				result.push(model.id);
+				result.push(internalModelIdentifier);
 			}
 		}
 

@@ -16,7 +16,7 @@ import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IE
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { Progress } from '../../../platform/progress/common/progress.js';
-import { ChatImageMimeType, IChatMessage, IChatResponseFragment, IChatResponsePart, ILanguageModelChatMetadata } from '../../contrib/chat/common/languageModels.js';
+import { ChatImageMimeType, IChatMessage, IChatResponseFragment, IChatResponsePart, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../contrib/chat/common/languageModels.js';
 import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtHostLanguageModelsShape, MainContext, MainThreadLanguageModelsShape } from './extHost.protocol.js';
@@ -178,6 +178,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	registerLanguageModelProvider(extension: IExtensionDescription, vendor: string, provider: vscode.LanguageModelChatProvider2): IDisposable {
 
 		this._languageModelProviders.set(vendor, { extension: extension.identifier, extensionName: extension.displayName || extension.name, provider });
+		this._proxy.$registerLanguageModelProvider(vendor);
 		return toDisposable(() => {
 			this._languageModelProviders.delete(vendor);
 			this._clearModelCache(vendor);
@@ -194,14 +195,14 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		});
 	}
 
-	async $prepareLanguageModelProvider(vendor: string, options: { silent: boolean }, token: CancellationToken): Promise<ILanguageModelChatMetadata[]> {
+	async $prepareLanguageModelProvider(vendor: string, options: { silent: boolean }, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
 		const data = this._languageModelProviders.get(vendor);
 		if (!data) {
 			return [];
 		}
 		this._clearModelCache(vendor);
 		const modelInformation = await data.provider.prepareLanguageModelChat(options, token) ?? [];
-		const modelMetadata = modelInformation.map(m => {
+		const modelMetadataAndIdentifier: ILanguageModelChatMetadataAndIdentifier[] = modelInformation.map(m => {
 			let auth;
 			if (m.auth) {
 				auth = {
@@ -210,37 +211,40 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				};
 			}
 			return {
-				extension: data.extension,
-				id: `${vendor}/${m.id}`, // Create a unique id for these models since id alone isn't guaranteed to be unique
-				vendor,
-				name: m.name ?? '',
-				family: m.family ?? '',
-				cost: m.cost,
-				description: m.description,
-				version: m.version,
-				maxInputTokens: m.maxInputTokens,
-				maxOutputTokens: m.maxOutputTokens,
-				auth,
-				isDefault: m.isDefault,
-				isUserSelectable: m.isUserSelectable,
-				modelPickerCategory: m.category ?? DEFAULT_MODEL_PICKER_CATEGORY,
-				capabilities: m.capabilities ? {
-					vision: m.capabilities.vision,
-					toolCalling: !!m.capabilities.toolCalling,
-					agentMode: !!m.capabilities.toolCalling
-				} : undefined,
+				metadata: {
+					extension: data.extension,
+					id: m.id,
+					vendor,
+					name: m.name ?? '',
+					family: m.family ?? '',
+					cost: m.cost,
+					description: m.description,
+					version: m.version,
+					maxInputTokens: m.maxInputTokens,
+					maxOutputTokens: m.maxOutputTokens,
+					auth,
+					isDefault: m.isDefault,
+					isUserSelectable: m.isUserSelectable,
+					modelPickerCategory: m.category ?? DEFAULT_MODEL_PICKER_CATEGORY,
+					capabilities: m.capabilities ? {
+						vision: m.capabilities.vision,
+						toolCalling: !!m.capabilities.toolCalling,
+						agentMode: !!m.capabilities.toolCalling
+					} : undefined,
+				},
+				identifier: `${vendor}/${m.id}`,
 			};
 		});
 
-		for (let i = 0; i < modelMetadata.length; i++) {
+		for (let i = 0; i < modelMetadataAndIdentifier.length; i++) {
 
-			this._localModels.set(modelMetadata[i].id, {
-				metadata: modelMetadata[i],
+			this._localModels.set(modelMetadataAndIdentifier[i].identifier, {
+				metadata: modelMetadataAndIdentifier[i].metadata,
 				info: modelInformation[i]
 			});
 		}
 
-		return modelMetadata;
+		return modelMetadataAndIdentifier;
 	}
 
 	async $startChatRequest(modelId: string, requestId: number, from: ExtensionIdentifier, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: vscode.LanguageModelChatRequestOptions, token: CancellationToken): Promise<void> {
