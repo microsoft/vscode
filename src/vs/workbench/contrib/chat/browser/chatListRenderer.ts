@@ -374,8 +374,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const scopedInstantiationService2 = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 
 		const checkpointContainer = dom.append(rowContainer, $('.checkpoint-container'));
-		const checkpointLabel = dom.append(checkpointContainer, $('.checkpoint-label'));
-		dom.append(checkpointLabel, $('span.codicon.codicon-bookmark'));
+		const codiconContainer = dom.append(checkpointContainer, $('.codicon-container'));
+		dom.append(codiconContainer, $('span.codicon.codicon-bookmark'));
 
 		const checkpointToolbar = templateDisposables.add(scopedInstantiationService2.createInstance(MenuWorkbenchToolBar, checkpointContainer, MenuId.ChatMessageCheckpoint, {
 			actionViewItemProvider: (action, options) => {
@@ -419,8 +419,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}));
 
 		const checkpointRestoreContainer = dom.append(rowContainer, $('.checkpoint-restore-container'));
-		const checkpointLabel2 = dom.append(checkpointRestoreContainer, $('.checkpoint-label'));
-		dom.append(checkpointLabel2, $('span.codicon.codicon-bookmark'));
+		const codiconRestoreContainer = dom.append(checkpointRestoreContainer, $('.codicon-container'));
+		dom.append(codiconRestoreContainer, $('span.codicon.codicon-bookmark'));
 		const checkpointRestoreToolbar = templateDisposables.add(scopedInstantiationService2.createInstance(MenuWorkbenchToolBar, checkpointRestoreContainer, MenuId.ChatMessageRestoreCheckpoint, {
 			actionViewItemProvider: (action, options) => {
 				if (action instanceof MenuItemAction) {
@@ -550,7 +550,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('editing', editing && !isInput);
 		templateData.rowContainer.classList.toggle('editing-input', editing && isInput);
 		templateData.requestHover.classList.toggle('editing', editing && isInput);
-		templateData.requestHover.classList.toggle('hidden', !!this.viewModel?.editing && !editing);
+		templateData.requestHover.classList.toggle('hidden', (!!this.viewModel?.editing && !editing) || isResponseVM(element));
 		templateData.requestHover.classList.toggle('expanded', this.configService.getValue<string>('chat.editRequests') === 'hover');
 		templateData.requestHover.classList.toggle('checkpoints-enabled', this.configService.getValue<boolean>(ChatConfiguration.CheckpointsEnabled));
 		templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.CLICK, (e) => {

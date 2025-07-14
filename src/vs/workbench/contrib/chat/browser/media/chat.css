@@ -1924,9 +1924,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.interactive-request .header.header-disabled,
 	.request-hover.has-no-actions,
-	.request-hover.hidden {
-		display: none !important;
+	.request-hover.hidden,
+	.request-hover.checkpoints-enabled.has-no-actions,
+	.checkpoint-container.hidden,
+	.checkpoint-restore-container.hidden {
+		display: none;
 	}
+
 	.request-hover {
 		position: absolute;
 		overflow: hidden;
@@ -1974,65 +1978,53 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		opacity: 1 !important;
 	}
 
-	.checkpoint-container.hidden,
-	.checkpoint-restore-container.hidden {
-		display: none;
-	}
 
 	.checkpoint-container,
 	.checkpoint-restore-container {
 		display: flex;
 		width: 100%;
+
+		.checkpoint-divider {
+			border-top: 1px dashed var(--vscode-editorWidget-border);
+			margin: 15px 0;
+			width: 100%;
+			height: 0;
+		}
+
+		.codicon-container {
+			color: var(--vscode-descriptionForeground);
+			padding-right: 4px;
+			display: flex;
+			align-items: center;
+			gap: 4px;
+		}
+
+		.codicon-container .codicon {
+			font-size: 14px;
+			color: var(--vscode-icon-foreground);
+		}
+
+		.monaco-toolbar {
+			user-select: none;
+			opacity: 0;
+			width: 0;
+		}
+
+		.monaco-toolbar .action-label {
+			border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background));
+			padding: 1px 5px;
+			background-color: var(--vscode-sideBar-background);
+			margin-top: 5px;
+			margin-left: 10px;
+		}
 	}
 
 	.checkpoint-restore-container {
 		margin-top: 10px;
 	}
 
-	.checkpoint-divider {
-		border-top: 1px dashed var(--vscode-editorWidget-border);
-		margin: 15px 0;
-		width: 100%;
-		height: 0;
-	}
-
-	.checkpoint-label {
-		font-size: 12px;
-		color: var(--vscode-descriptionForeground);
-		padding-right: 4px;
-		display: flex;
-		align-items: center;
-		gap: 4px;
-	}
-
-	.checkpoint-label .codicon {
-		font-size: 14px;
-		color: var(--vscode-icon-foreground);
-	}
-
-	.checkpoint-container .monaco-toolbar {
-		user-select: none;
-		opacity: 0;
-		width: 0;
-	}
-
-	.checkpoint-container .monaco-toolbar:focus-within {
-		opacity: 1 ;
-	}
-
-	.checkpoint-restore-container .monaco-toolbar {
-		width: 0;
-	}
-
-	.checkpoint-container .monaco-toolbar .action-label,
-	.checkpoint-restore-container .monaco-toolbar .action-label {
-		border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background));
-		padding: 1px 5px;
-		background-color: var(--vscode-sideBar-background);
-		margin-top: 5px;
-		margin-left: 10px;
-	}
-
+	.checkpoint-container .monaco-toolbar:focus-within,
+	.checkpoint-restore-container .monaco-toolbar,
 	.interactive-item-container.interactive-request:not(.editing):hover .checkpoint-container .monaco-toolbar {
 		opacity: 1;
 	}
@@ -2071,7 +2063,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		}
 
 		.request-hover {
-			display: block !important;
+			display: block;
 		}
 	}
 

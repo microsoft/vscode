@@ -6,7 +6,7 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { localize, localize2 } from '../../../../../nls.js';
+import { localize2 } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -189,13 +189,8 @@ export function registerNewChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.redoEdit2',
-				// title: localize2('chat.redoEdit.label2', "Redo Last Request"),
-				title: {
-					value: localize('chat.redoEdit.label2', "Redo Checkpoint Restore"),
-					original: localize('chat.redoEdit.label2', "Redo Checkpoint Restore"),
-				},
+				title: localize2('chat.redoEdit.label2', "Redo Last Request"),
 				category: CHAT_CATEGORY,
-				// icon: Codicon.redo,
 				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanRedo, ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
 				f1: true,
 				menu: [{
@@ -203,8 +198,7 @@ export function registerNewChatActions() {
 					when: ContextKeyExpr.equals('view', ChatViewId),
 					group: 'navigation',
 					order: -1
-				}
-				]
+				}]
 			});
 		}
 
