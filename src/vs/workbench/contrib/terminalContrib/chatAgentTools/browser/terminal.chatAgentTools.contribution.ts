@@ -3,6 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
+import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
+import { RunInTerminalTool, RunInTerminalToolData } from './runInTerminalTool.js';
+
 // #region Workbench contributions
+
+class RunInTerminalToolContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'chat.runInTerminalTool';
+
+	constructor(
+		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+
+		const runInTerminalTool = instantiationService.createInstance(RunInTerminalTool);
+		this._register(toolsService.registerToolData(RunInTerminalToolData));
+		this._register(toolsService.registerToolImplementation(RunInTerminalToolData.id, runInTerminalTool));
+	}
+}
+registerWorkbenchContribution2(RunInTerminalToolContribution.ID, RunInTerminalToolContribution, WorkbenchPhase.AfterRestored);
 
 // #endregion Contributions
