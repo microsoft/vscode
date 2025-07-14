@@ -109,6 +109,7 @@ jobs:
 
       - name: Download built-in extensions
         if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
+        shell: pwsh
         run: node build/lib/builtInExtensions.js
         env:
           GITHUB_TOKEN: ${{ env.IS_FORK && secrets.GITHUB_TOKEN || secrets.VSCODE_OSS }}
