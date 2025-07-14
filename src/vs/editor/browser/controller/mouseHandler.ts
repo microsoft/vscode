@@ -572,19 +572,21 @@ class MouseDownOperation extends Disposable {
 
 		const horizontalScrollPadding = 10;
 		const layoutInfo = this._context.configuration.options.get(EditorOption.layoutInfo);
-		const contentLeft = layoutInfo.contentLeft;
-		let contentRight = layoutInfo.minimap.minimapLeft;
-		if (contentRight === 0) {
-			// Happens when minimap is hidden
-			contentRight = layoutInfo.width - layoutInfo.verticalScrollbarWidth;
-		}
-		if (e.relativePos.x <= contentLeft + horizontalScrollPadding) {
-			const outsideDistance = contentLeft + horizontalScrollPadding - e.relativePos.x;
+
+		const xLeftBoundary = layoutInfo.contentLeft + horizontalScrollPadding;
+		if (e.relativePos.x <= xLeftBoundary) {
+			const outsideDistance = xLeftBoundary - e.relativePos.x;
 			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, 1), 'left', outsideDistance);
 		}
 
-		if (e.relativePos.x >= contentRight - horizontalScrollPadding) {
-			const outsideDistance = e.relativePos.x - (contentRight - horizontalScrollPadding);
+		const contentRight = (
+			layoutInfo.minimap.minimapLeft === 0
+				? layoutInfo.width - layoutInfo.verticalScrollbarWidth // Happens when minimap is hidden
+				: layoutInfo.minimap.minimapLeft
+		);
+		const xRightBoundary = contentRight - horizontalScrollPadding;
+		if (e.relativePos.x >= xRightBoundary) {
+			const outsideDistance = e.relativePos.x - xRightBoundary;
 			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, model.getLineMaxColumn(possibleLineNumber)), 'right', outsideDistance);
 		}
 
