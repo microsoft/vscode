@@ -6,7 +6,6 @@
 import * as playwright from '@playwright/test';
 import { assert } from 'chai';
 import { checkA11y, injectAxe } from 'axe-playwright';
-import type { Result } from 'axe-core';
 
 const PORT = 8563;
 const TIMEOUT = 20 * 1000;
@@ -143,7 +142,7 @@ describe('API Integration Tests', function (): void {
 			await injectAxe(page);
 		});
 
-		it('Should not have critical accessibility violations', async () => {
+		it('Editor should not have critical accessibility violations', async () => {
 			await page.evaluate(`
 		(function () {
 			instance.focus();
@@ -156,21 +155,6 @@ describe('API Integration Tests', function (): void {
 
 			let violationCount = 0;
 			const checkedElements = new Set<string>();
-			const customReporter = {
-				report(violations: Result[]) {
-					// Log failed elements
-					violations.forEach(v => {
-						v.nodes.forEach((node) => {
-							const selector = node.target?.join(' ');
-							if (selector) {
-								checkedElements.add(selector);
-								console.log(`❌ FAIL: ${selector} - ${v.id} - ${v.description}`);
-							}
-						});
-					});
-					violationCount += violations.length;
-				}
-			};
 
 			// Run axe and get all results (passes and violations)
 			const axeResults = await page.evaluate(() => {
@@ -180,7 +164,22 @@ describe('API Integration Tests', function (): void {
 						values: ['wcag2a']
 					}
 				});
-			}, customReporter);
+			});
+
+			// Log failed elements
+			axeResults.violations.forEach((v: any) => {
+				const isCritical = v.impact === 'critical';
+				const emoji = isCritical ? '❌' : '⚠️ ';
+				v.nodes.forEach((node: any) => {
+					const selector = node.target?.join(' ');
+					if (selector) {
+						checkedElements.add(selector);
+						console.log(`${emoji} FAIL: ${selector} - ${v.id} - ${v.description}`);
+					}
+				});
+				violationCount += 1;
+			});
+
 
 			// Log passed elements
 			axeResults.passes.forEach((pass: any) => {
@@ -193,8 +192,9 @@ describe('API Integration Tests', function (): void {
 				});
 			});
 
+
 			// Now run the actual checkA11y for test assertion and violation logging
-			await checkA11y(page, document, {
+			await checkA11y(page, '.monaco-editor', {
 				axeOptions: {
 					runOnly: {
 						type: 'tag',
