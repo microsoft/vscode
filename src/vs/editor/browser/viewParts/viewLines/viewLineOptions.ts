@@ -59,6 +59,7 @@ export class ViewLineOptions {
 			&& this.lineHeight === other.lineHeight
 			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
 			&& this.fontLigatures === other.fontLigatures
+			&& this.verticalScrollbarSize === other.verticalScrollbarSize
 			&& this.useGpu === other.useGpu
 		);
 	}

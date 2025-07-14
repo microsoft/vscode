@@ -202,7 +202,15 @@ export class ViewLine implements IVisibleLine {
 		sb.appendString('</div>');
 
 		let renderedViewLine: IRenderedViewLine | null = null;
-		if (allowFastRendering && monospaceAssumptionsAreValid && canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
+		if (
+			allowFastRendering
+			&& monospaceAssumptionsAreValid
+			&& canUseFastRenderedViewLine
+			&& lineData.isBasicASCII
+			&& renderLineInput.isLTR
+			&& options.useMonospaceOptimizations
+			&& output.containsForeignElements === ForeignElementType.None
+		) {
 			renderedViewLine = new FastRenderedViewLine(
 				this._renderedViewLine ? this._renderedViewLine.domNode : null,
 				renderLineInput,
@@ -470,7 +478,7 @@ class RenderedViewLine implements IRenderedViewLine {
 	private _cachedWidth: number;
 
 	/**
-	 * This is a map that is used only when the line is guaranteed to have no RTL text.
+	 * This is a map that is used only when the line is guaranteed to be rendered LTR and has no RTL text.
 	 */
 	private readonly _pixelOffsetCache: Float32Array | null;
 
@@ -483,7 +491,7 @@ class RenderedViewLine implements IRenderedViewLine {
 		this._cachedWidth = -1;
 
 		this._pixelOffsetCache = null;
-		if (!renderLineInput.containsRTL || this._characterMapping.length === 0 /* the line is empty */) {
+		if (renderLineInput.isLTR) {
 			this._pixelOffsetCache = new Float32Array(Math.max(2, this._characterMapping.length + 1));
 			for (let column = 0, len = this._characterMapping.length; column <= len; column++) {
 				this._pixelOffsetCache[column] = -1;
@@ -532,6 +540,20 @@ class RenderedViewLine implements IRenderedViewLine {
 		if (!this.domNode) {
 			return null;
 		}
+		if (this._pixelOffsetCache !== null) {
+			// the text is guaranteed to be entirely LTR
+			const startOffset = this._readPixelOffset(this.domNode, lineNumber, startColumn, context);
+			if (startOffset === -1) {
+				return null;
+			}
+
+			const endOffset = this._readPixelOffset(this.domNode, lineNumber, endColumn, context);
+			if (endOffset === -1) {
+				return null;
+			}
+
+			return [new FloatHorizontalRange(startOffset, endOffset - startOffset)];
+		}
 
 		return this._readVisibleRangesForRange(this.domNode, lineNumber, startColumn, endColumn, context);
 	}
@@ -550,7 +572,7 @@ class RenderedViewLine implements IRenderedViewLine {
 	}
 
 	protected _readPixelOffset(domNode: FastDomNode<HTMLElement>, lineNumber: number, column: number, context: DomReadingContext): number {
-		if (this._characterMapping.length === 0) {
+		if (this.input.isLTR && this._characterMapping.length === 0) {
 			// This line has no content
 			if (this._containsForeignElements === ForeignElementType.None) {
 				// We can assume the line is really empty
@@ -575,7 +597,7 @@ class RenderedViewLine implements IRenderedViewLine {
 		}
 
 		if (this._pixelOffsetCache !== null) {
-			// the text is LTR
+			// the text is guaranteed to be LTR
 
 			const cachedPixelOffset = this._pixelOffsetCache[column];
 			if (cachedPixelOffset !== -1) {
@@ -600,11 +622,9 @@ class RenderedViewLine implements IRenderedViewLine {
 			return r[0].left;
 		}
 
-		if (column === this._characterMapping.length && this._isWhitespaceOnly && this._containsForeignElements === ForeignElementType.None) {
+		if (this.input.isLTR && column === this._characterMapping.length && this._isWhitespaceOnly && this._containsForeignElements === ForeignElementType.None) {
 			// This branch helps in the case of whitespace only lines which have a width set
-			return this.input.textDirection === TextDirection.RTL
-				? this.domNode!.domNode.clientWidth - this.getWidth(context) - this.input.verticalScrollbarSize
-				: this.getWidth(context);
+			return this.getWidth(context);
 		}
 
 		const domPosition = this._characterMapping.getDomPosition(column);
@@ -625,6 +645,13 @@ class RenderedViewLine implements IRenderedViewLine {
 	}
 
 	private _readRawVisibleRangesForRange(domNode: FastDomNode<HTMLElement>, startColumn: number, endColumn: number, context: DomReadingContext): FloatHorizontalRange[] | null {
+
+		if (this.input.isLTR && startColumn === 1 && endColumn === this._characterMapping.length) {
+			// This branch helps IE with bidi text & gives a performance boost to other browsers when reading visible ranges for an entire line
+
+			return [new FloatHorizontalRange(0, this.getWidth(context))];
+		}
+
 		const startDomPosition = this._characterMapping.getDomPosition(startColumn);
 		const endDomPosition = this._characterMapping.getDomPosition(endColumn);
 
@@ -649,7 +676,7 @@ class WebKitRenderedViewLine extends RenderedViewLine {
 
 		// WebKit is buggy and returns an expanded range (to contain words in some cases)
 		// The last client rect is enlarged (I think)
-		if (!this.input.containsRTL) {
+		if (this.input.isLTR) {
 			// This is an attempt to patch things up
 			// Find position of last column
 			const endPixelOffset = this._readPixelOffset(domNode, lineNumber, endColumn, context);

@@ -51,6 +51,10 @@ export class RenderLineInput {
 	 */
 	public readonly selectionsOnLine: OffsetRange[] | null;
 
+	public get isLTR(): boolean {
+		return !this.containsRTL && this.textDirection !== TextDirection.RTL;
+	}
+
 	constructor(
 		useMonospaceOptimizations: boolean,
 		canUseHalfwidthRightwardsArrow: boolean,
