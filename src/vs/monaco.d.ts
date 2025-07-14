@@ -3544,6 +3544,10 @@ declare namespace monaco.editor {
 		 */
 		scrollPredominantAxis?: boolean;
 		/**
+		 * Make scrolling inertial - mostly useful with touchpad on linux.
+		 */
+		inertialScroll?: boolean;
+		/**
 		 * Enable that the selection with the mouse and keys is doing column selection.
 		 * Defaults to false.
 		 */
@@ -5142,19 +5146,20 @@ declare namespace monaco.editor {
 		wrappingIndent = 148,
 		wrappingStrategy = 149,
 		showDeprecated = 150,
-		inlayHints = 151,
-		effectiveCursorStyle = 152,
-		editorClassName = 153,
-		pixelRatio = 154,
-		tabFocusMode = 155,
-		layoutInfo = 156,
-		wrappingInfo = 157,
-		defaultColorDecorators = 158,
-		colorDecoratorsActivatedOn = 159,
-		inlineCompletionsAccessibilityVerbose = 160,
-		effectiveEditContext = 161,
-		scrollOnMiddleClick = 162,
-		effectiveAllowVariableFonts = 163
+		inertialScroll = 151,
+		inlayHints = 152,
+		effectiveCursorStyle = 153,
+		editorClassName = 154,
+		pixelRatio = 155,
+		tabFocusMode = 156,
+		layoutInfo = 157,
+		wrappingInfo = 158,
+		defaultColorDecorators = 159,
+		colorDecoratorsActivatedOn = 160,
+		inlineCompletionsAccessibilityVerbose = 161,
+		effectiveEditContext = 162,
+		scrollOnMiddleClick = 163,
+		effectiveAllowVariableFonts = 164
 	}
 
 	export const EditorOptions: {
@@ -5231,6 +5236,7 @@ declare namespace monaco.editor {
 		hideCursorInOverviewRuler: IEditorOption<EditorOption.hideCursorInOverviewRuler, boolean>;
 		hover: IEditorOption<EditorOption.hover, Readonly<Required<IEditorHoverOptions>>>;
 		inDiffEditor: IEditorOption<EditorOption.inDiffEditor, boolean>;
+		inertialScroll: IEditorOption<EditorOption.inertialScroll, boolean>;
 		letterSpacing: IEditorOption<EditorOption.letterSpacing, number>;
 		lightbulb: IEditorOption<EditorOption.lightbulb, Readonly<Required<IEditorLightbulbOptions>>>;
 		lineDecorationsWidth: IEditorOption<EditorOption.lineDecorationsWidth, number>;
