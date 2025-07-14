@@ -71,7 +71,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
     let oldErrors = Object.create(null);
     let headUsed = process.memoryUsage().heapUsed;
     let emitSourceMapsInStream = true;
-    // always emit declaraction files
+    // always emit declaration files
     host.getCompilationSettings().declaration = true;
     function file(file) {
         // support gulp-sourcemaps
@@ -285,7 +285,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                         }
                         // remember when this was build
                         newLastBuildVersion.set(fileName, host.getScriptVersion(fileName));
-                        // remeber the signature
+                        // remember the signature
                         if (value.signature && lastDtsHash[fileName] !== value.signature) {
                             lastDtsHash[fileName] = value.signature;
                             filesWithChangedSignature.push(fileName);
@@ -508,7 +508,7 @@ class LanguageServiceHost {
         if (result) {
             return result.getVersion();
         }
-        return 'UNKNWON_FILE_' + Math.random().toString(16).slice(2);
+        return 'UNKNOWN_FILE_' + Math.random().toString(16).slice(2);
     }
     getScriptSnapshot(filename, resolve = true) {
         filename = normalize(filename);

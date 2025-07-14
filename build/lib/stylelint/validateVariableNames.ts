@@ -26,7 +26,7 @@ export interface IValidator {
 
 export function getVariableNameValidator(): IValidator {
 	const allVariables = getKnownVariableNames();
-	return (value: string, report: (unknwnVariable: string) => void) => {
+	return (value: string, report: (unknownVariable: string) => void) => {
 		RE_VAR_PROP.lastIndex = 0; // reset lastIndex just to be sure
 		let match;
 		while (match = RE_VAR_PROP.exec(value)) {

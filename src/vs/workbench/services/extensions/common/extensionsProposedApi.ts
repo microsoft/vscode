@@ -115,7 +115,7 @@ export class ExtensionsProposedApi {
 	}
 }
 
-class ApiProposalsMarkdowneRenderer extends Disposable implements IExtensionFeatureMarkdownRenderer {
+class ApiProposalsMarkdownRenderer extends Disposable implements IExtensionFeatureMarkdownRenderer {
 
 	readonly type = 'markdown';
 
@@ -144,5 +144,5 @@ Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).re
 	access: {
 		canToggle: false
 	},
-	renderer: new SyncDescriptor(ApiProposalsMarkdowneRenderer),
+	renderer: new SyncDescriptor(ApiProposalsMarkdownRenderer),
 });

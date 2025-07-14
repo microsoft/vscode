@@ -1501,7 +1501,7 @@ export class ImplicitActivationAwareReader implements IActivationEventsReader {
 	}
 }
 
-class ActivationFeatureMarkdowneRenderer extends Disposable implements IExtensionFeatureMarkdownRenderer {
+class ActivationFeatureMarkdownRenderer extends Disposable implements IExtensionFeatureMarkdownRenderer {
 
 	readonly type = 'markdown';
 
@@ -1530,5 +1530,5 @@ Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFea
 	access: {
 		canToggle: false
 	},
-	renderer: new SyncDescriptor(ActivationFeatureMarkdowneRenderer),
+	renderer: new SyncDescriptor(ActivationFeatureMarkdownRenderer),
 });

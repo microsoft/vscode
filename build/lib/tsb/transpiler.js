@@ -163,7 +163,7 @@ class TscTranspiler {
         this._outputFileNames = new OutputFileNameOracle(_cmdLine, configFilePath);
     }
     async join() {
-        // wait for all penindg jobs
+        // wait for all pending jobs
         this._consumeQueue();
         await Promise.allSettled(this._allJobs);
         this._allJobs.length = 0;

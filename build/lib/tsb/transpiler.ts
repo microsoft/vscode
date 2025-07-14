@@ -213,7 +213,7 @@ export class TscTranspiler implements ITranspiler {
 	}
 
 	async join() {
-		// wait for all penindg jobs
+		// wait for all pending jobs
 		this._consumeQueue();
 		await Promise.allSettled(this._allJobs);
 		this._allJobs.length = 0;

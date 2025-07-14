@@ -331,7 +331,7 @@ var _nls;
     }
     function parseLocalizeKeyOrValue(sourceExpression) {
         // sourceValue can be "foo", 'foo', `foo` or { .... }
-        // in its evalulated form
+        // in its evaluated form
         // we want to return either the string or the object
         // eslint-disable-next-line no-eval
         return eval(`(${sourceExpression})`);

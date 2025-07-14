@@ -139,7 +139,7 @@ class ClassData {
     }
     static makeImplicitPublicActuallyPublic(data, reportViolation) {
         // TS-HACK
-        // A subtype can make an inherited protected field public. To prevent accidential
+        // A subtype can make an inherited protected field public. To prevent accidental
         // mangling of public fields we mark the original (protected) fields as public...
         for (const [name, info] of data.fields) {
             if (info.type !== 0 /* FieldType.Public */) {
