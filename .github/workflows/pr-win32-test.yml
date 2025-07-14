@@ -23,6 +23,7 @@ jobs:
       IS_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
+      VSCODE_QUALITY: 'oss'
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@v4

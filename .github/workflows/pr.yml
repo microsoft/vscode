@@ -12,14 +12,12 @@ concurrency:
 
 permissions: {}
 
-env:
-  IS_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
-  VSCODE_QUALITY: 'oss'
-
 jobs:
   compile:
     name: Compile & Hygiene
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
+    env:
+      IS_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@v4
