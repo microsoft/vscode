@@ -100,7 +100,7 @@ steps:
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - powershell: |
-        # Copy client, server and web builds to a separate test directory
+        # Copy client, server and web builds to a separate test directory, to avoid Access Denied errors in codesign
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
         $TestDir = "$(agent.builddirectory)\test"
@@ -108,7 +108,7 @@ steps:
         Copy-Item -Path "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)" -Destination "$TestDir\VSCode-win32-$(VSCODE_ARCH)" -Recurse -Force
         Copy-Item -Path "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)" -Destination "$TestDir\vscode-server-win32-$(VSCODE_ARCH)" -Recurse -Force
         Copy-Item -Path "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)-web" -Destination "$TestDir\vscode-server-win32-$(VSCODE_ARCH)-web" -Recurse -Force
-        Write-Host "Copied builds to test directory: $TestDir"
+      displayName: Copy builds to test directory
 
     - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
       - powershell: |
