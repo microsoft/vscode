@@ -4,20 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
+import { removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
 import type { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import type { IChatTerminalToolInvocationData } from '../../../chat/common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../chat/common/languageModelToolsService.js';
 import { getRecommendedToolsOverRunInTerminal } from './alternativeRecommendation.js';
 import { CommandLineAutoApprover } from './commandLineAutoApprover.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from './subCommands.js';
+import { ToolTerminalCreator } from './toolTerminalCreator.js';
 
 export const RunInTerminalToolData: IToolData = {
 	id: 'vscode_runInTerminal',
@@ -67,16 +73,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private _osBackend: Lazy<Promise<OperatingSystem>>;
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
+		@ILogService private readonly _logService: ILogService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
-		this._commandLineAutoApprover = this._register(instantiationService.createInstance(CommandLineAutoApprover));
+		this._commandLineAutoApprover = this._register(_instantiationService.createInstance(CommandLineAutoApprover));
 		this._osBackend = new Lazy(async () => (await this._remoteAgentService.getEnvironment())?.os ?? OS);
-		// this._commandLineAutoApprover = this._register(this.instantiationService.createInstance(CommandLineAutoApprover));
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -124,6 +130,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			presentation,
 			toolSpecificData: {
 				kind: 'terminal',
+				// TODO: Ideally this would be named something like editedCommand for clarity
 				command: this._rewrittenCommand ?? args.command,
 				language,
 			}
@@ -131,7 +138,166 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		// const args = invocation.parameters as IInputParams;
+		if (this._alternativeRecommendation) {
+			return this._alternativeRecommendation;
+		}
+
+		const args = invocation.parameters as IInputParams;
+		const toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined; // undefined when auto-approved
+
+		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
+
+		const chatSessionId = invocation.context?.sessionId;
+		// TODO: How to handle !this.simulationTestContext.isInSimulationTests?
+		if (chatSessionId === undefined) {
+			throw new Error('A chat session ID is required for this tool');
+		}
+
+		const command = toolSpecificData?.command ?? this._rewrittenCommand ?? args.command;
+		const didUserEditCommand = typeof toolSpecificData?.command === 'string' && toolSpecificData.command !== args.command;
+		const didToolEditCommand = !didUserEditCommand && this._rewrittenCommand !== undefined;
+
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
+		let error: string | undefined;
+
+		const timingStart = Date.now();
+		const termId = generateUuid();
+
+		if (args.isBackground) {
+			this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
+			const toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(chatSessionId, termId, token, true);
+			if (token.isCancellationRequested) {
+				toolTerminal.instance.dispose();
+				throw new CancellationError();
+			}
+
+			toolTerminal.instance.focus();
+			const timingConnectMs = Date.now() - timingStart;
+
+			// try {
+			// 	this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
+			// 	const execution = new BackgroundTerminalExecution(toolTerminal.terminal, command);
+			// 	RunInTerminalTool.executions.set(termId, execution);
+			// 	const resultText = (
+			// 		didUserEditCommand
+			// 			? `Note: The user manually edited the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
+			// 			: didToolEditCommand
+			// 				? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
+			// 				: `Command is running in terminal with ID=${termId}`
+			// 	);
+			// 	return new LanguageModelToolResult([new LanguageModelTextPart(resultText)]);
+			// } catch (e) {
+			// 	error = 'threw';
+			// 	if (termId) {
+			// 		RunInTerminalTool.executions.delete(termId);
+			// 	}
+			// 	throw e;
+			// } finally {
+			// 	const timingExecuteMs = Date.now() - timingStart;
+			// 	// this.sendTelemetry({
+			// 	// 	didUserEditCommand,
+			// 	// 	didToolEditCommand,
+			// 	// 	shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
+			// 	// 	isBackground: true,
+			// 	// 	error,
+			// 	// 	outputLineCount: -1,
+			// 	// 	exitCode: undefined,
+			// 	// 	isNewSession: true,
+			// 	// 	timingExecuteMs,
+			// 	// 	timingConnectMs,
+			// 	// });
+			// }
+		}
+		// else {
+		// 	let toolTerminal = sessionId ? await this.terminalService.getToolTerminalForSession(sessionId) : undefined;
+		// 	const isNewSession = !toolTerminal;
+		// 	if (toolTerminal) {
+		// 		this.logService.logger.debug(`RunInTerminalTool: Using existing terminal with session ID \`${sessionId}\``);
+		// 	} else {
+		// 		this.logService.logger.debug(`RunInTerminalTool: Creating terminal with session ID \`${sessionId}\``);
+		// 		toolTerminal = await this.instantiationService.createInstance(ToolTerminalCreator).createTerminal(sessionId, termId, token);
+		// 		if (token.isCancellationRequested) {
+		// 			toolTerminal.terminal.dispose();
+		// 			throw new CancellationError();
+		// 		}
+		// 	}
+
+		// 	toolTerminal.terminal.show(true);
+
+		// 	const timingConnectMs = Date.now() - timingStart;
+
+		// 	let terminalResult = '';
+		// 	let outputLineCount = -1;
+		// 	let exitCode: number | undefined;
+		// 	try {
+		// 		let strategy: ITerminalExecuteStrategy;
+		// 		if (this.simulationTestContext.isInSimulationTests) {
+		// 			strategy = this.instantiationService.createInstance(RichIntegrationTerminalExecuteStrategy, toolTerminal.terminal, toolTerminal.terminal.shellIntegration!);
+		// 		} else {
+		// 			switch (toolTerminal.shellIntegrationQuality) {
+		// 				case ShellIntegrationQuality.None: {
+		// 					strategy = this.instantiationService.createInstance(NoIntegrationTerminalExecuteStrategy, toolTerminal.terminal);
+		// 					break;
+		// 				}
+		// 				case ShellIntegrationQuality.Basic: {
+		// 					strategy = this.instantiationService.createInstance(BasicIntegrationTerminalExecuteStrategy, toolTerminal.terminal, toolTerminal.terminal.shellIntegration!);
+		// 					break;
+		// 				}
+		// 				case ShellIntegrationQuality.Rich: {
+		// 					strategy = this.instantiationService.createInstance(RichIntegrationTerminalExecuteStrategy, toolTerminal.terminal, toolTerminal.terminal.shellIntegration!);
+		// 					break;
+		// 				}
+		// 			}
+		// 		}
+		// 		this.logService.logger.debug(`RunInTerminalTool: Using \`${strategy.type}\` execute strategy for command \`${command}\``);
+		// 		const executeResult = await strategy.execute(command, token);
+		// 		this.logService.logger.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.result.length}\`, error \`${executeResult.error}\``);
+		// 		outputLineCount = count(executeResult.result, '\n');
+		// 		exitCode = executeResult.exitCode;
+		// 		error = executeResult.error;
+		// 		if (typeof executeResult.result === 'string') {
+		// 			terminalResult = executeResult.result;
+		// 		} else {
+		// 			return executeResult.result;
+		// 		}
+		// 	} catch (e) {
+		// 		this.logService.logger.debug(`RunInTerminalTool: Threw exception`);
+		// 		toolTerminal.terminal.dispose();
+		// 		error = 'threw';
+		// 		throw e;
+		// 	} finally {
+		// 		const timingExecuteMs = Date.now() - timingStart;
+		// 		this.sendTelemetry({
+		// 			didUserEditCommand,
+		// 			didToolEditCommand,
+		// 			isBackground: false,
+		// 			shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
+		// 			error,
+		// 			isNewSession,
+		// 			outputLineCount,
+		// 			exitCode,
+		// 			timingExecuteMs,
+		// 			timingConnectMs,
+		// 		});
+		// 	}
+		// 	return new LanguageModelToolResult([
+		// 		new LanguageModelPromptTsxPart(
+		// 			await renderPromptElementJSON(this.instantiationService, RunInTerminalResult, {
+		// 				result: terminalResult,
+		// 				newCommand: didUserEditCommand || didToolEditCommand ? command : undefined,
+		// 				newCommandReason: didUserEditCommand ? 'user' : didToolEditCommand ? 'tool' : undefined
+		// 			}, options.tokenizationOptions, token)
+		// 		)
+		// 	]);
+		// }
+
+
+
+
+
 		return {
 			content: [{
 				kind: 'text',
@@ -201,3 +367,54 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return commandLine;
 	}
 }
+
+// // Maximum output length to prevent context overflow
+// const MAX_OUTPUT_LENGTH = 60000; // ~60KB limit to keep context manageable
+// const TRUNCATION_MESSAGE = '\n\n[... MIDDLE OF OUTPUT TRUNCATED ...]\n\n';
+
+// export function sanitizeTerminalOutput(output: string): string {
+// 	let sanitized = removeAnsiEscapeCodes(output)
+// 		// Trim trailing \r\n characters
+// 		.trimEnd();
+
+// 	// Truncate if output is too long to prevent context overflow
+// 	if (sanitized.length > MAX_OUTPUT_LENGTH) {
+// 		const truncationMessageLength = TRUNCATION_MESSAGE.length;
+// 		const availableLength = MAX_OUTPUT_LENGTH - truncationMessageLength;
+// 		const startLength = Math.floor(availableLength * 0.4); // Keep 40% from start
+// 		const endLength = availableLength - startLength; // Keep 60% from end
+
+// 		const startPortion = sanitized.substring(0, startLength);
+// 		const endPortion = sanitized.substring(sanitized.length - endLength);
+
+// 		sanitized = startPortion + TRUNCATION_MESSAGE + endPortion;
+// 	}
+
+// 	return sanitized;
+// }
+
+// class BackgroundTerminalExecution {
+// 	private _output: string = '';
+// 	get output(): string {
+// 		return sanitizeTerminalOutput(this._output);
+// 	}
+
+// 	constructor(
+// 		public readonly terminal: vscode.Terminal,
+// 		command: string
+// 	) {
+// 		const shellExecution = terminal.shellIntegration!.executeCommand(command);
+// 		this.init(shellExecution);
+// 	}
+
+// 	private async init(shellExecution: vscode.TerminalShellExecution) {
+// 		try {
+// 			const stream = shellExecution.read();
+// 			for await (const chunk of stream) {
+// 				this._output += chunk;
+// 			}
+// 		} catch (e) {
+// 			this._output += e instanceof Error ? e.message : String(e);
+// 		}
+// 	}
+// }
