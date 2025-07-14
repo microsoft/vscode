@@ -168,7 +168,7 @@ export class CodeApplication extends Disposable {
 		const isUrlFromWindow = (requestingUrl?: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}`);
 		const isUrlFromWebview = (requestingUrl: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeWebview}://`);
 
-		const alwaysAllowedPermissions = new Set(['pointerLock']);
+		const alwaysAllowedPermissions = new Set(['pointerLock', 'notifications']);
 
 		const allowedPermissionsInWebview = new Set([
 			...alwaysAllowedPermissions,
