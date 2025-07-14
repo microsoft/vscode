@@ -1194,10 +1194,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 				} else if (action.id === ToggleAgentModeActionId && action instanceof MenuItemAction) {
 					const delegate: IModePickerDelegate = {
-						currentMode: this._currentModeObservable
+						currentMode: this._currentModeObservable,
+						currentEngineId: this._currentEngineIdObservable
 					};
 					return this.modeWidget = this.instantiationService.createInstance(ModePickerActionItem, action, delegate);
 				} else if (action.id === ChatOpenEnginePickerActionId && action instanceof MenuItemAction) {
+					const showEnginePicker = this.configurationService.getValue('chat.enginePicker');
+					if (!showEnginePicker) {
+						return undefined;
+					}
 					const delegate: IEnginePickerDelegate = {
 						currentEngineId: this._currentEngineIdObservable,
 					};

@@ -415,6 +415,7 @@ class OpenEnginePickerAction extends Action2 {
 				order: 0,
 				group: 'navigation',
 				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals(`config.${ChatConfiguration.EnginePicker}`, true),
 					ContextKeyExpr.or(
 						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
 						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Editor),

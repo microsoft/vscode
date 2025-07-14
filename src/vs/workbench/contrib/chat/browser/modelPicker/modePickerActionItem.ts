@@ -16,14 +16,17 @@ import { IActionWidgetService } from '../../../../../platform/actionWidget/brows
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { IChatAgentService } from '../../common/chatAgents.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IChatAgentData, IChatAgentService } from '../../common/chatAgents.js';
 import { IChatMode, IChatModeService } from '../../common/chatModes.js';
-import { ChatAgentLocation } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration } from '../../common/constants.js';
 import { getOpenChatActionIdForMode } from '../actions/chatActions.js';
 import { IToggleChatModeArgs } from '../actions/chatExecuteActions.js';
+import { IChatWidgetService } from '../chat.js';
 
 export interface IModePickerDelegate {
 	readonly currentMode: IObservable<IChatMode>;
+	readonly currentEngineId: IObservable<string>;
 }
 
 export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
@@ -35,7 +38,9 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatModeService chatModeService: IChatModeService,
-		@IMenuService private readonly menuService: IMenuService
+		@IMenuService private readonly menuService: IMenuService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
 	) {
 		const makeAction = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => ({
 			...action,
@@ -69,15 +74,42 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 			category: { label: localize('custom', "Custom"), order: 1 }
 		});
 
+		const makeActionFromEngine = (engine: IChatAgentData, currentEngine: IChatAgentData): IActionWidgetDropdownAction => ({
+			...action,
+			id: `workbench.action.chat.openEngine${engine.name}`,
+			label: engine.isDefault ?
+				'Default' :
+				(engine.fullName ?? engine.name),
+			class: undefined,
+			enabled: true,
+			checked: currentEngine.id === engine.id,
+			tooltip: engine.description ?? action.tooltip,
+			run: async () => {
+				const widget = this.chatWidgetService.lastFocusedWidget;
+				if (widget) {
+					widget.input.setCurrentEngine(engine.id);
+				}
+			},
+			category: { label: localize('engines', "Engines"), order: 2 }
+		});
+
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				const modes = chatModeService.getModes();
 				const currentMode = delegate.currentMode.get();
-				const agentStateActions: IActionWidgetDropdownAction[] = modes.builtin.map(mode => makeAction(mode, currentMode));
+				let agentStateActions: IActionWidgetDropdownAction[] = modes.builtin.map(mode => makeAction(mode, currentMode));
 				if (modes.custom) {
 					agentStateActions.push(...modes.custom.map(mode => makeActionFromCustomMode(mode, currentMode)));
 				}
-
+				// Optionally include engines as modes
+				const showEnginePicker = this.configurationService.getValue(ChatConfiguration.EnginePicker);
+				if (!showEnginePicker) {
+					const engines = chatAgentService.getEngines();
+					// Find current engine based on current mode id, or use first engine as default
+					const currentEngineId = delegate.currentEngineId.get();
+					const currentEngine = engines.find(e => e.id === currentEngineId) || engines[0];
+					agentStateActions = agentStateActions.concat(engines.map(engine => makeActionFromEngine(engine, currentEngine)));
+				}
 				return agentStateActions;
 			}
 		};
