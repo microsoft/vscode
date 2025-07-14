@@ -342,17 +342,22 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 	//#region --- making request
 
-	async getDefaultLanguageModel(extension: IExtensionDescription): Promise<vscode.LanguageModelChat | undefined> {
+	async getDefaultLanguageModel(extension: IExtensionDescription, forceResolveModels?: boolean): Promise<vscode.LanguageModelChat | undefined> {
 		let defaultModelId: string | undefined;
 
-		for (const model of this._localModels.values()) {
-			if (model.metadata.isDefault) {
-				defaultModelId = model.metadata.id;
+		if (forceResolveModels) {
+			await this.selectLanguageModels(extension, {});
+		}
+
+		for (const [modelIdentifier, modelData] of this._localModels) {
+			if (modelData.metadata.isDefault) {
+				defaultModelId = modelIdentifier;
 				break;
 			}
 		}
 		if (!defaultModelId) {
-			return;
+			// Maybe the default wasn't cached so we will try again with resolving the models too
+			return this.getDefaultLanguageModel(extension, true);
 		}
 		return this.getLanguageModelByIdentifier(extension, defaultModelId);
 	}
