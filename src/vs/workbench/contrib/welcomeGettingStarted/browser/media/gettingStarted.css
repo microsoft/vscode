@@ -1525,3 +1525,93 @@
 	left: 100%;
 	opacity: 0;
 }
+
+/* Test styling for random testing scenario with accessibility improvements */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .test-enhanced-buttons {
+	box-shadow: 0 2px 8px rgba(0, 122, 204, 0.3);
+}
+
+/* Only add animations if user has not specified prefers-reduced-motion */
+@media (prefers-reduced-motion: no-preference) {
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .test-enhanced-buttons {
+		animation: testPulse 2s infinite;
+	}
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .test-category-highlight {
+	border: 2px solid #007acc;
+	border-radius: 8px;
+	background: linear-gradient(45deg, rgba(0, 122, 204, 0.1), rgba(0, 122, 204, 0.2));
+}
+
+@keyframes testPulse {
+	0% { transform: scale(1); }
+	50% { transform: scale(1.05); }
+	100% { transform: scale(1); }
+}
+
+/* Enhanced hover effects for testing with proper accessibility */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .test-button-hover {
+	background-color: #007acc !important;
+	color: white !important;
+	border-radius: 4px;
+}
+
+/* Only add motion effects if user has not specified prefers-reduced-motion */
+@media (prefers-reduced-motion: no-preference) {
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link:hover {
+		transition: all 0.3s ease;
+		transform: translateY(-2px);
+	}
+}
+
+/* Test banner styling with WCAG compliant colors and accessibility features */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .test-banner {
+	background: #0078d4 !important; /* WCAG AA compliant blue */
+	color: white !important; /* High contrast with background */
+	padding: 12px 24px;
+	text-align: center;
+	font-weight: bold;
+	margin: 0 0 20px 0;
+	border-radius: 6px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	border: 1px solid #005a9e; /* Better definition for high contrast mode */
+}
+
+/* Add animation only if motion is not reduced */
+@media (prefers-reduced-motion: no-preference) {
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .test-banner {
+		animation: testPulse 3s infinite;
+	}
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .test-banner {
+		background: ButtonFace !important;
+		color: ButtonText !important;
+		border: 2px solid ButtonText !important;
+	}
+	
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .test-category-highlight {
+		border: 3px solid Highlight !important;
+		background: HighlightText !important;
+	}
+	
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .test-button-hover {
+		background-color: Highlight !important;
+		color: HighlightText !important;
+	}
+}
+
+/* Focus indicators for keyboard navigation */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .test-banner:focus {
+	outline: 2px solid #005a9e;
+	outline-offset: 2px;
+}
+
+@media (prefers-contrast: high) {
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .test-banner:focus {
+		outline: 2px solid Highlight;
+	}
+}

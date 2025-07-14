@@ -839,6 +839,9 @@ export class GettingStartedPage extends EditorPane {
 		this.detailsPageScrollbar.scanDomNode();
 
 		parent.appendChild(this.container);
+
+		// Test method for random testing scenario
+		this.addTestButtonHoverEffects();
 	}
 
 	private async buildCategoriesSlide() {
@@ -921,6 +924,12 @@ export class GettingStartedPage extends EditorPane {
 
 		this.updateCategoryProgress();
 		this.registerDispatchListeners();
+
+		// Apply test styling for random testing scenario
+		this.applyTestStyling();
+
+		// Add test banner for random testing scenario
+		this.addTestBanner();
 
 		if (this.editorInput.selectedCategory) {
 			const showNewExperience = this.editorInput.selectedCategory === NEW_WELCOME_EXPERIENCE;
@@ -2136,6 +2145,93 @@ export class GettingStartedPage extends EditorPane {
 			// This prevents us from stealing back focus from other focused elements such as quick pick due to delayed load.
 			this.container.focus();
 		}
+	}
+
+	// Test method for random testing scenario with accessibility improvements
+	private addTestButtonHoverEffects() {
+		// Check if user prefers reduced motion
+		if (this.accessibilityService.isMotionReduced()) {
+			return; // Skip hover effects if user prefers reduced motion
+		}
+
+		const buttons = this.container.querySelectorAll('button.button-link');
+		buttons.forEach(button => {
+			// Use CSS classes instead of inline styles for better accessibility
+			button.addEventListener('mouseenter', () => {
+				(button as HTMLElement).classList.add('test-button-hover');
+			});
+			button.addEventListener('mouseleave', () => {
+				(button as HTMLElement).classList.remove('test-button-hover');
+			});
+		});
+	}
+
+	// Test method to apply dynamic CSS classes for testing with accessibility improvements
+	private applyTestStyling() {
+		// Check if user prefers reduced motion before adding animations
+		if (!this.accessibilityService.isMotionReduced()) {
+			// Add pulsing animation to featured categories only if motion is not reduced
+			const featuredCategories = this.container.querySelectorAll('.getting-started-category.featured');
+			featuredCategories.forEach(category => {
+				(category as HTMLElement).classList.add('test-enhanced-buttons');
+			});
+		}
+
+		// Add highlight to random categories for testing
+		const categories = this.container.querySelectorAll('.getting-started-category');
+		if (categories.length > 0) {
+			const randomIndex = Math.floor(Math.random() * categories.length);
+			const highlightedCategory = categories[randomIndex] as HTMLElement;
+			highlightedCategory.classList.add('test-category-highlight');
+			
+			// Add ARIA attributes for screen readers to announce the highlighted category
+			highlightedCategory.setAttribute('aria-describedby', 'test-highlight-description');
+			
+			// Create hidden description for screen readers
+			if (!this.container.querySelector('#test-highlight-description')) {
+				const description = $('div', {
+					id: 'test-highlight-description',
+					'aria-hidden': 'true',
+					style: 'position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden;'
+				}, localize('testHighlightDescription', 'This category has been highlighted for testing purposes'));
+				this.container.appendChild(description);
+			}
+		}
+
+		// Add test console log for debugging
+		console.log('[Test] Applied test styling to Getting Started page');
+	}
+
+	// Test method to add a banner for testing scenarios with proper accessibility
+	private addTestBanner() {
+		const existingBanner = this.container.querySelector('.test-banner');
+		if (existingBanner) {
+			existingBanner.remove();
+		}
+
+		const testBannerText = localize('testModeActive', 'TEST MODE: Random testing scenario active');
+		const testBanner = $('.test-banner', {
+			role: 'banner',
+			'aria-label': testBannerText,
+			'aria-live': 'polite',
+			tabindex: 0
+		}, testBannerText);
+
+		// Add keyboard navigation support
+		testBanner.addEventListener('keydown', (e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				// Could add functionality to dismiss or interact with banner
+			}
+		});
+
+		const categoriesContainer = this.container.querySelector('.gettingStartedCategoriesContainer');
+		if (categoriesContainer) {
+			categoriesContainer.insertBefore(testBanner, categoriesContainer.firstChild);
+		}
+
+		// Announce to screen readers that test mode is active
+		this.notificationService.info(testBannerText);
 	}
 }
 
