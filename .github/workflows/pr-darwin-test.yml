@@ -26,6 +26,9 @@ jobs:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@v4
 
+      - name: Debug message
+        run: echo ${{ env.IS_FORK }}
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
