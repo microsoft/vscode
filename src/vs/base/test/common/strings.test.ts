@@ -662,6 +662,12 @@ suite('Strings', () => {
 		assert.strictEqual(strings.InvisibleCharacters.containsInvisibleCharacter('a\u{e015a}\u000bb'), true);
 	});
 
+	test('multibyteAwareBtoa', () => {
+		assert.ok(strings.multibyteAwareBtoa('hello world').length > 0);
+		assert.ok(strings.multibyteAwareBtoa('平仮名').length > 0);
+		assert.ok(strings.multibyteAwareBtoa(new Array(100000).fill('vs').join('')).length > 0); // https://github.com/microsoft/vscode/issues/112013
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
 

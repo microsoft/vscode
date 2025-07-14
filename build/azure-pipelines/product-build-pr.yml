@@ -1,10 +1,9 @@
 trigger:
-  - main
   - release/*
 
 pr:
   branches:
-    include: ["main", "release/*"]
+    include: ["release/*"]
 
 variables:
   - name: Codeql.SkipTaskAutoInjection

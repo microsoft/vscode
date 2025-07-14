@@ -366,7 +366,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 				hoverDelegate: this.toolbarHoverDelegate,
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
 				highlightToggledItems: true,
-				telemetrySource: this.nameForTelemetry
+				telemetrySource: this.nameForTelemetry,
+				toolbarOptions: { forceLeadingSeparatorInPrimaryActions: true /* separate from view toolbar */ }
 			}
 		));
 
@@ -452,11 +453,13 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	protected override createHeaderArea(): HTMLElement {
 		const headerArea = super.createHeaderArea();
+
 		return this.createHeaderFooterCompositeBarArea(headerArea);
 	}
 
 	protected override createFooterArea(): HTMLElement {
 		const footerArea = super.createFooterArea();
+
 		return this.createHeaderFooterCompositeBarArea(footerArea);
 	}
 
