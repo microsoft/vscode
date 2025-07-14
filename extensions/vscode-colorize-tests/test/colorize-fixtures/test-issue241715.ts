@@ -45,3 +45,6 @@ function makeDate(mOrTimestamp: number, d?: number, y?: number): Date {
 type StringNumberBooleans = [string, number, ...boolean[]];
 type StringBooleansNumber = [string, ...boolean[], number];
 type BooleansStringNumber = [...boolean[], string, number];
+
+let s = '2';
++s;

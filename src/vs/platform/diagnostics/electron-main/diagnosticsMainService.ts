@@ -13,7 +13,7 @@ import { ICodeWindow } from '../../window/electron-main/window.js';
 import { getAllWindowsExcludingOffscreen, IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
-import { assertIsDefined } from '../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../base/common/types.js';
 import { ILogService } from '../../log/common/log.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 
@@ -106,7 +106,7 @@ export class DiagnosticsMainService implements IDiagnosticsMainService {
 
 	private async codeWindowToInfo(window: ICodeWindow): Promise<IWindowDiagnostics> {
 		const folderURIs = await this.getFolderURIs(window);
-		const win = assertIsDefined(window.win);
+		const win = assertReturnsDefined(window.win);
 
 		return this.browserWindowToInfo(win, folderURIs, window.remoteAuthority);
 	}

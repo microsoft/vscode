@@ -22,14 +22,14 @@ import { TextMateWorkerHost } from './worker/textMateWorkerHost.js';
 import { TextMateWorkerTokenizerController } from './textMateWorkerTokenizerController.js';
 import { IValidGrammarDefinition } from '../../common/TMScopeRegistry.js';
 import type { IRawTheme } from 'vscode-textmate';
-import { createWebWorker } from '../../../../../base/browser/defaultWorkerFactory.js';
-import { IWorkerClient, Proxied } from '../../../../../base/common/worker/simpleWorker.js';
+import { createWebWorker } from '../../../../../base/browser/webWorkerFactory.js';
+import { IWebWorkerClient, Proxied } from '../../../../../base/common/worker/webWorker.js';
 
 export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 	private static _reportedMismatchingTokens = false;
 
 	private _workerProxyPromise: Promise<Proxied<TextMateTokenizationWorker> | null> | null = null;
-	private _worker: IWorkerClient<TextMateTokenizationWorker> | null = null;
+	private _worker: IWebWorkerClient<TextMateTokenizationWorker> | null = null;
 	private _workerProxy: Proxied<TextMateTokenizationWorker> | null = null;
 	private readonly _workerTokenizerControllers = new Map</* backgroundTokenizerId */number, TextMateWorkerTokenizerController>();
 
@@ -138,7 +138,7 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 			onigurumaWASMUri: FileAccess.asBrowserUri(onigurumaWASM).toString(true),
 		};
 		const worker = this._worker = createWebWorker<TextMateTokenizationWorker>(
-			'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker',
+			FileAccess.asBrowserUri('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.workerMain.js'),
 			'TextMateWorker'
 		);
 		TextMateWorkerHost.setChannel(worker, {

@@ -12,7 +12,7 @@ import { ModelDecorationOptions } from '../../../../editor/common/model/textMode
 import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
 import { DetailedLineRangeMapping, LineRangeMapping, RangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { IInlineChatSessionService } from './inlineChatSessionService.js';
-import { LineRange } from '../../../../editor/common/core/lineRange.js';
+import { LineRange } from '../../../../editor/common/core/ranges/lineRange.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
 import { coalesceInPlace } from '../../../../base/common/arrays.js';
 import { Iterable } from '../../../../base/common/iterator.js';

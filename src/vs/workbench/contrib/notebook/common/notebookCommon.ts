@@ -33,7 +33,7 @@ import { ICellExecutionError } from './notebookExecutionStateService.js';
 import { INotebookTextModelLike } from './notebookKernelService.js';
 import { ICellRange } from './notebookRange.js';
 import { RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
-import { generateMetadataUri, generate as generateUri, parseMetadataUri, parse as parseUri } from '../../../services/notebook/common/notebookDocumentService.js';
+import { generateMetadataUri, generate as generateUri, extractCellOutputDetails, parseMetadataUri, parse as parseUri } from '../../../services/notebook/common/notebookDocumentService.js';
 import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from '../../../services/workingCopy/common/workingCopy.js';
 import { SnapshotContext } from '../../../services/workingCopy/common/fileWorkingCopy.js';
 
@@ -42,6 +42,7 @@ export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor'
 export const NOTEBOOK_MULTI_DIFF_EDITOR_ID = 'workbench.editor.notebookMultiTextDiffEditor';
 export const INTERACTIVE_WINDOW_EDITOR_ID = 'workbench.editor.interactive';
 export const REPL_EDITOR_ID = 'workbench.editor.repl';
+export const NOTEBOOK_OUTPUT_EDITOR_ID = 'workbench.editor.notebookOutputEditor';
 
 export const EXECUTE_REPL_COMMAND_ID = 'replNotebook.input.execute';
 
@@ -646,23 +647,21 @@ export namespace CellUri {
 		});
 	}
 
-	export function parseCellOutputUri(uri: URI): { notebook: URI; outputId?: string } | undefined {
-		if (uri.scheme !== Schemas.vscodeNotebookCellOutput) {
-			return;
-		}
+	export function generateOutputEditorUri(notebook: URI, cellId: string, cellIndex: number, outputId: string, outputIndex: number): URI {
+		return notebook.with({
+			scheme: Schemas.vscodeNotebookCellOutput,
+			query: new URLSearchParams({
+				openIn: 'notebookOutputEditor',
+				notebook: notebook.toString(),
+				cellIndex: String(cellIndex),
+				outputId: outputId,
+				outputIndex: String(outputIndex),
+			}).toString()
+		});
+	}
 
-		const params = new URLSearchParams(uri.query);
-		const outputId = params.get('outputId') || undefined;
-		const notebookScheme = params.get('notebookScheme');
-
-		return {
-			outputId,
-			notebook: uri.with({
-				scheme: notebookScheme || Schemas.file,
-				fragment: null,
-				query: null
-			}),
-		};
+	export function parseCellOutputUri(uri: URI): { notebook: URI; openIn: string; outputId?: string; cellFragment?: string; outputIndex?: number; cellHandle?: number; cellIndex?: number } | undefined {
+		return extractCellOutputDetails(uri);
 	}
 
 	export function generateCellPropertyUri(notebook: URI, handle: number, scheme: string): URI {
@@ -1017,6 +1016,7 @@ export const NotebookSetting = {
 	stickyScrollMode: 'notebook.stickyScroll.mode',
 	undoRedoPerCell: 'notebook.undoRedoPerCell',
 	consolidatedOutputButton: 'notebook.consolidatedOutputButton',
+	openOutputInPreviewEditor: 'notebook.output.openInPreviewEditor.enabled',
 	showFoldingControls: 'notebook.showFoldingControls',
 	dragAndDropEnabled: 'notebook.dragAndDropEnabled',
 	cellEditorOptionsCustomizations: 'notebook.editorOptionsCustomizations',

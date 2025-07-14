@@ -29,7 +29,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IThemeService, themeColorFromId } from '../../../../platform/theme/common/themeService.js';
+import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
 import { Selection } from '../../../common/core/selection.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { FindWidgetSearchHistory } from './findWidgetSearchHistory.js';
@@ -452,7 +452,6 @@ export class FindController extends CommonFindController implements IFindControl
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IThemeService private readonly _themeService: IThemeService,
 		@INotificationService notificationService: INotificationService,
 		@IStorageService _storageService: IStorageService,
 		@IClipboardService clipboardService: IClipboardService,
@@ -514,7 +513,7 @@ export class FindController extends CommonFindController implements IFindControl
 	}
 
 	private _createFindWidget() {
-		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._themeService, this._storageService, this._notificationService, this._hoverService, this._findWidgetSearchHistory, this._replaceWidgetHistory));
+		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._hoverService, this._findWidgetSearchHistory, this._replaceWidgetHistory));
 		this._findOptionsWidget = this._register(new FindOptionsWidget(this._editor, this._state, this._keybindingService));
 	}
 

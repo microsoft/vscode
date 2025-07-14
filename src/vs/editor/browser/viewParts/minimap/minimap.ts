@@ -15,7 +15,7 @@ import { ILine, RenderedLinesCollection } from '../../view/viewLayer.js';
 import { PartFingerprint, PartFingerprints, ViewPart } from '../../view/viewPart.js';
 import { RenderMinimap, EditorOption, MINIMAP_GUTTER_WIDTH, EditorLayoutInfoComputer } from '../../../common/config/editorOptions.js';
 import { Range } from '../../../common/core/range.js';
-import { RGBA8 } from '../../../common/core/rgba.js';
+import { RGBA8 } from '../../../common/core/misc/rgba.js';
 import { ScrollType } from '../../../common/editorCommon.js';
 import { IEditorConfiguration } from '../../../common/config/editorConfiguration.js';
 import { ColorId } from '../../../common/encodedTokenAttributes.js';
@@ -26,7 +26,7 @@ import { RenderingContext, RestrictedRenderingContext } from '../../view/renderi
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { EditorTheme } from '../../../common/editorTheme.js';
 import * as viewEvents from '../../../common/viewEvents.js';
-import { ViewLineData, ViewModelDecoration } from '../../../common/viewModel.js';
+import { ViewLineData } from '../../../common/viewModel.js';
 import { minimapSelection, minimapBackground, minimapForegroundOpacity, editorForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { ModelDecorationMinimapOptions } from '../../../common/model/textModel.js';
 import { Selection } from '../../../common/core/selection.js';
@@ -37,6 +37,7 @@ import { MinimapPosition, MinimapSectionHeaderStyle, TextModelResolvedOptions } 
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
+import { ViewModelDecoration } from '../../../common/viewModel/viewModelDecoration.js';
 
 /**
  * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"

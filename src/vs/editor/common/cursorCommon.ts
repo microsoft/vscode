@@ -16,7 +16,7 @@ import { ILanguageConfigurationService } from './languages/languageConfiguration
 import { createScopedLineTokens } from './languages/supports.js';
 import { IElectricAction } from './languages/supports/electricCharacter.js';
 import { CursorColumns } from './core/cursorColumns.js';
-import { normalizeIndentation } from './core/indentation.js';
+import { normalizeIndentation } from './core/misc/indentation.js';
 import { InputMode } from './inputMode.js';
 
 export interface IColumnSelectData {

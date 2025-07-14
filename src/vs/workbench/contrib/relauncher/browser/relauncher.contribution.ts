@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, dispose, Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IWindowsConfiguration, IWindowSettings, TitleBarSetting, TitlebarStyle } from '../../../../platform/window/common/window.js';
-import { IHostService } from '../../../services/host/browser/host.js';
-import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { localize } from '../../../../nls.js';
-import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { URI } from '../../../../base/common/uri.js';
+import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isLinux, isMacintosh, isNative, isWindows } from '../../../../base/common/platform.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { isMacintosh, isNative, isLinux } from '../../../../base/common/platform.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { IWindowsConfiguration, IWindowSettings, MenuSettings, MenuStyleConfiguration, TitleBarSetting, TitlebarStyle } from '../../../../platform/window/common/window.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
 import { ChatConfiguration } from '../../chat/common/constants.js';
 
@@ -31,20 +31,22 @@ interface IConfiguration extends IWindowsConfiguration {
 	security?: { workspace?: { trust?: { enabled?: boolean } }; restrictUNCAccess?: boolean };
 	window: IWindowSettings;
 	workbench?: { enableExperiments?: boolean };
-	telemetry?: { disableFeedback?: boolean };
+	telemetry?: { feedback?: { enabled?: boolean } };
 	_extensionsGallery?: { enablePPE?: boolean };
 	accessibility?: { verbosity?: { debug?: boolean } };
-	chat?: { experimental?: { unifiedChatView?: boolean }; useFileStorage?: boolean };
+	chat?: { useFileStorage?: boolean };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
 
 	private static SETTINGS = [
 		TitleBarSetting.TITLE_BAR_STYLE,
+		MenuSettings.MenuStyle,
 		'window.nativeTabs',
 		'window.nativeFullScreen',
 		'window.clickThroughInactive',
 		'window.controlsStyle',
+		'window.border',
 		'update.mode',
 		'editor.accessibilitySupport',
 		'security.workspace.trust.enabled',
@@ -52,15 +54,16 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'_extensionsGallery.enablePPE',
 		'security.restrictUNCAccess',
 		'accessibility.verbosity.debug',
-		ChatConfiguration.UnifiedChatView,
 		ChatConfiguration.UseFileStorage,
-		'telemetry.disableFeedback'
+		'telemetry.feedback.enabled'
 	];
 
 	private readonly titleBarStyle = new ChangeObserver<TitlebarStyle>('string');
+	private readonly menuStyle = new ChangeObserver<MenuStyleConfiguration>('string');
 	private readonly nativeTabs = new ChangeObserver('boolean');
 	private readonly nativeFullScreen = new ChangeObserver('boolean');
 	private readonly clickThroughInactive = new ChangeObserver('boolean');
+	private readonly border = new ChangeObserver('string');
 	private readonly controlsStyle = new ChangeObserver('string');
 	private readonly updateMode = new ChangeObserver('string');
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
@@ -69,9 +72,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly enablePPEExtensionsGallery = new ChangeObserver('boolean');
 	private readonly restrictUNCAccess = new ChangeObserver('boolean');
 	private readonly accessibilityVerbosityDebug = new ChangeObserver('boolean');
-	private readonly unifiedChatView = new ChangeObserver('boolean');
 	private readonly useFileStorage = new ChangeObserver('boolean');
-	private readonly telemetryDisableFeedback = new ChangeObserver('boolean');
+	private readonly telemetryFeedbackEnabled = new ChangeObserver('boolean');
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -119,6 +121,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			// Titlebar style
 			processChanged((config.window.titleBarStyle === TitlebarStyle.NATIVE || config.window.titleBarStyle === TitlebarStyle.CUSTOM) && this.titleBarStyle.handleChange(config.window?.titleBarStyle));
 
+			// Windows/Linux: Menu style
+			processChanged(!isMacintosh && this.menuStyle.handleChange(config.window?.menuStyle));
+
 			// macOS: Native tabs
 			processChanged(isMacintosh && this.nativeTabs.handleChange(config.window?.nativeTabs));
 
@@ -127,6 +132,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 			// macOS: Click through (accept first mouse)
 			processChanged(isMacintosh && this.clickThroughInactive.handleChange(config.window?.clickThroughInactive));
+
+			// Windows: border
+			processChanged(isWindows && this.border.handleChange(config.window?.border));
 
 			// Windows/Linux: Window controls style
 			processChanged(!isMacintosh && this.controlsStyle.handleChange(config.window?.controlsStyle));
@@ -151,7 +159,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			// Debug accessibility verbosity
 			processChanged(this.accessibilityVerbosityDebug.handleChange(config?.accessibility?.verbosity?.debug));
 
-			processChanged(this.unifiedChatView.handleChange(config.chat?.experimental?.unifiedChatView));
 			processChanged(this.useFileStorage.handleChange(config.chat?.useFileStorage));
 		}
 
@@ -161,8 +168,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		// Profiles
 		processChanged(this.productService.quality !== 'stable' && this.enablePPEExtensionsGallery.handleChange(config._extensionsGallery?.enablePPE));
 
-		// Disable Feedback
-		processChanged(this.telemetryDisableFeedback.handleChange(config.telemetry?.disableFeedback));
+		// Enable Feedback
+		processChanged(this.telemetryFeedbackEnabled.handleChange(config.telemetry?.feedback?.enabled));
 
 		if (askToRelaunch && changed && this.hostService.hasFocus) {
 			this.doConfirm(

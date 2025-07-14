@@ -84,6 +84,9 @@ export namespace Schemas {
 	/** Scheme used for the chat input editor. */
 	export const vscodeChatSesssion = 'vscode-chat-editor';
 
+	/** Scheme used for the chat input part */
+	export const vscodeChatInput = 'chatSessionInput';
+
 	/**
 	 * Scheme used internally for webviews that aren't linked to a resource (i.e. not custom editors)
 	 */
@@ -358,7 +361,11 @@ class FileAccessImpl {
 export const FileAccess = new FileAccessImpl();
 
 export const CacheControlheaders: Record<string, string> = Object.freeze({
-	'Cache-Control': 'no-cache, no-store',
+	'Cache-Control': 'no-cache, no-store'
+});
+
+export const DocumentPolicyheaders: Record<string, string> = Object.freeze({
+	'Document-Policy': 'include-js-call-stacks-in-crash-reports'
 });
 
 export namespace COI {

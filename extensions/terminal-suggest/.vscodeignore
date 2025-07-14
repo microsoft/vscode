@@ -8,3 +8,4 @@ package-lock.json
 fixtures/**
 scripts/**
 testWorkspace/**
+cgmanifest.json

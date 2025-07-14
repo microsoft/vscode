@@ -66,7 +66,7 @@ export class BaseIssueContribution extends Disposable implements IWorkbenchContr
 	) {
 		super();
 
-		if (configurationService.getValue<boolean>('telemetry.disableFeedback')) {
+		if (!configurationService.getValue<boolean>('telemetry.feedback.enabled')) {
 			this._register(CommandsRegistry.registerCommand({
 				id: 'workbench.action.openIssueReporter',
 				handler: function (accessor) {
