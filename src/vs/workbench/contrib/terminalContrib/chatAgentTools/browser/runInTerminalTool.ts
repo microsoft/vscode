@@ -9,21 +9,25 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
-import { removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
+import { count } from '../../../../../base/common/strings.js';
 import type { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
+import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import type { IChatTerminalToolInvocationData } from '../../../chat/common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../chat/common/languageModelToolsService.js';
+import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { getRecommendedToolsOverRunInTerminal } from './alternativeRecommendation.js';
 import { CommandLineAutoApprover } from './commandLineAutoApprover.js';
+import type { ITerminalExecuteStrategy } from './executeStrategy/executionStrategy.js';
+import { RichExecuteStrategy } from './executeStrategy/richExecuteStrategy.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from './subCommands.js';
-import { ToolTerminalCreator } from './toolTerminalCreator.js';
+import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from './toolTerminalCreator.js';
 
 export const RunInTerminalToolData: IToolData = {
 	id: 'vscode_runInTerminal',
@@ -75,7 +79,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
-		@ILogService private readonly _logService: ILogService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
@@ -174,9 +179,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				throw new CancellationError();
 			}
 
-			toolTerminal.instance.focus();
+			this._terminalService.setActiveInstance(toolTerminal.instance);
 			const timingConnectMs = Date.now() - timingStart;
 
+			throw new Error('NYI run in bg terminal');
 			// try {
 			// 	this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
 			// 	const execution = new BackgroundTerminalExecution(toolTerminal.terminal, command);
@@ -197,6 +203,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// 	throw e;
 			// } finally {
 			// 	const timingExecuteMs = Date.now() - timingStart;
+			// 	// TODO: Add telemetry back
 			// 	// this.sendTelemetry({
 			// 	// 	didUserEditCommand,
 			// 	// 	didToolEditCommand,
@@ -210,100 +217,96 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// 	// 	timingConnectMs,
 			// 	// });
 			// }
+		} else {
+			// let toolTerminal = sessionId ? await this.terminalService.getToolTerminalForSession(sessionId) : undefined;
+			let toolTerminal: IToolTerminal | undefined = undefined;
+			const isNewSession = !toolTerminal;
+			if (toolTerminal) {
+				this._logService.debug(`RunInTerminalTool: Using existing terminal with session ID \`${chatSessionId}\``);
+			} else {
+				this._logService.debug(`RunInTerminalTool: Creating terminal with session ID \`${chatSessionId}\``);
+				toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(chatSessionId, termId, token);
+				if (token.isCancellationRequested) {
+					toolTerminal.instance.dispose();
+					throw new CancellationError();
+				}
+			}
+
+			this._terminalService.setActiveInstance(toolTerminal.instance);
+
+			const timingConnectMs = Date.now() - timingStart;
+
+			let terminalResult = '';
+			let outputLineCount = -1;
+			let exitCode: number | undefined;
+			try {
+				let strategy: ITerminalExecuteStrategy;
+				switch (toolTerminal.shellIntegrationQuality) {
+					case ShellIntegrationQuality.None: {
+						throw new Error('NYI none execute strat');
+						// strategy = this.instantiationService.createInstance(NoIntegrationTerminalExecuteStrategy, toolTerminal.terminal);
+						// break;
+					}
+					case ShellIntegrationQuality.Basic: {
+						throw new Error('NYI base execute strat');
+						// strategy = this.instantiationService.createInstance(BasicIntegrationTerminalExecuteStrategy, toolTerminal.terminal, toolTerminal.terminal.shellIntegration!);
+						// break;
+					}
+					case ShellIntegrationQuality.Rich: {
+						// TODO: Don't use !
+						const commandDetection = toolTerminal.instance.capabilities.get(TerminalCapability.CommandDetection)!;
+						strategy = this._instantiationService.createInstance(RichExecuteStrategy, toolTerminal.instance, commandDetection);
+						break;
+					}
+				}
+				this._logService.debug(`RunInTerminalTool: Using \`${strategy.type}\` execute strategy for command \`${command}\``);
+				const executeResult = await strategy.execute(command, token);
+				this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.result.length}\`, error \`${executeResult.error}\``);
+				outputLineCount = count(executeResult.result, '\n');
+				exitCode = executeResult.exitCode;
+				error = executeResult.error;
+				if (typeof executeResult.result === 'string') {
+					terminalResult = executeResult.result;
+				} else {
+					return executeResult.result;
+				}
+			} catch (e) {
+				this._logService.debug(`RunInTerminalTool: Threw exception`);
+				toolTerminal.instance.dispose();
+				error = 'threw';
+				throw e;
+			} finally {
+				const timingExecuteMs = Date.now() - timingStart;
+				// TODO: Add telemetry back
+				// this.sendTelemetry({
+				// 	didUserEditCommand,
+				// 	didToolEditCommand,
+				// 	isBackground: false,
+				// 	shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
+				// 	error,
+				// 	isNewSession,
+				// 	outputLineCount,
+				// 	exitCode,
+				// 	timingExecuteMs,
+				// 	timingConnectMs,
+				// });
+			}
+
+			const resultText: string[] = [];
+			if (didUserEditCommand) {
+				resultText.push(`Note: The user manually edited the command to \`${command}\`, and this is the output of running that command instead:\n`);
+			} else if (didToolEditCommand) {
+				resultText.push(`Note: The tool simplified the command to \`${command}\`, and this is the output of running that command instead:\n`);
+			}
+			resultText.push(terminalResult);
+
+			return {
+				content: [{
+					kind: 'text',
+					value: resultText.join(''),
+				}]
+			};
 		}
-		// else {
-		// 	let toolTerminal = sessionId ? await this.terminalService.getToolTerminalForSession(sessionId) : undefined;
-		// 	const isNewSession = !toolTerminal;
-		// 	if (toolTerminal) {
-		// 		this.logService.logger.debug(`RunInTerminalTool: Using existing terminal with session ID \`${sessionId}\``);
-		// 	} else {
-		// 		this.logService.logger.debug(`RunInTerminalTool: Creating terminal with session ID \`${sessionId}\``);
-		// 		toolTerminal = await this.instantiationService.createInstance(ToolTerminalCreator).createTerminal(sessionId, termId, token);
-		// 		if (token.isCancellationRequested) {
-		// 			toolTerminal.terminal.dispose();
-		// 			throw new CancellationError();
-		// 		}
-		// 	}
-
-		// 	toolTerminal.terminal.show(true);
-
-		// 	const timingConnectMs = Date.now() - timingStart;
-
-		// 	let terminalResult = '';
-		// 	let outputLineCount = -1;
-		// 	let exitCode: number | undefined;
-		// 	try {
-		// 		let strategy: ITerminalExecuteStrategy;
-		// 		if (this.simulationTestContext.isInSimulationTests) {
-		// 			strategy = this.instantiationService.createInstance(RichIntegrationTerminalExecuteStrategy, toolTerminal.terminal, toolTerminal.terminal.shellIntegration!);
-		// 		} else {
-		// 			switch (toolTerminal.shellIntegrationQuality) {
-		// 				case ShellIntegrationQuality.None: {
-		// 					strategy = this.instantiationService.createInstance(NoIntegrationTerminalExecuteStrategy, toolTerminal.terminal);
-		// 					break;
-		// 				}
-		// 				case ShellIntegrationQuality.Basic: {
-		// 					strategy = this.instantiationService.createInstance(BasicIntegrationTerminalExecuteStrategy, toolTerminal.terminal, toolTerminal.terminal.shellIntegration!);
-		// 					break;
-		// 				}
-		// 				case ShellIntegrationQuality.Rich: {
-		// 					strategy = this.instantiationService.createInstance(RichIntegrationTerminalExecuteStrategy, toolTerminal.terminal, toolTerminal.terminal.shellIntegration!);
-		// 					break;
-		// 				}
-		// 			}
-		// 		}
-		// 		this.logService.logger.debug(`RunInTerminalTool: Using \`${strategy.type}\` execute strategy for command \`${command}\``);
-		// 		const executeResult = await strategy.execute(command, token);
-		// 		this.logService.logger.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.result.length}\`, error \`${executeResult.error}\``);
-		// 		outputLineCount = count(executeResult.result, '\n');
-		// 		exitCode = executeResult.exitCode;
-		// 		error = executeResult.error;
-		// 		if (typeof executeResult.result === 'string') {
-		// 			terminalResult = executeResult.result;
-		// 		} else {
-		// 			return executeResult.result;
-		// 		}
-		// 	} catch (e) {
-		// 		this.logService.logger.debug(`RunInTerminalTool: Threw exception`);
-		// 		toolTerminal.terminal.dispose();
-		// 		error = 'threw';
-		// 		throw e;
-		// 	} finally {
-		// 		const timingExecuteMs = Date.now() - timingStart;
-		// 		this.sendTelemetry({
-		// 			didUserEditCommand,
-		// 			didToolEditCommand,
-		// 			isBackground: false,
-		// 			shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
-		// 			error,
-		// 			isNewSession,
-		// 			outputLineCount,
-		// 			exitCode,
-		// 			timingExecuteMs,
-		// 			timingConnectMs,
-		// 		});
-		// 	}
-		// 	return new LanguageModelToolResult([
-		// 		new LanguageModelPromptTsxPart(
-		// 			await renderPromptElementJSON(this.instantiationService, RunInTerminalResult, {
-		// 				result: terminalResult,
-		// 				newCommand: didUserEditCommand || didToolEditCommand ? command : undefined,
-		// 				newCommandReason: didUserEditCommand ? 'user' : didToolEditCommand ? 'tool' : undefined
-		// 			}, options.tokenizationOptions, token)
-		// 		)
-		// 	]);
-		// }
-
-
-
-
-
-		return {
-			content: [{
-				kind: 'text',
-				value: 'hi there',
-			}]
-		};
 	}
 
 	protected async _rewriteCommandIfNeeded(context: IToolInvocationPreparationContext, args: IInputParams, shell: string): Promise<string> {
@@ -367,31 +370,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return commandLine;
 	}
 }
-
-// // Maximum output length to prevent context overflow
-// const MAX_OUTPUT_LENGTH = 60000; // ~60KB limit to keep context manageable
-// const TRUNCATION_MESSAGE = '\n\n[... MIDDLE OF OUTPUT TRUNCATED ...]\n\n';
-
-// export function sanitizeTerminalOutput(output: string): string {
-// 	let sanitized = removeAnsiEscapeCodes(output)
-// 		// Trim trailing \r\n characters
-// 		.trimEnd();
-
-// 	// Truncate if output is too long to prevent context overflow
-// 	if (sanitized.length > MAX_OUTPUT_LENGTH) {
-// 		const truncationMessageLength = TRUNCATION_MESSAGE.length;
-// 		const availableLength = MAX_OUTPUT_LENGTH - truncationMessageLength;
-// 		const startLength = Math.floor(availableLength * 0.4); // Keep 40% from start
-// 		const endLength = availableLength - startLength; // Keep 60% from end
-
-// 		const startPortion = sanitized.substring(0, startLength);
-// 		const endPortion = sanitized.substring(sanitized.length - endLength);
-
-// 		sanitized = startPortion + TRUNCATION_MESSAGE + endPortion;
-// 	}
-
-// 	return sanitized;
-// }
 
 // class BackgroundTerminalExecution {
 // 	private _output: string = '';

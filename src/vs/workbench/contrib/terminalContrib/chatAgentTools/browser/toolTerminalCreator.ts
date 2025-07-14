@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise, disposableTimeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, timeout } from '../../../../../base/common/async.js';
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
@@ -88,7 +89,7 @@ export class ToolTerminalCreator {
 		instance: ITerminalInstance,
 		timeoutMs: number
 	): Promise<ShellIntegrationQuality> {
-		let shellIntegrationQuality: ShellIntegrationQuality = ShellIntegrationQuality.Basic;
+		let shellIntegrationQuality: ShellIntegrationQuality.Basic | ShellIntegrationQuality.Rich = ShellIntegrationQuality.Basic;
 
 		// TODO: This could be done much nicer in core - listen to CommandDetectionCapability.onSetRichCommandDetection
 		const dataFinished = new DeferredPromise<void>();
@@ -108,17 +109,41 @@ export class ToolTerminalCreator {
 		} else {
 			const onSetRichCommandDetection = this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onSetRichCommandDetection);
 
-
 			const siListener = onSetRichCommandDetection.event((e) => {
 				if (e.instance !== instance) {
 					return;
 				}
 				timer.dispose();
+				// TODO: This could be simplified, this event will only ever fire when it's rich
 				if (shellIntegrationQuality === ShellIntegrationQuality.Rich) {
 					deferred.complete(shellIntegrationQuality);
 				}
 			});
 
+			const store = new DisposableStore();
+
+			const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
+			if (commandDetection) {
+				// When command detection lights up, allow up to 200ms for the rich command
+				// detection sequence to come in before declaring it as basic shell integration.
+				// up.
+				Promise.race([
+					dataFinished.p,
+					timeout(200)
+				]).then(() => deferred.complete(shellIntegrationQuality));
+			} else {
+				store.add(instance.capabilities.onDidAddCapabilityType(e => {
+					if (e === TerminalCapability.CommandDetection) {
+						// When command detection lights up, allow up to 200ms for the rich command
+						// detection sequence to come in before declaring it as basic shell integration.
+						// up.
+						Promise.race([
+							dataFinished.p,
+							timeout(200)
+						]).then(() => deferred.complete(shellIntegrationQuality));
+					}
+				}));
+			}
 			// TODO: Listen for basic shell integration
 			// else {
 			// 		// While the rich command detection data should come in before
@@ -133,6 +158,7 @@ export class ToolTerminalCreator {
 			// }
 
 			deferred.p.finally(() => {
+				store.dispose();
 				siListener.dispose();
 				dataListener.dispose();
 			});
