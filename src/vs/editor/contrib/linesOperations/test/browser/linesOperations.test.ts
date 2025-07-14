@@ -12,9 +12,10 @@ import { Selection } from '../../../../common/core/selection.js';
 import { Handler } from '../../../../common/editorCommon.js';
 import { ITextModel } from '../../../../common/model.js';
 import { ViewModel } from '../../../../common/viewModel/viewModelImpl.js';
-import { CamelCaseAction, PascalCaseAction, DeleteAllLeftAction, DeleteAllRightAction, DeleteDuplicateLinesAction, DeleteLinesAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, KebabCaseAction, LowerCaseAction, SnakeCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TitleCaseAction, TransposeAction, UpperCaseAction } from '../../browser/linesOperations.js';
-import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { CamelCaseAction, PascalCaseAction, DeleteAllLeftAction, DeleteAllRightAction, DeleteDuplicateLinesAction, DeleteLinesAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, KebabCaseAction, LowerCaseAction, SnakeCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TitleCaseAction, TransposeAction, UpperCaseAction, MoveLinesUpAction, MoveLinesDownAction } from '../../browser/linesOperations.js';
+import { createCodeEditorServices, withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
 function assertSelection(editor: ICodeEditor, expected: Selection | Selection[]): void {
 	if (!Array.isArray(expected)) {
@@ -1639,5 +1640,233 @@ suite('Editor Contrib - Line Operations', () => {
 				new Selection(14, 1, 14, 1),
 			]
 		);
+	});
+
+	// Multi cursor/selections line move actions
+	suite('Issue #68694 support to move multiple lines through alt+arrow', () => {
+
+		test('Move lines down', () => {
+			const disposables = new DisposableStore();
+			const instantiationService = createCodeEditorServices(disposables);
+
+			const TEXT = [
+				'Line 1',
+				'Line 2',
+				'Line 3',
+				'Line 4',
+				'Line 5'
+			];
+			withTestCodeEditor(TEXT, {}, (editor) => {
+				editor.setSelections([
+					new Selection(1, 1, 1, 1),
+					new Selection(2, 1, 2, 1),
+				]);
+
+				const moveLinesDownAction = new MoveLinesDownAction();
+				moveLinesDownAction.run(instantiationService, editor);
+
+				const model = editor.getModel()!;
+
+				assert.deepStrictEqual(model.getLinesContent(), [
+					'Line 3',
+					'Line 1',
+					'Line 2',
+					'Line 4',
+					'Line 5'
+				]);
+
+				assert.deepStrictEqual(
+					editor.getSelections()!.toString(), [
+						new Selection(2, 1, 2, 1),
+						new Selection(3, 1, 3, 1),
+					].toString());
+			});
+
+			disposables.dispose();
+		});
+
+		test('Move lines up', () => {
+			const disposables = new DisposableStore();
+			const instantiationService = createCodeEditorServices(disposables);
+
+			const TEXT = [
+				'Line 1',
+				'Line 2',
+				'Line 3',
+				'Line 4',
+				'Line 5'
+			];
+			withTestCodeEditor(TEXT, {}, (editor) => {
+				editor.setSelections([
+					new Selection(3, 1, 3, 1),
+					new Selection(4, 1, 4, 1),
+				]);
+
+				const moveLinesUpAction = new MoveLinesUpAction();
+				moveLinesUpAction.run(instantiationService, editor);
+
+				const model = editor.getModel()!;
+
+				assert.deepStrictEqual(model.getLinesContent(), [
+					'Line 1',
+					'Line 3',
+					'Line 4',
+					'Line 2',
+					'Line 5'
+				]);
+
+				assert.deepStrictEqual(
+					editor.getSelections()!.toString(), [
+						new Selection(2, 1, 2, 1),
+						new Selection(3, 1, 3, 1),
+					].toString());
+
+				disposables.dispose();
+			});
+		});
+
+		test('Combining up and down', () => {
+			const disposables = new DisposableStore();
+			const instantiationService = createCodeEditorServices(disposables);
+
+			const TEXT = [
+				'Line 1',
+				'Line 2',
+				'Line 3',
+				'Line 4',
+				'Line 5'
+			];
+			withTestCodeEditor(TEXT, {}, (editor) => {
+				editor.setSelections([
+					new Selection(1, 1, 1, 1),
+					new Selection(2, 1, 2, 1),
+				]);
+
+				const moveLinesUpAction = new MoveLinesUpAction();
+				const moveLinesDownAction = new MoveLinesDownAction();
+
+				const model = editor.getModel()!;
+
+				moveLinesUpAction.run(instantiationService, editor); // no change since selections are already at the beginning of the file = no-op
+
+				assert.deepStrictEqual(model.getLinesContent(), [
+					'Line 1',
+					'Line 2',
+					'Line 3',
+					'Line 4',
+					'Line 5'
+				]);
+
+				moveLinesDownAction.run(instantiationService, editor);
+
+				assert.deepStrictEqual(model.getLinesContent(), [
+					'Line 3',
+					'Line 1',
+					'Line 2',
+					'Line 4',
+					'Line 5'
+				]);
+
+				moveLinesDownAction.run(instantiationService, editor);
+
+				assert.deepStrictEqual(model.getLinesContent(), [
+					'Line 3',
+					'Line 4',
+					'Line 1',
+					'Line 2',
+					'Line 5'
+				]);
+
+				assert.deepStrictEqual(
+					editor.getSelections()!.toString(), [
+						new Selection(3, 1, 3, 1),
+						new Selection(4, 1, 4, 1),
+					].toString());
+
+				disposables.dispose();
+			});
+		});
+
+		test('Move non ascending selections down', () => {
+			const disposables = new DisposableStore();
+			const instantiationService = createCodeEditorServices(disposables);
+
+			const TEXT = [
+				'Line 1',
+				'Line 2',
+				'Line 3',
+				'Line 4',
+				'Line 5'
+			];
+			withTestCodeEditor(TEXT, {}, (editor) => {
+				editor.setSelections([
+					new Selection(4, 1, 4, 1),
+					new Selection(3, 1, 3, 1),
+				]);
+
+				const moveLinesDownAction = new MoveLinesDownAction();
+				moveLinesDownAction.run(instantiationService, editor);
+
+				const model = editor.getModel()!;
+
+				assert.deepStrictEqual(model.getLinesContent(), [
+					'Line 1',
+					'Line 2',
+					'Line 5',
+					'Line 3',
+					'Line 4'
+				]);
+
+				assert.deepStrictEqual(
+					editor.getSelections()!.toString(), [
+						new Selection(5, 1, 5, 1),
+						new Selection(4, 1, 4, 1),
+					].toString());
+
+				disposables.dispose();
+			});
+		});
+
+		test('Move multiple selections per line', () => {
+			const disposables = new DisposableStore();
+			const instantiationService = createCodeEditorServices(disposables);
+
+			const TEXT = [
+				'Line 1',
+				'Line 2',
+				'Line 3',
+				'Line 4',
+				'Line 5'
+			];
+			withTestCodeEditor(TEXT, {}, (editor) => {
+				editor.setSelections([
+					new Selection(3, 1, 3, 1),
+					new Selection(4, 1, 4, 1),
+					new Selection(3, 2, 3, 2),
+				]);
+
+				const moveLinesDownAction = new MoveLinesDownAction();
+				moveLinesDownAction.run(instantiationService, editor);
+
+				const model = editor.getModel()!;
+
+				assert.deepStrictEqual(model.getLinesContent(), [
+					'Line 1',
+					'Line 2',
+					'Line 5',
+					'Line 3',
+					'Line 4'
+				]);
+
+				assert.deepStrictEqual(
+					editor.getSelections()!.toString(), [
+						new Selection(4, 1, 4, 1),
+						new Selection(5, 1, 5, 1),
+						new Selection(4, 2, 4, 2),
+					].toString());
+
+				disposables.dispose();
+			});
+		});
 	});
 });
