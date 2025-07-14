@@ -3,16 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { IHistory } from '../../../../base/common/history.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 export class FindWidgetSearchHistory implements IHistory<string> {
 	public static readonly FIND_HISTORY_KEY = 'workbench.find.history';
 	private inMemoryValues: Set<string> = new Set();
+	public onDidChange?: Event<string[]>;
+	private _onDidChangeEmitter: Emitter<string[]>;
+
+	private static _instance: FindWidgetSearchHistory | null = null;
+
+	static getOrCreate(
+		storageService: IStorageService,
+	): FindWidgetSearchHistory {
+		if (!FindWidgetSearchHistory._instance) {
+			FindWidgetSearchHistory._instance = new FindWidgetSearchHistory(storageService);
+		}
+		return FindWidgetSearchHistory._instance;
+	}
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 	) {
+		this._onDidChangeEmitter = new Emitter<string[]>();
+		this.onDidChange = this._onDidChangeEmitter.event;
 		this.load();
 	}
 
@@ -76,6 +92,7 @@ export class FindWidgetSearchHistory implements IHistory<string> {
 				StorageScope.WORKSPACE,
 				StorageTarget.USER,
 			);
+			this._onDidChangeEmitter.fire(elements);
 			resolve();
 		});
 	}

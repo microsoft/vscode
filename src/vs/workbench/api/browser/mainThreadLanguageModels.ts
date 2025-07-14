@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AsyncIterableSource, DeferredPromise } from '../../../base/common/async.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -12,6 +14,7 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
+import { resizeImage } from '../../contrib/chat/browser/imageUtils.js';
 import { ILanguageModelIgnoredFilesService } from '../../contrib/chat/common/ignoredFiles.js';
 import { ILanguageModelStatsService } from '../../contrib/chat/common/languageModelStats.js';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
@@ -19,7 +22,9 @@ import { IAuthenticationAccessService } from '../../services/authentication/brow
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostContext, ExtHostLanguageModelsShape, MainContext, MainThreadLanguageModelsShape } from '../common/extHost.protocol.js';
+import { LanguageModelError } from '../common/extHostTypes.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageModels)
 export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
@@ -27,7 +32,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	private readonly _proxy: ExtHostLanguageModelsShape;
 	private readonly _store = new DisposableStore();
 	private readonly _providerRegistrations = new DisposableMap<number>();
-	private readonly _pendingProgress = new Map<number, { defer: DeferredPromise<any>; stream: AsyncIterableSource<IChatResponseFragment> }>();
+	private readonly _pendingProgress = new Map<number, { defer: DeferredPromise<any>; stream: AsyncIterableSource<IChatResponseFragment | IChatResponseFragment[]> }>();
 	private readonly _ignoredFileProviderRegistrations = new DisposableMap<number>();
 
 	constructor(
@@ -58,11 +63,18 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 			sendChatRequest: async (messages, from, options, token) => {
 				const requestId = (Math.random() * 1e6) | 0;
 				const defer = new DeferredPromise<any>();
-				const stream = new AsyncIterableSource<IChatResponseFragment>();
+				const stream = new AsyncIterableSource<IChatResponseFragment | IChatResponseFragment[]>();
 
 				try {
 					this._pendingProgress.set(requestId, { defer, stream });
-					await this._proxy.$startChatRequest(handle, requestId, from, messages, options, token);
+					await Promise.all(
+						messages.flatMap(msg => msg.content)
+							.filter(part => part.type === 'image_url')
+							.map(async part => {
+								part.value.data = VSBuffer.wrap(await resizeImage(part.value.data.buffer));
+							})
+					);
+					await this._proxy.$startChatRequest(handle, requestId, from, new SerializableObjectWithBuffers(messages), options, token);
 				} catch (err) {
 					this._pendingProgress.delete(requestId);
 					throw err;
@@ -83,7 +95,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		this._providerRegistrations.set(handle, dipsosables);
 	}
 
-	async $reportResponsePart(requestId: number, chunk: IChatResponseFragment): Promise<void> {
+	async $reportResponsePart(requestId: number, chunk: IChatResponseFragment | IChatResponseFragment[]): Promise<void> {
 		const data = this._pendingProgress.get(requestId);
 		this._logService.trace('[LM] report response PART', Boolean(data), requestId, chunk);
 		if (data) {
@@ -97,7 +109,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		if (data) {
 			this._pendingProgress.delete(requestId);
 			if (err) {
-				const error = transformErrorFromSerialization(err);
+				const error = LanguageModelError.tryDeserialize(err) ?? transformErrorFromSerialization(err);
 				data.stream.reject(error);
 				data.defer.error(error);
 			} else {
@@ -119,10 +131,16 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		this._languageModelStatsService.update(identifier, extensionId, participant, tokenCount);
 	}
 
-	async $tryStartChatRequest(extension: ExtensionIdentifier, providerId: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any> {
+	async $tryStartChatRequest(extension: ExtensionIdentifier, providerId: string, requestId: number, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: {}, token: CancellationToken): Promise<any> {
 		this._logService.trace('[CHAT] request STARTED', extension.value, requestId);
 
-		const response = await this._chatProviderService.sendChatRequest(providerId, extension, messages, options, token);
+		let response: ILanguageModelChatResponse;
+		try {
+			response = await this._chatProviderService.sendChatRequest(providerId, extension, messages.value, options, token);
+		} catch (err) {
+			this._logService.error('[CHAT] request FAILED', extension.value, requestId, err);
+			throw err;
+		}
 
 		// !!! IMPORTANT !!!
 		// This method must return before the response is done (has streamed all parts)
@@ -136,7 +154,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 				}
 				this._logService.trace('[CHAT] request DONE', extension.value, requestId);
 			} catch (err) {
-				this._logService.error('[CHAT] extension request ERRORED in STREAM', err, extension.value, requestId);
+				this._logService.error('[CHAT] extension request ERRORED in STREAM', toErrorMessage(err, true), extension.value, requestId);
 				this._proxy.$acceptResponseDone(requestId, transformErrorForSerialization(err));
 			}
 		})();
@@ -146,7 +164,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 			this._logService.debug('[CHAT] extension request DONE', extension.value, requestId);
 			this._proxy.$acceptResponseDone(requestId, undefined);
 		}, err => {
-			this._logService.error('[CHAT] extension request ERRORED', err, extension.value, requestId);
+			this._logService.error('[CHAT] extension request ERRORED', toErrorMessage(err, true), extension.value, requestId);
 			this._proxy.$acceptResponseDone(requestId, transformErrorForSerialization(err));
 		});
 	}
@@ -238,6 +256,10 @@ class LanguageModelAccessAuthProvider implements IAuthenticationProvider {
 			this._session = undefined;
 		}
 		return Promise.resolve();
+	}
+
+	confirmation(extensionName: string, _recreatingSession: boolean): string {
+		return localize('confirmLanguageModelAccess', "The extension '{0}' wants to access the language models provided by {1}.", extensionName, this.label);
 	}
 
 	private _createFakeSession(scopes: string[]): AuthenticationSession {

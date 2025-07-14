@@ -25,10 +25,6 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { CompletionItem } from './suggest.js';
 import { canExpandCompletionItem } from './suggestWidgetDetails.js';
 
-export function getAriaId(index: number): string {
-	return `suggest-aria-id:${index}`;
-}
-
 const suggestMoreInfoIcon = registerIcon('suggest-more-info', Codicon.chevronRight, nls.localize('suggestMoreInfoIcon', 'Icon for more information in the suggest widget.'));
 
 const _completionItemColor = new class ColorExtractor {
@@ -138,6 +134,7 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			const fontInfo = options.get(EditorOption.fontInfo);
 			const fontFamily = fontInfo.getMassagedFontFamily();
 			const fontFeatureSettings = fontInfo.fontFeatureSettings;
+			const fontVariationSettings = fontInfo.fontVariationSettings;
 			const fontSize = options.get(EditorOption.suggestFontSize) || fontInfo.fontSize;
 			const lineHeight = options.get(EditorOption.suggestLineHeight) || fontInfo.lineHeight;
 			const fontWeight = fontInfo.fontWeight;
@@ -151,6 +148,7 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			root.style.letterSpacing = letterSpacingPx;
 			main.style.fontFamily = fontFamily;
 			main.style.fontFeatureSettings = fontFeatureSettings;
+			main.style.fontVariationSettings = fontVariationSettings;
 			main.style.lineHeight = lineHeightPx;
 			icon.style.height = lineHeightPx;
 			icon.style.width = lineHeightPx;
@@ -167,7 +165,6 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 		data.configureFont();
 
 		const { completion } = element;
-		data.root.id = getAriaId(index);
 		data.colorspan.style.backgroundColor = '';
 
 		const labelOptions: IIconLabelValueOptions = {

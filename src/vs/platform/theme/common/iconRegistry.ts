@@ -14,6 +14,7 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../jsonschemas/common/jsonContributionRegistry.js';
 import * as platform from '../../registry/common/platform.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 
 //  ------ API types
 
@@ -145,9 +146,20 @@ export interface IIconRegistry {
 	getIconFont(id: string): IconFontDefinition | undefined;
 }
 
-class IconRegistry implements IIconRegistry {
+// regexes for validation of font properties
 
-	private readonly _onDidChange = new Emitter<void>();
+export const fontIdRegex = /^([\w_-]+)$/;
+export const fontStyleRegex = /^(normal|italic|(oblique[ \w\s-]+))$/;
+export const fontWeightRegex = /^(normal|bold|lighter|bolder|(\d{0-1000}))$/;
+export const fontSizeRegex = /^([\w_.%+-]+)$/;
+export const fontFormatRegex = /^woff|woff2|truetype|opentype|embedded-opentype|svg$/;
+export const fontColorRegex = /^#[0-9a-fA-F]{0,6}$/;
+
+export const fontIdErrorMessage = localize('schema.fontId.formatError', 'The font ID must only contain letters, numbers, underscores and dashes.');
+
+class IconRegistry extends Disposable implements IIconRegistry {
+
+	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private iconsById: { [key: string]: IconContribution };
@@ -156,7 +168,7 @@ class IconRegistry implements IIconRegistry {
 			icons: {
 				type: 'object',
 				properties: {
-					fontId: { type: 'string', description: localize('iconDefinition.fontId', 'The id of the font to use. If not set, the font that is defined first is used.') },
+					fontId: { type: 'string', description: localize('iconDefinition.fontId', 'The id of the font to use. If not set, the font that is defined first is used.'), pattern: fontIdRegex.source, patternErrorMessage: fontIdErrorMessage },
 					fontCharacter: { type: 'string', description: localize('iconDefinition.fontCharacter', 'The font character associated with the icon definition.') }
 				},
 				additionalProperties: false,
@@ -171,6 +183,7 @@ class IconRegistry implements IIconRegistry {
 	private iconFontsById: { [key: string]: IconFontDefinition };
 
 	constructor() {
+		super();
 		this.iconsById = {};
 		this.iconFontsById = {};
 	}
@@ -252,7 +265,7 @@ class IconRegistry implements IIconRegistry {
 		return this.iconFontsById[id];
 	}
 
-	public toString() {
+	public override toString() {
 		const sorter = (i1: IconContribution, i2: IconContribution) => {
 			return i1.id.localeCompare(i2.id);
 		};
@@ -317,7 +330,6 @@ iconRegistry.onDidChange(() => {
 		delayer.schedule();
 	}
 });
-
 
 //setTimeout(_ => console.log(iconRegistry.toString()), 5000);
 

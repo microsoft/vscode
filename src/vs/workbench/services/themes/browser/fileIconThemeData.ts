@@ -13,7 +13,7 @@ import { getParseErrorMessage } from '../../../../base/common/jsonErrorMessages.
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { fontCharacterRegex, fontColorRegex, fontSizeRegex } from '../common/productIconThemeSchema.js';
+import { fontColorRegex, fontSizeRegex } from '../../../../platform/theme/common/iconRegistry.js';
 import * as css from '../../../../base/browser/cssValue.js';
 import { fileIconSelectorEscape } from '../../../../editor/common/services/getIconClasses.js';
 
@@ -407,7 +407,7 @@ export class FileIconThemeLoader {
 					fontSizes.set(font.id, fontSize);
 				}
 			});
-			cssRules.push(css.inline`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before, .show-file-icons .rootfolder-icon::before { font-family: ${css.stringValue(fonts[0].id)}; font-size: ${css.identValue(defaultFontSize)}; }`);
+			cssRules.push(css.inline`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before, .show-file-icons .rootfolder-icon::before { font-family: ${css.stringValue(fonts[0].id)}; font-size: ${css.sizeValue(defaultFontSize)}; }`);
 		}
 
 		// Use emQuads to prevent the icon from collapsing to zero height for image icons
@@ -424,7 +424,7 @@ export class FileIconThemeLoader {
 					if (definition.fontColor && definition.fontColor.match(fontColorRegex)) {
 						body.push(css.inline`color: ${css.hexColorValue(definition.fontColor)};`);
 					}
-					if (definition.fontCharacter && definition.fontCharacter.match(fontCharacterRegex)) {
+					if (definition.fontCharacter) {
 						body.push(css.inline`content: ${css.stringValue(definition.fontCharacter)};`);
 					}
 					const fontSize = definition.fontSize ?? (definition.fontId ? fontSizes.get(definition.fontId) : undefined);
@@ -494,5 +494,5 @@ function handleParentFolder(key: string, selectors: css.Builder): string {
 
 function classSelectorPart(str: string): css.CssFragment {
 	str = fileIconSelectorEscape(str);
-	return css.className(str);
+	return css.className(str, true);
 }

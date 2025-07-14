@@ -51,6 +51,9 @@ export interface IQuickPickItem {
 	 */
 	disabled?: boolean;
 	alwaysShow?: boolean;
+	indented?: boolean;
+	/** Defauls to true with `IQuickPick.canSelectMany`, can be false to disable picks for a single item */
+	pickable?: boolean;
 }
 
 export interface IQuickPickSeparator {
@@ -105,6 +108,11 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	 * an optional flag to filter the picks based on label. Defaults to true.
 	 */
 	matchOnLabel?: boolean;
+
+	/**
+	 * an optional flag to sort the picks based by the label.
+	 */
+	sortByLabel?: boolean;
 
 	/**
 	 * an optional flag to not close the picker on focus lost
@@ -476,6 +484,11 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 	 * The OK button state. It can be a boolean value or the string 'default'.
 	 */
 	ok: boolean | 'default';
+
+	/**
+	 * The OK button label.
+	 */
+	okLabel: string | undefined;
 
 	/**
 	 * An event that is fired when the custom button is triggered. The custom button is a button with text rendered to the right of the input.
@@ -923,7 +936,18 @@ export interface IQuickInputService {
 	cancel(): Promise<void>;
 
 	/**
+	 * Toggles hover for the current quick input item
+	 */
+	toggleHover(): void;
+
+	/**
 	 * The current quick pick that is visible. Undefined if none is open.
 	 */
 	currentQuickInput: IQuickInput | undefined;
+
+	/**
+	 * Set the alignment of the quick input.
+	 * @param alignment either a preset or a custom alignment
+	 */
+	setAlignment(alignment: 'top' | 'center' | { top: number; left: number }): void;
 }

@@ -265,6 +265,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		const rowOffset = !isPartialCommand && command.endMarker ? Math.max(buffer.viewportY - command.endMarker.line + 1, 0) : 0;
 		const maxLineCount = Math.min(this._rawMaxLineCount, Math.floor(xterm.rows * Constants.StickyScrollPercentageCap));
 		const stickyScrollLineCount = Math.min(promptRowCount + commandRowCount - 1, maxLineCount) - rowOffset;
+		const isTruncated = stickyScrollLineCount < promptRowCount + commandRowCount - 1;
 
 		// Hide sticky scroll if it's currently on a line that contains it
 		if (buffer.viewportY <= stickyScrollLineStart) {
@@ -293,7 +294,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				start: stickyScrollLineStart + rowOffset,
 				end: stickyScrollLineStart + rowOffset + Math.max(stickyScrollLineCount - 1, 0)
 			}
-		});
+		}) + (isTruncated ? '\x1b[0m …' : '');
 
 		// If a partial command's sticky scroll would show nothing, just hide it. This is another
 		// edge case when using a pager or interactive editor.
@@ -336,8 +337,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 					// following command.
 					let endMarkerOffset = 0;
 					if (!isPartialCommand && command.endMarker && command.endMarker.line !== -1) {
-						if (buffer.viewportY + stickyScrollLineCount > command.endMarker.line) {
-							const diff = buffer.viewportY + stickyScrollLineCount - command.endMarker.line;
+						const lastLine = Math.min(command.endMarker.line, buffer.baseY + buffer.cursorY);
+						if (buffer.viewportY + stickyScrollLineCount > lastLine) {
+							const diff = buffer.viewportY + stickyScrollLineCount - lastLine;
 							endMarkerOffset = diff * rowHeight;
 						}
 					}

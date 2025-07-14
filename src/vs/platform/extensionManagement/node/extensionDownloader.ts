@@ -66,8 +66,12 @@ export class ExtensionsDownloader extends Disposable {
 
 		const location = await this.downloadVSIX(extension, operation);
 
-		if (!verifySignature || !extension.isSigned) {
+		if (!verifySignature) {
 			return { location, verificationStatus: undefined };
+		}
+
+		if (!extension.isSigned) {
+			return { location, verificationStatus: ExtensionSignatureVerificationCode.NotSigned };
 		}
 
 		let signatureArchiveLocation;

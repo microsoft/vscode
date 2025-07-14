@@ -113,7 +113,11 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 			},
 			{
 				createEditorInput: ({ resource }) => {
-					const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.inputResource.toString() === resource.toString());
+					const editorInput = editorService.findEditors({
+						resource,
+						editorId: 'interactive',
+						typeId: InteractiveEditorInput.ID
+					}, { order: EditorsOrder.SEQUENTIAL }).at(0);
 					return editorInput!;
 				}
 			}
@@ -453,11 +457,15 @@ registerAction2(class extends Action2 {
 			category: interactiveWindowCategory,
 			keybinding: [{
 				// when: NOTEBOOK_CELL_LIST_FOCUSED,
-				when: ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
+				when: ContextKeyExpr.and(
+					IS_COMPOSITE_NOTEBOOK,
+					ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive')
+				),
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			}, {
 				when: ContextKeyExpr.and(
+					IS_COMPOSITE_NOTEBOOK,
 					ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', true)
 				),
@@ -465,6 +473,7 @@ registerAction2(class extends Action2 {
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			}, {
 				when: ContextKeyExpr.and(
+					IS_COMPOSITE_NOTEBOOK,
 					ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', false)
 				),
@@ -528,7 +537,7 @@ registerAction2(class extends Action2 {
 
 				const ctrl = InlineChatController.get(editorControl.activeCodeEditor);
 				if (ctrl) {
-					ctrl.acceptHunk();
+					ctrl.acceptSession();
 				}
 
 				historyService.replaceLast(notebookDocument.uri, value);

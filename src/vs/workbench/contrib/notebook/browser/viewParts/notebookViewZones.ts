@@ -6,7 +6,13 @@
 import { FastDomNode, createFastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { INotebookViewCellsUpdateEvent, INotebookViewZone, INotebookViewZoneChangeAccessor } from '../notebookBrowser.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { localize2 } from '../../../../../nls.js';
+import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IsDevelopmentContext } from '../../../../../platform/contextkey/common/contextkeys.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { getNotebookEditorFromEditorPane, INotebookViewCellsUpdateEvent, INotebookViewZone, INotebookViewZoneChangeAccessor } from '../notebookBrowser.js';
 import { NotebookCellListView } from '../view/notebookCellListView.js';
 import { ICoordinatesConverter } from '../view/notebookRenderingCommon.js';
 import { CellViewModel } from '../viewModel/notebookViewModelImpl.js';
@@ -64,6 +70,16 @@ export class NotebookViewZones extends Disposable {
 		changeAccessor.layoutZone = invalidFunc;
 
 		return zonesHaveChanged;
+	}
+
+	getViewZoneLayoutInfo(viewZoneId: string): { height: number; top: number } | null {
+		const zoneWidget = this._zones[viewZoneId];
+		if (!zoneWidget) {
+			return null;
+		}
+		const top = this.listView.getWhitespacePosition(zoneWidget.whitespaceId);
+		const height = zoneWidget.zone.heightInPx;
+		return { height: height, top: top };
 	}
 
 	onCellsChanged(e: INotebookViewCellsUpdateEvent): void {
@@ -141,6 +157,16 @@ export class NotebookViewZones extends Disposable {
 
 	private _removeZone(id: string): void {
 		this.listView.removeWhitespace(id);
+		const zoneWidget = this._zones[id];
+		if (zoneWidget) {
+			// safely remove the dom node from its parent
+			try {
+				this.domNode.removeChild(zoneWidget.domNode);
+			} catch {
+				// ignore the error
+			}
+		}
+
 		delete this._zones[id];
 	}
 
@@ -186,3 +212,59 @@ function safeInvoke1Arg(func: Function, arg1: any): void {
 		onUnexpectedError(e);
 	}
 }
+
+class ToggleNotebookViewZoneDeveloperAction extends Action2 {
+	static viewZoneIds: string[] = [];
+	constructor() {
+		super({
+			id: 'notebook.developer.addViewZones',
+			title: localize2('workbench.notebook.developer.addViewZones', "Toggle Notebook View Zones"),
+			category: Categories.Developer,
+			precondition: IsDevelopmentContext,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+
+		if (!editor) {
+			return;
+		}
+
+		if (ToggleNotebookViewZoneDeveloperAction.viewZoneIds.length > 0) {
+			// remove all view zones
+			editor.changeViewZones(accessor => {
+				// remove all view zones in reverse order, to follow how we handle this in the prod code
+				ToggleNotebookViewZoneDeveloperAction.viewZoneIds.reverse().forEach(id => {
+					accessor.removeZone(id);
+				});
+				ToggleNotebookViewZoneDeveloperAction.viewZoneIds = [];
+			});
+		} else {
+			editor.changeViewZones(accessor => {
+				const cells = editor.getCellsInRange();
+				if (cells.length === 0) {
+					return;
+				}
+
+				const viewZoneIds: string[] = [];
+				for (let i = 0; i < cells.length; i++) {
+					const domNode = document.createElement('div');
+					domNode.innerText = `View Zone ${i}`;
+					domNode.style.backgroundColor = 'rgba(0, 255, 0, 0.5)';
+					const viewZoneId = accessor.addZone({
+						afterModelPosition: i,
+						heightInPx: 200,
+						domNode: domNode,
+					});
+					viewZoneIds.push(viewZoneId);
+				}
+				ToggleNotebookViewZoneDeveloperAction.viewZoneIds = viewZoneIds;
+			});
+		}
+	}
+}
+
+registerAction2(ToggleNotebookViewZoneDeveloperAction);

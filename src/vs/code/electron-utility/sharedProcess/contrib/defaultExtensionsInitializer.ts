@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dirname, join } from 'path';
+import { dirname, join } from '../../../../base/common/path.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -50,7 +50,7 @@ export class DefaultExtensionsInitializer extends Disposable {
 			return;
 		}
 
-		const vsixs = stat.children.filter(child => child.name.endsWith('.vsix'));
+		const vsixs = stat.children.filter(child => child.name.toLowerCase().endsWith('.vsix'));
 		if (vsixs.length === 0) {
 			this.logService.debug('There are no default extensions to initialize', extensionsLocation.toString());
 			return;
@@ -71,8 +71,8 @@ export class DefaultExtensionsInitializer extends Disposable {
 
 	private getDefaultExtensionVSIXsLocation(): URI {
 		// appRoot = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\resources\app
-		// extensionsPath = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\extras\extensions
-		return URI.file(join(dirname(dirname(this.environmentService.appRoot)), 'extras', 'extensions'));
+		// extensionsPath = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\bootstrap\extensions
+		return URI.file(join(dirname(dirname(this.environmentService.appRoot)), 'bootstrap', 'extensions'));
 	}
 
 }

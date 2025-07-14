@@ -12,7 +12,7 @@ import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorAction, EditorCommand, EditorContributionInstantiation, ServicesAccessor, registerEditorAction, registerEditorCommand, registerEditorContribution } from '../../../browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { registerEditorFeature } from '../../../common/editorFeatures.js';
-import { CopyPasteController, changePasteTypeCommandId, pasteWidgetVisibleCtx } from './copyPasteController.js';
+import { CopyPasteController, PastePreference, changePasteTypeCommandId, pasteWidgetVisibleCtx } from './copyPasteController.js';
 import { DefaultPasteProvidersFeature, DefaultTextPasteOrDropEditProvider } from './defaultProviders.js';
 
 export const pasteAsCommandId = 'editor.action.pasteAs';
@@ -56,13 +56,29 @@ registerEditorCommand(new class extends EditorCommand {
 
 registerEditorAction(class PasteAsAction extends EditorAction {
 	private static readonly argsSchema = {
-		type: 'object',
-		properties: {
-			kind: {
-				type: 'string',
-				description: nls.localize('pasteAs.kind', "The kind of the paste edit to try applying. If not provided or there are multiple edits for this kind, the editor will show a picker."),
+		oneOf: [
+			{
+				type: 'object',
+				required: ['kind'],
+				properties: {
+					kind: {
+						type: 'string',
+						description: nls.localize('pasteAs.kind', "The kind of the paste edit to try pasting with.\nIf there are multiple edits for this kind, the editor will show a picker. If there are no edits of this kind, the editor will show an error message."),
+					}
+				},
+			},
+			{
+				type: 'object',
+				required: ['preferences'],
+				properties: {
+					preferences: {
+						type: 'array',
+						description: nls.localize('pasteAs.preferences', "List of preferred paste edit kind to try applying.\nThe first edit matching the preferences will be applied."),
+						items: { type: 'string' }
+					}
+				},
 			}
-		},
+		]
 	} as const satisfies IJSONSchema;
 
 	constructor() {
@@ -81,13 +97,15 @@ registerEditorAction(class PasteAsAction extends EditorAction {
 	}
 
 	public override run(_accessor: ServicesAccessor, editor: ICodeEditor, args?: SchemaToType<typeof PasteAsAction.argsSchema>) {
-		let kind = typeof args?.kind === 'string' ? args.kind : undefined;
-		if (!kind && args) {
-			// Support old id property
-			// TODO: remove this in the future
-			kind = typeof (args as any).id === 'string' ? (args as any).id : undefined;
+		let preference: PastePreference | undefined;
+		if (args) {
+			if ('kind' in args) {
+				preference = { only: new HierarchicalKind(args.kind) };
+			} else if ('preferences' in args) {
+				preference = { preferences: args.preferences.map(kind => new HierarchicalKind(kind)) };
+			}
 		}
-		return CopyPasteController.get(editor)?.pasteAs(kind ? new HierarchicalKind(kind) : undefined);
+		return CopyPasteController.get(editor)?.pasteAs(preference);
 	}
 });
 

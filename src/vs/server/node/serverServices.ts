@@ -20,7 +20,7 @@ import { IDownloadService } from '../../platform/download/common/download.js';
 import { DownloadServiceChannelClient } from '../../platform/download/common/downloadIpc.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../platform/environment/common/environment.js';
 import { ExtensionGalleryServiceWithNoStorageService } from '../../platform/extensionManagement/common/extensionGalleryService.js';
-import { IExtensionGalleryService } from '../../platform/extensionManagement/common/extensionManagement.js';
+import { IAllowedExtensionsService, IExtensionGalleryService } from '../../platform/extensionManagement/common/extensionManagement.js';
 import { ExtensionSignatureVerificationService, IExtensionSignatureVerificationService } from '../../platform/extensionManagement/node/extensionSignatureVerificationService.js';
 import { ExtensionManagementCLI } from '../../platform/extensionManagement/common/extensionManagementCLI.js';
 import { ExtensionManagementChannel } from '../../platform/extensionManagement/common/extensionManagementIpc.js';
@@ -78,6 +78,18 @@ import { RemoteExtensionsScannerChannelName } from '../../platform/remote/common
 import { RemoteUserDataProfilesServiceChannel } from '../../platform/userDataProfile/common/userDataProfileIpc.js';
 import { NodePtyHostStarter } from '../../platform/terminal/node/nodePtyHostStarter.js';
 import { CSSDevelopmentService, ICSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
+import { AllowedExtensionsService } from '../../platform/extensionManagement/common/allowedExtensionsService.js';
+import { TelemetryLogAppender } from '../../platform/telemetry/common/telemetryLogAppender.js';
+import { INativeMcpDiscoveryHelperService, NativeMcpDiscoveryHelperChannelName } from '../../platform/mcp/common/nativeMcpDiscoveryHelper.js';
+import { NativeMcpDiscoveryHelperChannel } from '../../platform/mcp/node/nativeMcpDiscoveryHelperChannel.js';
+import { NativeMcpDiscoveryHelperService } from '../../platform/mcp/node/nativeMcpDiscoveryHelperService.js';
+import { IExtensionGalleryManifestService } from '../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ExtensionGalleryManifestIPCService } from '../../platform/extensionManagement/common/extensionGalleryManifestServiceIpc.js';
+import { IMcpGalleryService, IMcpManagementService } from '../../platform/mcp/common/mcpManagement.js';
+import { McpManagementService } from '../../platform/mcp/node/mcpManagementService.js';
+import { McpGalleryService } from '../../platform/mcp/common/mcpGalleryService.js';
+import { IMcpResourceScannerService, McpResourceScannerService } from '../../platform/mcp/common/mcpResourceScannerService.js';
+import { McpManagementChannel } from '../../platform/mcp/common/mcpManagementIpc.js';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -148,7 +160,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IExtensionHostStatusService, extensionHostStatusService);
 
 	// Request
-	const requestService = new RequestService(configurationService, environmentService, logService);
+	const requestService = new RequestService('remote', configurationService, environmentService, logService);
 	services.set(IRequestService, requestService);
 
 	let oneDsAppender: ITelemetryAppender = NullAppender;
@@ -160,8 +172,8 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		}
 
 		const config: ITelemetryServiceConfig = {
-			appenders: [oneDsAppender],
-			commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version + '-remote', machineId, sqmId, devDeviceId, isInternal, 'remoteAgent'),
+			appenders: [oneDsAppender, new TelemetryLogAppender('', true, loggerService, environmentService, productService)],
+			commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version + '-remote', machineId, sqmId, devDeviceId, isInternal, productService.date, 'remoteAgent'),
 			piiPaths: getPiiPathsFromEnvironment(environmentService)
 		};
 		const initialTelemetryLevelArg = environmentService.args['telemetry-level'];
@@ -181,6 +193,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		services.set(IServerTelemetryService, ServerNullTelemetryService);
 	}
 
+	services.set(IExtensionGalleryManifestService, new ExtensionGalleryManifestIPCService(socketServer, productService));
 	services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService));
 
 	const downloadChannel = socketServer.getChannel('download', router);
@@ -189,7 +202,9 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService));
 	services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
 	services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService));
+	services.set(IAllowedExtensionsService, new SyncDescriptor(AllowedExtensionsService));
 	services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
+	services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService));
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
 	services.set(ILanguagePackService, instantiationService.createInstance(NativeLanguagePackService));
@@ -205,7 +220,12 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const ptyHostService = instantiationService.createInstance(PtyHostService, ptyHostStarter);
 	services.set(IPtyService, ptyHostService);
 
+	services.set(IMcpResourceScannerService, new SyncDescriptor(McpResourceScannerService));
+	services.set(IMcpGalleryService, new SyncDescriptor(McpGalleryService));
+	services.set(IMcpManagementService, new SyncDescriptor(McpManagementService));
+
 	instantiationService.invokeFunction(accessor => {
+		const mcpManagementService = accessor.get(IMcpManagementService);
 		const extensionManagementService = accessor.get(INativeServerExtensionManagementService);
 		const extensionsScannerService = accessor.get(IExtensionsScannerService);
 		const extensionGalleryService = accessor.get(IExtensionGalleryService);
@@ -218,8 +238,10 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 		socketServer.registerChannel(REMOTE_TERMINAL_CHANNEL_NAME, new RemoteTerminalChannel(environmentService, logService, ptyHostService, productService, extensionManagementService, configurationService));
 
-		const remoteExtensionsScanner = new RemoteExtensionsScannerService(instantiationService.createInstance(ExtensionManagementCLI, logService), environmentService, userDataProfilesService, extensionsScannerService, logService, extensionGalleryService, languagePackService);
+		const remoteExtensionsScanner = new RemoteExtensionsScannerService(instantiationService.createInstance(ExtensionManagementCLI, logService), environmentService, userDataProfilesService, extensionsScannerService, logService, extensionGalleryService, languagePackService, extensionManagementService);
 		socketServer.registerChannel(RemoteExtensionsScannerChannelName, new RemoteExtensionsScannerChannel(remoteExtensionsScanner, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
+
+		socketServer.registerChannel(NativeMcpDiscoveryHelperChannelName, instantiationService.createInstance(NativeMcpDiscoveryHelperChannel, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
 
 		const remoteFileSystemChannel = disposables.add(new RemoteAgentFileSystemProviderChannel(logService, environmentService, configurationService));
 		socketServer.registerChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME, remoteFileSystemChannel);
@@ -228,6 +250,8 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 		const channel = new ExtensionManagementChannel(extensionManagementService, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority));
 		socketServer.registerChannel('extensions', channel);
+
+		socketServer.registerChannel('mcpManagement', new McpManagementChannel(mcpManagementService, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
 
 		// clean up extensions folder
 		remoteExtensionsScanner.whenExtensionsReady().then(() => extensionManagementService.cleanUp());

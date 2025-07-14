@@ -24,6 +24,8 @@ import { ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariabl
 import { ITerminalLinkProviderService } from '../../contrib/terminalContrib/links/browser/links.js';
 import { ITerminalQuickFixService, ITerminalQuickFix, TerminalQuickFixType } from '../../contrib/terminalContrib/quickFix/browser/quickFix.js';
 import { TerminalCapability } from '../../../platform/terminal/common/capabilities/capabilities.js';
+import { ITerminalCompletionService } from '../../contrib/terminalContrib/suggest/browser/terminalCompletionService.js';
+import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -39,6 +41,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private readonly _extHostTerminals = new Map<string, Promise<ITerminalInstance>>();
 	private readonly _terminalProcessProxies = new Map<number, ITerminalProcessExtHostProxy>();
 	private readonly _profileProviders = new Map<string, IDisposable>();
+	private readonly _completionProviders = new Map<string, IDisposable>();
 	private readonly _quickFixProviders = new Map<string, IDisposable>();
 	private readonly _dataEventTracker = new MutableDisposable<TerminalDataEventTracker>();
 	private readonly _sendCommandEventListener = new MutableDisposable();
@@ -54,7 +57,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private _os: OperatingSystem = OS;
 
 	constructor(
-		private readonly _extHostContext: IExtHostContext,
+		_extHostContext: IExtHostContext,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalLinkProviderService private readonly _terminalLinkProviderService: ITerminalLinkProviderService,
 		@ITerminalQuickFixService private readonly _terminalQuickFixService: ITerminalQuickFixService,
@@ -65,7 +68,9 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
-		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService
+		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
+		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 
@@ -84,11 +89,15 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._store.add(_terminalService.onAnyInstanceTitleChange(instance => instance && this._onTitleChanged(instance.instanceId, instance.title)));
 		this._store.add(_terminalService.onAnyInstanceDataInput(instance => this._proxy.$acceptTerminalInteraction(instance.instanceId)));
 		this._store.add(_terminalService.onAnyInstanceSelectionChange(instance => this._proxy.$acceptTerminalSelection(instance.instanceId, instance.selection)));
+		this._store.add(_terminalService.onAnyInstanceShellTypeChanged(instance => this._onShellTypeChanged(instance.instanceId)));
 
 		// Set initial ext host state
 		for (const instance of this._terminalService.instances) {
 			this._onTerminalOpened(instance);
 			instance.processReady.then(() => this._onTerminalProcessIdReady(instance));
+			if (instance.shellType) {
+				this._proxy.$acceptTerminalShellType(instance.instanceId, instance.shellType);
+			}
 		}
 		const activeInstance = this._terminalService.activeInstance;
 		if (activeInstance) {
@@ -120,7 +129,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	private async _updateDefaultProfile() {
-		const remoteAuthority = this._extHostContext.remoteAuthority ?? undefined;
+		const remoteAuthority = this._environmentService.remoteAuthority;
 		const defaultProfile = this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority, os: this._os });
 		const defaultAutomationProfile = this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority, os: this._os, allowAutomationShell: true });
 		this._proxy.$acceptDefaultProfile(...await Promise.all([defaultProfile, defaultAutomationProfile]));
@@ -264,6 +273,24 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._terminalService.registerProcessSupport(isSupported);
 	}
 
+	public $registerCompletionProvider(id: string, extensionIdentifier: string, ...triggerCharacters: string[]): void {
+		this._completionProviders.set(id, this._terminalCompletionService.registerTerminalCompletionProvider(extensionIdentifier, id, {
+			id,
+			provideCompletions: async (commandLine, cursorPosition, allowFallbackCompletions, token) => {
+				const completions = await this._proxy.$provideTerminalCompletions(id, { commandLine, cursorPosition, allowFallbackCompletions }, token);
+				return {
+					items: completions?.items.map(c => ({ ...c, provider: id })),
+					resourceRequestConfig: completions?.resourceRequestConfig
+				};
+			}
+		}, ...triggerCharacters));
+	}
+
+	public $unregisterCompletionProvider(id: string): void {
+		this._completionProviders.get(id)?.dispose();
+		this._completionProviders.delete(id);
+	}
+
 	public $registerProfileProvider(id: string, extensionIdentifier: string): void {
 		// Proxy profile provider requests through the extension host
 		this._profileProviders.set(id, this._terminalProfileService.registerTerminalProfileProvider(extensionIdentifier, id, {
@@ -336,6 +363,13 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._proxy.$acceptTerminalTitleChange(terminalId, name);
 	}
 
+	private _onShellTypeChanged(terminalId: number): void {
+		const terminalInstance = this._terminalService.getInstanceFromId(terminalId);
+		if (terminalInstance) {
+			this._proxy.$acceptTerminalShellType(terminalId, terminalInstance.shellType);
+		}
+	}
+
 	private _onTerminalDisposed(terminalInstance: ITerminalInstance): void {
 		this._proxy.$acceptTerminalClosed(terminalInstance.instanceId, terminalInstance.exitCode, terminalInstance.exitReason ?? TerminalExitReason.Unknown);
 	}
@@ -348,7 +382,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			args: terminalInstance.shellLaunchConfig.args,
 			cwd: terminalInstance.shellLaunchConfig.cwd,
 			env: terminalInstance.shellLaunchConfig.env,
-			hideFromUser: terminalInstance.shellLaunchConfig.hideFromUser
+			hideFromUser: terminalInstance.shellLaunchConfig.hideFromUser,
+			tabActions: terminalInstance.shellLaunchConfig.tabActions
 		};
 		this._proxy.$acceptTerminalOpened(terminalInstance.instanceId, extHostTerminalId, terminalInstance.title, shellLaunchConfigDto);
 	}

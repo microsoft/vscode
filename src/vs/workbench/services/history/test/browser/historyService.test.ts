@@ -838,7 +838,7 @@ suite('HistoryService', function () {
 		const input4 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar4'), TEST_EDITOR_INPUT_ID));
 		const input5 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar5'), TEST_EDITOR_INPUT_ID));
 
-		let editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
+		let editorChangePromise: Promise<void> = Event.toPromise(editorService.onDidActiveEditorChange);
 		await part.activeGroup.openEditor(input1, { pinned: true });
 		assert.strictEqual(part.activeGroup.activeEditor, input1);
 		await editorChangePromise;

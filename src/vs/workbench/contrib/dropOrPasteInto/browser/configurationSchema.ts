@@ -86,10 +86,10 @@ export class DropOrPasteSchemaContribution extends Disposable implements IWorkbe
 					this._onDidChangeSchemaContributions.fire();
 				}));
 
-		keybindingService.registerSchemaContribution({
+		this._register(keybindingService.registerSchemaContribution({
 			getSchemaAdditions: () => this.getKeybindingSchemaAdditions(),
 			onDidChange: this._onDidChangeSchemaContributions.event,
-		});
+		}));
 	}
 
 	private updateProvidedKinds(): void {
@@ -139,15 +139,33 @@ export class DropOrPasteSchemaContribution extends Disposable implements IWorkbe
 				then: {
 					properties: {
 						'args': {
-							required: ['kind'],
-							properties: {
-								'kind': {
-									anyOf: [
-										{ enum: Array.from(this._allProvidedPasteKinds.map(x => x.value)) },
-										{ type: 'string' },
-									]
+							oneOf: [
+								{
+									required: ['kind'],
+									properties: {
+										'kind': {
+											anyOf: [
+												{ enum: Array.from(this._allProvidedPasteKinds.map(x => x.value)) },
+												{ type: 'string' },
+											]
+										}
+									}
+								},
+								{
+									required: ['preferences'],
+									properties: {
+										'preferences': {
+											type: 'array',
+											items: {
+												anyOf: [
+													{ enum: Array.from(this._allProvidedPasteKinds.map(x => x.value)) },
+													{ type: 'string' },
+												]
+											}
+										}
+									}
 								}
-							}
+							]
 						}
 					}
 				}
