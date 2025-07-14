@@ -158,6 +158,8 @@ export class RenderLineInput {
 			&& LineDecoration.equalsArr(this.lineDecorations, other.lineDecorations)
 			&& this.lineTokens.equals(other.lineTokens)
 			&& this.sameSelection(other.selectionsOnLine)
+			&& this.textDirection === other.textDirection
+			&& this.verticalScrollbarSize === other.verticalScrollbarSize
 		);
 	}
 }
