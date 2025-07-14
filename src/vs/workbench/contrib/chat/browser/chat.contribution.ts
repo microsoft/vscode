@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { PolicyTag } from '../../../../base/common/policy.js';
 import './promptSyntax/promptToolsCodeLensProvider.js';
 import './promptSyntax/promptCodingAgentActionContribution.js';
 import { timeout } from '../../../../base/common/async.js';
@@ -10,7 +11,7 @@ import { Event } from '../../../../base/common/event.js';
 import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { isLinux, isMacintosh } from '../../../../base/common/platform.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
 import { assertDefined } from '../../../../base/common/types.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
@@ -213,8 +214,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.notifyWindowOnConfirmation': {
 			type: 'boolean',
-			included: !isLinux, // Linux does not have a mechanism for this
-			description: nls.localize('chat.notifyWindowOnConfirmation', "Controls whether the Copilot window should notify the user when a confirmation is needed."),
+			description: nls.localize('chat.notifyWindowOnConfirmation', "Controls whether the Copilot window should notify the user when a confirmation is needed while the window is not in focus. This includes a window badge as well as notification toast."),
 			default: true,
 		},
 		'chat.tools.autoApprove': {
@@ -227,8 +227,8 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatToolsAutoApprove',
 				minimumVersion: '1.99',
-				previewFeature: true,
-				defaultValue: false
+				defaultValue: false,
+				tags: [PolicyTag.Account, PolicyTag.Preview]
 			}
 		},
 		'chat.sendElementsToChat.enabled': {
@@ -262,6 +262,12 @@ configurationRegistry.registerConfiguration({
 			default: 'inline',
 			tags: ['experimental', 'onExp'],
 		},
+		'chat.emptyChatState.enabled': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.emptyChatState', "Shows a modified empty chat state with hints in the input placeholder text."),
+			tags: ['experimental', 'onExp'],
+		},
 		[mcpEnabledSection]: {
 			type: 'boolean',
 			description: nls.localize('chat.mcp.enabled', "Enables integration with Model Context Protocol servers to provide additional tools and functionality."),
@@ -269,6 +275,7 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatMCP',
 				minimumVersion: '1.99',
+				tags: [PolicyTag.Account, PolicyTag.MCP]
 			}
 		},
 		[mcpServerSamplingSection]: {
@@ -328,9 +335,13 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatAgentMode',
 				minimumVersion: '1.99',
-				previewFeature: false,
-				defaultValue: false
 			}
+		},
+		[ChatConfiguration.EnableMath]: {
+			type: 'boolean',
+			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using Katex."),
+			default: false,
+			tags: ['preview'],
 		},
 		[mcpDiscoverySection]: {
 			oneOf: [
@@ -380,8 +391,8 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatPromptFiles',
 				minimumVersion: '1.99',
 				description: nls.localize('chat.promptFiles.policy', "Enables reusable prompt and instruction files in Chat, Edits, and Inline Chat sessions."),
-				previewFeature: true,
-				defaultValue: false
+				defaultValue: false,
+				tags: [PolicyTag.Account, PolicyTag.Preview]
 			}
 		},
 		[PromptsConfig.INSTRUCTIONS_LOCATION_KEY]: {
@@ -472,7 +483,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.setup.signInDialogVariant': { // TODO@bpasero remove me eventually
 			type: 'string',
-			enum: ['default', 'alternate-first', 'alternate-color', 'alternate-monochrome'],
+			enum: ['default', 'apple'],
 			description: nls.localize('chat.signInDialogVariant', "Control variations of the sign-in dialog."),
 			default: 'default',
 			tags: ['onExp', 'experimental']

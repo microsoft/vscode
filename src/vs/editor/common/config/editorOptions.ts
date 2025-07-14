@@ -423,6 +423,10 @@ export interface IEditorOptions {
 	 */
 	scrollPredominantAxis?: boolean;
 	/**
+	 * Make scrolling inertial - mostly useful with touchpad on linux.
+	 */
+	inertialScroll?: boolean;
+	/**
 	 * Enable that the selection with the mouse and keys is doing column selection.
 	 * Defaults to false.
 	 */
@@ -3240,7 +3244,7 @@ export interface IEditorMinimapOptions {
 	/**
 	 * Control the rendering of minimap.
 	 */
-	autohide?: boolean;
+	autohide?: 'none' | 'mouseover' | 'scroll';
 	/**
 	 * Control the side of the minimap in editor.
 	 * Defaults to 'right'.
@@ -3312,7 +3316,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			size: 'proportional',
 			side: 'right',
 			showSlider: 'mouseover',
-			autohide: false,
+			autohide: 'none',
 			renderCharacters: true,
 			maxColumn: 120,
 			scale: 1,
@@ -3331,7 +3335,13 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 					description: nls.localize('minimap.enabled', "Controls whether the minimap is shown.")
 				},
 				'editor.minimap.autohide': {
-					type: 'boolean',
+					type: 'string',
+					enum: ['none', 'mouseover', 'scroll'],
+					enumDescriptions: [
+						nls.localize('minimap.autohide.none', "The minimap is always shown."),
+						nls.localize('minimap.autohide.mouseover', "The minimap is hidden when mouse is not over the minimap and shown when mouse is over the minimap."),
+						nls.localize('minimap.autohide.scroll', "The minimap is only shown when the editor is scrolled"),
+					],
 					default: defaults.autohide,
 					description: nls.localize('minimap.autohide', "Controls whether the minimap is hidden automatically.")
 				},
@@ -3423,7 +3433,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
-			autohide: boolean(input.autohide, this.defaultValue.autohide),
+			autohide: stringSet<'none' | 'mouseover' | 'scroll'>(input.autohide, this.defaultValue.autohide, ['none', 'mouseover', 'scroll']),
 			size: stringSet<'proportional' | 'fill' | 'fit'>(input.size, this.defaultValue.size, ['proportional', 'fill', 'fit']),
 			side: stringSet<'right' | 'left'>(input.side, this.defaultValue.side, ['right', 'left']),
 			showSlider: stringSet<'always' | 'mouseover'>(input.showSlider, this.defaultValue.showSlider, ['always', 'mouseover']),
@@ -5700,6 +5710,7 @@ export const enum EditorOption {
 	wrappingIndent,
 	wrappingStrategy,
 	showDeprecated,
+	inertialScroll,
 	inlayHints,
 	// Leave these at the end (because they have dependencies!)
 	effectiveCursorStyle,
@@ -6111,6 +6122,10 @@ export const EditorOptions = {
 	hover: register(new EditorHover()),
 	inDiffEditor: register(new EditorBooleanOption(
 		EditorOption.inDiffEditor, 'inDiffEditor', false
+	)),
+	inertialScroll: register(new EditorBooleanOption(
+		EditorOption.inertialScroll, 'inertialScroll', false,
+		{ description: nls.localize('inertialScroll', "Make scrolling inertial - mostly useful with touchpad on linux.") }
 	)),
 	letterSpacing: register(new EditorFloatOption(
 		EditorOption.letterSpacing, 'letterSpacing',

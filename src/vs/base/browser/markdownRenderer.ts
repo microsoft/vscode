@@ -40,9 +40,11 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 }
 
 export interface ISanitizerOptions {
-	replaceWithPlaintext?: boolean;
-	allowedTags?: string[];
-	allowedProductProtocols?: string[];
+	readonly replaceWithPlaintext?: boolean;
+	readonly allowedTags?: readonly string[];
+	readonly customAttrSanitizer?: (attrName: string, attrValue: string) => boolean | string;
+	readonly allowedSchemes?: readonly string[];
+	readonly allowedProductProtocols?: readonly string[];
 }
 
 const defaultMarkedRenderers = Object.freeze({
@@ -107,14 +109,14 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	const element = createElement(options);
 
 	const markedInstance = new marked.Marked(...(markedOptions.markedExtensions ?? []));
-	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(markedInstance, options, markdown);
+	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(markedInstance, options, markedOptions, markdown);
 	const value = preprocessMarkdownString(markdown);
 
 	let renderedMarkdown: string;
 	if (options.fillInIncompleteTokens) {
 		// The defaults are applied by parse but not lexer()/parser(), and they need to be present
 		const opts: MarkedOptions = {
-			...marked.defaults,
+			...markedInstance.defaults,
 			...markedOptions,
 			renderer
 		};
@@ -245,8 +247,8 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 	}
 }
 
-function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOptions, markdown: IMarkdownString): { renderer: marked.Renderer; codeBlocks: Promise<[string, HTMLElement]>[]; syncCodeBlocks: [string, HTMLElement][] } {
-	const renderer = new marked.Renderer();
+function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOptions, markedOptions: MarkedOptions, markdown: IMarkdownString): { renderer: marked.Renderer; codeBlocks: Promise<[string, HTMLElement]>[]; syncCodeBlocks: [string, HTMLElement][] } {
+	const renderer = new marked.Renderer(markedOptions);
 	renderer.image = defaultMarkedRenderers.image;
 	renderer.link = defaultMarkedRenderers.link;
 	renderer.paragraph = defaultMarkedRenderers.paragraph;
@@ -397,7 +399,7 @@ function resolveWithBaseUri(baseUri: URI, href: string): string {
 }
 
 interface IInternalSanitizerOptions extends ISanitizerOptions {
-	isTrusted?: boolean | MarkdownStringTrustedOptions;
+	readonly isTrusted?: boolean | MarkdownStringTrustedOptions;
 }
 
 const selfClosingTags = ['area', 'base', 'br', 'col', 'command', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
@@ -409,6 +411,21 @@ function sanitizeRenderedMarkdown(
 	const { config, allowedSchemes } = getSanitizerOptions(options);
 	const store = new DisposableStore();
 	store.add(addDompurifyHook('uponSanitizeAttribute', (element, e) => {
+		if (options.customAttrSanitizer) {
+			const result = options.customAttrSanitizer(e.attrName, e.attrValue);
+			if (typeof result === 'string') {
+				if (result) {
+					e.attrValue = result;
+					e.keepAttr = true;
+				} else {
+					e.keepAttr = false;
+				}
+			} else {
+				e.keepAttr = result;
+			}
+			return;
+		}
+
 		if (e.attrName === 'style' || e.attrName === 'class') {
 			if (element.tagName === 'SPAN') {
 				if (e.attrName === 'style') {
@@ -419,6 +436,7 @@ function sanitizeRenderedMarkdown(
 					return;
 				}
 			}
+
 			e.keepAttr = false;
 			return;
 		} else if (element.tagName === 'INPUT' && element.attributes.getNamedItem('type')?.value === 'checkbox') {
@@ -546,7 +564,7 @@ function getSanitizerOptions(options: IInternalSanitizerOptions): { config: domp
 			// Since we have our own sanitize function for marked, it's possible we missed some tag so let dompurify make sure.
 			// HTML tags that can result from markdown are from reading https://spec.commonmark.org/0.29/
 			// HTML table tags that can result from markdown are from https://github.github.com/gfm/#tables-extension-
-			ALLOWED_TAGS: options.allowedTags ?? [...DOM.basicMarkupHtmlTags],
+			ALLOWED_TAGS: options.allowedTags ? [...options.allowedTags] : [...DOM.basicMarkupHtmlTags],
 			ALLOWED_ATTR: allowedMarkdownAttr,
 			ALLOW_UNKNOWN_PROTOCOLS: true,
 		},

@@ -409,19 +409,14 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 		this._pasteProgressManager.showWhile(selections[0].getEndPosition(), localize('pasteIntoEditorProgress', "Running paste handlers. Click to cancel and do basic paste"), p, {
 			cancel: async () => {
-				try {
-					p.cancel();
-
-					if (editorStateCts.token.isCancellationRequested) {
-						return;
-					}
-
-					await this.applyDefaultPasteHandler(dataTransfer, metadata, editorStateCts.token, clipboardEvent);
-				} finally {
-					editorStateCts.dispose();
+				p.cancel();
+				if (editorStateCts.token.isCancellationRequested) {
+					return;
 				}
+
+				await this.applyDefaultPasteHandler(dataTransfer, metadata, editorStateCts.token, clipboardEvent);
 			}
-		}).then(() => {
+		}).finally(() => {
 			editorStateCts.dispose();
 		});
 		this._currentPasteOperation = p;
