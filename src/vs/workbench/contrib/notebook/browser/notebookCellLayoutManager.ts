@@ -26,9 +26,8 @@ export class NotebookCellLayoutManager extends Disposable {
 
 	private checkStackDepth() {
 		if (this._layoutStack.length > 30) {
-			this.loggingService.error('cell layout', `NotebookCellLayoutManager: layout stack is too deep`);
-			this.loggingService.error('cell layout', this._layoutStack.join(' -> '));
-			throw new Error('NotebookCellLayoutManager: layout stack is too deep, check logs for more info');
+			const layoutTrace = this._layoutStack.join(' -> ');
+			throw new Error('NotebookCellLayoutManager: layout stack is too deep: ' + layoutTrace);
 		}
 	}
 
