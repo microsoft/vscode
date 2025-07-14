@@ -89,11 +89,11 @@ declare module 'vscode' {
 				 */
 				local: boolean;
 				/**
-				 * Use ignore files at the parent directory. If set, {@link TextSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
-				 */
+				* Use ignore files at the parent directory. If set, `local` in {@link TextSearchProviderFolderOptions.useIgnoreFiles} should also be `true`.
+				*/
 				parent: boolean;
 				/**
-				 * Use global ignore files. If set, {@link TextSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
+				 * Use global ignore files. If set, `local` in {@link TextSearchProviderFolderOptions.useIgnoreFiles} should also be `true`.
 				 */
 				global: boolean;
 			};
@@ -145,7 +145,7 @@ declare module 'vscode' {
 	export interface TextSearchComplete2 {
 		/**
 		 * Whether the search hit the limit on the maximum number of search results.
-		 * `maxResults` on {@linkcode TextSearchProviderOptions} specifies the max number of results.
+		 * `maxResults` on {@link TextSearchProviderOptions} specifies the max number of results.
 		 * - If exactly that number of matches exist, this should be false.
 		 * - If `maxResults` matches are returned and more exist, this should be true.
 		 * - If search hits an internal limit which is less than `maxResults`, this should be true.
@@ -238,18 +238,38 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Keyword suggestion for AI search.
+	 */
+	export class AISearchKeyword {
+		/**
+		 * @param keyword The keyword associated with the search.
+		 */
+		constructor(keyword: string);
+
+		/**
+		 * The keyword associated with the search.
+		 */
+		keyword: string;
+	}
+
+	/**
 	 * A result payload for a text search, pertaining to {@link TextSearchMatch2 matches}
 	 * and its associated {@link TextSearchContext2 context} within a single file.
 	 */
 	export type TextSearchResult2 = TextSearchMatch2 | TextSearchContext2;
 
 	/**
+	 * A result payload for an AI search.
+	 * This can be a {@link TextSearchMatch2 match} or a {@link AISearchKeyword keyword}.
+	 * The result can be a match or a keyword.
+	 */
+	export type AISearchResult = TextSearchResult2 | AISearchKeyword;
+
+	/**
 	 * A TextSearchProvider provides search results for text results inside files in the workspace.
 	 */
 	export interface TextSearchProvider2 {
 		/**
-		 * WARNING: VERY EXPERIMENTAL.
-		 *
 		 * Provide results that match the given text pattern.
 		 * @param query The parameters for this query.
 		 * @param options A set of options to consider while searching.
@@ -257,7 +277,7 @@ declare module 'vscode' {
 		 * These results can be direct matches, or context that surrounds matches.
 		 * @param token A cancellation token.
 		 */
-		provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: Progress<TextSearchResult2>, token: CancellationToken): ProviderResult<TextSearchComplete2>;
+		provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: Progress<AISearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete2>;
 	}
 
 	export namespace workspace {

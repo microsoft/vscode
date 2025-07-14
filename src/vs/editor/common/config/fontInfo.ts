@@ -11,12 +11,12 @@ import { EditorZoom } from './editorZoom.js';
  * Determined from empirical observations.
  * @internal
  */
-const GOLDEN_LINE_HEIGHT_RATIO = platform.isMacintosh ? 1.5 : 1.35;
+export const GOLDEN_LINE_HEIGHT_RATIO = platform.isMacintosh ? 1.5 : 1.35;
 
 /**
  * @internal
  */
-const MINIMUM_LINE_HEIGHT = 8;
+export const MINIMUM_LINE_HEIGHT = 8;
 
 /**
  * @internal

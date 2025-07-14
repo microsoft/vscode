@@ -51,7 +51,7 @@ export class TestingProgressTrigger extends Disposable {
 			return;
 		}
 
-		const cfg = getTestingConfiguration(this.configurationService, TestingConfigKeys.OpenTesting);
+		const cfg = getTestingConfiguration(this.configurationService, TestingConfigKeys.OpenResults);
 		if (cfg === AutoOpenTesting.NeverOpen) {
 			return;
 		}

@@ -13,7 +13,7 @@ import { Schemas } from '../../../base/common/network.js';
 import { Counter } from '../../../base/common/numbers.js';
 import { basename, basenameOrAuthority, dirname, ExtUri, relativePath } from '../../../base/common/resources.js';
 import { compare } from '../../../base/common/strings.js';
-import { URI, UriComponents } from '../../../base/common/uri.js';
+import { isUriComponents, URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { FileSystemProviderCapabilities } from '../../../platform/files/common/files.js';
@@ -35,6 +35,10 @@ import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext
 import { revive } from '../../../base/common/marshalling.js';
 import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
 import { ExcludeSettingOptions, TextSearchContext2, TextSearchMatch2 } from '../../services/search/common/searchExtTypes.js';
+import { bufferToStream, readableToBuffer, VSBuffer } from '../../../base/common/buffer.js';
+import { toDecodeStream, toEncodeReadable, UTF8 } from '../../services/textfile/common/encoding.js';
+import { consumeStream } from '../../../base/common/stream.js';
+import { stringToSnapshot } from '../../services/textfile/common/textfiles.js';
 
 export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
@@ -468,7 +472,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		}
 
 		// todo: consider exclude baseURI if available
-		return this._findFilesImpl(include, undefined, {
+		return this._findFilesImpl({ type: 'include', value: include }, {
 			exclude: [excludeString],
 			maxResults,
 			useExcludeSettings: useFileExcludes ? ExcludeSettingOptions.FilesExclude : ExcludeSettingOptions.None,
@@ -478,54 +482,33 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		}, token);
 	}
 
-	findFiles2(filePattern: vscode.GlobPattern | undefined,
+
+	findFiles2(filePatterns: readonly vscode.GlobPattern[],
 		options: vscode.FindFiles2Options = {},
 		extensionId: ExtensionIdentifier,
 		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
-		this._logService.trace(`extHostWorkspace#findFiles2: fileSearch, extension: ${extensionId.value}, entryPoint: findFiles2`);
-
-
-		const useDefaultExcludes = options.useDefaultExcludes ?? true;
-		const useDefaultSearchExcludes = options.useDefaultSearchExcludes ?? true;
-		const excludeSetting = useDefaultExcludes ?
-			(useDefaultSearchExcludes ? ExcludeSettingOptions.SearchAndFilesExclude : ExcludeSettingOptions.FilesExclude) :
-			ExcludeSettingOptions.None;
-		const newOptions: vscode.FindFiles2OptionsNew = {
-			exclude: options.exclude ? [options.exclude] : undefined,
-			useIgnoreFiles: {
-				local: options.useIgnoreFiles,
-				global: options.useGlobalIgnoreFiles,
-				parent: options.useParentIgnoreFiles
-			},
-			useExcludeSettings: excludeSetting,
-			followSymlinks: options.followSymlinks,
-			maxResults: options.maxResults,
-		};
-		return this._findFilesImpl(undefined, filePattern !== undefined ? [filePattern] : [], newOptions, token);
-	}
-
-	findFiles2New(filePatterns: vscode.GlobPattern[],
-		options: vscode.FindFiles2OptionsNew = {},
-		extensionId: ExtensionIdentifier,
-		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
 		this._logService.trace(`extHostWorkspace#findFiles2New: fileSearch, extension: ${extensionId.value}, entryPoint: findFiles2New`);
-		return this._findFilesImpl(undefined, filePatterns, options, token);
+		return this._findFilesImpl({ type: 'filePatterns', value: filePatterns }, options, token);
 	}
 
 	private async _findFilesImpl(
 		// the old `findFiles` used `include` to query, but the new `findFiles2` uses `filePattern` to query.
 		// `filePattern` is the proper way to handle this, since it takes less precedence than the ignore files.
-		include: vscode.GlobPattern | undefined,
-		filePatterns: vscode.GlobPattern[] | undefined,
-		options: vscode.FindFiles2OptionsNew,
-		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
-		if (token && token.isCancellationRequested) {
+		query: { readonly type: 'include'; readonly value: vscode.GlobPattern | undefined } | { readonly type: 'filePatterns'; readonly value: readonly vscode.GlobPattern[] },
+		options: vscode.FindFiles2Options,
+		token: vscode.CancellationToken
+	): Promise<vscode.Uri[]> {
+		if (token.isCancellationRequested) {
 			return Promise.resolve([]);
 		}
 
+		const filePatternsToUse = query.type === 'include' ? [query.value] : query.value ?? [];
+		if (!Array.isArray(filePatternsToUse)) {
+			console.error('Invalid file pattern provided', filePatternsToUse);
+			throw new Error(`Invalid file pattern provided ${JSON.stringify(filePatternsToUse)}`);
+		}
 
-		const filePatternsToUse = include !== undefined ? [include] : filePatterns;
-		const queryOptions: QueryOptions<IFileQueryBuilderOptions>[] = filePatternsToUse?.map(filePattern => {
+		const queryOptions: QueryOptions<IFileQueryBuilderOptions>[] = filePatternsToUse.map(filePattern => {
 
 			const excludePatterns = globsToISearchPatternBuilder(options.exclude);
 
@@ -539,21 +522,22 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 				maxResults: options.maxResults,
 				excludePattern: excludePatterns.length > 0 ? excludePatterns : undefined,
 				_reason: 'startFileSearch',
-				shouldGlobSearch: include ? undefined : true,
+				shouldGlobSearch: query.type === 'include' ? undefined : true,
 			};
 
 			const parseInclude = parseSearchExcludeInclude(GlobPattern.from(filePattern));
 			const folderToUse = parseInclude?.folder;
-			if (include) {
+			if (query.type === 'include') {
 				fileQueries.includePattern = parseInclude?.pattern;
 			} else {
 				fileQueries.filePattern = parseInclude?.pattern;
 			}
+
 			return {
 				folder: folderToUse,
 				options: fileQueries
 			};
-		}) ?? [];
+		});
 
 		return this._findFilesBase(queryOptions, token);
 	}
@@ -957,6 +941,51 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	// called by main thread
 	async $provideCanonicalUri(uri: UriComponents, targetScheme: string, cancellationToken: CancellationToken): Promise<UriComponents | undefined> {
 		return this.provideCanonicalUri(URI.revive(uri), { targetScheme }, cancellationToken);
+	}
+
+	// --- encodings ---
+
+	async decode(content: Uint8Array, args?: { uri?: vscode.Uri; encoding?: string }): Promise<string> {
+		const [uri, opts] = this.toEncodeDecodeParameters(args);
+		const options = await this._proxy.$resolveDecoding(uri, opts);
+
+		const stream = (await toDecodeStream(bufferToStream(VSBuffer.wrap(content)), {
+			...options,
+			acceptTextOnly: true,
+			overwriteEncoding: detectedEncoding => {
+				if (detectedEncoding === null || detectedEncoding === options.preferredEncoding) {
+					// Prevent another roundtrip to the main thread
+					// if the detected encoding is null or the same
+					// as the preferred encoding
+					return Promise.resolve(options.preferredEncoding);
+				}
+
+				return this._proxy.$validateDetectedEncoding(uri, detectedEncoding, opts);
+			},
+		})).stream;
+
+		return consumeStream(stream, chunks => chunks.join(''));
+	}
+
+	async encode(content: string, args?: { uri?: vscode.Uri; encoding?: string }): Promise<Uint8Array> {
+		const [uri, options] = this.toEncodeDecodeParameters(args);
+		const { encoding, addBOM } = await this._proxy.$resolveEncoding(uri, options);
+
+		// when encoding is standard skip encoding step
+		if (encoding === UTF8 && !addBOM) {
+			return VSBuffer.fromString(content).buffer;
+		}
+
+		// otherwise create encoded readable
+		const res = await toEncodeReadable(stringToSnapshot(content), encoding, { addBOM });
+		return readableToBuffer(res).buffer;
+	}
+
+	private toEncodeDecodeParameters(opts?: { uri?: vscode.Uri; encoding?: string }): [UriComponents | undefined, { encoding: string } | undefined] {
+		const uri = isUriComponents(opts?.uri) ? opts.uri : undefined;
+		const encoding = typeof opts?.encoding === 'string' ? opts.encoding : undefined;
+
+		return [uri, encoding ? { encoding } : undefined];
 	}
 }
 

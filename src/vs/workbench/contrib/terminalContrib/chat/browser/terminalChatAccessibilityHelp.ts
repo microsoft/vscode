@@ -5,7 +5,7 @@
 
 import { localize } from '../../../../../nls.js';
 import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplentation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
@@ -13,7 +13,7 @@ import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
 import { TerminalChatController } from './terminalChatController.js';
 
-export class TerminalChatAccessibilityHelp implements IAccessibleViewImplentation {
+export class TerminalChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 110;
 	readonly name = 'terminalChat';
 	readonly when = TerminalChatContextKeys.focused;

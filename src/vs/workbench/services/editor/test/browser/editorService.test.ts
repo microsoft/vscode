@@ -78,7 +78,7 @@ suite('EditorService', () => {
 
 	test('openEditor() - basics (scoped)', async () => {
 		const [part, service, accessor] = await createEditorService();
-		const scoped = service.createScoped('main', disposables);
+		const scoped = service.createScoped(part, disposables);
 		await part.whenReady;
 
 		await testOpenBasics(scoped, accessor.editorPaneService);
@@ -129,6 +129,7 @@ suite('EditorService', () => {
 		assert.ok(!editorService.activeTextEditorControl);
 		assert.ok(!editorService.activeTextEditorLanguageId);
 		assert.strictEqual(editorService.visibleTextEditorControls.length, 0);
+		assert.strictEqual(editorService.getVisibleTextEditorControls(EditorsOrder.MOST_RECENTLY_ACTIVE).length, 0);
 		assert.strictEqual(editorService.isOpened(input), true);
 		assert.strictEqual(editorService.isOpened({ resource: input.resource, typeId: input.typeId, editorId: input.editorId }), true);
 		assert.strictEqual(editorService.isOpened({ resource: input.resource, typeId: input.typeId, editorId: 'unknownTypeId' }), false);

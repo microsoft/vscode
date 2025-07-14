@@ -71,6 +71,7 @@ abstract class AbstractSettingsModel extends EditorModel {
 							setting,
 							matches: settingMatchResult && settingMatchResult.matches,
 							matchType: settingMatchResult?.matchType ?? SettingMatchType.None,
+							keyMatchScore: settingMatchResult?.keyMatchScore ?? 0,
 							score: settingMatchResult?.score ?? 0
 						});
 					}
@@ -95,7 +96,7 @@ abstract class AbstractSettingsModel extends EditorModel {
 		return undefined;
 	}
 
-	protected collectMetadata(groups: ISearchResultGroup[]): IStringDictionary<IFilterMetadata> {
+	protected collectMetadata(groups: ISearchResultGroup[]): IStringDictionary<IFilterMetadata> | null {
 		const metadata = Object.create(null);
 		let hasMetadata = false;
 		groups.forEach(g => {
@@ -114,8 +115,6 @@ abstract class AbstractSettingsModel extends EditorModel {
 	}
 
 	abstract settingsGroups: ISettingsGroup[];
-
-	abstract findValueMatches(filter: string, setting: ISetting): IRange[];
 
 	protected abstract update(): IFilterResult | undefined;
 }
@@ -155,10 +154,6 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 
 	get content(): string {
 		return this.settingsModel.getValue();
-	}
-
-	findValueMatches(filter: string, setting: ISetting): IRange[] {
-		return this.settingsModel.findMatches(filter, setting.valueRange, false, false, null, false).map(match => match.range);
 	}
 
 	protected isSettingsProperty(property: string, previousParents: string[]): boolean {
@@ -208,7 +203,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			allGroups: this.settingsGroups,
 			filteredGroups: filteredGroup ? [filteredGroup] : [],
 			matches,
-			metadata
+			metadata: metadata ?? undefined
 		};
 	}
 }
@@ -252,11 +247,6 @@ export class Settings2EditorModel extends AbstractSettingsModel implements ISett
 	/** For programmatically added groups outside of registered configurations */
 	setAdditionalGroups(groups: ISettingsGroup[]) {
 		this.additionalGroups = groups;
-	}
-
-	findValueMatches(filter: string, setting: ISetting): IRange[] {
-		// TODO @roblou
-		return [];
 	}
 
 	protected update(): IFilterResult {
@@ -849,7 +839,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 				allGroups: this.settingsGroups,
 				filteredGroups,
 				matches,
-				metadata
+				metadata: metadata ?? undefined
 			} :
 			undefined;
 	}
@@ -899,6 +889,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 					setting: filteredMatch.setting,
 					score: filteredMatch.score,
 					matchType: filteredMatch.matchType,
+					keyMatchScore: filteredMatch.keyMatchScore,
 					matches: filteredMatch.matches && filteredMatch.matches.map(match => {
 						return new Range(
 							match.startLineNumber - filteredMatch.setting.range.startLineNumber,
@@ -947,10 +938,6 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			descriptionIsMarkdown: undefined,
 			descriptionRanges: []
 		};
-	}
-
-	findValueMatches(filter: string, setting: ISetting): IRange[] {
-		return [];
 	}
 
 	override getPreference(key: string): ISetting | undefined {

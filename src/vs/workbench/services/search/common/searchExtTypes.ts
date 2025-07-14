@@ -152,11 +152,11 @@ export interface TextSearchProviderFolderOptions {
 		 */
 		local: boolean;
 		/**
-		 * Use ignore files at the parent directory. If set, {@link TextSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
+		 * Use ignore files at the parent directory. If set, `local` in {@link TextSearchProviderFolderOptions.useIgnoreFiles} should also be `true`.
 		 */
 		parent: boolean;
 		/**
-		 * Use global ignore files. If set, {@link TextSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
+		 * Use global ignore files. If set, `local` in {@link TextSearchProviderFolderOptions.useIgnoreFiles} should also be `true`.
 		 */
 		global: boolean;
 	};
@@ -316,10 +316,27 @@ export class TextSearchContext2 {
 }
 
 /**
+/**
+ * Keyword suggestion for AI search.
+ */
+export class AISearchKeyword {
+	/**
+	 * @param keyword The keyword associated with the search.
+	 */
+	constructor(public keyword: string) { }
+}
+
+/**
  * A result payload for a text search, pertaining to matches within a single file.
  */
 export type TextSearchResult2 = TextSearchMatch2 | TextSearchContext2;
 
+/**
+ * A result payload for an AI search.
+ * This can be a {@link TextSearchMatch2 match} or a {@link AISearchKeyword keyword}.
+ * The result can be a match or a keyword.
+*/
+export type AISearchResult = TextSearchResult2 | AISearchKeyword;
 
 /**
  * A FileSearchProvider provides search results for files in the given folder that match a query string. It can be invoked by quickaccess or other extensions.
@@ -440,7 +457,7 @@ export interface TextSearchProvider2 {
 export interface TextSearchComplete2 {
 	/**
 	 * Whether the search hit the limit on the maximum number of search results.
-	 * `maxResults` on {@linkcode TextSearchOptions} specifies the max number of results.
+	 * `maxResults` on {@link TextSearchOptions} specifies the max number of results.
 	 * - If exactly that number of matches exist, this should be false.
 	 * - If `maxResults` matches are returned and more exist, this should be true.
 	 * - If search hits an internal limit which is less than `maxResults`, this should be true.
@@ -527,7 +544,7 @@ export interface TextSearchCompleteMessage {
 /**
  * An AITextSearchProvider provides additional AI text search results in the workspace.
  */
-export interface AITextSearchProvider2 {
+export interface AITextSearchProvider {
 
 	/**
 	 * The name of the AI searcher. Will be displayed as `{name} Results` in the Search View.

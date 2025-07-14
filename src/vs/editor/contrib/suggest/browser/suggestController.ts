@@ -24,7 +24,7 @@ import { Range } from '../../../common/core/range.js';
 import { IEditorContribution, ScrollType } from '../../../common/editorCommon.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { ITextModel, TrackedRangeStickiness } from '../../../common/model.js';
-import { CompletionItemInsertTextRule, CompletionItemProvider, CompletionTriggerKind } from '../../../common/languages.js';
+import { CompletionItemInsertTextRule, CompletionItemProvider, CompletionTriggerKind, ProviderId } from '../../../common/languages.js';
 import { SnippetController2 } from '../../snippet/browser/snippetController2.js';
 import { SnippetParser } from '../../snippet/browser/snippetParser.js';
 import { ISuggestMemoryService } from './suggestMemory.js';
@@ -46,6 +46,7 @@ import { basename, extname } from '../../../../base/common/resources.js';
 import { hash } from '../../../../base/common/hash.js';
 import { WindowIdleValue, getWindow } from '../../../../base/browser/dom.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
+import { EditReasons } from '../../../common/textModelEditReason.js';
 
 // sticky suggest widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -457,7 +458,8 @@ export class SuggestController implements IEditorContribution {
 			undoStopAfter: false,
 			adjustWhitespace: !(item.completion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace),
 			clipboardText: event.model.clipboardText,
-			overtypingCapturer: this._overtypingCapturer.value
+			overtypingCapturer: this._overtypingCapturer.value,
+			reason: EditReasons.suggest({ providerId: ProviderId.fromExtensionId(item.extensionId?.value) }),
 		});
 
 		if (!(flags & InsertFlags.NoAfterUndoStop)) {
@@ -517,8 +519,7 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	private _reportSuggestionAcceptedTelemetry(item: CompletionItem, model: ITextModel, itemResolved: boolean, commandExectionDuration: number, additionalEditsAppliedAsync: number, index: number, completionItems: CompletionItem[]): void {
-		if (Math.floor(Math.random() * 100) === 0) {
-			// throttle telemetry event because accepting completions happens a lot
+		if (Math.random() > 0.0001) { // 0.01%
 			return;
 		}
 
@@ -804,8 +805,7 @@ export class TriggerSuggestAction extends EditorAction {
 	constructor() {
 		super({
 			id: TriggerSuggestAction.id,
-			label: nls.localize('suggest.trigger.label', "Trigger Suggest"),
-			alias: 'Trigger Suggest',
+			label: nls.localize2('suggest.trigger.label', "Trigger Suggest"),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCompletionItemProvider, SuggestContext.Visible.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
@@ -1119,8 +1119,7 @@ registerEditorAction(class extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.resetSuggestSize',
-			label: nls.localize('suggest.reset.label', "Reset Suggest Widget Size"),
-			alias: 'Reset Suggest Widget Size',
+			label: nls.localize2('suggest.reset.label', "Reset Suggest Widget Size"),
 			precondition: undefined
 		});
 	}

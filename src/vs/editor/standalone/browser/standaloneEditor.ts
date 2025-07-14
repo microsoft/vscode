@@ -12,7 +12,7 @@ import { FontMeasurements } from '../../browser/config/fontMeasurements.js';
 import { ICodeEditor } from '../../browser/editorBrowser.js';
 import { EditorCommand, ServicesAccessor } from '../../browser/editorExtensions.js';
 import { ICodeEditorService } from '../../browser/services/codeEditorService.js';
-import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from './standaloneWebWorker.js';
+import { IInternalWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from './standaloneWebWorker.js';
 import { ApplyUpdateResult, ConfigurationChangedEvent, EditorOptions } from '../../common/config/editorOptions.js';
 import { EditorZoom } from '../../common/config/editorZoom.js';
 import { BareFontInfo, FontInfo } from '../../common/config/fontInfo.js';
@@ -331,7 +331,7 @@ export function onDidChangeModelLanguage(listener: (e: { readonly model: ITextMo
  * Create a new web worker that has model syncing capabilities built in.
  * Specify an AMD module to load that will `create` an object that will be proxied.
  */
-export function createWebWorker<T extends object>(opts: IWebWorkerOptions): MonacoWebWorker<T> {
+export function createWebWorker<T extends object>(opts: IInternalWebWorkerOptions): MonacoWebWorker<T> {
 	return actualCreateWebWorker<T>(StandaloneServices.get(IModelService), opts);
 }
 

@@ -4,23 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from '../../../../nls.js';
+import { Action, IAction, IActionRunner } from '../../../common/actions.js';
+import { Codicon } from '../../../common/codicons.js';
+import { Emitter } from '../../../common/event.js';
+import { ResolvedKeybinding } from '../../../common/keybindings.js';
+import { KeyCode } from '../../../common/keyCodes.js';
+import { IDisposable } from '../../../common/lifecycle.js';
+import { ThemeIcon } from '../../../common/themables.js';
 import { IContextMenuProvider } from '../../contextmenu.js';
 import { $, addDisposableListener, append, EventType, h } from '../../dom.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { IActionViewItemProvider } from '../actionbar/actionbar.js';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions, IBaseActionViewItemOptions } from '../actionbar/actionViewItems.js';
 import { AnchorAlignment } from '../contextview/contextview.js';
-import { DropdownMenu, IActionProvider, IDropdownMenuOptions, ILabelRenderer } from './dropdown.js';
-import { Action, IAction, IActionRunner } from '../../../common/actions.js';
-import { Codicon } from '../../../common/codicons.js';
-import { ThemeIcon } from '../../../common/themables.js';
-import { Emitter } from '../../../common/event.js';
-import { KeyCode } from '../../../common/keyCodes.js';
-import { ResolvedKeybinding } from '../../../common/keybindings.js';
-import { IDisposable } from '../../../common/lifecycle.js';
-import './dropdown.css';
-import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import './dropdown.css';
+import { DropdownMenu, IActionProvider, IDropdownMenuOptions, ILabelRenderer } from './dropdown.js';
 
 export interface IKeybindingProvider {
 	(action: IAction): ResolvedKeybinding | undefined;
@@ -73,31 +73,7 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 
 		const labelRenderer: ILabelRenderer = (el: HTMLElement): IDisposable | null => {
 			this.element = append(el, $('a.action-label'));
-
-			let classNames: string[] = [];
-
-			if (typeof this.options.classNames === 'string') {
-				classNames = this.options.classNames.split(/\s+/g).filter(s => !!s);
-			} else if (this.options.classNames) {
-				classNames = this.options.classNames;
-			}
-
-			// todo@aeschli: remove codicon, should come through `this.options.classNames`
-			if (!classNames.find(c => c === 'icon')) {
-				classNames.push('codicon');
-			}
-
-			this.element.classList.add(...classNames);
-
-			this.element.setAttribute('role', 'button');
-			this.element.setAttribute('aria-haspopup', 'true');
-			this.element.setAttribute('aria-expanded', 'false');
-			if (this._action.label) {
-				this._register(getBaseLayerHoverDelegate().setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('mouse'), this.element, this._action.label));
-			}
-			this.element.ariaLabel = this._action.label || '';
-
-			return null;
+			return this.renderLabel(this.element);
 		};
 
 		const isActionsArray = Array.isArray(this.menuActionsOrProvider);
@@ -136,6 +112,36 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 
 		this.updateTooltip();
 		this.updateEnabled();
+	}
+
+	protected renderLabel(element: HTMLElement): IDisposable | null {
+		let classNames: string[] = [];
+
+		if (typeof this.options.classNames === 'string') {
+			classNames = this.options.classNames.split(/\s+/g).filter(s => !!s);
+		} else if (this.options.classNames) {
+			classNames = this.options.classNames;
+		}
+
+		// todo@aeschli: remove codicon, should come through `this.options.classNames`
+		if (!classNames.find(c => c === 'icon')) {
+			classNames.push('codicon');
+		}
+
+		element.classList.add(...classNames);
+
+		if (this._action.label) {
+			this._register(getBaseLayerHoverDelegate().setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('mouse'), element, this._action.label));
+		}
+
+		return null;
+	}
+
+	protected setAriaLabelAttributes(element: HTMLElement): void {
+		element.setAttribute('role', 'button');
+		element.setAttribute('aria-haspopup', 'true');
+		element.setAttribute('aria-expanded', 'false');
+		element.ariaLabel = this._action.label || '';
 	}
 
 	protected override getTooltip(): string | undefined {
