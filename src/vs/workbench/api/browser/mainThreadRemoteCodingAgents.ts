@@ -8,13 +8,17 @@ import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions
 import { MainThreadRemoteCodingAgentsShape, ExtHostContext, ExtHostRemoteCodingAgentsShape, RemoteCodingAgentInformationDto, MainContext } from '../common/extHost.protocol.js';
 import { IRemoteCodingAgentsService, IRemoteCodingAgent } from '../../contrib/remoteCodingAgents/common/remoteCodingAgentsService.js';
 
+interface ProviderInfo {
+	readonly handle: number;
+	readonly registeredAgentIds: Set<string>;
+	dispose(): void;
+}
+
 @extHostNamedCustomer(MainContext.MainThreadRemoteCodingAgents)
 export class MainThreadRemoteCodingAgents extends Disposable implements MainThreadRemoteCodingAgentsShape {
 
 	private readonly _proxy: ExtHostRemoteCodingAgentsShape;
-	private readonly _providers = new Map<number, {
-		dispose(): void;
-	}>();
+	private readonly _providers = new Map<number, ProviderInfo>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -25,13 +29,20 @@ export class MainThreadRemoteCodingAgents extends Disposable implements MainThre
 	}
 
 	$registerAgentInformationProvider(handle: number): void {
-		const providerDisposable = this._register({
+		const registeredAgentIds = new Set<string>();
+		
+		const providerInfo: ProviderInfo = {
+			handle,
+			registeredAgentIds,
 			dispose: () => {
-				// The provider itself doesn't need specific cleanup beyond removal from map
+				// When provider is disposed, we don't need to remove agents from the service
+				// since they may still be useful. The service will handle lifecycle of agents.
+				registeredAgentIds.clear();
 			}
-		});
+		};
 
-		this._providers.set(handle, providerDisposable);
+		this._providers.set(handle, providerInfo);
+		this._register(providerInfo);
 
 		// Immediately fetch and register agents when a provider is registered
 		this._fetchAndRegisterAgents(handle);
@@ -46,9 +57,21 @@ export class MainThreadRemoteCodingAgents extends Disposable implements MainThre
 	}
 
 	private async _fetchAndRegisterAgents(handle: number): Promise<void> {
+		const providerInfo = this._providers.get(handle);
+		if (!providerInfo) {
+			return;
+		}
+
 		try {
 			const agentInfos = await this._proxy.$getAgentInformation(handle);
+			
 			for (const agentInfo of agentInfos) {
+				// Validate required fields
+				if (!agentInfo.id || !agentInfo.displayName || !agentInfo.command) {
+					console.warn('Skipping invalid agent information: missing required fields', agentInfo);
+					continue;
+				}
+
 				const agent: IRemoteCodingAgent = {
 					id: agentInfo.id,
 					command: agentInfo.command,
@@ -57,7 +80,9 @@ export class MainThreadRemoteCodingAgents extends Disposable implements MainThre
 					followUpRegex: agentInfo.followUpRegex,
 					when: agentInfo.when
 				};
+				
 				this._remoteCodingAgentsService.registerAgent(agent);
+				providerInfo.registeredAgentIds.add(agentInfo.id);
 			}
 		} catch (error) {
 			console.error('Failed to fetch agent information from provider:', error);
