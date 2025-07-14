@@ -770,7 +770,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	toggleAiSearch(): void {
-		if (this.showAiResultsAction) {
+		if (this.searchInputActionBar && this.showAiResultsAction && this.searchInputActionBar.hasAction(this.showAiResultsAction)) {
 			if (!this.showAiResultsAction.enabled) {
 				aria.status(localize('noAiResults', "No AI results available at this time."));
 			}
