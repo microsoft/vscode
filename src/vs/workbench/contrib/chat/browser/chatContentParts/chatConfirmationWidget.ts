@@ -207,11 +207,18 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 			}
 		);
 		if (notification) {
-			this.notification.value = new DisposableStore();
-			this.notification.value.add(notification);
+			const disposables = this.notification.value = new DisposableStore();
+			disposables.add(notification);
 
-			this.notification.value.add(Event.once(notification.onClick)(() => {
+			disposables.add(Event.once(notification.onClick)(() => {
+				this._hostService.focus(targetWindow, { mode: FocusMode.Force });
 				showChatView(this._viewsService);
+			}));
+
+			disposables.add(this._hostService.onDidChangeFocus(focus => {
+				if (focus) {
+					disposables.dispose();
+				}
 			}));
 		}
 	}
