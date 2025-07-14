@@ -13,7 +13,7 @@ import type { ICommandDetectionCapability, ITerminalCommand } from '../../../../
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { sanitizeTerminalOutput } from '../runInTerminalHelpers.js';
-import { trackIdleOnPrompt, type ITerminalExecuteStrategy } from './executionStrategy.js';
+import { trackIdleOnPrompt, type ITerminalExecuteStrategy } from './executeStrategy.js';
 
 /**
  * This strategy is used when the terminal has rich shell integration/command detection is

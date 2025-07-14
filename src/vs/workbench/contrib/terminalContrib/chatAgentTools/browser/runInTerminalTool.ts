@@ -24,7 +24,8 @@ import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocatio
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { getRecommendedToolsOverRunInTerminal } from './alternativeRecommendation.js';
 import { CommandLineAutoApprover } from './commandLineAutoApprover.js';
-import type { ITerminalExecuteStrategy } from './executeStrategy/executionStrategy.js';
+import type { ITerminalExecuteStrategy } from './executeStrategy/executeStrategy.js';
+import { NoneExecuteStrategy } from './executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from './executeStrategy/richExecuteStrategy.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from './subCommands.js';
@@ -220,6 +221,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// 	// });
 			// }
 		} else {
+			// TODO: Connect to existing session terminal
 			// let toolTerminal = sessionId ? await this.terminalService.getToolTerminalForSession(sessionId) : undefined;
 			let toolTerminal: IToolTerminal | undefined = undefined;
 			const isNewSession = !toolTerminal;
@@ -245,9 +247,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				let strategy: ITerminalExecuteStrategy;
 				switch (toolTerminal.shellIntegrationQuality) {
 					case ShellIntegrationQuality.None: {
-						throw new Error('NYI none execute strat');
-						// strategy = this.instantiationService.createInstance(NoIntegrationTerminalExecuteStrategy, toolTerminal.terminal);
-						// break;
+						strategy = this._instantiationService.createInstance(NoneExecuteStrategy, toolTerminal.instance);
+						break;
 					}
 					case ShellIntegrationQuality.Basic: {
 						throw new Error('NYI base execute strat');

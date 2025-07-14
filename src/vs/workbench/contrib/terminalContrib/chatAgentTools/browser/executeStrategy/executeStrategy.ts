@@ -85,11 +85,11 @@ export async function trackIdleOnPrompt(
 /**
  * @deprecated Migrate to the real xterm instance instead of mirroring
  */
-export function getSanitizedXtermOutput(xterm: XtermTerminal): string {
+export function getSanitizedXtermOutput(xterm: XtermTerminal['raw']): string {
 	// Assemble the output from the xterm buffer
 	const outputLines: string[] = [];
-	const buffer = xterm.raw.buffer.active;
-	for (let i = 0; i < xterm.raw.buffer.active.length; i++) {
+	const buffer = xterm.buffer.active;
+	for (let i = 0; i < xterm.buffer.active.length; i++) {
 		outputLines.push(buffer.getLine(i)?.translateToString(true) ?? '');
 	}
 
