@@ -13,13 +13,21 @@ import { Disposable, DisposableMap, DisposableStore } from '../../../../base/com
 import * as strings from '../../../../base/common/strings.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ExtensionIdentifier, IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
+import { ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions } from '../../../common/views.js';
+import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions, IViewDescriptorService } from '../../../common/views.js';
 import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer, IRenderedData, IRowData, ITableData } from '../../../services/extensionManagement/common/extensionFeatures.js';
 import { isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import * as extensionsRegistry from '../../../services/extensions/common/extensionsRegistry.js';
@@ -31,6 +39,290 @@ import { IRawChatParticipantContribution } from '../common/chatParticipantContri
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatViewId } from './chat.js';
 import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane } from './chatViewPane.js';
+
+// --- Coding Agents View Pane Class
+
+interface IViewPaneOptions {
+	readonly id: string;
+	readonly title: string;
+	readonly fromExtensionId?: string;
+	readonly expanded?: boolean;
+	readonly singleViewPaneContainerTitle?: string;
+}
+
+class CodingAgentsViewPane extends ViewPane {
+	private tree: HTMLElement | undefined;
+	private currentTab: 'open' | 'closed' = 'open';
+
+	constructor(
+		options: IViewPaneOptions,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IOpenerService openerService: IOpenerService,
+		@IThemeService themeService: IThemeService,
+		@IHoverService hoverService: IHoverService,
+	) {
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+	}
+
+	protected override renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
+		container.classList.add('coding-agents-view');
+
+		// Create header with input and tabs
+		this.createHeader(container);
+
+		// Create tree container
+		this.tree = document.createElement('div');
+		this.tree.className = 'monaco-list monaco-list-rows';
+		this.tree.setAttribute('role', 'tree');
+		container.appendChild(this.tree);
+
+		// Initial render
+		this.renderAgents();
+	}
+
+	private createHeader(container: HTMLElement): void {
+		// Header section
+		const header = document.createElement('div');
+		header.className = 'pane-header';
+		header.style.padding = '8px 16px';
+
+		// Tabs section
+		const tabsContainer = document.createElement('div');
+		tabsContainer.className = 'monaco-action-bar';
+		tabsContainer.style.display = 'flex';
+		tabsContainer.style.borderBottom = '1px solid var(--vscode-contrastBorder)';
+		tabsContainer.style.marginBottom = '8px';
+
+		const openTab = document.createElement('div');
+		openTab.className = 'action-item';
+		openTab.style.padding = '8px 12px';
+		openTab.style.cursor = 'pointer';
+		openTab.style.borderBottom = this.currentTab === 'open' ? '2px solid var(--vscode-focusBorder)' : '2px solid transparent';
+		openTab.textContent = 'Open ';
+		const openBadge = document.createElement('span');
+		openBadge.className = 'monaco-count-badge';
+		openBadge.style.marginLeft = '6px';
+		openBadge.textContent = '7';
+		openTab.appendChild(openBadge);
+
+		const closedTab = document.createElement('div');
+		closedTab.className = 'action-item';
+		closedTab.style.padding = '8px 12px';
+		closedTab.style.cursor = 'pointer';
+		closedTab.style.borderBottom = this.currentTab === 'closed' ? '2px solid var(--vscode-focusBorder)' : '2px solid transparent';
+		closedTab.textContent = 'Closed ';
+		const closedBadge = document.createElement('span');
+		closedBadge.className = 'monaco-count-badge';
+		closedBadge.style.marginLeft = '6px';
+		closedBadge.textContent = '3';
+		closedTab.appendChild(closedBadge);
+
+		// Tab click handlers
+		openTab.addEventListener('click', () => {
+			this.currentTab = 'open';
+			openTab.style.borderBottom = '2px solid var(--vscode-focusBorder)';
+			closedTab.style.borderBottom = '2px solid transparent';
+			this.renderAgents();
+		});
+
+		closedTab.addEventListener('click', () => {
+			this.currentTab = 'closed';
+			openTab.style.borderBottom = '2px solid transparent';
+			closedTab.style.borderBottom = '2px solid var(--vscode-focusBorder)';
+			this.renderAgents();
+		});
+
+		tabsContainer.appendChild(openTab);
+		tabsContainer.appendChild(closedTab);
+
+		header.appendChild(tabsContainer);
+		container.appendChild(header);
+	}
+
+	private renderAgents(): void {
+		if (!this.tree) {
+			return;
+		}
+
+		// Clear tree
+		while (this.tree.firstChild) {
+			this.tree.removeChild(this.tree.firstChild);
+		}
+
+		const agents = this.currentTab === 'open' ? this.getOpenAgents() : this.getClosedAgents();
+
+		agents.forEach((agent, index) => {
+			const item = document.createElement('div');
+			item.className = 'monaco-list-row';
+			item.style.display = 'flex';
+			item.style.alignItems = 'flex-start';
+			item.style.padding = '12px 16px';
+			item.style.borderBottom = '1px solid var(--vscode-list-inactiveSelectionBackground)';
+			item.style.cursor = 'pointer';
+			item.style.position = 'relative';
+
+			// Status indicator
+			const statusIcon = document.createElement('div');
+			statusIcon.style.width = '8px';
+			statusIcon.style.height = '8px';
+			statusIcon.style.marginTop = '6px';
+			statusIcon.style.marginRight = '12px';
+			statusIcon.style.borderRadius = '50%';
+			statusIcon.style.backgroundColor = this.getStatusColor(agent.status);
+			statusIcon.style.flexShrink = '0';
+
+			// Content container
+			const content = document.createElement('div');
+			content.style.flex = '1';
+			content.style.display = 'flex';
+			content.style.flexDirection = 'column';
+			content.style.gap = '4px';
+
+			// Title
+			const title = document.createElement('div');
+			title.style.fontWeight = '500';
+			title.style.fontSize = '13px';
+			title.style.lineHeight = '18px';
+			title.style.color = 'var(--vscode-foreground)';
+			title.textContent = agent.title;
+
+			// Details
+			const details = document.createElement('div');
+			details.style.fontSize = '11px';
+			details.style.lineHeight = '16px';
+			details.style.color = 'var(--vscode-descriptionForeground)';
+			details.textContent = `${agent.repo} • started ${agent.time} • ${agent.revisions} • ${agent.badge}`;
+
+			content.appendChild(title);
+			content.appendChild(details);
+
+			item.appendChild(statusIcon);
+			item.appendChild(content);
+
+			// Hover effects
+			item.addEventListener('mouseenter', () => {
+				item.style.backgroundColor = 'var(--vscode-list-hoverBackground)';
+			});
+			item.addEventListener('mouseleave', () => {
+				item.style.backgroundColor = 'transparent';
+			});
+
+			// Click handler
+			item.addEventListener('click', () => {
+				console.log(`Clicked agent: ${agent.title}`);
+			});
+
+			this.tree!.appendChild(item);
+		});
+	}
+
+	private getStatusColor(status: string): string {
+		switch (status) {
+			case 'ready': return '#22863a';
+			case 'pending': return '#f66a0a';
+			case 'completed': return '#6f42c1';
+			case 'cancelled': return 'var(--vscode-descriptionForeground)';
+			default: return 'var(--vscode-descriptionForeground)';
+		}
+	}
+
+	private getOpenAgents() {
+		return [
+			{
+				title: 'Update server port configuration from 7001 to 8000',
+				repo: 'osortega/simple-server',
+				status: 'ready',
+				time: '3d ago',
+				revisions: '1 revision',
+				badge: 'Ready for review'
+			},
+			{
+				title: 'Change server port from 7000 to 7001 in index.js',
+				repo: 'osortega/simple-server',
+				status: 'ready',
+				time: '1w ago',
+				revisions: '1 revision',
+				badge: 'Ready for review'
+			},
+			{
+				title: 'Change server port from 7000 to 8000',
+				repo: 'osortega/simple-server',
+				status: 'ready',
+				time: '1w ago',
+				revisions: '1 revision',
+				badge: 'Ready for review'
+			},
+			{
+				title: 'Change server port from 6000 to 7000',
+				repo: 'osortega/simple-server',
+				status: 'ready',
+				time: '1w ago',
+				revisions: '1 revision',
+				badge: 'Ready for review'
+			},
+			{
+				title: 'Change server port from 3002 to 5001',
+				repo: 'osortega/simple-server',
+				status: 'ready',
+				time: '1w ago',
+				revisions: '3 revisions',
+				badge: 'Ready for review'
+			},
+			{
+				title: 'Add user authentication to login endpoint',
+				repo: 'osortega/simple-server',
+				status: 'pending',
+				time: '2d ago',
+				revisions: '2 revisions',
+				badge: 'In progress'
+			},
+			{
+				title: 'Change server port from 3001 to 3000',
+				repo: 'osortega/simple-server',
+				status: 'ready',
+				time: '1w ago',
+				revisions: '2 revisions',
+				badge: 'Ready for review'
+			}
+		];
+	}
+
+	private getClosedAgents() {
+		return [
+			{
+				title: '[WIP] Port Change Request',
+				repo: 'osortega/simple-server',
+				status: 'cancelled',
+				time: '1w ago',
+				revisions: '1 revision',
+				badge: 'Cancelled'
+			},
+			{
+				title: 'Fix database connection timeout',
+				repo: 'osortega/simple-server',
+				status: 'completed',
+				time: '2w ago',
+				revisions: '4 revisions',
+				badge: 'Completed'
+			},
+			{
+				title: 'Migrate to TypeScript configuration',
+				repo: 'osortega/simple-server',
+				status: 'completed',
+				time: '3w ago',
+				revisions: '6 revisions',
+				badge: 'Completed'
+			}
+		];
+	}
+}
 
 // --- Chat Container &  View Registration
 
@@ -79,6 +371,40 @@ const chatViewDescriptor: IViewDescriptor[] = [{
 	)
 }];
 Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(chatViewDescriptor, chatViewContainer);
+
+// --- Coding Agents Container & View Registration
+
+const codingAgentsViewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
+	id: 'workbench.panel.codingAgents',
+	title: localize2('codingAgents.viewContainer.label', "Coding Agents"),
+	icon: Codicon.robot,
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, ['workbench.panel.codingAgents', { mergeViewWithContainerWhenSingleView: true }]),
+	storageId: 'workbench.panel.codingAgents',
+	hideIfEmpty: true,
+	order: 101,
+}, ViewContainerLocation.AuxiliaryBar, { isDefault: false, doNotRegisterOpenCommand: false });
+
+const codingAgentsViewDescriptor: IViewDescriptor[] = [{
+	id: 'workbench.view.codingAgents',
+	containerIcon: codingAgentsViewContainer.icon,
+	containerTitle: codingAgentsViewContainer.title.value,
+	singleViewPaneContainerTitle: codingAgentsViewContainer.title.value,
+	name: localize2('codingAgents.viewContainer.label', "Coding Agents"),
+	canToggleVisibility: true,
+	canMoveView: true,
+	openCommandActionDescriptor: {
+		id: 'workbench.action.openCodingAgentsView',
+		title: codingAgentsViewContainer.title,
+		mnemonicTitle: localize({ key: 'miToggleCodingAgents', comment: ['&& denotes a mnemonic'] }, "&&Coding Agents"),
+		keybindings: {
+			primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyR
+		},
+		order: 2
+	},
+	ctorDescriptor: new SyncDescriptor(CodingAgentsViewPane),
+	when: ContextKeyExpr.true()
+}];
+Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(codingAgentsViewDescriptor, codingAgentsViewContainer);
 
 const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatParticipantContribution[]>({
 	extensionPoint: 'chatParticipants',
