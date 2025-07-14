@@ -21,7 +21,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import type { IChatTerminalToolInvocationData } from '../../../chat/common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../chat/common/languageModelToolsService.js';
-import { ITerminalService } from '../../../terminal/browser/terminal.js';
+import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { getRecommendedToolsOverRunInTerminal } from './alternativeRecommendation.js';
 import { CommandLineAutoApprover } from './commandLineAutoApprover.js';
 import { BasicExecuteStrategy } from './executeStrategy/basicExecuteStrategy.js';
@@ -72,12 +72,16 @@ interface IInputParams {
 
 export class RunInTerminalTool extends Disposable implements IToolImpl {
 	protected readonly _commandLineAutoApprover: CommandLineAutoApprover;
+	// TODO: Bring back reattaching sessions across reloads
+	private readonly _sessionTerminalAssociations: Map<string, IToolTerminal> = new Map();
 
+	// Immutable window state
+	private readonly _osBackend: Lazy<Promise<OperatingSystem>>;
+
+	// HACK: Per-tool call state, saved globally
 	// TODO: These should not be part of the state as different sessions could get confused
 	private _alternativeRecommendation?: IToolResult;
 	private _rewrittenCommand?: string;
-
-	private _osBackend: Lazy<Promise<OperatingSystem>>;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -157,7 +161,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
 
 		const chatSessionId = invocation.context?.sessionId;
-		// TODO: How to handle !this.simulationTestContext.isInSimulationTests?
 		if (chatSessionId === undefined) {
 			throw new Error('A chat session ID is required for this tool');
 		}
@@ -178,6 +181,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (args.isBackground) {
 			this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
 			const toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(chatSessionId, termId, token, true);
+			this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 			if (token.isCancellationRequested) {
 				toolTerminal.instance.dispose();
 				throw new CancellationError();
@@ -222,15 +226,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// 	// });
 			// }
 		} else {
-			// TODO: Connect to existing session terminal
-			// let toolTerminal = sessionId ? await this.terminalService.getToolTerminalForSession(sessionId) : undefined;
-			let toolTerminal: IToolTerminal | undefined = undefined;
+			let toolTerminal: IToolTerminal | undefined = this._sessionTerminalAssociations.get(chatSessionId);
 			const isNewSession = !toolTerminal;
 			if (toolTerminal) {
 				this._logService.debug(`RunInTerminalTool: Using existing terminal with session ID \`${chatSessionId}\``);
 			} else {
 				this._logService.debug(`RunInTerminalTool: Creating terminal with session ID \`${chatSessionId}\``);
 				toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(chatSessionId, termId, token);
+				this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 				if (token.isCancellationRequested) {
 					toolTerminal.instance.dispose();
 					throw new CancellationError();
@@ -333,14 +336,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let cwd: URI | undefined;
 
 			// Get the current session terminal's cwd
-			// const sessionId = context.chatSessionId;
-			// TODO: Associate session with terminal, get cwd
-			// if (sessionId) {
-			// 	const terminal = await this.terminalService.getToolTerminalForSession(sessionId);
-			// 	if (terminal) {
-			// 		cwd = await this.terminalService.getCwdForSession(sessionId);
-			// 	}
-			// }
+			if (context.chatSessionId) {
+				// TODO: Just pass in the instance to _rewriteCommandIfNeeded?
+				const terminal = this._sessionTerminalAssociations.get(context.chatSessionId);
+				if (terminal) {
+					cwd = await terminal.instance.getCwdResource();
+				}
+			}
 
 			// If a terminal is not available, use the workspace root
 			if (!cwd) {
