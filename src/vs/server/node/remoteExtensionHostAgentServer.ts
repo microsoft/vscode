@@ -64,12 +64,12 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 	private readonly _managementConnections: { [reconnectionToken: string]: ManagementConnection };
 	private readonly _allReconnectionTokens: Set<string>;
 	private readonly _webClientServer: WebClientServer | null;
-	private readonly _webEndpointOriginChecker = WebEndpointOriginChecker.create(this._productService);
+	private readonly _webEndpointOriginChecker: WebEndpointOriginChecker;
 
 	private readonly _serverBasePath: string | undefined;
 	private readonly _serverProductPath: string;
 
-	private shutdownTimer: NodeJS.Timeout | undefined;
+	private shutdownTimer: Timeout | undefined;
 
 	constructor(
 		private readonly _socketServer: SocketServer<RemoteAgentConnectionContext>,
@@ -83,6 +83,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+		this._webEndpointOriginChecker = WebEndpointOriginChecker.create(this._productService);
 
 		if (serverBasePath !== undefined && serverBasePath.charCodeAt(serverBasePath.length - 1) === CharCode.Slash) {
 			// Remove trailing slash from base path

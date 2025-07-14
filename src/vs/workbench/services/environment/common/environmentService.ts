@@ -26,7 +26,6 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 	readonly logFile: URI;
 	readonly windowLogsPath: URI;
 	readonly extHostLogsPath: URI;
-	readonly extHostTelemetryLogFile: URI;
 
 	// --- Extensions
 	readonly extensionEnabledProposedApi?: string[];
@@ -37,6 +36,7 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 	readonly skipWelcome: boolean;
 	readonly disableWorkspaceTrust: boolean;
 	readonly webviewExternalEndpoint: string;
+	readonly startupExperimentGroup?: string;
 
 	// --- Development
 	readonly debugRenderer: boolean;

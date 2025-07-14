@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command, Uri, env, l10n, workspace } from 'vscode';
-import { RemoteSourceProvider, RemoteSource, RemoteSourceAction } from './typings/git-base';
-import { getOctokit } from './auth';
+import { Uri, env, l10n, workspace } from 'vscode';
+import { RemoteSourceProvider, RemoteSource, RemoteSourceAction } from './typings/git-base.js';
+import { getOctokit } from './auth.js';
 import { Octokit } from '@octokit/rest';
-import { getRepositoryFromQuery, getRepositoryFromUrl } from './util';
-import { getBranchLink, getVscodeDevHost } from './links';
+import { getRepositoryFromQuery, getRepositoryFromUrl } from './util.js';
+import { getBranchLink, getVscodeDevHost } from './links.js';
 
 function asRemoteSource(raw: any): RemoteSource {
 	const protocol = workspace.getConfiguration('github').get<'https' | 'ssh'>('gitProtocol');
@@ -134,20 +134,6 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 				const link = getBranchLink(url, branch, getVscodeDevHost());
 				env.openExternal(Uri.parse(link));
 			}
-		}];
-	}
-
-	async getRemoteSourceControlHistoryItemCommands(url: string): Promise<Command[]> {
-		const repository = getRepositoryFromUrl(url);
-		if (!repository) {
-			return [];
-		}
-
-		return [{
-			title: l10n.t('{0} Open on GitHub', '$(github)'),
-			tooltip: l10n.t('Open on GitHub'),
-			command: 'github.openOnGitHub',
-			arguments: [url]
 		}];
 	}
 }

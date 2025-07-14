@@ -119,6 +119,7 @@ CommandsRegistry.registerCommand('_getAllCommands', function (accessor, filterBy
 			});
 		}
 	}
+
 	return actions;
 });
 //#endregion

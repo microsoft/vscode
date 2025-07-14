@@ -9,7 +9,8 @@
 }
 
 .interactive-result-code-block .interactive-result-code-block-toolbar {
-	display: none;
+	opacity: 0;
+	pointer-events: none;
 }
 
 .interactive-result-code-block .interactive-result-code-block-toolbar > .monaco-action-bar,
@@ -48,19 +49,25 @@
 .interactive-result-code-block:hover .interactive-result-code-block-toolbar,
 .interactive-result-code-block .interactive-result-code-block-toolbar:focus-within,
 .interactive-result-code-block.focused .interactive-result-code-block-toolbar {
-	display: initial;
+	opacity: 1;
 	border-radius: 2px;
+	pointer-events: auto;
 }
 
-.interactive-result-code-block .interactive-result-code-block-toolbar.force-visibility .monaco-toolbar {
-	display: initial !important;
+.interactive-result-code-block .interactive-result-code-block-toolbar.force-visibility {
+	opacity: 1 !important;
+	pointer-events: auto !important;
 }
 
 .interactive-item-container .value .rendered-markdown [data-code] {
-	margin: 16px 0;
+	margin: 0 0 16px 0;
 }
 
-.interactive-result-code-block {
+.interactive-session .interactive-request .interactive-result-code-block {
+	border: 1px solid var(--vscode-chat-requestCodeBorder);
+}
+
+.interactive-session .interactive-response .interactive-result-code-block {
 	border: 1px solid var(--vscode-input-border, transparent);
 	background-color: var(--vscode-interactive-result-editor-background-color);
 }

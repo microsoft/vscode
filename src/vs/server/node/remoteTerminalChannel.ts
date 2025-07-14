@@ -128,6 +128,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 
 			case RemoteTerminalChannelRequest.Start: return this._ptyHostService.start.apply(this._ptyHostService, args);
 			case RemoteTerminalChannelRequest.Input: return this._ptyHostService.input.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.SendSignal: return this._ptyHostService.sendSignal.apply(this._ptyHostService, args);
 			case RemoteTerminalChannelRequest.AcknowledgeDataEvent: return this._ptyHostService.acknowledgeDataEvent.apply(this._ptyHostService, args);
 			case RemoteTerminalChannelRequest.Shutdown: return this._ptyHostService.shutdown.apply(this._ptyHostService, args);
 			case RemoteTerminalChannelRequest.Resize: return this._ptyHostService.resize.apply(this._ptyHostService, args);
@@ -200,7 +201,9 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			useShellEnvironment: args.shellLaunchConfig.useShellEnvironment,
 			reconnectionProperties: args.shellLaunchConfig.reconnectionProperties,
 			type: args.shellLaunchConfig.type,
-			isFeatureTerminal: args.shellLaunchConfig.isFeatureTerminal
+			isFeatureTerminal: args.shellLaunchConfig.isFeatureTerminal,
+			tabActions: args.shellLaunchConfig.tabActions,
+			shellIntegrationEnvironmentReporting: args.shellLaunchConfig.shellIntegrationEnvironmentReporting,
 		};
 
 

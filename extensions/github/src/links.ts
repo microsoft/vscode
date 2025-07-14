@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { API as GitAPI, RefType, Repository } from './typings/git';
-import { getRepositoryFromUrl, repositoryHasGitHubRemote } from './util';
+import { API as GitAPI, RefType, Repository } from './typings/git.js';
+import { getRepositoryFromUrl, repositoryHasGitHubRemote } from './util.js';
 
 export function isFileInRepo(repository: Repository, file: vscode.Uri): boolean {
 	return file.path.toLowerCase() === repository.rootUri.path.toLowerCase() ||
@@ -174,6 +174,10 @@ export async function getLink(gitAPI: GitAPI, useSelection: boolean, shouldEnsur
 		: (useSelection ? `${encodedFilePath}${useRange ? notebookCellRangeString(fileAndPosition.cellIndex, fileAndPosition.range) : ''}` : '');
 
 	return `${uriWithoutFileSegments}${fileSegments}`;
+}
+
+export function getAvatarLink(userId: string, size: number): string {
+	return `https://avatars.githubusercontent.com/u/${userId}?s=${size}`;
 }
 
 export function getBranchLink(url: string, branch: string, hostPrefix: string = 'https://github.com') {

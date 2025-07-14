@@ -6,18 +6,14 @@
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { CHAT_OPEN_ACTION_ID } from './chatActions.js';
 import { IExtensionManagementService, InstallOperation } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IDefaultChatAgent } from '../../../../../base/common/product.js';
-import { IViewDescriptorService } from '../../../../common/views.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { ensureSideBarChatViewSize } from '../chat.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-
+import { showCopilotView } from '../chat.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 
 export class ChatGettingStartedContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chatGettingStarted';
@@ -28,12 +24,10 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 	constructor(
 		@IProductService private readonly productService: IProductService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@ICommandService private readonly commandService: ICommandService,
+		@IViewsService private readonly viewsService: IViewsService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -72,12 +66,8 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 
 	private async onDidInstallChat() {
 
-		// Enable chat command center if previously disabled
-		this.configurationService.updateValue('chat.commandCenter.enabled', true);
-
-		// Open and configure chat view
-		await this.commandService.executeCommand(CHAT_OPEN_ACTION_ID);
-		ensureSideBarChatViewSize(400, this.viewDescriptorService, this.layoutService);
+		// Open Copilot view
+		showCopilotView(this.viewsService, this.layoutService);
 
 		// Only do this once
 		this.storageService.store(ChatGettingStartedContribution.hideWelcomeView, true, StorageScope.APPLICATION, StorageTarget.MACHINE);

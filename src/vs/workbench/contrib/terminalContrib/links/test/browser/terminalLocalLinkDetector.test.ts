@@ -158,6 +158,8 @@ const supportedFallbackLinkFormats: LinkFormatInfo[] = [
 	{ urlFormat: '{0}:{1}:{2} :', line: '5', column: '3', linkCellEndOffset: -2 },
 	{ urlFormat: '{0}:{1}:', line: '5', linkCellEndOffset: -1 },
 	{ urlFormat: '{0}:{1}:{2}:', line: '5', column: '3', linkCellEndOffset: -1 },
+	// PowerShell prompt
+	{ urlFormat: 'PS {0}>', linkCellStartOffset: 3, linkCellEndOffset: -1 },
 	// Cmd prompt
 	{ urlFormat: '{0}>', linkCellEndOffset: -1 },
 	// The whole line is the path
@@ -249,6 +251,13 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 			validResources = [URI.file('/parent/cwd/foo')];
 			await assertLinks(TerminalBuiltinLinkType.LocalFile, '"foo]" on line 5', [
 				{ range: [[1, 1], [16, 1]], uri: URI.file('/parent/cwd/foo') }
+			]);
+		});
+
+		test('should support finding links after brackets', async () => {
+			validResources = [URI.file('/parent/cwd/foo')];
+			await assertLinks(TerminalBuiltinLinkType.LocalFile, 'bar[foo:5', [
+				{ range: [[5, 1], [9, 1]], uri: URI.file('/parent/cwd/foo') }
 			]);
 		});
 	});

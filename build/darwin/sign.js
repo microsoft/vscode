@@ -3,14 +3,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-const fs = require("fs");
-const path = require("path");
-const codesign = require("electron-osx-sign");
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
+const electron_osx_sign_1 = __importDefault(require("electron-osx-sign"));
 const cross_spawn_promise_1 = require("@malept/cross-spawn-promise");
-const root = path.dirname(path.dirname(__dirname));
+const root = path_1.default.dirname(path_1.default.dirname(__dirname));
 function getElectronVersion() {
-    const npmrc = fs.readFileSync(path.join(root, '.npmrc'), 'utf8');
+    const npmrc = fs_1.default.readFileSync(path_1.default.join(root, '.npmrc'), 'utf8');
     const target = /^target="(.*)"$/m.exec(npmrc)[1];
     return target;
 }
@@ -24,25 +27,25 @@ async function main(buildDir) {
     if (!tempDir) {
         throw new Error('$AGENT_TEMPDIRECTORY not set');
     }
-    const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
-    const baseDir = path.dirname(__dirname);
-    const appRoot = path.join(buildDir, `VSCode-darwin-${arch}`);
+    const product = JSON.parse(fs_1.default.readFileSync(path_1.default.join(root, 'product.json'), 'utf8'));
+    const baseDir = path_1.default.dirname(__dirname);
+    const appRoot = path_1.default.join(buildDir, `VSCode-darwin-${arch}`);
     const appName = product.nameLong + '.app';
-    const appFrameworkPath = path.join(appRoot, appName, 'Contents', 'Frameworks');
+    const appFrameworkPath = path_1.default.join(appRoot, appName, 'Contents', 'Frameworks');
     const helperAppBaseName = product.nameShort;
     const gpuHelperAppName = helperAppBaseName + ' Helper (GPU).app';
     const rendererHelperAppName = helperAppBaseName + ' Helper (Renderer).app';
     const pluginHelperAppName = helperAppBaseName + ' Helper (Plugin).app';
-    const infoPlistPath = path.resolve(appRoot, appName, 'Contents', 'Info.plist');
+    const infoPlistPath = path_1.default.resolve(appRoot, appName, 'Contents', 'Info.plist');
     const defaultOpts = {
-        app: path.join(appRoot, appName),
+        app: path_1.default.join(appRoot, appName),
         platform: 'darwin',
-        entitlements: path.join(baseDir, 'azure-pipelines', 'darwin', 'app-entitlements.plist'),
-        'entitlements-inherit': path.join(baseDir, 'azure-pipelines', 'darwin', 'app-entitlements.plist'),
+        entitlements: path_1.default.join(baseDir, 'azure-pipelines', 'darwin', 'app-entitlements.plist'),
+        'entitlements-inherit': path_1.default.join(baseDir, 'azure-pipelines', 'darwin', 'app-entitlements.plist'),
         hardenedRuntime: true,
         'pre-auto-entitlements': false,
         'pre-embed-provisioning-profile': false,
-        keychain: path.join(tempDir, 'buildagent.keychain'),
+        keychain: path_1.default.join(tempDir, 'buildagent.keychain'),
         version: getElectronVersion(),
         identity,
         'gatekeeper-assess': false
@@ -58,21 +61,21 @@ async function main(buildDir) {
     };
     const gpuHelperOpts = {
         ...defaultOpts,
-        app: path.join(appFrameworkPath, gpuHelperAppName),
-        entitlements: path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-gpu-entitlements.plist'),
-        'entitlements-inherit': path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-gpu-entitlements.plist'),
+        app: path_1.default.join(appFrameworkPath, gpuHelperAppName),
+        entitlements: path_1.default.join(baseDir, 'azure-pipelines', 'darwin', 'helper-gpu-entitlements.plist'),
+        'entitlements-inherit': path_1.default.join(baseDir, 'azure-pipelines', 'darwin', 'helper-gpu-entitlements.plist'),
     };
     const rendererHelperOpts = {
         ...defaultOpts,
-        app: path.join(appFrameworkPath, rendererHelperAppName),
-        entitlements: path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist'),
-        'entitlements-inherit': path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist'),
+        app: path_1.default.join(appFrameworkPath, rendererHelperAppName),
+        entitlements: path_1.default.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist'),
+        'entitlements-inherit': path_1.default.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist'),
     };
     const pluginHelperOpts = {
         ...defaultOpts,
-        app: path.join(appFrameworkPath, pluginHelperAppName),
-        entitlements: path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-plugin-entitlements.plist'),
-        'entitlements-inherit': path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-plugin-entitlements.plist'),
+        app: path_1.default.join(appFrameworkPath, pluginHelperAppName),
+        entitlements: path_1.default.join(baseDir, 'azure-pipelines', 'darwin', 'helper-plugin-entitlements.plist'),
+        'entitlements-inherit': path_1.default.join(baseDir, 'azure-pipelines', 'darwin', 'helper-plugin-entitlements.plist'),
     };
     // Only overwrite plist entries for x64 and arm64 builds,
     // universal will get its copy from the x64 build.
@@ -99,10 +102,10 @@ async function main(buildDir) {
             `${infoPlistPath}`
         ]);
     }
-    await codesign.signAsync(gpuHelperOpts);
-    await codesign.signAsync(rendererHelperOpts);
-    await codesign.signAsync(pluginHelperOpts);
-    await codesign.signAsync(appOpts);
+    await electron_osx_sign_1.default.signAsync(gpuHelperOpts);
+    await electron_osx_sign_1.default.signAsync(rendererHelperOpts);
+    await electron_osx_sign_1.default.signAsync(pluginHelperOpts);
+    await electron_osx_sign_1.default.signAsync(appOpts);
 }
 if (require.main === module) {
     main(process.argv[2]).catch(err => {

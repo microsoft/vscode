@@ -12,18 +12,19 @@ import { TextureAtlas } from '../../../../browser/gpu/atlas/textureAtlas.js';
 import { createCodeEditorServices } from '../../testCodeEditor.js';
 import { assertIsValidGlyph } from './testUtil.js';
 import { TextureAtlasSlabAllocator } from '../../../../browser/gpu/atlas/textureAtlasSlabAllocator.js';
+import { DecorationStyleCache } from '../../../../browser/gpu/css/decorationStyleCache.js';
 
 const blackInt = 0x000000FF;
 const nullCharMetadata = 0x0;
 
 let lastUniqueGlyph: string | undefined;
-function getUniqueGlyphId(): [chars: string, tokenMetadata: number, charMetadata: number] {
+function getUniqueGlyphId(): [chars: string, tokenMetadata: number, charMetadata: number, x: number] {
 	if (!lastUniqueGlyph) {
 		lastUniqueGlyph = 'a';
 	} else {
 		lastUniqueGlyph = String.fromCharCode(lastUniqueGlyph.charCodeAt(0) + 1);
 	}
-	return [lastUniqueGlyph, blackInt, nullCharMetadata];
+	return [lastUniqueGlyph, blackInt, nullCharMetadata, 0];
 }
 
 class TestGlyphRasterizer implements IGlyphRasterizer {
@@ -60,6 +61,9 @@ class TestGlyphRasterizer implements IGlyphRasterizer {
 			fontBoundingBoxDescent: 0,
 		};
 	}
+	getTextMetrics(text: string): TextMetrics {
+		return null!;
+	}
 }
 
 suite('TextureAtlas', () => {
@@ -76,7 +80,7 @@ suite('TextureAtlas', () => {
 
 	setup(() => {
 		instantiationService = createCodeEditorServices(store);
-		atlas = store.add(instantiationService.createInstance(TextureAtlas, 2, undefined));
+		atlas = store.add(instantiationService.createInstance(TextureAtlas, 2, undefined, new DecorationStyleCache()));
 		glyphRasterizer = new TestGlyphRasterizer();
 		glyphRasterizer.nextGlyphDimensions = [1, 1];
 		glyphRasterizer.nextGlyphColor = [0, 0, 0, 0xFF];
@@ -87,7 +91,7 @@ suite('TextureAtlas', () => {
 	});
 
 	test('get multiple glyphs', () => {
-		atlas = store.add(instantiationService.createInstance(TextureAtlas, 32, undefined));
+		atlas = store.add(instantiationService.createInstance(TextureAtlas, 32, undefined, new DecorationStyleCache()));
 		for (let i = 0; i < 10; i++) {
 			assertIsValidGlyph(atlas.getGlyph(glyphRasterizer, ...getUniqueGlyphId()), atlas);
 		}
@@ -116,14 +120,14 @@ suite('TextureAtlas', () => {
 		glyphRasterizer.nextGlyphDimensions = [2, 2];
 		atlas = store.add(instantiationService.createInstance(TextureAtlas, 32, {
 			allocatorType: (canvas, textureIndex) => new TextureAtlasSlabAllocator(canvas, textureIndex, { slabW: 1, slabH: 1 })
-		}));
+		}, new DecorationStyleCache()));
 		assertIsValidGlyph(atlas.getGlyph(glyphRasterizer, ...getUniqueGlyphId()), atlas);
 	});
 
 	test('adding a non-first glyph larger than the standard slab size, causing an overflow to a new page', () => {
 		atlas = store.add(instantiationService.createInstance(TextureAtlas, 2, {
 			allocatorType: (canvas, textureIndex) => new TextureAtlasSlabAllocator(canvas, textureIndex, { slabW: 1, slabH: 1 })
-		}));
+		}, new DecorationStyleCache()));
 		assertIsValidGlyph(atlas.getGlyph(glyphRasterizer, ...getUniqueGlyphId()), atlas);
 		strictEqual(atlas.pages.length, 1);
 		glyphRasterizer.nextGlyphDimensions = [2, 2];

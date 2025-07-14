@@ -27,9 +27,8 @@ import { Iterable } from '../../../../../../base/common/iterator.js';
 import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../../../chat/common/chatContextKeys.js';
-import { AbstractInlineChatAction } from '../../../../inlineChat/browser/inlineChatActions.js';
 import { InlineChatController } from '../../../../inlineChat/browser/inlineChatController.js';
-import { HunkInformation } from '../../../../inlineChat/browser/inlineChatSession.js';
+import { EditorAction2 } from '../../../../../../editor/browser/editorExtensions.js';
 
 registerAction2(class extends NotebookAction {
 	constructor() {
@@ -671,7 +670,7 @@ registerAction2(class extends NotebookCellAction {
 });
 
 
-export class AcceptChangesAndRun extends AbstractInlineChatAction {
+export class AcceptChangesAndRun extends EditorAction2 {
 
 	constructor() {
 		super({
@@ -700,10 +699,11 @@ export class AcceptChangesAndRun extends AbstractInlineChatAction {
 		});
 	}
 
-	override async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController, codeEditor: ICodeEditor, hunk?: HunkInformation | any): Promise<void> {
+	override runEditorCommand(accessor: ServicesAccessor, codeEditor: ICodeEditor) {
 		const editor = getContextFromActiveEditor(accessor.get(IEditorService));
+		const ctrl = InlineChatController.get(codeEditor);
 
-		if (!editor) {
+		if (!editor || !ctrl) {
 			return;
 		}
 
