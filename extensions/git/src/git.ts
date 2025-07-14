@@ -2733,15 +2733,28 @@ export class Repository {
 
 		try {
 			// List all worktree folder names
-			const raw = await fs.readdir(worktreesPath);
+			const dirents = await fs.readdir(worktreesPath, { withFileTypes: true });
 			const result: Worktree[] = [];
 
-			for (const name of raw) {
-				const gitdirPath = path.join(worktreesPath, name, 'gitdir');
-				const gitdirContent = (await fs.readFile(gitdirPath, 'utf8')).trim();
-				// Remove trailing '/.git'
-				const gitdirTrimmed = gitdirContent.replace(/\.git.*$/, '');
-				result.push({ name: name, path: gitdirTrimmed });
+			for (const dirent of dirents) {
+				if (!dirent.isDirectory()) {
+					continue;
+				}
+
+				const gitdirPath = path.join(worktreesPath, dirent.name, 'gitdir');
+
+				try {
+					const gitdirContent = (await fs.readFile(gitdirPath, 'utf8')).trim();
+					// Remove trailing '/.git'
+					const gitdirTrimmed = gitdirContent.replace(/\.git.*$/, '');
+					result.push({ name: dirent.name, path: gitdirTrimmed });
+				} catch (err) {
+					if (/ENOENT/.test(err.message)) {
+						continue;
+					}
+
+					throw err;
+				}
 			}
 
 			return result;
