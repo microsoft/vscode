@@ -107,6 +107,8 @@ async function readdir(path: string, options?: { withFileTypes: true }): Promise
 	try {
 		return await doReaddir(path, options);
 	} catch (error) {
+		// TODO@bpasero workaround for #252361 that should be removed
+		// once the upstream issue in node.js is resolved
 		if (error.code === 'ENOENT' && isWindows && isRootOrDriveLetter(path)) {
 			try {
 				return await doReaddir(path.slice(0, -1), options);
