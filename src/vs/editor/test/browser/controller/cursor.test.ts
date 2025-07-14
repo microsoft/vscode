@@ -1369,6 +1369,7 @@ suite('Editor Controller', () => {
 	const indentRulesLanguageId = 'indentRulesLanguage';
 	const electricCharLanguageId = 'electricCharLanguage';
 	const autoClosingLanguageId = 'autoClosingLanguage';
+	const emptyClosingSurroundLanguageId = 'emptyClosingSurroundLanguage';
 
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
@@ -1384,6 +1385,11 @@ suite('Editor Controller', () => {
 		disposables.add(languageService.registerLanguage({ id: surroundingLanguageId }));
 		disposables.add(languageConfigurationService.register(surroundingLanguageId, {
 			autoClosingPairs: [{ open: '(', close: ')' }]
+		}));
+
+		disposables.add(languageService.registerLanguage({ id: emptyClosingSurroundLanguageId }));
+		disposables.add(languageConfigurationService.register(emptyClosingSurroundLanguageId, {
+			surroundingPairs: [{ open: '<', close: '' }]
 		}));
 
 		setupIndentRulesLanguage(indentRulesLanguageId, {
@@ -1995,6 +2001,32 @@ suite('Editor Controller', () => {
 
 			viewModel.type('(', 'keyboard');
 			assertCursor(viewModel, new Selection(1, 5, 1, 7));
+		});
+	});
+
+	test('issue #206774: SurroundSelectionCommand with empty charAfterSelection should not throw', () => {
+		// This test reproduces the issue where SurroundSelectionCommand throws when charAfterSelection is empty
+		// The problem is that addTrackedEditOperation ignores empty strings, causing computeCursorState to fail
+		// when trying to access inverseEditOperations[1].range (which is undefined)
+
+		usingCursor({
+			text: [
+				'hello world'
+			],
+			languageId: emptyClosingSurroundLanguageId
+		}, (editor, model, viewModel) => {
+			// Select "hello"
+			moveTo(editor, viewModel, 1, 1, false);
+			moveTo(editor, viewModel, 1, 6, true);
+			assertCursor(viewModel, new Selection(1, 1, 1, 6));
+
+			// Type < which should surround with '<' and empty string
+			// This reproduces the crash where charAfterSelection is empty
+			viewModel.type('<', 'keyboard');
+
+			// Test passes if we don't crash - the exact cursor position depends on the fix
+			// The main issue is that computeCursorState fails when charAfterSelection is empty
+			assert.strictEqual(model.getValue(), '<hello world');
 		});
 	});
 
