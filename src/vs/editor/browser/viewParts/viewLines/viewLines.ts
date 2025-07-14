@@ -497,6 +497,14 @@ export class ViewLines extends ViewPart implements IViewLines {
 		return result;
 	}
 
+	private _lineIsRenderedRTL(lineNumber: number): boolean {
+		if (lineNumber < this._visibleLines.getStartLineNumber() || lineNumber > this._visibleLines.getEndLineNumber()) {
+			return false;
+		}
+		const visibleLine = this._visibleLines.getVisibleLine(lineNumber);
+		return visibleLine.isRenderedRTL();
+	}
+
 	public visibleRangeForPosition(position: Position): HorizontalPosition | null {
 		const visibleRanges = this._visibleRangesForLineRange(position.lineNumber, position.column, position.column);
 		if (!visibleRanges) {
@@ -634,7 +642,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 				const newScrollLeft = this._computeScrollLeftToReveal(horizontalRevealRequest);
 
 				if (newScrollLeft) {
-					if (!this._isViewportWrapping) {
+					if (!this._isViewportWrapping && !newScrollLeft.hasRTL) {
 						// ensure `scrollWidth` is large enough
 						this._ensureMaxLineWidth(newScrollLeft.maxHorizontalOffset);
 					}
@@ -775,7 +783,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 		return newScrollTop;
 	}
 
-	private _computeScrollLeftToReveal(horizontalRevealRequest: HorizontalRevealRequest): { scrollLeft: number; maxHorizontalOffset: number } | null {
+	private _computeScrollLeftToReveal(horizontalRevealRequest: HorizontalRevealRequest): { scrollLeft: number; maxHorizontalOffset: number; hasRTL: boolean } | null {
 
 		const viewport = this._context.viewLayout.getCurrentViewport();
 		const layoutInfo = this._context.configuration.options.get(EditorOption.layoutInfo);
@@ -784,7 +792,9 @@ export class ViewLines extends ViewPart implements IViewLines {
 
 		let boxStartX = Constants.MAX_SAFE_SMALL_INTEGER;
 		let boxEndX = 0;
+		let hasRTL = false;
 		if (horizontalRevealRequest.type === 'range') {
+			hasRTL = this._lineIsRenderedRTL(horizontalRevealRequest.lineNumber);
 			const visibleRanges = this._visibleRangesForLineRange(horizontalRevealRequest.lineNumber, horizontalRevealRequest.startColumn, horizontalRevealRequest.endColumn);
 			if (!visibleRanges) {
 				return null;
@@ -799,6 +809,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 					return null;
 				}
 				const visibleRanges = this._visibleRangesForLineRange(selection.startLineNumber, selection.startColumn, selection.endColumn);
+				hasRTL ||= this._lineIsRenderedRTL(selection.startLineNumber);
 				if (!visibleRanges) {
 					return null;
 				}
@@ -821,7 +832,8 @@ export class ViewLines extends ViewPart implements IViewLines {
 		const newScrollLeft = this._computeMinimumScrolling(viewportStartX, viewportEndX, boxStartX, boxEndX);
 		return {
 			scrollLeft: newScrollLeft,
-			maxHorizontalOffset: boxEndX
+			maxHorizontalOffset: boxEndX,
+			hasRTL
 		};
 	}
 

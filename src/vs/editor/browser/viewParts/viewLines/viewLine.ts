@@ -92,7 +92,7 @@ export class ViewLine implements IVisibleLine {
 		this._options = newOptions;
 	}
 	public onSelectionChanged(): boolean {
-		if (isHighContrast(this._options.themeType) || this._renderedViewLine?.getRenderWhitespace() === RenderWhitespace.Selection) {
+		if (isHighContrast(this._options.themeType) || this._renderedViewLine?.input.renderWhitespace === RenderWhitespace.Selection) {
 			this._isMaybeInvalid = true;
 			return true;
 		}
@@ -242,6 +242,13 @@ export class ViewLine implements IVisibleLine {
 
 	// --- end IVisibleLineData
 
+	public isRenderedRTL(): boolean {
+		if (!this._renderedViewLine) {
+			return false;
+		}
+		return this._renderedViewLine.input.textDirection === TextDirection.RTL;
+	}
+
 	public getWidth(context: DomReadingContext | null): number {
 		if (!this._renderedViewLine) {
 			return 0;
@@ -323,7 +330,6 @@ interface IRenderedViewLine {
 	readonly input: RenderLineInput;
 	getWidth(context: DomReadingContext | null): number;
 	getWidthIsFast(): boolean;
-	getRenderWhitespace(): RenderWhitespace;
 	getVisibleRangesForRange(lineNumber: number, startColumn: number, endColumn: number, context: DomReadingContext): FloatHorizontalRange[] | null;
 	getColumnOfNodeOffset(spanNode: HTMLElement, offset: number): number;
 }
@@ -367,10 +373,6 @@ class FastRenderedViewLine implements IRenderedViewLine {
 
 		this._characterMapping = characterMapping;
 		this._charWidth = renderLineInput.spaceWidth;
-	}
-
-	public getRenderWhitespace(): RenderWhitespace {
-		return this.input.renderWhitespace;
 	}
 
 	public getWidth(context: DomReadingContext | null): number {
@@ -503,13 +505,6 @@ class RenderedViewLine implements IRenderedViewLine {
 
 	protected _getReadingTarget(myDomNode: FastDomNode<HTMLElement>): HTMLElement {
 		return <HTMLSpanElement>myDomNode.domNode.firstChild;
-	}
-
-	/**
-	 * The render whitespace setting for this line
-	 */
-	public getRenderWhitespace(): RenderWhitespace {
-		return this.input.renderWhitespace;
 	}
 
 	/**
