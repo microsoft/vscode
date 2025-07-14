@@ -331,8 +331,10 @@ export class ViewLineRenderingData {
 	 * The visible column at the start of the line (after the fauxIndent)
 	 */
 	public readonly startVisibleColumn: number;
-	public readonly textDirection: TextDirection | null;
-
+	/**
+	 * The direction to use for rendering the line.
+	 */
+	public readonly textDirection: TextDirection;
 	/**
 	 * Whether the line has variable fonts
 	 */
@@ -349,7 +351,7 @@ export class ViewLineRenderingData {
 		inlineDecorations: InlineDecoration[],
 		tabSize: number,
 		startVisibleColumn: number,
-		textDirection: TextDirection | null,
+		textDirection: TextDirection,
 		hasVariableFonts: boolean
 	) {
 		this.minColumn = minColumn;

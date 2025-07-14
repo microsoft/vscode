@@ -799,11 +799,9 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	private _getTextDirection(lineNumber: number, decorations: ViewModelDecoration[]): TextDirection {
-		const decorationsLength = decorations.length;
 		let rtlCount = 0;
 
-		for (let i = 0; i < decorationsLength; i++) {
-			const decoration = decorations[i];
+		for (const decoration of decorations) {
 			const range = decoration.range;
 			if (range.startLineNumber > lineNumber || range.endLineNumber < lineNumber) {
 				continue;
@@ -820,20 +818,19 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public getTextDirection(lineNumber: number): TextDirection {
-		const viewportData = this._decorations.getLineViewportData(lineNumber);
-		return this._getTextDirection(lineNumber, viewportData.decorations);
+		const decorationsCollection = this._decorations.getDecorationsOnLine(lineNumber);
+		return this._getTextDirection(lineNumber, decorationsCollection.decorations);
 	}
 
 	public getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
-		const decorationViewportData = this._decorations.getDecorationsViewportData(visibleRange);
-		const allInlineDecorations = decorationViewportData.inlineDecorations;
-		const inlineDecorations = allInlineDecorations[lineNumber - visibleRange.startLineNumber];
-		return this._getViewLineRenderingData(lineNumber, inlineDecorations, decorationViewportData.hasVariableFonts, decorationViewportData.decorations);
+		const viewportDecorationsCollection = this._decorations.getDecorationsViewportData(visibleRange);
+		const inlineDecorations = viewportDecorationsCollection.inlineDecorations[lineNumber - visibleRange.startLineNumber];
+		return this._getViewLineRenderingData(lineNumber, inlineDecorations, viewportDecorationsCollection.hasVariableFonts, viewportDecorationsCollection.decorations);
 	}
 
 	public getViewLineRenderingData(lineNumber: number): ViewLineRenderingData {
-		const viewportData = this._decorations.getLineViewportData(lineNumber);
-		return this._getViewLineRenderingData(lineNumber, viewportData.inlineDecorations[0], viewportData.hasVariableFonts, viewportData.decorations);
+		const decorationsCollection = this._decorations.getDecorationsOnLine(lineNumber);
+		return this._getViewLineRenderingData(lineNumber, decorationsCollection.inlineDecorations[0], decorationsCollection.hasVariableFonts, decorationsCollection.decorations);
 	}
 
 	private _getViewLineRenderingData(lineNumber: number, inlineDecorations: InlineDecoration[], hasVariableFonts: boolean, decorations: ViewModelDecoration[]): ViewLineRenderingData {
@@ -841,22 +838,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		const mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
 		const tabSize = this.getTabSize();
 		const lineData = this._lines.getViewLineData(lineNumber);
-		const decorationsLength = decorations.length;
-		let rtlCount = 0;
-
-		for (let i = 0; i < decorationsLength; i++) {
-			const decoration = decorations[i];
-			const range = decoration.range;
-			if (range.startLineNumber > lineNumber || range.endLineNumber < lineNumber) {
-				continue;
-			}
-			const textDirection = decoration.options.textDirection;
-			if (textDirection === TextDirection.RTL) {
-				rtlCount++;
-			} else if (textDirection === TextDirection.LTR) {
-				rtlCount--;
-			}
-		}
 
 		if (lineData.inlineDecorations) {
 			inlineDecorations = [
