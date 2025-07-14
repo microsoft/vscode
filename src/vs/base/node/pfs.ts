@@ -104,6 +104,21 @@ export interface IDirent {
 async function readdir(path: string): Promise<string[]>;
 async function readdir(path: string, options: { withFileTypes: true }): Promise<IDirent[]>;
 async function readdir(path: string, options?: { withFileTypes: true }): Promise<(string | IDirent)[]> {
+	try {
+		return await doReaddir(path, options);
+	} catch (error) {
+		if (error.code === 'ENOENT' && isWindows && isRootOrDriveLetter(path)) {
+			try {
+				return await doReaddir(path.slice(0, -1), options);
+			} catch (e) {
+				// ignore
+			}
+		}
+		throw error;
+	}
+}
+
+async function doReaddir(path: string, options?: { withFileTypes: true }): Promise<(string | IDirent)[]> {
 	return handleDirectoryChildren(await (options ? safeReaddirWithFileTypes(path) : fs.promises.readdir(path)));
 }
 
