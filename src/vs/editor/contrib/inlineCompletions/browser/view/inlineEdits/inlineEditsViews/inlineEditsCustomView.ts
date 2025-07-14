@@ -139,7 +139,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 			const startLineNumber = displayLocation.range.startLineNumber;
 			const endLineNumber = displayLocation.range.endLineNumber;
 			const { lineWidth, lineWidthBelow, lineWidthAbove, startContentLeftOffset, endContentLeftOffset } = contentState.read(reader);
-
+			// test comment
 			const contentLeft = this._editorObs.layoutInfoContentLeft.read(reader);
 			const lineHeight = this._editorObs.observeLineHeightForLine(startLineNumber).read(reader);
 			const scrollTop = this._editorObs.scrollTop.read(reader);
