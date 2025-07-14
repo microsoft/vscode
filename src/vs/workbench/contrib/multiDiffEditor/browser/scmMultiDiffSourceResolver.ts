@@ -170,7 +170,7 @@ class ScmResolvedMultiDiffSource implements IResolvedMultiDiffSource {
 		this.resources = new ValueWithChangeEventFromObservable(this._resources);
 		this.contextKeys = {
 			scmResourceGroup: this._group.id,
-			scmProvider: this._repository.provider.contextValue,
+			scmProvider: this._repository.provider.providerId,
 		};
 	}
 }
