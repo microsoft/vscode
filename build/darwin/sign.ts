@@ -122,6 +122,12 @@ if (require.main === module) {
 		console.error(err);
 		const identities = await spawn('security', ['find-identity', '-p', 'codesigning', '-v']);
 		console.error(`Available identities:\n${identities}`);
+		const tempDir = process.env['AGENT_TEMPDIRECTORY'];
+		if (tempDir) {
+			const keychain = path.join(tempDir, 'buildagent.keychain');
+			const dump = await spawn('security', ['dump-keychain', keychain]);
+			console.error(`Keychain dump:\n${dump}`);
+		}
 		process.exit(1);
 	});
 }
