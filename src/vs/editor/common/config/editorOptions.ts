@@ -607,6 +607,16 @@ export interface IEditorOptions {
 	 */
 	selectionHighlight?: boolean;
 	/**
+	 * Enable selection highlight for multiline selections.
+	 * Defaults to false.
+	 */
+	selectionHighlightMultiline?: boolean;
+	/**
+	 * Maximum length (in characters) for selection highlights.
+	 * Set to 0 to have an unlimited length.
+	 */
+	selectionHighlightMaxLength?: number;
+	/**
 	 * Enable semantic occurrences highlight.
 	 * Defaults to 'singleFile'.
 	 * 'off' disables occurrence highlighting
@@ -5683,6 +5693,8 @@ export const enum EditorOption {
 	scrollPredominantAxis,
 	selectionClipboard,
 	selectionHighlight,
+	selectionHighlightMaxLength,
+	selectionHighlightMultiline,
 	selectOnLineNumbers,
 	showFoldingControls,
 	showUnused,
@@ -6375,6 +6387,15 @@ export const EditorOptions = {
 	selectionHighlight: register(new EditorBooleanOption(
 		EditorOption.selectionHighlight, 'selectionHighlight', true,
 		{ description: nls.localize('selectionHighlight', "Controls whether the editor should highlight matches similar to the selection.") }
+	)),
+	selectionHighlightMaxLength: register(new EditorIntOption(
+		EditorOption.selectionHighlightMaxLength, 'selectionHighlightMaxLength',
+		200, 0, Constants.MAX_SAFE_SMALL_INTEGER,
+		{ description: nls.localize('selectionHighlightMaxLength', "Controls how many characters can be in the selection before similiar matches are not highlighted. Set to zero for unlimited.") }
+	)),
+	selectionHighlightMultiline: register(new EditorBooleanOption(
+		EditorOption.selectionHighlightMultiline, 'selectionHighlightMultiline', false,
+		{ description: nls.localize('selectionHighlightMultiline', "Controls whether the editor should highlight selection matches that span multiple lines.") }
 	)),
 	selectOnLineNumbers: register(new EditorBooleanOption(
 		EditorOption.selectOnLineNumbers, 'selectOnLineNumbers', true,
