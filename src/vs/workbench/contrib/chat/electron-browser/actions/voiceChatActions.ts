@@ -3,23 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/voiceChatActions.css';
+import { renderStringAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { RunOnceScheduler, disposableTimeout, raceCancellation } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Color } from '../../../../../base/common/color.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import Severity from '../../../../../base/common/severity.js';
 import { isNumber } from '../../../../../base/common/types.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../../nls.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { Action2, IAction2Options, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Extensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -32,34 +37,30 @@ import { registerThemingParticipant } from '../../../../../platform/theme/common
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ACTIVITY_BAR_BADGE_BACKGROUND } from '../../../../common/theme.js';
-import { AccessibilityVoiceSettingId, SpeechTimeoutDefault, accessibilityConfigurationNodeBase } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
-import { IChatExecuteActionContext } from '../../browser/actions/chatExecuteActions.js';
-import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../../browser/chat.js';
-import { IChatAgentService } from '../../common/chatAgents.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { KEYWORD_ACTIVIATION_SETTING_ID } from '../../common/chatService.js';
-import { ChatResponseViewModel, IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
-import { IVoiceChatService, VoiceChatInProgress as GlobalVoiceChatInProgress } from '../../common/voiceChatService.js';
-import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
-import { CTX_INLINE_CHAT_FOCUSED, MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
-import { NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
-import { HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextInProgress, SpeechToTextStatus, TextToSpeechStatus, TextToSpeechInProgress as GlobalTextToSpeechInProgress } from '../../../speech/common/speechService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { IChatResponseModel } from '../../common/chatModel.js';
-import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { renderStringAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
-import { ChatAgentLocation } from '../../common/constants.js';
+import { AccessibilityVoiceSettingId, SpeechTimeoutDefault, accessibilityConfigurationNodeBase } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
+import { CTX_INLINE_CHAT_FOCUSED, MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
+import { NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
+import { CONTEXT_SETTINGS_EDITOR } from '../../../preferences/common/preferences.js';
 import { SearchContext } from '../../../search/common/constants.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import Severity from '../../../../../base/common/severity.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
-import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { TextToSpeechInProgress as GlobalTextToSpeechInProgress, HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextInProgress, SpeechToTextStatus, TextToSpeechStatus } from '../../../speech/common/speechService.js';
+import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
+import { IChatExecuteActionContext } from '../../browser/actions/chatExecuteActions.js';
+import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../../browser/chat.js';
+import { IChatAgentService } from '../../common/chatAgents.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { IChatResponseModel } from '../../common/chatModel.js';
+import { KEYWORD_ACTIVIATION_SETTING_ID } from '../../common/chatService.js';
+import { ChatResponseViewModel, IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
+import { ChatAgentLocation } from '../../common/constants.js';
+import { VoiceChatInProgress as GlobalVoiceChatInProgress, IVoiceChatService } from '../../common/voiceChatService.js';
+import './media/voiceChatActions.css';
 
 //#region Speech to Text
 
@@ -461,10 +462,11 @@ export class HoldToVoiceChatInChatViewAction extends Action2 {
 				when: ContextKeyExpr.and(
 					CanVoiceChat,
 					ChatContextKeys.requestInProgress.negate(), 	// disable when a chat request is in progress
-					FocusInChatInput?.negate(),					// when already in chat input, disable this action and prefer to start voice chat directly
-					EditorContextKeys.focus.negate(), 			// do not steal the inline-chat keybinding
-					NOTEBOOK_EDITOR_FOCUSED.negate(),			// do not steal the notebook keybinding
-					SearchContext.SearchViewFocusedKey.negate()	// do not steal the search keybinding
+					FocusInChatInput?.negate(),						// when already in chat input, disable this action and prefer to start voice chat directly
+					EditorContextKeys.focus.negate(), 				// do not steal the inline-chat keybinding
+					NOTEBOOK_EDITOR_FOCUSED.negate(),				// do not steal the notebook keybinding
+					SearchContext.SearchViewFocusedKey.negate(),	// do not steal the search keybinding
+					CONTEXT_SETTINGS_EDITOR.negate(),				// do not steal the settings editor keybinding
 				),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			}

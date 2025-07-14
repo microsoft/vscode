@@ -17,6 +17,9 @@
   ],
   "activationEvents": [
     "onLanguage:markdown",
+    "onLanguage:prompt",
+    "onLanguage:instructions",
+    "onLanguage:chatmode",
     "onCommand:markdown.api.render",
     "onCommand:markdown.api.reloadPlugins",
     "onWebviewPanel:markdown.preview"

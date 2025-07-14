@@ -107,9 +107,15 @@
 				splash.appendChild(borderElement);
 			}
 
-			// ensure there is enough space
-			layoutInfo.auxiliarySideBarWidth = Math.min(layoutInfo.auxiliarySideBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth + layoutInfo.sideBarWidth));
-			layoutInfo.sideBarWidth = Math.min(layoutInfo.sideBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth + layoutInfo.auxiliarySideBarWidth));
+			if (layoutInfo.auxiliaryBarWidth === Number.MAX_SAFE_INTEGER) {
+				// if auxiliary bar is maximized, it goes as wide as the
+				// window width but leaving room for activity bar
+				layoutInfo.auxiliaryBarWidth = window.innerWidth - layoutInfo.activityBarWidth;
+			} else {
+				// otherwise adjust for other parts sizes if not maximized
+				layoutInfo.auxiliaryBarWidth = Math.min(layoutInfo.auxiliaryBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth + layoutInfo.sideBarWidth));
+			}
+			layoutInfo.sideBarWidth = Math.min(layoutInfo.sideBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth + layoutInfo.auxiliaryBarWidth));
 
 			// part: title
 			if (layoutInfo.titleBarHeight > 0) {
@@ -200,10 +206,10 @@
 			}
 
 			// part: auxiliary sidebar
-			if (layoutInfo.auxiliarySideBarWidth > 0) {
+			if (layoutInfo.auxiliaryBarWidth > 0) {
 				const auxSideDiv = document.createElement('div');
 				auxSideDiv.style.position = 'absolute';
-				auxSideDiv.style.width = `${layoutInfo.auxiliarySideBarWidth}px`;
+				auxSideDiv.style.width = `${layoutInfo.auxiliaryBarWidth}px`;
 				auxSideDiv.style.height = `calc(100% - ${layoutInfo.titleBarHeight + layoutInfo.statusBarHeight}px)`;
 				auxSideDiv.style.top = `${layoutInfo.titleBarHeight}px`;
 				if (layoutInfo.sideBarSide === 'left') {
@@ -446,14 +452,13 @@
 		if (Array.isArray(configuration.cssModules) && configuration.cssModules.length > 0) {
 			performance.mark('code/willAddCssLoader');
 
-			const style = document.createElement('style');
-			style.type = 'text/css';
-			style.media = 'screen';
-			style.id = 'vscode-css-loading';
-			window.document.head.appendChild(style);
-
 			globalThis._VSCODE_CSS_LOAD = function (url) {
-				style.textContent += `@import url(${url});\n`;
+				const link = document.createElement('link');
+				link.setAttribute('rel', 'stylesheet');
+				link.setAttribute('type', 'text/css');
+				link.setAttribute('href', url);
+
+				window.document.head.appendChild(link);
 			};
 
 			const importMap: { imports: Record<string, string> } = { imports: {} };

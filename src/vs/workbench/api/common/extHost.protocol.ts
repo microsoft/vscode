@@ -28,7 +28,7 @@ import * as languages from '../../../editor/common/languages.js';
 import { CompletionItemLabel } from '../../../editor/common/languages.js';
 import { CharacterPair, CommentRule, EnterAction } from '../../../editor/common/languages/languageConfiguration.js';
 import { EndOfLineSequence } from '../../../editor/common/model.js';
-import { IModelChangedEvent } from '../../../editor/common/model/mirrorTextModel.js';
+import { ISerializedModelContentChangedEvent } from '../../../editor/common/textModelEvents.js';
 import { IAccessibilityInformation } from '../../../platform/accessibility/common/accessibility.js';
 import { ILocalizedString } from '../../../platform/action/common/action.js';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from '../../../platform/configuration/common/configuration.js';
@@ -61,7 +61,7 @@ import { IChatContentInlineReference, IChatFollowup, IChatNotebookEdit, IChatPro
 import { IChatRequestVariableValue } from '../../contrib/chat/common/chatVariables.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsChangeEvent } from '../../contrib/chat/common/languageModels.js';
-import { IPreparedToolInvocation, IToolInvocation, IToolProgressStep, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IPreparedToolInvocation, IToolInvocation, IToolInvocationPreparationContext, IToolProgressStep, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from '../../contrib/debug/common/debug.js';
 import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from '../../contrib/mcp/common/mcpTypes.js';
 import * as notebookCommon from '../../contrib/notebook/common/notebookCommon.js';
@@ -193,8 +193,10 @@ export interface MainThreadAuthenticationShape extends IDisposable {
 	$waitForUriHandler(expectedUri: UriComponents): Promise<UriComponents>;
 	$showContinueNotification(message: string): Promise<boolean>;
 	$showDeviceCodeModal(userCode: string, verificationUri: string): Promise<boolean>;
-	$registerDynamicAuthenticationProvider(id: string, label: string, authorizationServer: UriComponents, clientId: string): Promise<void>;
+	$promptForClientRegistration(authorizationServerUrl: string): Promise<{ clientId: string; clientSecret?: string } | undefined>;
+	$registerDynamicAuthenticationProvider(id: string, label: string, authorizationServer: UriComponents, clientId: string, clientSecret?: string): Promise<void>;
 	$setSessionsForDynamicAuthProvider(authProviderId: string, clientId: string, sessions: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<void>;
+	$sendDidChangeDynamicProviderInfo({ providerId, clientId, authorizationServer, label, clientSecret }: { providerId: string; clientId?: string; authorizationServer?: UriComponents; label?: string; clientSecret?: string }): Promise<void>;
 }
 
 export interface MainThreadSecretStateShape extends IDisposable {
@@ -479,7 +481,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$emitDocumentSemanticTokensEvent(eventHandle: number): void;
 	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: languages.SemanticTokensLegend): void;
 	$registerCompletionsProvider(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, extensionId: ExtensionIdentifier): void;
-	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleDidShowCompletionItem: boolean, extensionId: string, yieldsToExtensionIds: string[], displayName: string | undefined, debounceDelayMs: number | undefined, eventHandle: number | undefined): void;
+	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleDidShowCompletionItem: boolean, extensionId: string, extensionVersion: string, yieldToId: string | undefined, yieldsToExtensionIds: string[], displayName: string | undefined, debounceDelayMs: number | undefined, eventHandle: number | undefined): void;
 	$emitInlineCompletionsChange(handle: number): void;
 	$registerSignatureHelpProvider(handle: number, selector: IDocumentFilterDto[], metadata: ISignatureHelpProviderMetadataDto): void;
 	$registerInlayHintsProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean, eventHandle: number | undefined, displayName: string | undefined): void;
@@ -1364,6 +1366,7 @@ export interface ExtHostChatAgentsShape2 {
 	$acceptAction(handle: number, result: IChatAgentResult, action: IChatUserActionEvent): void;
 	$invokeCompletionProvider(handle: number, query: string, token: CancellationToken): Promise<IChatAgentCompletionItem[]>;
 	$provideChatTitle(handle: number, context: IChatAgentHistoryEntryDto[], token: CancellationToken): Promise<string | undefined>;
+	$provideChatSummary(handle: number, context: IChatAgentHistoryEntryDto[], token: CancellationToken): Promise<string | undefined>;
 	$releaseSession(sessionId: string): void;
 	$detectChatParticipant(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { participants: IChatParticipantMetadata[]; location: ChatAgentLocation }, token: CancellationToken): Promise<IChatParticipantDetectionResult | null | undefined>;
 	$provideRelatedFiles(handle: number, request: Dto<IChatRequestDraft>, token: CancellationToken): Promise<Dto<IChatRelatedFile>[] | undefined>;
@@ -1405,7 +1408,7 @@ export interface ExtHostLanguageModelToolsShape {
 	$invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>>;
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
 
-	$prepareToolInvocation(toolId: string, parameters: unknown, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
+	$prepareToolInvocation(toolId: string, context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
@@ -1839,7 +1842,7 @@ export interface ExtHostDocumentsShape {
 	$acceptModelSaved(strURL: UriComponents): void;
 	$acceptDirtyStateChanged(strURL: UriComponents, isDirty: boolean): void;
 	$acceptEncodingChanged(strURL: UriComponents, encoding: string): void;
-	$acceptModelChanged(strURL: UriComponents, e: IModelChangedEvent, isDirty: boolean): void;
+	$acceptModelChanged(strURL: UriComponents, e: ISerializedModelContentChangedEvent, isDirty: boolean): void;
 }
 
 export interface ExtHostDocumentSaveParticipantShape {
@@ -1986,7 +1989,7 @@ export interface ExtHostAuthenticationShape {
 	$removeSession(id: string, sessionId: string): Promise<void>;
 	$onDidChangeAuthenticationSessions(id: string, label: string, extensionIdFilter?: string[]): Promise<void>;
 	$onDidUnregisterAuthenticationProvider(id: string): Promise<void>;
-	$registerDynamicAuthProvider(authorizationServer: UriComponents, serverMetadata: IAuthorizationServerMetadata, resource?: IAuthorizationProtectedResourceMetadata, clientId?: string, initialTokens?: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<string>;
+	$registerDynamicAuthProvider(authorizationServer: UriComponents, serverMetadata: IAuthorizationServerMetadata, resource?: IAuthorizationProtectedResourceMetadata, clientId?: string, clientSecret?: string, initialTokens?: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<string>;
 	$onDidChangeDynamicAuthProviderTokens(authProviderId: string, clientId: string, tokens?: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<void>;
 }
 
@@ -2362,12 +2365,11 @@ export interface ExtHostLanguageFeaturesShape {
 	$resolveCompletionItem(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<ISuggestDataDto | undefined>;
 	$releaseCompletionItems(handle: number, id: number): void;
 	$provideInlineCompletions(handle: number, resource: UriComponents, position: IPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined>;
-	$provideInlineEditsForRange(handle: number, resource: UriComponents, range: IRange, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined>;
 	$handleInlineCompletionDidShow(handle: number, pid: number, idx: number, updatedInsertText: string): void;
 	$handleInlineCompletionPartialAccept(handle: number, pid: number, idx: number, acceptedCharacters: number, info: languages.PartialAcceptInfo): void;
 	$handleInlineCompletionEndOfLifetime(handle: number, pid: number, idx: number, reason: languages.InlineCompletionEndOfLifeReason<{ pid: number; idx: number }>): void;
 	$handleInlineCompletionRejection(handle: number, pid: number, idx: number): void;
-	$freeInlineCompletionsList(handle: number, pid: number): void;
+	$freeInlineCompletionsList(handle: number, pid: number, reason: languages.InlineCompletionsDisposeReason): void;
 	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: languages.SignatureHelpContext, token: CancellationToken): Promise<ISignatureHelpDto | undefined>;
 	$releaseSignatureHelp(handle: number, id: number): void;
 	$provideInlayHints(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<IInlayHintsDto | undefined>;
@@ -2548,11 +2550,11 @@ export interface ExtHostTerminalServiceShape {
 
 export interface ExtHostTerminalShellIntegrationShape {
 	$shellIntegrationChange(instanceId: number): void;
-	$shellExecutionStart(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, cwd: UriComponents | undefined): void;
+	$shellExecutionStart(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, cwd: string | undefined): void;
 	$shellExecutionEnd(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, exitCode: number | undefined): void;
 	$shellExecutionData(instanceId: number, data: string): void;
 	$shellEnvChange(instanceId: number, shellEnvKeys: string[], shellEnvValues: string[], isTrusted: boolean): void;
-	$cwdChange(instanceId: number, cwd: UriComponents | undefined): void;
+	$cwdChange(instanceId: number, cwd: string | undefined): void;
 	$closeTerminal(instanceId: number): void;
 }
 

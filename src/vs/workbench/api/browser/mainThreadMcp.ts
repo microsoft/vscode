@@ -13,6 +13,7 @@ import Severity from '../../../base/common/severity.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import * as nls from '../../../nls.js';
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
+import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
 import { IMcpMessageTransport, IMcpRegistry } from '../../contrib/mcp/common/mcpRegistryTypes.js';
 import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
@@ -91,6 +92,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			const serverDefinitions = observableValue<readonly McpServerDefinition[]>('mcpServers', servers);
 			const handle = this._mcpRegistry.registerCollection({
 				...collection,
+				source: new ExtensionIdentifier(collection.extensionId),
 				resolveServerLanch: collection.canResolveLaunch ? (async def => {
 					const r = await this._proxy.$resolveMcpLaunch(collection.id, def.label);
 					return r ? McpServerLaunch.fromSerialized(r) : undefined;
@@ -165,10 +167,12 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		if (sessions.length) {
 			// If we have an existing session preference, use that. If not, we'll return any valid session at the end of this function.
 			if (matchingAccountPreferenceSession && this.authenticationMCPServerAccessService.isAccessAllowed(providerId, matchingAccountPreferenceSession.account.label, server.id)) {
+				this.authenticationMCPServerUsageService.addAccountUsage(providerId, matchingAccountPreferenceSession.account.label, scopesSupported, server.id, server.label);
 				return matchingAccountPreferenceSession.accessToken;
 			}
 			// If we only have one account for a single auth provider, lets just check if it's allowed and return it if it is.
 			if (!provider.supportsMultipleAccounts && this.authenticationMCPServerAccessService.isAccessAllowed(providerId, sessions[0].account.label, server.id)) {
+				this.authenticationMCPServerUsageService.addAccountUsage(providerId, sessions[0].account.label, scopesSupported, server.id, server.label);
 				return sessions[0].accessToken;
 			}
 		}

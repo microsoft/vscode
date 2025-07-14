@@ -1422,9 +1422,6 @@ export class DocumentSymbol extends AbstractDocumentSymbol {
 	}
 
 	static override[Symbol.hasInstance](candidate: unknown): boolean {
-		if (!isObject(candidate)) {
-			throw new TypeError();
-		}
 		return candidate instanceof AbstractDocumentSymbol
 			|| candidate instanceof SymbolInformationAndDocumentSymbol;
 	}
@@ -3349,6 +3346,14 @@ export class EvaluatableExpression implements vscode.EvaluatableExpression {
 export enum InlineCompletionTriggerKind {
 	Invoke = 0,
 	Automatic = 1,
+}
+
+export enum InlineCompletionsDisposeReasonKind {
+	Other = 0,
+	Empty = 1,
+	TokenCancellation = 2,
+	LostRace = 3,
+	NotTaken = 4,
 }
 
 @es5ClassCompat

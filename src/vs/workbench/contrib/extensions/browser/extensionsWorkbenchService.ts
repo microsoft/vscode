@@ -1935,7 +1935,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				count: infos.length,
 			});
 			this.logService.trace(`Checking updates for extensions`, infos.map(e => e.id).join(', '));
-			const galleryExtensions = await this.galleryService.getExtensions(infos, { targetPlatform, compatible: true, productVersion: this.getProductVersion(), updateCheck: true }, CancellationToken.None);
+			const galleryExtensions = await this.galleryService.getExtensions(infos, { targetPlatform, compatible: true, productVersion: this.getProductVersion() }, CancellationToken.None);
 			if (galleryExtensions.length) {
 				await this.syncInstalledExtensionsWithGallery(galleryExtensions, infos);
 			}

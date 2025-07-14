@@ -127,7 +127,7 @@ export class AcceptNextWordOfInlineCompletion extends EditorAction {
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib + 1,
 				primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, InlineCompletionContextKeys.inlineSuggestionVisible, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, InlineCompletionContextKeys.inlineSuggestionVisible, InlineCompletionContextKeys.cursorBeforeGhostText, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 			},
 			menuOpts: [{
 				menuId: MenuId.InlineSuggestionToolbar,
@@ -195,6 +195,7 @@ export class AcceptInlineCompletion extends EditorAction {
 							EditorContextKeys.tabMovesFocus.toNegated(),
 							SuggestContext.Visible.toNegated(),
 							EditorContextKeys.hoverFocused.toNegated(),
+							InlineCompletionContextKeys.hasSelection.toNegated(),
 
 							InlineCompletionContextKeys.inlineSuggestionHasIndentationLessThanTabSize,
 						),

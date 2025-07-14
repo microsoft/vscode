@@ -62,7 +62,7 @@ export function createCompile(src: string, { build, emitError, transpileOnly, pr
 	const compilation = tsb.create(projectPath, overrideOptions, {
 		verbose: false,
 		transpileOnly: Boolean(transpileOnly),
-		transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.esbuild
+		transpileWithEsbuild: typeof transpileOnly !== 'boolean' && transpileOnly.esbuild
 	}, err => reporter(err));
 
 	function pipeline(token?: util.ICancellationToken) {

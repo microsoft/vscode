@@ -50,6 +50,16 @@ export namespace PromptsConfig {
 	export const MODE_LOCATION_KEY = 'chat.modeFilesLocations';
 
 	/**
+	 * Configuration key for use of the copilot instructions file.
+	 */
+	export const USE_COPILOT_INSTRUCTION_FILES = 'github.copilot.chat.codeGeneration.useInstructionFiles';
+
+	/**
+	 * Configuration key for the copilot instruction setting.
+	 */
+	export const COPILOT_INSTRUCTIONS = 'github.copilot.chat.codeGeneration.instructions';
+
+	/**
 	 * Checks if the feature is enabled.
 	 * @see {@link PromptsConfig.KEY}.
 	 */

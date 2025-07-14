@@ -25,11 +25,14 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IListService } from '../../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { resolveCommandsContext } from '../../../../browser/parts/editor/editorCommandsContext.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
-import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
+import { EditorResourceAccessor, isEditorCommandsContext, SideBySideEditor } from '../../../../common/editor.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ExplorerFolderContext } from '../../../files/common/files.js';
@@ -82,7 +85,7 @@ abstract class AttachResourceAction extends Action2 {
 	protected _getResources(accessor: ServicesAccessor, ...args: any[]): URI[] {
 		const editorService = accessor.get(IEditorService);
 
-		const contexts = Array.isArray(args[1]) ? args[1] : [args[0]];
+		const contexts = isEditorCommandsContext(args[1]) ? this._getEditorResources(accessor, args) : Array.isArray(args[1]) ? args[1] : [args[0]];
 		const files = [];
 		for (const context of contexts) {
 			let uri;
@@ -103,6 +106,15 @@ abstract class AttachResourceAction extends Action2 {
 
 		return files;
 	}
+
+	private _getEditorResources(accessor: ServicesAccessor, ...args: any[]): URI[] {
+		const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IListService));
+
+		return resolvedContext.groupedEditors
+			.flatMap(groupedEditor => groupedEditor.editors)
+			.map(editor => EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }))
+			.filter(uri => uri !== undefined);
+	}
 }
 
 class AttachFileToChatAction extends AttachResourceAction {
@@ -114,6 +126,7 @@ class AttachFileToChatAction extends AttachResourceAction {
 			id: AttachFileToChatAction.ID,
 			title: localize2('workbench.action.chat.attachFile.label', "Add File to Chat"),
 			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.enabled,
 			f1: true,
 			menu: [{
 				id: MenuId.SearchContext,
@@ -121,8 +134,8 @@ class AttachFileToChatAction extends AttachResourceAction {
 				order: 1,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, SearchContext.FileMatchOrMatchFocusKey, SearchContext.SearchResultHeaderFocused.negate()),
 			}, {
-				id: MenuId.ChatExplorerMenu,
-				group: 'zContext',
+				id: MenuId.ExplorerContext,
+				group: '5_chat',
 				order: 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.enabled,
@@ -133,8 +146,19 @@ class AttachFileToChatAction extends AttachResourceAction {
 					)
 				),
 			}, {
-				id: MenuId.ChatTextEditorMenu,
-				group: 'zContext',
+				id: MenuId.EditorTitleContext,
+				group: '2_chat',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ContextKeyExpr.or(
+						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)
+					)
+				),
+			}, {
+				id: MenuId.EditorContext,
+				group: '1_chat',
 				order: 2,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.enabled,
@@ -174,8 +198,8 @@ class AttachFolderToChatAction extends AttachResourceAction {
 			category: CHAT_CATEGORY,
 			f1: false,
 			menu: {
-				id: MenuId.ChatExplorerMenu,
-				group: 'zContext',
+				id: MenuId.ExplorerContext,
+				group: '5_chat',
 				order: 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.enabled,
@@ -213,9 +237,10 @@ class AttachSelectionToChatAction extends Action2 {
 			title: localize2('workbench.action.chat.attachSelection.label', "Add Selection to Chat"),
 			category: CHAT_CATEGORY,
 			f1: true,
+			precondition: ChatContextKeys.enabled,
 			menu: {
-				id: MenuId.ChatTextEditorMenu,
-				group: 'zContext',
+				id: MenuId.EditorContext,
+				group: '1_chat',
 				order: 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.enabled,

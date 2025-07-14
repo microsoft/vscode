@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { PolicyTag } from '../../../../base/common/policy.js';
 import './promptSyntax/promptToolsCodeLensProvider.js';
+import './promptSyntax/promptCodingAgentActionContribution.js';
 import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
@@ -28,9 +30,8 @@ import { Extensions, IConfigurationMigrationRegistry } from '../../../common/con
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
-import { mcpSchemaId } from '../../../services/configuration/common/configuration.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
-import { allDiscoverySources, discoverySourceLabel, mcpConfigurationSection, mcpDiscoverySection, mcpEnabledSection, mcpSchemaExampleServers, mcpServerSamplingSection } from '../../mcp/common/mcpConfiguration.js';
+import { allDiscoverySources, discoverySourceLabel, mcpDiscoverySection, mcpEnabledSection, mcpServerSamplingSection } from '../../mcp/common/mcpConfiguration.js';
 import { ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
 import { CodeMapperService, ICodeMapperService } from '../common/chatCodeMapperService.js';
 import '../common/chatColors.js';
@@ -43,7 +44,7 @@ import { ChatSlashCommandService, IChatSlashCommandService } from '../common/cha
 import { ChatTransferService, IChatTransferService } from '../common/chatTransferService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
@@ -106,13 +107,13 @@ import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesCon
 import { LanguageModelToolsService } from './languageModelToolsService.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
-import product from '../../../../platform/product/common/product.js';
 import { ChatModeService, IChatModeService } from '../common/chatModes.js';
 import { ChatResponseResourceFileSystemProvider } from '../common/chatResponseResourceFileSystemProvider.js';
 import { runSaveToPromptAction, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './promptSyntax/saveToPromptAction.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './chatAttachmentResolveService.js';
 import { registerLanguageModelActions } from './actions/chatLanguageModelActions.js';
+import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -170,6 +171,12 @@ configurationRegistry.registerConfiguration({
 				'panel': 'always',
 			}
 		},
+		'chat.implicitContext.suggestedContext': {
+			type: 'boolean',
+			tags: ['experimental'],
+			markdownDescription: nls.localize('chat.implicitContext.suggestedContext', "Controls whether the new implicit context flow is shown. In Ask and Edit modes, the context will automatically be included. In Agent mode context will be suggested as an attachment. Selections are always included as context."),
+			default: true,
+		},
 		'chat.editing.autoAcceptDelay': {
 			type: 'number',
 			markdownDescription: nls.localize('chat.editing.autoAcceptDelay', "Delay after which changes made by chat are automatically accepted. Values are in seconds, `0` means disabled and `100` seconds is the maximum."),
@@ -213,14 +220,16 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.tools.autoApprove': {
 			default: false,
-			description: nls.localize('chat.tools.autoApprove', "Controls whether tool use should be automatically approved."),
+			// Description is added in for policy parser. See https://github.com/microsoft/vscode/issues/254526
+			description: nls.localize('chat.tools.autoApprove.description', "Controls whether tool use should be automatically approved. Allow all tools to run automatically without user confirmation, overriding any tool-specific settings such as terminal auto-approval. Use with caution: carefully review selected tools and be extra wary of possible sources of prompt injection!"),
+			markdownDescription: nls.localize('chat.tools.autoApprove.markdownDescription', "Controls whether tool use should be automatically approved.\n\nAllows _all_ tools to run automatically without user confirmation, overriding any tool-specific settings such as terminal auto-approval.\n\nUse with caution: carefully review selected tools and be extra wary of possible sources of prompt injection!"),
 			type: 'boolean',
 			tags: ['experimental'],
 			policy: {
 				name: 'ChatToolsAutoApprove',
 				minimumVersion: '1.99',
-				previewFeature: true,
-				defaultValue: false
+				defaultValue: false,
+				tags: [PolicyTag.Account, PolicyTag.Preview]
 			}
 		},
 		'chat.sendElementsToChat.enabled': {
@@ -247,16 +256,27 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['experimental']
 		},
+		'chat.editRequests': {
+			markdownDescription: nls.localize('chat.editRequests', "Enables editing of requests in the chat. This allows you to change the request content and resubmit it to the model."),
+			type: 'string',
+			enum: ['inline', 'hover', 'input', 'none'],
+			default: 'inline',
+			tags: ['experimental', 'onExp'],
+		},
+		'chat.emptyChatState.enabled': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.emptyChatState', "Shows a modified empty chat state with hints in the input placeholder text."),
+			tags: ['experimental', 'onExp'],
+		},
 		[mcpEnabledSection]: {
 			type: 'boolean',
 			description: nls.localize('chat.mcp.enabled', "Enables integration with Model Context Protocol servers to provide additional tools and functionality."),
 			default: true,
-			tags: ['preview'],
 			policy: {
 				name: 'ChatMCP',
 				minimumVersion: '1.99',
-				previewFeature: true,
-				defaultValue: false
+				tags: [PolicyTag.Account, PolicyTag.MCP]
 			}
 		},
 		[mcpServerSamplingSection]: {
@@ -285,15 +305,6 @@ configurationRegistry.registerConfiguration({
 					}
 				}
 			},
-		},
-		[mcpConfigurationSection]: {
-			type: 'object',
-			default: {
-				inputs: [],
-				servers: mcpSchemaExampleServers,
-			},
-			description: nls.localize('workspaceConfig.mcp.description', "Model Context Protocol server configurations"),
-			$ref: mcpSchemaId
 		},
 		[ChatConfiguration.UseFileStorage]: {
 			type: 'boolean',
@@ -325,9 +336,13 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatAgentMode',
 				minimumVersion: '1.99',
-				previewFeature: false,
-				defaultValue: false
 			}
+		},
+		[ChatConfiguration.EnableMath]: {
+			type: 'boolean',
+			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using Katex."),
+			default: false,
+			tags: ['preview'],
 		},
 		[mcpDiscoverySection]: {
 			oneOf: [
@@ -342,7 +357,7 @@ configurationRegistry.registerConfiguration({
 				}
 			],
 			default: true,
-			markdownDescription: nls.localize('mpc.discovery.enabled', "Configures discovery of Model Context Protocol servers on the machine. It may be set to `true` or `false` to disable or enable all sources, and an mapping sources you wish to enable."),
+			markdownDescription: nls.localize('mcp.discovery.enabled', "Configures discovery of Model Context Protocol servers on the machine. It may be set to `true` or `false` to disable or enable all sources, and an mapping sources you wish to enable."),
 		},
 		[mcpGalleryServiceUrlConfig]: {
 			type: 'string',
@@ -377,8 +392,8 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatPromptFiles',
 				minimumVersion: '1.99',
 				description: nls.localize('chat.promptFiles.policy', "Enables reusable prompt and instruction files in Chat, Edits, and Inline Chat sessions."),
-				previewFeature: true,
-				defaultValue: false
+				defaultValue: false,
+				tags: [PolicyTag.Account, PolicyTag.Preview]
 			}
 		},
 		[PromptsConfig.INSTRUCTIONS_LOCATION_KEY]: {
@@ -467,25 +482,13 @@ configurationRegistry.registerConfiguration({
 				},
 			],
 		},
-		'chat.setup.signInWithAlternateProvider': { // TODO@bpasero remove me eventually
-			type: 'boolean',
-			description: nls.localize('chat.signInWithAlternateProvider', "Enable alternative sign-in provider."),
-			default: false,
-			tags: ['onExp', 'experimental'],
-		},
 		'chat.setup.signInDialogVariant': { // TODO@bpasero remove me eventually
 			type: 'string',
-			enum: ['default', 'modern', 'brand-gh', 'brand-vsc', 'style-glow', 'alt-first', 'input-email', 'account-create'],
+			enum: ['default', 'apple'],
 			description: nls.localize('chat.signInDialogVariant', "Control variations of the sign-in dialog."),
-			default: product.quality !== 'stable' ? 'modern' : 'default',
+			default: 'default',
 			tags: ['onExp', 'experimental']
-		},
-		'chat.setup.continueLaterIndicator': { // TODO@bpasero remove me eventually
-			type: 'boolean',
-			description: nls.localize('chat.continueLaterIndicator', "Enable indicator in the status bar to finish chat setup."),
-			default: false,
-			tags: ['onExp', 'experimental'],
-		},
+		}
 	}
 });
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -630,7 +633,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			sortText: 'z1_help',
 			executeImmediately: true,
 			locations: [ChatAgentLocation.Panel],
-			modes: [ChatMode.Ask]
+			modes: [ChatModeKind.Ask]
 		}, async (prompt, progress) => {
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 			const agents = chatAgentService.getAgents();
@@ -721,6 +724,7 @@ registerWorkbenchContribution2(ChatEditingEditorContextKeys.ID, ChatEditingEdito
 registerWorkbenchContribution2(ChatTransferContribution.ID, ChatTransferContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatContextContributions.ID, ChatContextContributions, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatResponseResourceFileSystemProvider.ID, ChatResponseResourceFileSystemProvider, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(PromptUrlHandler.ID, PromptUrlHandler, WorkbenchPhase.BlockRestore);
 
 registerChatActions();
 registerChatCopyActions();

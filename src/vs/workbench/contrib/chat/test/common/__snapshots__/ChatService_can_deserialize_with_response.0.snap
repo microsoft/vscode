@@ -86,7 +86,8 @@
       codeCitations: [  ],
       timestamp: undefined,
       confirmation: undefined,
-      editedFileEvents: undefined
+      editedFileEvents: undefined,
+      modelId: undefined
     }
   ]
 }

@@ -3,33 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Glowing Animation */
-
-@property --chat-setup-dialog-glow-angle {
-	syntax: '<angle>';
-	initial-value: 0deg;
-	inherits: false;
-}
-
-@keyframes chat-setup-dialog-glow-angle-animation {
-	0% {
-		--chat-setup-dialog-glow-angle: 0deg;
-	}
-
-	100% {
-		--chat-setup-dialog-glow-angle: 360deg;
-	}
-}
-
-.chat-setup-dialog.chat-setup-glow {
-	border: 2px solid !important;
-	border-image: linear-gradient(var(--chat-setup-dialog-glow-angle), var(--vscode-button-background) 0, var(--vscode-editorGutter-addedBackground)) 1 !important;
-	animation: 3s chat-setup-dialog-glow-angle-animation linear infinite;
-}
-
 .chat-setup-dialog {
 
 	/* Continue Buttons */
+
 	.dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button::before {
 		content: '';
 		background-size: 16px;
@@ -46,7 +23,7 @@
 		background-image: url('./github.svg');
 	}
 
-	.dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.alternate::before {
+	.dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.google::before {
 		background-image: url('./google.svg');
 	}
 
@@ -74,95 +51,12 @@
 	}
 }
 
-.chat-setup-input-email {
-
-	.dialog-message-container,
-	.dialog-message-input {
-		width: 100% !important;
-	}
-
-	.buttons-separator {
-		display: flex;
-		width: 100%;
-		margin-top: 10px;
-		margin-bottom: 10px;
-		height: 20px;
-		align-items: center;
-	}
-
-	.buttons-separator-left {
-		width: 100%;
-		margin-right: 5px;
-		border-top: 1px solid var(--vscode-descriptionForeground);
-	}
-
-	.buttons-separator-right {
-		width: 100%;
-		margin-left: 5px;
-		border-top: 1px solid var(--vscode-descriptionForeground);
-	}
-
-	.dialog-buttons-row {
-		padding: 5px 10px 10px !important;
-	}
-
-	.monaco-inputbox {
-		width: 100% !important;
-		margin-left: 5px !important;
-		margin-right: 5px !important;
-		height: 30px;
-	}
-
-	.monaco-inputbox .ibwrapper {
-		height: 30px;
-	}
-
-	.monaco-inputbox .input {
-		height: 30px;
-	}
+.monaco-workbench.hc-black .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.apple::before,
+.monaco-workbench.vs-dark .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.apple::before {
+	background-image: url('./apple-dark.svg');
 }
 
-.chat-setup-dialog-legacy {
-
-	p {
-		margin-top: 0;
-		margin-bottom: 0;
-		width: 100%;
-	}
-
-	p.setup-settings {
-		font-size: 12px;
-		color: var(--vscode-descriptionForeground);
-		margin-top: 1em;
-	}
-
-	.chat-feature-container {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		padding: 5px 10px 5px 10px;
-	}
-
-	.chat-feature-container .codicon[class*='codicon-'] {
-		font-size: 16px;
-	}
-
-	.codicon[class*='codicon-'] {
-		font-size: 13px;
-		line-height: 1.4em;
-		vertical-align: bottom;
-	}
-
-	.button-container {
-		padding-top: 20px;
-	}
-
-	/** Dropdown Button */
-	.monaco-button-dropdown {
-		width: 100%;
-	}
-
-	.monaco-button-dropdown .monaco-text-button {
-		width: 100%;
-	}
+.monaco-workbench.hc-light .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.apple::before,
+.monaco-workbench.vs .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.apple::before {
+	background-image: url('./apple-light.svg');
 }

@@ -88,7 +88,7 @@ function createCompile(src, { build, emitError, transpileOnly, preserveEnglish }
     const compilation = tsb.create(projectPath, overrideOptions, {
         verbose: false,
         transpileOnly: Boolean(transpileOnly),
-        transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.esbuild
+        transpileWithEsbuild: typeof transpileOnly !== 'boolean' && transpileOnly.esbuild
     }, err => reporter(err));
     function pipeline(token) {
         const bom = require('gulp-bom');
