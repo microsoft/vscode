@@ -5,7 +5,7 @@
 import assert from 'assert';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { createSimpleKeybinding, ResolvedKeybinding, KeyCodeChord, Keybinding } from '../../../../base/common/keybindings.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { OS } from '../../../../base/common/platform.js';
 import Severity from '../../../../base/common/severity.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -93,8 +93,8 @@ suite('AbstractKeybindingService', () => {
 			return '';
 		}
 
-		public registerSchemaContribution() {
-			// noop
+		public registerSchemaContribution(): IDisposable {
+			return Disposable.None;
 		}
 
 		public enableKeybindingHoldMode() {
@@ -159,8 +159,6 @@ suite('AbstractKeybindingService', () => {
 
 			const notificationService: INotificationService = {
 				_serviceBrand: undefined,
-				onDidAddNotification: undefined!,
-				onDidRemoveNotification: undefined!,
 				onDidChangeFilter: undefined!,
 				notify: (notification: INotification) => {
 					showMessageCalls.push({ sev: notification.severity, message: notification.message });
@@ -184,7 +182,7 @@ suite('AbstractKeybindingService', () => {
 				status(message: string, options?: IStatusMessageOptions) {
 					statusMessageCalls!.push(message);
 					return {
-						dispose: () => {
+						close: () => {
 							statusMessageCallsDisposed!.push(message);
 						}
 					};

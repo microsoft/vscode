@@ -216,7 +216,11 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 			return undefined; // editor without resource
 		}
 
-		return { ...resourceOrEditor, resource: resourceOrEditor.selection ? withSelection(resourceOrEditor.resource, resourceOrEditor.selection) : resourceOrEditor.resource };
+		return {
+			resource: resourceOrEditor.selection ? withSelection(resourceOrEditor.resource, resourceOrEditor.selection) : resourceOrEditor.resource,
+			isDirectory: resourceOrEditor.isDirectory,
+			selection: resourceOrEditor.selection,
+		};
 	}));
 
 	const fileSystemResources = resources.filter(({ resource }) => fileService.hasProvider(resource));
@@ -334,9 +338,12 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 
 	if (draggedEditors.length) {
 		event.dataTransfer.setData(CodeDataTransfers.EDITORS, stringify(draggedEditors));
+	}
 
-		// Add a URI list entry
-		const uriListEntries: URI[] = [];
+	// Add a URI list entry
+	const draggedDirectories: URI[] = fileSystemResources.filter(({ isDirectory }) => isDirectory).map(({ resource }) => resource);
+	if (draggedEditors.length || draggedDirectories.length) {
+		const uriListEntries: URI[] = [...draggedDirectories];
 		for (const editor of draggedEditors) {
 			if (editor.resource) {
 				uriListEntries.push(editor.options?.selection ? withSelection(editor.resource, editor.options.selection) : editor.resource);

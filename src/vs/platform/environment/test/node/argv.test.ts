@@ -135,6 +135,27 @@ suite('parseArgs', () => {
 			['testcmd-onUnknownOption testX']
 		);
 
+		assertParse(
+			options1,
+			['--testArg=foo', 'testcmd', '--testX'],
+			{ testcmd: { testArg: 'foo', '_': [] }, '_': [] },
+			['testcmd-onUnknownOption testX']
+		);
+
+		assertParse(
+			options1,
+			['--testArg=foo', 'testcmd'],
+			{ testcmd: { testArg: 'foo', '_': [] }, '_': [] },
+			[]
+		);
+
+		assertParse(
+			options1,
+			['--testArg', 'foo', 'testcmd'],
+			{ testcmd: { testArg: 'foo', '_': [] }, '_': [] },
+			[]
+		);
+
 		interface TestArgs2 {
 			testcmd?: {
 				testArg?: string;

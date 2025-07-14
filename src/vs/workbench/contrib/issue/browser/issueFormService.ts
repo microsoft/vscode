@@ -98,11 +98,13 @@ export class IssueFormService implements IIssueFormService {
 			this.issueReporterWindow = auxiliaryWindow.window;
 		} else {
 			console.error('Failed to open auxiliary window');
+			disposables.dispose();
 		}
 
 		// handle closing issue reporter
 		this.issueReporterWindow?.addEventListener('beforeunload', () => {
 			auxiliaryWindow.window.close();
+			disposables.dispose();
 			this.issueReporterWindow = null;
 		});
 	}

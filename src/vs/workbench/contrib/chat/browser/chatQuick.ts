@@ -19,12 +19,12 @@ import { IQuickInputService, IQuickWidget } from '../../../../platform/quickinpu
 import { editorBackground, inputBackground, quickInputBackground, quickInputForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IQuickChatOpenOptions, IQuickChatService, showChatView } from './chat.js';
 import { ChatWidget } from './chatWidget.js';
-import { ChatAgentLocation } from '../common/chatAgents.js';
 import { ChatModel, isCellTextEditOperation } from '../common/chatModel.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { IChatProgress, IChatService } from '../common/chatService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
+import { ChatAgentLocation } from '../common/constants.js';
 
 export class QuickChatService extends Disposable implements IQuickChatService {
 	readonly _serviceBrand: undefined;

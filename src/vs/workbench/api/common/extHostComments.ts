@@ -268,7 +268,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		contextValue: string | undefined;
 		comments: vscode.Comment[];
 		collapsibleState: vscode.CommentThreadCollapsibleState;
-		canReply: boolean;
+		canReply: boolean | vscode.CommentAuthorInformation;
 		state: vscode.CommentThreadState;
 		isTemplate: boolean;
 		applicability: vscode.CommentThreadApplicability;
@@ -316,9 +316,9 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			return this._range;
 		}
 
-		private _canReply: boolean = true;
+		private _canReply: boolean | vscode.CommentAuthorInformation = true;
 
-		set canReply(state: boolean) {
+		set canReply(state: boolean | vscode.CommentAuthorInformation) {
 			if (this._canReply !== state) {
 				this._canReply = state;
 				this.modifications.canReply = state;
@@ -465,7 +465,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 				get collapsibleState() { return that.collapsibleState; },
 				set collapsibleState(value: vscode.CommentThreadCollapsibleState) { that.collapsibleState = value; },
 				get canReply() { return that.canReply; },
-				set canReply(state: boolean) { that.canReply = state; },
+				set canReply(state: boolean | vscode.CommentAuthorInformation) { that.canReply = state; },
 				get contextValue() { return that.contextValue; },
 				set contextValue(value: string | undefined) { that.contextValue = value; },
 				get label() { return that.label; },

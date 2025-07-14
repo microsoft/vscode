@@ -8,7 +8,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { RawContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { RawContextKey, IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, IFileStatWithMetadata, IFileService, IBaseFileStat, hasReadonlyCapability, IFilesConfigurationNode } from '../../../../platform/files/common/files.js';
 import { equals } from '../../../../base/common/objects.js';
@@ -152,7 +152,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	private readonly autoSaveAfterShortDelayOverrides = new ResourceMap<number /* counter */>();
 	private readonly autoSaveDisabledOverrides = new ResourceMap<number /* counter */>();
 
-	private readonly autoSaveAfterShortDelayContext = AutoSaveAfterShortDelayContext.bindTo(this.contextKeyService);
+	private readonly autoSaveAfterShortDelayContext: IContextKey<boolean>;
 
 	private readonly readonlyIncludeMatcher = this._register(new GlobalIdleValue(() => this.createReadonlyMatcher(FILES_READONLY_INCLUDE_CONFIG)));
 	private readonly readonlyExcludeMatcher = this._register(new GlobalIdleValue(() => this.createReadonlyMatcher(FILES_READONLY_EXCLUDE_CONFIG)));
@@ -161,7 +161,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	private readonly sessionReadonlyOverrides = new ResourceMap<boolean>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
 
 	constructor(
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -171,6 +171,8 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService
 	) {
 		super();
+
+		this.autoSaveAfterShortDelayContext = AutoSaveAfterShortDelayContext.bindTo(contextKeyService);
 
 		const configuration = configurationService.getValue<IFilesConfiguration>();
 

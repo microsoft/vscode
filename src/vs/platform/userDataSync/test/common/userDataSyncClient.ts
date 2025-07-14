@@ -141,6 +141,11 @@ export class UserDataSyncClient extends Disposable {
 			await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'en' })));
 		}
 		await configurationService.reloadConfiguration();
+
+		// `prompts` resource is disabled by default, so enable it for tests
+		this.instantiationService
+			.get(IUserDataSyncEnablementService)
+			.setResourceEnablement(SyncResource.Prompts, true);
 	}
 
 	async sync(): Promise<void> {

@@ -50,6 +50,8 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { InstanceContext, TerminalContextActionRunner } from './terminalContextMenu.js';
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 
 export class TerminalViewPane extends ViewPane {
 	private _parentDomElement: HTMLElement | undefined;
@@ -360,9 +362,10 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IContextViewService contextViewService: IContextViewService,
-		@ITerminalProfileService terminalProfileService: ITerminalProfileService
+		@ITerminalProfileService terminalProfileService: ITerminalProfileService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(null, action, getTerminalSelectOpenItems(_terminalService, _terminalGroupService), _terminalGroupService.activeGroupIndex, contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
+		super(null, action, getTerminalSelectOpenItems(_terminalService, _terminalGroupService), _terminalGroupService.activeGroupIndex, contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true, useCustomDrawn: !hasNativeContextMenu(configurationService) });
 		this._register(_terminalService.onDidChangeInstances(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeActiveGroup(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeActiveInstance(() => this._updateItems(), this));
@@ -660,7 +663,8 @@ class SingleTabHoverDelegate implements IHoverDelegate {
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IHoverService private readonly _hoverService: IHoverService,
-		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService
+		@IStorageService private readonly _storageService: IStorageService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 	) {
 	}
 
@@ -675,8 +679,8 @@ class SingleTabHoverDelegate implements IHoverDelegate {
 		if (!instance) {
 			return;
 		}
-		const hoverInfo = getInstanceHoverInfo(instance);
-		return this._hoverService.showHover({
+		const hoverInfo = getInstanceHoverInfo(instance, this._storageService);
+		return this._hoverService.showInstantHover({
 			...options,
 			content: hoverInfo.content,
 			actions: hoverInfo.actions

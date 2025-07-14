@@ -32,6 +32,7 @@ import { IExtensionDescription } from '../../../platform/extensions/common/exten
 import { TelemetryTrustedValue } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { IExtHostTelemetry } from './extHostTelemetry.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { isCancellationError } from '../../../base/common/errors.js';
 
 interface CommandHandler {
 	callback: Function;
@@ -256,7 +257,9 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 					id = actual.command;
 				}
 			}
-			this._logService.error(err, id, command.extension?.identifier);
+			if (!isCancellationError(err)) {
+				this._logService.error(err, id, command.extension?.identifier);
+			}
 
 			if (!annotateError) {
 				throw err;
@@ -282,6 +285,10 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 	private _reportTelemetry(command: CommandHandler, id: string, duration: number) {
 		if (!command.extension) {
+			return;
+		}
+		if (id.startsWith('code.copilot.logStructured')) {
+			// This command is very active. See https://github.com/microsoft/vscode/issues/254153.
 			return;
 		}
 		type ExtensionActionTelemetry = {
@@ -445,7 +452,6 @@ export class ApiCommandArgument<V, O = V> {
 	static readonly Selection = new ApiCommandArgument<extHostTypes.Selection, ISelection>('selection', 'A selection in a text document', v => extHostTypes.Selection.isSelection(v), extHostTypeConverter.Selection.from);
 	static readonly Number = new ApiCommandArgument<number>('number', '', v => typeof v === 'number', v => v);
 	static readonly String = new ApiCommandArgument<string>('string', '', v => typeof v === 'string', v => v);
-	static readonly StringArray = ApiCommandArgument.Arr(ApiCommandArgument.String);
 
 	static Arr<T, K = T>(element: ApiCommandArgument<T, K>) {
 		return new ApiCommandArgument(

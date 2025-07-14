@@ -14,6 +14,7 @@ import { ChatMessageRole, IChatResponseFragment, languageModelExtensionPoint, La
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../../services/extensions/common/extensionsRegistry.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPickerWidget.js';
 
 suite('LanguageModels', function () {
 
@@ -51,6 +52,7 @@ suite('LanguageModels', function () {
 				vendor: 'test-vendor',
 				family: 'test-family',
 				version: 'test-version',
+				modelPickerCategory: undefined,
 				id: 'test-id',
 				maxInputTokens: 100,
 				maxOutputTokens: 100,
@@ -70,6 +72,7 @@ suite('LanguageModels', function () {
 				vendor: 'test-vendor',
 				family: 'test2-family',
 				version: 'test2-version',
+				modelPickerCategory: undefined,
 				id: 'test-id',
 				maxInputTokens: 100,
 				maxOutputTokens: 100,
@@ -119,6 +122,7 @@ suite('LanguageModels', function () {
 				id: 'actual-lm',
 				maxInputTokens: 100,
 				maxOutputTokens: 100,
+				modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
 			},
 			sendChatRequest: async (messages, _from, _options, token) => {
 				// const message = messages.at(-1);

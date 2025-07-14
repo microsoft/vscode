@@ -7,6 +7,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.e = e;
+exports.requestAZDOAPI = requestAZDOAPI;
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const stream_1 = require("stream");
@@ -228,11 +230,11 @@ class ESRPReleaseService {
     }
     async getReleaseStatus(releaseId) {
         const url = `${ESRPReleaseService.API_URL}${this.clientId}/workflows/release/operations/grs/${releaseId}`;
-        const res = await fetch(url, {
+        const res = await (0, retry_1.retry)(() => fetch(url, {
             headers: {
                 'Authorization': `Bearer ${this.accessToken}`
             }
-        });
+        }));
         if (!res.ok) {
             const text = await res.text();
             throw new Error(`Failed to get release status: ${res.statusText}\n${text}`);
@@ -241,11 +243,11 @@ class ESRPReleaseService {
     }
     async getReleaseDetails(releaseId) {
         const url = `${ESRPReleaseService.API_URL}${this.clientId}/workflows/release/operations/grd/${releaseId}`;
-        const res = await fetch(url, {
+        const res = await (0, retry_1.retry)(() => fetch(url, {
             headers: {
                 'Authorization': `Bearer ${this.accessToken}`
             }
-        });
+        }));
         if (!res.ok) {
             const text = await res.text();
             throw new Error(`Failed to get release status: ${res.statusText}\n${text}`);
@@ -317,7 +319,7 @@ async function requestAZDOAPI(path) {
     const abortController = new AbortController();
     const timeout = setTimeout(() => abortController.abort(), 2 * 60 * 1000);
     try {
-        const res = await fetch(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, { ...azdoFetchOptions, signal: abortController.signal });
+        const res = await (0, retry_1.retry)(() => fetch(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, { ...azdoFetchOptions, signal: abortController.signal }));
         if (!res.ok) {
             throw new Error(`Unexpected status code: ${res.status}`);
         }
@@ -382,7 +384,7 @@ async function unzip(packagePath, outputPath) {
     });
 }
 // Contains all of the logic for mapping details to our actual product names in CosmosDB
-function getPlatform(product, os, arch, type, isLegacy) {
+function getPlatform(product, os, arch, type) {
     switch (os) {
         case 'win32':
             switch (product) {
@@ -427,12 +429,12 @@ function getPlatform(product, os, arch, type, isLegacy) {
                         case 'client':
                             return `linux-${arch}`;
                         case 'server':
-                            return isLegacy ? `server-linux-legacy-${arch}` : `server-linux-${arch}`;
+                            return `server-linux-${arch}`;
                         case 'web':
                             if (arch === 'standalone') {
                                 return 'web-standalone';
                             }
-                            return isLegacy ? `server-linux-legacy-${arch}-web` : `server-linux-${arch}-web`;
+                            return `server-linux-${arch}-web`;
                         default:
                             throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
                     }
@@ -556,8 +558,7 @@ async function processArtifact(artifact, filePath) {
             await releaseService.createRelease(version, filePath, friendlyFileName);
         }
         const { product, os, arch, unprocessedType } = match.groups;
-        const isLegacy = artifact.name.includes('_legacy');
-        const platform = getPlatform(product, os, arch, unprocessedType, isLegacy);
+        const platform = getPlatform(product, os, arch, unprocessedType);
         const type = getRealType(unprocessedType);
         const size = fs_1.default.statSync(filePath).size;
         const stream = fs_1.default.createReadStream(filePath);
@@ -610,9 +611,6 @@ async function main() {
     if (e('VSCODE_BUILD_STAGE_LINUX') === 'True') {
         stages.add('Linux');
     }
-    if (e('VSCODE_BUILD_STAGE_LINUX_LEGACY_SERVER') === 'True') {
-        stages.add('LinuxLegacyServer');
-    }
     if (e('VSCODE_BUILD_STAGE_ALPINE') === 'True') {
         stages.add('Alpine');
     }
@@ -622,10 +620,12 @@ async function main() {
     if (e('VSCODE_BUILD_STAGE_WEB') === 'True') {
         stages.add('Web');
     }
+    let timeline;
+    let artifacts;
     let resultPromise = Promise.resolve([]);
     const operations = [];
     while (true) {
-        const [timeline, artifacts] = await Promise.all([(0, retry_1.retry)(() => getPipelineTimeline()), (0, retry_1.retry)(() => getPipelineArtifacts())]);
+        [timeline, artifacts] = await Promise.all([(0, retry_1.retry)(() => getPipelineTimeline()), (0, retry_1.retry)(() => getPipelineArtifacts())]);
         const stagesCompleted = new Set(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
         const stagesInProgress = [...stages].filter(s => !stagesCompleted.has(s));
         const artifactsInProgress = artifacts.filter(a => processing.has(a.name));
@@ -693,8 +693,21 @@ async function main() {
             console.error(`[${operations[i].name}]`, result.reason);
         }
     }
+    // Fail the job if any of the artifacts failed to publish
     if (results.some(r => r.status === 'rejected')) {
         throw new Error('Some artifacts failed to publish');
+    }
+    // Also fail the job if any of the stages did not succeed
+    let shouldFail = false;
+    for (const stage of stages) {
+        const record = timeline.records.find(r => r.name === stage && r.type === 'Stage');
+        if (record.result !== 'succeeded' && record.result !== 'succeededWithIssues') {
+            shouldFail = true;
+            console.error(`Stage ${stage} did not succeed: ${record.result}`);
+        }
+    }
+    if (shouldFail) {
+        throw new Error('Some stages did not succeed');
     }
     console.log(`All ${done.size} artifacts published!`);
 }
