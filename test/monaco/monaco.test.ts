@@ -157,10 +157,10 @@ describe('API Integration Tests', function (): void {
 			let violationCount = 0;
 			const checkedElements = new Set<string>();
 			const customReporter = {
-				async report(violations: Result[]) {
+				report(violations: Result[]) {
 					// Log failed elements
 					violations.forEach(v => {
-						v.nodes.forEach(node => {
+						v.nodes.forEach((node) => {
 							const selector = node.target?.join(' ');
 							if (selector) {
 								checkedElements.add(selector);
@@ -173,8 +173,8 @@ describe('API Integration Tests', function (): void {
 			};
 
 			// Run axe and get all results (passes and violations)
-			const axeResults = await page.evaluate(async () => {
-				return await window.axe.run(document, {
+			const axeResults = await page.evaluate(() => {
+				return window.axe.run(document, {
 					runOnly: {
 						type: 'tag',
 						values: ['wcag2a']
@@ -204,7 +204,7 @@ describe('API Integration Tests', function (): void {
 				includedImpacts: ['critical', 'serious'],
 				detailedReport: true,
 				detailedReportOptions: { html: true }
-			}, false, customReporter);
+			}, false);
 			playwright.expect(violationCount).toBe(0);
 		});
 		it('Monaco editor container should have an ARIA role', async () => {
