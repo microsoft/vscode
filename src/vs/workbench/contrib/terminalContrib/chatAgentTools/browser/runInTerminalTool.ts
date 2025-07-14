@@ -24,6 +24,7 @@ import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocatio
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { getRecommendedToolsOverRunInTerminal } from './alternativeRecommendation.js';
 import { CommandLineAutoApprover } from './commandLineAutoApprover.js';
+import { BasicExecuteStrategy } from './executeStrategy/basicExecuteStrategy.js';
 import type { ITerminalExecuteStrategy } from './executeStrategy/executeStrategy.js';
 import { NoneExecuteStrategy } from './executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from './executeStrategy/richExecuteStrategy.js';
@@ -251,9 +252,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						break;
 					}
 					case ShellIntegrationQuality.Basic: {
-						throw new Error('NYI base execute strat');
-						// strategy = this.instantiationService.createInstance(BasicIntegrationTerminalExecuteStrategy, toolTerminal.terminal, toolTerminal.terminal.shellIntegration!);
-						// break;
+						// TODO: Don't use !
+						const commandDetection = toolTerminal.instance.capabilities.get(TerminalCapability.CommandDetection)!;
+						strategy = this._instantiationService.createInstance(BasicExecuteStrategy, toolTerminal.instance, commandDetection);
+						break;
 					}
 					case ShellIntegrationQuality.Rich: {
 						// TODO: Don't use !
