@@ -325,12 +325,10 @@ export class RenderLineOutput {
 	_renderLineOutputBrand: void = undefined;
 
 	readonly characterMapping: CharacterMapping;
-	readonly containsRTL: boolean;
 	readonly containsForeignElements: ForeignElementType;
 
-	constructor(characterMapping: CharacterMapping, containsRTL: boolean, containsForeignElements: ForeignElementType) {
+	constructor(characterMapping: CharacterMapping, containsForeignElements: ForeignElementType) {
 		this.characterMapping = characterMapping;
-		this.containsRTL = containsRTL;
 		this.containsForeignElements = containsForeignElements;
 	}
 }
@@ -369,7 +367,6 @@ export function renderViewLine(input: RenderLineInput, sb: StringBuilder): Rende
 
 			return new RenderLineOutput(
 				characterMapping,
-				false,
 				containsForeignElements
 			);
 		}
@@ -378,7 +375,6 @@ export function renderViewLine(input: RenderLineInput, sb: StringBuilder): Rende
 		sb.appendString('<span><span></span></span>');
 		return new RenderLineOutput(
 			new CharacterMapping(0, 0),
-			false,
 			ForeignElementType.None
 		);
 	}
@@ -390,7 +386,6 @@ export class RenderLineOutput2 {
 	constructor(
 		public readonly characterMapping: CharacterMapping,
 		public readonly html: string,
-		public readonly containsRTL: boolean,
 		public readonly containsForeignElements: ForeignElementType
 	) {
 	}
@@ -399,7 +394,7 @@ export class RenderLineOutput2 {
 export function renderViewLine2(input: RenderLineInput): RenderLineOutput2 {
 	const sb = new StringBuilder(10000);
 	const out = renderViewLine(input, sb);
-	return new RenderLineOutput2(out.characterMapping, sb.build(), out.containsRTL, out.containsForeignElements);
+	return new RenderLineOutput2(out.characterMapping, sb.build(), out.containsForeignElements);
 }
 
 class ResolvedRenderLineInput {
@@ -415,7 +410,6 @@ class ResolvedRenderLineInput {
 		public readonly fauxIndentLength: number,
 		public readonly tabSize: number,
 		public readonly startVisibleColumn: number,
-		public readonly containsRTL: boolean,
 		public readonly spaceWidth: number,
 		public readonly renderSpaceCharCode: number,
 		public readonly renderWhitespace: RenderWhitespace,
@@ -487,7 +481,6 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		input.fauxIndentLength,
 		input.tabSize,
 		input.startVisibleColumn,
-		input.containsRTL,
 		input.spaceWidth,
 		input.renderSpaceCharCode,
 		input.renderWhitespace,
@@ -908,7 +901,6 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 	const fauxIndentLength = input.fauxIndentLength;
 	const tabSize = input.tabSize;
 	const startVisibleColumn = input.startVisibleColumn;
-	const containsRTL = input.containsRTL;
 	const spaceWidth = input.spaceWidth;
 	const renderSpaceCharCode = input.renderSpaceCharCode;
 	const renderWhitespace = input.renderWhitespace;
@@ -924,11 +916,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 
 	let partDisplacement = 0;
 
-	if (containsRTL) {
-		sb.appendString('<span>');
-	} else {
-		sb.appendString('<span>');
-	}
+	sb.appendString('<span>');
 
 	for (let partIndex = 0, tokensLen = parts.length; partIndex < tokensLen; partIndex++) {
 
@@ -1120,7 +1108,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 
 	sb.appendString('</span>');
 
-	return new RenderLineOutput(characterMapping, containsRTL, containsForeignElements);
+	return new RenderLineOutput(characterMapping, containsForeignElements);
 }
 
 function to4CharHex(n: number): string {

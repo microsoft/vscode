@@ -517,7 +517,6 @@ suite('viewLineRenderer.renderLine', () => {
 				[3, 0, 66], [3, 1, 67]
 			]
 		}));
-		assert.strictEqual(_actual.containsRTL, true);
 	});
 
 	test('issue #137036: Issue in RTL languages in recent versions', () => {
@@ -588,7 +587,6 @@ suite('viewLineRenderer.renderLine', () => {
 				[10, 0, 39], [10, 1, 40]
 			]
 		}));
-		assert.strictEqual(_actual.containsRTL, true);
 	});
 
 	test('issue #99589: Rendering whitespace influences bidi layout', () => {
@@ -643,7 +641,6 @@ suite('viewLineRenderer.renderLine', () => {
 				[5, 0, 34], [5, 1, 35]
 			]
 		}));
-		assert.strictEqual(_actual.containsRTL, true);
 	});
 
 	test('issue #6885: Splits large tokens', () => {
@@ -864,7 +861,6 @@ suite('viewLineRenderer.renderLine', () => {
 			'<span style="unicode-bidi:isolate" class="mtk1">את\u00a0גרמנית\u00a0בהתייחסות\u00a0שמו,\u00a0שנתי\u00a0המשפט\u00a0אל\u00a0חפש,\u00a0אם\u00a0כתב\u00a0אחרים\u00a0ולחבר.\u00a0של\u00a0התוכן\u00a0אודות\u00a0בויקיפדיה\u00a0כלל,\u00a0של\u00a0עזרה\u00a0כימיה\u00a0היא.\u00a0על\u00a0עמוד\u00a0יוצרים\u00a0מיתולוגיה\u00a0סדר,\u00a0אם\u00a0שכל\u00a0שתפו\u00a0לעברית\u00a0שינויים,\u00a0אם\u00a0שאלות\u00a0אנגלית\u00a0עזה.\u00a0שמות\u00a0בקלות\u00a0מה\u00a0סדר.</span>',
 			'</span>'
 		].join(''));
-		assert.strictEqual(actual.containsRTL, true);
 	});
 
 	test('issue #95685: Uses unicode replacement character for Paragraph Separator', () => {
