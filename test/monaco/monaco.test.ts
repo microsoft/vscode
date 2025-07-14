@@ -5,7 +5,7 @@
 
 import * as playwright from '@playwright/test';
 import { assert } from 'chai';
-import { checkA11y } from 'axe-playwright';
+import { checkA11y, injectAxe } from 'axe-playwright';
 import type { Result } from 'axe-core';
 
 const PORT = 8563;
@@ -140,6 +140,7 @@ describe('API Integration Tests', function (): void {
 	describe('Accessibility', function (): void {
 		beforeEach(async () => {
 			await page.goto(APP);
+			await injectAxe(page);
 		});
 
 		it('Should not have critical accessibility violations', async () => {
@@ -193,7 +194,7 @@ describe('API Integration Tests', function (): void {
 			});
 
 			// Now run the actual checkA11y for test assertion and violation logging
-			await checkA11y(page, undefined, {
+			await checkA11y(page, document, {
 				axeOptions: {
 					runOnly: {
 						type: 'tag',
