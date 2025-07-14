@@ -378,35 +378,52 @@ export class ReverseLinesAction extends EditorAction {
 		}
 
 		const model: ITextModel = editor.getModel();
-
-		let range: Range = model.getFullModelRange();
-		// Exclude last line if empty
-		if (model.getLineContent(range.endLineNumber) === '') {
-			range = range.setEndPosition(range.endLineNumber - 1, model.getLineMaxColumn(range.endLineNumber - 1));
+		let selections = editor.getSelections();
+		if (selections.length === 1 && selections[0].isEmpty()) {
+			// Apply to whole document.
+			selections = [new Selection(1, 1, model.getLineCount(), model.getLineMaxColumn(model.getLineCount()))];
 		}
 
-		const lines: string[] = [];
-		for (let i = range.endLineNumber; i >= range.startLineNumber; i--) {
-			lines.push(model.getLineContent(i));
-		}
-		const edit: ISingleEditOperation = EditOperation.replace(range, lines.join('\n'));
+		const edits: ISingleEditOperation[] = [];
+		const resultingSelections: Selection[] = [];
 
-		const updateLineNumber = function (lineNumber: number): number {
-			return lineNumber <= range.endLineNumber ? range.endLineNumber - lineNumber + 1 : lineNumber;
-		};
-		const updateSelection = function (selection: Selection): Selection {
-			if (selection.selectionStartLineNumber === selection.positionLineNumber) {
-				// keep selection
-				return new Selection(updateLineNumber(selection.selectionStartLineNumber), selection.selectionStartColumn, updateLineNumber(selection.positionLineNumber), selection.positionColumn);
-			} else {
-				// keep just the cursor
-				return new Selection(updateLineNumber(selection.positionLineNumber), selection.positionColumn, updateLineNumber(selection.positionLineNumber), selection.positionColumn);
+		for (const selection of selections) {
+			let endLineNumber = selection.endLineNumber;
+			if (selection.startLineNumber < selection.endLineNumber && selection.endColumn === 1) {
+				endLineNumber--;
 			}
-		};
-		const selections: Selection[] = editor.getSelections().map(updateSelection);
+
+			let range: Range = new Range(selection.startLineNumber, 1, endLineNumber, model.getLineMaxColumn(endLineNumber));
+
+			// Exclude last line if empty and we're at the end of the document
+			if (endLineNumber === model.getLineCount() && model.getLineContent(range.endLineNumber) === '') {
+				range = range.setEndPosition(range.endLineNumber - 1, model.getLineMaxColumn(range.endLineNumber - 1));
+			}
+
+			const lines: string[] = [];
+			for (let i = range.endLineNumber; i >= range.startLineNumber; i--) {
+				lines.push(model.getLineContent(i));
+			}
+			const edit: ISingleEditOperation = EditOperation.replace(range, lines.join('\n'));
+			edits.push(edit);
+
+			const updateLineNumber = function (lineNumber: number): number {
+				return lineNumber <= range.endLineNumber ? range.endLineNumber - lineNumber + range.startLineNumber : lineNumber;
+			};
+			const updateSelection = function (sel: Selection): Selection {
+				if (sel.selectionStartLineNumber === sel.positionLineNumber) {
+					// keep selection
+					return new Selection(updateLineNumber(sel.selectionStartLineNumber), sel.selectionStartColumn, updateLineNumber(sel.positionLineNumber), sel.positionColumn);
+				} else {
+					// keep just the cursor
+					return new Selection(updateLineNumber(sel.positionLineNumber), sel.positionColumn, updateLineNumber(sel.positionLineNumber), sel.positionColumn);
+				}
+			};
+			resultingSelections.push(updateSelection(selection));
+		}
 
 		editor.pushUndoStop();
-		editor.executeEdits(this.id, [edit], selections);
+		editor.executeEdits(this.id, edits, resultingSelections);
 		editor.pushUndoStop();
 	}
 }

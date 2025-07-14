@@ -644,6 +644,125 @@ suite('Editor Contrib - Line Operations', () => {
 					assert.deepStrictEqual(editor.getSelections().map(s => model.getValueInRange(s)), expectedSelectedText);
 				});
 		});
+
+		test('reverses lines within selection', function () {
+			withTestCodeEditor(
+				[
+					'line1',
+					'line2',
+					'line3',
+					'line4',
+					'line5',
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const reverseLinesAction = new ReverseLinesAction();
+
+					// Select lines 2-4
+					editor.setSelection(new Selection(2, 1, 4, 6));
+					executeAction(reverseLinesAction, editor);
+					assert.deepStrictEqual(model.getLinesContent(), ['line1', 'line4', 'line3', 'line2', 'line5']);
+				});
+		});
+
+		test('reverses lines within partial selection', function () {
+			withTestCodeEditor(
+				[
+					'line1',
+					'line2',
+					'line3',
+					'line4',
+					'line5',
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const reverseLinesAction = new ReverseLinesAction();
+
+					// Select partial lines 2-4 (from middle of line2 to middle of line4)
+					editor.setSelection(new Selection(2, 3, 4, 3));
+					executeAction(reverseLinesAction, editor);
+					assert.deepStrictEqual(model.getLinesContent(), ['line1', 'line4', 'line3', 'line2', 'line5']);
+				});
+		});
+
+		test('reverses lines with multiple selections', function () {
+			withTestCodeEditor(
+				[
+					'line1',
+					'line2',
+					'line3',
+					'line4',
+					'line5',
+					'line6',
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const reverseLinesAction = new ReverseLinesAction();
+
+					// Select lines 1-2 and lines 4-5
+					editor.setSelections([new Selection(1, 1, 2, 6), new Selection(4, 1, 5, 6)]);
+					executeAction(reverseLinesAction, editor);
+					assert.deepStrictEqual(model.getLinesContent(), ['line2', 'line1', 'line3', 'line5', 'line4', 'line6']);
+				});
+		});
+
+		test('updates selection positions after reversal', function () {
+			withTestCodeEditor(
+				[
+					'line1',
+					'line2',
+					'line3',
+					'line4',
+				], {}, (editor) => {
+					const reverseLinesAction = new ReverseLinesAction();
+
+					// Select lines 1-3
+					editor.setSelection(new Selection(1, 2, 3, 3));
+					executeAction(reverseLinesAction, editor);
+
+					// After reversal, selection should be updated to maintain relative position
+					// Originally line 1 col 2 -> line 3 col 3, so after reversal should be line 3 col 2 -> line 1 col 3
+					const selection = editor.getSelection()!;
+					assert.strictEqual(selection.startLineNumber, 3);
+					assert.strictEqual(selection.startColumn, 2);
+					assert.strictEqual(selection.endLineNumber, 1);
+					assert.strictEqual(selection.endColumn, 3);
+				});
+		});
+
+		test('handles single line selection', function () {
+			withTestCodeEditor(
+				[
+					'line1',
+					'line2',
+					'line3',
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const reverseLinesAction = new ReverseLinesAction();
+
+					// Select only line 2
+					editor.setSelection(new Selection(2, 1, 2, 6));
+					executeAction(reverseLinesAction, editor);
+					// Single line should remain unchanged
+					assert.deepStrictEqual(model.getLinesContent(), ['line1', 'line2', 'line3']);
+				});
+		});
+
+		test('excludes end line when selection ends at column 1', function () {
+			withTestCodeEditor(
+				[
+					'line1',
+					'line2',
+					'line3',
+					'line4',
+					'line5',
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const reverseLinesAction = new ReverseLinesAction();
+
+					// Select from line 2 to line 4 column 1 (should exclude line 4)
+					editor.setSelection(new Selection(2, 1, 4, 1));
+					executeAction(reverseLinesAction, editor);
+					assert.deepStrictEqual(model.getLinesContent(), ['line1', 'line3', 'line2', 'line4', 'line5']);
+				});
+		});
 	});
 
 	test('transpose', () => {
