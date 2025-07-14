@@ -16,7 +16,7 @@ import { ExtensionIdentifier } from '../../../platform/extensions/common/extensi
 import { ILogService } from '../../../platform/log/common/log.js';
 import { resizeImage } from '../../contrib/chat/browser/imageUtils.js';
 import { ILanguageModelIgnoredFilesService } from '../../contrib/chat/common/ignoredFiles.js';
-import { IChatMessage, IChatResponseFragment, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelIdentifier, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
+import { IChatMessage, IChatResponseFragment, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
@@ -64,7 +64,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 				});
 				return models;
 			},
-			sendChatRequest: async (model, messages, from, options, token) => {
+			sendChatRequest: async (modelId, messages, from, options, token) => {
 				const requestId = (Math.random() * 1e6) | 0;
 				const defer = new DeferredPromise<any>();
 				const stream = new AsyncIterableSource<IChatResponseFragment | IChatResponseFragment[]>();
@@ -78,7 +78,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 								part.value.data = VSBuffer.wrap(await resizeImage(part.value.data.buffer));
 							})
 					);
-					await this._proxy.$startChatRequest({ id: model.id, vendor: model.vendor }, requestId, from, new SerializableObjectWithBuffers(messages), options, token);
+					await this._proxy.$startChatRequest(modelId, requestId, from, new SerializableObjectWithBuffers(messages), options, token);
 				} catch (err) {
 					this._pendingProgress.delete(requestId);
 					throw err;
@@ -89,8 +89,8 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 					stream: stream.asyncIterable
 				} satisfies ILanguageModelChatResponse;
 			},
-			provideTokenCount: (model, str, token) => {
-				return this._proxy.$provideTokenLength(model, str, token);
+			provideTokenCount: (modelId, str, token) => {
+				return this._proxy.$provideTokenLength(modelId, str, token);
 			},
 		}));
 		this._providerRegistrations.set(vendor, dipsosables);
@@ -124,11 +124,11 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		this._providerRegistrations.deleteAndDispose(vendor);
 	}
 
-	$selectChatModels(selector: ILanguageModelChatSelector): Promise<ILanguageModelIdentifier[]> {
+	$selectChatModels(selector: ILanguageModelChatSelector): Promise<string[]> {
 		return this._chatProviderService.selectLanguageModels(selector);
 	}
 
-	async $tryStartChatRequest(extension: ExtensionIdentifier, modelIdentifier: ILanguageModelIdentifier, requestId: number, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: {}, token: CancellationToken): Promise<any> {
+	async $tryStartChatRequest(extension: ExtensionIdentifier, modelIdentifier: string, requestId: number, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: {}, token: CancellationToken): Promise<any> {
 		this._logService.trace('[CHAT] request STARTED', extension.value, requestId);
 
 		let response: ILanguageModelChatResponse;
@@ -167,8 +167,8 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	}
 
 
-	$countTokens(identifier: ILanguageModelIdentifier, value: string | IChatMessage, token: CancellationToken): Promise<number> {
-		return this._chatProviderService.computeTokenLength(identifier, value, token);
+	$countTokens(modelId: string, value: string | IChatMessage, token: CancellationToken): Promise<number> {
+		return this._chatProviderService.computeTokenLength(modelId, value, token);
 	}
 
 	private _registerAuthenticationProvider(extension: ExtensionIdentifier, auth: { providerLabel: string; accountLabel?: string | undefined }): IDisposable {

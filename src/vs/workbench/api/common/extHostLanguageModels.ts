@@ -16,7 +16,7 @@ import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IE
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { Progress } from '../../../platform/progress/common/progress.js';
-import { ChatImageMimeType, IChatMessage, IChatResponseFragment, IChatResponsePart, ILanguageModelChatMetadata, ILanguageModelIdentifier } from '../../contrib/chat/common/languageModels.js';
+import { ChatImageMimeType, IChatMessage, IChatResponseFragment, IChatResponsePart, ILanguageModelChatMetadata } from '../../contrib/chat/common/languageModels.js';
 import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtHostLanguageModelsShape, MainContext, MainThreadLanguageModelsShape } from './extHost.protocol.js';
@@ -36,7 +36,6 @@ type LanguageModelProviderData = {
 	readonly extension: ExtensionIdentifier;
 	readonly extensionName: string;
 	readonly provider: vscode.LanguageModelChatProvider2;
-	knownModels: vscode.LanguageModelChatInformation[];
 };
 
 class LanguageModelResponseStream {
@@ -157,8 +156,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	readonly onDidChangeProviders = this._onDidChangeProviders.event;
 
 	private readonly _languageModelProviders = new Map<string, LanguageModelProviderData>();
+	// TODO @lramos15 - Remove the need for both info and metadata as it's a lot of redundancy. Should just need one
+	private readonly _localModels = new Map<string, { metadata: ILanguageModelChatMetadata; info: vscode.LanguageModelChatInformation }>();
 	private readonly _modelAccessList = new ExtensionIdentifierMap<ExtensionIdentifierSet>();
-	private readonly _pendingRequest = new Map<number, { languageModelId: ILanguageModelIdentifier; res: LanguageModelResponse }>();
+	private readonly _pendingRequest = new Map<number, { languageModelId: string; res: LanguageModelResponse }>();
 	private readonly _ignoredFileProviders = new Map<number, vscode.LanguageModelIgnoredFileProvider>();
 
 	constructor(
@@ -176,10 +177,20 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 	registerLanguageModelProvider(extension: IExtensionDescription, vendor: string, provider: vscode.LanguageModelChatProvider2): IDisposable {
 
-		this._languageModelProviders.set(vendor, { extension: extension.identifier, extensionName: extension.displayName || extension.name, provider, knownModels: [] });
+		this._languageModelProviders.set(vendor, { extension: extension.identifier, extensionName: extension.displayName || extension.name, provider });
 		return toDisposable(() => {
 			this._languageModelProviders.delete(vendor);
+			this._clearModelCache(vendor);
 			this._proxy.$unregisterProvider(vendor);
+		});
+	}
+
+	// Helper function to clear the local cache for a specific vendor. There's no lookup, so this involves iterating over all models.
+	private _clearModelCache(vendor: string): void {
+		this._localModels.forEach((value, key) => {
+			if (value.metadata.vendor === vendor) {
+				this._localModels.delete(key);
+			}
 		});
 	}
 
@@ -188,6 +199,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		if (!data) {
 			return [];
 		}
+		this._clearModelCache(vendor);
 		const modelInformation = await data.provider.prepareLanguageModelChat(options, token) ?? [];
 		const modelMetadata = modelInformation.map(m => {
 			let auth;
@@ -198,9 +210,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				};
 			}
 			return {
-				...m,
 				extension: data.extension,
-				id: m.id,
+				id: `${vendor}/${m.id}`, // Create a unique id for these models since id alone isn't guaranteed to be unique
 				vendor,
 				name: m.name ?? '',
 				family: m.family ?? '',
@@ -220,22 +231,27 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				} : undefined,
 			};
 		});
-		this._languageModelProviders.set(vendor, { ...data, knownModels: modelInformation });
+
+		for (let i = 0; i < modelMetadata.length; i++) {
+
+			this._localModels.set(modelMetadata[i].id, {
+				metadata: modelMetadata[i],
+				info: modelInformation[i]
+			});
+		}
+
 		return modelMetadata;
 	}
 
-	async $startChatRequest(model: ILanguageModelChatMetadata, requestId: number, from: ExtensionIdentifier, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: vscode.LanguageModelChatRequestOptions, token: CancellationToken): Promise<void> {
-		const data = this._languageModelProviders.get(model.vendor);
-		if (!data) {
-			throw new Error('Provider not found');
-		}
-
-		const knownModel = data.knownModels.find(m => {
-			return m.id === model.id && m.family === model.family;
-		});
-
+	async $startChatRequest(modelId: string, requestId: number, from: ExtensionIdentifier, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: vscode.LanguageModelChatRequestOptions, token: CancellationToken): Promise<void> {
+		const knownModel = this._localModels.get(modelId);
 		if (!knownModel) {
 			throw new Error('Model not found');
+		}
+
+		const data = this._languageModelProviders.get(knownModel.metadata.vendor);
+		if (!data) {
+			throw new Error(`Language model provider for '${knownModel.metadata.id}' not found.`);
 		}
 
 		const queue: IChatResponseFragment[] = [];
@@ -284,7 +300,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		try {
 			value = data.provider.provideLanguageModelChatResponse(
-				knownModel,
+				knownModel.info,
 				messages.value.map(typeConvert.LanguageModelChatMessage2.to),
 				{ ...options, modelOptions: options.modelOptions ?? {}, extensionId: ExtensionIdentifier.toKey(from) },
 				progress,
@@ -307,24 +323,27 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 	//#region --- token counting
 
-	$provideTokenLength(model: ILanguageModelIdentifier, value: string, token: CancellationToken): Promise<number> {
-		const data = this._languageModelProviders.get(model.vendor);
-		const knownModel = data?.knownModels.find(m => m.id === model.id);
-		if (!data || !knownModel) {
+	$provideTokenLength(modelId: string, value: string, token: CancellationToken): Promise<number> {
+		const knownModel = this._localModels.get(modelId);
+		if (!knownModel) {
 			return Promise.resolve(0);
 		}
-		return Promise.resolve(data.provider.provideTokenCount(knownModel, value, token));
+		const data = this._languageModelProviders.get(knownModel.metadata.vendor);
+		if (!data) {
+			return Promise.resolve(0);
+		}
+		return Promise.resolve(data.provider.provideTokenCount(knownModel.info, value, token));
 	}
 
 
 	//#region --- making request
 
 	async getDefaultLanguageModel(extension: IExtensionDescription): Promise<vscode.LanguageModelChat | undefined> {
-		let defaultModelId: ILanguageModelIdentifier | undefined;
+		let defaultModelId: string | undefined;
 		for (const provider of this._languageModelProviders.values()) {
 			const defaultModel = provider.knownModels.find(m => m.isDefault);
 			if (defaultModel) {
-				defaultModelId = { id: defaultModel.id, vendor: provider.extension.value };
+				defaultModelId = defaultModel.id;
 				break;
 			}
 		}
@@ -334,44 +353,44 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return this.getLanguageModelByIdentifier(extension, defaultModelId);
 	}
 
-	async getLanguageModelByIdentifier(extension: IExtensionDescription, modelIdentifier: ILanguageModelIdentifier): Promise<vscode.LanguageModelChat | undefined> {
+	async getLanguageModelByIdentifier(extension: IExtensionDescription, modelId: string): Promise<vscode.LanguageModelChat | undefined> {
 
-		const modelInfo = this._languageModelProviders.get(modelIdentifier.vendor)?.knownModels.find(m => m.id === modelIdentifier.id);
-		if (!modelInfo) {
+		const model = this._localModels.get(modelId);
+		if (!model) {
 			// model gone? is this an error on us?
 			return;
 		}
 
 		// make sure auth information is correct
-		if (this._isUsingAuth(extension.identifier, modelInfo)) {
-			await this._fakeAuthPopulate(modelInfo);
+		if (this._isUsingAuth(extension.identifier, model.metadata)) {
+			await this._fakeAuthPopulate(model.metadata);
 		}
 
 		let apiObject: vscode.LanguageModelChat | undefined;
 		if (!apiObject) {
 			const that = this;
 			apiObject = {
-				id: modelInfo.id,
-				vendor: modelIdentifier.vendor,
-				family: modelInfo.family,
-				version: modelInfo.version,
-				name: modelInfo.name,
+				id: model.info.id,
+				vendor: model.metadata.vendor,
+				family: model.info.family,
+				version: model.info.version,
+				name: model.info.name,
 				capabilities: {
-					supportsImageToText: modelInfo.capabilities?.vision ?? false,
-					supportsToolCalling: !!modelInfo.capabilities?.toolCalling,
+					supportsImageToText: model.metadata.capabilities?.vision ?? false,
+					supportsToolCalling: !!model.metadata.capabilities?.toolCalling,
 				},
-				maxInputTokens: modelInfo.maxInputTokens,
+				maxInputTokens: model.metadata.maxInputTokens,
 				countTokens(text, token) {
-					if (!that._languageModelProviders.get(modelIdentifier.vendor)?.knownModels.find(m => m.id === modelInfo.id)) {
-						throw extHostTypes.LanguageModelError.NotFound(`${modelIdentifier.vendor}/${modelIdentifier.id}`);
+					if (!that._localModels.has(modelId)) {
+						throw extHostTypes.LanguageModelError.NotFound(modelId);
 					}
-					return that._computeTokenLength({ id: modelInfo.id, vendor: modelIdentifier.vendor }, text, token ?? CancellationToken.None);
+					return that._computeTokenLength({ id: model.id, vendor: modelIdentifier.vendor }, text, token ?? CancellationToken.None);
 				},
 				sendRequest(messages, options, token) {
-					if (!that._languageModelProviders.get(modelIdentifier.vendor)?.knownModels.find(m => m.id === modelInfo.id)) {
+					if (!that._languageModelProviders.get(modelIdentifier.vendor)?.knownModels.find(m => m.id === model.id)) {
 						throw extHostTypes.LanguageModelError.NotFound(`${modelIdentifier.vendor}/${modelIdentifier.id}`);
 					}
-					return that._sendChatRequest(extension, { id: modelInfo.id, vendor: modelIdentifier.vendor }, messages, options ?? {}, token ?? CancellationToken.None);
+					return that._sendChatRequest(extension, { id: model.id, vendor: modelIdentifier.vendor }, messages, options ?? {}, token ?? CancellationToken.None);
 				}
 			};
 
@@ -398,7 +417,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return result;
 	}
 
-	private async _sendChatRequest(extension: IExtensionDescription, languageModelId: ILanguageModelIdentifier, messages: vscode.LanguageModelChatMessage2[], options: vscode.LanguageModelChatRequestOptions, token: CancellationToken) {
+	private async _sendChatRequest(extension: IExtensionDescription, languageModelId: string, messages: vscode.LanguageModelChatMessage2[], options: vscode.LanguageModelChatRequestOptions, token: CancellationToken) {
 
 		const internalMessages: IChatMessage[] = this._convertMessages(extension, messages);
 
@@ -519,13 +538,13 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		}
 	}
 
-	private async _computeTokenLength(languageModelId: ILanguageModelIdentifier, value: string | vscode.LanguageModelChatMessage2, token: vscode.CancellationToken): Promise<number> {
+	private async _computeTokenLength(modelId: string, value: string | vscode.LanguageModelChatMessage2, token: vscode.CancellationToken): Promise<number> {
 
-		const data = this._languageModelProviders.get(languageModelId.vendor)?.knownModels.find(m => m.id === languageModelId.id);
+		const data = this._localModels.get(modelId);
 		if (!data) {
-			throw extHostTypes.LanguageModelError.NotFound(`Language model '${languageModelId.vendor}/${languageModelId.id}' is unknown.`);
+			throw extHostTypes.LanguageModelError.NotFound(`Language model '${modelId}' is unknown.`);
 		}
-		return this._languageModelProviders.get(languageModelId.vendor)?.provider.provideTokenCount(data, value, token) ?? 0;
+		return this._languageModelProviders.get(data.metadata.vendor)?.provider.provideTokenCount(data.info, value, token) ?? 0;
 		// return this._proxy.$countTokens(languageModelId, (typeof value === 'string' ? value : typeConvert.LanguageModelChatMessage2.from(value)), token);
 	}
 
