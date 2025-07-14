@@ -81,6 +81,7 @@ import { ExtHostProfileContentHandlers } from './extHostProfileContentHandler.js
 import { IExtHostProgress } from './extHostProgress.js';
 import { ExtHostQuickDiff } from './extHostQuickDiff.js';
 import { createExtHostQuickOpen } from './extHostQuickOpen.js';
+import { ExtHostRemoteCodingAgents } from './extHostRemoteCodingAgents.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { ExtHostSCM } from './extHostSCM.js';
 import { IExtHostSearch } from './extHostSearch.js';
@@ -225,6 +226,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostStatusBar = rpcProtocol.set(ExtHostContext.ExtHostStatusBar, new ExtHostStatusBar(rpcProtocol, extHostCommands.converter));
 	const extHostSpeech = rpcProtocol.set(ExtHostContext.ExtHostSpeech, new ExtHostSpeech(rpcProtocol));
 	const extHostEmbeddings = rpcProtocol.set(ExtHostContext.ExtHostEmbeddings, new ExtHostEmbeddings(rpcProtocol));
+	const extHostRemoteCodingAgents = rpcProtocol.set(ExtHostContext.ExtHostRemoteCodingAgents, new ExtHostRemoteCodingAgents(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostMcp, accessor.get(IExtHostMpcService));
 
 	// Check that no named customers are missing
@@ -1412,6 +1414,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 		};
 
+		// namespace: remoteCodingAgents
+		const remoteCodingAgents: typeof vscode.remoteCodingAgents = {
+			registerAgentInformationProvider(provider: vscode.RemoteCodingAgentInformationProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension, 'remoteCodingAgents');
+				return extHostRemoteCodingAgents.registerAgentInformationProvider(extension, provider);
+			}
+		};
+
 		// namespace: l10n
 		const l10n: typeof vscode.l10n = {
 			t(...params: [message: string, ...args: Array<string | number | boolean>] | [message: string, args: Record<string, any>] | [{ message: string; args?: Array<string | number | boolean> | Record<string, any>; comment: string | string[] }]): string {
@@ -1572,6 +1582,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			languages,
 			lm,
 			notebooks,
+			remoteCodingAgents,
 			scm,
 			speech,
 			tasks,

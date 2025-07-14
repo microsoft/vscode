@@ -3106,6 +3106,24 @@ export interface MainThreadChatStatusShape {
 	$disposeEntry(id: string): void;
 }
 
+export interface RemoteCodingAgentInformationDto {
+	id: string;
+	displayName: string;
+	description?: string;
+	command: string;
+	followUpRegex?: string;
+	when?: string;
+}
+
+export interface MainThreadRemoteCodingAgentsShape extends IDisposable {
+	$registerAgentInformationProvider(handle: number): void;
+	$unregisterAgentInformationProvider(handle: number): void;
+}
+
+export interface ExtHostRemoteCodingAgentsShape {
+	$getAgentInformation(handle: number): Promise<RemoteCodingAgentInformationDto[]>;
+}
+
 // --- proxy identifiers
 
 export const MainContext = {
@@ -3182,6 +3200,7 @@ export const MainContext = {
 	MainThreadAiEmbeddingVector: createProxyIdentifier<MainThreadAiEmbeddingVectorShape>('MainThreadAiEmbeddingVector'),
 	MainThreadChatStatus: createProxyIdentifier<MainThreadChatStatusShape>('MainThreadChatStatus'),
 	MainThreadAiSettingsSearch: createProxyIdentifier<MainThreadAiSettingsSearchShape>('MainThreadAiSettingsSearch'),
+	MainThreadRemoteCodingAgents: createProxyIdentifier<MainThreadRemoteCodingAgentsShape>('MainThreadRemoteCodingAgents'),
 };
 
 export const ExtHostContext = {
@@ -3254,4 +3273,5 @@ export const ExtHostContext = {
 	ExtHostTelemetry: createProxyIdentifier<ExtHostTelemetryShape>('ExtHostTelemetry'),
 	ExtHostLocalization: createProxyIdentifier<ExtHostLocalizationShape>('ExtHostLocalization'),
 	ExtHostMcp: createProxyIdentifier<ExtHostMcpShape>('ExtHostMcp'),
+	ExtHostRemoteCodingAgents: createProxyIdentifier<ExtHostRemoteCodingAgentsShape>('ExtHostRemoteCodingAgents'),
 };
