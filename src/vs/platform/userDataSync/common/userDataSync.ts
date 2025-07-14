@@ -139,6 +139,8 @@ export function registerConfiguration(): IDisposable {
 
 // #region User Data Sync Store
 
+export const NON_EXISTING_RESOURCE_REF = '0';
+
 export interface IUserData {
 	ref: string;
 	content: string | null;

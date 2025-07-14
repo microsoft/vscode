@@ -33,6 +33,7 @@ import {
 	IUserDataSyncUtilService, MergeState, PREVIEW_DIR_NAME, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode,
 	USER_DATA_SYNC_CONFIGURATION_SCOPE, USER_DATA_SYNC_SCHEME, getPathSegments, IUserDataSyncResourceConflicts,
 	IUserDataSyncResource, IUserDataSyncResourcePreview,
+	NON_EXISTING_RESOURCE_REF,
 } from './userDataSync.js';
 import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 
@@ -302,22 +303,19 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 	}
 
 	protected async getLatestRemoteUserData(refOrLatestData: string | IUserData | null, lastSyncUserData: IRemoteUserData | null): Promise<IRemoteUserData> {
-		if (refOrLatestData && !isString(refOrLatestData)) {
+		if (refOrLatestData === null) {
+			return { ref: NON_EXISTING_RESOURCE_REF, syncData: null };
+		}
+
+		if (!isString(refOrLatestData)) {
 			return this.toRemoteUserData(refOrLatestData);
 		}
 
-		if (lastSyncUserData) {
-
-			// Last time synced resource and latest resource on server are same
-			if (lastSyncUserData.ref === refOrLatestData) {
-				return lastSyncUserData;
-			}
-
-			// There is no resource on server and last time it was synced with no resource
-			if (refOrLatestData === null && lastSyncUserData.syncData === null) {
-				return lastSyncUserData;
-			}
+		// Last time synced resource and latest resource on server are same
+		if (lastSyncUserData?.ref === refOrLatestData) {
+			return lastSyncUserData;
 		}
+
 		return this.getRemoteUserData(lastSyncUserData);
 	}
 
