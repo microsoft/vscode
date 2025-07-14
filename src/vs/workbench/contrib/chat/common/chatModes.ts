@@ -149,14 +149,13 @@ export class ChatModeService extends Disposable implements IChatModeService {
 			}
 
 			this.hasCustomModes.set(this._customModeInstances.size > 0);
-
-			if (fireChangeEvent) {
-				this._onDidChangeChatModes.fire();
-			}
 		} catch (error) {
 			this.logService.error(error, 'Failed to load custom chat modes');
 			this._customModeInstances.clear();
 			this.hasCustomModes.set(false);
+		}
+		if (fireChangeEvent) {
+			this._onDidChangeChatModes.fire();
 		}
 	}
 
