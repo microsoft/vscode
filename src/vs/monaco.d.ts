@@ -7558,6 +7558,7 @@ declare namespace monaco.languages {
 		editorType: string;
 		viewKind: string | undefined;
 		error: string | undefined;
+		preceeded: boolean;
 		languageId: string;
 		requestReason: string;
 		cursorColumnDistance?: number;
