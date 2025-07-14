@@ -5,6 +5,8 @@
 
 import * as playwright from '@playwright/test';
 import { assert } from 'chai';
+import { checkA11y } from 'axe-playwright';
+import type { Result } from 'axe-core';
 
 const PORT = 8563;
 const TIMEOUT = 20 * 1000;
@@ -134,5 +136,121 @@ describe('API Integration Tests', function (): void {
 			'# 	def eat(self, N):',
 			'\t\t\'\'\'Make the monkey eat N bananas!\'\'\''
 		]);
+	});
+	it('Accessibility: sshould not have critical accessibility violations', async () => {
+		await page.evaluate(`
+		(function () {
+			instance.focus();
+			instance.trigger('keyboard', 'cursorHome');
+			instance.trigger('keyboard', 'type', {
+				text: 'a'
+			});
+		})()
+		`);
+
+		let violationCount = 0;
+		const checkedElements = new Set<string>();
+		const customReporter = {
+			async report(violations: Result[]) {
+				// Log failed elements
+				violations.forEach(v => {
+					v.nodes.forEach(node => {
+						const selector = node.target?.join(' ');
+						if (selector) {
+							checkedElements.add(selector);
+							console.log(`❌ FAIL: ${selector} - ${v.id} - ${v.description}`);
+						}
+					});
+				});
+				violationCount += violations.length;
+			}
+		};
+
+		// Run axe and get all results (passes and violations)
+		const axeResults = await page.evaluate(async () => {
+			return await window.axe.run(document, {
+				runOnly: {
+					type: 'tag',
+					values: ['wcag2a']
+				}
+			});
+		});
+
+		// Log passed elements
+		axeResults.passes.forEach((pass: any) => {
+			pass.nodes.forEach((node: any) => {
+				const selector = node.target?.join(' ');
+				if (selector && !checkedElements.has(selector)) {
+					checkedElements.add(selector);
+					console.log(`✅ PASS: ${selector} - ${pass.id} - ${pass.description}`);
+				}
+			});
+		});
+
+		// Now run the actual checkA11y for test assertion and violation logging
+		await checkA11y(page, undefined, {
+			axeOptions: {
+				runOnly: {
+					type: 'tag',
+					values: ['wcag2a']
+				}
+			},
+			includedImpacts: ['critical', 'serious'],
+			detailedReport: true,
+			detailedReportOptions: { html: true }
+		}, false, customReporter);
+		playwright.expect(violationCount).toBe(0);
+	});
+	it('Monaco editor container should have an ARIA role', async () => {
+		await page.evaluate(`
+		(function () {
+			instance.focus();
+			instance.trigger('keyboard', 'cursorHome');
+			instance.trigger('keyboard', 'type', {
+				text: 'a'
+			});
+		})()
+		`);
+		const role = await page.evaluate(() => {
+			const container = document.querySelector('.monaco-editor');
+			return container?.getAttribute('role');
+		});
+		assert.isDefined(role, 'Monaco editor container should have a role attribute');
+	});
+
+	it('Monaco editor should have an ARIA label', async () => {
+		await page.evaluate(`
+		(function () {
+			instance.focus();
+			instance.trigger('keyboard', 'cursorHome');
+			instance.trigger('keyboard', 'type', {
+				text: 'a'
+			});
+		})()
+		`);
+		const ariaLabel = await page.evaluate(() => {
+			const container = document.querySelector('.monaco-editor');
+			return container?.getAttribute('aria-label');
+		});
+		assert.isDefined(ariaLabel, 'Monaco editor container should have an aria-label attribute');
+	});
+
+	it('All toolbar buttons should have accessible names', async () => {
+		await page.evaluate(`
+		(function () {
+			instance.focus();
+			instance.trigger('keyboard', 'cursorHome');
+			instance.trigger('keyboard', 'type', {
+				text: 'a'
+			});
+		})()
+		`);
+		const buttonsWithoutLabel = await page.evaluate(() => {
+			return Array.from(document.querySelectorAll('button')).filter(btn => {
+				const label = btn.getAttribute('aria-label') || btn.textContent?.trim();
+				return !label;
+			}).map(btn => btn.outerHTML);
+		});
+		assert.deepEqual(buttonsWithoutLabel, [], 'All toolbar buttons should have accessible names');
 	});
 });
