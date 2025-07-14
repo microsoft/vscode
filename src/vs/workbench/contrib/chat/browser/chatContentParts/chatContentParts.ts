@@ -8,7 +8,7 @@ import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 
 export interface IChatContentPart extends IDisposable {
-	domNode: HTMLElement;
+	domNode: HTMLElement | undefined;
 
 	/**
 	 * Used to indicate a part's ownership of a code block.
@@ -32,6 +32,8 @@ export interface IChatContentPart extends IDisposable {
 
 export interface IChatContentPartRenderContext {
 	element: ChatTreeItem;
+	elementIndex: number;
+	container: HTMLElement;
 	content: ReadonlyArray<IChatRendererContent>;
 	contentIndex: number;
 	preceedingContentParts: ReadonlyArray<IChatContentPart>;

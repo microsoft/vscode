@@ -44,6 +44,13 @@ declare module 'vscode' {
 		showInlineEditMenu?: boolean;
 
 		action?: Command;
+
+		displayLocation?: InlineCompletionDisplayLocation;
+	}
+
+	export interface InlineCompletionDisplayLocation {
+		range: Range;
+		label: string;
 	}
 
 	export interface InlineCompletionWarning {
@@ -57,6 +64,10 @@ declare module 'vscode' {
 		 * If some inline completion provider registered by such an extension returns a result, this provider is not asked.
 		 */
 		yieldTo?: string[];
+		/**
+		 * Can override the extension id for the yieldTo mechanism. Used for testing, so that yieldTo can be tested within one extension.
+		*/
+		groupId?: string;
 
 		debounceDelayMs?: number;
 
@@ -72,10 +83,28 @@ declare module 'vscode' {
 		handleDidShowCompletionItem?(completionItem: InlineCompletionItem, updatedInsertText: string): void;
 
 		/**
-		 * @param completionItem The completion item that was rejected.
+		 * Is called when an inline completion item was accepted partially.
+		 * @param info Additional info for the partial accepted trigger.
+		 */
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		handleDidPartiallyAcceptCompletionItem?(completionItem: InlineCompletionItem, info: PartialAcceptInfo): void;
+
+		/**
+		 * Is called when an inline completion item is no longer being used.
+		 * Provides a reason of why it is not used anymore.
 		*/
 		// eslint-disable-next-line local/vscode-dts-provider-naming
-		handleDidRejectCompletionItem?(completionItem: InlineCompletionItem): void;
+		handleEndOfLifetime?(completionItem: InlineCompletionItem, reason: InlineCompletionEndOfLifeReason): void;
+
+		/**
+		 * Is called when an inline completion list is no longer being used (same reference as the list returned by provideInlineEditsForRange).
+		*/
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		handleListEndOfLifetime?(list: InlineCompletionList, reason: InlineCompletionsDisposeReason): void;
+
+		onDidChange?: Event<void>;
+
+		// #region Deprecated methods
 
 		/**
 		 * Is called when an inline completion item was accepted partially.
@@ -86,21 +115,45 @@ declare module 'vscode' {
 		handleDidPartiallyAcceptCompletionItem?(completionItem: InlineCompletionItem, acceptedLength: number): void;
 
 		/**
-		 * Is called when an inline completion item was accepted partially.
-		 * @param info Additional info for the partial accepted trigger.
-		 */
+		 * @param completionItem The completion item that was rejected.
+		 * @deprecated Use {@link handleEndOfLifetime} instead.
+		*/
 		// eslint-disable-next-line local/vscode-dts-provider-naming
-		handleDidPartiallyAcceptCompletionItem?(completionItem: InlineCompletionItem, info: PartialAcceptInfo): void;
+		handleDidRejectCompletionItem?(completionItem: InlineCompletionItem): void;
 
-		provideInlineEditsForRange?(document: TextDocument, range: Range, context: InlineCompletionContext, token: CancellationToken): ProviderResult<InlineCompletionItem[] | InlineCompletionList>;
-
-		readonly debounceDelayMs?: number;
+		// #endregion
 	}
+
+	export enum InlineCompletionEndOfLifeReasonKind {
+		Accepted = 0,
+		Rejected = 1,
+		Ignored = 2,
+	}
+
+	export type InlineCompletionEndOfLifeReason = {
+		kind: InlineCompletionEndOfLifeReasonKind.Accepted; // User did an explicit action to accept
+	} | {
+		kind: InlineCompletionEndOfLifeReasonKind.Rejected; // User did an explicit action to reject
+	} | {
+		kind: InlineCompletionEndOfLifeReasonKind.Ignored;
+		supersededBy?: InlineCompletionItem;
+		userTypingDisagreed: boolean;
+	};
+
+	export enum InlineCompletionsDisposeReasonKind {
+		Other = 0,
+		Empty = 1,
+		TokenCancellation = 2,
+		LostRace = 3,
+		NotTaken = 4,
+	}
+
+	export type InlineCompletionsDisposeReason = { kind: InlineCompletionsDisposeReasonKind };
 
 	export interface InlineCompletionContext {
 		readonly userPrompt?: string;
 
-		readonly requestUuid?: string;
+		readonly requestUuid: string;
 	}
 
 	export interface PartialAcceptInfo {
@@ -123,10 +176,10 @@ declare module 'vscode' {
 		/**
 		 * A list of commands associated with the inline completions of this list.
 		 */
-		commands?: Command[];
+		commands?: Array<Command | { command: Command; icon: ThemeIcon }>;
 
 		/**
-		 * When set and the user types a suggestion without derivating from it, the inline suggestion is not updated.
+		 * When set and the user types a suggestion without deviating from it, the inline suggestion is not updated.
 		 * Defaults to false (might change).
 		 */
 		enableForwardStability?: boolean;

@@ -46,7 +46,7 @@ import { IMarkProperties, TerminalCapability } from '../../../../platform/termin
 import { TerminalCapabilityStoreMultiplexer } from '../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
 import { deserializeEnvironmentVariableCollections } from '../../../../platform/terminal/common/environmentVariableShared.js';
-import { GeneralShellType, IProcessDataEvent, IProcessPropertyMap, IReconnectionProperties, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalLogService, PosixShellType, ProcessPropertyType, ShellIntegrationStatus, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType } from '../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, IProcessDataEvent, IProcessPropertyMap, IReconnectionProperties, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalLogService, PosixShellType, ProcessPropertyType, ShellIntegrationStatus, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType, type ShellIntegrationInjectionFailureReason } from '../../../../platform/terminal/common/terminal.js';
 import { formatMessageForTerminal } from '../../../../platform/terminal/common/terminalStrings.js';
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
@@ -90,6 +90,8 @@ import type { IMenu } from '../../../../platform/actions/common/actions.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { TerminalContribCommandId } from '../terminalContribExports.js';
 import type { IProgressState } from '@xterm/addon-progress';
+import { refreshShellIntegrationInfoStatus } from './terminalTooltip.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 
 const enum Constants {
 	/**
@@ -192,6 +194,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _hasScrollBar?: boolean;
 	private _usedShellIntegrationInjection: boolean = false;
 	get usedShellIntegrationInjection(): boolean { return this._usedShellIntegrationInjection; }
+	private _shellIntegrationInjectionInfo: ShellIntegrationInjectionFailureReason | undefined;
+	get shellIntegrationInjectionFailureReason(): ShellIntegrationInjectionFailureReason | undefined { return this._shellIntegrationInjectionInfo; }
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
 	private readonly _scopedContextKeyService: IContextKeyService;
 	private _resizeDebouncer?: TerminalResizeDebouncer;
@@ -358,6 +362,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}));
 	readonly onLineData = this._onLineData.event;
 
+	readonly sessionId = generateUuid();
+
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
 		private _shellLaunchConfig: IShellLaunchConfig,
@@ -367,6 +373,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IPathService private readonly _pathService: IPathService,
+		@IFileService private readonly _fileService: IFileService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
@@ -469,14 +476,20 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (capability === TerminalCapability.CommandDetection) {
 				const commandDetection = this.capabilities.get(capability);
 				if (commandDetection) {
+					commandDetection.promptInputModel.setShellType(this.shellType);
 					capabilityListeners.set(capability, Event.any(
+						commandDetection.onPromptTypeChanged,
 						commandDetection.promptInputModel.onDidStartInput,
 						commandDetection.promptInputModel.onDidChangeInput,
 						commandDetection.promptInputModel.onDidFinishInput
-					)(() => this._labelComputer?.refreshLabel(this)));
+					)(() => {
+						this._labelComputer?.refreshLabel(this);
+						refreshShellIntegrationInfoStatus(this);
+					}));
 				}
 			}
 		}));
+		this._register(this.onDidChangeShellType(() => refreshShellIntegrationInfoStatus(this)));
 		this._register(this.capabilities.onDidRemoveCapabilityType(capability => {
 			capabilityListeners.get(capability)?.dispose();
 		}));
@@ -784,7 +797,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			capabilities: this.capabilities,
 			shellIntegrationNonce: this._processManager.shellIntegrationNonce,
 			disableShellIntegrationReporting,
-		});
+		}, this.onDidExecuteText);
 		this.xterm = xterm;
 		this._resizeDebouncer = this._register(new TerminalResizeDebouncer(
 			() => this._isVisible,
@@ -846,6 +859,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Init winpty compat and link handler after process creation as they rely on the
 		// underlying process OS
 		this._register(this._processManager.onProcessReady(async (processTraits) => {
+			// Respond to DA1 with basic conformance. Note that including this is required to avoid
+			// a long delay in conpty 1.22+ where it waits for the response.
+			// Reference: https://github.com/microsoft/terminal/blob/3760caed97fa9140a40777a8fbc1c95785e6d2ab/src/terminal/adapter/adaptDispatch.cpp#L1471-L1495
+			if (processTraits?.windowsPty?.backend === 'conpty') {
+				this._register(xterm.raw.parser.registerCsiHandler({ final: 'c' }, params => {
+					if (params.length === 0 || params.length === 1 && params[0] === 0) {
+						this._processManager.write('\x1b[?61;4c');
+						return true;
+					}
+					return false;
+				}));
+			}
 			if (this._processManager.os) {
 				lineDataEventAddon.setOperatingSystem(this._processManager.os);
 			}
@@ -859,6 +884,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}));
 		this._register(xterm.onDidChangeProgress(() => this._labelComputer?.refreshLabel(this)));
+
+		// Register and update the terminal's shell integration status
+		this._register(Event.runAndSubscribe(xterm.shellIntegration.onDidChangeSeenSequences, () => {
+			if (xterm.shellIntegration.seenSequences.size > 0) {
+				refreshShellIntegrationInfoStatus(this);
+			}
+		}));
 
 		// Set up updating of the process cwd on key press, this is only needed when the cwd
 		// detection capability has not been registered
@@ -1290,6 +1322,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
+	async sendSignal(signal: string): Promise<void> {
+		this._logService.debug('sending signal (vscode)', signal);
+		await this._processManager.sendSignal(signal);
+	}
+
 	async sendPath(originalPath: string | URI, shouldExecute: boolean): Promise<void> {
 		return this.sendText(await this.preparePathForShell(originalPath), shouldExecute);
 	}
@@ -1433,6 +1470,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				case ProcessPropertyType.UsedShellIntegrationInjection:
 					this._usedShellIntegrationInjection = true;
 					break;
+				case ProcessPropertyType.ShellIntegrationInjectionFailureReason:
+					this._shellIntegrationInjectionInfo = value;
+					break;
 			}
 		}));
 
@@ -1476,7 +1516,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				message: nls.localize('workspaceNotTrustedCreateTerminalCwd', "Cannot launch a terminal process in an untrusted workspace with cwd {0} and userHome {1}", this._cwd, this._userHome)
 			});
 		}
-
 		// Re-evaluate dimensions if the container has been set since the xterm instance was created
 		if (this._container && this._cols === 0 && this._rows === 0) {
 			this._initDimensions();
@@ -1922,11 +1961,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._shellType === shellType) {
 			return;
 		}
-		if (shellType) {
-			this._shellType = shellType;
+		this._shellType = shellType;
+		if (shellType === undefined) {
+			this._terminalShellTypeContextKey.reset();
+		} else {
 			this._terminalShellTypeContextKey.set(shellType?.toString());
-			this._onDidChangeShellType.fire(shellType);
 		}
+		this._onDidChangeShellType.fire(shellType);
+
 	}
 
 	private _setAriaLabel(xterm: XTermTerminal | undefined, terminalId: number, title: string | undefined): void {
@@ -2179,13 +2221,30 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._initialCwd;
 	}
 
-	async getCwd(): Promise<string> {
+	async getSpeculativeCwd(): Promise<string> {
 		if (this.capabilities.has(TerminalCapability.CwdDetection)) {
 			return this.capabilities.get(TerminalCapability.CwdDetection)!.getCwd();
 		} else if (this.capabilities.has(TerminalCapability.NaiveCwdDetection)) {
 			return this.capabilities.get(TerminalCapability.NaiveCwdDetection)!.getCwd();
 		}
 		return this._processManager.initialCwd;
+	}
+
+	async getCwdResource(): Promise<URI | undefined> {
+		const cwd = this.capabilities.get(TerminalCapability.CwdDetection)?.getCwd();
+		if (!cwd) {
+			return undefined;
+		}
+		let resource: URI;
+		if (this.remoteAuthority) {
+			resource = await this._pathService.fileURI(cwd);
+		} else {
+			resource = URI.file(cwd);
+		}
+		if (await this._fileService.exists(resource)) {
+			return resource;
+		}
+		return undefined;
 	}
 
 	private async _refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]> {

@@ -41,7 +41,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
 import { defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 
 export const manageExtensionIcon = registerIcon('theme-selection-manage-extension', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the theme selection quick pick.'));
 
@@ -53,7 +53,7 @@ enum ConfigureItem {
 	CUSTOM_TOP_ENTRY = 'customTopEntry'
 }
 
-class MarketplaceThemesPicker {
+class MarketplaceThemesPicker implements IDisposable {
 	private readonly _installedExtensions: Promise<Set<string>>;
 	private readonly _marketplaceExtensions: Set<string> = new Set();
 	private readonly _marketplaceThemes: ThemeItem[] = [];
@@ -275,6 +275,7 @@ class MarketplaceThemesPicker {
 		this._queryDelayer.dispose();
 		this._marketplaceExtensions.clear();
 		this._marketplaceThemes.length = 0;
+		this._onDidChange.dispose();
 	}
 }
 
@@ -306,7 +307,7 @@ class InstalledThemesPicker {
 
 		let marketplaceThemePicker: MarketplaceThemesPicker | undefined;
 		if (this.extensionGalleryService.isEnabled()) {
-			if (this.extensionResourceLoaderService.supportsExtensionGalleryResources && this.options.browseMessage) {
+			if (await this.extensionResourceLoaderService.supportsExtensionGalleryResources() && this.options.browseMessage) {
 				marketplaceThemePicker = this.instantiationService.createInstance(MarketplaceThemesPicker, this.getMarketplaceColorThemes.bind(this), this.options.marketplaceTag);
 				picks = [configurationEntry(this.options.browseMessage, ConfigureItem.BROWSE_GALLERY), ...picks];
 			} else {
@@ -770,11 +771,18 @@ registerAction2(class extends Action2 {
 		const themeService = accessor.get(IWorkbenchThemeService);
 		const extensionGalleryService = accessor.get(IExtensionGalleryService);
 		const extensionResourceLoaderService = accessor.get(IExtensionResourceLoaderService);
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const instantiationService = accessor.get(IInstantiationService);
 
-		if (!extensionGalleryService.isEnabled() || !extensionResourceLoaderService.supportsExtensionGalleryResources) {
+		if (!extensionGalleryService.isEnabled()) {
 			return;
 		}
+
+		if (!await extensionResourceLoaderService.supportsExtensionGalleryResources()) {
+			await extensionsWorkbenchService.openSearch(marketplaceTag);
+			return;
+		}
+
 		const currentTheme = themeService.getColorTheme();
 		const getMarketplaceColorThemes = (publisher: string, name: string, version: string) => themeService.getMarketplaceColorThemes(publisher, name, version);
 
@@ -809,7 +817,7 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	order: 7
 } satisfies ISubmenuItem);
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-	title: localize({ key: 'miSelectTheme', comment: ['&& denotes a mnemonic'] }, "&&Theme"),
+	title: localize({ key: 'miSelectTheme', comment: ['&& denotes a mnemonic'] }, "&&Themes"),
 	submenu: ThemesSubMenu,
 	group: '2_configuration',
 	order: 7

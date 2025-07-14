@@ -13,7 +13,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
-import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 
 export const ctxIsGlobalEditingSession = new RawContextKey<boolean>('chatEdits.isGlobalEditingSession', undefined, localize('chat.ctxEditSessionIsGlobal', "The current editor is part of the global edit session"));
@@ -109,18 +109,14 @@ class ContextKeyGroup {
 				return;
 			}
 
-			const { session, entry, isInlineChat } = tuple;
+			const { session, entry } = tuple;
 
 			const chatModel = chatService.getSession(session.chatSessionId);
 
-			const isRequestInProgress = chatModel
-				? observableFromEvent(this, chatModel.onDidChange, () => chatModel.requestInProgress)
-				: constObservable(false);
-
-			this._ctxHasEditorModification.set(isInlineChat || entry?.state.read(r) === WorkingSetEntryState.Modified);
+			this._ctxHasEditorModification.set(entry?.state.read(r) === ModifiedFileEntryState.Modified);
 			this._ctxIsGlobalEditingSession.set(session.isGlobalEditingSession);
 			this._ctxReviewModeEnabled.set(entry ? entry.reviewMode.read(r) : false);
-			this._ctxHasRequestInProgress.set(session.state.read(r) === ChatEditingSessionState.StreamingEdits || isRequestInProgress.read(r) || !entry);
+			this._ctxHasRequestInProgress.set(chatModel?.requestInProgressObs.read(r) ?? false);
 
 			// number of requests
 			const requestCount = chatModel
@@ -154,27 +150,28 @@ export class ObservableEditorSession {
 		@IChatEditingService chatEditingService: IChatEditingService,
 		@IInlineChatSessionService inlineChatService: IInlineChatSessionService
 	) {
-		this.value = derived(r => {
-			const sessionObs = chatEditingService.editingSessionsObs.map((value, r) => {
-				for (const session of value) {
-					const entry = session.readEntry(uri, r);
-					if (entry) {
-						return { session, entry, isInlineChat: false };
-					}
-				}
-				return undefined;
-			});
 
-			const result = sessionObs.read(r);
-			if (result) {
-				return result;
+		const inlineSessionObs = observableFromEvent(this, inlineChatService.onDidChangeSessions, () => inlineChatService.getSession2(uri));
+
+		const sessionObs = chatEditingService.editingSessionsObs.map((value, r) => {
+			for (const session of value) {
+				const entry = session.readEntry(uri, r);
+				if (entry) {
+					return { session, entry, isInlineChat: false };
+				}
+			}
+			return undefined;
+		});
+
+		this.value = derived(r => {
+
+			const inlineSession = inlineSessionObs.read(r);
+
+			if (inlineSession) {
+				return { session: inlineSession.editingSession, entry: inlineSession.editingSession.readEntry(uri, r), isInlineChat: true };
 			}
 
-			const inlineSessionObs = observableFromEvent(this, inlineChatService.onDidChangeSessions, () => inlineChatService.getSession2(uri));
-			const inlineSession = inlineSessionObs.read(r);
-			return inlineSession
-				? { session: inlineSession.editingSession, entry: inlineSession.editingSession.readEntry(uri, r), isInlineChat: true }
-				: undefined;
+			return sessionObs.read(r);
 		});
 	}
 }

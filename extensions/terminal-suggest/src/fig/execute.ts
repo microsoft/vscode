@@ -20,7 +20,7 @@ export const executeCommandTimeout = async (
 ): Promise<Fig.ExecuteCommandOutput> => {
 	const command = [input.command, ...input.args].join(' ');
 	try {
-		console.info(`About to run shell command '${command}'`);
+		console.debug(`About to run shell command '${command}'`);
 		const result = await withTimeout(
 			Math.max(timeout, input.timeout ?? 0),
 			spawnHelper2(input.command, input.args, {

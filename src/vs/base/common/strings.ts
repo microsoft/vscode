@@ -102,7 +102,7 @@ export function count(value: string, substr: string): number {
 	return result;
 }
 
-export function truncate(value: string, maxLength: number, suffix = '…'): string {
+export function truncate(value: string, maxLength: number, suffix = Ellipsis): string {
 	if (value.length <= maxLength) {
 		return value;
 	}
@@ -110,7 +110,7 @@ export function truncate(value: string, maxLength: number, suffix = '…'): stri
 	return `${value.substr(0, maxLength)}${suffix}`;
 }
 
-export function truncateMiddle(value: string, maxLength: number, suffix = '…'): string {
+export function truncateMiddle(value: string, maxLength: number, suffix = Ellipsis): string {
 	if (value.length <= maxLength) {
 		return value;
 	}
@@ -264,6 +264,14 @@ export function splitLinesIncludeSeparators(str: string): string[] {
 		linesWithSeparators.push(splitLinesAndSeparators[2 * i] + (splitLinesAndSeparators[2 * i + 1] ?? ''));
 	}
 	return linesWithSeparators;
+}
+
+export function indexOfPattern(str: string, re: RegExp) {
+	const match = re.exec(str);
+	if (match) {
+		return match.index;
+	}
+	return -1;
 }
 
 /**
@@ -802,14 +810,20 @@ export function rcut(text: string, n: number, suffix = ''): string {
 	return result.trim().replace(/b$/, '') + suffix;
 }
 
-// Escape codes, compiled from https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Functions-using-CSI-_-ordered-by-the-final-character_s_
-// Plus additional markers for custom `\x1b]...\x07` instructions.
-const CSI_SEQUENCE = /(?:(?:\x1b\[|\x9B)[=?>!]?[\d;:]*["$#'* ]?[a-zA-Z@^`{}|~])|(:?\x1b\].*?\x07)/g;
+// Defacto standard: https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
+const CSI_SEQUENCE = /(?:\x1b\[|\x9b)[=?>!]?[\d;:]*["$#'* ]?[a-zA-Z@^`{}|~]/;
+const OSC_SEQUENCE = /(?:\x1b\]|\x9d).*?(?:\x1b\\|\x07|\x9c)/;
+const ESC_SEQUENCE = /\x1b(?:[ #%\(\)\*\+\-\.\/]?[a-zA-Z0-9\|}~@])/;
+const CONTROL_SEQUENCES = new RegExp('(?:' + [
+	CSI_SEQUENCE.source,
+	OSC_SEQUENCE.source,
+	ESC_SEQUENCE.source,
+].join('|') + ')', 'g');
 
 /** Iterates over parts of a string with CSI sequences */
 export function* forAnsiStringParts(str: string) {
 	let last = 0;
-	for (const match of str.matchAll(CSI_SEQUENCE)) {
+	for (const match of str.matchAll(CONTROL_SEQUENCES)) {
 		if (last !== match.index) {
 			yield { isCode: false, str: str.substring(last, match.index) };
 		}
@@ -833,7 +847,7 @@ export function* forAnsiStringParts(str: string) {
  */
 export function removeAnsiEscapeCodes(str: string): string {
 	if (str) {
-		str = str.replace(CSI_SEQUENCE, '');
+		str = str.replace(CONTROL_SEQUENCES, '');
 	}
 
 	return str;
@@ -1344,4 +1358,33 @@ export class InvisibleCharacters {
 	public static get codePoints(): ReadonlySet<number> {
 		return InvisibleCharacters.getData();
 	}
+}
+
+export const Ellipsis = '\u2026';
+
+/**
+ * Convert a Unicode string to a string in which each 16-bit unit occupies only one byte
+ *
+ * From https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/btoa
+ */
+function toBinary(str: string): string {
+	const codeUnits = new Uint16Array(str.length);
+	for (let i = 0; i < codeUnits.length; i++) {
+		codeUnits[i] = str.charCodeAt(i);
+	}
+	let binary = '';
+	const uint8array = new Uint8Array(codeUnits.buffer);
+	for (let i = 0; i < uint8array.length; i++) {
+		binary += String.fromCharCode(uint8array[i]);
+	}
+	return binary;
+}
+
+/**
+ * Version of the global `btoa` function that handles multi-byte characters instead
+ * of throwing an exception.
+ */
+
+export function multibyteAwareBtoa(str: string): string {
+	return btoa(toBinary(str));
 }

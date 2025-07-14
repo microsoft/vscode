@@ -15,7 +15,8 @@
   "activationEvents": [],
   "enabledApiProposals": [
     "idToken",
-    "nativeWindowHandle"
+    "nativeWindowHandle",
+    "authIssuers"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -31,7 +32,10 @@
     "authentication": [
       {
         "label": "Microsoft",
-        "id": "microsoft"
+        "id": "microsoft",
+        "authorizationServerGlobs": [
+          "https://login.microsoftonline.com/*/v2.0"
+        ]
       },
       {
         "label": "Microsoft Sovereign Cloud",
@@ -115,23 +119,6 @@
             "tags": [
               "onExP"
             ]
-          },
-          "microsoft-authentication.clientIdVersion": {
-            "type": "string",
-            "default": "v1",
-            "enum": [
-              "v2",
-              "v1"
-            ],
-            "enumDescriptions": [
-              "%microsoft-authentication.clientIdVersion.enumDescriptions.v2%",
-              "%microsoft-authentication.clientIdVersion.enumDescriptions.v1%"
-            ],
-            "markdownDescription": "%microsoft-authentication.clientIdVersion.description%",
-            "tags": [
-              "onExP",
-              "experimental"
-            ]
           }
         }
       }
@@ -148,7 +135,7 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "devDependencies": {
-    "@types/node": "20.x",
+    "@types/node": "22.x",
     "@types/node-fetch": "^2.5.7",
     "@types/randombytes": "^2.0.0",
     "@types/sha.js": "^2.4.0",
@@ -161,6 +148,9 @@
     "@vscode/extension-telemetry": "^0.9.8",
     "keytar": "file:./packageMocks/keytar",
     "vscode-tas-client": "^0.1.84"
+  },
+  "overrides": {
+    "@azure/msal-node-runtime": "^0.18.2"
   },
   "repository": {
     "type": "git",

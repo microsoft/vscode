@@ -473,7 +473,7 @@ export function setupTerminalMenus(): void {
 						icon: Codicon.clearAll
 					},
 					group: 'navigation',
-					order: 4,
+					order: 6,
 					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 					isHiddenByDefault: true
 				}
@@ -487,7 +487,7 @@ export function setupTerminalMenus(): void {
 						icon: Codicon.run
 					},
 					group: 'navigation',
-					order: 5,
+					order: 7,
 					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 					isHiddenByDefault: true
 				}
@@ -501,7 +501,7 @@ export function setupTerminalMenus(): void {
 						icon: Codicon.selection
 					},
 					group: 'navigation',
-					order: 6,
+					order: 8,
 					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 					isHiddenByDefault: true
 				}

@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AutorunObserver } from '../autorun.js';
-import { IObservable, TransactionImpl } from '../base.js';
-import type { Derived } from '../derived.js';
+import { AutorunObserver } from '../reactions/autorunImpl.js';
+import { IObservable } from '../base.js';
+import { TransactionImpl } from '../transaction.js';
+import type { Derived } from '../observables/derivedImpl.js';
 
 let globalObservableLogger: IObservableLogger | undefined;
 
@@ -54,8 +55,8 @@ export interface IObservableLogger {
 	handleAutorunStarted(autorun: AutorunObserver): void;
 	handleAutorunFinished(autorun: AutorunObserver): void;
 
-	handleDerivedDependencyChanged(derived: Derived<any>, observable: IObservable<any>, change: unknown): void;
-	handleDerivedCleared(observable: Derived<any>): void;
+	handleDerivedDependencyChanged(derived: Derived<any, any, any>, observable: IObservable<any>, change: unknown): void;
+	handleDerivedCleared(observable: Derived<any, any, any>): void;
 
 	handleBeginTransaction(transaction: TransactionImpl): void;
 	handleEndTransaction(transaction: TransactionImpl): void;

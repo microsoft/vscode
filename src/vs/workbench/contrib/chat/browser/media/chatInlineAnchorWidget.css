@@ -39,6 +39,7 @@
 	display: inline-block;
 	line-height: 100%;
 	overflow: hidden;
+	font-size: 100% !important;
 
 	background-size: contain;
 	background-position: center;

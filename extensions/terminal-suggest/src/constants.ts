@@ -46,7 +46,6 @@ export const upstreamSpecs = [
 	'pnpm',
 	'node',
 	'nvm',
-	'npx',
 ];
 
 

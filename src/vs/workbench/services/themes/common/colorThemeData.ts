@@ -821,13 +821,11 @@ function nameMatcher(identifiers: string[], scopes: ProbeScope): number {
 		return -1;
 	}
 
-	let lastIndex = 0;
 	let score: number | undefined = undefined;
-	const every = identifiers.every((identifier, identifierIndex) => {
-		for (let i = lastIndex; i < scopes.length; i++) {
+	const every = identifiers.every((identifier) => {
+		for (let i = scopes.length - 1; i >= 0; i--) {
 			if (scopesAreMatching(scopes[i], identifier)) {
-				score = (identifierIndex + 1) * 0x10000 + identifier.length;
-				lastIndex = i + 1;
+				score = (i + 1) * 0x10000 + identifier.length;
 				return true;
 			}
 		}
@@ -905,20 +903,19 @@ export function findMetadata(colorThemeData: ColorThemeData, captureNames: strin
 	}
 
 	const fontStyle = definitions.foreground?.settings.fontStyle || definitions.bold?.settings.fontStyle;
-	switch (fontStyle) {
-		case 'italic':
-			metadata |= FontStyle.Italic | MetadataConsts.ITALIC_MASK;
-			break;
-		case 'bold':
-			metadata |= FontStyle.Bold | MetadataConsts.BOLD_MASK;
-			break;
-		case 'underline':
-			metadata |= FontStyle.Underline | MetadataConsts.UNDERLINE_MASK;
-			break;
-		case 'strikethrough':
-			metadata |= FontStyle.Strikethrough | MetadataConsts.STRIKETHROUGH_MASK;
-			break;
+	if (fontStyle?.includes('italic')) {
+		metadata |= FontStyle.Italic | MetadataConsts.ITALIC_MASK;
 	}
+	if (fontStyle?.includes('bold')) {
+		metadata |= FontStyle.Bold | MetadataConsts.BOLD_MASK;
+	}
+	if (fontStyle?.includes('underline')) {
+		metadata |= FontStyle.Underline | MetadataConsts.UNDERLINE_MASK;
+	}
+	if (fontStyle?.includes('strikethrough')) {
+		metadata |= FontStyle.Strikethrough | MetadataConsts.STRIKETHROUGH_MASK;
+	}
+
 	const foreground = tokenStyle?.foreground;
 	const tokenStyleForeground = (foreground !== undefined) ? colorThemeData.getTokenColorIndex().get(foreground) : ColorId.DefaultForeground;
 	metadata |= tokenStyleForeground << MetadataConsts.FOREGROUND_OFFSET;

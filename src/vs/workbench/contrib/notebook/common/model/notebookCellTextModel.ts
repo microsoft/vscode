@@ -116,7 +116,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			return this._textBuffer;
 		}
 
-		this._textBuffer = this._register(createTextBuffer(this._source, model.DefaultEndOfLine.LF).textBuffer);
+		this._textBuffer = this._register(createTextBuffer(this._source, this._defaultEOL).textBuffer);
 
 		this._register(this._textBuffer.onDidChangeContent(() => {
 			this._hash = null;
@@ -203,15 +203,13 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		public readonly collapseState: NotebookCellCollapseState | undefined,
 		public readonly transientOptions: TransientOptions,
 		private readonly _languageService: ILanguageService,
-		private readonly _languageDetectionService: ILanguageDetectionService | undefined = undefined
+		private readonly _defaultEOL: model.DefaultEndOfLine,
+		private readonly _languageDetectionService: ILanguageDetectionService | undefined = undefined,
 	) {
 		super();
 		this._outputs = outputs.map(op => new NotebookCellOutputTextModel(op));
 		this._metadata = metadata ?? {};
 		this._internalMetadata = internalMetadata ?? {};
-		this._internalMetadata.cellId = this._internalMetadata.cellId ??
-			this._metadata.id as string ??
-			uri.fragment;
 	}
 
 	enableAutoLanguageDetection() {

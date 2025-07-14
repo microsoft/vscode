@@ -23,6 +23,15 @@ export type ObsDebuggerApi = {
 			getSummarizedInstances(): IObsPushState;
 			getDerivedInfo(instanceId: ObsInstanceId): IDerivedObservableDetailedInfo;
 			getAutorunInfo(instanceId: ObsInstanceId): IAutorunDetailedInfo;
+			getObservableValueInfo(instanceId: ObsInstanceId): IObservableValueInfo;
+
+			setValue(instanceId: ObsInstanceId, jsonValue: unknown): void;
+			getValue(instanceId: ObsInstanceId): unknown;
+
+			// For autorun and deriveds
+			rerun(instanceId: ObsInstanceId): void;
+
+			logValue(instanceId: ObsInstanceId): void;
 
 			getTransactionState(): ITransactionState | undefined;
 		}
@@ -93,6 +102,10 @@ export type ObsOwnerId = number;
 export type ObsStateUpdate = Partial<IObsDeclarations> & DeepPartial<IObsPushState>;
 
 type DeepPartial<T> = { [TKey in keyof T]?: DeepPartial<T[TKey]> };
+
+export interface IObservableValueInfo {
+	observers: IObsInstanceRef[];
+}
 
 export interface IDerivedObservableDetailedInfo {
 	dependencies: IObsInstanceRef[];
