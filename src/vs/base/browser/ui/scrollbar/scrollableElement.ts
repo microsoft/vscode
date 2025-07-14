@@ -194,6 +194,7 @@ export abstract class AbstractScrollableElement extends Widget {
 
 	private _revealOnScroll: boolean;
 
+	private _inertialTimeout: TimeoutTimer | null = null;
 	private _inertialSpeed: { X: number; Y: number } = { X: 0, Y: 0 };
 
 	private readonly _onScroll = this._register(new Emitter<ScrollEvent>());
@@ -272,6 +273,10 @@ export abstract class AbstractScrollableElement extends Widget {
 
 	public override dispose(): void {
 		this._mouseWheelToDispose = dispose(this._mouseWheelToDispose);
+		if (this._inertialTimeout) {
+			this._inertialTimeout.dispose();
+			this._inertialTimeout = null;
+		}
 		super.dispose();
 	}
 
@@ -366,8 +371,13 @@ export abstract class AbstractScrollableElement extends Widget {
 	}
 
 	private async _periodicSync(): Promise<void> {
+		let scheduleAgain = false;
+
 		if (this._inertialSpeed.X !== 0 || this._inertialSpeed.Y !== 0) {
-			this._scrollable.setScrollPositionNow({ scrollTop: this._scrollable.getCurrentScrollPosition().scrollTop - this._inertialSpeed.Y * 100, scrollLeft: this._scrollable.getCurrentScrollPosition().scrollLeft - this._inertialSpeed.X * 100 });
+			this._scrollable.setScrollPositionNow({
+				scrollTop: this._scrollable.getCurrentScrollPosition().scrollTop - this._inertialSpeed.Y * 100,
+				scrollLeft: this._scrollable.getCurrentScrollPosition().scrollLeft - this._inertialSpeed.X * 100
+			});
 			this._inertialSpeed.X *= 0.9;
 			this._inertialSpeed.Y *= 0.9;
 			if (Math.abs(this._inertialSpeed.X) < 0.01) {
@@ -376,11 +386,18 @@ export abstract class AbstractScrollableElement extends Widget {
 			if (Math.abs(this._inertialSpeed.Y) < 0.01) {
 				this._inertialSpeed.Y = 0;
 			}
-			if (this._inertialSpeed.X !== 0 || this._inertialSpeed.Y !== 0) {
-				setTimeout(() => {
-					this._periodicSync();
-				}, 1000 / 60);
+
+			scheduleAgain = (this._inertialSpeed.X !== 0 || this._inertialSpeed.Y !== 0);
+		}
+
+		if (scheduleAgain) {
+			if (!this._inertialTimeout) {
+				this._inertialTimeout = new TimeoutTimer();
 			}
+			this._inertialTimeout.cancelAndSet(() => this._periodicSync(), 1000 / 60);
+		} else {
+			this._inertialTimeout?.dispose();
+			this._inertialTimeout = null;
 		}
 	}
 
@@ -723,7 +740,7 @@ function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableEleme
 		fastScrollSensitivity: (typeof opts.fastScrollSensitivity !== 'undefined' ? opts.fastScrollSensitivity : 5),
 		scrollPredominantAxis: (typeof opts.scrollPredominantAxis !== 'undefined' ? opts.scrollPredominantAxis : true),
 		mouseWheelSmoothScroll: (typeof opts.mouseWheelSmoothScroll !== 'undefined' ? opts.mouseWheelSmoothScroll : true),
-		inertialScroll: (typeof opts.inertialScroll !== 'undefined' ? opts.inertialScroll : true),
+		inertialScroll: (typeof opts.inertialScroll !== 'undefined' ? opts.inertialScroll : false),
 		arrowSize: (typeof opts.arrowSize !== 'undefined' ? opts.arrowSize : 11),
 
 		listenOnDomNode: (typeof opts.listenOnDomNode !== 'undefined' ? opts.listenOnDomNode : null),
