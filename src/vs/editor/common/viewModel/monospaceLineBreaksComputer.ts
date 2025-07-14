@@ -433,10 +433,19 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 		}
 
 		visibleColumn += charWidth;
+
 		// literal \n shall trigger a softwrap
-		if (wrapOnEscapedLineFeeds && lineText.includes('"') && lineText.charAt(i - 3) !== '\\' && lineText.charAt(i - 2) === '\\' && lineText.charAt(i - 1) === 'n') {
+		if (
+			wrapOnEscapedLineFeeds
+			&& i >= 2
+			&& (i < 3 || lineText.charAt(i - 3) !== '\\')
+			&& lineText.charAt(i - 2) === '\\'
+			&& lineText.charAt(i - 1) === 'n'
+			&& lineText.includes('"')
+		) {
 			visibleColumn += breakingColumn;
 		}
+
 		// check if adding character at `i` will go over the breaking column
 		if (visibleColumn > breakingColumn) {
 			// We need to break at least before character at `i`:
