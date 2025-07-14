@@ -9,7 +9,6 @@ import { Code, findElement } from './code';
 import { Editors } from './editors';
 import { Editor } from './editor';
 import { IElement } from './driver';
-import { Quality } from './application';
 
 const VIEWLET = 'div[id="workbench.view.debug"]';
 const DEBUG_VIEW = `${VIEWLET}`;
@@ -58,10 +57,13 @@ export class Debug extends Viewlet {
 	}
 
 	async openDebugViewlet(): Promise<any> {
+		const accept = async () => {
+			await this.code.waitForElement(DEBUG_VIEW);
+		};
 		if (process.platform === 'darwin') {
-			await this.code.dispatchKeybinding('cmd+shift+d');
+			await this.code.sendKeybinding('cmd+shift+d', accept);
 		} else {
-			await this.code.dispatchKeybinding('ctrl+shift+d');
+			await this.code.sendKeybinding('ctrl+shift+d', accept);
 		}
 
 		await this.code.waitForElement(DEBUG_VIEW);
@@ -79,9 +81,10 @@ export class Debug extends Viewlet {
 	}
 
 	async startDebugging(): Promise<number> {
-		await this.code.dispatchKeybinding('f5');
-		await this.code.waitForElement(PAUSE);
-		await this.code.waitForElement(DEBUG_STATUS_BAR);
+		await this.code.sendKeybinding('f5', async () => {
+			await this.code.waitForElement(PAUSE);
+			await this.code.waitForElement(DEBUG_STATUS_BAR);
+		});
 		const portPrefix = 'Port: ';
 
 		const output = await this.waitForOutput(output => output.some(line => line.indexOf(portPrefix) >= 0));
@@ -129,15 +132,16 @@ export class Debug extends Viewlet {
 
 	async waitForReplCommand(text: string, accept: (result: string) => boolean): Promise<void> {
 		await this.commands.runCommand('Debug: Focus on Debug Console View');
-		const selector = this.code.quality === Quality.Stable ? REPL_FOCUSED_TEXTAREA : REPL_FOCUSED_NATIVE_EDIT_CONTEXT;
+		const selector = !this.code.editContextEnabled ? REPL_FOCUSED_TEXTAREA : REPL_FOCUSED_NATIVE_EDIT_CONTEXT;
 		await this.code.waitForActiveElement(selector);
 		await this.code.waitForSetValue(selector, text);
 
 		// Wait for the keys to be picked up by the editor model such that repl evaluates what just got typed
 		await this.editor.waitForEditorContents('debug:replinput', s => s.indexOf(text) >= 0);
-		await this.code.dispatchKeybinding('enter');
-		await this.code.waitForElements(CONSOLE_EVALUATION_RESULT, false,
-			elements => !!elements.length && accept(elements[elements.length - 1].textContent));
+		await this.code.sendKeybinding('enter', async () => {
+			await this.code.waitForElements(CONSOLE_EVALUATION_RESULT, false,
+				elements => !!elements.length && accept(elements[elements.length - 1].textContent));
+		});
 	}
 
 	// Different node versions give different number of variables. As a workaround be more relaxed when checking for variable count

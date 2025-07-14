@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { $, append, clearNode } from '../../../../base/browser/dom.js';
+import { $, append, clearNode, addDisposableListener, EventType } from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ExtensionIdentifier, IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
 import { Orientation, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
@@ -27,7 +27,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import Severity from '../../../../base/common/severity.js';
 import { errorIcon, infoIcon, warningIcon } from './extensionsIcons.js';
-import { SeverityIcon } from '../../../../platform/severityIcon/browser/severityIcon.js';
+import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { OS } from '../../../../base/common/platform.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
@@ -86,10 +86,10 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 
 	private createElement(manifest: IExtensionManifest, disposables: DisposableStore): HTMLElement {
 		const container = $('.runtime-status');
-		const data = new MarkdownString();
 		const extensionId = new ExtensionIdentifier(getExtensionId(manifest.publisher, manifest.name));
 		const status = this.extensionService.getExtensionsStatus()[extensionId.value];
 		if (this.extensionService.extensions.some(extension => ExtensionIdentifier.equals(extension.identifier, extensionId))) {
+			const data = new MarkdownString();
 			data.appendMarkdown(`### ${localize('activation', "Activation")}\n\n`);
 			if (status.activationTimes) {
 				if (status.activationTimes.activationReason.startup) {
@@ -100,6 +100,38 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 			} else {
 				data.appendMarkdown('Not yet activated');
 			}
+			this.renderMarkdown(data, container, disposables);
+		}
+		const features = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).getExtensionFeatures();
+		for (const feature of features) {
+			const accessData = this.extensionFeaturesManagementService.getAccessData(extensionId, feature.id);
+			if (accessData) {
+				this.renderMarkdown(new MarkdownString(`\n ### ${localize('label', "{0} Usage", feature.label)}\n\n`), container, disposables);
+				if (accessData.accessTimes.length) {
+					const description = append(container,
+						$('.feature-chart-description',
+							undefined,
+							localize('chartDescription', "There were {0} {1} requests from this extension in the last 30 days.", accessData?.accessTimes.length, feature.accessDataLabel ?? feature.label)));
+					description.style.marginBottom = '8px';
+					this.renderRequestsChart(container, accessData.accessTimes, disposables);
+				}
+				const status = accessData?.current?.status;
+				if (status) {
+					const data = new MarkdownString();
+					if (status?.severity === Severity.Error) {
+						data.appendMarkdown(`$(${errorIcon.id}) ${status.message}\n\n`);
+					}
+					if (status?.severity === Severity.Warning) {
+						data.appendMarkdown(`$(${warningIcon.id}) ${status.message}\n\n`);
+					}
+					if (data.value) {
+						this.renderMarkdown(data, container, disposables);
+					}
+				}
+			}
+		}
+		if (status.runtimeErrors.length || status.messages.length) {
+			const data = new MarkdownString();
 			if (status.runtimeErrors.length) {
 				data.appendMarkdown(`\n ### ${localize('uncaught errors', "Uncaught Errors ({0})", status.runtimeErrors.length)}\n`);
 				for (const error of status.runtimeErrors) {
@@ -112,35 +144,8 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 					data.appendMarkdown(`$(${(message.type === Severity.Error ? Codicon.error : message.type === Severity.Warning ? Codicon.warning : Codicon.info).id})&nbsp;${message.message}\n\n`);
 				}
 			}
-		}
-		const features = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).getExtensionFeatures();
-		for (const feature of features) {
-			const accessData = this.extensionFeaturesManagementService.getAccessData(extensionId, feature.id);
-			if (accessData) {
-				data.appendMarkdown(`\n ### ${localize('label', "{0} Usage", feature.label)}\n\n`);
-				const status = accessData?.current?.status;
-				if (status) {
-					if (status?.severity === Severity.Error) {
-						data.appendMarkdown(`$(${errorIcon.id}) ${status.message}\n\n`);
-					}
-					if (status?.severity === Severity.Warning) {
-						data.appendMarkdown(`$(${warningIcon.id}) ${status.message}\n\n`);
-					}
-				}
-			}
-		}
-		this.renderMarkdown(data, container, disposables);
-		for (const feature of features) {
-			const accessData = this.extensionFeaturesManagementService.getAccessData(extensionId, feature.id);
-			if (accessData?.accessTimes.length) {
-				if (accessData?.accessTimes.length) {
-					const description = append(container,
-						$('.feature-chart-description',
-							undefined,
-							localize('chartDescription', "There were {0} {1} requests from this extension in the last 30 days.", accessData?.accessTimes.length, feature.accessDataLabel ?? feature.label)));
-					description.style.marginBottom = '8px';
-					this.renderRequestsChart(container, accessData.accessTimes, disposables);
-				}
+			if (data.value) {
+				this.renderMarkdown(data, container, disposables);
 			}
 		}
 		return container;
@@ -287,7 +292,7 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 				highlightCircle.style.display = 'block';
 				tooltip.style.left = `${closestPoint.x + 24}px`;
 				tooltip.style.top = `${closestPoint.y + 14}px`;
-				hoverDisposable.value = this.hoverService.showHover({
+				hoverDisposable.value = this.hoverService.showInstantHover({
 					content: new MarkdownString(`${closestPoint.date}: ${closestPoint.count} requests`),
 					target: tooltip,
 					appearance: {
@@ -299,15 +304,13 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 				hoverDisposable.value = undefined;
 			}
 		};
-		svg.addEventListener('mousemove', mouseMoveListener);
-		disposables.add(toDisposable(() => svg.removeEventListener('mousemove', mouseMoveListener)));
+		disposables.add(addDisposableListener(svg, EventType.MOUSE_MOVE, mouseMoveListener));
 
 		const mouseLeaveListener = () => {
 			highlightCircle.style.display = 'none';
 			hoverDisposable.value = undefined;
 		};
-		svg.addEventListener('mouseleave', mouseLeaveListener);
-		disposables.add(toDisposable(() => svg.removeEventListener('mouseleave', mouseLeaveListener)));
+		disposables.add(addDisposableListener(svg, EventType.MOUSE_LEAVE, mouseLeaveListener));
 	}
 }
 
@@ -529,7 +532,7 @@ class ExtensionFeatureItemRenderer implements IListRenderer<IExtensionFeatureDes
 		}));
 	}
 
-	disposeElement(element: IExtensionFeatureDescriptor, index: number, templateData: IExtensionFeatureItemTemplateData, height: number | undefined): void {
+	disposeElement(element: IExtensionFeatureDescriptor, index: number, templateData: IExtensionFeatureItemTemplateData): void {
 		templateData.disposables.dispose();
 	}
 

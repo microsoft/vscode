@@ -25,7 +25,6 @@ import { FuzzyScore } from '../../../../base/common/filters.js';
 import { basename } from '../../../../base/common/resources.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { OutlineViewState } from './outlineViewState.js';
 import { IOutline, IOutlineComparator, IOutlineService, OutlineTarget } from '../../../services/outline/browser/outline.js';
 import { EditorResourceAccessor, IEditorPane } from '../../../common/editor.js';
@@ -94,10 +93,9 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, hoverService);
 		this._outlineViewState.restore(this._storageService);
 		this._disposables.add(this._outlineViewState);
 
@@ -126,8 +124,10 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 	}
 
 	override focus(): void {
-		super.focus();
-		this._tree?.domFocus();
+		this._editorControlChangePromise.then(() => {
+			super.focus();
+			this._tree?.domFocus();
+		});
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -197,17 +197,18 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		return false;
 	}
 
+	private _editorControlChangePromise: Promise<void> = Promise.resolve();
 	private _handleEditorChanged(pane: IEditorPane | undefined): void {
 		this._editorPaneDisposables.clear();
 
 		if (pane) {
 			// react to control changes from within pane (https://github.com/microsoft/vscode/issues/134008)
 			this._editorPaneDisposables.add(pane.onDidChangeControl(() => {
-				this._handleEditorControlChanged(pane);
+				this._editorControlChangePromise = this._handleEditorControlChanged(pane);
 			}));
 		}
 
-		this._handleEditorControlChanged(pane);
+		this._editorControlChangePromise = this._handleEditorControlChanged(pane);
 	}
 
 	private async _handleEditorControlChanged(pane: IEditorPane | undefined): Promise<void> {

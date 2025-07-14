@@ -6,6 +6,7 @@ import * as nls from '../../../../nls.js';
 
 export const SHOW_OR_FOCUS_HOVER_ACTION_ID = 'editor.action.showHover';
 export const SHOW_DEFINITION_PREVIEW_HOVER_ACTION_ID = 'editor.action.showDefinitionPreviewHover';
+export const HIDE_HOVER_ACTION_ID = 'editor.action.hideHover';
 export const SCROLL_UP_HOVER_ACTION_ID = 'editor.action.scrollUpHover';
 export const SCROLL_DOWN_HOVER_ACTION_ID = 'editor.action.scrollDownHover';
 export const SCROLL_LEFT_HOVER_ACTION_ID = 'editor.action.scrollLeftHover';

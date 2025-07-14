@@ -196,7 +196,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 				return;
 			}
 
-			this.textModelResolverService.createModelReference(result.uri).then(ref => {
+			return this.textModelResolverService.createModelReference(result.uri).then(ref => {
 
 				if (!ref.object || !ref.object.textEditorModel) {
 					ref.dispose();
@@ -229,7 +229,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		if (numberOfLinesInRange >= GotoDefinitionAtPositionEditorContribution.MAX_SOURCE_PREVIEW_LINES) {
 			rangeToUse = this.getPreviewRangeBasedOnIndentation(textEditorModel, startLineNumber);
 		}
-
+		rangeToUse = textEditorModel.validateRange(rangeToUse);
 		const previewValue = this.stripIndentationFromPreviewRange(textEditorModel, startLineNumber, rangeToUse);
 		return previewValue;
 	}

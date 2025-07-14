@@ -17,12 +17,13 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { FileWorkingCopyManager, IFileWorkingCopyManager } from '../../../services/workingCopy/common/fileWorkingCopyManager.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { NotebookProviderInfo } from './notebookProvider.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileReadLimits } from '../../../../platform/files/common/files.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { INotebookLoggingService } from './notebookLoggingService.js';
+import { parse } from '../../../services/notebook/common/notebookDocumentService.js';
 
 class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
 
@@ -59,6 +60,15 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 
 	isDirty(resource: URI): boolean {
 		return this._dirtyStates.get(resource) ?? false;
+	}
+
+	isListeningToModel(uri: URI): boolean {
+		for (const key of this._modelListener.keys()) {
+			if (key.resource.toString() === uri.toString()) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	protected async createReferencedObject(key: string, notebookType: string, hasAssociatedFilePath: boolean, limits?: IFileReadLimits, isScratchpad?: boolean, viewType?: string): Promise<IResolvedNotebookEditorModel> {
@@ -178,7 +188,7 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 	}
 
 	private createUntitledUri(notebookType: string) {
-		const info = this._notebookService.getContributedNotebookType(assertIsDefined(notebookType));
+		const info = this._notebookService.getContributedNotebookType(assertReturnsDefined(notebookType));
 		if (!info) {
 			throw new Error('UNKNOWN notebook type: ' + notebookType);
 		}
@@ -186,7 +196,7 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 		const suffix = NotebookProviderInfo.possibleFileEnding(info.selectors) ?? '';
 		for (let counter = 1; ; counter++) {
 			const candidate = URI.from({ scheme: Schemas.untitled, path: `Untitled-${counter}${suffix}`, query: notebookType });
-			if (!this._notebookService.getNotebookTextModel(candidate)) {
+			if (!this._notebookService.getNotebookTextModel(candidate) && !this._data.isListeningToModel(candidate)) {
 				return candidate;
 			}
 		}
@@ -198,7 +208,11 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 		}
 
 		if (uri?.scheme === CellUri.scheme) {
-			throw new Error(`CANNOT open a cell-uri as notebook. Tried with ${uri.toString()}`);
+			const originalUri = uri;
+			uri = parse(uri)?.notebook;
+			if (!uri) {
+				throw new Error(`CANNOT open a cell-uri as notebook. Tried with ${originalUri.toString()}`);
+			}
 		}
 
 		const resource = this._uriIdentService.asCanonicalUri(uri ?? this.createUntitledUri(viewType!));

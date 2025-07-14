@@ -442,7 +442,7 @@ export class Sash extends Disposable {
 		this._register(onTouchStart(e => this.onPointerStart(e, new GestureEventFactory(this.el)), this));
 		const onTap = this._register(new DomEmitter(this.el, EventType.Tap)).event;
 
-		let doubleTapTimeout: any = undefined;
+		let doubleTapTimeout: Timeout | undefined = undefined;
 		this._register(onTap(event => {
 			if (doubleTapTimeout) {
 				clearTimeout(doubleTapTimeout);

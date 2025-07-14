@@ -15,13 +15,16 @@ import {
 	AcceptAllInput1, AcceptAllInput2, AcceptMerge, CompareInput1WithBaseCommand,
 	CompareInput2WithBaseCommand, GoToNextUnhandledConflict, GoToPreviousUnhandledConflict, OpenBaseFile, OpenMergeEditor,
 	OpenResultResource, ResetToBaseAndAutoMergeCommand, SetColumnLayout, SetMixedLayout, ShowHideTopBase, ShowHideCenterBase, ShowHideBase,
-	ShowNonConflictingChanges, ToggleActiveConflictInput1, ToggleActiveConflictInput2, ResetCloseWithConflictsChoice
+	ShowNonConflictingChanges, ToggleActiveConflictInput1, ToggleActiveConflictInput2, ResetCloseWithConflictsChoice,
+	AcceptAllCombination, ToggleBetweenInputs
 } from './commands/commands.js';
 import { MergeEditorCopyContentsToJSON, MergeEditorLoadContentsFromFolder, MergeEditorSaveContentsToFolder } from './commands/devCommands.js';
 import { MergeEditorInput } from './mergeEditorInput.js';
 import { MergeEditor, MergeEditorOpenHandlerContribution, MergeEditorResolverContribution } from './view/mergeEditor.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { MergeEditorSerializer } from './mergeEditorSerializer.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { MergeEditorAccessibilityHelpProvider } from './mergeEditorAccessibilityHelp.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -84,6 +87,9 @@ registerAction2(ResetToBaseAndAutoMergeCommand);
 
 registerAction2(AcceptMerge);
 registerAction2(ResetCloseWithConflictsChoice);
+registerAction2(AcceptAllCombination);
+
+registerAction2(ToggleBetweenInputs);
 
 // Dev Commands
 registerAction2(MergeEditorCopyContentsToJSON);
@@ -95,3 +101,5 @@ Registry
 	.registerWorkbenchContribution(MergeEditorOpenHandlerContribution, LifecyclePhase.Restored);
 
 registerWorkbenchContribution2(MergeEditorResolverContribution.ID, MergeEditorResolverContribution, WorkbenchPhase.BlockStartup /* only registers an editor resolver */);
+
+AccessibleViewRegistry.register(new MergeEditorAccessibilityHelpProvider());

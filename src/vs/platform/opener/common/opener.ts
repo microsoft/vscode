@@ -43,6 +43,7 @@ export type OpenExternalOptions = {
 	readonly allowTunneling?: boolean;
 	readonly allowContributedOpeners?: boolean | string;
 	readonly fromWorkspace?: boolean;
+	readonly skipValidation?: boolean;
 };
 
 export type OpenOptions = OpenInternalOptions & OpenExternalOptions;

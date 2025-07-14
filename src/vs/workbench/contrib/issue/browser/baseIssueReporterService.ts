@@ -8,24 +8,35 @@ import { Button, unthemedButtonStyles } from '../../../../base/browser/ui/button
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Delayer, RunOnceScheduler } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { debounce } from '../../../../base/common/decorators.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { isLinuxSnap, isMacintosh } from '../../../../base/common/platform.js';
 import { IProductConfiguration } from '../../../../base/common/product.js';
+import { joinPath } from '../../../../base/common/resources.js';
 import { escape } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from './issueReporterModel.js';
-import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueType } from '../common/issue.js';
+import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueType } from '../common/issue.js';
 import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
+import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from './issueReporterModel.js';
 
 const MAX_URL_LENGTH = 7500;
+
+// Github API and issues on web has a limit of 65536. If extension data is too large, we will allow users to downlaod and attach it as a file.
+// We round down to be safe.
+// ref https://github.com/github/issues/issues/12858
+
+const MAX_EXTENSION_DATA_LENGTH = 60000;
 
 interface SearchResult {
 	html_url: string;
@@ -54,6 +65,8 @@ export class BaseIssueReporterService extends Disposable {
 	public delayedSubmit = new Delayer<void>(300);
 	public previewButton!: Button;
 	public nonGitHubIssueUrl = false;
+	public needsUpdate = false;
+	public acknowledged = false;
 
 	constructor(
 		public disableExtensions: boolean,
@@ -68,6 +81,8 @@ export class BaseIssueReporterService extends Disposable {
 		public readonly isWeb: boolean,
 		@IIssueFormService public readonly issueFormService: IIssueFormService,
 		@IThemeService public readonly themeService: IThemeService,
+		@IFileService public readonly fileService: IFileService,
+		@IFileDialogService public readonly fileDialogService: IFileDialogService,
 	) {
 		super();
 		const targetExtension = data.extensionId ? data.enabledExtensions.find(extension => extension.id.toLocaleLowerCase() === data.extensionId?.toLocaleLowerCase()) : undefined;
@@ -90,7 +105,7 @@ export class BaseIssueReporterService extends Disposable {
 		//TODO: Handle case where extension is not activated
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (issueReporterElement) {
-			this.previewButton = new Button(issueReporterElement, unthemedButtonStyles);
+			this.previewButton = this._register(new Button(issueReporterElement, unthemedButtonStyles));
 			const issueRepoName = document.createElement('a');
 			issueReporterElement.appendChild(issueRepoName);
 			issueRepoName.id = 'show-repo-name';
@@ -128,12 +143,11 @@ export class BaseIssueReporterService extends Disposable {
 		}
 
 		const delayer = new RunOnceScheduler(updateAll, 0);
-		iconsStyleSheet.onDidChange(() => delayer.schedule());
+		this._register(iconsStyleSheet.onDidChange(() => delayer.schedule()));
 		delayer.schedule();
 
 		this.handleExtensionData(data.enabledExtensions);
 		this.setUpTypes();
-		this.applyStyles(data.styles);
 
 		// Handle case where extension is pre-selected through the command
 		if ((data.data || data.uri) && targetExtension) {
@@ -154,85 +168,6 @@ export class BaseIssueReporterService extends Disposable {
 			const issueType = this.window.document.getElementById('issue-type');
 			issueType?.focus();
 		}
-	}
-
-	// TODO @justschen: After migration to Aux Window, switch to dedicated css.
-	private applyStyles(styles: IssueReporterStyles) {
-		const styleTag = document.createElement('style');
-		const content: string[] = [];
-
-		if (styles.inputBackground) {
-			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state, .block-info { background-color: ${styles.inputBackground} !important; }`);
-		}
-
-		if (styles.backgroundColor) {
-			content.push(`.monaco-workbench { background-color: ${styles.backgroundColor} !important; }`);
-			content.push(`.issue-reporter-body::-webkit-scrollbar-track { background-color: ${styles.backgroundColor}; }`);
-		}
-
-		if (styles.inputBorder) {
-			content.push(`input[type="text"], textarea, select { border: 1px solid ${styles.inputBorder}; }`);
-		} else {
-			content.push(`input[type="text"], textarea, select { border: 1px solid transparent; }`);
-		}
-
-		if (styles.inputForeground) {
-			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state, .block-info { color: ${styles.inputForeground} !important; }`);
-		}
-
-		if (styles.inputErrorBorder) {
-			content.push(`.invalid-input, .invalid-input:focus, .validation-error { border: 1px solid ${styles.inputErrorBorder} !important; }`);
-			content.push(`.required-input { color: ${styles.inputErrorBorder}; }`);
-		}
-
-		if (styles.inputErrorBackground) {
-			content.push(`.validation-error { background: ${styles.inputErrorBackground}; }`);
-		}
-
-		if (styles.inputErrorForeground) {
-			content.push(`.validation-error { color: ${styles.inputErrorForeground}; }`);
-		}
-
-		if (styles.inputActiveBorder) {
-			content.push(`input[type='text']:focus, textarea:focus, select:focus, summary:focus, button:focus, a:focus, .workbenchCommand:focus  { border: 1px solid ${styles.inputActiveBorder}; outline-style: none; }`);
-		}
-
-		if (styles.textLinkColor) {
-			content.push(`a, .workbenchCommand { color: ${styles.textLinkColor}; }`);
-		}
-
-		if (styles.textLinkColor) {
-			content.push(`a { color: ${styles.textLinkColor}; }`);
-		}
-
-		if (styles.textLinkActiveForeground) {
-			content.push(`a:hover, .workbenchCommand:hover { color: ${styles.textLinkActiveForeground}; }`);
-		}
-
-		if (styles.sliderActiveColor) {
-			content.push(`.issue-reporter-body::-webkit-scrollbar-thumb:active { background-color: ${styles.sliderActiveColor}; }`);
-		}
-
-		if (styles.sliderHoverColor) {
-			content.push(`.issue-reporter-body::-webkit-scrollbar-thumb { background-color: ${styles.sliderHoverColor}; }`);
-			content.push(`.issue-reporter-body::--webkit-scrollbar-thumb:hover { background-color: ${styles.sliderHoverColor}; }`);
-		}
-
-		if (styles.buttonBackground) {
-			content.push(`.monaco-text-button { background-color: ${styles.buttonBackground} !important; }`);
-		}
-
-		if (styles.buttonForeground) {
-			content.push(`.monaco-text-button { color: ${styles.buttonForeground} !important; }`);
-		}
-
-		if (styles.buttonHoverBackground) {
-			content.push(`.monaco-text-button:not(.disabled):hover, .monaco-text-button:focus { background-color: ${styles.buttonHoverBackground} !important; }`);
-		}
-
-		styleTag.textContent = content.join('\n');
-		this.window.document.head.appendChild(styleTag);
-		this.window.document.body.style.color = styles.color || '';
 	}
 
 	private async updateIssueReporterUri(extension: IssueReporterExtensionData): Promise<void> {
@@ -366,11 +301,25 @@ export class BaseIssueReporterService extends Disposable {
 
 	private async sendReporterMenu(extension: IssueReporterExtensionData): Promise<IssueReporterData | undefined> {
 		try {
-			const data = await this.issueFormService.sendReporterMenu(extension.id);
+			const timeoutPromise = new Promise<undefined>((_, reject) =>
+				setTimeout(() => reject(new Error('sendReporterMenu timed out')), 10000)
+			);
+			const data = await Promise.race([
+				this.issueFormService.sendReporterMenu(extension.id),
+				timeoutPromise
+			]);
 			return data;
 		} catch (e) {
 			console.error(e);
 			return undefined;
+		}
+	}
+
+	private updateAcknowledgementState() {
+		const acknowledgementCheckbox = this.getElementById<HTMLInputElement>('includeAcknowledgement');
+		if (acknowledgementCheckbox) {
+			this.acknowledged = acknowledgementCheckbox.checked;
+			this.updatePreviewButtonState();
 		}
 	}
 
@@ -380,6 +329,11 @@ export class BaseIssueReporterService extends Disposable {
 				event.stopPropagation();
 				this.issueReporterModel.update({ [elementId]: !this.issueReporterModel.getData()[elementId] });
 			});
+		});
+
+		this.addEventListener('includeAcknowledgement', 'click', (event: Event) => {
+			event.stopPropagation();
+			this.updateAcknowledgementState();
 		});
 
 		const showInfoElements = this.window.document.getElementsByClassName('showInfo');
@@ -426,14 +380,16 @@ export class BaseIssueReporterService extends Disposable {
 				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");
 			}
 
-			let fileOnExtension, fileOnMarketplace = false;
+			let fileOnExtension, fileOnMarketplace, fileOnProduct = false;
 			if (value === IssueSource.Extension) {
 				fileOnExtension = true;
 			} else if (value === IssueSource.Marketplace) {
 				fileOnMarketplace = true;
+			} else if (value === IssueSource.VSCode) {
+				fileOnProduct = true;
 			}
 
-			this.issueReporterModel.update({ fileOnExtension, fileOnMarketplace });
+			this.issueReporterModel.update({ fileOnExtension, fileOnMarketplace, fileOnProduct });
 			this.render();
 
 			const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
@@ -477,11 +433,11 @@ export class BaseIssueReporterService extends Disposable {
 			this.searchIssues(title, fileOnExtension, fileOnMarketplace);
 		});
 
-		this.previewButton.onDidClick(async () => {
+		this._register(this.previewButton.onDidClick(async () => {
 			this.delayedSubmit.trigger(async () => {
 				this.createIssue();
 			});
-		});
+		}));
 
 		this.addEventListener('disableExtensions', 'click', () => {
 			this.issueFormService.reloadWithExtensionsDisabled();
@@ -548,7 +504,11 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	public updatePreviewButtonState() {
-		if (this.isPreviewEnabled()) {
+
+		if (!this.acknowledged && this.needsUpdate) {
+			this.previewButton.label = localize('acknowledge', "Confirm Version Acknowledgement");
+			this.previewButton.enabled = false;
+		} else if (this.isPreviewEnabled()) {
 			if (this.data.githubAccessToken) {
 				this.previewButton.label = localize('createOnGitHub', "Create on GitHub");
 			} else {
@@ -697,21 +657,6 @@ export class BaseIssueReporterService extends Disposable {
 				similarIssues.innerText = '';
 				if (result && result.items) {
 					this.displaySearchResults(result.items);
-				} else {
-					// If the items property isn't present, the rate limit has been hit
-					const message = $('div.list-title');
-					message.textContent = localize('rateLimited', "GitHub query limit exceeded. Please wait.");
-					similarIssues.appendChild(message);
-
-					const resetTime = response.headers.get('X-RateLimit-Reset');
-					const timeToWait = resetTime ? parseInt(resetTime) - Math.floor(Date.now() / 1000) : 1;
-					if (this.shouldQueueSearch) {
-						this.shouldQueueSearch = false;
-						setTimeout(() => {
-							this.searchGitHub(repo, title);
-							this.shouldQueueSearch = true;
-						}, timeToWait * 1000);
-					}
 				}
 			}).catch(_ => {
 				console.warn('Timeout or query limit exceeded');
@@ -793,10 +738,6 @@ export class BaseIssueReporterService extends Disposable {
 
 			similarIssues.appendChild(issuesText);
 			similarIssues.appendChild(issues);
-		} else {
-			const message = $('div.list-title');
-			message.textContent = localize('noSimilarIssues', "No similar issues found");
-			similarIssues.appendChild(message);
 		}
 	}
 
@@ -861,7 +802,7 @@ export class BaseIssueReporterService extends Disposable {
 		}
 	}
 
-	public renderBlocks(): void {
+	public async renderBlocks(): Promise<void> {
 		// Depending on Issue Type, we render different blocks and text
 		const { issueType, fileOnExtension, fileOnMarketplace, selectedExtension } = this.issueReporterModel.getData();
 		const blockContainer = this.getElementById('block-container');
@@ -876,6 +817,7 @@ export class BaseIssueReporterService extends Disposable {
 		const descriptionTitle = this.getElementById('issue-description-label')!;
 		const descriptionSubtitle = this.getElementById('issue-description-subtitle')!;
 		const extensionSelector = this.getElementById('extension-selection')!;
+		const downloadExtensionDataLink = <HTMLAnchorElement>this.getElementById('extension-data-download')!;
 
 		const titleTextArea = this.getElementById('issue-title-container')!;
 		const descriptionTextArea = this.getElementById('description')!;
@@ -891,6 +833,7 @@ export class BaseIssueReporterService extends Disposable {
 		hide(extensionSelector);
 		hide(extensionDataTextArea);
 		hide(extensionDataBlock);
+		hide(downloadExtensionDataLink);
 
 		show(problemSource);
 		show(titleTextArea);
@@ -900,6 +843,31 @@ export class BaseIssueReporterService extends Disposable {
 			show(extensionSelector);
 		}
 
+		const extensionData = this.issueReporterModel.getData().extensionData;
+		if (extensionData && extensionData.length > MAX_EXTENSION_DATA_LENGTH) {
+			show(downloadExtensionDataLink);
+			const date = new Date();
+			const formattedDate = date.toISOString().split('T')[0]; // YYYY-MM-DD
+			const formattedTime = date.toTimeString().split(' ')[0].replace(/:/g, '-'); // HH-MM-SS
+			const fileName = `extensionData_${formattedDate}_${formattedTime}.md`;
+			const handleLinkClick = async () => {
+				const downloadPath = await this.fileDialogService.showSaveDialog({
+					title: localize('saveExtensionData', "Save Extension Data"),
+					availableFileSystems: [Schemas.file],
+					defaultUri: joinPath(await this.fileDialogService.defaultFilePath(Schemas.file), fileName),
+				});
+
+				if (downloadPath) {
+					await this.fileService.writeFile(downloadPath, VSBuffer.fromString(extensionData));
+				}
+			};
+
+			downloadExtensionDataLink.addEventListener('click', handleLinkClick);
+
+			this._register({
+				dispose: () => downloadExtensionDataLink.removeEventListener('click', handleLinkClick)
+			});
+		}
 
 		if (selectedExtension && this.nonGitHubIssueUrl) {
 			hide(titleTextArea);
@@ -1094,9 +1062,12 @@ export class BaseIssueReporterService extends Disposable {
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value, issueUrl);
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
+		url = this.addTemplateToUrl(url, gitHubDetails?.owner, gitHubDetails?.repositoryName);
+
 		if (url.length > MAX_URL_LENGTH) {
 			try {
 				url = await this.writeToClipboard(baseUrl, issueBody);
+				url = this.addTemplateToUrl(url, gitHubDetails?.owner, gitHubDetails?.repositoryName);
 			} catch (_) {
 				console.error('Writing to clipboard failed');
 				return false;
@@ -1115,6 +1086,24 @@ export class BaseIssueReporterService extends Disposable {
 		}
 
 		return baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
+	}
+
+	public addTemplateToUrl(baseUrl: string, owner?: string, repositoryName?: string): string {
+		const isVscode = this.issueReporterModel.getData().fileOnProduct;
+		const isMicrosoft = owner?.toLowerCase() === 'microsoft';
+		const needsTemplate = isVscode || (isMicrosoft && (repositoryName === 'vscode' || repositoryName === 'vscode-python'));
+
+		if (needsTemplate) {
+			try {
+				const url = new URL(baseUrl);
+				url.searchParams.set('template', 'bug_report.md');
+				return url.toString();
+			} catch {
+				// fallback if baseUrl is not a valid URL
+				return baseUrl + '&template=bug_report.md';
+			}
+		}
+		return baseUrl;
 	}
 
 	public getIssueUrl(): string {

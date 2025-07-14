@@ -18,7 +18,7 @@ interface ConditionalPattern {
 
 interface RawImportPatternsConfig {
 	target: string;
-	layer?: 'common' | 'worker' | 'browser' | 'electron-sandbox' | 'node' | 'electron-utility' | 'electron-main';
+	layer?: 'common' | 'worker' | 'browser' | 'electron-browser' | 'node' | 'electron-utility' | 'electron-main';
 	test?: boolean;
 	restrictions: string | (string | ConditionalPattern)[];
 }
@@ -44,7 +44,7 @@ export = new class implements eslint.Rule.RuleModule {
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
 			badImport: 'Imports violates \'{{restrictions}}\' restrictions. See https://github.com/microsoft/vscode/wiki/Source-Code-Organization',
-			badFilename: 'Missing definition in `code-import-patterns` for this file. Define rules at https://github.com/microsoft/vscode/blob/main/.eslintrc.json',
+			badFilename: 'Missing definition in `code-import-patterns` for this file. Define rules at https://github.com/microsoft/vscode/blob/main/eslint.config.js',
 			badAbsolute: 'Imports have to be relative to support ESM',
 			badExtension: 'Imports have to end with `.js` or `.css` to support ESM',
 		},
@@ -80,7 +80,7 @@ export = new class implements eslint.Rule.RuleModule {
 			return this._optionsCache.get(options)!;
 		}
 
-		type Layer = 'common' | 'worker' | 'browser' | 'electron-sandbox' | 'node' | 'electron-utility' | 'electron-main';
+		type Layer = 'common' | 'worker' | 'browser' | 'electron-browser' | 'node' | 'electron-utility' | 'electron-main';
 
 		interface ILayerRule {
 			layer: Layer;
@@ -98,7 +98,7 @@ export = new class implements eslint.Rule.RuleModule {
 			{ layer: 'common', deps: orSegment(['common']) },
 			{ layer: 'worker', deps: orSegment(['common', 'worker']) },
 			{ layer: 'browser', deps: orSegment(['common', 'browser']), isBrowser: true },
-			{ layer: 'electron-sandbox', deps: orSegment(['common', 'browser', 'electron-sandbox']), isBrowser: true },
+			{ layer: 'electron-browser', deps: orSegment(['common', 'browser', 'electron-browser']), isBrowser: true },
 			{ layer: 'node', deps: orSegment(['common', 'node']), isNode: true },
 			{ layer: 'electron-utility', deps: orSegment(['common', 'node', 'electron-utility']), isNode: true, isElectron: true },
 			{ layer: 'electron-main', deps: orSegment(['common', 'node', 'electron-utility', 'electron-main']), isNode: true, isElectron: true },

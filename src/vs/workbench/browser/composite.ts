@@ -13,7 +13,7 @@ import { IConstructorSignature, IInstantiationService } from '../../platform/ins
 import { trackFocus, Dimension, IDomPosition } from '../../base/browser/dom.js';
 import { IStorageService } from '../../platform/storage/common/storage.js';
 import { Disposable } from '../../base/common/lifecycle.js';
-import { assertIsDefined } from '../../base/common/types.js';
+import { assertReturnsDefined } from '../../base/common/types.js';
 import { IActionViewItem } from '../../base/browser/ui/actionbar/actionbar.js';
 import { MenuId } from '../../platform/actions/common/actions.js';
 import { IBoundarySashes } from '../../base/browser/ui/sash/sash.js';
@@ -60,7 +60,7 @@ export abstract class Composite extends Component implements IComposite {
 	}
 
 	private registerFocusTrackEvents(): { onDidFocus: Emitter<void>; onDidBlur: Emitter<void> } {
-		const container = assertIsDefined(this.getContainer());
+		const container = assertReturnsDefined(this.getContainer());
 		const focusTracker = this._register(trackFocus(container));
 
 		const onDidFocus = this._onDidFocus = this._register(new Emitter<void>());

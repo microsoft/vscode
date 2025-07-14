@@ -111,7 +111,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		@IProductService protected readonly _productService: IProductService,
 		@IWorkbenchExtensionManagementService protected readonly _extensionManagementService: IWorkbenchExtensionManagementService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 		@IExtensionManifestPropertiesService private readonly _extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@ILogService protected readonly _logService: ILogService,
 		@IRemoteAgentService protected readonly _remoteAgentService: IRemoteAgentService,
@@ -761,12 +761,19 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 				const vetoReasonsArray = Array.from(vetoReasons);
 
 				this._logService.warn(`Extension host was not stopped because of veto (stop reason: ${reason}, veto reason: ${vetoReasonsArray.join(', ')})`);
-				await this._dialogService.warn(
-					nls.localize('extensionStopVetoMessage', "The following operation was blocked: {0}", reason),
-					vetoReasonsArray.length === 1 ?
-						nls.localize('extensionStopVetoDetailsOne', "The reason for blocking the operation: {0}", vetoReasonsArray[0]) :
-						nls.localize('extensionStopVetoDetailsMany', "The reasons for blocking the operation:\n- {0}", vetoReasonsArray.join('\n -')),
-				);
+
+				const { confirmed } = await this._dialogService.confirm({
+					type: Severity.Warning,
+					message: nls.localize('extensionStopVetoMessage', "Please confirm restart of extensions."),
+					detail: vetoReasonsArray.length === 1 ?
+						vetoReasonsArray[0] :
+						vetoReasonsArray.join('\n -'),
+					primaryButton: nls.localize('proceedAnyways', "Restart Anyway")
+				});
+
+				if (confirmed) {
+					return true;
+				}
 			}
 
 		}

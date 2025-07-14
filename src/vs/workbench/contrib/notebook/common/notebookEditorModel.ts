@@ -54,7 +54,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		readonly viewType: string,
 		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
 		scratchpad: boolean,
-		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService,
 	) {
 		super();
 
@@ -118,12 +118,12 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		return false;
 	}
 
-	revert(options?: IRevertOptions): Promise<void> {
+	async revert(options?: IRevertOptions): Promise<void> {
 		assertType(this.isResolved());
 		return this._workingCopy!.revert(options);
 	}
 
-	save(options?: ISaveOptions): Promise<boolean> {
+	async save(options?: ISaveOptions): Promise<boolean> {
 		assertType(this.isResolved());
 		return this._workingCopy!.save(options);
 	}
@@ -136,7 +136,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 				} else {
 					this._workingCopy = await this._workingCopyManager.resolve({ untitledResource: this.resource, isScratchpad: this.scratchPad });
 				}
-				this._workingCopy.onDidRevert(() => this._onDidRevertUntitled.fire());
+				this._register(this._workingCopy.onDidRevert(() => this._onDidRevertUntitled.fire()));
 			} else {
 				this._workingCopy = await this._workingCopyManager.resolve(this.resource, {
 					limits: options?.limits,

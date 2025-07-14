@@ -183,7 +183,6 @@ export const testStatesToRetiredIconColors: { [K in TestResultState]?: string } 
 registerThemingParticipant((theme, collector) => {
 
 	const editorBg = theme.getColor(editorBackground);
-	const missBadgeBackground = editorBg && theme.getColor(testingUncoveredBackground)?.transparent(2).makeOpaque(editorBg);
 
 	collector.addRule(`
 	.coverage-deco-inline.coverage-deco-hit.coverage-deco-hovered {
@@ -194,9 +193,22 @@ registerThemingParticipant((theme, collector) => {
 		background: ${theme.getColor(testingUncoveredBackground)?.transparent(1.3)};
 		outline-color: ${theme.getColor(testingUncoveredBorder)?.transparent(2)};
 	}
-	.coverage-deco-branch-miss-indicator::before {
-		border-color: ${missBadgeBackground?.transparent(1.3)};
-		background-color: ${missBadgeBackground};
+		`);
+
+	if (editorBg) {
+		const missBadgeBackground = theme.getColor(testingUncoveredBackground)?.transparent(2).makeOpaque(editorBg);
+		const errorBadgeBackground = theme.getColor(messageBadgeBackground)?.makeOpaque(editorBg);
+		collector.addRule(`
+			.coverage-deco-branch-miss-indicator::before {
+				border-color: ${missBadgeBackground?.transparent(1.3)};
+				background-color: ${missBadgeBackground};
+			}
+			.monaco-workbench .test-error-content-widget .inner{
+				background: ${errorBadgeBackground};
+			}
+			.monaco-workbench .test-error-content-widget .inner .arrow svg {
+				fill: ${errorBadgeBackground};
+			}
+		`);
 	}
-	`);
 });
