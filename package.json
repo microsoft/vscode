@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.103.0",
-  "distro": "e050762924418e1fb937b0aee594b586defeac82",
+  "distro": "35d920d21606aec0dc59b589a5581f6dbc2e331b",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -216,7 +216,8 @@
     "webpack-cli": "^5.1.4",
     "webpack-stream": "^7.0.0",
     "xml2js": "^0.5.0",
-    "yaserver": "^0.4.0"
+    "yaserver": "^0.4.0",
+    "zx": "^8.7.0"
   },
   "overrides": {
     "node-gyp-build": "4.8.1",
