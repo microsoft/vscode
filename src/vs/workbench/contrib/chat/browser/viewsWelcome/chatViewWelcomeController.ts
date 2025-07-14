@@ -207,7 +207,12 @@ export class ChatViewWelcomePart extends Disposable {
 								suggestedPrompt: prompt.prompt,
 							});
 
-							this.chatWidgetService.lastFocusedWidget?.focusInput();
+							if (!this.chatWidgetService.lastFocusedWidget) {
+								const widgets = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel);
+								if (widgets.length) {
+									widgets[0].input.focus();
+								}
+							}
 							this.chatWidgetService.lastFocusedWidget?.setInput(prompt.prompt);
 						}));
 					}
