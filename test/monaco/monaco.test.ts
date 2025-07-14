@@ -137,8 +137,13 @@ describe('API Integration Tests', function (): void {
 			'\t\t\'\'\'Make the monkey eat N bananas!\'\'\''
 		]);
 	});
-	it('Accessibility: sshould not have critical accessibility violations', async () => {
-		await page.evaluate(`
+	describe('Accessibility', function (): void {
+		beforeEach(async () => {
+			await page.goto(APP);
+		});
+
+		it('Should not have critical accessibility violations', async () => {
+			await page.evaluate(`
 		(function () {
 			instance.focus();
 			instance.trigger('keyboard', 'cursorHome');
@@ -148,61 +153,61 @@ describe('API Integration Tests', function (): void {
 		})()
 		`);
 
-		let violationCount = 0;
-		const checkedElements = new Set<string>();
-		const customReporter = {
-			async report(violations: Result[]) {
-				// Log failed elements
-				violations.forEach(v => {
-					v.nodes.forEach(node => {
-						const selector = node.target?.join(' ');
-						if (selector) {
-							checkedElements.add(selector);
-							console.log(`❌ FAIL: ${selector} - ${v.id} - ${v.description}`);
-						}
+			let violationCount = 0;
+			const checkedElements = new Set<string>();
+			const customReporter = {
+				async report(violations: Result[]) {
+					// Log failed elements
+					violations.forEach(v => {
+						v.nodes.forEach(node => {
+							const selector = node.target?.join(' ');
+							if (selector) {
+								checkedElements.add(selector);
+								console.log(`❌ FAIL: ${selector} - ${v.id} - ${v.description}`);
+							}
+						});
 					});
+					violationCount += violations.length;
+				}
+			};
+
+			// Run axe and get all results (passes and violations)
+			const axeResults = await page.evaluate(async () => {
+				return await window.axe.run(document, {
+					runOnly: {
+						type: 'tag',
+						values: ['wcag2a']
+					}
 				});
-				violationCount += violations.length;
-			}
-		};
-
-		// Run axe and get all results (passes and violations)
-		const axeResults = await page.evaluate(async () => {
-			return await window.axe.run(document, {
-				runOnly: {
-					type: 'tag',
-					values: ['wcag2a']
-				}
 			});
-		});
 
-		// Log passed elements
-		axeResults.passes.forEach((pass: any) => {
-			pass.nodes.forEach((node: any) => {
-				const selector = node.target?.join(' ');
-				if (selector && !checkedElements.has(selector)) {
-					checkedElements.add(selector);
-					console.log(`✅ PASS: ${selector} - ${pass.id} - ${pass.description}`);
-				}
+			// Log passed elements
+			axeResults.passes.forEach((pass: any) => {
+				pass.nodes.forEach((node: any) => {
+					const selector = node.target?.join(' ');
+					if (selector && !checkedElements.has(selector)) {
+						checkedElements.add(selector);
+						console.log(`✅ PASS: ${selector} - ${pass.id} - ${pass.description}`);
+					}
+				});
 			});
-		});
 
-		// Now run the actual checkA11y for test assertion and violation logging
-		await checkA11y(page, undefined, {
-			axeOptions: {
-				runOnly: {
-					type: 'tag',
-					values: ['wcag2a']
-				}
-			},
-			includedImpacts: ['critical', 'serious'],
-			detailedReport: true,
-			detailedReportOptions: { html: true }
-		}, false, customReporter);
-		playwright.expect(violationCount).toBe(0);
-	});
-	it('Monaco editor container should have an ARIA role', async () => {
-		await page.evaluate(`
+			// Now run the actual checkA11y for test assertion and violation logging
+			await checkA11y(page, undefined, {
+				axeOptions: {
+					runOnly: {
+						type: 'tag',
+						values: ['wcag2a']
+					}
+				},
+				includedImpacts: ['critical', 'serious'],
+				detailedReport: true,
+				detailedReportOptions: { html: true }
+			}, false, customReporter);
+			playwright.expect(violationCount).toBe(0);
+		});
+		it('Monaco editor container should have an ARIA role', async () => {
+			await page.evaluate(`
 		(function () {
 			instance.focus();
 			instance.trigger('keyboard', 'cursorHome');
@@ -211,15 +216,15 @@ describe('API Integration Tests', function (): void {
 			});
 		})()
 		`);
-		const role = await page.evaluate(() => {
-			const container = document.querySelector('.monaco-editor');
-			return container?.getAttribute('role');
+			const role = await page.evaluate(() => {
+				const container = document.querySelector('.monaco-editor');
+				return container?.getAttribute('role');
+			});
+			assert.isDefined(role, 'Monaco editor container should have a role attribute');
 		});
-		assert.isDefined(role, 'Monaco editor container should have a role attribute');
-	});
 
-	it('Monaco editor should have an ARIA label', async () => {
-		await page.evaluate(`
+		it('Monaco editor should have an ARIA label', async () => {
+			await page.evaluate(`
 		(function () {
 			instance.focus();
 			instance.trigger('keyboard', 'cursorHome');
@@ -228,15 +233,15 @@ describe('API Integration Tests', function (): void {
 			});
 		})()
 		`);
-		const ariaLabel = await page.evaluate(() => {
-			const container = document.querySelector('.monaco-editor');
-			return container?.getAttribute('aria-label');
+			const ariaLabel = await page.evaluate(() => {
+				const container = document.querySelector('.monaco-editor');
+				return container?.getAttribute('aria-label');
+			});
+			assert.isDefined(ariaLabel, 'Monaco editor container should have an aria-label attribute');
 		});
-		assert.isDefined(ariaLabel, 'Monaco editor container should have an aria-label attribute');
-	});
 
-	it('All toolbar buttons should have accessible names', async () => {
-		await page.evaluate(`
+		it('All toolbar buttons should have accessible names', async () => {
+			await page.evaluate(`
 		(function () {
 			instance.focus();
 			instance.trigger('keyboard', 'cursorHome');
@@ -245,12 +250,13 @@ describe('API Integration Tests', function (): void {
 			});
 		})()
 		`);
-		const buttonsWithoutLabel = await page.evaluate(() => {
-			return Array.from(document.querySelectorAll('button')).filter(btn => {
-				const label = btn.getAttribute('aria-label') || btn.textContent?.trim();
-				return !label;
-			}).map(btn => btn.outerHTML);
+			const buttonsWithoutLabel = await page.evaluate(() => {
+				return Array.from(document.querySelectorAll('button')).filter(btn => {
+					const label = btn.getAttribute('aria-label') || btn.textContent?.trim();
+					return !label;
+				}).map(btn => btn.outerHTML);
+			});
+			assert.deepEqual(buttonsWithoutLabel, [], 'All toolbar buttons should have accessible names');
 		});
-		assert.deepEqual(buttonsWithoutLabel, [], 'All toolbar buttons should have accessible names');
 	});
 });
