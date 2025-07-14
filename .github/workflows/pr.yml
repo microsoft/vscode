@@ -13,6 +13,7 @@ concurrency:
 permissions: {}
 
 env:
+  IS_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
   VSCODE_QUALITY: 'oss'
 
 jobs:
@@ -22,6 +23,9 @@ jobs:
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@v4
+
+      - name: Debug message
+        run: echo ${{ env.IS_FORK }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
