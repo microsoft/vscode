@@ -452,13 +452,6 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'chatParticipantPrivate'
 	},
 	{
-		key: 'explorer/context/chat',
-		id: MenuId.ChatExplorerMenu,
-		description: localize('menus.chatExplorer', "The Chat submenu in the explorer context menu."),
-		supportsSubmenus: false,
-		proposed: 'chatParticipantPrivate'
-	},
-	{
 		key: 'editor/context/chat',
 		id: MenuId.ChatTextEditorMenu,
 		description: localize('menus.chatTextEditor', "The Chat submenu in the text editor context menu."),

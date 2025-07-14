@@ -954,7 +954,9 @@ export class DebugService implements IDebugService {
 			try {
 				return await dbg.substituteVariables(folder, config);
 			} catch (err) {
-				this.showError(err.message, undefined, !!launch?.getConfiguration(config.name));
+				if (err.message !== errors.canceledName) {
+					this.showError(err.message, undefined, !!launch?.getConfiguration(config.name));
+				}
 				return undefined;	// bail out
 			}
 		}

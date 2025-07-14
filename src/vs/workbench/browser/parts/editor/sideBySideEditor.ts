@@ -5,7 +5,8 @@
 
 import './media/sidebysideeditor.css';
 import { localize } from '../../../../nls.js';
-import { Dimension, $, clearNode, multibyteAwareBtoa } from '../../../../base/browser/dom.js';
+import { Dimension, $, clearNode } from '../../../../base/browser/dom.js';
+import { multibyteAwareBtoa } from '../../../../base/common/strings.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IEditorControl, IEditorPane, IEditorOpenContext, EditorExtensions, SIDE_BY_SIDE_EDITOR_ID, SideBySideEditor as Side, IEditorPaneSelection, IEditorPaneWithSelection, IEditorPaneSelectionChangeEvent, isEditorPaneWithSelection, EditorPaneSelectionCompareResult } from '../../../common/editor.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';

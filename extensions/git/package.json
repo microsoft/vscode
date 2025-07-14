@@ -28,6 +28,7 @@
     "scmActionButton",
     "scmHistoryProvider",
     "scmMultiDiffEditor",
+    "scmProviderOptions",
     "scmSelectedProvider",
     "scmTextDocument",
     "scmValidation",

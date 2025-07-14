@@ -396,4 +396,37 @@ suite('Monarch', () => {
 		disposables.dispose();
 	});
 
+	test('microsoft/monaco-editor#4775: Raw-strings in c++ can break monarch', () => {
+		const disposables = new DisposableStore();
+		const configurationService = new StandaloneConfigurationService(new NullLogService());
+		const languageService = disposables.add(new LanguageService());
+
+		const tokenizer = disposables.add(createMonarchTokenizer(languageService, 'test', {
+			ignoreCase: false,
+			encoding: /u|u8|U|L/,
+			tokenizer: {
+				root: [
+					// C++ 11 Raw String
+					[/@encoding?R\"(?:([^ ()\\\t]*))\(/, { token: 'string.raw.begin', next: '@raw.$1' }],
+				],
+
+				raw: [
+					[/.*\)$S2\"/, 'string.raw', '@pop'],
+					[/.*/, 'string.raw']
+				],
+			},
+		}, configurationService));
+
+		const lines = [
+			`R"[())"`,
+		];
+
+		const actualTokens = getTokens(tokenizer, lines);
+		assert.deepStrictEqual(actualTokens, [
+			[new Token(0, 'string.raw.begin.test', 'test'), new Token(4, 'string.raw.test', 'test')],
+		]);
+
+		disposables.dispose();
+	});
+
 });

@@ -3479,6 +3479,11 @@ declare namespace monaco.editor {
 		 */
 		wrappingStrategy?: 'simple' | 'advanced';
 		/**
+		 * Create a softwrap on every quoted "\n" literal.
+		 * Defaults to false.
+		 */
+		wrapOnEscapedLineFeeds?: boolean;
+		/**
 		 * Configure word wrapping characters. A break will be introduced before these characters.
 		 */
 		wordWrapBreakBeforeCharacters?: string;
@@ -3543,6 +3548,10 @@ declare namespace monaco.editor {
 		 * Defaults to true.
 		 */
 		scrollPredominantAxis?: boolean;
+		/**
+		 * Make scrolling inertial - mostly useful with touchpad on linux.
+		 */
+		inertialScroll?: boolean;
 		/**
 		 * Enable that the selection with the mouse and keys is doing column selection.
 		 * Defaults to false.
@@ -4427,7 +4436,7 @@ declare namespace monaco.editor {
 		/**
 		 * Control the rendering of minimap.
 		 */
-		autohide?: boolean;
+		autohide?: 'none' | 'mouseover' | 'scroll';
 		/**
 		 * Control the side of the minimap in editor.
 		 * Defaults to 'right'.
@@ -5142,19 +5151,21 @@ declare namespace monaco.editor {
 		wrappingIndent = 148,
 		wrappingStrategy = 149,
 		showDeprecated = 150,
-		inlayHints = 151,
-		effectiveCursorStyle = 152,
-		editorClassName = 153,
-		pixelRatio = 154,
-		tabFocusMode = 155,
-		layoutInfo = 156,
-		wrappingInfo = 157,
-		defaultColorDecorators = 158,
-		colorDecoratorsActivatedOn = 159,
-		inlineCompletionsAccessibilityVerbose = 160,
-		effectiveEditContext = 161,
-		scrollOnMiddleClick = 162,
-		effectiveAllowVariableFonts = 163
+		inertialScroll = 151,
+		inlayHints = 152,
+		wrapOnEscapedLineFeeds = 153,
+		effectiveCursorStyle = 154,
+		editorClassName = 155,
+		pixelRatio = 156,
+		tabFocusMode = 157,
+		layoutInfo = 158,
+		wrappingInfo = 159,
+		defaultColorDecorators = 160,
+		colorDecoratorsActivatedOn = 161,
+		inlineCompletionsAccessibilityVerbose = 162,
+		effectiveEditContext = 163,
+		scrollOnMiddleClick = 164,
+		effectiveAllowVariableFonts = 165
 	}
 
 	export const EditorOptions: {
@@ -5231,6 +5242,7 @@ declare namespace monaco.editor {
 		hideCursorInOverviewRuler: IEditorOption<EditorOption.hideCursorInOverviewRuler, boolean>;
 		hover: IEditorOption<EditorOption.hover, Readonly<Required<IEditorHoverOptions>>>;
 		inDiffEditor: IEditorOption<EditorOption.inDiffEditor, boolean>;
+		inertialScroll: IEditorOption<EditorOption.inertialScroll, boolean>;
 		letterSpacing: IEditorOption<EditorOption.letterSpacing, number>;
 		lightbulb: IEditorOption<EditorOption.lightbulb, Readonly<Required<IEditorLightbulbOptions>>>;
 		lineDecorationsWidth: IEditorOption<EditorOption.lineDecorationsWidth, number>;
@@ -5311,6 +5323,7 @@ declare namespace monaco.editor {
 		wordWrapColumn: IEditorOption<EditorOption.wordWrapColumn, number>;
 		wordWrapOverride1: IEditorOption<EditorOption.wordWrapOverride1, 'on' | 'off' | 'inherit'>;
 		wordWrapOverride2: IEditorOption<EditorOption.wordWrapOverride2, 'on' | 'off' | 'inherit'>;
+		wrapOnEscapedLineFeeds: IEditorOption<EditorOption.wrapOnEscapedLineFeeds, boolean>;
 		effectiveCursorStyle: IEditorOption<EditorOption.effectiveCursorStyle, TextEditorCursorStyle>;
 		editorClassName: IEditorOption<EditorOption.editorClassName, string>;
 		defaultColorDecorators: IEditorOption<EditorOption.defaultColorDecorators, 'auto' | 'always' | 'never'>;
