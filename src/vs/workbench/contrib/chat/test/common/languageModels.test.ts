@@ -41,6 +41,10 @@ suite('LanguageModels', function () {
 			description: { ...nullExtensionDescription, enabledApiProposals: ['chatProvider'] },
 			value: { vendor: 'test-vendor' },
 			collector: null!
+		}, {
+			description: { ...nullExtensionDescription, enabledApiProposals: ['chatProvider'] },
+			value: { vendor: 'actual-vendor' },
+			collector: null!
 		}]);
 
 		store.add(languageModels.registerLanguageModelProvider('test-vendor', {
@@ -93,6 +97,12 @@ suite('LanguageModels', function () {
 		assert.deepStrictEqual(result1.length, 2);
 		assert.deepStrictEqual(result1[0], 'test-id-1');
 		assert.deepStrictEqual(result1[1], 'test-id-12');
+	});
+
+	test('selector with id works properly', async function () {
+		const result1 = await languageModels.selectLanguageModels({ id: 'test-id-1' });
+		assert.deepStrictEqual(result1.length, 1);
+		assert.deepStrictEqual(result1[0], 'test-id-1');
 	});
 
 	test('no warning that a matching model was not found #213716', async function () {
