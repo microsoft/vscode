@@ -8,6 +8,7 @@
  * into a typed and checked ILexer definition.
  */
 
+import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import * as monarchCommon from './monarchCommon.js';
 import { IMonarchLanguage, IMonarchLanguageBracket } from './monarchTypes.js';
 
@@ -129,7 +130,8 @@ function compileRegExp(lexer: monarchCommon.ILexerMin, str: string, handleSn: tr
 					return lastRegEx;
 				}
 				lastState = state;
-				lastRegEx = new RegExp(monarchCommon.substituteMatchesRe(lexer, str, state), flags);
+				const pattern = monarchCommon.substituteMatchesRe(lexer, str, state);
+				lastRegEx = new RegExp(escapeRegExpCharacters(pattern), flags);
 				return lastRegEx;
 			};
 		}
