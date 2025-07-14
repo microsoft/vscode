@@ -340,10 +340,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 	async getDefaultLanguageModel(extension: IExtensionDescription): Promise<vscode.LanguageModelChat | undefined> {
 		let defaultModelId: string | undefined;
-		for (const provider of this._languageModelProviders.values()) {
-			const defaultModel = provider.knownModels.find(m => m.isDefault);
-			if (defaultModel) {
-				defaultModelId = defaultModel.id;
+
+		for (const model of this._localModels.values()) {
+			if (model.metadata.isDefault) {
+				defaultModelId = model.metadata.id;
 				break;
 			}
 		}
@@ -384,13 +384,13 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					if (!that._localModels.has(modelId)) {
 						throw extHostTypes.LanguageModelError.NotFound(modelId);
 					}
-					return that._computeTokenLength({ id: model.id, vendor: modelIdentifier.vendor }, text, token ?? CancellationToken.None);
+					return that._computeTokenLength(modelId, text, token ?? CancellationToken.None);
 				},
 				sendRequest(messages, options, token) {
-					if (!that._languageModelProviders.get(modelIdentifier.vendor)?.knownModels.find(m => m.id === model.id)) {
-						throw extHostTypes.LanguageModelError.NotFound(`${modelIdentifier.vendor}/${modelIdentifier.id}`);
+					if (!that._localModels.has(modelId)) {
+						throw extHostTypes.LanguageModelError.NotFound(modelId);
 					}
-					return that._sendChatRequest(extension, { id: model.id, vendor: modelIdentifier.vendor }, messages, options ?? {}, token ?? CancellationToken.None);
+					return that._sendChatRequest(extension, modelId, messages, options ?? {}, token ?? CancellationToken.None);
 				}
 			};
 
@@ -422,9 +422,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		const internalMessages: IChatMessage[] = this._convertMessages(extension, messages);
 
 		const from = extension.identifier;
-		const metadata = this._allLanguageModelData.get(languageModelId)?.metadata;
+		const metadata = this._localModels.get(languageModelId)?.metadata;
 
-		if (!metadata || !this._allLanguageModelData.has(languageModelId)) {
+		if (!metadata || !this._localModels.has(languageModelId)) {
 			throw extHostTypes.LanguageModelError.NotFound(`Language model '${languageModelId}' is unknown.`);
 		}
 
@@ -573,7 +573,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		this._languageAccessInformationExtensions.add(from);
 
-		const that = this;
+		// const that = this;
 		const _onDidChangeAccess = Event.signal(Event.filter(this._onDidChangeModelAccess.event, e => ExtensionIdentifier.equals(e.from, from.identifier)));
 		const _onDidAddRemove = Event.signal(this._onDidChangeProviders.event);
 
@@ -582,29 +582,31 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				return Event.any(_onDidChangeAccess, _onDidAddRemove);
 			},
 			canSendRequest(chat: vscode.LanguageModelChat): boolean | undefined {
+				return true;
+				// TODO @lramos15 - Fix
 
-				let metadata: ILanguageModelChatMetadata | undefined;
+				// let metadata: ILanguageModelChatMetadata | undefined;
 
-				out: for (const [_, value] of that._allLanguageModelData) {
-					for (const candidate of value.apiObjects.values()) {
-						if (candidate === chat) {
-							metadata = value.metadata;
-							break out;
-						}
-					}
-				}
-				if (!metadata) {
-					return undefined;
-				}
-				if (!that._isUsingAuth(from.identifier, metadata)) {
-					return true;
-				}
+				// out: for (const [_, value] of that._allLanguageModelData) {
+				// 	for (const candidate of value.apiObjects.values()) {
+				// 		if (candidate === chat) {
+				// 			metadata = value.metadata;
+				// 			break out;
+				// 		}
+				// 	}
+				// }
+				// if (!metadata) {
+				// 	return undefined;
+				// }
+				// if (!that._isUsingAuth(from.identifier, metadata)) {
+				// 	return true;
+				// }
 
-				const list = that._modelAccessList.get(from.identifier);
-				if (!list) {
-					return undefined;
-				}
-				return list.has(metadata.extension);
+				// const list = that._modelAccessList.get(from.identifier);
+				// if (!list) {
+				// 	return undefined;
+				// }
+				// return list.has(metadata.extension);
 			}
 		};
 	}
