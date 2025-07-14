@@ -1525,3 +1525,40 @@
 	left: 100%;
 	opacity: 0;
 }
+
+/* Test styling for random testing scenario */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .test-enhanced-buttons {
+	animation: testPulse 2s infinite;
+	box-shadow: 0 2px 8px rgba(0, 122, 204, 0.3);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .test-category-highlight {
+	border: 2px solid #007acc;
+	border-radius: 8px;
+	background: linear-gradient(45deg, rgba(0, 122, 204, 0.1), rgba(0, 122, 204, 0.2));
+}
+
+@keyframes testPulse {
+	0% { transform: scale(1); }
+	50% { transform: scale(1.05); }
+	100% { transform: scale(1); }
+}
+
+/* Enhanced hover effects for testing */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link:hover {
+	transition: all 0.3s ease;
+	transform: translateY(-2px);
+}
+
+/* Test banner styling */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .test-banner {
+	background: linear-gradient(45deg, #ff6b6b, #4ecdc4) !important;
+	color: white !important;
+	padding: 12px 24px;
+	text-align: center;
+	font-weight: bold;
+	margin: 0 0 20px 0;
+	border-radius: 6px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	animation: testPulse 3s infinite;
+}

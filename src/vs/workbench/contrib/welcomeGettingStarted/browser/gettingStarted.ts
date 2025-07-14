@@ -386,6 +386,9 @@ export class GettingStartedPage extends EditorPane {
 				}));
 			}
 		});
+
+		// Add test hover effects for random testing scenario
+		this.addTestButtonHoverEffects();
 	}
 
 	private async runDispatchCommand(command: string, argument: string) {
@@ -839,6 +842,35 @@ export class GettingStartedPage extends EditorPane {
 		this.detailsPageScrollbar.scanDomNode();
 
 		parent.appendChild(this.container);
+
+		// Test method for random testing scenario
+		this.addTestButtonHoverEffects();
+	}
+
+	// Test method to add a banner for testing scenarios
+	private addTestBanner() {
+		const existingBanner = this.container.querySelector('.test-banner');
+		if (existingBanner) {
+			existingBanner.remove();
+		}
+
+		const testBanner = $('.test-banner', {
+			style: `
+				background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+				color: white;
+				padding: 8px 16px;
+				text-align: center;
+				font-weight: bold;
+				margin-bottom: 16px;
+				border-radius: 4px;
+				animation: testPulse 3s infinite;
+			`
+		}, 'TEST MODE: Random testing scenario active');
+
+		const categoriesContainer = this.container.querySelector('.gettingStartedCategoriesContainer');
+		if (categoriesContainer) {
+			categoriesContainer.insertBefore(testBanner, categoriesContainer.firstChild);
+		}
 	}
 
 	private async buildCategoriesSlide() {
@@ -921,6 +953,12 @@ export class GettingStartedPage extends EditorPane {
 
 		this.updateCategoryProgress();
 		this.registerDispatchListeners();
+
+		// Apply test styling for random testing scenario
+		this.applyTestStyling();
+
+		// Add test banner for random testing scenario
+		this.addTestBanner();
 
 		if (this.editorInput.selectedCategory) {
 			const showNewExperience = this.editorInput.selectedCategory === NEW_WELCOME_EXPERIENCE;
@@ -1415,7 +1453,6 @@ export class GettingStartedPage extends EditorPane {
 		super.clearInput();
 	}
 
-
 	private selectStepByIndex(newIndex: number, steps: IResolvedWalkthroughStep[], direction: number) {
 		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'selectTask', argument: steps[newIndex].id, walkthroughId: this.currentWalkthrough?.id });
 		const currentIndex = steps.findIndex(step => step.id === this.editorInput.selectedStep);
@@ -1665,6 +1702,8 @@ export class GettingStartedPage extends EditorPane {
 				this.selectStepByIndex(index, allSlides.map(s => s.steps[0]), index > currentIndex ? 1 : -1);
 			}));
 		});
+
+
 
 		// Add next button
 		this.nextButton = $('button.button-link.navigation.next', {
@@ -2136,6 +2175,42 @@ export class GettingStartedPage extends EditorPane {
 			// This prevents us from stealing back focus from other focused elements such as quick pick due to delayed load.
 			this.container.focus();
 		}
+	}
+
+	// Test method for random testing scenario
+	private addTestButtonHoverEffects() {
+		const buttons = this.container.querySelectorAll('button.button-link');
+		buttons.forEach(button => {
+			button.addEventListener('mouseenter', () => {
+				(button as HTMLElement).style.backgroundColor = '#007acc';
+				(button as HTMLElement).style.color = 'white';
+				(button as HTMLElement).style.borderRadius = '4px';
+			});
+			button.addEventListener('mouseleave', () => {
+				(button as HTMLElement).style.backgroundColor = '';
+				(button as HTMLElement).style.color = '';
+				(button as HTMLElement).style.borderRadius = '';
+			});
+		});
+	}
+
+	// Test method to apply dynamic CSS classes for testing
+	private applyTestStyling() {
+		// Add pulsing animation to featured categories
+		const featuredCategories = this.container.querySelectorAll('.getting-started-category.featured');
+		featuredCategories.forEach(category => {
+			(category as HTMLElement).classList.add('test-enhanced-buttons');
+		});
+
+		// Add highlight to random categories for testing
+		const categories = this.container.querySelectorAll('.getting-started-category');
+		if (categories.length > 0) {
+			const randomIndex = Math.floor(Math.random() * categories.length);
+			(categories[randomIndex] as HTMLElement).classList.add('test-category-highlight');
+		}
+
+		// Add test console log for debugging
+		console.log('[Test] Applied test styling to Getting Started page');
 	}
 }
 
