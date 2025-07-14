@@ -38,6 +38,7 @@ import { createSingleCallFunction } from '../../../../base/common/functional.js'
 import { LRUCache } from '../../../../base/common/map.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 import { ViewModelDecoration } from '../../../common/viewModel/viewModelDecoration.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 
 /**
  * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
@@ -55,7 +56,7 @@ class MinimapOptions {
 	public readonly paddingTop: number;
 	public readonly paddingBottom: number;
 	public readonly showSlider: 'always' | 'mouseover';
-	public readonly autohide: boolean;
+	public readonly autohide: 'none' | 'mouseover' | 'scroll';
 	public readonly pixelRatio: number;
 	public readonly typicalHalfwidthCharacterWidth: number;
 	public readonly lineHeight: number;
@@ -916,7 +917,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		}
 	}
 	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return this._actual.onScrollChanged();
+		return this._actual.onScrollChanged(e);
 	}
 	public override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
 		this._actual.onThemeChanged();
@@ -1172,6 +1173,8 @@ class InnerMinimap extends Disposable {
 	private _renderDecorations: boolean = false;
 	private _gestureInProgress: boolean = false;
 	private _buffers: MinimapBuffers | null;
+	private _isMouseOverMinimap: boolean = false;
+	private _hideDelayedScheduler: RunOnceScheduler;
 
 	constructor(
 		theme: EditorTheme,
@@ -1221,6 +1224,15 @@ class InnerMinimap extends Disposable {
 		this._slider.appendChild(this._sliderHorizontal);
 
 		this._applyLayout();
+
+		this._hideDelayedScheduler = this._register(new RunOnceScheduler(() => this._hideImmediatelyIfMouseIsOutside(), 500));
+
+		this._register(dom.addStandardDisposableListener(this._domNode.domNode, dom.EventType.MOUSE_OVER, () => {
+			this._isMouseOverMinimap = true;
+		}));
+		this._register(dom.addStandardDisposableListener(this._domNode.domNode, dom.EventType.MOUSE_LEAVE, () => {
+			this._isMouseOverMinimap = false;
+		}));
 
 		this._pointerDownListener = dom.addStandardDisposableListener(this._domNode.domNode, dom.EventType.POINTER_DOWN, (e) => {
 			e.preventDefault();
@@ -1288,6 +1300,19 @@ class InnerMinimap extends Disposable {
 		});
 	}
 
+	private _hideSoon() {
+		this._hideDelayedScheduler.cancel();
+		this._hideDelayedScheduler.schedule();
+	}
+
+	private _hideImmediatelyIfMouseIsOutside() {
+		if (this._isMouseOverMinimap) {
+			this._hideSoon();
+			return;
+		}
+		this._domNode.toggleClassName('active', false);
+	}
+
 	private _startSliderDragging(e: PointerEvent, initialPosY: number, initialSliderState: MinimapLayout): void {
 		if (!e.target || !(e.target instanceof Element)) {
 			return;
@@ -1353,8 +1378,11 @@ class InnerMinimap extends Disposable {
 		} else {
 			class_.push('slider-mouseover');
 		}
-		if (this._model.options.autohide) {
-			class_.push('autohide');
+
+		if (this._model.options.autohide === 'mouseover') {
+			class_.push('minimap-autohide-mouseover');
+		} else if (this._model.options.autohide === 'scroll') {
+			class_.push('minimap-autohide-scroll');
 		}
 
 		return class_.join(' ');
@@ -1431,7 +1459,11 @@ class InnerMinimap extends Disposable {
 		this._lastRenderData?.onLinesInserted(insertFromLineNumber, insertToLineNumber);
 		return true;
 	}
-	public onScrollChanged(): boolean {
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		if (this._model.options.autohide === 'scroll' && (e.scrollTopChanged || e.scrollHeightChanged)) {
+			this._domNode.toggleClassName('active', true);
+			this._hideSoon();
+		}
 		this._renderDecorations = true;
 		return true;
 	}
