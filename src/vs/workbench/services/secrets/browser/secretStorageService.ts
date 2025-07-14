@@ -72,6 +72,9 @@ export class BrowserSecretStorageService extends BaseSecretStorageService {
 
 	override keys(): Promise<string[]> {
 		if (this._secretStorageProvider) {
+			if (!this._secretStorageProvider.keys) {
+				throw new Error('Secret storage provider does not support keys() method');
+			}
 			return this._secretStorageProvider!.keys();
 		}
 
