@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { PolicyTag } from '../../../../base/common/policy.js';
 import './promptSyntax/promptToolsCodeLensProvider.js';
 import './promptSyntax/promptCodingAgentActionContribution.js';
 import { timeout } from '../../../../base/common/async.js';
@@ -227,8 +228,8 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatToolsAutoApprove',
 				minimumVersion: '1.99',
-				previewFeature: true,
-				defaultValue: false
+				defaultValue: false,
+				tags: [PolicyTag.Account, PolicyTag.Preview]
 			}
 		},
 		'chat.sendElementsToChat.enabled': {
@@ -275,6 +276,7 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatMCP',
 				minimumVersion: '1.99',
+				tags: [PolicyTag.Account, PolicyTag.MCP]
 			}
 		},
 		[mcpServerSamplingSection]: {
@@ -334,9 +336,13 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatAgentMode',
 				minimumVersion: '1.99',
-				previewFeature: false,
-				defaultValue: false
 			}
+		},
+		[ChatConfiguration.EnableMath]: {
+			type: 'boolean',
+			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using Katex."),
+			default: false,
+			tags: ['preview'],
 		},
 		[mcpDiscoverySection]: {
 			oneOf: [
@@ -386,8 +392,8 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatPromptFiles',
 				minimumVersion: '1.99',
 				description: nls.localize('chat.promptFiles.policy', "Enables reusable prompt and instruction files in Chat, Edits, and Inline Chat sessions."),
-				previewFeature: true,
-				defaultValue: false
+				defaultValue: false,
+				tags: [PolicyTag.Account, PolicyTag.Preview]
 			}
 		},
 		[PromptsConfig.INSTRUCTIONS_LOCATION_KEY]: {
@@ -478,7 +484,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.setup.signInDialogVariant': { // TODO@bpasero remove me eventually
 			type: 'string',
-			enum: ['default', 'alternate-first', 'alternate-color', 'alternate-monochrome'],
+			enum: ['default', 'apple'],
 			description: nls.localize('chat.signInDialogVariant', "Control variations of the sign-in dialog."),
 			default: 'default',
 			tags: ['onExp', 'experimental']

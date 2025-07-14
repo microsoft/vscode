@@ -30,6 +30,9 @@ import { ViewContainerLocation } from '../../../common/views.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IChatService } from '../common/chatService.js';
 import { autorun } from '../../../../base/common/observable.js';
+import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
 
 class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -130,6 +133,61 @@ class ChatSuspendThrottlingHandler extends Disposable {
 	}
 }
 
+class ChatLifecycleHandler extends Disposable {
+
+	static readonly ID = 'workbench.contrib.chatLifecycleHandler';
+
+	constructor(
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IChatService private readonly chatService: IChatService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IViewsService private readonly viewsService: IViewsService
+	) {
+		super();
+
+		this._register(lifecycleService.onBeforeShutdown(e => {
+			e.veto(this.shouldVetoShutdown(e.reason), 'veto.chat');
+		}));
+	}
+
+	private shouldVetoShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
+		const running = this.chatService.requestInProgressObs.read(undefined);
+		if (!running) {
+			return false;
+		}
+
+		return this.doShouldVetoShutdown(reason);
+	}
+
+	private async doShouldVetoShutdown(reason: ShutdownReason): Promise<boolean> {
+
+		showChatView(this.viewsService);
+
+		let message: string;
+		switch (reason) {
+			case ShutdownReason.CLOSE:
+				message = localize('closeTheWindow.message', "A chat request is in progress. Are you sure you want to close the window?");
+				break;
+			case ShutdownReason.LOAD:
+				message = localize('changeWorkspace.message', "A chat request is in progress. Are you sure you want to change the workspace?");
+				break;
+			case ShutdownReason.RELOAD:
+				message = localize('reloadTheWindow.message', "A chat request is in progress. Are you sure you want to reload the window?");
+				break;
+			default:
+				message = isMacintosh ? localize('quit.message', "A chat request is in progress. Are you sure you want to quit?") : localize('exit.message', "A chat request is in progress. Are you sure you want to exit?");
+				break;
+		}
+
+		const result = await this.dialogService.confirm({
+			message,
+			detail: localize('quit.detail', "The chat request will be cancelled if you continue.")
+		});
+
+		return !result.confirmed;
+	}
+}
+
 registerAction2(StartVoiceChatAction);
 registerAction2(InstallSpeechProviderForVoiceChatAction);
 
@@ -151,3 +209,4 @@ registerWorkbenchContribution2(KeywordActivationContribution.ID, KeywordActivati
 registerWorkbenchContribution2(NativeBuiltinToolsContribution.ID, NativeBuiltinToolsContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatCommandLineHandler.ID, ChatCommandLineHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSuspendThrottlingHandler.ID, ChatSuspendThrottlingHandler, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatLifecycleHandler.ID, ChatLifecycleHandler, WorkbenchPhase.AfterRestored);
