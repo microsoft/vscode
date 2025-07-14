@@ -109,7 +109,9 @@ export async function showToolsPicker(
 	if (!toolsEntries) {
 		const defaultEntries = new Map();
 		for (const tool of toolsService.getTools()) {
-			defaultEntries.set(tool, false);
+			if (tool.canBeReferencedInPrompt) {
+				defaultEntries.set(tool, false);
+			}
 		}
 		for (const toolSet of toolsService.toolSets.get()) {
 			defaultEntries.set(toolSet, false);
@@ -210,8 +212,8 @@ export async function showToolsPicker(
 			} else {
 				// stash the MCP toolset into the bucket item
 				bucket.toolset = toolSetOrTool;
+				bucket.picked = picked;
 			}
-
 		} else if (toolSetOrTool.canBeReferencedInPrompt) {
 			bucket.children.push({
 				parent: bucket,
@@ -223,15 +225,26 @@ export async function showToolsPicker(
 				indented: true,
 			});
 		}
-
-		if (picked) {
-			bucket.picked = true;
-		}
 	}
 
 	for (const bucket of [builtinBucket, userBucket]) {
 		if (bucket.children.length > 0) {
 			toolBuckets.set(generateUuid(), bucket);
+		}
+	}
+
+	// set the checkmarks in the UI:
+	// bucket is checked if at least one of the children is checked
+	// tool is checked if the bucket is checked or the tool itself is checked
+	for (const bucket of toolBuckets.values()) {
+		if (bucket.picked) {
+			// check all children if the bucket is checked
+			for (const child of bucket.children) {
+				child.picked = true;
+			}
+		} else {
+			// check the bucket if one of the children is checked
+			bucket.picked = bucket.children.some(child => child.picked);
 		}
 	}
 
@@ -393,23 +406,12 @@ export async function showToolsPicker(
 
 	store.dispose();
 
-	const mcpToolSets = new Set<ToolSet>();
-
+	// in the result, a MCP toolset is only enabled if all tools in the toolset are enabled
 	for (const item of toolsService.toolSets.get()) {
 		if (item.source.type === 'mcp') {
-			mcpToolSets.add(item);
-
 			const toolsInSet = Array.from(item.getTools());
-			if (toolsInSet.length && toolsInSet.every(tool => result.get(tool))) {
-				// ALL tools from the MCP tool set are here, replace them with just the toolset
-				// but only when computing the final result
-				for (const tool of toolsInSet) {
-					result.delete(tool);
-				}
-				result.set(item, true);
-			}
+			result.set(item, toolsInSet.every(tool => result.get(tool)));
 		}
 	}
-
 	return didAccept ? result : undefined;
 }

@@ -5,6 +5,12 @@
 
 export type PolicyName = string;
 
+export enum PolicyTag {
+	Account = 'ACCOUNT',
+	MCP = 'MCP',
+	Preview = 'PREVIEW'
+}
+
 export interface IPolicy {
 
 	/**
@@ -23,24 +29,24 @@ export interface IPolicy {
 	readonly description?: string;
 
 	/**
-	 * Is preview feature
-	 */
-	readonly previewFeature?: boolean;
-
-	/**
-	 * The value that a preview feature will use when its corresponding policy is active.
+	 * The value that an ACCOUNT-based feature will use when its corresponding policy is active.
 	 *
-	 * Only applicable when `previewFeature: true`. When a preview feature's policy is enabled,
+	 * Only applicable when policy is tagged with ACCOUNT. When an account-based feature's policy is enabled,
 	 * this value determines what value the feature receives.
 	 *
 	 * For example:
 	 * - If `defaultValue: true`,  the feature's setting is locked to `true` WHEN the policy is in effect.
-	 * - If `defaultValue: 'foo'`, the feature's setting is locked to 'foo' WHEN the policy is in effect.
+	 * - If `defaultValue: 'foo'`, the feature's setting is locked to 'foo'  WHEN the policy is in effect.
 	 *
 	 * If omitted, 'false' is the assumed value.
 	 *
-	 * Note: This is unrelated to VS Code settings and their default values. This specifically controls
-	 * the value of a preview feature's setting when policy is overriding it.
-	*/
+	 * Note: This is unrelated to the default value of the VS Code setting itself. This specifically controls
+	 * the value of an account-based feature's setting WHEN the policy is overriding it.
+	 */
 	readonly defaultValue?: string | number | boolean;
+
+	/**
+	 * Tags for categorizing policies
+	 */
+	readonly tags?: PolicyTag[];
 }

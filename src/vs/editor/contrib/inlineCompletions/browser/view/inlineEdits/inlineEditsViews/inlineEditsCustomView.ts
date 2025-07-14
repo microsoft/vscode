@@ -6,7 +6,7 @@ import { getWindow, n } from '../../../../../../../base/browser/dom.js';
 import { IMouseEvent, StandardMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableValue } from '../../../../../../../base/common/observable.js';
 import { editorBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
@@ -21,7 +21,14 @@ import { ILanguageService } from '../../../../../../common/languages/language.js
 import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
 import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorsuccessfulBackground } from '../theme.js';
-import { maxContentWidthInRange, rectToProps } from '../utils/utils.js';
+import { getContentRenderWidth, maxContentWidthInRange, rectToProps } from '../utils/utils.js';
+
+const MIN_END_OF_LINE_PADDING = 14;
+const PADDING_VERTICALLY = 0;
+const PADDING_HORIZONALLY = 4;
+const HORIZONTAL_OFFSET_WHEN_ABOVE_BELOW = 4;
+const VERTICAL_OFFSET_WHEN_ABOVE_BELOW = 2;
+// !! minEndOfLinePadding should always be larger than paddingHorizontally + horizontalOffsetWhenAboveBelow
 
 export class InlineEditsCustomView extends Disposable implements IInlineEditsView {
 
@@ -45,11 +52,6 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 
 		this._editorObs = observableCodeEditor(this._editor);
 
-		/* const styles = derived(reader => ({
-			background: getEditorBlendedColor(modifiedChangedLineBackgroundColor, themeService).read(reader).toString(),
-			border: asCssVariable(getModifiedBorderColor(tabAction).read(reader)),
-		})); */
-
 		const styles = tabAction.map((v, reader) => {
 			let border;
 			switch (v) {
@@ -62,11 +64,6 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 				background: asCssVariable(editorBackground)
 			};
 		});
-
-		/* const styles = derived(reader => ({
-			background: asCssVariable(editorBackground),
-			border: asCssVariable(getModifiedBorderColor(tabAction).read(reader)),
-		})); */
 
 		const state = displayLocation.map(dl => dl ? this.getState(dl) : undefined);
 
@@ -97,6 +94,21 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 		}));
 	}
 
+	// TODO: this is very similar to side by side `fitsInsideViewport`, try to use the same function
+	private fitsInsideViewport(editor: ICodeEditor, range: LineRange, displayLabel: string, reader: IReader): boolean {
+		const editorObs = observableCodeEditor(editor);
+		const editorWidth = editorObs.layoutInfoWidth.read(reader);
+		const editorContentLeft = editorObs.layoutInfoContentLeft.read(reader);
+		const editorVerticalScrollbar = editor.getLayoutInfo().verticalScrollbarWidth;
+		const minimapWidth = editorObs.layoutInfoMinimap.read(reader).minimapLeft !== 0 ? editorObs.layoutInfoMinimap.read(reader).minimapWidth : 0;
+
+		const maxOriginalContent = maxContentWidthInRange(editorObs, range, undefined);
+		const maxModifiedContent = getContentRenderWidth(displayLabel, editor, editor.getModel()!);
+		const padding = PADDING_HORIZONALLY + MIN_END_OF_LINE_PADDING;
+
+		return maxOriginalContent + maxModifiedContent + padding < editorWidth - editorContentLeft - editorVerticalScrollbar - minimapWidth;
+	}
+
 	private getState(displayLocation: InlineCompletionDisplayLocation): { rect: IObservable<Rect>; label: string } {
 
 		const contentState = derived((reader) => {
@@ -121,13 +133,6 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 			};
 		});
 
-		const minEndOfLinePadding = 14;
-		const paddingVertically = 0;
-		const paddingHorizontally = 4;
-		const horizontalOffsetWhenAboveBelow = 4;
-		const verticalOffsetWhenAboveBelow = 2;
-		// !! minEndOfLinePadding should always be larger than paddingHorizontally + horizontalOffsetWhenAboveBelow
-
 		const rect = derived((reader) => {
 			const w = this._editorObs.getOption(EditorOption.fontInfo).read(reader).typicalHalfwidthCharacterWidth;
 
@@ -141,11 +146,11 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 			const scrollLeft = this._editorObs.scrollLeft.read(reader);
 
 			let position: 'end' | 'below' | 'above';
-			if (startLineNumber === endLineNumber && endContentLeftOffset + 5 * w >= lineWidth) {
+			if (startLineNumber === endLineNumber && endContentLeftOffset + 5 * w >= lineWidth && this.fitsInsideViewport(this._editor, new LineRange(startLineNumber, endLineNumber + 1), displayLocation.label, reader)) {
 				position = 'end'; // Render at the end of the line if the range ends almost at the end of the line
-			} else if (lineWidthBelow !== undefined && lineWidthBelow + minEndOfLinePadding - horizontalOffsetWhenAboveBelow - paddingHorizontally < startContentLeftOffset) {
+			} else if (lineWidthBelow !== undefined && lineWidthBelow + MIN_END_OF_LINE_PADDING - HORIZONTAL_OFFSET_WHEN_ABOVE_BELOW - PADDING_HORIZONALLY < startContentLeftOffset) {
 				position = 'below'; // Render Below if possible
-			} else if (lineWidthAbove !== undefined && lineWidthAbove + minEndOfLinePadding - horizontalOffsetWhenAboveBelow - paddingHorizontally < startContentLeftOffset) {
+			} else if (lineWidthAbove !== undefined && lineWidthAbove + MIN_END_OF_LINE_PADDING - HORIZONTAL_OFFSET_WHEN_ABOVE_BELOW - PADDING_HORIZONALLY < startContentLeftOffset) {
 				position = 'above'; // Render Above if possible
 			} else {
 				position = 'end'; // Render at the end of the line otherwise
@@ -160,21 +165,21 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 				case 'end': {
 					topOfLine = this._editorObs.editor.getTopForLineNumber(startLineNumber);
 					contentStartOffset = lineWidth;
-					deltaX = paddingHorizontally + minEndOfLinePadding;
+					deltaX = PADDING_HORIZONALLY + MIN_END_OF_LINE_PADDING;
 					break;
 				}
 				case 'below': {
 					topOfLine = this._editorObs.editor.getTopForLineNumber(startLineNumber + 1);
 					contentStartOffset = startContentLeftOffset;
-					deltaX = paddingHorizontally + horizontalOffsetWhenAboveBelow;
-					deltaY = paddingVertically + verticalOffsetWhenAboveBelow;
+					deltaX = PADDING_HORIZONALLY + HORIZONTAL_OFFSET_WHEN_ABOVE_BELOW;
+					deltaY = PADDING_VERTICALLY + VERTICAL_OFFSET_WHEN_ABOVE_BELOW;
 					break;
 				}
 				case 'above': {
 					topOfLine = this._editorObs.editor.getTopForLineNumber(startLineNumber - 1);
 					contentStartOffset = startContentLeftOffset;
-					deltaX = paddingHorizontally + horizontalOffsetWhenAboveBelow;
-					deltaY = -paddingVertically + verticalOffsetWhenAboveBelow;
+					deltaX = PADDING_HORIZONALLY + HORIZONTAL_OFFSET_WHEN_ABOVE_BELOW;
+					deltaY = -PADDING_VERTICALLY + VERTICAL_OFFSET_WHEN_ABOVE_BELOW;
 					break;
 				}
 			}
@@ -186,7 +191,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 				lineHeight
 			);
 
-			return textRect.withMargin(paddingVertically, paddingHorizontally).translateX(deltaX).translateY(deltaY);
+			return textRect.withMargin(PADDING_VERTICALLY, PADDING_HORIZONALLY).translateX(deltaX).translateY(deltaY);
 		});
 
 		return {
