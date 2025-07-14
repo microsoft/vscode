@@ -7,9 +7,12 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 
-const productjson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../product.json'), 'utf8'));
-const shasum = crypto.createHash('sha256');
+const ROOT = path.join(__dirname, '../../../');
 
+const shasum = crypto.createHash('sha256');
+shasum.update(fs.readFileSync(path.join(ROOT, 'build/.cachesalt')));
+
+const productjson = JSON.parse(fs.readFileSync(path.join(ROOT, 'product.json'), 'utf8'));
 for (const ext of productjson.builtInExtensions) {
 	shasum.update(`${ext.name}@${ext.version}`);
 }

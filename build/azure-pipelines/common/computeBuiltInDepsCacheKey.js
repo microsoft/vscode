@@ -10,8 +10,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const crypto_1 = __importDefault(require("crypto"));
-const productjson = JSON.parse(fs_1.default.readFileSync(path_1.default.join(__dirname, '../../../product.json'), 'utf8'));
+const ROOT = path_1.default.join(__dirname, '../../../');
 const shasum = crypto_1.default.createHash('sha256');
+shasum.update(fs_1.default.readFileSync(path_1.default.join(ROOT, 'build/.cachesalt')));
+const productjson = JSON.parse(fs_1.default.readFileSync(path_1.default.join(ROOT, 'product.json'), 'utf8'));
 for (const ext of productjson.builtInExtensions) {
     shasum.update(`${ext.name}@${ext.version}`);
 }
