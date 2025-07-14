@@ -378,7 +378,8 @@ export class ReverseLinesAction extends EditorAction {
 		}
 
 		const model: ITextModel = editor.getModel();
-		let selections = editor.getSelections();
+		const originalSelections = editor.getSelections();
+		let selections = originalSelections;
 		if (selections.length === 1 && selections[0].isEmpty()) {
 			// Apply to whole document.
 			selections = [new Selection(1, 1, model.getLineCount(), model.getLineMaxColumn(model.getLineCount()))];
@@ -387,7 +388,9 @@ export class ReverseLinesAction extends EditorAction {
 		const edits: ISingleEditOperation[] = [];
 		const resultingSelections: Selection[] = [];
 
-		for (const selection of selections) {
+		for (let i = 0; i < selections.length; i++) {
+			const selection = selections[i];
+			const originalSelection = originalSelections[i];
 			let endLineNumber = selection.endLineNumber;
 			if (selection.startLineNumber < selection.endLineNumber && selection.endColumn === 1) {
 				endLineNumber--;
@@ -411,15 +414,22 @@ export class ReverseLinesAction extends EditorAction {
 				return lineNumber <= range.endLineNumber ? range.endLineNumber - lineNumber + range.startLineNumber : lineNumber;
 			};
 			const updateSelection = function (sel: Selection): Selection {
-				if (sel.selectionStartLineNumber === sel.positionLineNumber) {
-					// keep selection
-					return new Selection(updateLineNumber(sel.selectionStartLineNumber), sel.selectionStartColumn, updateLineNumber(sel.positionLineNumber), sel.positionColumn);
-				} else {
+				if (sel.isEmpty()) {
 					// keep just the cursor
 					return new Selection(updateLineNumber(sel.positionLineNumber), sel.positionColumn, updateLineNumber(sel.positionLineNumber), sel.positionColumn);
+				} else {
+					// keep selection - maintain direction by creating backward selection
+					const newSelectionStart = updateLineNumber(sel.selectionStartLineNumber);
+					const newPosition = updateLineNumber(sel.positionLineNumber);
+					const newSelectionStartColumn = sel.selectionStartColumn;
+					const newPositionColumn = sel.positionColumn;
+
+					// Create selection: from (newSelectionStart, newSelectionStartColumn) to (newPosition, newPositionColumn)
+					// After reversal: from (3, 2) to (1, 3)
+					return new Selection(newSelectionStart, newSelectionStartColumn, newPosition, newPositionColumn);
 				}
 			};
-			resultingSelections.push(updateSelection(selection));
+			resultingSelections.push(updateSelection(originalSelection));
 		}
 
 		editor.pushUndoStop();

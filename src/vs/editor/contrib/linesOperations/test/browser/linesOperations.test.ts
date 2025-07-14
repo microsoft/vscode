@@ -720,10 +720,12 @@ suite('Editor Contrib - Line Operations', () => {
 					// After reversal, selection should be updated to maintain relative position
 					// Originally line 1 col 2 -> line 3 col 3, so after reversal should be line 3 col 2 -> line 1 col 3
 					const selection = editor.getSelection()!;
-					assert.strictEqual(selection.startLineNumber, 3);
-					assert.strictEqual(selection.startColumn, 2);
-					assert.strictEqual(selection.endLineNumber, 1);
-					assert.strictEqual(selection.endColumn, 3);
+					// The selection should cover the same logical text after reversal
+					// Range normalization ensures startLineNumber <= endLineNumber
+					assert.strictEqual(selection.startLineNumber, 1);
+					assert.strictEqual(selection.startColumn, 3);
+					assert.strictEqual(selection.endLineNumber, 3);
+					assert.strictEqual(selection.endColumn, 2);
 				});
 		});
 
