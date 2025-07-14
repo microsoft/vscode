@@ -154,7 +154,7 @@
     "copy-webpack-plugin": "^11.0.0",
     "css-loader": "^6.9.1",
     "debounce": "^1.0.0",
-    "deemon": "^1.13.4",
+    "deemon": "^1.13.5",
     "electron": "35.6.0",
     "eslint": "^9.11.1",
     "eslint-formatter-compact": "^8.40.0",
@@ -216,7 +216,8 @@
     "webpack-cli": "^5.1.4",
     "webpack-stream": "^7.0.0",
     "xml2js": "^0.5.0",
-    "yaserver": "^0.4.0"
+    "yaserver": "^0.4.0",
+    "zx": "^8.7.0"
   },
   "overrides": {
     "node-gyp-build": "4.8.1",

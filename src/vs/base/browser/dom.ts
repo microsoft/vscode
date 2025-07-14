@@ -1589,6 +1589,35 @@ export function triggerUpload(): Promise<FileList | undefined> {
 	});
 }
 
+export interface INotification extends IDisposable {
+	readonly onClick: event.Event<void>;
+}
+
+export async function triggerNotification(message: string, options?: { detail?: string; sticky?: boolean }): Promise<INotification | undefined> {
+	const permission = await Notification.requestPermission();
+	if (permission !== 'granted') {
+		return;
+	}
+
+	const disposables = new DisposableStore();
+
+	const notification = new Notification(message, {
+		body: options?.detail,
+		requireInteraction: options?.sticky
+	});
+
+	const onClick = new event.Emitter<void>();
+	disposables.add(addDisposableListener(notification, 'click', () => onClick.fire()));
+	disposables.add(addDisposableListener(notification, 'close', () => disposables.dispose()));
+
+	disposables.add(toDisposable(() => notification.close()));
+
+	return {
+		onClick: onClick.event,
+		dispose: () => disposables.dispose()
+	};
+}
+
 export enum DetectedFullscreenMode {
 
 	/**
@@ -1867,32 +1896,6 @@ export function safeInnerHtml(node: HTMLElement, value: string, extraDomPurifyCo
 	} finally {
 		hook.dispose();
 	}
-}
-
-/**
- * Convert a Unicode string to a string in which each 16-bit unit occupies only one byte
- *
- * From https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/btoa
- */
-function toBinary(str: string): string {
-	const codeUnits = new Uint16Array(str.length);
-	for (let i = 0; i < codeUnits.length; i++) {
-		codeUnits[i] = str.charCodeAt(i);
-	}
-	let binary = '';
-	const uint8array = new Uint8Array(codeUnits.buffer);
-	for (let i = 0; i < uint8array.length; i++) {
-		binary += String.fromCharCode(uint8array[i]);
-	}
-	return binary;
-}
-
-/**
- * Version of the global `btoa` function that handles multi-byte characters instead
- * of throwing an exception.
- */
-export function multibyteAwareBtoa(str: string): string {
-	return btoa(toBinary(str));
 }
 
 type ModifierKey = 'alt' | 'ctrl' | 'shift' | 'meta';

@@ -191,7 +191,7 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 
 		const edit = reshapeInlineCompletion(new StringReplacement(transformer.getOffsetRange(data.range), insertText), textModel);
 		const trimmedEdit = edit.removeCommonSuffixAndPrefix(textModel.getValue());
-		const textEdit = transformer.getSingleTextEdit(edit);
+		const textEdit = transformer.getTextReplacement(edit);
 
 		const displayLocation = data.displayLocation ? InlineSuggestDisplayLocation.create(data.displayLocation) : undefined;
 
@@ -242,7 +242,7 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 		}
 		const newEdit = new StringReplacement(newEditRange[0], this._textEdit.text);
 		const positionOffsetTransformer = getPositionOffsetTransformerFromTextModel(textModel);
-		const newTextEdit = positionOffsetTransformer.getSingleTextEdit(newEdit);
+		const newTextEdit = positionOffsetTransformer.getTextReplacement(newEdit);
 
 		let newDisplayLocation = this.displayLocation;
 		if (newDisplayLocation) {
