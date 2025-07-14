@@ -135,9 +135,10 @@ function buildDebPackage(arch) {
 
 /**
  * @param {string} rpmArch
+ * @param {string} elVersion
  */
-function getRpmBuildPath(rpmArch) {
-	return '.build/linux/rpm/' + rpmArch + '/rpmbuild';
+function getRpmBuildPath(rpmArch, elVersion) {
+	return `.build/linux/rpm-${elVersion}/${rpmArch}/rpmbuild`;
 }
 
 /**
@@ -150,7 +151,7 @@ function getRpmPackageArch(arch) {
 /**
  * @param {string} arch
  */
-function prepareRpmPackage(arch) {
+function prepareRpmPackage(arch, elVersion) {
 	const binaryDir = '../VSCode-linux-' + arch;
 	const rpmArch = getRpmPackageArch(arch);
 	const stripBinary = process.env['STRIP'] ?? '/usr/bin/strip';
@@ -203,6 +204,7 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@ICON@@', product.linuxIconName))
 			.pipe(replace('@@VERSION@@', packageJson.version))
 			.pipe(replace('@@RELEASE@@', linuxPackageRevision))
+			.pipe(replace('el8', elVersion))
 			.pipe(replace('@@ARCHITECTURE@@', rpmArch))
 			.pipe(replace('@@LICENSE@@', product.licenseName))
 			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
@@ -216,18 +218,19 @@ function prepareRpmPackage(arch) {
 
 		const all = es.merge(code, desktops, appdata, workspaceMime, icon, bash_completion, zsh_completion, spec, specIcon);
 
-		return all.pipe(vfs.dest(getRpmBuildPath(rpmArch)));
+		return all.pipe(vfs.dest(getRpmBuildPath(rpmArch, elVersion)));
 	};
 }
 
 /**
  * @param {string} arch
+ * @param {string} elVersion
  */
-function buildRpmPackage(arch) {
+function buildRpmPackage(arch, elVersion) {
 	const rpmArch = getRpmPackageArch(arch);
-	const rpmBuildPath = getRpmBuildPath(rpmArch);
+	const rpmBuildPath = getRpmBuildPath(rpmArch, elVersion);
 	const rpmOut = `${rpmBuildPath}/RPMS/${rpmArch}`;
-	const destination = `.build/linux/rpm/${rpmArch}`;
+	const destination = `.build/linux/rpm-${elVersion}/${rpmArch}`;
 
 	return async () => {
 		await exec(`mkdir -p ${destination}`);
@@ -312,10 +315,15 @@ BUILD_TARGETS.forEach(({ arch }) => {
 	gulp.task(buildDebTask);
 
 	const rpmArch = getRpmPackageArch(arch);
-	const prepareRpmTask = task.define(`vscode-linux-${arch}-prepare-rpm`, task.series(rimraf(`.build/linux/rpm/${rpmArch}`), prepareRpmPackage(arch)));
+	const prepareRpmTask = task.define(`vscode-linux-${arch}-prepare-rpm`, task.series(rimraf(`.build/linux/rpm/${rpmArch}`), prepareRpmPackage(arch, 'el8')));
 	gulp.task(prepareRpmTask);
-	const buildRpmTask = task.define(`vscode-linux-${arch}-build-rpm`, buildRpmPackage(arch));
+	const buildRpmTask = task.define(`vscode-linux-${arch}-build-rpm`, buildRpmPackage(arch, 'el8'));
 	gulp.task(buildRpmTask);
+
+	const prepareRpmEl10Task = task.define(`vscode-linux-${arch}-prepare-rpm-el10`, task.series(rimraf(`.build/linux/rpm-el10/${rpmArch}`), prepareRpmPackage(arch, 'el10')));
+	gulp.task(prepareRpmEl10Task);
+	const buildRpmEl10Task = task.define(`vscode-linux-${arch}-build-rpm-el10`, buildRpmPackage(arch, 'el10'));
+	gulp.task(buildRpmEl10Task);
 
 	const prepareSnapTask = task.define(`vscode-linux-${arch}-prepare-snap`, task.series(rimraf(`.build/linux/snap/${arch}`), prepareSnapPackage(arch)));
 	gulp.task(prepareSnapTask);

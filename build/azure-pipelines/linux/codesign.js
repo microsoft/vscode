@@ -15,7 +15,7 @@ async function main() {
     const codesignTask2 = (0, codesign_1.spawnCodesignProcess)(esrpCliDLLPath, 'sign-pgp', '.build/linux/rpm', '*.rpm');
     // Additional codesign processes with the newer key
     const codesignTask3 = (0, codesign_1.spawnCodesignProcess)(esrpCliDLLPath, 'sign-pgp-500207', '.build/linux/deb-500207', '*.deb');
-    const codesignTask4 = (0, codesign_1.spawnCodesignProcess)(esrpCliDLLPath, 'sign-pgp-500207', '.build/linux/rpm-500207', '*.rpm');
+    const codesignTask4 = (0, codesign_1.spawnCodesignProcess)(esrpCliDLLPath, 'sign-pgp-500207', '.build/linux/rpm-el10', '*.rpm');
     // Codesign deb package
     (0, codesign_1.printBanner)('Codesign deb package');
     await (0, codesign_1.streamProcessOutputAndCheckResult)('Codesign deb package', codesignTask1);

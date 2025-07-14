@@ -302,18 +302,19 @@ steps:
         export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots/glibc-2.28-gcc-10.5.0
         export STRIP="$VSCODE_SYSROOT_DIR/$TRIPLE/$TRIPLE/bin/strip"
         npm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-rpm"
+        npm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-rpm-el10"
       env:
         VSCODE_ARCH: $(VSCODE_ARCH)
-      displayName: Prepare rpm package
+      displayName: Prepare rpm packages
 
-    - script:  |
+    - script: |
         set -e
         npm run gulp "vscode-linux-$(VSCODE_ARCH)-build-rpm"
         echo "##vso[task.setvariable variable=RPM_PATH]$(ls .build/linux/rpm/*/*.rpm)"
 
-        cp -r .build/linux/rpm .build/linux/rpm-500207
-        echo "##vso[task.setvariable variable=RPM_500207_PATH]$(ls .build/linux/rpm-500207/*/*.rpm)"
-      displayName: Build rpm package
+        npm run gulp "vscode-linux-$(VSCODE_ARCH)-build-rpm-el10"
+        echo "##vso[task.setvariable variable=RPM_500207_PATH]$(ls .build/linux/rpm-el10/*/*.rpm)"
+      displayName: Build rpm packages
 
     - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
       - task: Docker@1
