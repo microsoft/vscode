@@ -3,21 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize2 } from '../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr, ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
-import { CHAT_CATEGORY } from './chatActions.js';
-import { ChatViewId, IChatWidgetService } from '../chat.js';
-import { ChatEditor, IChatEditorOptions } from '../chatEditor.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
-import { ChatViewPane } from '../chatViewPane.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ViewContainerLocation } from '../../../../common/views.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatAgentLocation } from '../../common/constants.js';
+import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { ChatEditor, IChatEditorOptions } from '../chatEditor.js';
+import { ChatEditorInput } from '../chatEditorInput.js';
+import { ChatViewPane } from '../chatViewPane.js';
+import { CHAT_CATEGORY } from './chatActions.js';
 
 enum MoveToNewLocation {
 	Editor = 'Editor',
@@ -28,7 +32,7 @@ export function registerMoveActions() {
 	registerAction2(class GlobalMoveToEditorAction extends Action2 {
 		constructor() {
 			super({
-				id: `workbench.action.chat.openInEditor`,
+				id: 'workbench.action.chat.openInEditor',
 				title: localize2('chat.openInEditor.label', "Open Chat in Editor"),
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
@@ -51,7 +55,7 @@ export function registerMoveActions() {
 	registerAction2(class GlobalMoveToNewWindowAction extends Action2 {
 		constructor() {
 			super({
-				id: `workbench.action.chat.openInNewWindow`,
+				id: 'workbench.action.chat.openInNewWindow',
 				title: localize2('chat.openInNewWindow.label', "Open Chat in New Window"),
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
@@ -74,22 +78,35 @@ export function registerMoveActions() {
 	registerAction2(class GlobalMoveToSidebarAction extends Action2 {
 		constructor() {
 			super({
-				id: `workbench.action.chat.openInSidebar`,
+				id: 'workbench.action.chat.openInSidebar',
 				title: localize2('interactiveSession.openInSidebar.label', "Open Chat in Side Bar"),
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
-				f1: true,
-				menu: [{
-					id: MenuId.EditorTitle,
-					order: 0,
-					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
-				}]
+				f1: true
 			});
 		}
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			return moveToSidebar(accessor);
 		}
+	});
+
+	function appendOpenChatInViewMenuItem(menuId: MenuId, title: string, icon: ThemeIcon, locationContextKey: ContextKeyExpression) {
+		MenuRegistry.appendMenuItem(menuId, {
+			command: { id: 'workbench.action.chat.openInSidebar', title, icon },
+			when: ContextKeyExpr.and(
+				ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
+				locationContextKey
+			),
+			group: menuId === MenuId.CompactWindowEditorTitle ? 'navigation' : undefined,
+			order: 0
+		});
+	}
+
+	[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].forEach(id => {
+		appendOpenChatInViewMenuItem(id, localize('interactiveSession.openInSecondarySidebar.label', "Open Chat in Secondary Side Bar"), Codicon.layoutSidebarRightDock, ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.AuxiliaryBar));
+		appendOpenChatInViewMenuItem(id, localize('interactiveSession.openInPrimarySidebar.label', "Open Chat in Primary Side Bar"), Codicon.layoutSidebarLeftDock, ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.Sidebar));
+		appendOpenChatInViewMenuItem(id, localize('interactiveSession.openInPanel.label', "Open Chat in Panel"), Codicon.layoutPanelDock, ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.Panel));
 	});
 }
 
@@ -99,21 +116,18 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 
 	const widget = (_sessionId ? widgetService.getWidgetBySessionId(_sessionId) : undefined)
 		?? widgetService.lastFocusedWidget;
-	if (!widget || !('viewId' in widget.viewContext)) {
-		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
+	if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Panel) {
+		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 		return;
 	}
 
-	const viewModel = widget.viewModel;
-	if (!viewModel) {
-		return;
-	}
-
-	const sessionId = viewModel.sessionId;
+	const sessionId = widget.viewModel.sessionId;
 	const viewState = widget.getViewState();
-	widget.clear();
 
-	const options: IChatEditorOptions = { target: { sessionId }, pinned: true, viewState: viewState };
+	widget.clear();
+	await widget.waitForReady();
+
+	const options: IChatEditorOptions = { target: { sessionId }, pinned: true, viewState, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } };
 	await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 }
 
@@ -128,7 +142,7 @@ async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {
 	if (chatEditor instanceof ChatEditor && chatEditorInput instanceof ChatEditorInput && chatEditorInput.sessionId) {
 		await editorService.closeEditor({ editor: chatEditor.input, groupId: editorGroupService.activeGroup.id });
 		view = await viewsService.openView(ChatViewId) as ChatViewPane;
-		view.loadSession(chatEditorInput.sessionId, chatEditor.getViewState());
+		await view.loadSession(chatEditorInput.sessionId, chatEditor.getViewState());
 	} else {
 		view = await viewsService.openView(ChatViewId) as ChatViewPane;
 	}

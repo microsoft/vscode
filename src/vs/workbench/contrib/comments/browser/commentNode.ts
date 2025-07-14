@@ -7,10 +7,10 @@ import * as nls from '../../../../nls.js';
 import * as dom from '../../../../base/browser/dom.js';
 import * as languages from '../../../../editor/common/languages.js';
 import { ActionsOrientation, ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { Action, IActionRunner, IAction, Separator, ActionRunner } from '../../../../base/common/actions.js';
-import { Disposable, IDisposable, IReference, dispose } from '../../../../base/common/lifecycle.js';
+import { Action, IAction, Separator, ActionRunner } from '../../../../base/common/actions.js';
+import { Disposable, DisposableStore, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
-import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRenderResult, MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICommentService } from './commentService.js';
 import { LayoutableEditor, MIN_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from './simpleCommentEditor.js';
@@ -44,7 +44,6 @@ import { CommentContextKeys } from '../common/commentContextKeys.js';
 import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { COMMENTS_SECTION, ICommentsConfiguration } from '../common/commentsConfiguration.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
-import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { MarshalledCommentThread } from '../../../common/comments.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -61,18 +60,18 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _domNode: HTMLElement;
 	private _body: HTMLElement;
 	private _avatar: HTMLElement;
-	private _md: HTMLElement | undefined;
+	private readonly _md: MutableDisposable<IMarkdownRenderResult> = this._register(new MutableDisposable());
 	private _plainText: HTMLElement | undefined;
-	private _clearTimeout: any;
+	private _clearTimeout: Timeout | null;
 
 	private _editAction: Action | null = null;
 	private _commentEditContainer: HTMLElement | null = null;
 	private _commentDetailsContainer: HTMLElement;
 	private _actionsToolbarContainer!: HTMLElement;
-	private _reactionsActionBar?: ActionBar;
+	private readonly _reactionsActionBar: MutableDisposable<ActionBar> = this._register(new MutableDisposable());
+	private readonly _reactionActions: DisposableStore = this._register(new DisposableStore());
 	private _reactionActionsContainer?: HTMLElement;
 	private _commentEditor: SimpleCommentEditor | null = null;
-	private _commentEditorDisposables: IDisposable[] = [];
 	private _commentEditorModel: IReference<IResolvedTextEditorModel> | null = null;
 	private _editorHeight = MIN_EDITOR_HEIGHT;
 
@@ -86,8 +85,8 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _scrollable!: Scrollable;
 	private _scrollableElement!: SmoothScrollableElement;
 
-	protected actionRunner?: IActionRunner;
-	protected toolbar: ToolBar | undefined;
+	private readonly _actionRunner: CommentsActionRunner = this._register(new CommentsActionRunner());
+	private readonly toolbar: MutableDisposable<ToolBar> = this._register(new MutableDisposable());
 	private _commentFormActions: CommentFormActions | null = null;
 	private _commentEditorActions: CommentFormActions | null = null;
 
@@ -115,7 +114,6 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IHoverService private hoverService: IHoverService,
-		@IAccessibilityService private accessibilityService: IAccessibilityService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 	) {
@@ -159,9 +157,6 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		if (pendingEdit) {
 			this.switchToEditMode();
 		}
-		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
-			this.toggleToolbarHidden(true);
-		}));
 
 		this.activeCommentListeners();
 	}
@@ -173,11 +168,11 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	private createScroll(container: HTMLElement, body: HTMLElement) {
-		this._scrollable = new Scrollable({
+		this._scrollable = this._register(new Scrollable({
 			forceIntegerValues: true,
 			smoothScrollDuration: 125,
 			scheduleAtNextAnimationFrame: cb => dom.scheduleAtNextAnimationFrame(dom.getWindow(container), cb)
-		});
+		}));
 		this._scrollableElement = this._register(new SmoothScrollableElement(body, {
 			horizontal: ScrollbarVisibility.Visible,
 			vertical: ScrollbarVisibility.Visible
@@ -208,21 +203,21 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 	private updateCommentBody(body: string | IMarkdownString) {
 		this._body.innerText = '';
-		this._md = undefined;
+		this._md.clear();
 		this._plainText = undefined;
 		if (typeof body === 'string') {
 			this._plainText = dom.append(this._body, dom.$('.comment-body-plainstring'));
 			this._plainText.innerText = body;
 		} else {
-			this._md = this.markdownRenderer.render(body).element;
-			this._body.appendChild(this._md);
+			this._md.value = this.markdownRenderer.render(body);
+			this._body.appendChild(this._md.value.element);
 		}
 	}
 
 	private updateCommentUserIcon(userIconPath: UriComponents | undefined) {
 		this._avatar.textContent = '';
 		if (userIconPath) {
-			const img = <HTMLImageElement>dom.append(this._avatar, dom.$('img.avatar'));
+			const img = dom.append(this._avatar, dom.$('img.avatar')) as HTMLImageElement;
 			img.src = FileAccess.uriToBrowserUri(URI.revive(userIconPath)).toString(true);
 			img.onerror = _ => img.remove();
 		}
@@ -270,16 +265,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		}
 
 		this._actionsToolbarContainer = dom.append(header, dom.$('.comment-actions'));
-		this.toggleToolbarHidden(true);
 		this.createActionsToolbar();
-	}
-
-	private toggleToolbarHidden(hidden: boolean) {
-		if (hidden && !this.accessibilityService.isScreenReaderOptimized()) {
-			this._actionsToolbarContainer.classList.add('hidden');
-		} else {
-			this._actionsToolbarContainer.classList.remove('hidden');
-		}
 	}
 
 	private getToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
@@ -305,7 +291,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	private createToolbar() {
-		this.toolbar = new ToolBar(this._actionsToolbarContainer, this.contextMenuService, {
+		this.toolbar.value = new ToolBar(this._actionsToolbarContainer, this.contextMenuService, {
 			actionViewItemProvider: (action, options) => {
 				if (action.id === ToggleReactionsAction.ID) {
 					return new DropdownMenuActionViewItem(
@@ -315,7 +301,6 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 						{
 							...options,
 							actionViewItemProvider: (action, options) => this.actionViewItemProvider(action as Action, options),
-							actionRunner: this.actionRunner,
 							classNames: ['toolbar-toggle-pickReactions', ...ThemeIcon.asClassNameArray(Codicon.reactions)],
 							anchorAlignmentProvider: () => AnchorAlignment.RIGHT
 						}
@@ -326,21 +311,12 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			orientation: ActionsOrientation.HORIZONTAL
 		});
 
-		this.toolbar.context = this.commentNodeContext;
-		this.toolbar.actionRunner = new CommentsActionRunner();
-
-		this.registerActionBarListeners(this._actionsToolbarContainer);
-		this._register(this.toolbar);
+		this.toolbar.value.context = this.commentNodeContext;
+		this.toolbar.value.actionRunner = this._actionRunner;
 	}
 
 	private createActionsToolbar() {
 		const actions: IAction[] = [];
-
-		const hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
-		const toggleReactionAction = hasReactionHandler ? this.createReactionPicker(this.comment.commentReactions || []) : undefined;
-		if (toggleReactionAction) {
-			actions.push(toggleReactionAction);
-		}
 
 		const menu = this._commentMenus.getCommentTitleActions(this.comment, this._contextKeyService);
 		this._register(menu);
@@ -349,10 +325,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			if (!this.toolbar && (primary.length || secondary.length)) {
 				this.createToolbar();
 			}
-			if (toggleReactionAction) {
-				primary.unshift(toggleReactionAction);
-			}
-			this.toolbar!.setActions(primary, secondary);
+			this.toolbar.value!.setActions(primary, secondary);
 		}));
 
 		const { primary, secondary } = this.getToolbarActions(menu);
@@ -360,7 +333,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		if (actions.length || secondary.length) {
 			this.createToolbar();
-			this.toolbar!.setActions(actions, secondary);
+			this.toolbar.value!.setActions(actions, secondary);
 		}
 	}
 
@@ -392,14 +365,14 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	private createReactionPicker(reactionGroup: languages.CommentReaction[]): ToggleReactionsAction {
-		const toggleReactionAction = this._register(new ToggleReactionsAction(() => {
+		const toggleReactionAction = this._reactionActions.add(new ToggleReactionsAction(() => {
 			toggleReactionActionViewItem?.show();
 		}, nls.localize('commentToggleReaction', "Toggle Reaction")));
 
 		let reactionMenuActions: Action[] = [];
 		if (reactionGroup && reactionGroup.length) {
 			reactionMenuActions = reactionGroup.map((reaction) => {
-				return new Action(`reaction.command.${reaction.label}`, `${reaction.label}`, '', true, async () => {
+				return this._reactionActions.add(new Action(`reaction.command.${reaction.label}`, `${reaction.label}`, '', true, async () => {
 					try {
 						await this.commentService.toggleReaction(this.owner, this.resource, this.commentThread, this.comment, reaction);
 					} catch (e) {
@@ -408,13 +381,13 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 							: nls.localize('commentToggleReactionDefaultError', "Toggling the comment reaction failed");
 						this.notificationService.error(error);
 					}
-				});
+				}));
 			});
 		}
 
 		toggleReactionAction.menuActions = reactionMenuActions;
 
-		const toggleReactionActionViewItem: DropdownMenuActionViewItem = new DropdownMenuActionViewItem(
+		const toggleReactionActionViewItem: DropdownMenuActionViewItem = this._reactionActions.add(new DropdownMenuActionViewItem(
 			toggleReactionAction,
 			(<ToggleReactionsAction>toggleReactionAction).menuActions,
 			this.contextMenuService,
@@ -425,18 +398,21 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 					}
 					return this.actionViewItemProvider(action as Action, options);
 				},
-				actionRunner: this.actionRunner,
 				classNames: 'toolbar-toggle-pickReactions',
 				anchorAlignmentProvider: () => AnchorAlignment.RIGHT
 			}
-		);
+		));
 
 		return toggleReactionAction;
 	}
 
 	private createReactionsContainer(commentDetailsContainer: HTMLElement): void {
+		this._reactionActionsContainer?.remove();
+		this._reactionsActionBar.clear();
+		this._reactionActions.clear();
+
 		this._reactionActionsContainer = dom.append(commentDetailsContainer, dom.$('div.comment-reactions'));
-		this._reactionsActionBar = new ActionBar(this._reactionActionsContainer, {
+		this._reactionsActionBar.value = new ActionBar(this._reactionActionsContainer, {
 			actionViewItemProvider: (action, options) => {
 				if (action.id === ToggleReactionsAction.ID) {
 					return new DropdownMenuActionViewItem(
@@ -445,7 +421,6 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 						this.contextMenuService,
 						{
 							actionViewItemProvider: (action, options) => this.actionViewItemProvider(action as Action, options),
-							actionRunner: this.actionRunner,
 							classNames: ['toolbar-toggle-pickReactions', ...ThemeIcon.asClassNameArray(Codicon.reactions)],
 							anchorAlignmentProvider: () => AnchorAlignment.RIGHT
 						}
@@ -454,11 +429,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 				return this.actionViewItemProvider(action as Action, options);
 			}
 		});
-		this._register(this._reactionsActionBar);
 
 		const hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
-		this.comment.commentReactions!.filter(reaction => !!reaction.count).map(reaction => {
-			const action = new ReactionAction(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted && (reaction.canEdit || hasReactionHandler) ? 'active' : '', (reaction.canEdit || hasReactionHandler), async () => {
+		this.comment.commentReactions?.filter(reaction => !!reaction.count).map(reaction => {
+			const action = this._reactionActions.add(new ReactionAction(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted && (reaction.canEdit || hasReactionHandler) ? 'active' : '', (reaction.canEdit || hasReactionHandler), async () => {
 				try {
 					await this.commentService.toggleReaction(this.owner, this.resource, this.commentThread, this.comment, reaction);
 				} catch (e) {
@@ -475,14 +449,14 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 					}
 					this.notificationService.error(error);
 				}
-			}, reaction.reactors, reaction.iconPath, reaction.count);
+			}, reaction.reactors, reaction.iconPath, reaction.count));
 
-			this._reactionsActionBar?.push(action, { label: true, icon: true });
+			this._reactionsActionBar.value?.push(action, { label: true, icon: true });
 		});
 
 		if (hasReactionHandler) {
 			const toggleReactionAction = this.createReactionPicker(this.comment.commentReactions || []);
-			this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
+			this._reactionsActionBar.value?.push(toggleReactionAction, { label: false, icon: true });
 		}
 	}
 
@@ -491,8 +465,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	private async createCommentEditor(editContainer: HTMLElement): Promise<void> {
+		this._editModeDisposables.clear();
 		const container = dom.append(editContainer, dom.$('.edit-textarea'));
 		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions(this.configurationService), this._contextKeyService, this.parentThread);
+		this._editModeDisposables.add(this._commentEditor);
 
 		const resource = URI.from({
 			scheme: Schemas.commentsInput,
@@ -500,6 +476,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		});
 		const modelRef = await this.textModelService.createModelReference(resource);
 		this._commentEditorModel = modelRef;
+		this._editModeDisposables.add(this._commentEditorModel);
 
 		this._commentEditor.setModel(this._commentEditorModel.object.textEditorModel);
 		this._commentEditor.setValue(this.pendingEdit?.body ?? this.commentBodyValue);
@@ -527,7 +504,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this.commentService.setActiveEditingCommentThread(commentThread);
 		this.commentService.setActiveCommentAndThread(this.owner, { thread: commentThread, comment: this.comment });
 
-		this._commentEditorDisposables.push(this._commentEditor.onDidFocusEditorWidget(() => {
+		this._editModeDisposables.add(this._commentEditor.onDidFocusEditorWidget(() => {
 			commentThread.input = {
 				uri: this._commentEditor!.getModel()!.uri,
 				value: this.commentBodyValue
@@ -536,7 +513,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this.commentService.setActiveCommentAndThread(this.owner, { thread: commentThread, comment: this.comment });
 		}));
 
-		this._commentEditorDisposables.push(this._commentEditor.onDidChangeModelContent(e => {
+		this._editModeDisposables.add(this._commentEditor.onDidChangeModelContent(e => {
 			if (commentThread.input && this._commentEditor && this._commentEditor.getModel()!.uri === commentThread.input.uri) {
 				const newVal = this._commentEditor.getValue();
 				if (newVal !== commentThread.input.value) {
@@ -551,15 +528,13 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		this.calculateEditorHeight();
 
-		this._register((this._commentEditorModel.object.textEditorModel.onDidChangeContent(() => {
+		this._editModeDisposables.add((this._commentEditorModel.object.textEditorModel.onDidChangeContent(() => {
 			if (this._commentEditor && this.calculateEditorHeight()) {
 				this._commentEditor.layout({ height: this._editorHeight, width: this._commentEditor.getLayoutInfo().width });
 				this._commentEditor.render(true);
 			}
 		})));
 
-		this._register(this._commentEditor);
-		this._register(this._commentEditorModel);
 	}
 
 	private calculateEditorHeight(): boolean {
@@ -587,14 +562,8 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this._editAction.enabled = true;
 		}
 		this._body.classList.remove('hidden');
-
-		this._commentEditorModel?.dispose();
-
-		dispose(this._commentEditorDisposables);
-		this._commentEditorDisposables = [];
-		this._commentEditor?.dispose();
+		this._editModeDisposables.clear();
 		this._commentEditor = null;
-
 		this._commentEditContainer!.remove();
 	}
 
@@ -623,15 +592,15 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this.createCommentWidgetFormActions(otherActions);
 		const editorActions = dom.append(formActions, dom.$('.editor-actions'));
 		this.createCommentWidgetEditorActions(editorActions);
-
 	}
 
+	private readonly _editModeDisposables: DisposableStore = this._register(new DisposableStore());
 	private createCommentWidgetFormActions(container: HTMLElement) {
 		const menus = this.commentService.getCommentMenus(this.owner);
 		const menu = menus.getCommentActions(this.comment, this._contextKeyService);
 
-		this._register(menu);
-		this._register(menu.onDidChange(() => {
+		this._editModeDisposables.add(menu);
+		this._editModeDisposables.add(menu.onDidChange(() => {
 			this._commentFormActions?.setActions(menu);
 		}));
 
@@ -648,7 +617,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this.removeCommentEditor();
 		});
 
-		this._register(this._commentFormActions);
+		this._editModeDisposables.add(this._commentFormActions);
 		this._commentFormActions.setActions(menu);
 	}
 
@@ -656,9 +625,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		const menus = this.commentService.getCommentMenus(this.owner);
 		const menu = menus.getCommentEditorActions(this._contextKeyService);
 
-		this._register(menu);
-		this._register(menu.onDidChange(() => {
-			this._commentEditorActions?.setActions(menu);
+		this._editModeDisposables.add(menu);
+		this._editModeDisposables.add(menu.onDidChange(() => {
+			this._commentEditorActions?.setActions(menu, true);
 		}));
 
 		this._commentEditorActions = new CommentFormActions(this.keybindingService, this._contextKeyService, this.contextMenuService, container, (action: IAction): void => {
@@ -674,14 +643,13 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this._commentEditor?.focus();
 		});
 
-		this._register(this._commentEditorActions);
+		this._editModeDisposables.add(this._commentEditorActions);
 		this._commentEditorActions.setActions(menu, true);
 	}
 
 	setFocus(focused: boolean, visible: boolean = false) {
 		if (focused) {
 			this._domNode.focus();
-			this.toggleToolbarHidden(false);
 			this._actionsToolbarContainer.classList.add('tabfocused');
 			this._domNode.tabIndex = 0;
 			if (this.comment.mode === languages.CommentMode.Editing) {
@@ -689,24 +657,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			}
 		} else {
 			if (this._actionsToolbarContainer.classList.contains('tabfocused') && !this._actionsToolbarContainer.classList.contains('mouseover')) {
-				this.toggleToolbarHidden(true);
 				this._domNode.tabIndex = -1;
 			}
 			this._actionsToolbarContainer.classList.remove('tabfocused');
 		}
-	}
-
-	private registerActionBarListeners(actionsContainer: HTMLElement): void {
-		this._register(dom.addDisposableListener(this._domNode, 'mouseenter', () => {
-			this.toggleToolbarHidden(false);
-			actionsContainer.classList.add('mouseover');
-		}));
-		this._register(dom.addDisposableListener(this._domNode, 'mouseleave', () => {
-			if (actionsContainer.classList.contains('mouseover') && !actionsContainer.classList.contains('tabfocused')) {
-				this.toggleToolbarHidden(true);
-			}
-			actionsContainer.classList.remove('mouseover');
-		}));
 	}
 
 	async update(newComment: languages.Comment) {
@@ -738,10 +692,6 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		}
 
 		// update comment reactions
-		this._reactionActionsContainer?.remove();
-
-		this._reactionsActionBar?.clear();
-
 		this.createReactionsContainer(this._commentDetailsContainer);
 
 		if (this.comment.contextValue) {
@@ -755,16 +705,14 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		}
 	}
 
-
 	private onContextMenu(e: MouseEvent) {
 		const event = new StandardMouseEvent(dom.getWindow(this._domNode), e);
-
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => event,
 			menuId: MenuId.CommentThreadCommentContext,
 			menuActionOptions: { shouldForwardArgs: true },
 			contextKeyService: this._contextKeyService,
-			actionRunner: new CommentsActionRunner(),
+			actionRunner: this._actionRunner,
 			getActionsContext: () => {
 				return this.commentNodeContext;
 			},
@@ -783,7 +731,6 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 	override dispose(): void {
 		super.dispose();
-		dispose(this._commentEditorDisposables);
 	}
 }
 

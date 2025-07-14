@@ -63,6 +63,7 @@ class NotebookSelectionHighlighter extends Disposable implements INotebookEditor
 			this.anchorDisposables.clear();
 			this.anchorDisposables.add(this.anchorCell[1].onDidChangeCursorPosition((e) => {
 				if (e.reason !== CursorChangeReason.Explicit) {
+					this.clearNotebookSelectionDecorations();
 					return;
 				}
 

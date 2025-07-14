@@ -17,7 +17,19 @@
 	transition: background-color 0.15s ease-out;
 }
 
-.monaco-workbench .part.statusbar.status-border-top::after {
+.monaco-workbench.mac:not(.fullscreen) .part.statusbar:focus {
+	/* Rounded corners to make focus outline appear properly (unless fullscreen) */
+	border-bottom-right-radius: 5px;
+	border-bottom-left-radius: 5px;
+}
+.monaco-workbench.mac:not(.fullscreen).macos-bigsur-or-newer .part.statusbar:focus {
+	/* macOS Big Sur increased rounded corners size */
+	border-bottom-right-radius: 10px;
+	border-bottom-left-radius: 10px;
+}
+
+.monaco-workbench .part.statusbar:not(:focus).status-border-top::after {
+	/* Top border only visible unless focused to make room for focus outline */
 	content: '';
 	position: absolute;
 	top: 0;
@@ -73,32 +85,12 @@
 	border-right: 5px solid transparent;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item > .statusbar-item-label {
-	margin-right: 3px;
-	margin-left: 3px;
-}
-
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left > .statusbar-item-label {
-	margin-right: 3px;
-	margin-left: 0;
-}
-
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-right > .statusbar-item-label {
-	margin-right: 0;
-	margin-left: 3px;
-}
-
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left.compact-right > .statusbar-item-label {
-	margin-right:0;
-	margin-left: 0;
-}
-
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.left.first-visible-item {
 	padding-left: 7px; /* Add padding to the most left status bar item */
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.right.last-visible-item {
-	margin-right: 7px; /* Add margin to the most right status bar item */
+	margin-right: 7px; /* Add margin to the most right status bar item. Margin is used to position beak properly. */
 }
 
 /* Tweak appearance for items with background to improve hover feedback */
@@ -108,9 +100,40 @@
 	padding-left: 0;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-background-color > .statusbar-item-label {
-	margin-right: 0;
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item > .statusbar-item-label {
+	cursor: pointer;
+	display: flex;
+	height: 100%;
+	margin-right: 3px;
+	margin-left: 3px;
+	padding: 0 5px 0 5px;
+	white-space: pre; /* gives some degree of styling */
+	align-items: center;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	outline-width: 0px; /* do not render focus outline, we already have background */
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left > .statusbar-item-label {
 	margin-left: 0;
+	margin-right: 5px; /* +2px because padding is smaller and we want to preserve spacing between items */
+	padding: 0 3px;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-right > .statusbar-item-label {
+	margin-left: 5px; /* +2px because padding is smaller and we want to preserve spacing between items */
+	margin-right: 0;
+	padding: 0 3px;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left.compact-right > .statusbar-item-label {
+	margin-left: 0;
+	margin-right:0;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-background-color > .statusbar-item-label {
+	margin-left: 0;
+	margin-right: 0;
 	padding-left: 10px;
 	padding-right: 10px;
 }
@@ -123,26 +146,6 @@
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-right.has-background-color > .statusbar-item-label {
 	padding-left: 10px;
 	padding-right: 3px;
-}
-
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item > .statusbar-item-label {
-	cursor: pointer;
-	display: flex;
-	height: 100%;
-	padding: 0 5px 0 5px;
-	white-space: pre; /* gives some degree of styling */
-	align-items: center;
-	text-overflow: ellipsis;
-	overflow: hidden;
-	outline-width: 0px; /* do not render focus outline, we already have background */
-}
-
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left > .statusbar-item-label {
-	padding: 0 3px;
-}
-
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-right > .statusbar-item-label {
-	padding: 0 3px;
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item > a:hover:not(.disabled) {

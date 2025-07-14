@@ -5,7 +5,7 @@
 
 import './media/editorplaceholder.css';
 import { localize } from '../../../../nls.js';
-import { truncate, truncateMiddle } from '../../../../base/common/strings.js';
+import { truncate } from '../../../../base/common/strings.js';
 import Severity from '../../../../base/common/severity.js';
 import { IEditorOpenContext, isEditorOpenError } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -18,7 +18,7 @@ import { Dimension, size, clearNode, $, EventHelper } from '../../../../base/bro
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { assertAllDefined } from '../../../../base/common/types.js';
+import { assertReturnsAllDefined } from '../../../../base/common/types.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { EditorOpenSource, IEditorOptions } from '../../../../platform/editor/common/editor.js';
@@ -48,7 +48,7 @@ export interface IErrorEditorPlaceholderOptions extends IEditorOptions {
 
 export abstract class EditorPlaceholder extends EditorPane {
 
-	protected static readonly PLACEHOLDER_LABEL_MAX_LENGTH = 1024;
+	private static readonly PLACEHOLDER_LABEL_MAX_LENGTH = 1024;
 
 	private container: HTMLElement | undefined;
 	private scrollbar: DomScrollableElement | undefined;
@@ -67,10 +67,10 @@ export abstract class EditorPlaceholder extends EditorPane {
 	protected createEditor(parent: HTMLElement): void {
 
 		// Container
-		this.container = document.createElement('div');
-		this.container.className = 'monaco-editor-pane-placeholder';
+		this.container = $('.monaco-editor-pane-placeholder', {
+			tabIndex: 0 // enable focus support from the editor part (do not remove)
+		});
 		this.container.style.outline = 'none';
-		this.container.tabIndex = 0; // enable focus support from the editor part (do not remove)
 
 		// Custom Scrollbars
 		this.scrollbar = this._register(new DomScrollableElement(this.container, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto }));
@@ -90,7 +90,7 @@ export abstract class EditorPlaceholder extends EditorPane {
 	}
 
 	private async renderInput(input: EditorInput, options: IEditorOptions | undefined): Promise<IDisposable> {
-		const [container, scrollbar] = assertAllDefined(this.container, this.scrollbar);
+		const [container, scrollbar] = assertReturnsAllDefined(this.container, this.scrollbar);
 
 		// Reset any previous contents
 		clearNode(container);
@@ -107,7 +107,7 @@ export abstract class EditorPlaceholder extends EditorPane {
 
 		// Label
 		const labelContainer = container.appendChild($('.editor-placeholder-label-container'));
-		const labelWidget = document.createElement('span');
+		const labelWidget = $('span');
 		labelWidget.textContent = truncatedLabel;
 		labelContainer.appendChild(labelWidget);
 
@@ -155,7 +155,7 @@ export abstract class EditorPlaceholder extends EditorPane {
 	}
 
 	layout(dimension: Dimension): void {
-		const [container, scrollbar] = assertAllDefined(this.container, this.scrollbar);
+		const [container, scrollbar] = assertReturnsAllDefined(this.container, this.scrollbar);
 
 		// Pass on to Container
 		size(container, dimension.width, dimension.height);
@@ -248,7 +248,7 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 		} else if (isEditorOpenError(error) && error.forceMessage) {
 			label = error.message;
 		} else if (error) {
-			label = localize('unknownErrorEditorTextWithError', "The editor could not be opened due to an unexpected error: {0}", truncateMiddle(toErrorMessage(error), EditorPlaceholder.PLACEHOLDER_LABEL_MAX_LENGTH / 2));
+			label = localize('unknownErrorEditorTextWithError', "The editor could not be opened due to an unexpected error. Please consult the log for more details.");
 		} else {
 			label = localize('unknownErrorEditorTextWithoutError', "The editor could not be opened due to an unexpected error.");
 		}

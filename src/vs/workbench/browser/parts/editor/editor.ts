@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane, IEditorPartLimitOptions, IEditorPartDecorationOptions, IEditorWillOpenEvent } from '../../../common/editor.js';
+import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane, IEditorPartLimitOptions, IEditorPartDecorationOptions, IEditorWillOpenEvent, EditorInputWithOptions } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement, IAuxiliaryEditorPart, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
@@ -19,6 +19,7 @@ import { IWindowsConfiguration } from '../../../../platform/window/common/window
 import { BooleanVerifier, EnumVerifier, NumberVerifier, ObjectVerifier, SetVerifier, verifyObject } from '../../../../base/common/verifier.js';
 import { IAuxiliaryWindowOpenOptions } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { ContextKeyValue, IContextKey, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { coalesce } from '../../../../base/common/arrays.js';
 
 export interface IEditorPartCreationOptions {
 	readonly restorePreviousState: boolean;
@@ -298,6 +299,50 @@ export function fillActiveEditorViewState(group: IEditorGroup, expectedActiveEdi
 	}
 
 	return presetOptions || Object.create(null);
+}
+
+export function prepareMoveCopyEditors(sourceGroup: IEditorGroup, editors: EditorInput[], preserveFocus?: boolean): EditorInputWithOptions[] {
+	if (editors.length === 0) {
+		return [];
+	}
+
+	const editorsWithOptions: EditorInputWithOptions[] = [];
+
+	let activeEditor: EditorInput | undefined;
+	const inactiveEditors: EditorInput[] = [];
+	for (const editor of editors) {
+		if (!activeEditor && sourceGroup.isActive(editor)) {
+			activeEditor = editor;
+		} else {
+			inactiveEditors.push(editor);
+		}
+	}
+
+	if (!activeEditor) {
+		activeEditor = inactiveEditors.shift(); // just take the first editor as active if none is active
+	}
+
+	// ensure inactive editors are then sorted by inverse visual order
+	// so that we can preserve the order in the target group. we inverse
+	// because editors will open to the side of the active editor as
+	// inactive editors, and the active editor is always the reference
+	inactiveEditors.sort((a, b) => sourceGroup.getIndexOfEditor(b) - sourceGroup.getIndexOfEditor(a));
+
+	const sortedEditors = coalesce([activeEditor, ...inactiveEditors]);
+	for (let i = 0; i < sortedEditors.length; i++) {
+		const editor = sortedEditors[i];
+		editorsWithOptions.push({
+			editor,
+			options: {
+				pinned: true,
+				sticky: sourceGroup.isSticky(editor),
+				inactive: i > 0,
+				preserveFocus
+			}
+		});
+	}
+
+	return editorsWithOptions;
 }
 
 /**

@@ -90,11 +90,6 @@ export class ListService implements IListService {
 
 		return combinedDisposable(
 			widget.onDidFocus(() => this.setLastFocusedList(widget)),
-			widget.onDidBlur(() => {
-				if (this._lastFocusedWidget === widget) {
-					this.setLastFocusedList(undefined);
-				}
-			}),
 			toDisposable(() => this.lists.splice(this.lists.indexOf(registeredList), 1)),
 			widget.onDidDispose(() => {
 				this.lists = this.lists.filter(l => l !== registeredList);
@@ -651,13 +646,6 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 	}
 }
 
-export interface IOpenResourceOptions {
-	editorOptions: IEditorOptions;
-	sideBySide: boolean;
-	element: any;
-	payload: any;
-}
-
 export interface IOpenEvent<T> {
 	editorOptions: IEditorOptions;
 	sideBySide: boolean;
@@ -865,6 +853,7 @@ export interface IWorkbenchObjectTreeOptions<T, TFilterData> extends IObjectTree
 	readonly accessibilityProvider: IListAccessibilityProvider<T>;
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly selectionNavigation?: boolean;
+	readonly scrollToActiveElement?: boolean;
 }
 
 export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void> extends ObjectTree<T, TFilterData> {

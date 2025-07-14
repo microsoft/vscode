@@ -107,9 +107,9 @@ export const enum ExtensionHostStartup {
 	 */
 	EagerManualStart = 2,
 	/**
-	 * The extension host should be launched lazily and only when it has extensions it needs to host. It needs a `$startExtensionHost` call.
+	 * The extension host should be launched lazily and only when it has extensions it needs to host. It doesn't require a `$startExtensionHost` call.
 	 */
-	Lazy = 3,
+	LazyAutoStart = 3,
 }
 
 export interface IExtensionHost {
@@ -562,6 +562,7 @@ export function toExtension(extensionDescription: IExtensionDescription): IExten
 		validations: [],
 		isValid: true,
 		preRelease: extensionDescription.preRelease,
+		publisherDisplayName: extensionDescription.publisherDisplayName,
 	};
 }
 

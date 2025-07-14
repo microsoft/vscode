@@ -13,7 +13,7 @@ import { getParseErrorMessage } from '../../../../base/common/jsonErrorMessages.
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { isObject, isString } from '../../../../base/common/types.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IconDefinition, getIconRegistry, IconContribution, IconFontDefinition, IconFontSource, fontIdRegex, fontWeightRegex, fontStyleRegex, fontFormatRegex, fontCharacterRegex, fontCharacterErrorMessage } from '../../../../platform/theme/common/iconRegistry.js';
+import { IconDefinition, getIconRegistry, IconContribution, IconFontDefinition, IconFontSource, fontIdRegex, fontWeightRegex, fontStyleRegex, fontFormatRegex } from '../../../../platform/theme/common/iconRegistry.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 
@@ -244,7 +244,7 @@ function _loadProductIconThemeDocument(fileService: IExtensionResourceLoaderServ
 
 		for (const iconId in contentValue.iconDefinitions) {
 			const definition = contentValue.iconDefinitions[iconId];
-			if (isString(definition.fontCharacter) && definition.fontCharacter.match(fontCharacterRegex)) {
+			if (isString(definition.fontCharacter)) {
 				const fontId = definition.fontId ?? primaryFontId;
 				const fontDefinition = sanitizedFonts.get(fontId);
 				if (fontDefinition) {
@@ -255,7 +255,7 @@ function _loadProductIconThemeDocument(fileService: IExtensionResourceLoaderServ
 					warnings.push(nls.localize('error.icon.font', 'Skipping icon definition \'{0}\'. Unknown font.', iconId));
 				}
 			} else {
-				warnings.push(nls.localize('error.icon.fontCharacter', 'Skipping icon definition \'{0}\': {1}', iconId, fontCharacterErrorMessage));
+				warnings.push(nls.localize('error.icon.fontCharacter', 'Skipping icon definition \'{0}\': Needs to be defined', iconId));
 			}
 		}
 		return { iconDefinitions };

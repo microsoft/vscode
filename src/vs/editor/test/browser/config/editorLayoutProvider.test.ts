@@ -51,7 +51,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 		options._write(EditorOption.padding, { top: 0, bottom: 0 });
 		const minimapOptions: EditorMinimapOptions = {
 			enabled: input.minimap,
-			autohide: false,
+			autohide: 'none',
 			size: input.minimapSize || 'proportional',
 			side: input.minimapSide,
 			renderCharacters: input.minimapRenderCharacters,
@@ -62,6 +62,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			showMarkSectionHeaders: true,
 			sectionHeaderFontSize: 9,
 			sectionHeaderLetterSpacing: 1,
+			markSectionHeaderRegex: '\\bMARK:\\s*(?<separator>\-?)\\s*(?<label>.*)$',
 		};
 		options._write(EditorOption.minimap, minimapOptions);
 		const scrollbarOptions: InternalEditorScrollbarOptions = {

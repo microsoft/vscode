@@ -161,11 +161,22 @@ export class LanguageConfigurationFileHandler extends Disposable {
 
 		let result: CommentRule | undefined = undefined;
 		if (typeof source.lineComment !== 'undefined') {
-			if (typeof source.lineComment !== 'string') {
-				console.warn(`[${languageId}]: language configuration: expected \`comments.lineComment\` to be a string.`);
-			} else {
+			if (typeof source.lineComment === 'string') {
 				result = result || {};
 				result.lineComment = source.lineComment;
+			} else if (types.isObject(source.lineComment)) {
+				const lineCommentObj = source.lineComment as any;
+				if (typeof lineCommentObj.comment === 'string') {
+					result = result || {};
+					result.lineComment = {
+						comment: lineCommentObj.comment,
+						noIndent: lineCommentObj.noIndent
+					};
+				} else {
+					console.warn(`[${languageId}]: language configuration: expected \`comments.lineComment.comment\` to be a string.`);
+				}
+			} else {
+				console.warn(`[${languageId}]: language configuration: expected \`comments.lineComment\` to be a string or an object with comment property.`);
 			}
 		}
 		if (typeof source.blockComment !== 'undefined') {
@@ -519,7 +530,7 @@ const schema: IJSONSchema = {
 		comments: {
 			default: {
 				blockComment: ['/*', '*/'],
-				lineComment: '//'
+				lineComment: { comment: '//', noIndent: false }
 			},
 			description: nls.localize('schema.comments', 'Defines the comment symbols'),
 			type: 'object',
@@ -536,8 +547,21 @@ const schema: IJSONSchema = {
 					}]
 				},
 				lineComment: {
-					type: 'string',
-					description: nls.localize('schema.lineComment', 'The character sequence that starts a line comment.')
+					type: 'object',
+					description: nls.localize('schema.lineComment.object', 'Configuration for line comments.'),
+					properties: {
+						comment: {
+							type: 'string',
+							description: nls.localize('schema.lineComment.comment', 'The character sequence that starts a line comment.')
+						},
+						noIndent: {
+							type: 'boolean',
+							description: nls.localize('schema.lineComment.noIndent', 'Whether the comment token should not be indented and placed at the first column. Defaults to false.'),
+							default: false
+						}
+					},
+					required: ['comment'],
+					additionalProperties: false
 				}
 			}
 		},

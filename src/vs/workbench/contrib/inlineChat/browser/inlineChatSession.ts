@@ -6,13 +6,13 @@
 import { URI } from '../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IIdentifiedSingleEditOperation, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation, TrackedRangeStickiness } from '../../../../editor/common/model.js';
-import { EditMode, CTX_INLINE_CHAT_HAS_STASHED_SESSION } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_HAS_STASHED_SESSION } from '../common/inlineChat.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { ModelDecorationOptions } from '../../../../editor/common/model/textModel.js';
 import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
 import { DetailedLineRangeMapping, LineRangeMapping, RangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { IInlineChatSessionService } from './inlineChatSessionService.js';
-import { LineRange } from '../../../../editor/common/core/lineRange.js';
+import { LineRange } from '../../../../editor/common/core/ranges/lineRange.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
 import { coalesceInPlace } from '../../../../base/common/arrays.js';
 import { Iterable } from '../../../../base/common/iterator.js';
@@ -36,7 +36,6 @@ export type TelemetryData = {
 	finishedByEdit: boolean;
 	startTime: string;
 	endTime: string;
-	editMode: string;
 	acceptedHunks: number;
 	discardedHunks: number;
 	responseTypes: string;
@@ -53,7 +52,6 @@ export type TelemetryDataClassification = {
 	finishedByEdit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Did edits cause the session to terminate' };
 	startTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session started' };
 	endTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session ended' };
-	editMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What edit mode was choosen: live, livePreview, preview' };
 	acceptedHunks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of accepted hunks' };
 	discardedHunks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of discarded hunks' };
 	responseTypes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma separated list of response types like edits, message, mixed' };
@@ -125,7 +123,6 @@ export class Session {
 	private readonly _versionByRequest = new Map<string, number>();
 
 	constructor(
-		readonly editMode: EditMode,
 		readonly headless: boolean,
 		/**
 		 * The URI of the document which is being EditorEdit
@@ -154,7 +151,6 @@ export class Session {
 			finishedByEdit: false,
 			rounds: '',
 			undos: '',
-			editMode,
 			unstashed: 0,
 			acceptedHunks: 0,
 			discardedHunks: 0,

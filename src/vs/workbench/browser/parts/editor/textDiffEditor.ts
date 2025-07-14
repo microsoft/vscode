@@ -5,7 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { deepClone } from '../../../../base/common/objects.js';
-import { isObject, assertIsDefined } from '../../../../base/common/types.js';
+import { isObject, assertReturnsDefined } from '../../../../base/common/types.js';
 import { ICodeEditor, IDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { AbstractTextEditor, IEditorConfiguration } from './textEditor.js';
@@ -29,7 +29,8 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { EditorActivation, ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { Dimension, multibyteAwareBtoa } from '../../../../base/browser/dom.js';
+import { Dimension } from '../../../../base/browser/dom.js';
+import { multibyteAwareBtoa } from '../../../../base/common/strings.js';
 import { ByteSize, FileOperationError, FileOperationResult, IFileService, TooLargeFileOperationError } from '../../../../platform/files/common/files.js';
 import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
@@ -121,7 +122,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 			}
 
 			// Set Editor Model
-			const control = assertIsDefined(this.diffEditorControl);
+			const control = assertReturnsDefined(this.diffEditorControl);
 			const resolvedDiffEditorModel = resolvedModel as TextDiffEditorModel;
 
 			const vm = resolvedDiffEditorModel.textDiffEditorModel ? control.createViewModel(resolvedDiffEditorModel.textDiffEditorModel) : null;
@@ -243,7 +244,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		super.setOptions(options);
 
 		if (options) {
-			applyTextEditorOptions(options, assertIsDefined(this.diffEditorControl), ScrollType.Smooth);
+			applyTextEditorOptions(options, assertReturnsDefined(this.diffEditorControl), ScrollType.Smooth);
 		}
 	}
 

@@ -7,7 +7,7 @@
 	position: absolute;
 	z-index: 1000;
 	right: 3px;
-	bottom: 26px;
+	bottom: 25px; /* 22px status bar height + 3px */
 	display: none;
 	overflow: hidden;
 }
@@ -26,7 +26,7 @@
 }
 
 .monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast {
-	margin: 8px; /* enables separation and drop shadows around toasts */
+	margin: 4px; /* enables separation and drop shadows around toasts */
 	transform: translate3d(0px, 100%, 0px); /* move the notification 50px to the bottom (to prevent bleed through) */
 	opacity: 0; /*  fade the toast in */
 	transition:	transform 300ms ease-out, opacity 300ms ease-out;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action, IAction, Separator } from '../../../../base/common/actions.js';
+import { Action, IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
@@ -21,6 +21,7 @@ import { SettingsResource, SettingsResourceTreeItem } from '../../../services/us
 import { KeybindingsResource, KeybindingsResourceTreeItem } from '../../../services/userDataProfile/browser/keybindingsResource.js';
 import { TasksResource, TasksResourceTreeItem } from '../../../services/userDataProfile/browser/tasksResource.js';
 import { SnippetsResource, SnippetsResourceTreeItem } from '../../../services/userDataProfile/browser/snippetsResource.js';
+import { McpProfileResource, McpResourceTreeItem } from '../../../services/userDataProfile/browser/mcpProfileResource.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { InMemoryFileSystemProvider } from '../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -250,23 +251,26 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 				ProfileResourceType.Settings,
 				ProfileResourceType.Keybindings,
 				ProfileResourceType.Tasks,
+				ProfileResourceType.Mcp,
 				ProfileResourceType.Snippets,
 				ProfileResourceType.Extensions
 			];
 			return Promise.all(resourceTypes.map<Promise<IProfileResourceTypeElement>>(async r => {
 				const children = (r === ProfileResourceType.Settings
 					|| r === ProfileResourceType.Keybindings
-					|| r === ProfileResourceType.Tasks) ? await this.getChildrenForResourceType(r) : [];
+					|| r === ProfileResourceType.Tasks
+					|| r === ProfileResourceType.Mcp) ? await this.getChildrenForResourceType(r) : [];
 				return {
 					handle: r,
 					checkbox: undefined,
 					resourceType: r,
 					openAction: children.length
-						? new Action('_open',
-							localize('open', "Open to the Side"),
-							ThemeIcon.asClassName(Codicon.goToFile),
-							true,
-							() => children[0]?.openAction?.run())
+						? toAction({
+							id: '_open',
+							label: localize('open', "Open to the Side"),
+							class: ThemeIcon.asClassName(Codicon.goToFile),
+							run: () => children[0]?.openAction?.run()
+						})
 						: undefined
 				};
 			}));
@@ -294,6 +298,9 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 			case ProfileResourceType.Tasks:
 				children = await this.instantiationService.createInstance(TasksResourceTreeItem, profile).getChildren();
 				break;
+			case ProfileResourceType.Mcp:
+				children = await this.instantiationService.createInstance(McpResourceTreeItem, profile).getChildren();
+				break;
 			case ProfileResourceType.Extensions:
 				children = await this.instantiationService.createInstance(ExtensionsResourceExportTreeItem, profile).getChildren();
 				break;
@@ -309,11 +316,16 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 			description: isString(child.description) ? child.description : undefined,
 			resource: URI.revive(child.resourceUri),
 			icon: child.themeIcon,
-			openAction: new Action('_openChild', localize('open', "Open to the Side"), ThemeIcon.asClassName(Codicon.goToFile), true, async () => {
-				if (child.parent.type === ProfileResourceType.Extensions) {
-					await this.commandService.executeCommand('extension.open', child.handle, undefined, true, undefined, true);
-				} else if (child.resourceUri) {
-					await this.commandService.executeCommand(API_OPEN_EDITOR_COMMAND_ID, child.resourceUri, [SIDE_GROUP], undefined);
+			openAction: toAction({
+				id: '_openChild',
+				label: localize('open', "Open to the Side"),
+				class: ThemeIcon.asClassName(Codicon.goToFile),
+				run: async () => {
+					if (child.parent.type === ProfileResourceType.Extensions) {
+						await this.commandService.executeCommand('extension.open', child.handle, undefined, true, undefined, true);
+					} else if (child.resourceUri) {
+						await this.commandService.executeCommand(API_OPEN_EDITOR_COMMAND_ID, child.resourceUri, [SIDE_GROUP], undefined);
+					}
 				}
 			}),
 			actions: {
@@ -521,7 +533,7 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 							const extensions = await this.extensionManagementService.getInstalled(undefined, this.profile.extensionsResource);
 							const extension = extensions.find(e => areSameExtensions(e.identifier, child.identifier));
 							if (extension) {
-								await this.extensionManagementService.toggleAppliationScope(extension, this.profile.extensionsResource);
+								await this.extensionManagementService.toggleApplicationScope(extension, this.profile.extensionsResource);
 							}
 						}
 					}]
@@ -550,7 +562,6 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 	private defaultIcon: string | undefined;
 
 	constructor(
-		name: string,
 		copyFrom: URI | IUserDataProfile | undefined,
 		readonly titleButtons: [Action[], Action[]],
 		readonly actions: [IAction[], IAction[]],
@@ -567,7 +578,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(
-			name,
+			'',
 			undefined,
 			undefined,
 			undefined,
@@ -582,7 +593,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			extensionManagementService,
 			instantiationService,
 		);
-		this.defaultName = name;
+		this.name = this.defaultName = this.getNewProfileName();
 		this._copyFrom = copyFrom;
 		this._copyFlags = this.getCopyFlagsFrom(copyFrom);
 		this.initialize();
@@ -651,7 +662,8 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			keybindings: true,
 			snippets: true,
 			tasks: true,
-			extensions: true
+			extensions: true,
+			mcp: true
 		} : undefined;
 	}
 
@@ -673,6 +685,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 					this.setCopyFlag(ProfileResourceType.Tasks, !!this.template.tasks);
 					this.setCopyFlag(ProfileResourceType.Snippets, !!this.template.snippets);
 					this.setCopyFlag(ProfileResourceType.Extensions, !!this.template.extensions);
+					this.setCopyFlag(ProfileResourceType.Mcp, !!this.template.mcp);
 					this._onDidChange.fire({ copyFromInfo: true });
 				}
 				return;
@@ -690,12 +703,13 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 				this.setCopyFlag(ProfileResourceType.Tasks, true);
 				this.setCopyFlag(ProfileResourceType.Snippets, true);
 				this.setCopyFlag(ProfileResourceType.Extensions, true);
+				this.setCopyFlag(ProfileResourceType.Mcp, true);
 				this._onDidChange.fire({ copyFromInfo: true });
 				return;
 			}
 
 			if (this.defaultName === this.name) {
-				this.name = this.defaultName = localize('untitled', "Untitled");
+				this.name = this.defaultName = this.getNewProfileName();
 			}
 			if (this.defaultIcon === this.icon) {
 				this.icon = this.defaultIcon = undefined;
@@ -705,10 +719,23 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			this.setCopyFlag(ProfileResourceType.Tasks, false);
 			this.setCopyFlag(ProfileResourceType.Snippets, false);
 			this.setCopyFlag(ProfileResourceType.Extensions, false);
+			this.setCopyFlag(ProfileResourceType.Mcp, false);
 			this._onDidChange.fire({ copyFromInfo: true });
 		} finally {
 			this.disabled = false;
 		}
+	}
+
+	private getNewProfileName(): string {
+		const name = localize('untitled', "Untitled");
+		const nameRegEx = new RegExp(`${name}\\s(\\d+)`);
+		let nameIndex = 0;
+		for (const profile of this.userDataProfilesService.profiles) {
+			const matches = nameRegEx.exec(profile.name);
+			const index = matches ? parseInt(matches[1]) : 0;
+			nameIndex = index > nameIndex ? index : nameIndex;
+		}
+		return `${name} ${nameIndex + 1}`;
 	}
 
 	async resolveTemplate(uri: URI): Promise<IUserDataProfileTemplate | null> {
@@ -811,6 +838,12 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			case ProfileResourceType.Tasks:
 				if (profileTemplate.tasks) {
 					await this.instantiationService.createInstance(TasksResource).apply(profileTemplate.tasks, profile);
+					return this.getChildrenFromProfile(profile, resourceType);
+				}
+				return [];
+			case ProfileResourceType.Mcp:
+				if (profileTemplate.mcp) {
+					await this.instantiationService.createInstance(McpProfileResource).apply(profileTemplate.mcp, profile);
 					return this.getChildrenFromProfile(profile, resourceType);
 				}
 				return [];
@@ -1036,13 +1069,13 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			));
 			primaryActions.push(createAction);
 			if (isWeb && copyFrom instanceof URI && isProfileURL(copyFrom)) {
-				primaryActions.push(new Action(
+				primaryActions.push(disposables.add(new Action(
 					'userDataProfile.createInDesktop',
 					localize('import in desktop', "Create in {0}", this.productService.nameLong),
 					undefined,
 					true,
 					() => this.openerService.open(copyFrom, { openExternal: true })
-				));
+				)));
 			}
 			const cancelAction = disposables.add(new Action(
 				'userDataProfile.cancel',
@@ -1068,7 +1101,6 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				() => this.exportNewProfile(cancellationTokenSource.token)
 			));
 			this.newProfileElement = disposables.add(this.instantiationService.createInstance(NewProfileElement,
-				copyFrom ? '' : localize('untitled', "Untitled"),
 				copyFrom,
 				[primaryActions, secondaryActions],
 				[[cancelAction], [exportAction]],
@@ -1209,7 +1241,6 @@ export class UserDataProfilesEditorModel extends EditorModel {
 						);
 					}
 				} else if (isUserDataProfile(copyFrom)) {
-					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromProfile', createProfileTelemetryData);
 					profile = await this.userDataProfileImportExportService.createFromProfile(
 						copyFrom,
 						{
@@ -1222,7 +1253,6 @@ export class UserDataProfilesEditorModel extends EditorModel {
 						token ?? CancellationToken.None
 					);
 				} else {
-					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createEmptyProfile', createProfileTelemetryData);
 					profile = await this.userDataProfileManagementService.createProfile(name, { useDefaultFlags, icon, transient });
 				}
 			}

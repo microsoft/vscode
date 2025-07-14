@@ -102,6 +102,8 @@ class LanguageStatus {
 	private _dedicatedEntries = new Map<string, IStatusbarEntryAccessor>();
 	private readonly _renderDisposables = new DisposableStore();
 
+	private readonly _combinedEntryTooltip = document.createElement('div');
+
 	constructor(
 		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService,
 		@IStatusbarService private readonly _statusBarService: IStatusbarService,
@@ -207,10 +209,9 @@ class LanguageStatus {
 
 			let isOneBusy = false;
 			const ariaLabels: string[] = [];
-			const element = document.createElement('div');
 			for (const status of model.combined) {
 				const isPinned = model.dedicated.includes(status);
-				element.appendChild(this._renderStatus(status, showSeverity, isPinned, this._renderDisposables));
+				this._renderStatus(this._combinedEntryTooltip, status, showSeverity, isPinned, this._renderDisposables);
 				ariaLabels.push(LanguageStatus._accessibilityInformation(status).label);
 				isOneBusy = isOneBusy || (!isPinned && status.busy); // unpinned items contribute to the busy-indicator of the composite status item
 			}
@@ -218,12 +219,12 @@ class LanguageStatus {
 			const props: IStatusbarEntry = {
 				name: localize('langStatus.name', "Editor Language Status"),
 				ariaLabel: localize('langStatus.aria', "Editor Language Status: {0}", ariaLabels.join(', next: ')),
-				tooltip: element,
+				tooltip: this._combinedEntryTooltip,
 				command: ShowTooltipCommand,
 				text: isOneBusy ? '$(loading~spin)' : text,
 			};
 			if (!this._combinedEntry) {
-				this._combinedEntry = this._statusBarService.addEntry(props, LanguageStatus._id, StatusbarAlignment.RIGHT, { id: 'status.editor.mode', alignment: StatusbarAlignment.LEFT, compact: true });
+				this._combinedEntry = this._statusBarService.addEntry(props, LanguageStatus._id, StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.LEFT, compact: true });
 			} else {
 				this._combinedEntry.update(props);
 			}
@@ -256,7 +257,7 @@ class LanguageStatus {
 				const hoverTarget = targetWindow.document.querySelector('.monaco-workbench .context-view');
 				if (dom.isHTMLElement(hoverTarget)) {
 					const observer = new MutationObserver(() => {
-						if (targetWindow.document.contains(element)) {
+						if (targetWindow.document.contains(this._combinedEntryTooltip)) {
 							this._interactionCounter.increment();
 							observer.disconnect();
 						}
@@ -273,7 +274,7 @@ class LanguageStatus {
 			const props = LanguageStatus._asStatusbarEntry(status);
 			let entry = this._dedicatedEntries.get(status.id);
 			if (!entry) {
-				entry = this._statusBarService.addEntry(props, status.id, StatusbarAlignment.RIGHT, { id: 'status.editor.mode', alignment: StatusbarAlignment.RIGHT });
+				entry = this._statusBarService.addEntry(props, status.id, StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.RIGHT });
 			} else {
 				entry.update(props);
 				this._dedicatedEntries.delete(status.id);
@@ -284,10 +285,13 @@ class LanguageStatus {
 		this._dedicatedEntries = newDedicatedEntries;
 	}
 
-	private _renderStatus(status: ILanguageStatus, showSeverity: boolean, isPinned: boolean, store: DisposableStore): HTMLElement {
+	private _renderStatus(container: HTMLElement, status: ILanguageStatus, showSeverity: boolean, isPinned: boolean, store: DisposableStore): HTMLElement {
 
 		const parent = document.createElement('div');
 		parent.classList.add('hover-language-status');
+
+		container.appendChild(parent);
+		store.add(toDisposable(() => parent.remove()));
 
 		const severity = document.createElement('div');
 		severity.classList.add('severity', `sev${status.severity}`);
@@ -304,16 +308,10 @@ class LanguageStatus {
 		left.classList.add('left');
 		element.appendChild(left);
 
-		const label = document.createElement('span');
-		label.classList.add('label');
-		const labelValue = typeof status.label === 'string' ? status.label : status.label.value;
-		dom.append(label, ...renderLabelWithIcons(computeText(labelValue, status.busy)));
-		left.appendChild(label);
+		const label = typeof status.label === 'string' ? status.label : status.label.value;
+		dom.append(left, ...renderLabelWithIcons(computeText(label, status.busy)));
 
-		const detail = document.createElement('span');
-		detail.classList.add('detail');
-		this._renderTextPlus(detail, status.detail, store);
-		left.appendChild(detail);
+		this._renderTextPlus(left, status.detail, store);
 
 		const right = document.createElement('div');
 		right.classList.add('right');
@@ -375,7 +373,12 @@ class LanguageStatus {
 	}
 
 	private _renderTextPlus(target: HTMLElement, text: string, store: DisposableStore): void {
+		let didRenderSeparator = false;
 		for (const node of parseLinkedText(text).nodes) {
+			if (!didRenderSeparator) {
+				dom.append(target, dom.$('span.separator'));
+				didRenderSeparator = true;
+			}
 			if (typeof node === 'string') {
 				const parts = renderLabelWithIcons(node);
 				dom.append(target, ...parts);

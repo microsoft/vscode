@@ -75,6 +75,10 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		this._dropdown.actionRunner = actionRunner;
 	}
 
+	override get actionRunner(): IActionRunner {
+		return super.actionRunner;
+	}
+
 	override setActionContext(newContext: unknown): void {
 		super.setActionContext(newContext);
 		this._primaryAction.setActionContext(newContext);
@@ -92,6 +96,9 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		this._dropdownContainer = DOM.$('.dropdown-action-container');
 		this._dropdown.render(DOM.append(this._container, this._dropdownContainer));
 		this._register(DOM.addDisposableListener(primaryContainer, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			if (!this.action.enabled) {
+				return;
+			}
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.RightArrow)) {
 				this._primaryAction.element!.tabIndex = -1;
@@ -100,6 +107,9 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 			}
 		}));
 		this._register(DOM.addDisposableListener(this._dropdownContainer, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			if (!this.action.enabled) {
+				return;
+			}
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.LeftArrow)) {
 				this._primaryAction.element!.tabIndex = 0;
@@ -144,7 +154,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 	update(dropdownAction: IAction, dropdownMenuActions: IAction[], dropdownIcon?: string): void {
 		this._dropdown.dispose();
 		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
-			menuAsChild: true,
+			menuAsChild: this._options?.menuAsChild ?? true,
 			classNames: ['codicon', dropdownIcon || 'codicon-chevron-down'],
 			actionRunner: this._options?.actionRunner,
 			hoverDelegate: this._options?.hoverDelegate,

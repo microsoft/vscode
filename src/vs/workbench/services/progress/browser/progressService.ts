@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/progressService.css';
-
 import { localize } from '../../../../nls.js';
 import { IDisposable, dispose, DisposableStore, Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, IProgressIndicator, IProgressWindowOptions, IProgressDialogOptions } from '../../../../platform/progress/common/progress.js';
@@ -18,16 +17,13 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { EventHelper } from '../../../../base/browser/dom.js';
 import { parseLinkedText } from '../../../../base/common/linkedText.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IViewsService } from '../../views/common/viewsService.js';
 import { IPaneCompositePartService } from '../../panecomposite/browser/panecomposite.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
-import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
 import { IUserActivityService } from '../../userActivity/common/userActivityService.js';
+import { createWorkbenchDialogOptions } from '../../../../platform/dialogs/browser/dialog.js';
 
 export class ProgressService extends Disposable implements IProgressService {
 
@@ -51,7 +47,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		const { location } = options;
 
 		const task = async (progress: IProgress<IProgressStep>) => {
-			const activeLock = this.userActivityService.markActive({ whenHeldFor: 15_000 });
+			const activeLock = this.userActivityService.markActive({ extendOnly: true, whenHeldFor: 15_000 });
 			try {
 				return await originalTask(progress);
 			} finally {
@@ -124,7 +120,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 		const promise = callback(task[1]);
 
-		let delayHandle: any = setTimeout(() => {
+		let delayHandle: Timeout | undefined = setTimeout(() => {
 			delayHandle = undefined;
 			this.windowProgressStack.unshift(task);
 			this.updateWindowProgress();
@@ -190,7 +186,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			if (this.windowProgressStatusEntry) {
 				this.windowProgressStatusEntry.update(statusEntryProperties);
 			} else {
-				this.windowProgressStatusEntry = this.statusbarService.addEntry(statusEntryProperties, 'status.progress', StatusbarAlignment.LEFT);
+				this.windowProgressStatusEntry = this.statusbarService.addEntry(statusEntryProperties, 'status.progress', StatusbarAlignment.LEFT, -Number.MAX_VALUE /* almost last entry */);
 			}
 		}
 
@@ -342,6 +338,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			// shows again.
 			let windowProgressDisposable: IDisposable | undefined = undefined;
 			const onVisibilityChange = (visible: boolean) => {
+
 				// Clear any previous running window progress
 				dispose(windowProgressDisposable);
 
@@ -356,7 +353,10 @@ export class ProgressService extends Disposable implements IProgressService {
 			}
 
 			// Clear upon dispose
-			Event.once(notification.onDidClose)(() => notificationDisposables.dispose());
+			Event.once(notification.onDidClose)(() => {
+				notificationDisposables.dispose();
+				dispose(windowProgressDisposable);
+			});
 
 			return notification;
 		};
@@ -371,7 +371,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		};
 
 		let notificationHandle: INotificationHandle | undefined;
-		let notificationTimeout: any | undefined;
+		let notificationTimeout: Timeout | undefined;
 		let titleAndMessage: string | undefined; // hoisted to make sure a delayed notification shows the most recent message
 
 		const updateNotification = (step?: IProgressStep): void => {
@@ -387,7 +387,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 				// create notification now or after a delay
 				if (typeof options.delay === 'number' && options.delay > 0) {
-					if (typeof notificationTimeout !== 'number') {
+					if (notificationTimeout === undefined) {
 						notificationTimeout = setTimeout(() => notificationHandle = createNotification(titleAndMessage!, options.priority, step?.increment), options.delay);
 					}
 				} else {
@@ -467,7 +467,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 	private showOnActivityBar<P extends Promise<R>, R = unknown>(viewletId: string, options: IProgressCompositeOptions, promise: P): void {
 		let activityProgress: IDisposable;
-		let delayHandle: any = setTimeout(() => {
+		let delayHandle: Timeout | undefined = setTimeout(() => {
 			delayHandle = undefined;
 			const handle = this.activityService.showViewContainerActivity(viewletId, { badge: new ProgressBadge(() => '') });
 			const startTimeVisible = Date.now();
@@ -545,16 +545,8 @@ export class ProgressService extends Disposable implements IProgressService {
 	private withDialogProgress<P extends Promise<R>, R = unknown>(options: IProgressDialogOptions, task: (progress: IProgress<IProgressStep>) => P, onDidCancel?: (choice?: number) => void): P {
 		const disposables = new DisposableStore();
 
-		const allowableCommands = [
-			'workbench.action.quit',
-			'workbench.action.reloadWindow',
-			'copy',
-			'cut',
-			'editor.action.clipboardCopyAction',
-			'editor.action.clipboardCutAction'
-		];
-
 		let dialog: Dialog;
+		let taskCompleted = false;
 
 		const createDialog = (message: string) => {
 			const buttons = options.buttons || [];
@@ -569,32 +561,27 @@ export class ProgressService extends Disposable implements IProgressService {
 				this.layoutService.activeContainer,
 				message,
 				buttons,
-				{
+				createWorkbenchDialogOptions({
 					type: 'pending',
 					detail: options.detail,
 					cancelId: buttons.length - 1,
 					disableCloseAction: options.sticky,
-					disableDefaultAction: options.sticky,
-					keyEventProcessor: (event: StandardKeyboardEvent) => {
-						const resolved = this.keybindingService.softDispatch(event, this.layoutService.activeContainer);
-						if (resolved.kind === ResultKind.KbFound && resolved.commandId) {
-							if (!allowableCommands.includes(resolved.commandId)) {
-								EventHelper.stop(event, true);
-							}
-						}
-					},
-					buttonStyles: defaultButtonStyles,
-					checkboxStyles: defaultCheckboxStyles,
-					inputBoxStyles: defaultInputBoxStyles,
-					dialogStyles: defaultDialogStyles
-				}
+					disableDefaultAction: options.sticky
+				}, this.keybindingService, this.layoutService)
 			);
 
 			disposables.add(dialog);
 
 			dialog.show().then(dialogResult => {
-				onDidCancel?.(dialogResult.button);
-
+				// The dialog may close as a result of disposing it after the
+				// task has completed. In that case, we do not want to trigger
+				// the `onDidCancel` callback.
+				// However, if the task is still running, this means that the
+				// user has clicked the cancel button and we want to trigger
+				// the `onDidCancel` callback.
+				if (!taskCompleted) {
+					onDidCancel?.(dialogResult.button);
+				}
 				dispose(dialog);
 			});
 
@@ -633,6 +620,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		});
 
 		promise.finally(() => {
+			taskCompleted = true;
 			dispose(disposables);
 		});
 

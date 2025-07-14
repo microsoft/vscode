@@ -23,6 +23,8 @@ export class TerminalWidgetManager implements IDisposable {
 			this._container.remove();
 			this._container = undefined;
 		}
+		this._attached.forEach(w => w.dispose());
+		this._attached.clear();
 	}
 
 	attachWidget(widget: ITerminalWidget): IDisposable | undefined {

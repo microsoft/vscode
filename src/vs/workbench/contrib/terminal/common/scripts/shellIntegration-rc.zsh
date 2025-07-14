@@ -2,7 +2,7 @@
 #   Copyright (c) Microsoft Corporation. All rights reserved.
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
-builtin autoload -Uz add-zsh-hook
+builtin autoload -Uz add-zsh-hook is-at-least
 
 # Prevent the script recursing when setting up
 if [ -n "$VSCODE_SHELL_INTEGRATION" ]; then
@@ -30,6 +30,16 @@ if [[ "$VSCODE_INJECTION" == "1" ]]; then
 		# A user's custom HISTFILE location might be set when their .zshrc file is sourced below
 		. $USER_ZDOTDIR/.zshrc
 	fi
+fi
+
+__vsc_use_aa=0
+__vsc_env_keys=()
+__vsc_env_values=()
+
+# Associative array are only available in zsh 4.3 or later
+if is-at-least 4.3; then
+	__vsc_use_aa=1
+	typeset -A vsc_aa_env
 fi
 
 # Apply EnvironmentVariableCollections if needed
@@ -70,18 +80,19 @@ __vsc_escape_value() {
 	builtin emulate -L zsh
 
 	# Process text byte by byte, not by codepoint.
-	builtin local LC_ALL=C str="$1" i byte token out=''
+	builtin local LC_ALL=C str="$1" i byte token out='' val
 
 	for (( i = 0; i < ${#str}; ++i )); do
+	# Escape backslashes, semi-colons specially, then special ASCII chars below space (0x20).
 		byte="${str:$i:1}"
-
-		# Escape backslashes, semi-colons and newlines
-		if [ "$byte" = "\\" ]; then
+		val=$(printf "%d" "'$byte")
+		if (( val < 31 )); then
+			# For control characters, use hex encoding
+			token=$(printf "\\\\x%02x" "'$byte")
+		elif [ "$byte" = "\\" ]; then
 			token="\\\\"
 		elif [ "$byte" = ";" ]; then
 			token="\\x3b"
-		elif [ "$byte" = $'\n' ]; then
-			token="\x0a"
 		else
 			token="$byte"
 		fi
@@ -89,7 +100,7 @@ __vsc_escape_value() {
 		out+="$token"
 	done
 
-	builtin print -r "$out"
+	builtin print -r -- "$out"
 }
 
 __vsc_in_command_execution="1"
@@ -98,6 +109,26 @@ __vsc_current_command=""
 # It's fine this is in the global scope as it getting at it requires access to the shell environment
 __vsc_nonce="$VSCODE_NONCE"
 unset VSCODE_NONCE
+
+__vscode_shell_env_reporting="$VSCODE_SHELL_ENV_REPORTING"
+unset VSCODE_SHELL_ENV_REPORTING
+
+envVarsToReport=()
+IFS=',' read -rA envVarsToReport <<< "$__vscode_shell_env_reporting"
+
+builtin printf "\e]633;P;ContinuationPrompt=%s\a" "$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')"
+
+# Report prompt type
+if [ -n "$ZSH" ] && [ -n "$ZSH_VERSION" ] && (( ${+functions[omz]} )) ; then
+	builtin printf '\e]633;P;PromptType=oh-my-zsh\a'
+elif [ -n "$STARSHIP_SESSION_KEY" ]; then
+	builtin printf '\e]633;P;PromptType=starship\a'
+elif [ -n "$P9K_SSH" ] || [ -n "$P9K_TTY" ]; then
+	builtin printf '\e]633;P;PromptType=p10k\a'
+fi
+
+# Report this shell supports rich command detection
+builtin printf '\e]633;P;HasRichCommandDetection=True\a'
 
 __vsc_prompt_start() {
 	builtin printf '\e]633;A\a'
@@ -109,6 +140,87 @@ __vsc_prompt_end() {
 
 __vsc_update_cwd() {
 	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "${PWD}")"
+}
+
+__update_env_cache_aa() {
+	local key="$1"
+	local value="$2"
+	if [ $__vsc_use_aa -eq 1 ]; then
+		if [[ "${vsc_aa_env["$key"]}" != "$value" ]]; then
+			vsc_aa_env["$key"]="$value"
+			builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+		fi
+	fi
+}
+
+__update_env_cache() {
+	local key="$1"
+	local value="$2"
+
+	for (( i=1; i <= $#__vsc_env_keys; i++ )); do
+		if [[ "${__vsc_env_keys[$i]}" == "$key" ]]; then
+			if [[ "${__vsc_env_values[$i]}" != "$value" ]]; then
+				__vsc_env_values[$i]="$value"
+				builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+			fi
+			return
+		fi
+	done
+
+		# Key does not exist so add key, value pair
+		__vsc_env_keys+=("$key")
+		__vsc_env_values+=("$value")
+		builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+}
+
+__vsc_update_env() {
+	if [[ ${#envVarsToReport[@]} -gt 0 ]]; then
+		builtin printf '\e]633;EnvSingleStart;%s;%s;\a' 0 $__vsc_nonce
+		if [ $__vsc_use_aa -eq 1 ]; then
+			if [[ ${#vsc_aa_env[@]} -eq 0 ]]; then
+				# Associative array is empty, do not diff, just add
+				for key in "${envVarsToReport[@]}"; do
+					if [[ -n "$key" && -n "${(P)key+_}" ]]; then
+						vsc_aa_env["$key"]="${(P)key}"
+						builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "${(P)key}")" "$__vsc_nonce"
+					fi
+				done
+			else
+				# Diff approach for associative array
+				for var in "${envVarsToReport[@]}"; do
+					if [[ -n "$var" && -n "${(P)var+_}" ]]; then
+						value="${(P)var}"
+						__update_env_cache_aa "$var" "$value"
+					fi
+				done
+				# Track missing env vars not needed for now, as we are only tracking pre-defined env var from terminalEnvironment.
+			fi
+		else
+			# Two arrays approach
+			if [[ ${#__vsc_env_keys[@]} -eq 0 ]] && [[ ${#__vsc_env_values[@]} -eq 0 ]]; then
+				# Non-associative arrays are both empty, do not diff, just add
+				for key in "${envVarsToReport[@]}"; do
+					if [[ -n "$key" && -n "${(P)key+_}" ]]; then
+						value="${(P)key}"
+						__vsc_env_keys+=("$key")
+						__vsc_env_values+=("$value")
+						builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+					fi
+				done
+			else
+				# Diff approach for non-associative arrays
+				for var in "${envVarsToReport[@]}"; do
+					if [[ -n "$var" && -n "${(P)var+_}" ]]; then
+						value="${(P)var}"
+						__update_env_cache "$var" "$value"
+					fi
+				done
+				# Track missing env vars not needed for now, as we are only tracking pre-defined env var from terminalEnvironment.
+			fi
+		fi
+
+		builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce
+	fi
 }
 
 __vsc_command_output_start() {
@@ -173,6 +285,7 @@ __vsc_precmd() {
 		# non null
 		__vsc_update_prompt
 	fi
+	__vsc_update_env
 }
 
 __vsc_preexec() {

@@ -149,10 +149,35 @@ if (process.platform === 'win32' || process.platform === 'linux') {
 // Load our code once ready
 app.once('ready', function () {
 	if (args['trace']) {
-		const traceOptions = {
-			categoryFilter: args['trace-category-filter'] || '*',
-			traceOptions: args['trace-options'] || 'record-until-full,enable-sampling'
-		};
+		let traceOptions: Electron.TraceConfig | Electron.TraceCategoriesAndOptions;
+		if (args['trace-memory-infra']) {
+			const customCategories = args['trace-category-filter']?.split(',') || [];
+			customCategories.push('disabled-by-default-memory-infra', 'disabled-by-default-memory-infra.v8.code_stats');
+			traceOptions = {
+				included_categories: customCategories,
+				excluded_categories: ['*'],
+				memory_dump_config: {
+					allowed_dump_modes: ['light', 'detailed'],
+					triggers: [
+						{
+							type: 'periodic_interval',
+							mode: 'detailed',
+							min_time_between_dumps_ms: 10000
+						},
+						{
+							type: 'periodic_interval',
+							mode: 'light',
+							min_time_between_dumps_ms: 1000
+						}
+					]
+				}
+			};
+		} else {
+			traceOptions = {
+				categoryFilter: args['trace-category-filter'] || '*',
+				traceOptions: args['trace-options'] || 'record-until-full,enable-sampling'
+			};
+		}
 
 		contentTracing.startRecording(traceOptions).finally(() => onReady());
 	} else {
@@ -224,7 +249,10 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 		'log-level',
 
 		// Use an in-memory storage for secrets
-		'use-inmemory-secretstorage'
+		'use-inmemory-secretstorage',
+
+		// Enables display tracking to restore maximized windows under RDP: https://github.com/electron/electron/issues/47016
+		'enable-rdp-display-tracking'
 	];
 
 	// Read argv config
@@ -282,15 +310,28 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 						process.argv.push('--use-inmemory-secretstorage');
 					}
 					break;
+
+				case 'enable-rdp-display-tracking':
+					if (argvValue) {
+						process.argv.push('--enable-rdp-display-tracking');
+					}
+					break;
 			}
 		}
 	});
 
+	// Following features are enabled from the runtime:
+	// `DocumentPolicyIncludeJSCallStacksInCrashReports` - https://www.electronjs.org/docs/latest/api/web-frame-main#framecollectjavascriptcallstack-experimental
+	// `EarlyEstablishGpuChannel` - Refs https://issues.chromium.org/issues/40208065
+	// `EstablishGpuChannelAsync` - Refs https://issues.chromium.org/issues/40208065
+	const featuresToEnable =
+		`DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync,${app.commandLine.getSwitchValue('enable-features')}`;
+	app.commandLine.appendSwitch('enable-features', featuresToEnable);
+
 	// Following features are disabled from the runtime:
 	// `CalculateNativeWinOcclusion` - Disable native window occlusion tracker (https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ)
-	// `PlzDedicatedWorker` - Refs https://github.com/microsoft/vscode/issues/233060#issuecomment-2523212427
 	const featuresToDisable =
-		`CalculateNativeWinOcclusion,PlzDedicatedWorker,${app.commandLine.getSwitchValue('disable-features')}`;
+		`CalculateNativeWinOcclusion,${app.commandLine.getSwitchValue('disable-features')}`;
 	app.commandLine.appendSwitch('disable-features', featuresToDisable);
 
 	// Blink features to configure.
@@ -305,6 +346,11 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 	if (jsFlags) {
 		app.commandLine.appendSwitch('js-flags', jsFlags);
 	}
+
+	// Use portal version 4 that supports current_folder option
+	// to address https://github.com/microsoft/vscode/issues/213780
+	// Runtime sets the default version to 3, refs https://github.com/electron/electron/pull/44426
+	app.commandLine.appendSwitch('xdg-portal-required-version', '4');
 
 	return argvConfig;
 }
@@ -322,6 +368,7 @@ interface IArgvConfig {
 	readonly 'log-level'?: string | string[];
 	readonly 'disable-chromium-sandbox'?: boolean;
 	readonly 'use-inmemory-secretstorage'?: boolean;
+	readonly 'enable-rdp-display-tracking'?: boolean;
 }
 
 function readArgvConfigSync(): IArgvConfig {
@@ -490,6 +537,18 @@ function getJSFlags(cliArgs: NativeParsedArgs): string | null {
 	// Add any existing JS flags we already got from the command line
 	if (cliArgs['js-flags']) {
 		jsFlags.push(cliArgs['js-flags']);
+	}
+
+	if (process.platform === 'linux') {
+		// Fix cppgc crash on Linux with 16KB page size.
+		// Refs https://issues.chromium.org/issues/378017037
+		// The fix from https://github.com/electron/electron/commit/6c5b2ef55e08dc0bede02384747549c1eadac0eb
+		// only affects non-renderer process.
+		// The following will ensure that the flag will be
+		// applied to the renderer process as well.
+		// TODO(deepak1556): Remove this once we update to
+		// Chromium >= 134.
+		jsFlags.push('--nodecommit_pooled_pages');
 	}
 
 	return jsFlags.length > 0 ? jsFlags.join(' ') : null;
