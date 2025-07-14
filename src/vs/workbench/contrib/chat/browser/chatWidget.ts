@@ -1051,10 +1051,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	rerenderChat(): void {
-		this.onDidChangeItems();
-	}
-
 	private clickedRequest(item: IChatListItemTemplate) {
 		const currentElement = item.currentElement;
 		if (isRequestVM(currentElement) && !this.viewModel?.editing) {

@@ -223,7 +223,6 @@ export function registerNewChatActions() {
 			// Start the process
 			await redoUntilDone();
 			widget.lastFocusedWidget?.viewModel?.model.setCheckpoint(undefined);
-			widget.lastFocusedWidget?.rerenderChat();
 		}
 	});
 }

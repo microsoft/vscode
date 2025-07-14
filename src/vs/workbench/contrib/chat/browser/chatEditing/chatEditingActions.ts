@@ -569,7 +569,6 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 		}
 
 		widget?.viewModel?.model.setCheckpoint(item.id);
-		widget?.rerenderChat();
 
 		const configurationService = accessor.get(IConfigurationService);
 		const dialogService = accessor.get(IDialogService);
