@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Range } from '../core/range.js';
-import { AbstractText } from '../core/textEdit.js';
-import { TextLength } from '../core/textLength.js';
+import { AbstractText } from '../core/text/abstractText.js';
+import { TextLength } from '../core/text/textLength.js';
 import { ITextModel } from '../model.js';
 
 export class TextModelText extends AbstractText {

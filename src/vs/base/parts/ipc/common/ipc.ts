@@ -260,9 +260,6 @@ const BufferPresets = {
 	Uint: createOneByteBuffer(DataType.Int),
 };
 
-declare const Buffer: any;
-const hasBuffer = (typeof Buffer !== 'undefined');
-
 export function serialize(writer: IWriter, data: any): void {
 	if (typeof data === 'undefined') {
 		writer.write(BufferPresets.Undefined);
@@ -271,7 +268,7 @@ export function serialize(writer: IWriter, data: any): void {
 		writer.write(BufferPresets.String);
 		writeInt32VQL(writer, buffer.byteLength);
 		writer.write(buffer);
-	} else if (hasBuffer && Buffer.isBuffer(data)) {
+	} else if (VSBuffer.isNativeBuffer(data)) {
 		const buffer = VSBuffer.wrap(data);
 		writer.write(BufferPresets.Buffer);
 		writeInt32VQL(writer, buffer.byteLength);
@@ -324,7 +321,7 @@ export function deserialize(reader: IReader): any {
 
 interface PendingRequest {
 	request: IRawPromiseRequest | IRawEventListenRequest;
-	timeoutTimer: any;
+	timeoutTimer: Timeout;
 }
 
 export class ChannelServer<TContext = string> implements IChannelServer<TContext>, IDisposable {
@@ -368,7 +365,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 		}
 	}
 
-	private send(header: any, body: any = undefined): number {
+	private send(header: unknown, body: any = undefined): number {
 		const writer = new BufferWriter();
 		serialize(writer, header);
 		serialize(writer, body);
@@ -649,7 +646,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		});
 
 		return result.finally(() => {
-			disposable.dispose();
+			disposable?.dispose(); // Seen as undefined in tests.
 			this.activeRequests.delete(disposableWithRequestCancel);
 		});
 	}
@@ -712,7 +709,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		}
 	}
 
-	private send(header: any, body: any = undefined): number {
+	private send(header: unknown, body: any = undefined): number {
 		const writer = new BufferWriter();
 		serialize(writer, header);
 		serialize(writer, body);
@@ -1199,7 +1196,7 @@ export namespace ProxyChannel {
 
 					// Dynamic Event
 					if (propertyIsDynamicEvent(propKey)) {
-						return function (arg: any) {
+						return function (arg: unknown) {
 							return channel.listen(propKey, arg);
 						};
 					}
@@ -1252,7 +1249,7 @@ const colorTables = [
 	['#8B564C', '#E177C0', '#7F7F7F', '#BBBE3D', '#2EBECD']
 ];
 
-function prettyWithoutArrays(data: any): any {
+function prettyWithoutArrays(data: unknown): any {
 	if (Array.isArray(data)) {
 		return data;
 	}
@@ -1265,7 +1262,7 @@ function prettyWithoutArrays(data: any): any {
 	return data;
 }
 
-function pretty(data: any): any {
+function pretty(data: unknown): any {
 	if (Array.isArray(data)) {
 		return data.map(prettyWithoutArrays);
 	}

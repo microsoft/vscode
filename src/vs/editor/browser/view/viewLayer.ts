@@ -10,6 +10,7 @@ import { EditorOption } from '../../common/config/editorOptions.js';
 import { StringBuilder } from '../../common/core/stringBuilder.js';
 import * as viewEvents from '../../common/viewEvents.js';
 import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
+import { ViewContext } from '../../common/viewModel/viewContext.js';
 
 /**
  * Represents a visible line
@@ -251,12 +252,15 @@ export class RenderedLinesCollection<T extends ILine> {
 
 export class VisibleLinesCollection<T extends IVisibleLine> {
 
-	public readonly domNode: FastDomNode<HTMLElement> = this._createDomNode();
-	private readonly _linesCollection: RenderedLinesCollection<T> = new RenderedLinesCollection<T>(this._lineFactory);
+	public readonly domNode: FastDomNode<HTMLElement>;
+	private readonly _linesCollection: RenderedLinesCollection<T>;
 
 	constructor(
-		private readonly _lineFactory: ILineFactory<T>
+		private readonly _viewContext: ViewContext,
+		private readonly _lineFactory: ILineFactory<T>,
 	) {
+		this.domNode = this._createDomNode();
+		this._linesCollection = new RenderedLinesCollection<T>(this._lineFactory);
 	}
 
 	private _createDomNode(): FastDomNode<HTMLElement> {
@@ -277,9 +281,20 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 		return false;
 	}
 
-	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+	public onFlushed(e: viewEvents.ViewFlushedEvent, flushDom?: boolean): boolean {
+		// No need to clear the dom node because a full .innerHTML will occur in
+		// ViewLayerRenderer._render, however the fallback mechanism in the
+		// GPU renderer may cause this to be necessary as the .innerHTML call
+		// may not happen depending on the new state, leaving stale DOM nodes
+		// around.
+		if (flushDom) {
+			const start = this._linesCollection.getStartLineNumber();
+			const end = this._linesCollection.getEndLineNumber();
+			for (let i = start; i <= end; i++) {
+				this._linesCollection.getLine(i).getDomNode()?.remove();
+			}
+		}
 		this._linesCollection.flush();
-		// No need to clear the dom node because a full .innerHTML will occur in ViewLayerRenderer._render
 		return true;
 	}
 
@@ -343,7 +358,7 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 
 		const inp = this._linesCollection._get();
 
-		const renderer = new ViewLayerRenderer<T>(this.domNode.domNode, this._lineFactory, viewportData);
+		const renderer = new ViewLayerRenderer<T>(this.domNode.domNode, this._lineFactory, viewportData, this._viewContext);
 
 		const ctx: IRendererContext<T> = {
 			rendLineNumberStart: inp.rendLineNumberStart,
@@ -372,6 +387,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		private readonly _domNode: HTMLElement,
 		private readonly _lineFactory: ILineFactory<T>,
 		private readonly _viewportData: ViewportData,
+		private readonly _viewContext: ViewContext
 	) {
 	}
 
@@ -456,7 +472,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 
 		for (let i = startIndex; i <= endIndex; i++) {
 			const lineNumber = rendLineNumberStart + i;
-			lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN], this._viewportData.lineHeight);
+			lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN], this._lineHeightForLineNumber(lineNumber));
 		}
 	}
 
@@ -560,7 +576,8 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 					continue;
 				}
 
-				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this._viewportData.lineHeight, this._viewportData, sb);
+				const renderedLineNumber = i + rendLineNumberStart;
+				const renderResult = line.renderLine(renderedLineNumber, deltaTop[i], this._lineHeightForLineNumber(renderedLineNumber), this._viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering
 					continue;
@@ -590,7 +607,8 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 					continue;
 				}
 
-				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this._viewportData.lineHeight, this._viewportData, sb);
+				const renderedLineNumber = i + rendLineNumberStart;
+				const renderResult = line.renderLine(renderedLineNumber, deltaTop[i], this._lineHeightForLineNumber(renderedLineNumber), this._viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering
 					continue;
@@ -604,5 +622,9 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 				this._finishRenderingInvalidLines(ctx, sb.build(), wasInvalid);
 			}
 		}
+	}
+
+	private _lineHeightForLineNumber(lineNumber: number): number {
+		return this._viewContext.viewLayout.getLineHeightForLineNumber(lineNumber);
 	}
 }

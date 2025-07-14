@@ -1158,5 +1158,15 @@ suite('Glob', () => {
 		assert.ok(!glob.patternsEquals(['a'], undefined));
 	});
 
+	test('isEmptyPattern', () => {
+		assert.ok(glob.isEmptyPattern(glob.parse('')));
+		assert.ok(glob.isEmptyPattern(glob.parse(undefined!)));
+		assert.ok(glob.isEmptyPattern(glob.parse(null!)));
+
+		assert.ok(glob.isEmptyPattern(glob.parse({})));
+		assert.ok(glob.isEmptyPattern(glob.parse({ '': true })));
+		assert.ok(glob.isEmptyPattern(glob.parse({ '**/*.js': false })));
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

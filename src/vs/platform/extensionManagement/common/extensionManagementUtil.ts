@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareIgnoreCase } from '../../../base/common/strings.js';
-import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, getTargetPlatform } from './extensionManagement.js';
+import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, MaliciousExtensionInfo, getTargetPlatform } from './extensionManagement.js';
 import { ExtensionIdentifier, IExtension, TargetPlatform, UNDEFINED_PUBLISHER } from '../../extensions/common/extensions.js';
 import { IFileService } from '../../files/common/files.js';
 import { isLinux, platform } from '../../../base/common/platform.js';
@@ -13,6 +13,7 @@ import { getErrorMessage } from '../../../base/common/errors.js';
 import { ILogService } from '../../log/common/log.js';
 import { arch } from '../../../base/common/process.js';
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
+import { isString } from '../../../base/common/types.js';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
 	if (a.uuid && b.uuid) {
@@ -195,4 +196,17 @@ export async function computeTargetPlatform(fileService: IFileService, logServic
 	const targetPlatform = getTargetPlatform(alpineLinux ? 'alpine' : platform, arch);
 	logService.debug('ComputeTargetPlatform:', targetPlatform);
 	return targetPlatform;
+}
+
+export function isMalicious(identifier: IExtensionIdentifier, malicious: ReadonlyArray<MaliciousExtensionInfo>): boolean {
+	return findMatchingMaliciousEntry(identifier, malicious) !== undefined;
+}
+
+export function findMatchingMaliciousEntry(identifier: IExtensionIdentifier, malicious: ReadonlyArray<MaliciousExtensionInfo>): MaliciousExtensionInfo | undefined {
+	return malicious.find(({ extensionOrPublisher }) => {
+		if (isString(extensionOrPublisher)) {
+			return compareIgnoreCase(identifier.id.split('.')[0], extensionOrPublisher) === 0;
+		}
+		return areSameExtensions(identifier, extensionOrPublisher);
+	});
 }

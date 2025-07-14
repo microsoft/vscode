@@ -36,12 +36,6 @@ import {
 } from './userDataSync.js';
 import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 
-type IncompatibleSyncSourceClassification = {
-	owner: 'sandy081';
-	comment: 'Information about the sync resource that is incompatible';
-	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'settings sync resource. eg., settings, keybindings...' };
-};
-
 export function isRemoteUserData(thing: any): thing is IRemoteUserData {
 	if (thing
 		&& (thing.ref !== undefined && typeof thing.ref === 'string' && thing.ref !== '')
@@ -151,13 +145,13 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 	readonly onDidChangeLocal: Event<void> = this._onDidChangeLocal.event;
 
 	protected readonly lastSyncResource: URI;
-	private readonly lastSyncUserDataStateKey = `${this.collection ? `${this.collection}.` : ''}${this.syncResource.syncResource}.lastSyncUserData`;
+	private readonly lastSyncUserDataStateKey: string;
 	private hasSyncResourceStateVersionChanged: boolean = false;
 	protected readonly syncResourceLogLabel: string;
 
 	protected syncHeaders: IHeaders = {};
 
-	readonly resource = this.syncResource.syncResource;
+	readonly resource: SyncResource;
 
 	constructor(
 		readonly syncResource: IUserDataSyncResource,
@@ -174,6 +168,8 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
 		super();
+		this.lastSyncUserDataStateKey = `${collection ? `${collection}.` : ''}${syncResource.syncResource}.lastSyncUserData`;
+		this.resource = syncResource.syncResource;
 		this.syncResourceLogLabel = getSyncResourceLogLabel(syncResource.syncResource, syncResource.profile);
 		this.extUri = uriIdentityService.extUri;
 		this.syncFolder = this.extUri.joinPath(environmentService.userDataSyncHome, ...getPathSegments(syncResource.profile.isDefault ? undefined : syncResource.profile.id, syncResource.syncResource));
@@ -325,8 +321,6 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 
 	private async performSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, strategy: SyncStrategy, userDataSyncConfiguration: IUserDataSyncConfiguration): Promise<SyncStatus> {
 		if (remoteUserData.syncData && remoteUserData.syncData.version > this.version) {
-			// current version is not compatible with cloud version
-			this.telemetryService.publicLog2<{ source: string }, IncompatibleSyncSourceClassification>('sync/incompatible', { source: this.resource });
 			throw new UserDataSyncError(localize({ key: 'incompatible', comment: ['This is an error while syncing a resource that its local version is not compatible with its remote version.'] }, "Cannot sync {0} as its local version {1} is not compatible with its remote version {2}", this.resource, this.version, remoteUserData.syncData.version), UserDataSyncErrorCode.IncompatibleLocalContent, this.resource);
 		}
 

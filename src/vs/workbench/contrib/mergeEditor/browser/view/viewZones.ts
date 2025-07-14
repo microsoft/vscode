@@ -8,7 +8,7 @@ import { CompareResult } from '../../../../../base/common/arrays.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IObservable, IReader } from '../../../../../base/common/observable.js';
 import { ICodeEditor, IViewZoneChangeAccessor } from '../../../../../editor/browser/editorBrowser.js';
-import { LineRange } from '../model/lineRange.js';
+import { MergeEditorLineRange } from '../model/lineRange.js';
 import { DetailedLineRangeMapping } from '../model/mapping.js';
 import { ModifiedBaseRange } from '../model/modifiedBaseRange.js';
 import { join } from '../utils.js';
@@ -17,15 +17,19 @@ import { getAlignments } from './lineAlignment.js';
 import { MergeEditorViewModel } from './viewModel.js';
 
 export class ViewZoneComputer {
-	private readonly conflictActionsFactoryInput1 = new ConflictActionsFactory(this.input1Editor);
-	private readonly conflictActionsFactoryInput2 = new ConflictActionsFactory(this.input2Editor);
-	private readonly conflictActionsFactoryResult = new ConflictActionsFactory(this.resultEditor);
+	private readonly conflictActionsFactoryInput1;
+	private readonly conflictActionsFactoryInput2;
+	private readonly conflictActionsFactoryResult;
 
 	constructor(
 		private readonly input1Editor: ICodeEditor,
 		private readonly input2Editor: ICodeEditor,
 		private readonly resultEditor: ICodeEditor,
-	) { }
+	) {
+		this.conflictActionsFactoryInput1 = new ConflictActionsFactory(this.input1Editor);
+		this.conflictActionsFactoryInput2 = new ConflictActionsFactory(this.input2Editor);
+		this.conflictActionsFactoryResult = new ConflictActionsFactory(this.resultEditor);
+	}
 
 	public computeViewZones(
 		reader: IReader,
@@ -54,9 +58,9 @@ export class ViewZoneComputer {
 			model.modifiedBaseRanges.read(reader),
 			resultDiffs,
 			(baseRange, diff) =>
-				baseRange.baseRange.touches(diff.inputRange)
+				baseRange.baseRange.intersectsOrTouches(diff.inputRange)
 					? CompareResult.neitherLessOrGreaterThan
-					: LineRange.compareByStart(
+					: MergeEditorLineRange.compareByStart(
 						baseRange.baseRange,
 						diff.inputRange
 					)

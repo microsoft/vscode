@@ -6,12 +6,14 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { localize2 } from '../../../../../nls.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
-import { ChatAgentLocation } from '../../../chat/common/chatAgents.js';
+import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
 import { IChatService } from '../../../chat/common/chatService.js';
-import { AbstractInlineChatAction } from '../../../inlineChat/browser/inlineChatActions.js';
+import { ChatAgentLocation } from '../../../chat/common/constants.js';
+import { AbstractInline1ChatAction } from '../../../inlineChat/browser/inlineChatActions.js';
 import { isDetachedTerminalInstance } from '../../../terminal/browser/terminal.js';
 import { registerActiveXtermAction } from '../../../terminal/browser/terminalActions.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
@@ -21,7 +23,7 @@ import { TerminalChatController } from './terminalChatController.js';
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Start,
 	title: localize2('startChat', 'Terminal Inline Chat'),
-	category: AbstractInlineChatAction.category,
+	category: AbstractInline1ChatAction.category,
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.KeyI,
 		when: ContextKeyExpr.and(TerminalContextKeys.focusInAny),
@@ -30,9 +32,15 @@ registerActiveXtermAction({
 	},
 	f1: true,
 	precondition: ContextKeyExpr.and(
+		ChatContextKeys.enabled,
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.hasChatAgent
 	),
+	menu: {
+		id: MenuId.ChatTerminalMenu,
+		group: 'copilot',
+		order: 1
+	},
 	run: (_xterm, _accessor, activeInstance, opts?: unknown) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
@@ -58,7 +66,7 @@ registerActiveXtermAction({
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Close,
 	title: localize2('closeChat', 'Close'),
-	category: AbstractInlineChatAction.category,
+	category: AbstractInline1ChatAction.category,
 	keybinding: {
 		primary: KeyCode.Escape,
 		when: ContextKeyExpr.and(
@@ -71,11 +79,13 @@ registerActiveXtermAction({
 		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 		group: '0_main',
 		order: 2,
-		when: TerminalChatContextKeys.responseContainsCodeBlock
 	}],
 	icon: Codicon.close,
 	f1: true,
-	precondition: TerminalChatContextKeys.visible,
+	precondition: ContextKeyExpr.and(
+		ChatContextKeys.enabled,
+		TerminalChatContextKeys.visible,
+	),
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
@@ -89,8 +99,9 @@ registerActiveXtermAction({
 	id: TerminalChatCommandId.RunCommand,
 	title: localize2('runCommand', 'Run Chat Command'),
 	shortTitle: localize2('run', 'Run'),
-	category: AbstractInlineChatAction.category,
+	category: AbstractInline1ChatAction.category,
 	precondition: ContextKeyExpr.and(
+		ChatContextKeys.enabled,
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.requestActive.negate(),
 		TerminalChatContextKeys.responseContainsCodeBlock,
@@ -121,8 +132,9 @@ registerActiveXtermAction({
 	id: TerminalChatCommandId.RunFirstCommand,
 	title: localize2('runFirstCommand', 'Run First Chat Command'),
 	shortTitle: localize2('runFirst', 'Run First'),
-	category: AbstractInlineChatAction.category,
+	category: AbstractInline1ChatAction.category,
 	precondition: ContextKeyExpr.and(
+		ChatContextKeys.enabled,
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.requestActive.negate(),
 		TerminalChatContextKeys.responseContainsMultipleCodeBlocks
@@ -152,9 +164,10 @@ registerActiveXtermAction({
 	id: TerminalChatCommandId.InsertCommand,
 	title: localize2('insertCommand', 'Insert Chat Command'),
 	shortTitle: localize2('insert', 'Insert'),
-	category: AbstractInlineChatAction.category,
+	category: AbstractInline1ChatAction.category,
 	icon: Codicon.insert,
 	precondition: ContextKeyExpr.and(
+		ChatContextKeys.enabled,
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.requestActive.negate(),
 		TerminalChatContextKeys.responseContainsCodeBlock,
@@ -185,8 +198,9 @@ registerActiveXtermAction({
 	id: TerminalChatCommandId.InsertFirstCommand,
 	title: localize2('insertFirstCommand', 'Insert First Chat Command'),
 	shortTitle: localize2('insertFirst', 'Insert First'),
-	category: AbstractInlineChatAction.category,
+	category: AbstractInline1ChatAction.category,
 	precondition: ContextKeyExpr.and(
+		ChatContextKeys.enabled,
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.requestActive.negate(),
 		TerminalChatContextKeys.responseContainsMultipleCodeBlocks
@@ -217,8 +231,9 @@ registerActiveXtermAction({
 	title: localize2('chat.rerun.label', "Rerun Request"),
 	f1: false,
 	icon: Codicon.refresh,
-	category: AbstractInlineChatAction.category,
+	category: AbstractInline1ChatAction.category,
 	precondition: ContextKeyExpr.and(
+		ChatContextKeys.enabled,
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.requestActive.negate(),
 	),
@@ -258,8 +273,9 @@ registerActiveXtermAction({
 registerActiveXtermAction({
 	id: TerminalChatCommandId.ViewInChat,
 	title: localize2('viewInChat', 'View in Chat'),
-	category: AbstractInlineChatAction.category,
+	category: AbstractInline1ChatAction.category,
 	precondition: ContextKeyExpr.and(
+		ChatContextKeys.enabled,
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.requestActive.negate(),
 	),

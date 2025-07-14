@@ -6,10 +6,10 @@
 import assert from 'assert';
 import { MainThreadMessageService } from '../../browser/mainThreadMessageService.js';
 import { IDialogService, IPrompt, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
-import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions, INotificationSource, INotificationSourceFilter, NotificationsFilter } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions, INotificationSource, INotificationSourceFilter, NotificationsFilter, IStatusHandle } from '../../../../platform/notification/common/notification.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { mock } from '../../../../base/test/common/mock.js';
-import { IDisposable, Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { TestDialogService } from '../../../../platform/dialogs/test/common/testDialogService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -26,8 +26,6 @@ const emptyCommandService: ICommandService = {
 
 const emptyNotificationService = new class implements INotificationService {
 	declare readonly _serviceBrand: undefined;
-	onDidAddNotification: Event<INotification> = Event.None;
-	onDidRemoveNotification: Event<INotification> = Event.None;
 	onDidChangeFilter: Event<void> = Event.None;
 	notify(...args: any[]): never {
 		throw new Error('not implemented');
@@ -44,8 +42,8 @@ const emptyNotificationService = new class implements INotificationService {
 	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
 		throw new Error('not implemented');
 	}
-	status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
-		return Disposable.None;
+	status(message: string | Error, options?: IStatusMessageOptions): IStatusHandle {
+		return { close: () => { } };
 	}
 	setFilter(): void {
 		throw new Error('not implemented');
@@ -67,8 +65,6 @@ class EmptyNotificationService implements INotificationService {
 	constructor(private withNotify: (notification: INotification) => void) {
 	}
 
-	onDidAddNotification: Event<INotification> = Event.None;
-	onDidRemoveNotification: Event<INotification> = Event.None;
 	onDidChangeFilter: Event<void> = Event.None;
 	notify(notification: INotification): INotificationHandle {
 		this.withNotify(notification);
@@ -87,8 +83,8 @@ class EmptyNotificationService implements INotificationService {
 	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
 		throw new Error('Method not implemented');
 	}
-	status(message: string, options?: IStatusMessageOptions): IDisposable {
-		return Disposable.None;
+	status(message: string, options?: IStatusMessageOptions): IStatusHandle {
+		return { close: () => { } };
 	}
 	setFilter(): void {
 		throw new Error('Method not implemented.');
