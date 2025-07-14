@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, ISerializableChatData } from '../../common/chatModel.js';
 import { IParsedChatRequest } from '../../common/chatParserTypes.js';
@@ -12,6 +13,8 @@ import { IChatCompleteResponse, IChatDetail, IChatProviderInfo, IChatSendRequest
 import { ChatAgentLocation } from '../../common/constants.js';
 
 export class MockChatService implements IChatService {
+	requestInProgressObs = observableValue('name', false);
+	edits2Enabled: boolean = false;
 	_serviceBrand: undefined;
 	transferredSessionData: IChatTransferredSessionData | undefined;
 	onDidSubmitRequest: Event<{ chatSessionId: string }> = Event.None;
@@ -81,7 +84,7 @@ export class MockChatService implements IChatService {
 	notifyUserAction(event: IChatUserActionEvent): void {
 		throw new Error('Method not implemented.');
 	}
-	onDidDisposeSession: Event<{ sessionId: string; reason: 'initializationFailed' | 'cleared' }> = undefined!;
+	onDidDisposeSession: Event<{ sessionId: string; reason: 'cleared' }> = undefined!;
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void {
 		throw new Error('Method not implemented.');
@@ -91,7 +94,6 @@ export class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 
-	unifiedViewEnabled = false;
 	isEditingLocation(location: ChatAgentLocation): boolean {
 		throw new Error('Method not implemented.');
 	}
@@ -105,6 +107,10 @@ export class MockChatService implements IChatService {
 	}
 
 	isPersistedSessionEmpty(sessionId: string): boolean {
+		throw new Error('Method not implemented.');
+	}
+
+	activateDefaultAgent(location: ChatAgentLocation): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 }

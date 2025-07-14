@@ -104,6 +104,29 @@ suite('ExtHostConfiguration', function () {
 		assert.deepStrictEqual(config.get('nested'), { config1: 42, config2: 'Das Pferd frisst kein Reis.' });
 	});
 
+	test('get nested config', () => {
+
+		const all = createExtHostConfiguration({
+			'farboo': {
+				'config0': true,
+				'nested': {
+					'config1': 42,
+					'config2': 'Das Pferd frisst kein Reis.'
+				},
+				'config4': ''
+			}
+		});
+
+		assert.deepStrictEqual(all.getConfiguration('farboo.nested').get('config1'), 42);
+		assert.deepStrictEqual(all.getConfiguration('farboo.nested').get('config2'), 'Das Pferd frisst kein Reis.');
+		assert.deepStrictEqual(all.getConfiguration('farboo.nested')['config1'], 42);
+		assert.deepStrictEqual(all.getConfiguration('farboo.nested')['config2'], 'Das Pferd frisst kein Reis.');
+		assert.deepStrictEqual(all.getConfiguration('farboo.nested1').get('config1'), undefined);
+		assert.deepStrictEqual(all.getConfiguration('farboo.nested1').get('config2'), undefined);
+		assert.deepStrictEqual(all.getConfiguration('farboo.config0.config1').get('a'), undefined);
+		assert.deepStrictEqual(all.getConfiguration('farboo.config0.config1')['a'], undefined);
+	});
+
 	test('can modify the returned configuration', function () {
 
 		const all = createExtHostConfiguration({

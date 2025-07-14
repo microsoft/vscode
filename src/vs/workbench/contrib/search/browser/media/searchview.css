@@ -169,6 +169,18 @@
 	overflow-wrap: break-word;
 }
 
+.search-view .message.ai-keywords {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	line-clamp: 2;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: normal;
+	margin: 0 22px 8px;
+	padding: 0px;
+}
+
 .search-view .message p:first-child {
 	margin-top: 0px;
 	margin-bottom: 0px;
@@ -185,6 +197,18 @@
 .search-view .message a:active {
 	color: var(--vscode-textLink-activeForeground);
 }
+
+.search-view .message .keyword-refresh {
+	vertical-align: sub;
+	margin-right: 4px;
+	cursor: pointer;
+}
+
+.search-view .message .keyword-refresh:hover,
+.search-view .message .keyword-refresh:active {
+	color:  var(--vscode-textLink-activeForeground);
+}
+
 
 .search-view .foldermatch,
 .search-view .filematch {

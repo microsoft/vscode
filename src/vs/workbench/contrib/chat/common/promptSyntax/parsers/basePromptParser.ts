@@ -4,27 +4,51 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TopError } from './topError.js';
+import { ChatModeKind } from '../../constants.js';
+import { TMetadata } from './promptHeader/headerBase.js';
+import { ModeHeader } from './promptHeader/modeHeader.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { PromptToken } from '../codecs/tokens/promptToken.js';
+import * as path from '../../../../../../base/common/path.js';
 import { ChatPromptCodec } from '../codecs/chatPromptCodec.js';
-import { Emitter } from '../../../../../../base/common/event.js';
 import { FileReference } from '../codecs/tokens/fileReference.js';
 import { ChatPromptDecoder } from '../codecs/chatPromptDecoder.js';
-import { IRange } from '../../../../../../editor/common/core/range.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
-import { IPromptContentsProvider } from '../contentProviders/types.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { InstructionsHeader } from './promptHeader/instructionsHeader.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { PromptVariableWithData } from '../codecs/tokens/promptVariable.js';
-import { basename, extUri } from '../../../../../../base/common/resources.js';
+import type { IPromptContentsProvider } from '../contentProviders/types.js';
+import type { TPromptReference, ITopError } from './types.js';
+import { type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { assert, assertNever } from '../../../../../../base/common/assert.js';
+import { basename, dirname, joinPath } from '../../../../../../base/common/resources.js';
+import { BaseToken } from '../codecs/base/baseToken.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
-import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
-import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
-import { FilePromptContentProvider } from '../contentProviders/filePromptContentsProvider.js';
-import { IPromptFileReference, IPromptReference, IResolveError, ITopError } from './types.js';
+import { type IRange, Range } from '../../../../../../editor/common/core/range.js';
+import { PromptHeader, type TPromptMetadata } from './promptHeader/promptHeader.js';
+import { ObservableDisposable } from '../utils/observableDisposable.js';
+import { INSTRUCTIONS_LANGUAGE_ID, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../promptTypes.js';
+import { LinesDecoder } from '../codecs/base/linesCodec/linesDecoder.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
+import { MarkdownLink } from '../codecs/base/markdownCodec/tokens/markdownLink.js';
+import { MarkdownToken } from '../codecs/base/markdownCodec/tokens/markdownToken.js';
+import { FrontMatterHeader } from '../codecs/base/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ResolveError } from '../../promptFileReferenceErrors.js';
+import { type IPromptContentsProviderOptions } from '../contentProviders/promptContentsProviderBase.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+
+/**
+ * Options of the {@link BasePromptParser} class.
+ */
+export interface IBasePromptParserOptions {
+}
+
+export type IPromptParserOptions = IBasePromptParserOptions & IPromptContentsProviderOptions;
+
 
 /**
  * Error conditions that may happen during the file reference resolution.
@@ -35,27 +59,101 @@ export type TErrorCondition = OpenFailed | RecursiveReference | FolderReference 
  * Base prompt parser class that provides a common interface for all
  * prompt parsers that are responsible for parsing chat prompt syntax.
  */
-export abstract class BasePromptParser<T extends IPromptContentsProvider> extends ObservableDisposable {
+export class BasePromptParser<TContentsProvider extends IPromptContentsProvider> extends ObservableDisposable {
+	/**
+	 * Options passed to the constructor.
+	 */
+	protected readonly options: IBasePromptParserOptions;
+
+	/**
+	 * List of all tokens that were parsed from the prompt contents so far.
+	 */
+	public get tokens(): readonly BaseToken[] {
+		return [...this.receivedTokens];
+	}
+	/**
+	 * Private field behind the readonly {@link tokens} property.
+	 */
+	private receivedTokens: BaseToken[] = [];
+
 	/**
 	 * List of file references in the current branch of the file reference tree.
 	 */
-	private readonly _references: PromptFileReference[] = [];
+	private readonly _references: TPromptReference[] = [];
+
+	/**
+	 * Reference to the prompt header object that holds metadata associated
+	 * with the prompt.
+	 */
+	private promptHeader?: PromptHeader | InstructionsHeader | ModeHeader | undefined;
+
+	/**
+	 * Reference to the prompt header object that holds metadata associated
+	 * with the prompt.
+	 */
+	public get header(): PromptHeader | InstructionsHeader | ModeHeader | undefined {
+		return this.promptHeader;
+	}
+
+	/**
+	 * Get contents of the prompt body.
+	 */
+	public async getBody(): Promise<string> {
+		const startLineNumber = (this.header !== undefined)
+			? this.header.range.endLineNumber + 1
+			: 1;
+
+		const decoder = new LinesDecoder(
+			await this.promptContentsProvider.contents,
+		);
+
+		const tokens = (await decoder.consumeAll())
+			.filter(({ range }) => {
+				return (range.startLineNumber >= startLineNumber);
+			});
+
+		return BaseToken.render(tokens);
+	}
 
 	/**
 	 * The event is fired when lines or their content change.
 	 */
 	private readonly _onUpdate = this._register(new Emitter<void>());
+	/**
+	 * Subscribe to the event that is fired the parser state or contents
+	 * changes, including changes in the possible prompt child references.
+	 */
+	public readonly onUpdate = this._onUpdate.event;
 
 	/**
-	 * Subscribe to the `onUpdate` event that is fired when prompt tokens are updated.
-	 * @param callback The callback function to be called on updates.
+	 * Event that is fired when the current prompt parser is settled.
 	 */
-	public onUpdate(callback: () => void): this {
-		this._register(this._onUpdate.event(callback));
+	private readonly _onSettled = this._register(new Emitter<Error | undefined>());
 
-		return this;
+	/**
+	 * Event that is fired when the current prompt parser is settled.
+	 */
+	public onSettled(
+		callback: (error?: Error) => void,
+	): IDisposable {
+		const disposable = this._onSettled.event(callback);
+		const streamEnded = (this.stream?.ended && (this.stream.isDisposed === false));
+
+		// if already in the error state or stream has already ended,
+		// invoke the callback immediately but asynchronously
+		if (streamEnded || this.errorCondition) {
+			setTimeout(callback.bind(undefined, this.errorCondition));
+
+			return disposable;
+		}
+
+		return disposable;
 	}
 
+	/**
+	 * If failed to parse prompt contents, this property has
+	 * an error object that describes the failure reason.
+	 */
 	private _errorCondition?: ResolveError;
 
 	/**
@@ -82,7 +180,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	 * The promise is resolved when at least one parse result (a stream or
 	 * an error) has been received from the prompt contents provider.
 	 */
-	private firstParseResult = new FirstParseResult();
+	private readonly firstParseResult = new FirstParseResult();
 
 	/**
 	 * Returned promise is resolved when the parser process is settled.
@@ -93,7 +191,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	 * block until the latest prompt contents parsing logic is settled
 	 * (e.g., for every `onContentChanged` event of the prompt source).
 	 */
-	public async settled(): Promise<this> {
+	public async settled(): Promise<boolean> {
 		assert(
 			this.started,
 			'Cannot wait on the parser that did not start yet.',
@@ -102,7 +200,13 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 		await this.firstParseResult.promise;
 
 		if (this.errorCondition) {
-			return this;
+			return false;
+		}
+
+		// by the time when the `firstParseResult` promise is resolved,
+		// this object may have been already disposed, hence noop
+		if (this.isDisposed) {
+			return false;
 		}
 
 		assertDefined(
@@ -110,67 +214,43 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 			'No stream reference found.',
 		);
 
-		await this.stream.settled;
+		const completed = await this.stream.settled;
 
-		return this;
-	}
+		// if prompt header exists, also wait for it to be settled
+		if (this.promptHeader) {
+			const headerCompleted = await this.promptHeader.settled;
+			if (!headerCompleted) {
+				return false;
+			}
+		}
 
-	/**
-	 * Same as {@linkcode settled} but also waits for all possible
-	 * nested child prompt references and their children to be settled.
-	 */
-	public async allSettled(): Promise<this> {
-		await this.settled();
-
-		await Promise.allSettled(
-			this.references.map((reference) => {
-				return reference.allSettled();
-			}),
-		);
-
-		return this;
+		return completed;
 	}
 
 	constructor(
-		private readonly promptContentsProvider: T,
-		seenReferences: string[] = [],
+		private readonly promptContentsProvider: TContentsProvider,
+		options: IBasePromptParserOptions,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IWorkbenchEnvironmentService private readonly envService: IWorkbenchEnvironmentService,
 		@ILogService protected readonly logService: ILogService,
 	) {
 		super();
 
-		this._onUpdate.fire = this._onUpdate.fire.bind(this._onUpdate);
-		this._register(promptContentsProvider);
-
-		// to prevent infinite file recursion, we keep track of all references in
-		// the current branch of the file reference tree and check if the current
-		// file reference has been already seen before
-		if (seenReferences.includes(this.uri.path)) {
-			seenReferences.push(this.uri.path);
-
-			this._errorCondition = new RecursiveReference(
-				this.uri,
-				seenReferences,
-			);
-			this._onUpdate.fire();
-			this.firstParseResult.complete();
-
-			return this;
-		}
-
-		// we don't care if reading the file fails below, hence can add the path
-		// of the current reference to the `seenReferences` set immediately, -
-		// even if the file doesn't exist, we would never end up in the recursion
-		seenReferences.push(this.uri.path);
+		this.options = options;
 
 		this._register(
 			this.promptContentsProvider.onContentChanged((streamOrError) => {
 				// process the received message
-				this.onContentsChanged(streamOrError, seenReferences);
+				this.onContentsChanged(streamOrError);
 
 				// indicate that we've received at least one `onContentChanged` event
-				this.firstParseResult.complete();
+				this.firstParseResult.end();
 			}),
+		);
+
+		// dispose self when contents provider is disposed
+		this._register(
+			this.promptContentsProvider.onDispose(this.dispose.bind(this)),
 		);
 	}
 
@@ -190,14 +270,18 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	 * 						references recursion.
 	 */
 	private onContentsChanged(
-		streamOrError: VSBufferReadableStream | ResolveError,
-		seenReferences: string[],
+		streamOrError: VSBufferReadableStream | ResolveError
 	): void {
 		// dispose and cleanup the previously received stream
 		// object or an error condition, if any received yet
 		this.stream?.dispose();
 		delete this.stream;
 		delete this._errorCondition;
+		this.receivedTokens = [];
+
+		// cleanup current prompt header object
+		this.promptHeader?.dispose();
+		delete this.promptHeader;
 
 		// dispose all currently existing references
 		this.disposeReferences();
@@ -207,11 +291,21 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 			this._errorCondition = streamOrError;
 			this._onUpdate.fire();
 
+			// when error received fire the 'onSettled' event immediately
+			this._onSettled.fire(streamOrError);
+
 			return;
 		}
 
 		// decode the byte stream to a stream of prompt tokens
 		this.stream = ChatPromptCodec.decode(streamOrError);
+
+		/**
+		 * !NOTE! The order of event subscriptions below is critical here because
+		 *        the `data` event is also starts the stream, hence changing
+		 *        the order of event subscriptions can lead to race conditions.
+		 *        See {@link ReadableStreamEvents} for more info.
+		 */
 
 		// on error or stream end, dispose the stream and fire the update event
 		this.stream.on('error', this.onStreamEnd.bind(this, this.stream));
@@ -219,23 +313,35 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 
 		// when some tokens received, process and store the references
 		this.stream.on('data', (token) => {
+			// store all markdown and prompt token references
+			if ((token instanceof MarkdownToken) || (token instanceof PromptToken)) {
+				this.receivedTokens.push(token);
+			}
+
+			// if a prompt header token received, create a new prompt header instance
+			if (token instanceof FrontMatterHeader) {
+				return this.createHeader(token);
+			}
+
+			// try to convert a prompt variable with data token into a file reference
 			if (token instanceof PromptVariableWithData) {
 				try {
-					this.onReference(FileReference.from(token), [...seenReferences]);
+					this.handleLinkToken(FileReference.from(token));
 				} catch (error) {
-					// no-op
+					// the `FileReference.from` call might throw if the `PromptVariableWithData` token
+					// can not be converted into a valid `#file` reference, hence we ignore the error
 				}
 			}
 
 			// note! the `isURL` is a simple check and needs to be improved to truly
 			// 		 handle only file references, ignoring broken URLs or references
 			if (token instanceof MarkdownLink && !token.isURL) {
-				this.onReference(token, [...seenReferences]);
+				this.handleLinkToken(token);
 			}
 		});
 
 		// calling `start` on a disposed stream throws, so we warn and return instead
-		if (this.stream.disposed) {
+		if (this.stream.isDisposed) {
 			this.logService.warn(
 				`[prompt parser][${basename(this.uri)}] cannot start stream that has been already disposed, aborting`,
 			);
@@ -248,19 +354,47 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	}
 
 	/**
+	 * Create header object base on the target prompt file language ID.
+	 * The language ID is important here, because it defines what type
+	 * of metadata is valid for a prompt file and what type of related
+	 * diagnostics we would show to the user.
+	 */
+	private createHeader(headerToken: FrontMatterHeader): void {
+		const { languageId } = this.promptContentsProvider;
+
+		if (languageId === PROMPT_LANGUAGE_ID) {
+			this.promptHeader = new PromptHeader(headerToken, languageId);
+		}
+
+		if (languageId === INSTRUCTIONS_LANGUAGE_ID) {
+			this.promptHeader = new InstructionsHeader(headerToken, languageId);
+		}
+
+		if (languageId === MODE_LANGUAGE_ID) {
+			this.promptHeader = new ModeHeader(headerToken, languageId);
+		}
+
+		this.promptHeader?.start();
+	}
+
+	/**
 	 * Handle a new reference token inside prompt contents.
 	 */
-	private onReference(
-		token: FileReference | MarkdownLink,
-		seenReferences: string[],
-	): this {
-		const fileReference = this.instantiationService
-			.createInstance(PromptFileReference, token, this.dirname, seenReferences);
+	private handleLinkToken(token: FileReference | MarkdownLink): this {
 
-		this._references.push(fileReference);
-
-		fileReference.onUpdate(this._onUpdate.fire);
-		fileReference.start();
+		let referenceUri: URI;
+		if (path.isAbsolute(token.path)) {
+			referenceUri = URI.file(token.path);
+			if (this.envService.remoteAuthority) {
+				referenceUri = referenceUri.with({
+					scheme: Schemas.vscodeRemote,
+					authority: this.envService.remoteAuthority,
+				});
+			}
+		} else {
+			referenceUri = joinPath(dirname(this.uri), token.path);
+		}
+		this._references.push(new PromptReference(referenceUri, token));
 
 		this._onUpdate.fire();
 
@@ -274,9 +408,16 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	 * @param error Optional error object if stream ended with an error.
 	 */
 	private onStreamEnd(
-		_stream: ChatPromptDecoder,
+		stream: ChatPromptDecoder,
 		error?: Error,
 	): this {
+		// decoders can fire the 'end' event also when they are get disposed,
+		// but because we dispose them when a new stream is received, we can
+		// safely ignore the event in this case
+		if (stream.isDisposed === true) {
+			return this;
+		}
+
 		if (error) {
 			this.logService.warn(
 				`[prompt parser][${basename(this.uri)}] received an error on the chat prompt decoder stream: ${error}`,
@@ -284,23 +425,20 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 		}
 
 		this._onUpdate.fire();
+		this._onSettled.fire(error);
 
 		return this;
 	}
 
-	/**
-	 * Dispose all currently held references.
-	 */
-	private disposeReferences() {
-		for (const reference of [...this._references]) {
-			reference.dispose();
-		}
+
+	private disposeReferences(): void {
+
 
 		this._references.length = 0;
 	}
 
 	/**
-	 * Private attribute to track if the {@linkcode start}
+	 * Private attribute to track if the {@link start}
 	 * method has been already called at least once.
 	 */
 	private started: boolean = false;
@@ -308,7 +446,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	/**
 	 * Start the prompt parser.
 	 */
-	public start(): this {
+	public start(token?: CancellationToken): this {
 		// if already started, nothing to do
 		if (this.started) {
 			return this;
@@ -322,7 +460,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 			return this;
 		}
 
-		this.promptContentsProvider.start();
+		this.promptContentsProvider.start(token);
 		return this;
 	}
 
@@ -334,108 +472,49 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	}
 
 	/**
-	 * Get the parent folder of the file reference.
-	 */
-	public get dirname() {
-		return URI.joinPath(this.uri, '..');
-	}
-
-	/**
 	 * Get a list of immediate child references of the prompt.
 	 */
-	public get references(): readonly IPromptReference[] {
+	public get references(): readonly TPromptReference[] {
 		return [...this._references];
 	}
 
 	/**
-	 * Get a list of all references of the prompt, including
-	 * all possible nested references its children may have.
+	 * Valid metadata records defined in the prompt header.
 	 */
-	public get allReferences(): readonly IPromptReference[] {
-		const result: IPromptReference[] = [];
-
-		for (const reference of this.references) {
-			result.push(reference);
-
-			if (reference.type === 'file') {
-				result.push(...reference.allReferences);
-			}
+	public get metadata(): TMetadata | null {
+		const { promptType } = this.promptContentsProvider;
+		if (promptType === 'non-prompt') {
+			return null;
 		}
 
-		return result;
-	}
-
-	/**
-	 * Get list of all valid references.
-	 */
-	public get allValidReferences(): readonly IPromptReference[] {
-		return this.allReferences
-			// filter out unresolved references
-			.filter((reference) => {
-				const { errorCondition } = reference;
-
-				// include all references without errors
-				if (!errorCondition) {
-					return true;
-				}
-
-				// filter out folder references from the list
-				if (errorCondition instanceof FolderReference) {
-					return false;
-				}
-
-				// include non-prompt file references
-				return (errorCondition instanceof NotPromptFile);
-			});
-	}
-
-	/**
-	 * Get list of all valid child references as URIs.
-	 */
-	public get allValidReferencesUris(): readonly URI[] {
-		return this.allValidReferences
-			.map(child => child.uri);
-	}
-
-	/**
-	 * Get list of errors for the direct links of the current reference.
-	 */
-	public get errors(): readonly ResolveError[] {
-		const childErrors: ResolveError[] = [];
-
-		for (const reference of this.references) {
-			const { errorCondition } = reference;
-
-			if (errorCondition && (!(errorCondition instanceof NotPromptFile))) {
-				childErrors.push(errorCondition);
-			}
+		if (this.header === undefined) {
+			return { promptType };
 		}
 
-		return childErrors;
-	}
-
-	/**
-	 * List of all errors that occurred while resolving the current
-	 * reference including all possible errors of nested children.
-	 */
-	public get allErrors(): readonly IResolveError[] {
-		const result: IResolveError[] = [];
-
-		for (const reference of this.references) {
-			const { errorCondition } = reference;
-
-			if (errorCondition && (!(errorCondition instanceof NotPromptFile))) {
-				result.push({
-					originalError: errorCondition,
-					parentUri: this.uri,
-				});
-			}
-
-			// recursively collect all possible errors of its children
-			result.push(...reference.allErrors);
+		if (this.header instanceof InstructionsHeader || this.header instanceof ModeHeader) {
+			return { promptType, ...this.header.metadata };
 		}
 
-		return result;
+		const { tools, mode, description, model } = this.header.metadata;
+
+		const result: Partial<TPromptMetadata> = {};
+
+		if (description !== undefined) {
+			result.description = description;
+		}
+
+		if (tools !== undefined && mode !== ChatModeKind.Ask && mode !== ChatModeKind.Edit) {
+			result.tools = tools;
+			result.mode = ChatModeKind.Agent;
+		} else if (mode !== undefined) {
+			result.mode = mode;
+		}
+
+		if (model !== undefined) {
+			result.model = model;
+		}
+
+		return { promptType, ...result };
 	}
 
 	/**
@@ -451,53 +530,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 			});
 		}
 
-		const childErrors: ResolveError[] = [...this.errors];
-		const nestedErrors: IResolveError[] = [];
-		for (const reference of this.references) {
-			nestedErrors.push(...reference.allErrors);
-		}
-
-		if (childErrors.length === 0 && nestedErrors.length === 0) {
-			return undefined;
-		}
-
-		const firstDirectChildError = childErrors[0];
-		const firstNestedChildError = nestedErrors[0];
-		const hasDirectChildError = (firstDirectChildError !== undefined);
-
-		const firstChildError = (hasDirectChildError)
-			? {
-				originalError: firstDirectChildError,
-				parentUri: this.uri,
-			}
-			: firstNestedChildError;
-
-		const totalErrorsCount = childErrors.length + nestedErrors.length;
-
-		const subject = (hasDirectChildError)
-			? 'child'
-			: 'indirect-child';
-
-		return new TopError({
-			errorSubject: subject,
-			originalError: firstChildError.originalError,
-			parentUri: firstChildError.parentUri,
-			errorsCount: totalErrorsCount,
-		});
-	}
-
-	/**
-	 * Check if the current reference points to a given resource.
-	 */
-	public sameUri(otherUri: URI): boolean {
-		return this.uri.toString() === otherUri.toString();
-	}
-
-	/**
-	 * Check if the current reference points to a prompt snippet file.
-	 */
-	public get isPromptSnippet(): boolean {
-		return isPromptFile(this.uri);
+		return undefined;
 	}
 
 	/**
@@ -510,42 +543,35 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	/**
 	 * @inheritdoc
 	 */
-	public override dispose() {
-		if (this.disposed) {
+	public override dispose(): void {
+		if (this.isDisposed) {
 			return;
 		}
 
 		this.disposeReferences();
+
 		this.stream?.dispose();
-		this._onUpdate.fire();
+		delete this.stream;
+
+		this.promptHeader?.dispose();
+		delete this.promptHeader;
 
 		super.dispose();
 	}
 }
 
 /**
- * Prompt file reference object represents any file reference inside prompt
- * text contents. For instance the file variable(`#file:/path/to/file.md`)
- * or a markdown link(`[#file:file.md](/path/to/file.md)`).
+ * Prompt reference object represents any reference inside prompt text
+ * contents. For instance the file variable(`#file:/path/to/file.md`) or
+ * a markdown link(`[#file:file.md](/path/to/file.md)`).
  */
-export class PromptFileReference extends BasePromptParser<FilePromptContentProvider> implements IPromptFileReference {
-	public readonly type = 'file';
+export class PromptReference implements TPromptReference {
 
-	public readonly range = this.token.range;
-	public readonly path: string = this.token.path;
-	public readonly text: string = this.token.text;
 
 	constructor(
+		public readonly uri: URI,
 		public readonly token: FileReference | MarkdownLink,
-		dirname: URI,
-		seenReferences: string[] = [],
-		@IInstantiationService initService: IInstantiationService,
-		@ILogService logService: ILogService,
 	) {
-		const fileUri = extUri.resolvePath(dirname, token.path);
-		const provider = initService.createInstance(FilePromptContentProvider, fileUri);
-
-		super(provider, seenReferences, initService, logService);
 	}
 
 	/**
@@ -566,7 +592,26 @@ export class PromptFileReference extends BasePromptParser<FilePromptContentProvi
 	}
 
 	/**
-	 * Subtype of a file reference, - either a prompt `#file` variable,
+	 * Type of the reference, - either a prompt `#file` variable,
+	 * or a `markdown link` reference (`[caption](/path/to/file.md)`).
+	 */
+	public get type(): 'file' {
+		if (this.token instanceof FileReference) {
+			return 'file';
+		}
+
+		if (this.token instanceof MarkdownLink) {
+			return 'file';
+		}
+
+		assertNever(
+			this.token,
+			`Unknown token type '${this.token}'.`,
+		);
+	}
+
+	/**
+	 * Subtype of the reference, - either a prompt `#file` variable,
 	 * or a `markdown link` reference (`[caption](/path/to/file.md)`).
 	 */
 	public get subtype(): 'prompt' | 'markdown' {
@@ -584,11 +629,23 @@ export class PromptFileReference extends BasePromptParser<FilePromptContentProvi
 		);
 	}
 
+	public get range(): Range {
+		return this.token.range;
+	}
+
+	public get path(): string {
+		return this.token.path;
+	}
+
+	public get text(): string {
+		return this.token.text;
+	}
+
 	/**
 	 * Returns a string representation of this object.
 	 */
-	public override toString() {
-		return `prompt-reference/${this.token}`;
+	public toString(): string {
+		return `prompt-reference/${this.type}:${this.subtype}/${this.token}`;
 	}
 }
 
@@ -620,8 +677,14 @@ class FirstParseResult extends DeferredPromise<void> {
 	/**
 	 * Complete the underlying promise.
 	 */
-	public override complete() {
+	public end(): void {
 		this._gotResult = true;
-		return super.complete(void 0);
+		super.complete(void 0)
+			.catch(() => {
+				// the complete method is never fails
+				// so we can ignore the error here
+			});
+
+		return;
 	}
 }

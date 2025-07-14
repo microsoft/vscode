@@ -12,6 +12,11 @@ import { userActivityRegistry } from './userActivityRegistry.js';
 
 export interface IMarkActiveOptions {
 	whenHeldFor?: number;
+	/**
+	 * Only consider this progress if the state is already active. Used to avoid
+	 * background work from incorrectly marking the user as active (#237386)
+	 */
+	extendOnly?: boolean;
 }
 
 /**
@@ -71,6 +76,10 @@ export class UserActivityService extends Disposable implements IUserActivityServ
 
 	/** @inheritdoc */
 	markActive(opts?: IMarkActiveOptions): IDisposable {
+		if (opts?.extendOnly && !this.isActive) {
+			return Disposable.None;
+		}
+
 		if (opts?.whenHeldFor) {
 			const store = new DisposableStore();
 			store.add(disposableTimeout(() => store.add(this.markActive()), opts.whenHeldFor));

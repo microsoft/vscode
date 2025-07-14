@@ -33,7 +33,7 @@ class NPSContribution implements IWorkbenchContribution {
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		if (!productService.npsSurveyUrl || configurationService.getValue<boolean>('telemetry.disableFeedback')) {
+		if (!productService.npsSurveyUrl || !configurationService.getValue<boolean>('telemetry.feedback.enabled')) {
 			return;
 		}
 
@@ -87,7 +87,7 @@ class NPSContribution implements IWorkbenchContribution {
 					storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.APPLICATION, StorageTarget.USER);
 				}
 			}],
-			{ sticky: true, priority: NotificationPriority.URGENT }
+			{ priority: NotificationPriority.URGENT }
 		);
 	}
 }

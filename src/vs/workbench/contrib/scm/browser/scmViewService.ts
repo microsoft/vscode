@@ -18,10 +18,14 @@ import { binarySearch } from '../../../../base/common/arrays.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { derivedObservableWithCache, derivedOpts, IObservable, latestChangedValue, observableFromEventOpts } from '../../../../base/common/observable.js';
+import { derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, latestChangedValue, observableFromEventOpts, observableValue } from '../../../../base/common/observable.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { localize } from '../../../../nls.js';
 
 function getProviderStorageKey(provider: ISCMProvider): string {
 	return `${provider.contextValue}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
@@ -39,6 +43,41 @@ function getRepositoryName(workspaceContextService: IWorkspaceContextService, re
 export const RepositoryContextKeys = {
 	RepositorySortKey: new RawContextKey<ISCMRepositorySortKey>('scmRepositorySortKey', ISCMRepositorySortKey.DiscoveryTime),
 };
+
+export type RepositoryQuickPickItem = IQuickPickItem & { repository: 'auto' | ISCMRepository };
+
+export class RepositoryPicker {
+	private readonly _autoQuickPickItem: RepositoryQuickPickItem;
+
+	constructor(
+		private readonly _placeHolder: string,
+		private readonly _autoQuickItemDescription: string,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@ISCMViewService private readonly _scmViewService: ISCMViewService
+	) {
+		this._autoQuickPickItem = {
+			label: localize('auto', "Auto"),
+			description: this._autoQuickItemDescription,
+			repository: 'auto'
+		} satisfies RepositoryQuickPickItem;
+	}
+
+	async pickRepository(): Promise<RepositoryQuickPickItem | undefined> {
+		const picks: (RepositoryQuickPickItem | IQuickPickSeparator)[] = [
+			this._autoQuickPickItem,
+			{ type: 'separator' }
+		];
+
+		picks.push(...this._scmViewService.repositories.map(r => ({
+			label: r.provider.name,
+			description: r.provider.rootUri?.fsPath,
+			iconClass: ThemeIcon.asClassName(Codicon.repo),
+			repository: r
+		})));
+
+		return this._quickInputService.pick(picks, { placeHolder: this._placeHolder });
+	}
+}
 
 interface ISCMRepositoryView {
 	readonly repository: ISCMRepository;
@@ -167,6 +206,7 @@ export class SCMViewService implements ISCMViewService {
 	 * values are updated in the same transaction (or during the initial read of the observable value).
 	*/
 	private readonly _activeRepositoryObs: IObservable<ISCMRepository | undefined>;
+	private readonly _activeRepositoryPinnedObs: ISettableObservable<ISCMRepository | undefined>;
 	private readonly _focusedRepositoryObs: IObservable<ISCMRepository | undefined>;
 
 	private _repositoriesSortKey: ISCMRepositorySortKey;
@@ -214,12 +254,18 @@ export class SCMViewService implements ISCMViewService {
 				return Object.create(repository);
 			});
 
+		this._activeRepositoryPinnedObs = observableValue<ISCMRepository | undefined>(this, undefined);
 		this._activeRepositoryObs = latestChangedValue(this, [this._activeEditorRepositoryObs, this._focusedRepositoryObs]);
 
 		this.activeRepository = derivedOpts<ISCMRepository | undefined>({
 			owner: this,
 			equalsFn: (r1, r2) => r1?.id === r2?.id
-		}, reader => this._activeRepositoryObs.read(reader));
+		}, reader => {
+			const activeRepository = this._activeRepositoryObs.read(reader);
+			const activeRepositoryPinned = this._activeRepositoryPinnedObs.read(reader);
+
+			return activeRepositoryPinned ?? activeRepository;
+		});
 
 		try {
 			this.previousState = JSON.parse(storageService.get('scm:view:visibleRepositories', StorageScope.WORKSPACE, ''));
@@ -382,6 +428,10 @@ export class SCMViewService implements ISCMViewService {
 		if (this._repositories.find(r => r.focused)) {
 			this._onDidFocusRepository.fire(repository);
 		}
+	}
+
+	pinActiveRepository(repository: ISCMRepository | undefined): void {
+		this._activeRepositoryPinnedObs.set(repository, undefined);
 	}
 
 	private compareRepositories(op1: ISCMRepositoryView, op2: ISCMRepositoryView): number {

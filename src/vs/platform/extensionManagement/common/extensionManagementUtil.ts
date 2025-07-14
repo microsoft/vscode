@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareIgnoreCase } from '../../../base/common/strings.js';
-import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, getTargetPlatform } from './extensionManagement.js';
+import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, MaliciousExtensionInfo, getTargetPlatform } from './extensionManagement.js';
 import { ExtensionIdentifier, IExtension, TargetPlatform, UNDEFINED_PUBLISHER } from '../../extensions/common/extensions.js';
 import { IFileService } from '../../files/common/files.js';
 import { isLinux, platform } from '../../../base/common/platform.js';
@@ -198,11 +198,15 @@ export async function computeTargetPlatform(fileService: IFileService, logServic
 	return targetPlatform;
 }
 
-export function isMalicious(identifier: IExtensionIdentifier, malicious: ReadonlyArray<IExtensionIdentifier | string>): boolean {
-	return malicious.some(publisherOrIdentifier => {
-		if (isString(publisherOrIdentifier)) {
-			return compareIgnoreCase(identifier.id.split('.')[0], publisherOrIdentifier) === 0;
+export function isMalicious(identifier: IExtensionIdentifier, malicious: ReadonlyArray<MaliciousExtensionInfo>): boolean {
+	return findMatchingMaliciousEntry(identifier, malicious) !== undefined;
+}
+
+export function findMatchingMaliciousEntry(identifier: IExtensionIdentifier, malicious: ReadonlyArray<MaliciousExtensionInfo>): MaliciousExtensionInfo | undefined {
+	return malicious.find(({ extensionOrPublisher }) => {
+		if (isString(extensionOrPublisher)) {
+			return compareIgnoreCase(identifier.id.split('.')[0], extensionOrPublisher) === 0;
 		}
-		return areSameExtensions(identifier, publisherOrIdentifier);
+		return areSameExtensions(identifier, extensionOrPublisher);
 	});
 }

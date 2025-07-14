@@ -103,6 +103,7 @@ module.exports.indentationFilter = [
 	'!extensions/vscode-api-tests/testWorkspace2/**',
 	'!build/monaco/**',
 	'!build/win32/**',
+	'!build/checker/**',
 
 	// except multiple specific files
 	'!**/package.json',
@@ -206,6 +207,7 @@ module.exports.eslintFilter = [
 	'**/*.cjs',
 	'**/*.mjs',
 	'**/*.ts',
+	'.eslint-plugin-local/**/*.ts',
 	...readFileSync(join(__dirname, '..', '.eslint-ignore'))
 		.toString()
 		.split(/\r\n|\n/)

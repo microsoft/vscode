@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDecoder } from 'util';
 import { ExtensionContext, extensions, l10n } from 'vscode';
 import { BaseLanguageClient, LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node';
 import { LanguageClientConstructor, startClient } from '../cssClient';

@@ -169,7 +169,7 @@
 	},
 	{
 		"c": "var",
-		"t": "support.function.css",
+		"t": "support.function.css meta.function.variable.css",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -197,16 +197,16 @@
 	},
 	{
 		"c": "--spacing-unit",
-		"t": "support.constant.property-value.css",
+		"t": "support.constant.property-value.css variable.argument.css",
 		"r": {
-			"dark_plus": "support.constant.property-value: #CE9178",
-			"light_plus": "support.constant.property-value: #0451A5",
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "support.constant.property-value: #CE9178",
-			"dark_modern": "support.constant.property-value: #CE9178",
-			"hc_light": "support.constant.property-value: #0451A5",
-			"light_modern": "support.constant.property-value: #0451A5"
+			"hc_black": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
+			"hc_light": "variable: #001080",
+			"light_modern": "variable: #001080"
 		}
 	},
 	{
@@ -379,7 +379,7 @@
 	},
 	{
 		"c": "var",
-		"t": "support.function.css",
+		"t": "support.function.css meta.function.variable.css",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -407,16 +407,16 @@
 	},
 	{
 		"c": "--spacing-unit",
-		"t": "support.constant.property-value.css",
+		"t": "support.constant.property-value.css variable.argument.css",
 		"r": {
-			"dark_plus": "support.constant.property-value: #CE9178",
-			"light_plus": "support.constant.property-value: #0451A5",
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "support.constant.property-value: #CE9178",
-			"dark_modern": "support.constant.property-value: #CE9178",
-			"hc_light": "support.constant.property-value: #0451A5",
-			"light_modern": "support.constant.property-value: #0451A5"
+			"hc_black": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
+			"hc_light": "variable: #001080",
+			"light_modern": "variable: #001080"
 		}
 	},
 	{

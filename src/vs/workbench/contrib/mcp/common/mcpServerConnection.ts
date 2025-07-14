@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js';
-import { IOutputService } from '../../../services/output/common/output.js';
+import { ILogger, log, LogLevel } from '../../../../platform/log/common/log.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { McpCollectionDefinition, IMcpServerConnection, McpServerDefinition, McpConnectionState, McpServerLaunch } from './mcpTypes.js';
+import { IMcpClientMethods, IMcpServerConnection, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
 
 export class McpServerConnection extends Disposable implements IMcpServerConnection {
 	private readonly _launch = this._register(new MutableDisposable<IReference<IMcpMessageTransport>>());
@@ -22,45 +22,31 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 	public readonly state: IObservable<McpConnectionState> = this._state;
 	public readonly handler: IObservable<McpServerRequestHandler | undefined> = this._requestHandler;
 
-	private readonly _loggerId: string;
-	private readonly _logger: ILogger;
-	private _launchId = 0;
-
 	constructor(
 		private readonly _collection: McpCollectionDefinition,
 		public readonly definition: McpServerDefinition,
 		private readonly _delegate: IMcpHostDelegate,
 		public readonly launchDefinition: McpServerLaunch,
-		@ILoggerService private readonly _loggerService: ILoggerService,
-		@IOutputService private readonly _outputService: IOutputService,
+		private readonly _logger: ILogger,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-		this._loggerId = `mcpServer/${definition.id}`;
-		this._logger = this._register(_loggerService.createLogger(this._loggerId, { hidden: true, name: `MCP: ${definition.label}` }));
 	}
 
 	/** @inheritdoc */
-	public showOutput(): void {
-		this._loggerService.setVisibility(this._loggerId, true);
-		this._outputService.showChannel(this._loggerId);
-	}
-
-	/** @inheritdoc */
-	public async start(): Promise<McpConnectionState> {
+	public async start(methods: IMcpClientMethods): Promise<McpConnectionState> {
 		const currentState = this._state.get();
 		if (!McpConnectionState.canBeStarted(currentState.state)) {
 			return this._waitForState(McpConnectionState.Kind.Running, McpConnectionState.Kind.Error);
 		}
 
-		const launchId = ++this._launchId;
 		this._launch.value = undefined;
 		this._state.set({ state: McpConnectionState.Kind.Starting }, undefined);
 		this._logger.info(localize('mcpServer.starting', 'Starting server {0}', this.definition.label));
 
 		try {
 			const launch = this._delegate.start(this._collection, this.definition, this.launchDefinition);
-			this._launch.value = this.adoptLaunch(launch, launchId);
+			this._launch.value = this.adoptLaunch(launch, methods);
 			return this._waitForState(McpConnectionState.Kind.Running, McpConnectionState.Kind.Error);
 		} catch (e) {
 			const errorState: McpConnectionState = {
@@ -72,14 +58,14 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 		}
 	}
 
-	private adoptLaunch(launch: IMcpMessageTransport, launchId: number): IReference<IMcpMessageTransport> {
+	private adoptLaunch(launch: IMcpMessageTransport, methods: IMcpClientMethods): IReference<IMcpMessageTransport> {
 		const store = new DisposableStore();
 		const cts = new CancellationTokenSource();
 
 		store.add(toDisposable(() => cts.dispose(true)));
 		store.add(launch);
-		store.add(launch.onDidLog(msg => {
-			this._logger.info(msg);
+		store.add(launch.onDidLog(({ level, message }) => {
+			log(this._logger, level, message);
 		}));
 
 		let didStart = false;
@@ -90,20 +76,31 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 
 			if (state.state === McpConnectionState.Kind.Running && !didStart) {
 				didStart = true;
-				McpServerRequestHandler.create(this._instantiationService, launch, this._logger, cts.token).then(
+				McpServerRequestHandler.create(this._instantiationService, {
+					launch,
+					logger: this._logger,
+					requestLogLevel: this.definition.devMode ? LogLevel.Info : LogLevel.Debug,
+					...methods,
+				}, cts.token).then(
 					handler => {
-						if (this._launchId === launchId) {
+						if (!store.isDisposed) {
 							this._requestHandler.set(handler, undefined);
 						} else {
 							handler.dispose();
 						}
 					},
 					err => {
-						store.dispose();
-						if (this._launchId === launchId) {
-							this._logger.error(err);
-							this._state.set({ state: McpConnectionState.Kind.Error, message: `Could not initialize MCP server: ${err.message}` }, undefined);
+						if (!store.isDisposed) {
+							let message = err.message;
+							if (err instanceof CancellationError) {
+								message = 'Server exited before responding to `initialize` request.';
+								this._logger.error(message);
+							} else {
+								this._logger.error(err);
+							}
+							this._state.set({ state: McpConnectionState.Kind.Error, message }, undefined);
 						}
+						store.dispose();
 					},
 				);
 			}
@@ -113,14 +110,12 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 	}
 
 	public async stop(): Promise<void> {
-		this._launchId = -1;
 		this._logger.info(localize('mcpServer.stopping', 'Stopping server {0}', this.definition.label));
 		this._launch.value?.object.stop();
 		await this._waitForState(McpConnectionState.Kind.Stopped, McpConnectionState.Kind.Error);
 	}
 
 	public override dispose(): void {
-		this._launchId = -1;
 		this._requestHandler.get()?.dispose();
 		super.dispose();
 		this._state.set({ state: McpConnectionState.Kind.Stopped }, undefined);

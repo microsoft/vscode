@@ -7,9 +7,9 @@ import { IdleDeadline, runWhenGlobalIdle } from '../../../base/common/async.js';
 import { BugIndicatingError, onUnexpectedError } from '../../../base/common/errors.js';
 import { setTimeout0 } from '../../../base/common/platform.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
-import { countEOL } from '../core/eolCounter.js';
-import { LineRange } from '../core/lineRange.js';
-import { OffsetRange } from '../core/offsetRange.js';
+import { countEOL } from '../core/misc/eolCounter.js';
+import { LineRange } from '../core/ranges/lineRange.js';
+import { OffsetRange } from '../core/ranges/offsetRange.js';
 import { Position } from '../core/position.js';
 import { StandardTokenType } from '../encodedTokenAttributes.js';
 import { EncodedTokenizationResult, IBackgroundTokenizationStore, IBackgroundTokenizer, ILanguageIdCodec, IState, ITokenizationSupport } from '../languages.js';
@@ -25,7 +25,7 @@ const enum Constants {
 }
 
 export class TokenizerWithStateStore<TState extends IState = IState> {
-	private readonly initialState = this.tokenizationSupport.getInitialState() as TState;
+	private readonly initialState;
 
 	public readonly store: TrackingTokenizationStateStore<TState>;
 
@@ -33,6 +33,7 @@ export class TokenizerWithStateStore<TState extends IState = IState> {
 		lineCount: number,
 		public readonly tokenizationSupport: ITokenizationSupport
 	) {
+		this.initialState = this.tokenizationSupport.getInitialState() as TState;
 		this.store = new TrackingTokenizationStateStore<TState>(lineCount);
 	}
 

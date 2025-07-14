@@ -16,6 +16,7 @@ import { TextDiffEditor } from './textDiffEditor.js';
 import { ActiveCompareEditorCanSwapContext, TextCompareEditorActiveContext, TextCompareEditorVisibleContext } from '../../../common/contextkeys.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IUntypedEditorInput } from '../../../common/editor.js';
 
 export const TOGGLE_DIFF_SIDE_BY_SIDE = 'toggle.diff.renderSideBySide';
 export const GOTO_NEXT_CHANGE = 'workbench.action.compareEditor.nextChange';
@@ -150,14 +151,14 @@ export function registerDiffEditorCommands(): void {
 		// yet opened. This ensures that the swapping is not
 		// bringing up a confirmation dialog to save.
 		if (diffInput.modified.isModified() && editorService.findEditors({ resource: diffInput.modified.resource, typeId: diffInput.modified.typeId, editorId: diffInput.modified.editorId }).length === 0) {
-			await editorService.openEditor({
-				...untypedDiffInput.modified,
-				options: {
-					...untypedDiffInput.modified.options,
-					pinned: true,
-					inactive: true
-				}
-			}, activeGroup);
+			const editorToOpen: IUntypedEditorInput = { ...untypedDiffInput.modified };
+			if (!editorToOpen.options) {
+				editorToOpen.options = {};
+			}
+			editorToOpen.options.pinned = true;
+			editorToOpen.options.inactive = true;
+
+			await editorService.openEditor(editorToOpen, activeGroup);
 		}
 
 		// Replace the input with the swapped variant

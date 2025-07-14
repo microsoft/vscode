@@ -22,29 +22,29 @@ import { DiffEditorOptions } from '../diffEditorOptions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 
 export class DiffEditorEditors extends Disposable {
-	public readonly original = this._register(this._createLeftHandSideEditor(this._options.editorOptions.get(), this._argCodeEditorWidgetOptions.originalEditor || {}));
-	public readonly modified = this._register(this._createRightHandSideEditor(this._options.editorOptions.get(), this._argCodeEditorWidgetOptions.modifiedEditor || {}));
+	public readonly original;
+	public readonly modified;
 
-	private readonly _onDidContentSizeChange = this._register(new Emitter<IContentSizeChangedEvent>());
+	private readonly _onDidContentSizeChange;
 	public get onDidContentSizeChange() { return this._onDidContentSizeChange.event; }
 
-	public readonly modifiedScrollTop = observableFromEvent(this, this.modified.onDidScrollChange, () => /** @description modified.getScrollTop */ this.modified.getScrollTop());
-	public readonly modifiedScrollHeight = observableFromEvent(this, this.modified.onDidScrollChange, () => /** @description modified.getScrollHeight */ this.modified.getScrollHeight());
+	public readonly modifiedScrollTop;
+	public readonly modifiedScrollHeight;
 
-	public readonly modifiedObs = observableCodeEditor(this.modified);
-	public readonly originalObs = observableCodeEditor(this.original);
+	public readonly modifiedObs;
+	public readonly originalObs;
 
-	public readonly modifiedModel = this.modifiedObs.model;
+	public readonly modifiedModel;
 
-	public readonly modifiedSelections = observableFromEvent(this, this.modified.onDidChangeCursorSelection, () => this.modified.getSelections() ?? []);
-	public readonly modifiedCursor = derivedOpts({ owner: this, equalsFn: Position.equals }, reader => this.modifiedSelections.read(reader)[0]?.getPosition() ?? new Position(1, 1));
+	public readonly modifiedSelections;
+	public readonly modifiedCursor;
 
-	public readonly originalCursor = observableFromEvent(this, this.original.onDidChangeCursorPosition, () => this.original.getPosition() ?? new Position(1, 1));
+	public readonly originalCursor;
 
-	public readonly isOriginalFocused = observableCodeEditor(this.original).isFocused;
-	public readonly isModifiedFocused = observableCodeEditor(this.modified).isFocused;
+	public readonly isOriginalFocused;
+	public readonly isModifiedFocused;
 
-	public readonly isFocused = derived(this, reader => this.isOriginalFocused.read(reader) || this.isModifiedFocused.read(reader));
+	public readonly isFocused;
 
 	constructor(
 		private readonly originalEditorElement: HTMLElement,
@@ -57,16 +57,32 @@ export class DiffEditorEditors extends Disposable {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
+		this.original = this._register(this._createLeftHandSideEditor(this._options.editorOptions.get(), this._argCodeEditorWidgetOptions.originalEditor || {}));
+		this.modified = this._register(this._createRightHandSideEditor(this._options.editorOptions.get(), this._argCodeEditorWidgetOptions.modifiedEditor || {}));
+		this._onDidContentSizeChange = this._register(new Emitter<IContentSizeChangedEvent>());
+		this.modifiedScrollTop = observableFromEvent(this, this.modified.onDidScrollChange, () => /** @description modified.getScrollTop */ this.modified.getScrollTop());
+		this.modifiedScrollHeight = observableFromEvent(this, this.modified.onDidScrollChange, () => /** @description modified.getScrollHeight */ this.modified.getScrollHeight());
+		this.modifiedObs = observableCodeEditor(this.modified);
+		this.originalObs = observableCodeEditor(this.original);
+		this.modifiedModel = this.modifiedObs.model;
+		this.modifiedSelections = observableFromEvent(this, this.modified.onDidChangeCursorSelection, () => this.modified.getSelections() ?? []);
+		this.modifiedCursor = derivedOpts({ owner: this, equalsFn: Position.equals }, reader => this.modifiedSelections.read(reader)[0]?.getPosition() ?? new Position(1, 1));
+		this.originalCursor = observableFromEvent(this, this.original.onDidChangeCursorPosition, () => this.original.getPosition() ?? new Position(1, 1));
+		this.isOriginalFocused = observableCodeEditor(this.original).isFocused;
+		this.isModifiedFocused = observableCodeEditor(this.modified).isFocused;
+		this.isFocused = derived(this, reader => this.isOriginalFocused.read(reader) || this.isModifiedFocused.read(reader));
 
 		this._argCodeEditorWidgetOptions = null as any;
 
 		this._register(autorunHandleChanges({
-			createEmptyChangeSummary: (): IDiffEditorConstructionOptions => ({}),
-			handleChange: (ctx, changeSummary) => {
-				if (ctx.didChange(_options.editorOptions)) {
-					Object.assign(changeSummary, ctx.change.changedOptions);
+			changeTracker: {
+				createChangeSummary: (): IDiffEditorConstructionOptions => ({}),
+				handleChange: (ctx, changeSummary) => {
+					if (ctx.didChange(_options.editorOptions)) {
+						Object.assign(changeSummary, ctx.change.changedOptions);
+					}
+					return true;
 				}
-				return true;
 			}
 		}, (reader, changeSummary) => {
 			/** @description update editor options */
@@ -167,6 +183,9 @@ export class DiffEditorEditors extends Disposable {
 		};
 		clonedOptions.inDiffEditor = true;
 		clonedOptions.automaticLayout = false;
+		clonedOptions.allowVariableLineHeights = false;
+		clonedOptions.allowVariableFonts = false;
+		clonedOptions.allowVariableFontsInAccessibilityMode = false;
 
 		// Clone scrollbar options before changing them
 		clonedOptions.scrollbar = { ...(clonedOptions.scrollbar || {}) };

@@ -49,6 +49,8 @@ suite('Link protection domain matching', () => {
 		linkAllowedByRules('https://a.x.org', ['*.x.org']);
 		linkAllowedByRules('https://a.b.x.org', ['*.x.org']);
 		linkAllowedByRules('https://x.org', ['*.x.org']);
+		// https://github.com/microsoft/vscode/issues/249353
+		linkAllowedByRules('https://x.org:3000', ['*.x.org:3000']);
 	});
 
 	test('sub paths', () => {
@@ -112,5 +114,10 @@ suite('Link protection domain matching', () => {
 	test('ignore query & fragment - https://github.com/microsoft/vscode/issues/156839', () => {
 		linkAllowedByRules('https://github.com/login/oauth/authorize?foo=4', ['https://github.com/login/oauth/authorize']);
 		linkAllowedByRules('https://github.com/login/oauth/authorize#foo', ['https://github.com/login/oauth/authorize']);
+	});
+
+	test('ensure individual parts of url are compared and wildcard does not leak out', () => {
+		linkNotAllowedByRules('https://x.org/github.com', ['https://*.github.com']);
+		linkNotAllowedByRules('https://x.org/y.github.com', ['https://*.github.com']);
 	});
 });

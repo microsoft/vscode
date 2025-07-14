@@ -3,27 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../../../base/common/event.js';
 import { derived, IObservable } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
-import { LineRange } from '../../../../../common/core/lineRange.js';
-import { StringText, TextEdit } from '../../../../../common/core/textEdit.js';
-import { Command } from '../../../../../common/languages.js';
+import { LineRange } from '../../../../../common/core/ranges/lineRange.js';
+import { TextEdit } from '../../../../../common/core/edits/textEdit.js';
+import { StringText } from '../../../../../common/core/text/abstractText.js';
+import { Command, InlineCompletionCommand, InlineCompletionDisplayLocation } from '../../../../../common/languages.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
-import { InlineCompletionWithUpdatedRange } from '../../model/inlineCompletionsSource.js';
-import { IInlineEditModel, InlineEditTabAction } from './inlineEditsViewInterface.js';
+import { InlineCompletionItem } from '../../model/inlineSuggestionItem.js';
+import { IInlineEditHost, IInlineEditModel, InlineCompletionViewData, InlineCompletionViewKind, InlineEditTabAction } from './inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
 
 export class InlineEditModel implements IInlineEditModel {
 
 	readonly action: Command | undefined;
 	readonly displayName: string;
-	readonly extensionCommands: Command[];
+	readonly extensionCommands: InlineCompletionCommand[];
+	readonly isInDiffEditor: boolean;
 
+	readonly displayLocation: InlineCompletionDisplayLocation | undefined;
 	readonly showCollapsed: IObservable<boolean>;
-	readonly inAcceptFlow: IObservable<boolean>;
-	readonly inPartialAcceptFlow: IObservable<boolean>;
 
 	constructor(
 		private readonly _model: InlineCompletionsModel,
@@ -32,10 +34,10 @@ export class InlineEditModel implements IInlineEditModel {
 	) {
 		this.action = this.inlineEdit.inlineCompletion.action;
 		this.displayName = this.inlineEdit.inlineCompletion.source.provider.displayName ?? localize('inlineEdit', "Inline Edit");
-		this.extensionCommands = this.inlineEdit.inlineCompletion.source.inlineCompletions.commands ?? [];
+		this.extensionCommands = this.inlineEdit.inlineCompletion.source.inlineSuggestions.commands ?? [];
+		this.isInDiffEditor = this._model.isInDiffEditor;
 
-		this.inAcceptFlow = this._model.inAcceptFlow;
-		this.inPartialAcceptFlow = this._model.inPartialAcceptFlow;
+		this.displayLocation = this.inlineEdit.inlineCompletion.displayLocation;
 		this.showCollapsed = this._model.showCollapsed;
 	}
 
@@ -48,15 +50,27 @@ export class InlineEditModel implements IInlineEditModel {
 	}
 
 	abort(reason: string) {
-		console.error(reason); // TODO: add logs/telemetry
+		console.error(reason);
+		this.inlineEdit.inlineCompletion.reportInlineEditError(reason);
 		this._model.stop();
 	}
 
-	handleInlineEditShown() {
-		this._model.handleInlineEditShown(this.inlineEdit.inlineCompletion);
+	handleInlineEditShown(viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData) {
+		this._model.handleInlineSuggestionShown(this.inlineEdit.inlineCompletion, viewKind, viewData);
 	}
 }
 
+export class InlineEditHost implements IInlineEditHost {
+	readonly onDidAccept: Event<void>;
+	readonly inAcceptFlow: IObservable<boolean>;
+
+	constructor(
+		private readonly _model: InlineCompletionsModel,
+	) {
+		this.onDidAccept = this._model.onDidAccept;
+		this.inAcceptFlow = this._model.inAcceptFlow;
+	}
+}
 
 export class GhostTextIndicator {
 
@@ -66,12 +80,12 @@ export class GhostTextIndicator {
 		editor: ICodeEditor,
 		model: InlineCompletionsModel,
 		readonly lineRange: LineRange,
-		inlineCompletion: InlineCompletionWithUpdatedRange,
+		inlineCompletion: InlineCompletionItem,
 	) {
 		const editorObs = observableCodeEditor(editor);
 		const tabAction = derived<InlineEditTabAction>(this, reader => {
 			if (editorObs.isFocused.read(reader)) {
-				if (model.inlineCompletionState.read(reader)?.inlineCompletion?.sourceInlineCompletion.showInlineEditMenu) {
+				if (inlineCompletion.showInlineEditMenu) {
 					return InlineEditTabAction.Accept;
 				}
 			}
@@ -82,10 +96,10 @@ export class GhostTextIndicator {
 			model,
 			new InlineEditWithChanges(
 				new StringText(''),
-				new TextEdit([]),
+				new TextEdit([inlineCompletion.getSingleTextEdit()]),
 				model.primaryPosition.get(),
-				inlineCompletion.source.inlineCompletions.commands ?? [],
-				inlineCompletion.inlineCompletion
+				inlineCompletion.source.inlineSuggestions.commands ?? [],
+				inlineCompletion
 			),
 			tabAction,
 		);

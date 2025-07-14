@@ -13,7 +13,6 @@ import { basename, dirname, join } from '../../../../../base/common/path.js';
 import { isLinux, isMacintosh } from '../../../../../base/common/platform.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { realpath } from '../../../../../base/node/extpath.js';
 import { Promises } from '../../../../../base/node/pfs.js';
 import { FileChangeFilter, FileChangeType, IFileChange } from '../../../common/files.js';
 import { ILogMessage, coalesceEvents, INonRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, isWatchRequestWithCorrelation } from '../../../common/watcher.js';
@@ -67,7 +66,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 		let result = this.request.path;
 
 		try {
-			result = await realpath(this.request.path);
+			result = await Promises.realpath(this.request.path);
 
 			if (this.request.path !== result) {
 				this.trace(`correcting a path to watch that seems to be a symbolic link (original: ${this.request.path}, real: ${result})`);
@@ -189,6 +188,10 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 	private async doWatchWithNodeJS(isDirectory: boolean, disposables: DisposableStore): Promise<void> {
 		const realPath = await this.realPath.value;
+
+		if (this.cts.token.isCancellationRequested) {
+			return;
+		}
 
 		// macOS: watching samba shares can crash VSCode so we do
 		// a simple check for the file path pointing to /Volumes
@@ -429,9 +432,11 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 				}
 			});
 		} catch (error) {
-			if (!cts.token.isCancellationRequested) {
-				this.error(`Failed to watch ${realPath} for changes using fs.watch() (${error.toString()})`);
+			if (cts.token.isCancellationRequested) {
+				return;
 			}
+
+			this.error(`Failed to watch ${realPath} for changes using fs.watch() (${error.toString()})`);
 
 			this.notifyWatchFailed();
 		}
