@@ -903,6 +903,14 @@ export enum SymbolTag {
 }
 
 /**
+ * Text Direction for a decoration.
+ */
+export enum TextDirection {
+	LTR = 0,
+	RTL = 1
+}
+
+/**
  * The kind of animation in which the editor's cursor should be rendered.
  */
 export enum TextEditorCursorBlinkingStyle {
