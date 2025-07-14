@@ -41,7 +41,7 @@ export class ToolTerminalCreator {
 	) {
 	}
 
-	async createTerminal(sessionId: string, id: string, token: CancellationToken, isBackground?: boolean): Promise<IToolTerminal> {
+	async createTerminal(token: CancellationToken): Promise<IToolTerminal> {
 		const instance = await this._createCopilotTerminal();
 		const toolTerminal: IToolTerminal = {
 			instance,
@@ -59,13 +59,9 @@ export class ToolTerminalCreator {
 			if (shellIntegrationQuality !== ShellIntegrationQuality.None) {
 				ToolTerminalCreator._lastSuccessfulShell = ShellLaunchType.Default;
 				toolTerminal.shellIntegrationQuality = shellIntegrationQuality;
-				// TODO: Bring back terminal session association
-				// this._terminalService.associateTerminalWithSession(terminal, sessionId, id, shellIntegrationQuality, isBackground);
 				return toolTerminal;
 			}
 		}
-		// TODO: Bring back terminal session association
-		// this._terminalService.associateTerminalWithSession(terminal, sessionId, id, ShellIntegrationQuality.None, isBackground);
 
 		// Fallback case: No shell integration in default profile
 		ToolTerminalCreator._lastSuccessfulShell = ShellLaunchType.Fallback;

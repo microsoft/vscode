@@ -183,7 +183,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		if (args.isBackground) {
 			this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
-			const toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(chatSessionId, termId, token, true);
+			const toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(token);
 			this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 			if (token.isCancellationRequested) {
 				toolTerminal.instance.dispose();
@@ -235,7 +235,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				this._logService.debug(`RunInTerminalTool: Using existing terminal with session ID \`${chatSessionId}\``);
 			} else {
 				this._logService.debug(`RunInTerminalTool: Creating terminal with session ID \`${chatSessionId}\``);
-				toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(chatSessionId, termId, token);
+				toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(token);
 				this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 				if (token.isCancellationRequested) {
 					toolTerminal.instance.dispose();
