@@ -74,7 +74,7 @@ export abstract class TestItemTreeElement {
 	/**
 	 * Depth of the element in the tree.
 	 */
-	public depth: number = this.parent ? this.parent.depth + 1 : 0;
+	public depth: number;
 
 	/**
 	 * Whether the node's test result is 'retired' -- from an outdated test run.
@@ -104,7 +104,9 @@ export abstract class TestItemTreeElement {
 		 * in a 'flat' projection.
 		 */
 		public readonly parent: TestItemTreeElement | null = null,
-	) { }
+	) {
+		this.depth = parent ? parent.depth + 1 : 0;
+	}
 
 	public toJSON() {
 		if (this.depth === 0) {

@@ -211,7 +211,8 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 			table.push(['init keybindings, snippets & extensions from settings sync service', metrics.timers.ellapsedOtherUserDataInit, '[renderer]', undefined]);
 		}
 		table.push(['register extensions & spawn extension host', metrics.timers.ellapsedExtensions, '[renderer]', undefined]);
-		table.push(['restore viewlet', metrics.timers.ellapsedViewletRestore, '[renderer]', metrics.viewletId]);
+		table.push(['restore primary viewlet', metrics.timers.ellapsedViewletRestore, '[renderer]', metrics.viewletId]);
+		table.push(['restore secondary viewlet', metrics.timers.ellapsedAuxiliaryViewletRestore, '[renderer]', metrics.auxiliaryViewletId]);
 		table.push(['restore panel', metrics.timers.ellapsedPanelRestore, '[renderer]', metrics.panelId]);
 		table.push(['restore & resolve visible editors', metrics.timers.ellapsedEditorRestore, '[renderer]', `${metrics.editorIds.length}: ${metrics.editorIds.join(', ')}`]);
 		table.push(['create workbench contributions', metrics.timers.ellapsedWorkbenchContributions, '[renderer]', `${(contribTimings.get(LifecyclePhase.Starting)?.length ?? 0) + (contribTimings.get(LifecyclePhase.Starting)?.length ?? 0)} blocking startup`]);

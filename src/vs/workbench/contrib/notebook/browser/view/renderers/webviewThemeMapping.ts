@@ -18,6 +18,7 @@ const mapping: ReadonlyMap<string, string> = new Map([
 	['theme-quote-background', 'vscode-textBlockQuote-background'],
 	['theme-quote-border', 'vscode-textBlockQuote-border'],
 	['theme-code-foreground', 'vscode-textPreformat-foreground'],
+	['theme-code-background', 'vscode-textPreformat-background'],
 	// Editor
 	['theme-background', 'vscode-editor-background'],
 	['theme-foreground', 'vscode-editor-foreground'],

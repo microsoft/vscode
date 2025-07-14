@@ -42,7 +42,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		const isPanelChat = typeof response !== 'string';
 		const responseContent = typeof response === 'string' ? response : response?.response.toString();
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatResponseReceived, { allowManyInParallel: true });
-		if (!response || !responseContent) {
+		if (!response) {
 			return;
 		}
 		const errorDetails = isPanelChat && response.errorDetails ? ` ${response.errorDetails.message}` : '';

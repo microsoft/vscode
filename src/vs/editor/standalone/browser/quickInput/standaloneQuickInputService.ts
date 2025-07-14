@@ -156,6 +156,14 @@ export class StandaloneQuickInputService implements IQuickInputService {
 	cancel(): Promise<void> {
 		return this.activeService.cancel();
 	}
+
+	setAlignment(alignment: 'top' | 'center' | { top: number; left: number }): void {
+		return this.activeService.setAlignment(alignment);
+	}
+
+	toggleHover(): void {
+		return this.activeService.toggleHover();
+	}
 }
 
 export class QuickInputEditorContribution implements IEditorContribution {
@@ -166,9 +174,11 @@ export class QuickInputEditorContribution implements IEditorContribution {
 		return editor.getContribution<QuickInputEditorContribution>(QuickInputEditorContribution.ID);
 	}
 
-	readonly widget = new QuickInputEditorWidget(this.editor);
+	readonly widget: QuickInputEditorWidget;
 
-	constructor(private editor: ICodeEditor) { }
+	constructor(private editor: ICodeEditor) {
+		this.widget = new QuickInputEditorWidget(this.editor);
+	}
 
 	dispose(): void {
 		this.widget.dispose();

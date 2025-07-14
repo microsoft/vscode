@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Range } from '../../../../../editor/common/core/range.js';
-import { IAITextQuery, IFileMatch, ISearchComplete, ISearchProgressItem, ISearchRange, ITextQuery, ITextSearchQuery, ITextSearchResult } from '../../../../services/search/common/search.js';
+import { IFileMatch, ISearchComplete, ISearchProgressItem, ISearchRange, ITextQuery, ITextSearchQuery, ITextSearchResult } from '../../../../services/search/common/search.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -97,8 +97,7 @@ export interface ISearchModel {
 	replaceString: string;
 	preserveCase: boolean;
 	searchResult: ISearchResult;
-	addAIResults(onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
-	aiSearch(query: IAITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
+	aiSearch(onResultReported: (result: ISearchProgressItem | undefined) => void): Promise<ISearchComplete>;
 	hasAIResults: boolean;
 	hasPlainResults: boolean;
 	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void, callerToken?: CancellationToken): {
@@ -107,6 +106,7 @@ export interface ISearchModel {
 	};
 	cancelSearch(cancelledForNewSearch?: boolean): boolean;
 	cancelAISearch(cancelledForNewSearch?: boolean): boolean;
+	clearAiSearchResults(): void;
 	dispose(): void;
 }
 
@@ -130,8 +130,8 @@ export interface ISearchResult {
 	replace(match: ISearchTreeFileMatch): Promise<any>;
 	matches(ai?: boolean): ISearchTreeFileMatch[];
 	isEmpty(): boolean;
-	fileCount(): number;
-	count(): number;
+	fileCount(ignoreSemanticSearchResults?: boolean): number;
+	count(ignoreSemanticSearchResults?: boolean): number;
 	id(): string;
 	setCachedSearchComplete(cachedSearchComplete: ISearchComplete | undefined, ai: boolean): void;
 	getCachedSearchComplete(ai: boolean): ISearchComplete | undefined;
@@ -168,7 +168,7 @@ export interface ITextSearchHeading {
 	rangeHighlightDecorations: RangeHighlightDecorations;
 	fileCount(): number;
 	count(): number;
-	clear(): void;
+	clear(clearAll: boolean): void;
 	dispose(): void;
 }
 
@@ -333,6 +333,13 @@ export function isSearchTreeMatch(obj: any): obj is ISearchTreeMatch {
 		obj !== null &&
 		typeof obj.id === 'function' &&
 		obj.id().startsWith(MATCH_PREFIX);
+}
+
+export function isSearchHeader(obj: any): boolean {
+	return typeof obj === 'object' &&
+		obj !== null &&
+		typeof obj.id === 'function' &&
+		obj.id().startsWith(TEXT_SEARCH_HEADING_PREFIX);
 }
 
 export function getFileMatches(matches: (ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource)[]): ISearchTreeFileMatch[] {

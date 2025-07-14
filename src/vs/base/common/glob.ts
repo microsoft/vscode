@@ -305,6 +305,24 @@ const NULL = function (): string | null {
 	return null;
 };
 
+/**
+ * Check if a provided parsed pattern or expression
+ * is empty - hence it won't ever match anything.
+ *
+ * See {@link FALSE} and {@link NULL}.
+ */
+export function isEmptyPattern(pattern: ParsedPattern | ParsedExpression): pattern is (typeof FALSE | typeof NULL) {
+	if (pattern === FALSE) {
+		return true;
+	}
+
+	if (pattern === NULL) {
+		return true;
+	}
+
+	return false;
+}
+
 function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): ParsedStringPattern {
 	if (!arg1) {
 		return NULL;

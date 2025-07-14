@@ -4,39 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Permutation, compareBy } from '../../../../base/common/arrays.js';
-import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, ISettableObservable, autorun, transaction, IReader } from '../../../../base/common/observable.js';
 import { ContextKeyValue, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { Position } from '../../../common/core/position.js';
-import { PositionOffsetTransformer } from '../../../common/core/positionToOffset.js';
+import { PositionOffsetTransformer } from '../../../common/core/text/positionToOffset.js';
 import { Range } from '../../../common/core/range.js';
-import { SingleTextEdit, TextEdit } from '../../../common/core/textEdit.js';
+import { TextReplacement, TextEdit } from '../../../common/core/edits/textEdit.js';
+import { getPositionOffsetTransformerFromTextModel } from '../../../common/core/text/getPositionOffsetTransformerFromTextModel.js';
+import { ITextModel } from '../../../common/model.js';
 
 const array: ReadonlyArray<any> = [];
 export function getReadonlyEmptyArray<T>(): readonly T[] {
 	return array;
-}
-
-export class ColumnRange {
-	constructor(
-		public readonly startColumn: number,
-		public readonly endColumnExclusive: number,
-	) {
-		if (startColumn > endColumnExclusive) {
-			throw new BugIndicatingError(`startColumn ${startColumn} cannot be after endColumnExclusive ${endColumnExclusive}`);
-		}
-	}
-
-	toRange(lineNumber: number): Range {
-		return new Range(lineNumber, this.startColumn, lineNumber, this.endColumnExclusive);
-	}
-
-	equals(other: ColumnRange): boolean {
-		return this.startColumn === other.startColumn
-			&& this.endColumnExclusive === other.endColumnExclusive;
-	}
 }
 
 export function addPositions(pos1: Position, pos2: Position): Position {
@@ -53,12 +35,24 @@ export function substringPos(text: string, pos: Position): string {
 	return text.substring(offset);
 }
 
-export function getEndPositionsAfterApplying(edits: readonly SingleTextEdit[]): Position[] {
+export function getEndPositionsAfterApplying(edits: readonly TextReplacement[]): Position[] {
+	const newRanges = getModifiedRangesAfterApplying(edits);
+	return newRanges.map(range => range.getEndPosition());
+}
+
+export function getModifiedRangesAfterApplying(edits: readonly TextReplacement[]): Range[] {
 	const sortPerm = Permutation.createSortPermutation(edits, compareBy(e => e.range, Range.compareRangesUsingStarts));
 	const edit = new TextEdit(sortPerm.apply(edits));
 	const sortedNewRanges = edit.getNewRanges();
-	const newRanges = sortPerm.inverse().apply(sortedNewRanges);
-	return newRanges.map(range => range.getEndPosition());
+	return sortPerm.inverse().apply(sortedNewRanges);
+}
+
+export function removeTextReplacementCommonSuffixPrefix(edits: readonly TextReplacement[], textModel: ITextModel): TextReplacement[] {
+	const transformer = getPositionOffsetTransformerFromTextModel(textModel);
+	const text = textModel.getValue();
+	const stringReplacements = edits.map(edit => transformer.getStringReplacement(edit));
+	const minimalStringReplacements = stringReplacements.map(replacement => replacement.removeCommonSuffixPrefix(text));
+	return minimalStringReplacements.map(replacement => transformer.getTextReplacement(replacement));
 }
 
 export function convertItemsToStableObservables<T>(items: IObservable<readonly T[]>, store: DisposableStore): IObservable<IObservable<T>[]> {
@@ -96,4 +90,21 @@ export class ObservableContextKeyService {
 	bind<T extends ContextKeyValue>(key: RawContextKey<T>, obs: IObservable<T> | ((reader: IReader) => T)): IDisposable {
 		return bindContextKey(key, this._contextKeyService, obs instanceof Function ? obs : reader => obs.read(reader));
 	}
+}
+
+export function wait(ms: number, cancellationToken?: CancellationToken): Promise<void> {
+	return new Promise(resolve => {
+		let d: IDisposable | undefined = undefined;
+		const handle = setTimeout(() => {
+			if (d) { d.dispose(); }
+			resolve();
+		}, ms);
+		if (cancellationToken) {
+			d = cancellationToken.onCancellationRequested(() => {
+				clearTimeout(handle);
+				if (d) { d.dispose(); }
+				resolve();
+			});
+		}
+	});
 }

@@ -22,7 +22,7 @@ import { InlayHintsHover } from '../../inlayHints/browser/inlayHintsHover.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { HoverAction } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IOffsetRange } from '../../../common/core/offsetRange.js';
+import { IOffsetRange } from '../../../common/core/ranges/offsetRange.js';
 
 export class RenderedContentHover extends Disposable {
 
@@ -273,6 +273,7 @@ class RenderedContentHoverParts extends Disposable {
 			...hoverContext
 		};
 		const disposables = new DisposableStore();
+		disposables.add(statusBar);
 		for (const participant of participants) {
 			const renderedHoverParts = this._renderHoverPartsForParticipant(hoverParts, participant, hoverRenderingContext);
 			disposables.add(renderedHoverParts);
@@ -294,7 +295,7 @@ class RenderedContentHoverParts extends Disposable {
 				actions: renderedStatusBar.actions,
 			});
 		}
-		return toDisposable(() => { disposables.dispose(); });
+		return disposables;
 	}
 
 	private _renderHoverPartsForParticipant(hoverParts: IHoverPart[], participant: IEditorHoverParticipant<IHoverPart>, hoverRenderingContext: IEditorHoverRenderContext): IRenderedHoverParts<IHoverPart> {

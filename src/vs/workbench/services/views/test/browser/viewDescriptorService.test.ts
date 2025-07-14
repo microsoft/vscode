@@ -11,7 +11,7 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { ViewDescriptorService } from '../../browser/viewDescriptorService.js';
-import { assertIsDefined } from '../../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../../base/common/types.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -172,8 +172,8 @@ suite('ViewDescriptorService', () => {
 		assert.strictEqual(sidebarViews.activeViewDescriptors.length, 1, 'Sidebar container should have 1 view');
 		assert.strictEqual(panelViews.activeViewDescriptors.length, 0, 'Panel container should have no views');
 
-		const generatedPanel = assertIsDefined(testObject.getViewContainerByViewId(viewDescriptors[0].id));
-		const generatedSidebar = assertIsDefined(testObject.getViewContainerByViewId(viewDescriptors[2].id));
+		const generatedPanel = assertReturnsDefined(testObject.getViewContainerByViewId(viewDescriptors[0].id));
+		const generatedSidebar = assertReturnsDefined(testObject.getViewContainerByViewId(viewDescriptors[2].id));
 
 		assert.strictEqual(testObject.getViewContainerLocation(generatedPanel), ViewContainerLocation.Panel, 'Generated Panel should be in located in the panel');
 		assert.strictEqual(testObject.getViewContainerLocation(generatedSidebar), ViewContainerLocation.Sidebar, 'Generated Sidebar should be in located in the sidebar');
@@ -311,8 +311,8 @@ suite('ViewDescriptorService', () => {
 		testObject.moveViewsToContainer([viewDescriptors[1]], panelContainer);
 		testObject.moveViewToLocation(viewDescriptors[2], ViewContainerLocation.Sidebar);
 
-		const generatedPanel = assertIsDefined(testObject.getViewContainerByViewId(viewDescriptors[0].id));
-		const generatedSidebar = assertIsDefined(testObject.getViewContainerByViewId(viewDescriptors[2].id));
+		const generatedPanel = assertReturnsDefined(testObject.getViewContainerByViewId(viewDescriptors[0].id));
+		const generatedSidebar = assertReturnsDefined(testObject.getViewContainerByViewId(viewDescriptors[2].id));
 
 		testObject.reset();
 
