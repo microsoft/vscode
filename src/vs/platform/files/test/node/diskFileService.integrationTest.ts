@@ -72,7 +72,8 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 				FileSystemProviderCapabilities.FileAtomicRead |
 				FileSystemProviderCapabilities.FileAtomicWrite |
 				FileSystemProviderCapabilities.FileAtomicDelete |
-				FileSystemProviderCapabilities.FileClone;
+				FileSystemProviderCapabilities.FileClone |
+				FileSystemProviderCapabilities.FileRealpath;
 
 			if (isLinux) {
 				this._testCapabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
@@ -427,7 +428,7 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(r2.name, 'deep');
 	});
 
-	test('resolve - folder symbolic link', async () => {
+	test('resolve / realpath - folder symbolic link', async () => {
 		const link = URI.file(join(testDir, 'deep-link'));
 		await promises.symlink(join(testDir, 'deep'), link.fsPath, 'junction');
 
@@ -435,6 +436,10 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(resolved.children!.length, 4);
 		assert.strictEqual(resolved.isDirectory, true);
 		assert.strictEqual(resolved.isSymbolicLink, true);
+
+		const realpath = await service.realpath(link);
+		assert.ok(realpath);
+		assert.strictEqual(basename(realpath.fsPath), 'deep');
 	});
 
 	(isWindows ? test.skip /* windows: cannot create file symbolic link without elevated context */ : test)('resolve - file symbolic link', async () => {
@@ -2404,6 +2409,46 @@ flakySuite('Disk File Service', function () {
 		}
 
 		assert.ok(!error);
+	});
+
+	test('writeFile - no error when writing to file where content is the same', async () => {
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		await service.resolve(resource);
+
+		const content = readFileSync(resource.fsPath).toString();
+		assert.strictEqual(content, 'Small File');
+
+		const newContent = content; // same content
+		let error: FileOperationError | undefined = undefined;
+		try {
+			await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: 'anything', mtime: 0 } /* fake it */);
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(!error);
+	});
+
+	test('writeFile - error when writing to file where content is the same length but different', async () => {
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		await service.resolve(resource);
+
+		const content = readFileSync(resource.fsPath).toString();
+		assert.strictEqual(content, 'Small File');
+
+		const newContent = content.split('').reverse().join(''); // reverse content
+		let error: FileOperationError | undefined = undefined;
+		try {
+			await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: 'anything', mtime: 0 } /* fake it */);
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(error);
+		assert.ok(error instanceof FileOperationError);
+		assert.strictEqual(error.fileOperationResult, FileOperationResult.FILE_MODIFIED_SINCE);
 	});
 
 	test('writeFile - no error when writing to same nonexistent folder multiple times different new files', async () => {

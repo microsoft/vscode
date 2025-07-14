@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, createStyleSheet, EventHelper, EventLike, getWindow, isHTMLElement } from '../../dom.js';
+import { $, append, EventHelper, EventLike, getWindow, isHTMLElement } from '../../dom.js';
+import { createStyleSheet } from '../../domStylesheets.js';
 import { DomEmitter } from '../../event.js';
 import { EventType, Gesture } from '../../touch.js';
 import { Delayer } from '../../../common/async.js';
@@ -441,7 +442,7 @@ export class Sash extends Disposable {
 		this._register(onTouchStart(e => this.onPointerStart(e, new GestureEventFactory(this.el)), this));
 		const onTap = this._register(new DomEmitter(this.el, EventType.Tap)).event;
 
-		let doubleTapTimeout: any = undefined;
+		let doubleTapTimeout: Timeout | undefined = undefined;
 		this._register(onTap(event => {
 			if (doubleTapTimeout) {
 				clearTimeout(doubleTapTimeout);

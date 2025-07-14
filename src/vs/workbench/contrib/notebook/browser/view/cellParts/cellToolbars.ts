@@ -10,7 +10,7 @@ import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
-import { createActionViewItem, createAndFillInActionBarActions, MenuEntryActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem, getActionBarActions, MenuEntryActionViewItem, PrimaryAndSecondaryActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
@@ -270,14 +270,8 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 	}
 }
 
-function getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
-	const primary: IAction[] = [];
-	const secondary: IAction[] = [];
-	const result = { primary, secondary };
-
-	createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
-
-	return result;
+function getCellToolbarActions(menu: IMenu): PrimaryAndSecondaryActions {
+	return getActionBarActions(menu.getActions({ shouldForwardArgs: true }), g => /^inline/.test(g));
 }
 
 function createDeleteToolbar(accessor: ServicesAccessor, container: HTMLElement, hoverDelegate: IHoverDelegate, elementClass?: string): ToolBar {

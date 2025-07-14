@@ -3,13 +3,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generatePackageDeps = generatePackageDeps;
 const child_process_1 = require("child_process");
 const fs_1 = require("fs");
 const os_1 = require("os");
-const path = require("path");
-const manifests = require("../../../cgmanifest.json");
+const path_1 = __importDefault(require("path"));
+const cgmanifest_json_1 = __importDefault(require("../../../cgmanifest.json"));
 const dep_lists_1 = require("./dep-lists");
 function generatePackageDeps(files, arch, chromiumSysroot, vscodeSysroot) {
     const dependencies = files.map(file => calculatePackageDeps(file, arch, chromiumSysroot, vscodeSysroot));
@@ -29,7 +32,7 @@ function calculatePackageDeps(binaryPath, arch, chromiumSysroot, vscodeSysroot) 
         console.error('Tried to stat ' + binaryPath + ' but failed.');
     }
     // Get the Chromium dpkg-shlibdeps file.
-    const chromiumManifest = manifests.registrations.filter(registration => {
+    const chromiumManifest = cgmanifest_json_1.default.registrations.filter(registration => {
         return registration.component.type === 'git' && registration.component.git.name === 'chromium';
     });
     const dpkgShlibdepsUrl = `https://raw.githubusercontent.com/chromium/chromium/${chromiumManifest[0].version}/third_party/dpkg-shlibdeps/dpkg-shlibdeps.pl`;
@@ -52,7 +55,7 @@ function calculatePackageDeps(binaryPath, arch, chromiumSysroot, vscodeSysroot) 
     }
     cmd.push(`-l${chromiumSysroot}/usr/lib`);
     cmd.push(`-L${vscodeSysroot}/debian/libxkbfile1/DEBIAN/shlibs`);
-    cmd.push('-O', '-e', path.resolve(binaryPath));
+    cmd.push('-O', '-e', path_1.default.resolve(binaryPath));
     const dpkgShlibdepsResult = (0, child_process_1.spawnSync)('perl', cmd, { cwd: chromiumSysroot });
     if (dpkgShlibdepsResult.status !== 0) {
         throw new Error(`dpkg-shlibdeps failed with exit code ${dpkgShlibdepsResult.status}. stderr:\n${dpkgShlibdepsResult.stderr} `);
@@ -72,19 +75,13 @@ function calculatePackageDeps(binaryPath, arch, chromiumSysroot, vscodeSysroot) 
     // libgcc-s1 is a dependency of libc6.  This hack can be removed once
     // support for Debian Buster and Ubuntu Bionic are dropped.
     //
-    // libgdk-pixbuf package has been renamed from libgdk-pixbuf2.0-0 to
-    // libgdk-pixbuf-2.0-0 in recent distros. Since we only ship a single
-    // linux package we cannot declare a dependeny on it. We can safely
-    // exclude this dependency as GTK depends on it and we depend on GTK.
-    //
     // Remove kerberos native module related dependencies as the versions
     // computed from sysroot will not satisfy the minimum supported distros
     // Refs https://github.com/microsoft/vscode/issues/188881.
     // TODO(deepak1556): remove this workaround in favor of computing the
     // versions from build container for native modules.
     const filteredDeps = depsStr.split(', ').filter(dependency => {
-        return !dependency.startsWith('libgcc-s1') &&
-            !dependency.startsWith('libgdk-pixbuf');
+        return !dependency.startsWith('libgcc-s1');
     }).sort();
     const requires = new Set(filteredDeps);
     return requires;

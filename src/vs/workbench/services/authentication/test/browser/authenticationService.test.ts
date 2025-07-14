@@ -6,11 +6,13 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { AuthenticationAccessService } from '../../browser/authenticationAccessService.js';
 import { AuthenticationService } from '../../browser/authenticationService.js';
 import { AuthenticationProviderInformation, AuthenticationSessionsChangeEvent, IAuthenticationProvider } from '../../common/authentication.js';
 import { TestEnvironmentService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestExtensionService, TestProductService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 
 function createSession() {
 	return { id: 'session1', accessToken: 'token1', account: { id: 'account', label: 'Account' }, scopes: ['test'] };
@@ -37,7 +39,7 @@ suite('AuthenticationService', () => {
 	setup(() => {
 		const storageService = disposables.add(new TestStorageService());
 		const authenticationAccessService = disposables.add(new AuthenticationAccessService(storageService, TestProductService));
-		authenticationService = disposables.add(new AuthenticationService(new TestExtensionService(), authenticationAccessService, TestEnvironmentService));
+		authenticationService = disposables.add(new AuthenticationService(new TestExtensionService(), authenticationAccessService, TestEnvironmentService, new NullLogService()));
 	});
 
 	teardown(() => {
@@ -126,10 +128,104 @@ suite('AuthenticationService', () => {
 			// Assert that the retrieved provider is the same as the registered provider
 			assert.deepEqual(retrievedProvider, provider);
 		});
+
+		test('getOrActivateProviderIdForServer - should return undefined when no provider matches the authorization server', async () => {
+			const authorizationServer = URI.parse('https://example.com');
+			const result = await authenticationService.getOrActivateProviderIdForServer(authorizationServer);
+			assert.strictEqual(result, undefined);
+		});
+
+		test('getOrActivateProviderIdForServer - should return provider id if authorizationServerGlobs matches and authorizationServers match', async () => {
+			// Register a declared provider with an authorization server glob
+			const provider: AuthenticationProviderInformation = {
+				id: 'github',
+				label: 'GitHub',
+				authorizationServerGlobs: ['https://github.com/*']
+			};
+			authenticationService.registerDeclaredAuthenticationProvider(provider);
+
+			// Register an authentication provider with matching authorization servers
+			const authProvider = createProvider({
+				id: 'github',
+				label: 'GitHub',
+				authorizationServers: [URI.parse('https://github.com/login')]
+			});
+			authenticationService.registerAuthenticationProvider('github', authProvider);
+
+			// Test with a matching URI
+			const authorizationServer = URI.parse('https://github.com/login');
+			const result = await authenticationService.getOrActivateProviderIdForServer(authorizationServer);
+
+			// Verify the result
+			assert.strictEqual(result, 'github');
+		});
+
+		test('getOrActivateProviderIdForServer - should return undefined if authorizationServerGlobs match but authorizationServers do not match', async () => {
+			// Register a declared provider with an authorization server glob
+			const provider: AuthenticationProviderInformation = {
+				id: 'github',
+				label: 'GitHub',
+				authorizationServerGlobs: ['https://github.com/*']
+			};
+			authenticationService.registerDeclaredAuthenticationProvider(provider);
+
+			// Register an authentication provider with non-matching authorization servers
+			const authProvider = createProvider({
+				id: 'github',
+				label: 'GitHub',
+				authorizationServers: [URI.parse('https://github.com/different')]
+			});
+			authenticationService.registerAuthenticationProvider('github', authProvider);
+
+			// Test with a non-matching URI
+			const authorizationServer = URI.parse('https://github.com/login');
+			const result = await authenticationService.getOrActivateProviderIdForServer(authorizationServer);
+
+			// Verify the result
+			assert.strictEqual(result, undefined);
+		});
+
+		test('getOrActivateProviderIdForAuthorizationServer - should check multiple providers and return the first match', async () => {
+			// Register two declared providers with authorization server globs
+			const provider1: AuthenticationProviderInformation = {
+				id: 'github',
+				label: 'GitHub',
+				authorizationServerGlobs: ['https://github.com/*']
+			};
+			const provider2: AuthenticationProviderInformation = {
+				id: 'microsoft',
+				label: 'Microsoft',
+				authorizationServerGlobs: ['https://login.microsoftonline.com/*']
+			};
+			authenticationService.registerDeclaredAuthenticationProvider(provider1);
+			authenticationService.registerDeclaredAuthenticationProvider(provider2);
+
+			// Register authentication providers
+			const githubProvider = createProvider({
+				id: 'github',
+				label: 'GitHub',
+				authorizationServers: [URI.parse('https://github.com/different')]
+			});
+			authenticationService.registerAuthenticationProvider('github', githubProvider);
+
+			const microsoftProvider = createProvider({
+				id: 'microsoft',
+				label: 'Microsoft',
+				authorizationServers: [URI.parse('https://login.microsoftonline.com/common')]
+			});
+			authenticationService.registerAuthenticationProvider('microsoft', microsoftProvider);
+
+			// Test with a URI that should match the second provider
+			const authorizationServer = URI.parse('https://login.microsoftonline.com/common');
+			const result = await authenticationService.getOrActivateProviderIdForServer(authorizationServer);
+
+			// Verify the result
+			assert.strictEqual(result, 'microsoft');
+		});
 	});
 
 	suite('authenticationSessions', () => {
-		test('getSessions', async () => {
+		test('getSessions - base case', async () => {
 			let isCalled = false;
 			const provider = createProvider({
 				getSessions: async () => {
@@ -142,6 +238,19 @@ suite('AuthenticationService', () => {
 
 			assert.equal(sessions.length, 1);
 			assert.ok(isCalled);
+		});
+
+		test('getSessions - authorization server is not registered', async () => {
+			let isCalled = false;
+			const provider = createProvider({
+				getSessions: async () => {
+					isCalled = true;
+					return [createSession()];
+				},
+			});
+			authenticationService.registerAuthenticationProvider(provider.id, provider);
+			assert.rejects(() => authenticationService.getSessions(provider.id, [], { authorizationServer: URI.parse('https://example.com') }));
+			assert.ok(!isCalled);
 		});
 
 		test('createSession', async () => {

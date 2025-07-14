@@ -55,7 +55,7 @@ export class WindowsStateHandler extends Disposable {
 	private static readonly windowsStateStorageKey = 'windowsState';
 
 	get state() { return this._state; }
-	private readonly _state = restoreWindowsState(this.stateService.getItem<ISerializedWindowsState>(WindowsStateHandler.windowsStateStorageKey));
+	private readonly _state: IWindowsState;
 
 	private lastClosedState: IWindowState | undefined = undefined;
 
@@ -69,6 +69,8 @@ export class WindowsStateHandler extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
+
+		this._state = restoreWindowsState(this.stateService.getItem<ISerializedWindowsState>(WindowsStateHandler.windowsStateStorageKey));
 
 		this.registerListeners();
 	}

@@ -14,7 +14,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
-import { createActionViewItem, createAndFillInActionBarActions } from './menuEntryActionViewItem.js';
+import { createActionViewItem, getActionBarActions } from './menuEntryActionViewItem.js';
 import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../common/actions.js';
 import { createConfigureKeybindingAction } from '../common/menuService.js';
 import { ICommandService } from '../../commands/common/commands.js';
@@ -301,6 +301,11 @@ export interface IToolBarRenderOptions {
 	 * Should the primary group allow for separators.
 	 */
 	useSeparatorsInPrimaryActions?: boolean;
+
+	/**
+	 * Force a leading separator in the primary actions group.
+	 */
+	forceLeadingSeparatorInPrimaryActions?: boolean;
 }
 
 export interface IMenuWorkbenchToolBarOptions extends IWorkbenchToolBarOptions {
@@ -364,15 +369,14 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 		// update logic
 		const menu = this._store.add(menuService.createMenu(menuId, contextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: options?.eventDebounceDelay }));
 		const updateToolbar = () => {
-			const primary: IAction[] = [];
-			const secondary: IAction[] = [];
-			createAndFillInActionBarActions(
-				menu,
-				options?.menuOptions,
-				{ primary, secondary },
+			const { primary, secondary } = getActionBarActions(
+				menu.getActions(options?.menuOptions),
 				options?.toolbarOptions?.primaryGroup, options?.toolbarOptions?.shouldInlineSubmenu, options?.toolbarOptions?.useSeparatorsInPrimaryActions
 			);
 			container.classList.toggle('has-no-actions', primary.length === 0 && secondary.length === 0);
+			if (options?.toolbarOptions?.forceLeadingSeparatorInPrimaryActions && primary.length > 0) {
+				primary.unshift(new Separator());
+			}
 			super.setActions(primary, secondary);
 		};
 

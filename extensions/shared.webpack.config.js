@@ -56,6 +56,7 @@ function withNodeDefaults(/**@type WebpackConfig & { context: string }*/extConfi
 			}]
 		},
 		externals: {
+			'electron': 'commonjs electron', // ignored to avoid bundling from node_modules
 			'vscode': 'commonjs vscode', // ignored because it doesn't exist,
 			'applicationinsights-native-metrics': 'commonjs applicationinsights-native-metrics', // ignored because we don't ship native module
 			'@azure/functions-core': 'commonjs azure/functions-core', // optioinal dependency of appinsights that we don't use
@@ -204,4 +205,3 @@ module.exports.node = withNodeDefaults;
 module.exports.browser = withBrowserDefaults;
 module.exports.nodePlugins = nodePlugins;
 module.exports.browserPlugins = browserPlugins;
-

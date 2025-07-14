@@ -26,6 +26,7 @@ import { GitEditor, GitEditorDocumentLinkProvider } from './gitEditor';
 import { GitPostCommitCommandsProvider } from './postCommitCommands';
 import { GitEditSessionIdentityProvider } from './editSessionIdentityProvider';
 import { GitCommitInputBoxCodeActionsProvider, GitCommitInputBoxDiagnosticsManager } from './diagnostics';
+import { GitBlameController } from './blame';
 
 const deactivateTasks: { (): Promise<any> }[] = [];
 
@@ -69,7 +70,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 		logger.error(`[main] Failed to create git IPC: ${err}`);
 	}
 
-	const askpass = new Askpass(ipcServer);
+	const askpass = new Askpass(ipcServer, logger);
 	disposables.push(askpass);
 
 	const gitEditor = new GitEditor(ipcServer);
@@ -110,14 +111,15 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	const cc = new CommandCenter(git, model, context.globalState, logger, telemetryReporter);
 	disposables.push(
 		cc,
-		new GitFileSystemProvider(model),
+		new GitFileSystemProvider(model, logger),
 		new GitDecorations(model),
+		new GitBlameController(model),
 		new GitTimelineProvider(model, cc),
 		new GitEditSessionIdentityProvider(model),
 		new TerminalShellExecutionManager(model, logger)
 	);
 
-	const postCommitCommandsProvider = new GitPostCommitCommandsProvider();
+	const postCommitCommandsProvider = new GitPostCommitCommandsProvider(model);
 	model.registerPostCommitCommandsProvider(postCommitCommandsProvider);
 
 	const diagnosticsManager = new GitCommitInputBoxDiagnosticsManager(model);

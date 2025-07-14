@@ -13,7 +13,7 @@ import { BrandedService, GetLeadingNonServiceArgs, IInstantiationService } from 
  * When the wrapper is created, the original class is created.
  * When the original class changes, the instance is re-created.
 */
-export function wrapInReloadableClass0<TArgs extends BrandedService[]>(getClass: () => Result<TArgs>): Result<GetLeadingNonServiceArgs<TArgs>> {
+export function wrapInReloadableClass0<TArgs extends BrandedService[]>(getClass: () => Result<TArgs>): Result<TArgs> {
 	return !isHotReloadEnabled() ? getClass() : createWrapper(getClass, BaseClass0);
 }
 
