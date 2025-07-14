@@ -27,11 +27,12 @@ import { SymbolsQuickAccessProvider } from './symbolsQuickAccess.js';
 import { ISearchHistoryService, SearchHistoryService } from '../common/searchHistoryService.js';
 import { SearchViewModelWorkbenchService } from './searchTreeModel/searchModel.js';
 import { ISearchViewModelWorkbenchService } from './searchTreeModel/searchViewModelWorkbenchService.js';
-import { SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, ViewMode, VIEW_ID, DEFAULT_MAX_SEARCH_RESULTS } from '../../../services/search/common/search.js';
+import { SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, ViewMode, VIEW_ID, DEFAULT_MAX_SEARCH_RESULTS, SemanticSearchBehavior } from '../../../services/search/common/search.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { assertType } from '../../../../base/common/types.js';
 import { getWorkspaceSymbols, IWorkspaceSymbol } from '../common/search.js';
 import * as Constants from '../common/constants.js';
+import { SearchChatContextContribution } from './chatContributions.js';
 
 import './searchActionsCopy.js';
 import './searchActionsFind.js';
@@ -42,6 +43,7 @@ import './searchActionsTopBar.js';
 import './searchActionsTextQuickAccess.js';
 import { TEXT_SEARCH_QUICK_ACCESS_PREFIX, TextSearchQuickAccess } from './quickTextSearch/textSearchQuickAccess.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 
 registerSingleton(ISearchViewModelWorkbenchService, SearchViewModelWorkbenchService, InstantiationType.Delayed);
 registerSingleton(ISearchHistoryService, SearchHistoryService, InstantiationType.Delayed);
@@ -49,6 +51,8 @@ registerSingleton(ISearchHistoryService, SearchHistoryService, InstantiationType
 replaceContributions();
 notebookSearchContributions();
 searchWidgetContributions();
+
+registerWorkbenchContribution2(SearchChatContextContribution.ID, SearchChatContextContribution, WorkbenchPhase.AfterRestored);
 
 const SEARCH_MODE_CONFIG = 'search.mode';
 
@@ -157,9 +161,9 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['view', 'reuseEditor', 'newEditor'],
 			default: 'view',
-			markdownDescription: nls.localize('search.mode', "Controls where new `Search: Find in Files` and `Find in Folder` operations occur: either in the search view, or in a search editor."),
+			markdownDescription: nls.localize('search.mode', "Controls where new `Search: Find in Files` and `Find in Folder` operations occur: either in the Search view, or in a search editor."),
 			enumDescriptions: [
-				nls.localize('search.mode.view', "Search in the search view, either in the panel or side bars."),
+				nls.localize('search.mode.view', "Search in the Search view, either in the panel or side bars."),
 				nls.localize('search.mode.reuseEditor', "Search in an existing search editor if present, otherwise in a new search editor."),
 				nls.localize('search.mode.newEditor', "Search in a new search editor."),
 			]
@@ -232,7 +236,7 @@ configurationRegistry.registerConfiguration({
 		'search.globalFindClipboard': {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('search.globalFindClipboard', "Controls whether the search view should read or modify the shared find clipboard on macOS."),
+			description: nls.localize('search.globalFindClipboard', "Controls whether the Search view should read or modify the shared find clipboard on macOS."),
 			included: platform.isMacintosh
 		},
 		'search.location': {
@@ -278,11 +282,11 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['auto', 'right'],
 			enumDescriptions: [
-				nls.localize('search.actionsPositionAuto', "Position the actionbar to the right when the search view is narrow, and immediately after the content when the search view is wide."),
+				nls.localize('search.actionsPositionAuto', "Position the actionbar to the right when the Search view is narrow, and immediately after the content when the Search view is wide."),
 				nls.localize('search.actionsPositionRight', "Always position the actionbar to the right."),
 			],
 			default: 'right',
-			description: nls.localize('search.actionsPosition', "Controls the positioning of the actionbar on rows in the search view.")
+			description: nls.localize('search.actionsPosition', "Controls the positioning of the actionbar on rows in the Search view.")
 		},
 		'search.searchOnType': {
 			type: 'boolean',
@@ -297,7 +301,7 @@ configurationRegistry.registerConfiguration({
 		'search.seedOnFocus': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize('search.seedOnFocus', "Update the search query to the editor's selected text when focusing the search view. This happens either on click or when triggering the `workbench.views.search.focus` command.")
+			markdownDescription: nls.localize('search.seedOnFocus', "Update the search query to the editor's selected text when focusing the Search view. This happens either on click or when triggering the `workbench.views.search.focus` command.")
 		},
 		'search.searchOnTypeDebouncePeriod': {
 			type: 'number',
@@ -384,7 +388,24 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('search.experimental.closedNotebookResults', "Show notebook editor rich content results for closed notebooks. Please refresh your search results after changing this setting."),
 			default: false
 		},
-
+		'search.searchView.semanticSearchBehavior': {
+			type: 'string',
+			description: nls.localize('search.searchView.semanticSearchBehavior', "Controls the behavior of the semantic search results displayed in the Search view."),
+			enum: [SemanticSearchBehavior.Manual, SemanticSearchBehavior.RunOnEmpty, SemanticSearchBehavior.Auto],
+			default: SemanticSearchBehavior.Manual,
+			enumDescriptions: [
+				nls.localize('search.searchView.semanticSearchBehavior.manual', "Only request semantic search results manually."),
+				nls.localize('search.searchView.semanticSearchBehavior.runOnEmpty', "Request semantic results automatically only when text search results are empty."),
+				nls.localize('search.searchView.semanticSearchBehavior.auto', "Request semantic results automatically with every search.")
+			],
+			tags: ['preview'],
+		},
+		'search.searchView.keywordSuggestions': {
+			type: 'boolean',
+			description: nls.localize('search.searchView.keywordSuggestions', "Enable keyword suggestions in the Search view."),
+			default: false,
+			tags: ['preview'],
+		},
 	}
 });
 

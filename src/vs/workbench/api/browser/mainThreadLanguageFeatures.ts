@@ -33,7 +33,9 @@ import * as callh from '../../contrib/callHierarchy/common/callHierarchy.js';
 import * as search from '../../contrib/search/common/search.js';
 import * as typeh from '../../contrib/typeHierarchy/common/typeHierarchy.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IdentifiableInlineEdit, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { InlineCompletionEndOfLifeReasonKind } from '../common/extHostTypes.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -46,7 +48,8 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
-		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService
+		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -614,13 +617,10 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.completionProvider.register(selector, provider));
 	}
 
-	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleEvents: boolean, extensionId: string, yieldsToExtensionIds: string[]): void {
+	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleEvents: boolean, extensionId: string, extensionVersion: string, groupId: string | undefined, yieldsToExtensionIds: string[], displayName: string | undefined, debounceDelayMs: number | undefined, eventHandle: number | undefined): void {
 		const provider: languages.InlineCompletionsProvider<IdentifiableInlineCompletions> = {
 			provideInlineCompletions: async (model: ITextModel, position: EditorPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
 				return this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
-			},
-			provideInlineEditsForRange: async (model: ITextModel, range: EditorRange, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
-				return this._proxy.$provideInlineEditsForRange(handle, model.uri, range, context, token);
 			},
 			handleItemDidShow: async (completions: IdentifiableInlineCompletions, item: IdentifiableInlineCompletion, updatedInsertText: string): Promise<void> => {
 				if (supportsHandleEvents) {
@@ -632,29 +632,83 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					await this._proxy.$handleInlineCompletionPartialAccept(handle, completions.pid, item.idx, acceptedCharacters, info);
 				}
 			},
-			freeInlineCompletions: (completions: IdentifiableInlineCompletions): void => {
-				this._proxy.$freeInlineCompletionsList(handle, completions.pid);
+			handleEndOfLifetime: async (completions, item, reason, lifetimeSummary) => {
+
+				function mapReason<T1, T2>(reason: languages.InlineCompletionEndOfLifeReason<T1>, f: (reason: T1) => T2): languages.InlineCompletionEndOfLifeReason<T2> {
+					if (reason.kind === languages.InlineCompletionEndOfLifeReasonKind.Ignored) {
+						return {
+							...reason,
+							supersededBy: reason.supersededBy ? f(reason.supersededBy) : undefined,
+						};
+					}
+					return reason;
+				}
+
+				if (supportsHandleEvents) {
+					await this._proxy.$handleInlineCompletionEndOfLifetime(handle, completions.pid, item.idx, mapReason(reason, i => ({ pid: completions.pid, idx: i.idx })));
+				}
+				const endOfLifeSummary: InlineCompletionEndOfLifeEvent = {
+					id: lifetimeSummary.requestUuid,
+					shown: lifetimeSummary.shown,
+					shownDuration: lifetimeSummary.shownDuration,
+					shownDurationUncollapsed: lifetimeSummary.shownDurationUncollapsed,
+					timeUntilShown: lifetimeSummary.timeUntilShown,
+					editorType: lifetimeSummary.editorType,
+					viewKind: lifetimeSummary.viewKind,
+					preceeded: lifetimeSummary.preceeded,
+					requestReason: lifetimeSummary.requestReason,
+					error: lifetimeSummary.error,
+					typingInterval: lifetimeSummary.typingInterval,
+					typingIntervalCharacterCount: lifetimeSummary.typingIntervalCharacterCount,
+					languageId: lifetimeSummary.languageId,
+					cursorColumnDistance: lifetimeSummary.cursorColumnDistance,
+					cursorLineDistance: lifetimeSummary.cursorLineDistance,
+					lineCountOriginal: lifetimeSummary.lineCountOriginal,
+					lineCountModified: lifetimeSummary.lineCountModified,
+					characterCountOriginal: lifetimeSummary.characterCountOriginal,
+					characterCountModified: lifetimeSummary.characterCountModified,
+					disjointReplacements: lifetimeSummary.disjointReplacements,
+					sameShapeReplacements: lifetimeSummary.sameShapeReplacements,
+					extensionId,
+					extensionVersion,
+					partiallyAccepted: lifetimeSummary.partiallyAccepted,
+					superseded: reason.kind === InlineCompletionEndOfLifeReasonKind.Ignored && !!reason.supersededBy,
+					reason: reason.kind === InlineCompletionEndOfLifeReasonKind.Accepted ? 'accepted'
+						: reason.kind === InlineCompletionEndOfLifeReasonKind.Rejected ? 'rejected'
+							: 'ignored'
+				};
+				this._telemetryService.publicLog2<InlineCompletionEndOfLifeEvent, InlineCompletionsEndOfLifeClassification>('inlineCompletion.endOfLife', endOfLifeSummary);
 			},
-			groupId: extensionId,
+			disposeInlineCompletions: (completions: IdentifiableInlineCompletions, reason: languages.InlineCompletionsDisposeReason): void => {
+				this._proxy.$freeInlineCompletionsList(handle, completions.pid, reason);
+			},
+			handleRejection: async (completions, item): Promise<void> => {
+				if (supportsHandleEvents) {
+					await this._proxy.$handleInlineCompletionRejection(handle, completions.pid, item.idx);
+				}
+			},
+			groupId: groupId ?? extensionId,
+			providerId: new languages.ProviderId(extensionId, extensionVersion, groupId),
 			yieldsToGroupIds: yieldsToExtensionIds,
+			debounceDelayMs,
+			displayName,
 			toString() {
 				return `InlineCompletionsProvider(${extensionId})`;
-			}
+			},
 		};
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<void>();
+			this._registrations.set(eventHandle, emitter);
+			provider.onDidChangeInlineCompletions = emitter.event;
+		}
 		this._registrations.set(handle, this._languageFeaturesService.inlineCompletionsProvider.register(selector, provider));
 	}
 
-	$registerInlineEditProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier): void {
-		const provider: languages.InlineEditProvider<IdentifiableInlineEdit> = {
-			provideInlineEdit: async (model: ITextModel, context: languages.IInlineEditContext, token: CancellationToken): Promise<IdentifiableInlineEdit | undefined> => {
-				return this._proxy.$provideInlineEdit(handle, model.uri, context, token);
-			},
-			freeInlineEdit: (edit: IdentifiableInlineEdit): void => {
-				this._proxy.$freeInlineEdit(handle, edit.pid);
-			}
-
-		};
-		this._registrations.set(handle, this._languageFeaturesService.inlineEditProvider.register(selector, provider));
+	$emitInlineCompletionsChange(handle: number): void {
+		const obj = this._registrations.get(handle);
+		if (obj instanceof Emitter) {
+			obj.fire(undefined);
+		}
 	}
 
 	// --- parameter hints
@@ -1005,22 +1059,15 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		}
 		return provider.resolveDocumentOnDropFileData(requestId, dataId);
 	}
-
-	// --- mapped edits
-
-	$registerMappedEditsProvider(handle: number, selector: IDocumentFilterDto[], displayName: string): void {
-		const provider = new MainThreadMappedEditsProvider(displayName, handle, this._proxy, this._uriIdentService);
-		this._registrations.set(handle, this._languageFeaturesService.mappedEditsProvider.register(selector, provider));
-	}
 }
 
 class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider {
 
 	private readonly dataTransfers = new DataTransferFileCache();
 
-	public readonly copyMimeTypes?: readonly string[];
-	public readonly pasteMimeTypes?: readonly string[];
-	public readonly providedPasteEditKinds?: readonly HierarchicalKind[];
+	public readonly copyMimeTypes: readonly string[];
+	public readonly pasteMimeTypes: readonly string[];
+	public readonly providedPasteEditKinds: readonly HierarchicalKind[];
 
 	readonly prepareDocumentPaste?: languages.DocumentPasteEditProvider['prepareDocumentPaste'];
 	readonly provideDocumentPasteEdits?: languages.DocumentPasteEditProvider['provideDocumentPasteEdits'];
@@ -1032,13 +1079,13 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 		metadata: IPasteEditProviderMetadataDto,
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService
 	) {
-		this.copyMimeTypes = metadata.copyMimeTypes;
-		this.pasteMimeTypes = metadata.pasteMimeTypes;
-		this.providedPasteEditKinds = metadata.providedPasteEditKinds?.map(kind => new HierarchicalKind(kind));
+		this.copyMimeTypes = metadata.copyMimeTypes ?? [];
+		this.pasteMimeTypes = metadata.pasteMimeTypes ?? [];
+		this.providedPasteEditKinds = metadata.providedPasteEditKinds?.map(kind => new HierarchicalKind(kind)) ?? [];
 
 		if (metadata.supportsCopy) {
 			this.prepareDocumentPaste = async (model: ITextModel, selections: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<IReadonlyVSDataTransfer | undefined> => {
-				const dataTransferDto = await typeConvert.DataTransfer.from(dataTransfer);
+				const dataTransferDto = await typeConvert.DataTransfer.fromList(dataTransfer);
 				if (token.isCancellationRequested) {
 					return undefined;
 				}
@@ -1050,7 +1097,7 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 
 				const dataTransferOut = new VSDataTransfer();
 				for (const [type, item] of newDataTransfer.items) {
-					dataTransferOut.replace(type, createStringDataTransferItem(item.asString));
+					dataTransferOut.replace(type, createStringDataTransferItem(item.asString, item.id));
 				}
 				return dataTransferOut;
 			};
@@ -1060,7 +1107,7 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 			this.provideDocumentPasteEdits = async (model: ITextModel, selections: Selection[], dataTransfer: IReadonlyVSDataTransfer, context: languages.DocumentPasteContext, token: CancellationToken) => {
 				const request = this.dataTransfers.add(dataTransfer);
 				try {
-					const dataTransferDto = await typeConvert.DataTransfer.from(dataTransfer);
+					const dataTransferDto = await typeConvert.DataTransfer.fromList(dataTransfer);
 					if (token.isCancellationRequested) {
 						return;
 					}
@@ -1094,6 +1141,10 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 		if (metadata.supportsResolve) {
 			this.resolveDocumentPasteEdit = async (edit: languages.DocumentPasteEdit, token: CancellationToken) => {
 				const resolved = await this._proxy.$resolvePasteEdit(this._handle, (<IPasteEditDto>edit)._cacheId!, token);
+				if (typeof resolved.insertText !== 'undefined') {
+					edit.insertText = resolved.insertText;
+				}
+
 				if (resolved.additionalEdit) {
 					edit.additionalEdit = reviveWorkspaceEditDto(resolved.additionalEdit, this._uriIdentService);
 				}
@@ -1113,6 +1164,8 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentDropEdit
 
 	readonly dropMimeTypes?: readonly string[];
 
+	readonly providedDropEditKinds: readonly HierarchicalKind[] | undefined;
+
 	readonly resolveDocumentDropEdit?: languages.DocumentDropEditProvider['resolveDocumentDropEdit'];
 
 	constructor(
@@ -1122,6 +1175,7 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentDropEdit
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService
 	) {
 		this.dropMimeTypes = metadata?.dropMimeTypes ?? ['*/*'];
+		this.providedDropEditKinds = metadata?.providedDropKinds?.map(kind => new HierarchicalKind(kind));
 
 		if (metadata?.supportsResolve) {
 			this.resolveDocumentDropEdit = async (edit, token) => {
@@ -1137,7 +1191,7 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentDropEdit
 	async provideDocumentDropEdits(model: ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<languages.DocumentDropEditsSession | undefined> {
 		const request = this.dataTransfers.add(dataTransfer);
 		try {
-			const dataTransferDto = await typeConvert.DataTransfer.from(dataTransfer);
+			const dataTransferDto = await typeConvert.DataTransfer.fromList(dataTransfer);
 			if (token.isCancellationRequested) {
 				return;
 			}
@@ -1245,17 +1299,62 @@ export class MainThreadDocumentRangeSemanticTokensProvider implements languages.
 	}
 }
 
-export class MainThreadMappedEditsProvider implements languages.MappedEditsProvider {
+type InlineCompletionEndOfLifeEvent = {
+	id: string;
+	extensionId: string;
+	extensionVersion: string;
+	shown: boolean;
+	shownDuration: number;
+	shownDurationUncollapsed: number;
+	timeUntilShown: number | undefined;
+	reason: 'accepted' | 'rejected' | 'ignored';
+	partiallyAccepted: number;
+	preceeded: boolean;
+	requestReason: string;
+	languageId: string;
+	error: string | undefined;
+	typingInterval: number;
+	typingIntervalCharacterCount: number;
+	superseded: boolean;
+	editorType: string;
+	viewKind: string | undefined;
+	cursorColumnDistance: number | undefined;
+	cursorLineDistance: number | undefined;
+	lineCountOriginal: number | undefined;
+	lineCountModified: number | undefined;
+	characterCountOriginal: number | undefined;
+	characterCountModified: number | undefined;
+	disjointReplacements: number | undefined;
+	sameShapeReplacements: boolean | undefined;
+};
 
-	constructor(
-		public readonly displayName: string,
-		private readonly _handle: number,
-		private readonly _proxy: ExtHostLanguageFeaturesShape,
-		private readonly _uriService: IUriIdentityService,
-	) { }
-
-	async provideMappedEdits(document: ITextModel, codeBlocks: string[], context: languages.MappedEditsContext, token: CancellationToken): Promise<languages.WorkspaceEdit | null> {
-		const res = await this._proxy.$provideMappedEdits(this._handle, document.uri, codeBlocks, context, token);
-		return res ? reviveWorkspaceEditDto(res, this._uriService) : null;
-	}
-}
+type InlineCompletionsEndOfLifeClassification = {
+	owner: 'benibenj';
+	comment: 'Inline completions ended';
+	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier for the inline completion request' };
+	extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier for the extension that contributed the inline completion' };
+	extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension that contributed the inline completion' };
+	shown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was shown to the user' };
+	shownDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown' };
+	shownDurationUncollapsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown without collapsing' };
+	timeUntilShown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be shown after the request' };
+	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion ending' };
+	partiallyAccepted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How often the inline completion was partially accepted by the user' };
+	preceeded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was preceeded by another one' };
+	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language ID of the document where the inline completion was shown' };
+	requestReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion request' };
+	error: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The error message if the inline completion failed' };
+	typingInterval: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The average typing interval of the user at the moment the inline completion was requested' };
+	typingIntervalCharacterCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The character count involved in the typing interval calculation' };
+	superseded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was superseded by another one' };
+	editorType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of the editor where the inline completion was shown' };
+	viewKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of the view where the inline completion was shown' };
+	cursorColumnDistance: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The distance in columns from the cursor to the inline suggestion' };
+	cursorLineDistance: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The distance in lines from the cursor to the inline suggestion' };
+	lineCountOriginal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of lines in the original text' };
+	lineCountModified: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of lines in the modified text' };
+	characterCountOriginal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of characters in the original text' };
+	characterCountModified: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of characters in the modified text' };
+	disjointReplacements: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of inner replacements made by the inline completion' };
+	sameShapeReplacements: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether all inner replacements are the same shape' };
+};

@@ -38,13 +38,12 @@ export class HideStandaloneColorPicker extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.hideColorPicker',
-			label: localize({
+			label: localize2({
 				key: 'hideColorPicker',
 				comment: [
 					'Action that hides the color picker'
 				]
 			}, "Hide the Color Picker"),
-			alias: 'Hide the Color Picker',
 			precondition: EditorContextKeys.standaloneColorPickerVisible.isEqualTo(true),
 			kbOpts: {
 				primary: KeyCode.Escape,
@@ -64,13 +63,12 @@ export class InsertColorWithStandaloneColorPicker extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.insertColorWithStandaloneColorPicker',
-			label: localize({
+			label: localize2({
 				key: 'insertColorWithStandaloneColorPicker',
 				comment: [
 					'Action that inserts color with standalone color picker'
 				]
 			}, "Insert Color with Standalone Color Picker"),
-			alias: 'Insert Color with Standalone Color Picker',
 			precondition: EditorContextKeys.standaloneColorPickerFocused.isEqualTo(true),
 			kbOpts: {
 				primary: KeyCode.Enter,

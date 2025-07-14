@@ -78,7 +78,7 @@ export class ContentHoverComputer implements IHoverComputer<ContentHoverComputer
 				if (!participant.computeAsync) {
 					return AsyncIterableObject.EMPTY;
 				}
-				return participant.computeAsync(anchor, lineDecorations, token);
+				return participant.computeAsync(anchor, lineDecorations, options.source, token);
 			})
 		);
 	}
@@ -93,7 +93,7 @@ export class ContentHoverComputer implements IHoverComputer<ContentHoverComputer
 
 		let result: IHoverPart[] = [];
 		for (const participant of this._participants) {
-			result = result.concat(participant.computeSync(anchor, lineDecorations));
+			result = result.concat(participant.computeSync(anchor, lineDecorations, options.source));
 		}
 
 		return coalesce(result);

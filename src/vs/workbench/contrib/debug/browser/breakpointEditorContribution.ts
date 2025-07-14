@@ -730,6 +730,7 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 			if (this.range && !this.range.equalsRange(range)) {
 				this.range = range;
 				this.editor.layoutContentWidget(this);
+				this.updateSize();
 			}
 		}));
 		this.create(cssClass);
@@ -767,19 +768,20 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 			});
 		}));
 
-		const updateSize = () => {
-			const lineHeight = this.editor.getOption(EditorOption.lineHeight);
-			this.domNode.style.height = `${lineHeight}px`;
-			this.domNode.style.width = `${Math.ceil(0.8 * lineHeight)}px`;
-			this.domNode.style.marginLeft = `4px`;
-		};
-		updateSize();
+		this.updateSize();
 
 		this.toDispose.push(this.editor.onDidChangeConfiguration(c => {
 			if (c.hasChanged(EditorOption.fontSize) || c.hasChanged(EditorOption.lineHeight)) {
-				updateSize();
+				this.updateSize();
 			}
 		}));
+	}
+
+	private updateSize() {
+		const lineHeight = this.range ? this.editor.getLineHeightForPosition(this.range.getStartPosition()) : this.editor.getOption(EditorOption.lineHeight);
+		this.domNode.style.height = `${lineHeight}px`;
+		this.domNode.style.width = `${Math.ceil(0.8 * lineHeight)}px`;
+		this.domNode.style.marginLeft = `4px`;
 	}
 
 	@memoize

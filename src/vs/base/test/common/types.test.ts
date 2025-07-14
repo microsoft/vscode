@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as types from '../../common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
+import { assertDefined, isOneOf, typeCheck } from '../../common/types.js';
 
 suite('Types', () => {
 
@@ -157,21 +158,652 @@ suite('Types', () => {
 	});
 
 	test('assertIsDefined / assertAreDefined', () => {
-		assert.throws(() => types.assertIsDefined(undefined));
-		assert.throws(() => types.assertIsDefined(null));
-		assert.throws(() => types.assertAllDefined(null, undefined));
-		assert.throws(() => types.assertAllDefined(true, undefined));
-		assert.throws(() => types.assertAllDefined(undefined, false));
+		assert.throws(() => types.assertReturnsDefined(undefined));
+		assert.throws(() => types.assertReturnsDefined(null));
+		assert.throws(() => types.assertReturnsAllDefined(null, undefined));
+		assert.throws(() => types.assertReturnsAllDefined(true, undefined));
+		assert.throws(() => types.assertReturnsAllDefined(undefined, false));
 
-		assert.strictEqual(types.assertIsDefined(true), true);
-		assert.strictEqual(types.assertIsDefined(false), false);
-		assert.strictEqual(types.assertIsDefined('Hello'), 'Hello');
-		assert.strictEqual(types.assertIsDefined(''), '');
+		assert.strictEqual(types.assertReturnsDefined(true), true);
+		assert.strictEqual(types.assertReturnsDefined(false), false);
+		assert.strictEqual(types.assertReturnsDefined('Hello'), 'Hello');
+		assert.strictEqual(types.assertReturnsDefined(''), '');
 
-		const res = types.assertAllDefined(1, true, 'Hello');
+		const res = types.assertReturnsAllDefined(1, true, 'Hello');
 		assert.strictEqual(res[0], 1);
 		assert.strictEqual(res[1], true);
 		assert.strictEqual(res[2], 'Hello');
+	});
+
+	suite('assertDefined', () => {
+		test('should not throw if `value` is defined (bool)', async () => {
+			assert.doesNotThrow(function () {
+				assertDefined(true, 'Oops something happened.');
+			});
+		});
+
+		test('should not throw if `value` is defined (number)', async () => {
+			assert.doesNotThrow(function () {
+				assertDefined(5, 'Oops something happened.');
+			});
+		});
+
+		test('should not throw if `value` is defined (zero)', async () => {
+			assert.doesNotThrow(function () {
+				assertDefined(0, 'Oops something happened.');
+			});
+		});
+
+		test('should not throw if `value` is defined (string)', async () => {
+			assert.doesNotThrow(function () {
+				assertDefined('some string', 'Oops something happened.');
+			});
+		});
+
+		test('should not throw if `value` is defined (empty string)', async () => {
+			assert.doesNotThrow(function () {
+				assertDefined('', 'Oops something happened.');
+			});
+		});
+
+		/**
+		 * Note! API of `assert.throws()` is different in the browser
+		 * and in Node.js, and it is not possible to use the same code
+		 * here. Therefore we had to resort to the manual try/catch.
+		 */
+		const assertThrows = (
+			testFunction: () => void,
+			errorMessage: string,
+		) => {
+			let thrownError: Error | undefined;
+
+			try {
+				testFunction();
+			} catch (e) {
+				thrownError = e as Error;
+			}
+
+			assertDefined(thrownError, 'Must throw an error.');
+			assert(
+				thrownError instanceof Error,
+				'Error must be an instance of `Error`.',
+			);
+
+			assert.strictEqual(
+				thrownError.message,
+				errorMessage,
+				'Error must have correct message.',
+			);
+		};
+
+		test('should throw if `value` is `null`', async () => {
+			const errorMessage = 'Uggh ohh!';
+			assertThrows(() => {
+				assertDefined(null, errorMessage);
+			}, errorMessage);
+		});
+
+		test('should throw if `value` is `undefined`', async () => {
+			const errorMessage = 'Oh no!';
+			assertThrows(() => {
+				assertDefined(undefined, new Error(errorMessage));
+			}, errorMessage);
+		});
+
+		test('should throw assertion error by default', async () => {
+			const errorMessage = 'Uggh ohh!';
+			let thrownError: Error | undefined;
+			try {
+				assertDefined(null, errorMessage);
+			} catch (e) {
+				thrownError = e as Error;
+			}
+
+			assertDefined(thrownError, 'Must throw an error.');
+
+			assert(
+				thrownError instanceof Error,
+				'Error must be an instance of `Error`.',
+			);
+
+			assert.strictEqual(
+				thrownError.message,
+				errorMessage,
+				'Error must have correct message.',
+			);
+		});
+
+		test('should throw provided error instance', async () => {
+			class TestError extends Error {
+				constructor(...args: ConstructorParameters<typeof Error>) {
+					super(...args);
+
+					this.name = 'TestError';
+				}
+			}
+
+			const errorMessage = 'Oops something hapenned.';
+			const error = new TestError(errorMessage);
+
+			let thrownError;
+			try {
+				assertDefined(null, error);
+			} catch (e) {
+				thrownError = e;
+			}
+
+			assert(
+				thrownError instanceof TestError,
+				'Error must be an instance of `TestError`.',
+			);
+			assert.strictEqual(
+				thrownError.message,
+				errorMessage,
+				'Error must have correct message.',
+			);
+		});
+	});
+
+	suite('isOneOf', () => {
+		suite('success', () => {
+			suite('string', () => {
+				test('type', () => {
+					assert.doesNotThrow(() => {
+						assert(
+							isOneOf('foo', ['foo', 'bar']),
+							'Foo must be one of: foo, bar',
+						);
+					});
+				});
+
+				test('subtype', () => {
+					assert.doesNotThrow(() => {
+						const item: string = 'hi';
+						const list: ('hi' | 'ciao' | 'hola')[] = ['hi', 'ciao'];
+
+						assert(
+							isOneOf(item, list),
+							'Hi must be one of: hi, ciao',
+						);
+
+						typeCheck<'hi' | 'ciao' | 'hola'>(item);
+					});
+				});
+			});
+
+			suite('number', () => {
+				test('type', () => {
+					assert.doesNotThrow(() => {
+						assert(
+							isOneOf(10, [10, 100]),
+							'10 must be one of: 10, 100'
+						);
+					});
+				});
+
+				test('subtype', () => {
+					assert.doesNotThrow(() => {
+						const item: number = 20;
+						const list: (20 | 2000)[] = [20, 2000];
+
+						assert(
+							isOneOf(item, list),
+							'20 must be one of: 20, 2000',
+						);
+
+						typeCheck<20 | 2000>(item);
+					});
+				});
+
+			});
+
+			suite('boolean', () => {
+				test('type', () => {
+					assert.doesNotThrow(() => {
+						assert(
+							isOneOf(true, [true, false]),
+							'true must be one of: true, false'
+						);
+					});
+
+					assert.doesNotThrow(() => {
+						assert(
+							isOneOf(false, [true, false]),
+							'false must be one of: true, false'
+						);
+					});
+				});
+
+				test('subtype (true)', () => {
+					assert.doesNotThrow(() => {
+						const item: boolean = true;
+						const list: (true)[] = [true, true];
+
+						assert(
+							isOneOf(item, list),
+							'true must be one of: true, true',
+						);
+
+						typeCheck<true>(item);
+					});
+				});
+
+				test('subtype (false)', () => {
+					assert.doesNotThrow(() => {
+						const item: boolean = false;
+						const list: (false | true)[] = [false, true];
+
+						assert(
+							isOneOf(item, list),
+							'false must be one of: false, true',
+						);
+
+						typeCheck<false>(item);
+					});
+				});
+			});
+
+			suite('undefined', () => {
+				test('type', () => {
+					assert.doesNotThrow(() => {
+						assert(
+							isOneOf(undefined, [undefined]),
+							'undefined must be one of: undefined'
+						);
+					});
+
+					assert.doesNotThrow(() => {
+						assert(
+							isOneOf(undefined, [void 0]),
+							'undefined must be one of: void 0'
+						);
+					});
+				});
+
+				test('subtype', () => {
+					assert.doesNotThrow(() => {
+						let item: undefined | null;
+						const list: (undefined)[] = [undefined];
+
+						assert(
+							isOneOf(item, list),
+							'undefined | null must be one of: undefined',
+						);
+
+						typeCheck<undefined>(item);
+					});
+				});
+			});
+
+			suite('null', () => {
+				test('type', () => {
+					assert.doesNotThrow(() => {
+						assert(
+							isOneOf(null, [null]),
+							'null must be one of: null'
+						);
+					});
+				});
+
+				test('subtype', () => {
+					assert.doesNotThrow(() => {
+						const item: undefined | null | string = null;
+						const list: (null)[] = [null];
+
+						assert(
+							isOneOf(item, list),
+							'null must be one of: null',
+						);
+
+						typeCheck<null>(item);
+					});
+				});
+			});
+
+			suite('any', () => {
+				test('item', () => {
+					assert.doesNotThrow(() => {
+						const item: any = '1';
+						const list: ('1' | '2')[] = ['2', '1'];
+
+						assert(
+							isOneOf(item, list),
+							'1 must be one of: 2, 1',
+						);
+
+						typeCheck<'1' | '2'>(item);
+					});
+				});
+
+				test('list', () => {
+					assert.doesNotThrow(() => {
+						const item: '5' = '5';
+						const list: any[] = ['3', '5', '2.5'];
+
+						assert(
+							isOneOf(item, list),
+							'5 must be one of: 3, 5, 2.5',
+						);
+
+						typeCheck<'5'>(item);
+					});
+				});
+
+				test('both', () => {
+					assert.doesNotThrow(() => {
+						const item: any = '12';
+						const list: any[] = ['14.25', '7', '12'];
+
+						assert(
+							isOneOf(item, list),
+							'12 must be one of: 14.25, 7, 12',
+						);
+
+						typeCheck<any>(item);
+					});
+				});
+			});
+
+			suite('unknown', () => {
+				test('item', () => {
+					assert.doesNotThrow(() => {
+						const item: unknown = '1';
+						const list: ('1' | '2')[] = ['2', '1'];
+
+						assert(
+							isOneOf(item, list),
+							'1 must be one of: 2, 1',
+						);
+
+						typeCheck<'1' | '2'>(item);
+					});
+				});
+
+				test('both', () => {
+					assert.doesNotThrow(() => {
+						const item: unknown = '12';
+						const list: unknown[] = ['14.25', '7', '12'];
+
+						assert(
+							isOneOf(item, list),
+							'12 must be one of: 14.25, 7, 12',
+						);
+
+						typeCheck<unknown>(item);
+					});
+				});
+			});
+		});
+
+		suite('failure', () => {
+			suite('string', () => {
+				test('type', () => {
+					assert.throws(() => {
+						const item: string = 'baz';
+						assert(
+							isOneOf(item, ['foo', 'bar']),
+							'Baz must not be one of: foo, bar',
+						);
+					});
+				});
+
+				test('subtype', () => {
+					assert.throws(() => {
+						const item: string = 'vitannia';
+						const list: ('hi' | 'ciao' | 'hola')[] = ['hi', 'ciao'];
+
+						assert(
+							isOneOf(item, list),
+							'vitannia must be one of: hi, ciao',
+						);
+					});
+				});
+
+				test('empty', () => {
+					assert.throws(() => {
+						const item: string = 'vitannia';
+						const list: ('hi' | 'ciao' | 'hola')[] = [];
+
+						assert(
+							isOneOf(item, list),
+							'vitannia must be one of: empty',
+						);
+					});
+				});
+			});
+
+			suite('number', () => {
+				test('type', () => {
+					assert.throws(() => {
+						assert(
+							isOneOf(19, [10, 100]),
+							'19 must not be one of: 10, 100',
+						);
+					});
+				});
+
+				test('subtype', () => {
+					assert.throws(() => {
+						const item: number = 24;
+						const list: (20 | 2000)[] = [20, 2000];
+
+						assert(
+							isOneOf(item, list),
+							'24 must not be one of: 20, 2000',
+						);
+					});
+				});
+
+				test('empty', () => {
+					assert.throws(() => {
+						const item: number = 20;
+						const list: (20 | 2000)[] = [];
+
+						assert(
+							isOneOf(item, list),
+							'20 must not be one of: empty',
+						);
+					});
+				});
+			});
+
+			suite('boolean', () => {
+				test('type', () => {
+					assert.throws(() => {
+						assert(
+							isOneOf(true, [false]),
+							'true must not be one of: false',
+						);
+					});
+
+					assert.throws(() => {
+						assert(
+							isOneOf(false, [true]),
+							'false must not be one of: true',
+						);
+					});
+				});
+
+				test('subtype (true)', () => {
+					assert.throws(() => {
+						const item: boolean = true;
+						const list: (true | false)[] = [false];
+
+						assert(
+							isOneOf(item, list),
+							'true must not be one of: false',
+						);
+					});
+				});
+
+				test('subtype (false)', () => {
+					assert.throws(() => {
+						const item: boolean = false;
+						const list: (false | true)[] = [true, true, true];
+
+						assert(
+							isOneOf(item, list),
+							'false must be one of: true, true, true',
+						);
+					});
+				});
+
+				test('empty', () => {
+					assert.throws(() => {
+						const item: boolean = true;
+						const list: (false | true)[] = [];
+
+						assert(
+							isOneOf(item, list),
+							'true must be one of: empty',
+						);
+					});
+				});
+			});
+
+			suite('undefined', () => {
+				test('type', () => {
+					assert.throws(() => {
+						assert(
+							isOneOf(undefined, []),
+							'undefined must not be one of: empty',
+						);
+					});
+
+					assert.throws(() => {
+						assert(
+							isOneOf(void 0, []),
+							'void 0 must not be one of: empty',
+						);
+					});
+				});
+
+				test('subtype', () => {
+					assert.throws(() => {
+						let item: undefined | null;
+						const list: (undefined | null)[] = [null];
+
+						assert(
+							isOneOf(item, list),
+							'undefined must be one of: null',
+						);
+					});
+				});
+
+				test('empty', () => {
+					assert.throws(() => {
+						let item: undefined | null;
+						const list: (undefined | null)[] = [];
+
+						assert(
+							isOneOf(item, list),
+							'undefined must be one of: empty',
+						);
+					});
+				});
+			});
+
+			suite('null', () => {
+				test('type', () => {
+					assert.throws(() => {
+						assert(
+							isOneOf(null, []),
+							'null must be one of: empty',
+						);
+					});
+				});
+
+				test('subtype', () => {
+					assert.throws(() => {
+						const item: undefined | null | string = null;
+						const list: null[] = [];
+
+						assert(
+							isOneOf(item, list),
+							'null must be one of: empty',
+						);
+					});
+				});
+			});
+
+			suite('any', () => {
+				test('item', () => {
+					assert.throws(() => {
+						const item: any = '1';
+						const list: ('1' | '2' | '3' | '4')[] = ['3', '4'];
+
+						assert(
+							isOneOf(item, list),
+							'1 must not be one of: 3, 4',
+						);
+					});
+				});
+
+				test('list', () => {
+					assert.throws(() => {
+						const item: '5' = '5';
+						const list: any[] = ['3', '6', '2.5'];
+
+						assert(
+							isOneOf(item, list),
+							'5 must not be one of: 3, 6, 2.5',
+						);
+					});
+				});
+
+				test('both', () => {
+					assert.throws(() => {
+						const item: any = '12';
+						const list: any[] = ['14.25', '7', '15'];
+
+						assert(
+							isOneOf(item, list),
+							'12 must not be one of: 14.25, 7, 15',
+						);
+					});
+				});
+
+				test('empty', () => {
+					assert.throws(() => {
+						const item: any = '25';
+						const list: any[] = [];
+
+						assert(
+							isOneOf(item, list),
+							'25 must not be one of: empty',
+						);
+					});
+				});
+			});
+
+			suite('unknown', () => {
+				test('item', () => {
+					assert.throws(() => {
+						const item: unknown = '100';
+						const list: ('11' | '12')[] = ['12', '11'];
+
+						assert(
+							isOneOf(item, list),
+							'100 must not be one of: 12, 11',
+						);
+
+					});
+
+					test('both', () => {
+						assert.throws(() => {
+							const item: unknown = '21';
+							const list: unknown[] = ['14.25', '7', '12'];
+
+							assert(
+								isOneOf(item, list),
+								'21 must not be one of: 14.25, 7, 12',
+							);
+
+						});
+					});
+				});
+			});
+		});
 	});
 
 	test('validateConstraints', () => {

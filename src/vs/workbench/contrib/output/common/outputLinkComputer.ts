@@ -11,20 +11,20 @@ import * as strings from '../../../../base/common/strings.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { IRequestHandler, IWorkerServer } from '../../../../base/common/worker/simpleWorker.js';
+import { IWebWorkerServerRequestHandler, IWebWorkerServer } from '../../../../base/common/worker/webWorker.js';
 import { WorkerTextModelSyncServer, ICommonModel } from '../../../../editor/common/services/textModelSync/textModelSync.impl.js';
 
 export interface IResourceCreator {
 	toResource: (folderRelativePath: string) => URI | null;
 }
 
-export class OutputLinkComputer implements IRequestHandler {
+export class OutputLinkComputer implements IWebWorkerServerRequestHandler {
 	_requestHandlerBrand: any;
 
 	private readonly workerTextModelSyncServer = new WorkerTextModelSyncServer();
 	private patterns = new Map<URI /* folder uri */, RegExp[]>();
 
-	constructor(workerServer: IWorkerServer) {
+	constructor(workerServer: IWebWorkerServer) {
 		this.workerTextModelSyncServer.bindToServer(workerServer);
 	}
 
@@ -181,10 +181,6 @@ export class OutputLinkComputer implements IRequestHandler {
 	}
 }
 
-/**
- * Defines the worker entry point. Must be exported and named `create`.
- * @skipMangle
- */
-export function create(workerServer: IWorkerServer): OutputLinkComputer {
+export function create(workerServer: IWebWorkerServer): OutputLinkComputer {
 	return new OutputLinkComputer(workerServer);
 }

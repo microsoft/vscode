@@ -16,8 +16,7 @@ export class ExpandLineSelectionAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'expandLineSelection',
-			label: nls.localize('expandLineSelection', "Expand Line Selection"),
-			alias: 'Expand Line Selection',
+			label: nls.localize2('expandLineSelection', "Expand Line Selection"),
 			precondition: undefined,
 			kbOpts: {
 				weight: KeybindingWeight.EditorCore,
