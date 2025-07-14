@@ -12,6 +12,7 @@ import { INTERACTIVE_WINDOW_EDITOR_ID, NOTEBOOK_EDITOR_ID, REPL_EDITOR_ID } from
 export const HAS_OPENED_NOTEBOOK = new RawContextKey<boolean>('userHasOpenedNotebook', false);
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 export const InteractiveWindowOpen = new RawContextKey<boolean>('interactiveWindowOpen', false);
+export const MOST_RECENT_REPL_EDITOR = new RawContextKey<string>('mostRecentReplEditor', undefined);
 
 // Is Notebook
 export const NOTEBOOK_IS_ACTIVE_EDITOR = ContextKeyExpr.equals('activeEditor', NOTEBOOK_EDITOR_ID);
@@ -50,11 +51,13 @@ export const NOTEBOOK_CELL_EXECUTING = new RawContextKey<boolean>('notebookCellE
 export const NOTEBOOK_CELL_HAS_OUTPUTS = new RawContextKey<boolean>('notebookCellHasOutputs', false);
 export const NOTEBOOK_CELL_IS_FIRST_OUTPUT = new RawContextKey<boolean>('notebookCellIsFirstOutput', false);
 export const NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS = new RawContextKey<boolean>('hasHiddenOutputs', false);
+export const NOTEBOOK_CELL_OUTPUT_MIMETYPE = new RawContextKey<string>('notebookCellOutputMimeType', undefined);
 export const NOTEBOOK_CELL_INPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellInputIsCollapsed', false);
 export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellOutputIsCollapsed', false);
 export const NOTEBOOK_CELL_RESOURCE = new RawContextKey<string>('notebookCellResource', '');
 export const NOTEBOOK_CELL_GENERATED_BY_CHAT = new RawContextKey<boolean>('notebookCellGenerateByChat', false);
 export const NOTEBOOK_CELL_HAS_ERROR_DIAGNOSTICS = new RawContextKey<boolean>('notebookCellHasErrorDiagnostics', false);
+export const NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT = new RawContextKey<string[]>('notebookCellOutputMimeTypeListForChat', []);
 
 // Kernels
 export const NOTEBOOK_KERNEL = new RawContextKey<string>('notebookKernel', undefined);

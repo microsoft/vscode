@@ -96,6 +96,7 @@ function can_open_file() {
 # Preserve system variables that get modified below
 copy_env_variable XDG_CONFIG_DIRS
 copy_env_variable XDG_DATA_DIRS
+copy_env_variable XDG_DATA_HOME
 copy_env_variable LOCPATH
 copy_env_variable GIO_MODULE_DIR
 copy_env_variable GSETTINGS_SCHEMA_DIR
@@ -166,6 +167,18 @@ fi
 
 # Keep an array of data dirs, for looping through them
 IFS=':' read -r -a data_dirs_array <<< "$XDG_DATA_DIRS"
+
+# Font Config
+export FONTCONFIG_PATH="/etc/fonts"
+export FONTCONFIG_FILE="/etc/fonts/fonts.conf"
+
+if [ "$needs_update" = true ]; then
+  rm -rf "$XDG_DATA_HOME"/fonts
+
+  if [ -d "$SNAP_REAL_HOME/.local/share/fonts" ]; then
+    ln -s "$SNAP_REAL_HOME/.local/share/fonts" "$XDG_DATA_HOME/fonts"
+  fi
+fi
 
 # Build mime.cache needed for gtk and qt icon
 # TODO(deepak1556): Re-enable this once we move to core22

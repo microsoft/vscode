@@ -25,8 +25,8 @@
     "watch": "gulp watch-extension:configuration-editing"
   },
   "dependencies": {
+    "@octokit/rest": "^21.1.1",
     "jsonc-parser": "^3.2.0",
-    "@octokit/rest": "19.0.4",
     "tunnel": "^0.0.6"
   },
   "capabilities": {
@@ -49,6 +49,7 @@
           "settings.json",
           "launch.json",
           "tasks.json",
+          "mcp.json",
           "keybindings.json",
           "extensions.json",
           "argv.json",
@@ -56,7 +57,8 @@
           "devcontainer.json",
           ".devcontainer.json"
         ]
-      }, {
+      },
+      {
         "id": "json",
         "extensions": [
           ".code-profile"
@@ -117,12 +119,20 @@
         "url": "vscode://schemas/tasks"
       },
       {
+        "fileMatch": "/.vscode/mcp.json",
+        "url": "vscode://schemas/mcp"
+      },
+      {
         "fileMatch": "%APP_SETTINGS_HOME%/tasks.json",
         "url": "vscode://schemas/tasks"
       },
       {
         "fileMatch": "%APP_SETTINGS_HOME%/snippets/*.json",
         "url": "vscode://schemas/snippets"
+      },
+      {
+        "fileMatch": "%APP_SETTINGS_HOME%/prompts/*.toolsets.jsonc",
+        "url": "vscode://schemas/toolsets"
       },
       {
         "fileMatch": "%APP_SETTINGS_HOME%/profiles/*/snippets/.json",
@@ -163,7 +173,7 @@
     ]
   },
   "devDependencies": {
-    "@types/node": "20.x"
+    "@types/node": "22.x"
   },
   "repository": {
     "type": "git",

@@ -473,8 +473,7 @@ export class DeleteInsideWord extends EditorAction {
 		super({
 			id: 'deleteInsideWord',
 			precondition: EditorContextKeys.writable,
-			label: nls.localize('deleteInsideWord', "Delete Word"),
-			alias: 'Delete Word'
+			label: nls.localize2('deleteInsideWord', "Delete Word"),
 		});
 	}
 

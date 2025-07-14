@@ -15,8 +15,6 @@ import { Range } from '../../../common/range.js';
 import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import type { IManagedHoverTooltipMarkdownString } from '../hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
-import { isString } from '../../../common/types.js';
-import { stripIcons } from '../../../common/iconLabels.js';
 import { URI } from '../../../common/uri.js';
 
 export interface IIconLabelCreationOptions {
@@ -24,7 +22,7 @@ export interface IIconLabelCreationOptions {
 	readonly supportDescriptionHighlights?: boolean;
 	readonly supportIcons?: boolean;
 	readonly hoverDelegate?: IHoverDelegate;
-	readonly hoverTargetOverrride?: HTMLElement;
+	readonly hoverTargetOverride?: HTMLElement;
 }
 
 export interface IIconLabelValueOptions {
@@ -168,6 +166,10 @@ export class IconLabel extends Disposable {
 				iconNode = existingIconNode;
 			}
 			iconNode.style.backgroundImage = css.asCSSUrl(options?.iconPath);
+			iconNode.style.backgroundRepeat = 'no-repeat';
+			iconNode.style.backgroundPosition = 'center';
+			iconNode.style.backgroundSize = 'contain';
+
 		} else if (existingIconNode) {
 			existingIconNode.remove();
 		}
@@ -211,30 +213,16 @@ export class IconLabel extends Disposable {
 		}
 
 		let hoverTarget = htmlElement;
-		if (this.creationOptions?.hoverTargetOverrride) {
-			if (!dom.isAncestor(htmlElement, this.creationOptions.hoverTargetOverrride)) {
+		if (this.creationOptions?.hoverTargetOverride) {
+			if (!dom.isAncestor(htmlElement, this.creationOptions.hoverTargetOverride)) {
 				throw new Error('hoverTargetOverrride must be an ancestor of the htmlElement');
 			}
-			hoverTarget = this.creationOptions.hoverTargetOverrride;
+			hoverTarget = this.creationOptions.hoverTargetOverride;
 		}
 
-		if (this.hoverDelegate.showNativeHover) {
-			function setupNativeHover(htmlElement: HTMLElement, tooltip: string | IManagedHoverTooltipMarkdownString | undefined): void {
-				if (isString(tooltip)) {
-					// Icons don't render in the native hover so we strip them out
-					htmlElement.title = stripIcons(tooltip);
-				} else if (tooltip?.markdownNotSupportedFallback) {
-					htmlElement.title = tooltip.markdownNotSupportedFallback;
-				} else {
-					htmlElement.removeAttribute('title');
-				}
-			}
-			setupNativeHover(hoverTarget, tooltip);
-		} else {
-			const hoverDisposable = getBaseLayerHoverDelegate().setupManagedHover(this.hoverDelegate, hoverTarget, tooltip);
-			if (hoverDisposable) {
-				this.customHovers.set(htmlElement, hoverDisposable);
-			}
+		const hoverDisposable = getBaseLayerHoverDelegate().setupManagedHover(this.hoverDelegate, hoverTarget, tooltip);
+		if (hoverDisposable) {
+			this.customHovers.set(htmlElement, hoverDisposable);
 		}
 	}
 

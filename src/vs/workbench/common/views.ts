@@ -847,6 +847,7 @@ export interface ITreeViewDataProvider {
 	readonly isTreeEmpty?: boolean;
 	onDidChangeEmpty?: Event<void>;
 	getChildren(element?: ITreeItem): Promise<ITreeItem[] | undefined>;
+	getChildrenBatch?(element?: ITreeItem[]): Promise<ITreeItem[][] | undefined>;
 }
 
 export interface ITreeViewDragAndDropController {

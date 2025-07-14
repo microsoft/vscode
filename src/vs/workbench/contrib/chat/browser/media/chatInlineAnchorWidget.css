@@ -15,7 +15,7 @@
 }
 
 .chat-inline-anchor-widget .icon-label {
-	padding-right: 3px;
+	padding: 0 3px;
 }
 
 .interactive-item-container .value .rendered-markdown .chat-inline-anchor-widget {
@@ -31,19 +31,21 @@
 	line-height: 1em;
 	font-size: 90% !important;
 	overflow: hidden;
+
+	top: 0 !important;
 }
 
 .show-file-icons.chat-inline-anchor-widget .icon::before {
 	display: inline-block;
 	line-height: 100%;
 	overflow: hidden;
+	font-size: 100% !important;
 
 	background-size: contain;
 	background-position: center;
 	background-repeat: no-repeat;
 
 	padding: 0 !important;
-	margin-right: 3px;
 	margin-bottom: 1px;
 
 	flex-shrink: 0;

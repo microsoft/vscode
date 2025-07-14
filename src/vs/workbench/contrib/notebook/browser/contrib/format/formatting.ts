@@ -118,8 +118,7 @@ registerEditorAction(class FormatCellAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'notebook.formatCell',
-			label: localize('formatCell.label', "Format Cell"),
-			alias: 'Format Cell',
+			label: localize2('formatCell.label', "Format Cell"),
 			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_EDITABLE, EditorContextKeys.inCompositeEditor, EditorContextKeys.writable, EditorContextKeys.hasDocumentFormattingProvider),
 			kbOpts: {
 				kbExpr: ContextKeyExpr.and(EditorContextKeys.editorTextFocus),

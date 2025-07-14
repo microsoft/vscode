@@ -540,7 +540,7 @@ suite('NotebookDiff', () => {
 		], async (model) => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			const diffResult = diff.ComputeDiff(false);
-			prettyChanges(model, diffResult);
+			prettyChanges(model.original.notebook, model.modified.notebook, diffResult);
 
 			assert.deepStrictEqual(diffResult.changes.map(change => ({
 				originalStart: change.originalStart,
@@ -592,7 +592,7 @@ suite('NotebookDiff', () => {
 		], async (model) => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			const diffResult = diff.ComputeDiff(false);
-			prettyChanges(model, diffResult);
+			prettyChanges(model.original.notebook, model.modified.notebook, diffResult);
 
 			assert.deepStrictEqual(diffResult.changes.map(change => ({
 				originalStart: change.originalStart,

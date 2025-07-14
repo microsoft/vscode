@@ -35,7 +35,7 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 
 :: Tests in the extension host
 
-set API_TESTS_EXTRA_ARGS=--disable-telemetry --skip-welcome --skip-release-notes --crash-reporter-directory=%VSCODECRASHDIR% --logsPath=%VSCODELOGSDIR% --no-cached-data --disable-updates --use-inmemory-secretstorage --disable-extensions --disable-workspace-trust --user-data-dir=%VSCODEUSERDATADIR%
+set API_TESTS_EXTRA_ARGS=--disable-telemetry --disable-experiments --skip-welcome --skip-release-notes --crash-reporter-directory=%VSCODECRASHDIR% --logsPath=%VSCODELOGSDIR% --no-cached-data --disable-updates --use-inmemory-secretstorage --disable-extensions --disable-workspace-trust --user-data-dir=%VSCODEUSERDATADIR%
 
 echo.
 echo ### API tests (folder)
@@ -50,6 +50,11 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 echo.
 echo ### Colorize tests
 call npm run test-extension -- -l vscode-colorize-tests
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo.
+echo ### Terminal Suggest tests
+call npm run test-extension -- -l terminal-suggest --enable-proposed-api=vscode.vscode-api-tests
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.

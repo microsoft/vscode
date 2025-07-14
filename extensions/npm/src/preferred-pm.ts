@@ -28,6 +28,10 @@ async function isBunPreferred(pkgPath: string): Promise<PreferredProperties> {
 		return { isPreferred: true, hasLockfile: true };
 	}
 
+	if (await pathExists(path.join(pkgPath, 'bun.lock'))) {
+		return { isPreferred: true, hasLockfile: true };
+	}
+
 	return { isPreferred: false, hasLockfile: false };
 }
 

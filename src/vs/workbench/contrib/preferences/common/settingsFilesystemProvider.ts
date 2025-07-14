@@ -14,6 +14,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import * as JSONContributionRegistry from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
+import { isEqual } from '../../../../base/common/resources.js';
 
 const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -25,6 +26,8 @@ export class SettingsFileSystemProvider extends Disposable implements IFileSyste
 	protected readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
 	readonly onDidChangeFile = this._onDidChangeFile.event;
 
+	private static SCHEMA_ASSOCIATIONS = URI.parse(`${Schemas.vscode}://schemas-associations/schemas-associations.json`);
+
 	constructor(
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ILogService private readonly logService: ILogService
@@ -32,6 +35,9 @@ export class SettingsFileSystemProvider extends Disposable implements IFileSyste
 		super();
 		this._register(schemaRegistry.onDidChangeSchema(schemaUri => {
 			this._onDidChangeFile.fire([{ resource: URI.parse(schemaUri), type: FileChangeType.UPDATED }]);
+		}));
+		this._register(schemaRegistry.onDidChangeSchemaAssociations(() => {
+			this._onDidChangeFile.fire([{ resource: SettingsFileSystemProvider.SCHEMA_ASSOCIATIONS, type: FileChangeType.UPDATED }]);
 		}));
 		this._register(preferencesService.onDidDefaultSettingsContentChanged(uri => {
 			this._onDidChangeFile.fire([{ resource: uri, type: FileChangeType.UPDATED }]);
@@ -47,6 +53,8 @@ export class SettingsFileSystemProvider extends Disposable implements IFileSyste
 		let content: string | undefined;
 		if (uri.authority === 'schemas') {
 			content = this.getSchemaContent(uri);
+		} else if (uri.authority === SettingsFileSystemProvider.SCHEMA_ASSOCIATIONS.authority) {
+			content = JSON.stringify(schemaRegistry.getSchemaAssociations());
 		} else if (uri.authority === 'defaultsettings') {
 			content = this.preferencesService.getDefaultSettingsContent(uri);
 		}
@@ -58,6 +66,16 @@ export class SettingsFileSystemProvider extends Disposable implements IFileSyste
 
 	async stat(uri: URI): Promise<IStat> {
 		if (schemaRegistry.hasSchemaContent(uri.toString()) || this.preferencesService.hasDefaultSettingsContent(uri)) {
+			const currentTime = Date.now();
+			return {
+				type: FileType.File,
+				permissions: FilePermission.Readonly,
+				mtime: currentTime,
+				ctime: currentTime,
+				size: 0
+			};
+		}
+		if (isEqual(uri, SettingsFileSystemProvider.SCHEMA_ASSOCIATIONS)) {
 			const currentTime = Date.now();
 			return {
 				type: FileType.File,
