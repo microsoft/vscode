@@ -43,16 +43,16 @@
 }
 
 /* 0.5s fade in/out for the minimap */
-.minimap.minimap-mouseover,
-.minimap.minimap-scroll {
+.minimap.minimap-autohide-mouseover,
+.minimap.minimap-autohide-scroll {
 	opacity: 0;
 	transition: opacity 0.5s;
 }
-.minimap.minimap-scroll{
+.minimap.minimap-autohide-scroll{
 	pointer-events: none;
 }
-.minimap.minimap-mouseover:hover,
-.minimap.minimap-scroll.active {
+.minimap.minimap-autohide-mouseover:hover,
+.minimap.minimap-autohide-scroll.active {
 	opacity: 1;
 	pointer-events: auto;
 }
