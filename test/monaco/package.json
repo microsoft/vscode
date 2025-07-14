@@ -14,5 +14,8 @@
     "@types/chai": "^4.2.14",
     "chai": "^4.2.0",
     "warnings-to-errors-webpack-plugin": "^2.3.0"
+  },
+  "dependencies": {
+    "axe-playwright": "^2.1.0"
   }
 }
