@@ -1874,7 +1874,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.interactive-item-container.interactive-request:not(.editing):hover .request-hover {
-		/* opacity: 1 !important; */
+		opacity: 1 !important;
 	}
 
 	.interactive-item-container.interactive-request.confirmation-message {
@@ -1940,12 +1940,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		height: 26px;
 	}
 
-	.request-hover.expanded {
+	.request-hover.expanded:not(.checkpoints-enabled) {
 		width: 50px;
 	}
 
+	.request-hover.checkpoints-enabled {
+		top: 15px;
+	}
+
 	.request-hover.editing {
-		/* opacity: 1 !important; */
+		opacity: 1 !important;
 	}
 
 	.request-hover:not(.expanded) .actions-container {
@@ -1967,7 +1971,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.request-hover:focus-within {
-		/* opacity: 1 !important; */
+		opacity: 1 !important;
 	}
 
 	.checkpoint-container.hidden,
@@ -1979,6 +1983,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.checkpoint-restore-container {
 		display: flex;
 		width: 100%;
+	}
+
+	.checkpoint-restore-container {
+		margin-top: 10px;
 	}
 
 	.checkpoint-divider {
@@ -2003,8 +2011,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.checkpoint-container .monaco-toolbar {
+		user-select: none;
 		opacity: 0;
 		width: 0;
+	}
+
+	.checkpoint-container .monaco-toolbar:focus-within {
+		opacity: 1 ;
 	}
 
 	.checkpoint-restore-container .monaco-toolbar {
@@ -2024,7 +2037,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		opacity: 1;
 	}
 
-
+	.interactive-item-container.interactive-request.editing .checkpoint-container {
+		display: none;
+	}
 
 	.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
 		overflow: visible !important;

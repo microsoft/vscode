@@ -268,6 +268,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.emptyChatState', "Shows a modified empty chat state with hints in the input placeholder text."),
 			tags: ['experimental', 'onExp'],
 		},
+		'chat.checkpoints.enabled': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.checkpoints.enabled', "Enables checkpoints in chat. Checkpoints allow you to restore the chat to a previous state."),
+			tags: ['experimental'],
+		},
 		[mcpEnabledSection]: {
 			type: 'boolean',
 			description: nls.localize('chat.mcp.enabled', "Enables integration with Model Context Protocol servers to provide additional tools and functionality."),

@@ -148,7 +148,8 @@ export function registerNewChatActions() {
 					id: MenuId.ViewTitle,
 					when: ContextKeyExpr.equals('view', ChatViewId),
 					group: 'navigation',
-					order: -3
+					order: -3,
+					isHiddenByDefault: true
 				}]
 			});
 		}
@@ -172,7 +173,8 @@ export function registerNewChatActions() {
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.equals('view', ChatViewId),
 						group: 'navigation',
-						order: -2
+						order: -2,
+						isHiddenByDefault: true
 					}
 				]
 			});
