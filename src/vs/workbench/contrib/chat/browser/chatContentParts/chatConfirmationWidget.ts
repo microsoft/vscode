@@ -199,8 +199,8 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 
 		// Notify
 		const notification = await dom.triggerNotification(
-			localize('notificationTitle', "Tool confirmation required"), {
-			detail: localize('notificationDetail', "A tool in the current chat session requires your confirmation to proceed")
+			localize('notificationTitle', "Chat: Confirmation Required"), {
+			detail: localize('notificationDetail', "The current chat session requires your confirmation to proceed")
 		});
 		if (notification) {
 			Event.once(notification.onClick)(() => {
