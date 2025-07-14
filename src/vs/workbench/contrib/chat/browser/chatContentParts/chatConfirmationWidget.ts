@@ -200,10 +200,12 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
 
 		// Notify
-		const notification = await dom.triggerNotification(
-			localize('notificationTitle', "Chat: Confirmation Required"), {
-			detail: localize('notificationDetail', "The current chat session requires your confirmation to proceed")
-		});
+		const notification = await dom.triggerNotification(localize('notificationTitle', "Chat: Confirmation Required"),
+			{
+				detail: localize('notificationDetail', "The current chat session requires your confirmation to proceed"),
+				sticky: true
+			}
+		);
 		if (notification) {
 			this.notification.value = notification;
 

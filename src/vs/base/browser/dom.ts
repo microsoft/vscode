@@ -1593,7 +1593,7 @@ export interface INotification extends IDisposable {
 	readonly onClick: event.Event<void>;
 }
 
-export async function triggerNotification(message: string, options?: { detail?: string }): Promise<INotification | undefined> {
+export async function triggerNotification(message: string, options?: { detail?: string; sticky?: boolean }): Promise<INotification | undefined> {
 	const permission = await Notification.requestPermission();
 	if (permission !== 'granted') {
 		return;
@@ -1602,7 +1602,8 @@ export async function triggerNotification(message: string, options?: { detail?: 
 	const disposables = new DisposableStore();
 
 	const notification = new Notification(message, {
-		body: options?.detail
+		body: options?.detail,
+		requireInteraction: options?.sticky
 	});
 
 	const onClick = new event.Emitter<void>();
