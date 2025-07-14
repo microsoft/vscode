@@ -462,8 +462,6 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 		}
 
 		widget?.viewModel?.model.setCheckpoint(item.id);
-
-		// Use the shared functionality for restoring snapshots
 		await restoreSnapshotWithConfirmation(accessor, item);
 	}
 });

@@ -214,7 +214,6 @@ export function registerNewChatActions() {
 				setTimeout(() => redoUntilDone(), 0);
 			};
 
-			// Start the process
 			await redoUntilDone();
 			widget.lastFocusedWidget?.viewModel?.model.setCheckpoint(undefined);
 		}
