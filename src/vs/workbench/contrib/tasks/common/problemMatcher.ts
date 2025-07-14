@@ -779,9 +779,9 @@ export namespace Config {
 	export interface IBackgroundMonitor {
 
 		/**
-		* If set to true the watcher is in active mode when the task
-		* starts. This is equals of issuing a line that matches the
-		* beginsPattern.
+		* If set to true the watcher starts in active mode. This is the
+		* same as outputting a line that matches beginsPattern when the
+		* task starts.
 		*/
 		activeOnStart?: boolean;
 
@@ -1323,7 +1323,7 @@ export namespace Schemas {
 				properties: {
 					activeOnStart: {
 						type: 'boolean',
-						description: localize('ProblemMatcherSchema.background.activeOnStart', 'If set to true the background monitor is in active mode when the task starts. This is equals of issuing a line that matches the beginsPattern')
+						description: localize('ProblemMatcherSchema.background.activeOnStart', 'If set to true the background monitor starts in active mode. This is the same as outputting a line that matches beginsPattern when the task starts.')
 					},
 					beginsPattern: {
 						oneOf: [
@@ -1353,7 +1353,7 @@ export namespace Schemas {
 				properties: {
 					activeOnStart: {
 						type: 'boolean',
-						description: localize('ProblemMatcherSchema.watching.activeOnStart', 'If set to true the watcher is in active mode when the task starts. This is equals of issuing a line that matches the beginPattern')
+						description: localize('ProblemMatcherSchema.watching.activeOnStart', 'If set to true the watcher starts in active mode. This is the same as outputting a line that matches beginsPattern when the task starts.')
 					},
 					beginsPattern: {
 						oneOf: [

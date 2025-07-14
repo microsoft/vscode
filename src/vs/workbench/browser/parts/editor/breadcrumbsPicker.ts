@@ -82,7 +82,7 @@ export abstract class BreadcrumbsPicker {
 		setTimeout(() => this._tree.dispose(), 0); // tree cannot be disposed while being opened...
 	}
 
-	async show(input: any, maxHeight: number, width: number, arrowSize: number, arrowOffset: number): Promise<void> {
+	async show(input: FileElement | OutlineElement2, maxHeight: number, width: number, arrowSize: number, arrowOffset: number): Promise<void> {
 
 		const theme = this._themeService.getColorTheme();
 		const color = theme.getColor(breadcrumbsPickerBackground);
@@ -369,8 +369,8 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 		const labels = this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER /* TODO@Jo visibility propagation */);
 		this._disposables.add(labels);
 
-		return <WorkbenchAsyncDataTree<IWorkspace | URI, IWorkspaceFolder | IFileStat, FuzzyScore>>this._instantiationService.createInstance(
-			WorkbenchAsyncDataTree,
+		return this._instantiationService.createInstance(
+			WorkbenchAsyncDataTree<IWorkspace | URI, IWorkspaceFolder | IFileStat, FuzzyScore>,
 			'BreadcrumbsFilePicker',
 			container,
 			new FileVirtualDelegate(),
@@ -464,8 +464,8 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 
 		const { config } = input.outline;
 
-		return <WorkbenchDataTree<IOutline<any>, any, FuzzyScore>>this._instantiationService.createInstance(
-			WorkbenchDataTree,
+		return this._instantiationService.createInstance(
+			WorkbenchDataTree<IOutline<any>, any, FuzzyScore>,
 			'BreadcrumbsOutlinePicker',
 			container,
 			config.delegate,

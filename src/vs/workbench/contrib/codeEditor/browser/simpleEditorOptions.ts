@@ -46,7 +46,12 @@ export function getSimpleEditorOptions(configurationService: IConfigurationServi
 			indentation: false
 		},
 		accessibilitySupport: configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport'),
-		cursorBlinking: configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking')
+		cursorBlinking: configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking'),
+		editContext: configurationService.getValue<boolean>('editor.editContext'),
+		defaultColorDecorators: 'never',
+		allowVariableLineHeights: false,
+		allowVariableFonts: false,
+		allowVariableFontsInAccessibilityMode: false,
 	};
 }
 

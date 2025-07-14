@@ -7,9 +7,9 @@ import { IdleDeadline, runWhenGlobalIdle } from '../../../base/common/async.js';
 import { BugIndicatingError, onUnexpectedError } from '../../../base/common/errors.js';
 import { setTimeout0 } from '../../../base/common/platform.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
-import { countEOL } from '../core/eolCounter.js';
-import { LineRange } from '../core/lineRange.js';
-import { OffsetRange } from '../core/offsetRange.js';
+import { countEOL } from '../core/misc/eolCounter.js';
+import { LineRange } from '../core/ranges/lineRange.js';
+import { OffsetRange } from '../core/ranges/offsetRange.js';
 import { Position } from '../core/position.js';
 import { StandardTokenType } from '../encodedTokenAttributes.js';
 import { EncodedTokenizationResult, IBackgroundTokenizationStore, IBackgroundTokenizer, ILanguageIdCodec, IState, ITokenizationSupport } from '../languages.js';
@@ -25,7 +25,7 @@ const enum Constants {
 }
 
 export class TokenizerWithStateStore<TState extends IState = IState> {
-	private readonly initialState = this.tokenizationSupport.getInitialState() as TState;
+	private readonly initialState;
 
 	public readonly store: TrackingTokenizationStateStore<TState>;
 
@@ -33,6 +33,7 @@ export class TokenizerWithStateStore<TState extends IState = IState> {
 		lineCount: number,
 		public readonly tokenizationSupport: ITokenizationSupport
 	) {
+		this.initialState = this.tokenizationSupport.getInitialState() as TState;
 		this.store = new TrackingTokenizationStateStore<TState>(lineCount);
 	}
 
@@ -101,31 +102,23 @@ export class TokenizerWithStateStoreAndTextModel<TState extends IState = IState>
 	}
 
 	/** assumes state is up to date */
-	public tokenizeLineWithEdit(position: Position, length: number, newText: string): LineTokens | null {
-		const lineNumber = position.lineNumber;
-		const column = position.column;
-
-		const lineStartState = this.getStartState(lineNumber);
+	public tokenizeLinesAt(lineNumber: number, lines: string[]): LineTokens[] | null {
+		const lineStartState: IState | null = this.getStartState(lineNumber);
 		if (!lineStartState) {
 			return null;
 		}
 
-		const curLineContent = this._textModel.getLineContent(lineNumber);
-		const newLineContent = curLineContent.substring(0, column - 1)
-			+ newText + curLineContent.substring(column - 1 + length);
+		const languageId = this._textModel.getLanguageId();
+		const result: LineTokens[] = [];
 
-		const languageId = this._textModel.getLanguageIdAtPosition(lineNumber, 0);
-		const result = safeTokenize(
-			this._languageIdCodec,
-			languageId,
-			this.tokenizationSupport,
-			newLineContent,
-			true,
-			lineStartState
-		);
+		let state = lineStartState;
+		for (const line of lines) {
+			const r = safeTokenize(this._languageIdCodec, languageId, this.tokenizationSupport, line, true, state);
+			result.push(new LineTokens(r.tokens, line, this._languageIdCodec));
+			state = r.endState;
+		}
 
-		const lineTokens = new LineTokens(result.tokens, newLineContent, this._languageIdCodec);
-		return lineTokens;
+		return result;
 	}
 
 	public hasAccurateTokensForLine(lineNumber: number): boolean {
@@ -175,29 +168,11 @@ export class TokenizerWithStateStoreAndTextModel<TState extends IState = IState>
 	}
 
 	private guessStartState(lineNumber: number): IState {
-		let nonWhitespaceColumn = this._textModel.getLineFirstNonWhitespaceColumn(lineNumber);
-		const likelyRelevantLines: string[] = [];
-		let initialState: IState | null = null;
-		for (let i = lineNumber - 1; nonWhitespaceColumn > 1 && i >= 1; i--) {
-			const newNonWhitespaceIndex = this._textModel.getLineFirstNonWhitespaceColumn(i);
-			// Ignore lines full of whitespace
-			if (newNonWhitespaceIndex === 0) {
-				continue;
-			}
-			if (newNonWhitespaceIndex < nonWhitespaceColumn) {
-				likelyRelevantLines.push(this._textModel.getLineContent(i));
-				nonWhitespaceColumn = newNonWhitespaceIndex;
-				initialState = this.getStartState(i);
-				if (initialState) {
-					break;
-				}
-			}
-		}
+		let { likelyRelevantLines, initialState } = findLikelyRelevantLines(this._textModel, lineNumber, this);
 
 		if (!initialState) {
 			initialState = this.tokenizationSupport.getInitialState();
 		}
-		likelyRelevantLines.reverse();
 
 		const languageId = this._textModel.getLanguageId();
 		let state = initialState;
@@ -207,6 +182,30 @@ export class TokenizerWithStateStoreAndTextModel<TState extends IState = IState>
 		}
 		return state;
 	}
+}
+
+export function findLikelyRelevantLines(model: ITextModel, lineNumber: number, store?: TokenizerWithStateStore): { likelyRelevantLines: string[]; initialState?: IState } {
+	let nonWhitespaceColumn = model.getLineFirstNonWhitespaceColumn(lineNumber);
+	const likelyRelevantLines: string[] = [];
+	let initialState: IState | null | undefined = null;
+	for (let i = lineNumber - 1; nonWhitespaceColumn > 1 && i >= 1; i--) {
+		const newNonWhitespaceIndex = model.getLineFirstNonWhitespaceColumn(i);
+		// Ignore lines full of whitespace
+		if (newNonWhitespaceIndex === 0) {
+			continue;
+		}
+		if (newNonWhitespaceIndex < nonWhitespaceColumn) {
+			likelyRelevantLines.push(model.getLineContent(i));
+			nonWhitespaceColumn = newNonWhitespaceIndex;
+			initialState = store?.getStartState(i);
+			if (initialState) {
+				break;
+			}
+		}
+	}
+
+	likelyRelevantLines.reverse();
+	return { likelyRelevantLines, initialState: initialState ?? undefined };
 }
 
 /**

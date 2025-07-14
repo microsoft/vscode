@@ -16,6 +16,10 @@ import { getThemeTypeSelector } from '../../../../platform/theme/common/themeSer
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 
+/**
+ * The editor scrollbar built on VS Code's scrollable element that sits beside
+ * the minimap.
+ */
 export class EditorScrollbar extends ViewPart {
 
 	private readonly scrollbar: SmoothScrollableElement;
@@ -35,6 +39,7 @@ export class EditorScrollbar extends ViewPart {
 		const mouseWheelScrollSensitivity = options.get(EditorOption.mouseWheelScrollSensitivity);
 		const fastScrollSensitivity = options.get(EditorOption.fastScrollSensitivity);
 		const scrollPredominantAxis = options.get(EditorOption.scrollPredominantAxis);
+		const inertialScroll = options.get(EditorOption.inertialScroll);
 
 		const scrollbarOptions: ScrollableElementCreationOptions = {
 			listenOnDomNode: viewDomNode.domNode,
@@ -57,6 +62,7 @@ export class EditorScrollbar extends ViewPart {
 			fastScrollSensitivity: fastScrollSensitivity,
 			scrollPredominantAxis: scrollPredominantAxis,
 			scrollByPage: scrollbar.scrollByPage,
+			inertialScroll: inertialScroll,
 		};
 
 		this.scrollbar = this._register(new SmoothScrollableElement(linesContent.domNode, scrollbarOptions, this._context.viewLayout.getScrollable()));

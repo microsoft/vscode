@@ -11,6 +11,10 @@ import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import * as viewEvents from '../../../common/viewEvents.js';
 import { EditorOption, IRulerOption } from '../../../common/config/editorOptions.js';
 
+/**
+ * Rulers are vertical lines that appear at certain columns in the editor. There can be >= 0 rulers
+ * at a time.
+ */
 export class Rulers extends ViewPart {
 
 	public domNode: FastDomNode<HTMLElement>;

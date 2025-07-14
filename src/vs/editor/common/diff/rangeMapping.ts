@@ -3,11 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { groupAdjacentBy } from '../../../base/common/arrays.js';
+import { assertFn, checkAdjacentItems } from '../../../base/common/assert.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
-import { LineRange } from '../core/lineRange.js';
+import { LineRange } from '../core/ranges/lineRange.js';
 import { Position } from '../core/position.js';
 import { Range } from '../core/range.js';
-import { AbstractText, SingleTextEdit } from '../core/textEdit.js';
+import { TextReplacement, TextEdit } from '../core/edits/textEdit.js';
+import { AbstractText } from '../core/text/abstractText.js';
+import { IChange } from './legacyLinesDiffComputer.js';
 
 /**
  * Maps a line range in the original text model to a line range in the modified text model.
@@ -190,6 +194,17 @@ function isValidLineNumber(lineNumber: number, lines: string[]): boolean {
  * Also contains inner range mappings.
  */
 export class DetailedLineRangeMapping extends LineRangeMapping {
+	public static toTextEdit(mapping: readonly DetailedLineRangeMapping[], modified: AbstractText): TextEdit {
+		const replacements: TextReplacement[] = [];
+		for (const m of mapping) {
+			for (const r of m.innerChanges ?? []) {
+				const replacement = r.toTextEdit(modified);
+				replacements.push(replacement);
+			}
+		}
+		return new TextEdit(replacements);
+	}
+
 	public static fromRangeMappings(rangeMappings: RangeMapping[]): DetailedLineRangeMapping {
 		const originalRange = LineRange.join(rangeMappings.map(r => LineRange.fromRangeInclusive(r.originalRange)));
 		const modifiedRange = LineRange.join(rangeMappings.map(r => LineRange.fromRangeInclusive(r.modifiedRange)));
@@ -226,6 +241,29 @@ export class DetailedLineRangeMapping extends LineRangeMapping {
  * Maps a range in the original text model to a range in the modified text model.
  */
 export class RangeMapping {
+	public static fromEdit(edit: TextEdit): RangeMapping[] {
+		const newRanges = edit.getNewRanges();
+		const result = edit.replacements.map((e, idx) => new RangeMapping(e.range, newRanges[idx]));
+		return result;
+	}
+
+	public static fromEditJoin(edit: TextEdit): RangeMapping {
+		const newRanges = edit.getNewRanges();
+		const result = edit.replacements.map((e, idx) => new RangeMapping(e.range, newRanges[idx]));
+		return RangeMapping.join(result);
+	}
+
+	public static join(rangeMappings: RangeMapping[]): RangeMapping {
+		if (rangeMappings.length === 0) {
+			throw new BugIndicatingError('Cannot join an empty list of range mappings');
+		}
+		let result = rangeMappings[0];
+		for (let i = 1; i < rangeMappings.length; i++) {
+			result = result.join(rangeMappings[i]);
+		}
+		return result;
+	}
+
 	public static assertSorted(rangeMappings: RangeMapping[]): void {
 		for (let i = 1; i < rangeMappings.length; i++) {
 			const previous = rangeMappings[i - 1];
@@ -268,8 +306,111 @@ export class RangeMapping {
 	/**
 	 * Creates a single text edit that describes the change from the original to the modified text.
 	*/
-	public toTextEdit(modified: AbstractText): SingleTextEdit {
+	public toTextEdit(modified: AbstractText): TextReplacement {
 		const newText = modified.getValueOfRange(this.modifiedRange);
-		return new SingleTextEdit(this.originalRange, newText);
+		return new TextReplacement(this.originalRange, newText);
 	}
+
+	public join(other: RangeMapping): RangeMapping {
+		return new RangeMapping(
+			this.originalRange.plusRange(other.originalRange),
+			this.modifiedRange.plusRange(other.modifiedRange)
+		);
+	}
+}
+
+export function lineRangeMappingFromRangeMappings(alignments: readonly RangeMapping[], originalLines: AbstractText, modifiedLines: AbstractText, dontAssertStartLine: boolean = false): DetailedLineRangeMapping[] {
+	const changes: DetailedLineRangeMapping[] = [];
+	for (const g of groupAdjacentBy(
+		alignments.map(a => getLineRangeMapping(a, originalLines, modifiedLines)),
+		(a1, a2) =>
+			a1.original.intersectsOrTouches(a2.original)
+			|| a1.modified.intersectsOrTouches(a2.modified)
+	)) {
+		const first = g[0];
+		const last = g[g.length - 1];
+
+		changes.push(new DetailedLineRangeMapping(
+			first.original.join(last.original),
+			first.modified.join(last.modified),
+			g.map(a => a.innerChanges![0]),
+		));
+	}
+
+	assertFn(() => {
+		if (!dontAssertStartLine && changes.length > 0) {
+			if (changes[0].modified.startLineNumber !== changes[0].original.startLineNumber) {
+				return false;
+			}
+
+			if (modifiedLines.length.lineCount - changes[changes.length - 1].modified.endLineNumberExclusive !== originalLines.length.lineCount - changes[changes.length - 1].original.endLineNumberExclusive) {
+				return false;
+			}
+		}
+		return checkAdjacentItems(changes,
+			(m1, m2) => m2.original.startLineNumber - m1.original.endLineNumberExclusive === m2.modified.startLineNumber - m1.modified.endLineNumberExclusive &&
+				// There has to be an unchanged line in between (otherwise both diffs should have been joined)
+				m1.original.endLineNumberExclusive < m2.original.startLineNumber &&
+				m1.modified.endLineNumberExclusive < m2.modified.startLineNumber,
+		);
+	});
+
+	return changes;
+}
+
+export function getLineRangeMapping(rangeMapping: RangeMapping, originalLines: AbstractText, modifiedLines: AbstractText): DetailedLineRangeMapping {
+	let lineStartDelta = 0;
+	let lineEndDelta = 0;
+
+	// rangeMapping describes the edit that replaces `rangeMapping.originalRange` with `newText := getText(modifiedLines, rangeMapping.modifiedRange)`.
+
+	// original: ]xxx \n <- this line is not modified
+	// modified: ]xx  \n
+	if (rangeMapping.modifiedRange.endColumn === 1 && rangeMapping.originalRange.endColumn === 1
+		&& rangeMapping.originalRange.startLineNumber + lineStartDelta <= rangeMapping.originalRange.endLineNumber
+		&& rangeMapping.modifiedRange.startLineNumber + lineStartDelta <= rangeMapping.modifiedRange.endLineNumber) {
+		// We can only do this if the range is not empty yet
+		lineEndDelta = -1;
+	}
+
+	// original: xxx[ \n <- this line is not modified
+	// modified: xxx[ \n
+	if (rangeMapping.modifiedRange.startColumn - 1 >= modifiedLines.getLineLength(rangeMapping.modifiedRange.startLineNumber)
+		&& rangeMapping.originalRange.startColumn - 1 >= originalLines.getLineLength(rangeMapping.originalRange.startLineNumber)
+		&& rangeMapping.originalRange.startLineNumber <= rangeMapping.originalRange.endLineNumber + lineEndDelta
+		&& rangeMapping.modifiedRange.startLineNumber <= rangeMapping.modifiedRange.endLineNumber + lineEndDelta) {
+		// We can only do this if the range is not empty yet
+		lineStartDelta = 1;
+	}
+
+	const originalLineRange = new LineRange(
+		rangeMapping.originalRange.startLineNumber + lineStartDelta,
+		rangeMapping.originalRange.endLineNumber + 1 + lineEndDelta
+	);
+	const modifiedLineRange = new LineRange(
+		rangeMapping.modifiedRange.startLineNumber + lineStartDelta,
+		rangeMapping.modifiedRange.endLineNumber + 1 + lineEndDelta
+	);
+
+	return new DetailedLineRangeMapping(originalLineRange, modifiedLineRange, [rangeMapping]);
+}
+
+export function lineRangeMappingFromChange(change: IChange): LineRangeMapping {
+	let originalRange: LineRange;
+	if (change.originalEndLineNumber === 0) {
+		// Insertion
+		originalRange = new LineRange(change.originalStartLineNumber + 1, change.originalStartLineNumber + 1);
+	} else {
+		originalRange = new LineRange(change.originalStartLineNumber, change.originalEndLineNumber + 1);
+	}
+
+	let modifiedRange: LineRange;
+	if (change.modifiedEndLineNumber === 0) {
+		// Deletion
+		modifiedRange = new LineRange(change.modifiedStartLineNumber + 1, change.modifiedStartLineNumber + 1);
+	} else {
+		modifiedRange = new LineRange(change.modifiedStartLineNumber, change.modifiedEndLineNumber + 1);
+	}
+
+	return new LineRangeMapping(originalRange, modifiedRange);
 }

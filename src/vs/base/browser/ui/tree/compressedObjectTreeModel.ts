@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IIdentityProvider } from '../list/list.js';
-import { IIndexTreeModelSpliceOptions } from './indexTreeModel.js';
+import { getVisibleState, IIndexTreeModelSpliceOptions, isFilterResult } from './indexTreeModel.js';
 import { IObjectTreeModel, IObjectTreeModelOptions, IObjectTreeModelSetChildrenOptions, ObjectTreeModel } from './objectTreeModel.js';
 import { ICollapseStateChangeEvent, IObjectTreeElement, ITreeListSpliceData, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from './tree.js';
 import { equals } from '../../../common/arrays.js';
@@ -389,7 +389,12 @@ function mapOptions<T, TFilterData>(compressedNodeUnwrapper: CompressedNodeUnwra
 		},
 		filter: options.filter && {
 			filter(node: ICompressedTreeNode<T>, parentVisibility: TreeVisibility): TreeFilterResult<TFilterData> {
-				return options.filter!.filter(compressedNodeUnwrapper(node), parentVisibility);
+				const elements = node.elements;
+				for (let i = 0; i < elements.length - 1; i++) {
+					const result = options.filter!.filter(elements[i], parentVisibility);
+					parentVisibility = getVisibleState(isFilterResult(result) ? result.visibility : result);
+				}
+				return options.filter!.filter(elements[elements.length - 1], parentVisibility);
 			}
 		}
 	};

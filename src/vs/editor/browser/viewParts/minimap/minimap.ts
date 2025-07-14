@@ -15,7 +15,7 @@ import { ILine, RenderedLinesCollection } from '../../view/viewLayer.js';
 import { PartFingerprint, PartFingerprints, ViewPart } from '../../view/viewPart.js';
 import { RenderMinimap, EditorOption, MINIMAP_GUTTER_WIDTH, EditorLayoutInfoComputer } from '../../../common/config/editorOptions.js';
 import { Range } from '../../../common/core/range.js';
-import { RGBA8 } from '../../../common/core/rgba.js';
+import { RGBA8 } from '../../../common/core/misc/rgba.js';
 import { ScrollType } from '../../../common/editorCommon.js';
 import { IEditorConfiguration } from '../../../common/config/editorConfiguration.js';
 import { ColorId } from '../../../common/encodedTokenAttributes.js';
@@ -26,7 +26,7 @@ import { RenderingContext, RestrictedRenderingContext } from '../../view/renderi
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { EditorTheme } from '../../../common/editorTheme.js';
 import * as viewEvents from '../../../common/viewEvents.js';
-import { ViewLineData, ViewModelDecoration } from '../../../common/viewModel.js';
+import { ViewLineData } from '../../../common/viewModel.js';
 import { minimapSelection, minimapBackground, minimapForegroundOpacity, editorForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { ModelDecorationMinimapOptions } from '../../../common/model/textModel.js';
 import { Selection } from '../../../common/core/selection.js';
@@ -37,6 +37,8 @@ import { MinimapPosition, MinimapSectionHeaderStyle, TextModelResolvedOptions } 
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
+import { ViewModelDecoration } from '../../../common/viewModel/viewModelDecoration.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 
 /**
  * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
@@ -54,7 +56,7 @@ class MinimapOptions {
 	public readonly paddingTop: number;
 	public readonly paddingBottom: number;
 	public readonly showSlider: 'always' | 'mouseover';
-	public readonly autohide: boolean;
+	public readonly autohide: 'none' | 'mouseover' | 'scroll';
 	public readonly pixelRatio: number;
 	public readonly typicalHalfwidthCharacterWidth: number;
 	public readonly lineHeight: number;
@@ -803,6 +805,10 @@ class MinimapSamplingState {
 	}
 }
 
+/**
+ * The minimap appears beside the editor scroll bar and visualizes a zoomed out
+ * view of the file.
+ */
 export class Minimap extends ViewPart implements IMinimapModel {
 
 	public readonly tokensColorTracker: MinimapTokensColorTracker;
@@ -911,7 +917,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		}
 	}
 	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return this._actual.onScrollChanged();
+		return this._actual.onScrollChanged(e);
 	}
 	public override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
 		this._actual.onThemeChanged();
@@ -1064,29 +1070,12 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	}
 
 	public getMinimapDecorationsInViewport(startLineNumber: number, endLineNumber: number): ViewModelDecoration[] {
-		const decorations = this._getMinimapDecorationsInViewport(startLineNumber, endLineNumber)
+		return this._getMinimapDecorationsInViewport(startLineNumber, endLineNumber)
 			.filter(decoration => !decoration.options.minimap?.sectionHeaderStyle);
-
-		if (this._samplingState) {
-			const result: ViewModelDecoration[] = [];
-			for (const decoration of decorations) {
-				if (!decoration.options.minimap) {
-					continue;
-				}
-				const range = decoration.range;
-				const minimapStartLineNumber = this._samplingState.modelLineToMinimapLine(range.startLineNumber);
-				const minimapEndLineNumber = this._samplingState.modelLineToMinimapLine(range.endLineNumber);
-				result.push(new ViewModelDecoration(new Range(minimapStartLineNumber, range.startColumn, minimapEndLineNumber, range.endColumn), decoration.options));
-			}
-			return result;
-		}
-		return decorations;
 	}
 
 	public getSectionHeaderDecorationsInViewport(startLineNumber: number, endLineNumber: number): ViewModelDecoration[] {
-		const minimapLineHeight = this.options.minimapLineHeight;
-		const sectionHeaderFontSize = this.options.sectionHeaderFontSize;
-		const headerHeightInMinimapLines = sectionHeaderFontSize / minimapLineHeight;
+		const headerHeightInMinimapLines = this.options.sectionHeaderFontSize / this.options.minimapLineHeight;
 		startLineNumber = Math.floor(Math.max(1, startLineNumber - headerHeightInMinimapLines));
 		return this._getMinimapDecorationsInViewport(startLineNumber, endLineNumber)
 			.filter(decoration => !!decoration.options.minimap?.sectionHeaderStyle);
@@ -1101,7 +1090,23 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		} else {
 			visibleRange = new Range(startLineNumber, 1, endLineNumber, this._context.viewModel.getLineMaxColumn(endLineNumber));
 		}
-		return this._context.viewModel.getMinimapDecorationsInRange(visibleRange);
+		const decorations = this._context.viewModel.getMinimapDecorationsInRange(visibleRange);
+
+		if (this._samplingState) {
+			const result: ViewModelDecoration[] = [];
+			for (const decoration of decorations) {
+				if (!decoration.options.minimap) {
+					continue;
+				}
+				const range = decoration.range;
+				const minimapStartLineNumber = this._samplingState.modelLineToMinimapLine(range.startLineNumber);
+				const minimapEndLineNumber = this._samplingState.modelLineToMinimapLine(range.endLineNumber);
+				result.push(new ViewModelDecoration(new Range(minimapStartLineNumber, range.startColumn, minimapEndLineNumber, range.endColumn), decoration.options));
+			}
+			return result;
+		}
+
+		return decorations;
 	}
 
 	public getSectionHeaderText(decoration: ViewModelDecoration, fitWidth: (s: string) => string): string | null {
@@ -1168,6 +1173,8 @@ class InnerMinimap extends Disposable {
 	private _renderDecorations: boolean = false;
 	private _gestureInProgress: boolean = false;
 	private _buffers: MinimapBuffers | null;
+	private _isMouseOverMinimap: boolean = false;
+	private _hideDelayedScheduler: RunOnceScheduler;
 
 	constructor(
 		theme: EditorTheme,
@@ -1217,6 +1224,15 @@ class InnerMinimap extends Disposable {
 		this._slider.appendChild(this._sliderHorizontal);
 
 		this._applyLayout();
+
+		this._hideDelayedScheduler = this._register(new RunOnceScheduler(() => this._hideImmediatelyIfMouseIsOutside(), 500));
+
+		this._register(dom.addStandardDisposableListener(this._domNode.domNode, dom.EventType.MOUSE_OVER, () => {
+			this._isMouseOverMinimap = true;
+		}));
+		this._register(dom.addStandardDisposableListener(this._domNode.domNode, dom.EventType.MOUSE_LEAVE, () => {
+			this._isMouseOverMinimap = false;
+		}));
 
 		this._pointerDownListener = dom.addStandardDisposableListener(this._domNode.domNode, dom.EventType.POINTER_DOWN, (e) => {
 			e.preventDefault();
@@ -1284,6 +1300,19 @@ class InnerMinimap extends Disposable {
 		});
 	}
 
+	private _hideSoon() {
+		this._hideDelayedScheduler.cancel();
+		this._hideDelayedScheduler.schedule();
+	}
+
+	private _hideImmediatelyIfMouseIsOutside() {
+		if (this._isMouseOverMinimap) {
+			this._hideSoon();
+			return;
+		}
+		this._domNode.toggleClassName('active', false);
+	}
+
 	private _startSliderDragging(e: PointerEvent, initialPosY: number, initialSliderState: MinimapLayout): void {
 		if (!e.target || !(e.target instanceof Element)) {
 			return;
@@ -1349,8 +1378,11 @@ class InnerMinimap extends Disposable {
 		} else {
 			class_.push('slider-mouseover');
 		}
-		if (this._model.options.autohide) {
-			class_.push('autohide');
+
+		if (this._model.options.autohide === 'mouseover') {
+			class_.push('minimap-autohide-mouseover');
+		} else if (this._model.options.autohide === 'scroll') {
+			class_.push('minimap-autohide-scroll');
 		}
 
 		return class_.join(' ');
@@ -1427,7 +1459,11 @@ class InnerMinimap extends Disposable {
 		this._lastRenderData?.onLinesInserted(insertFromLineNumber, insertToLineNumber);
 		return true;
 	}
-	public onScrollChanged(): boolean {
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		if (this._model.options.autohide === 'scroll' && (e.scrollTopChanged || e.scrollHeightChanged)) {
+			this._domNode.toggleClassName('active', true);
+			this._hideSoon();
+		}
 		this._renderDecorations = true;
 		return true;
 	}

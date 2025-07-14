@@ -26,6 +26,7 @@ import { IFileMatch, IFileQuery, IPatternInfo, IRawFileMatch2, ISearchCompleteSt
 import { TextSearchManager } from '../../../services/search/common/textSearchManager.js';
 import { NativeTextSearchManager } from '../../../services/search/node/textSearchManager.js';
 import type * as vscode from 'vscode';
+import { AISearchKeyword } from '../../../services/search/common/searchExtTypes.js';
 
 let rpcProtocol: TestRPCProtocol;
 let extHostSearch: NativeExtHostSearch;
@@ -35,6 +36,8 @@ class MockMainThreadSearch implements MainThreadSearchShape {
 	lastHandle!: number;
 
 	results: Array<UriComponents | IRawFileMatch2> = [];
+
+	keywords: Array<AISearchKeyword> = [];
 
 	$registerFileSearchProvider(handle: number, scheme: string): void {
 		this.lastHandle = handle;
@@ -57,6 +60,10 @@ class MockMainThreadSearch implements MainThreadSearchShape {
 
 	$handleTextMatch(handle: number, session: number, data: IRawFileMatch2[]): void {
 		this.results.push(...data);
+	}
+
+	$handleKeywordResult(handle: number, session: number, data: AISearchKeyword): void {
+		this.keywords.push(data);
 	}
 
 	$handleTelemetry(eventName: string, data: any): void {
@@ -170,7 +177,7 @@ suite('ExtHostSearch', () => {
 				this._pfs = mockPFS as any;
 			}
 
-			protected override createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProviderNew): TextSearchManager {
+			protected override createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProvider2): TextSearchManager {
 				return new NativeTextSearchManager(query, provider, this._pfs);
 			}
 		});
@@ -261,6 +268,28 @@ suite('ExtHostSearch', () => {
 			const { results } = await runFileSearch(getSimpleQuery(), true);
 			assert(cancelRequested);
 			assert(!results.length);
+		});
+
+		test('session cancellation should work', async () => {
+			let numSessionCancelled = 0;
+			const disposables: (vscode.Disposable | undefined)[] = [];
+			await registerTestFileSearchProvider({
+				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
+
+					disposables.push(options.session?.onCancellationRequested(() => {
+						numSessionCancelled++;
+					}));
+
+					return Promise.resolve([]);
+				}
+			});
+
+
+			await runFileSearch({ ...getSimpleQuery(), cacheKey: '1' }, true);
+			await runFileSearch({ ...getSimpleQuery(), cacheKey: '2' }, true);
+			extHostSearch.$clearCache('1');
+			assert.strictEqual(numSessionCancelled, 1);
+			disposables.forEach(d => d?.dispose());
 		});
 
 		test('provider returns null', async () => {
@@ -701,6 +730,24 @@ suite('ExtHostSearch', () => {
 
 			const { results } = await runFileSearch(query);
 			compareURIs(results, reportedResults);
+		});
+		test('if onlyFileScheme is set, do not call custom schemes', async () => {
+			let fancySchemeCalled = false;
+			await registerTestFileSearchProvider({
+				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
+					fancySchemeCalled = true;
+					return Promise.resolve([]);
+				}
+			}, fancyScheme);
+
+			const query: ISearchQuery = {
+				type: QueryType.File,
+				filePattern: '',
+				folderQueries: []
+			};
+
+			await runFileSearch(query);
+			assert(!fancySchemeCalled);
 		});
 	});
 

@@ -140,6 +140,7 @@ export class PatternInputWidget extends Widget {
 	private render(options: IOptions): void {
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('monaco-findInput');
+		const history = options.history || [];
 
 		this.inputBox = new ContextScopedHistoryInputBox(this.domNode, this.contextViewProvider, {
 			placeholder: options.placeholder,
@@ -149,7 +150,7 @@ export class PatternInputWidget extends Widget {
 			validationOptions: {
 				validation: undefined
 			},
-			history: options.history || [],
+			history: new Set(history),
 			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService),
 			inputBoxStyles: options.inputBoxStyles
 		}, this.contextKeyService);

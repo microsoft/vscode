@@ -29,6 +29,7 @@ import { EditorResourceAccessor, SaveReason, SideBySideEditor } from '../../comm
 import { coalesce } from '../../../base/common/arrays.js';
 import { ICanonicalUriService } from '../../../platform/workspace/common/canonicalUri.js';
 import { revive } from '../../../base/common/marshalling.js';
+import { ITextFileService } from '../../services/textfile/common/textfiles.js';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -36,7 +37,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	private readonly _toDispose = new DisposableStore();
 	private readonly _activeCancelTokens: { [id: number]: CancellationTokenSource } = Object.create(null);
 	private readonly _proxy: ExtHostWorkspaceShape;
-	private readonly _queryBuilder = this._instantiationService.createInstance(QueryBuilder);
+	private readonly _queryBuilder: QueryBuilder;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -53,8 +54,10 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService
+		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
 	) {
+		this._queryBuilder = this._instantiationService.createInstance(QueryBuilder);
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
 		const workspace = this._contextService.getWorkspace();
 		// The workspace file is provided be a unknown file system provider. It might come
@@ -141,7 +144,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- search ---
 
-	$startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<UriComponents[] | null> {
+	$startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions<UriComponents>, token: CancellationToken): Promise<UriComponents[] | null> {
 		const includeFolder = URI.revive(_includeFolder);
 		const workspace = this._contextService.getWorkspace();
 
@@ -160,7 +163,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		});
 	}
 
-	$startTextSearch(pattern: IPatternInfo, _folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
+	$startTextSearch(pattern: IPatternInfo, _folder: UriComponents | null, options: ITextQueryBuilderOptions<UriComponents>, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
 		const folder = URI.revive(_folder);
 		const workspace = this._contextService.getWorkspace();
 		const folders = folder ? [folder] : workspace.folders.map(folder => folder.uri);
@@ -297,5 +300,19 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		const disposable = this.registeredCanonicalUriProviders.get(handle);
 		disposable?.dispose();
 		this.registeredCanonicalUriProviders.delete(handle);
+	}
+
+	// --- encodings
+
+	$resolveDecoding(resource: UriComponents | undefined, options?: { encoding: string }): Promise<{ preferredEncoding: string; guessEncoding: boolean; candidateGuessEncodings: string[] }> {
+		return this._textFileService.resolveDecoding(URI.revive(resource), options);
+	}
+
+	$validateDetectedEncoding(resource: UriComponents | undefined, detectedEncoding: string, options?: { encoding?: string }): Promise<string> {
+		return this._textFileService.validateDetectedEncoding(URI.revive(resource), detectedEncoding, options);
+	}
+
+	$resolveEncoding(resource: UriComponents | undefined, options?: { encoding: string }): Promise<{ encoding: string; addBOM: boolean }> {
+		return this._textFileService.resolveEncoding(URI.revive(resource), options);
 	}
 }

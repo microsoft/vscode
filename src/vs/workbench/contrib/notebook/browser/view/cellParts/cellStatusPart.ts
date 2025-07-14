@@ -79,7 +79,7 @@ export class CellEditorStatusBar extends CellContentPart {
 			readonly showHover = (options: IHoverDelegateOptions) => {
 				options.position = options.position ?? {};
 				options.position.hoverPosition = HoverPosition.ABOVE;
-				return hoverService.showHover(options);
+				return hoverService.showInstantHover(options);
 			};
 
 			readonly placement = 'element';
@@ -105,7 +105,17 @@ export class CellEditorStatusBar extends CellContentPart {
 					event: e
 				});
 			} else {
-				if ((e.target as HTMLElement).classList.contains('cell-status-item-has-command')) {
+				const target = e.target;
+				let itemHasCommand = false;
+				if (target && DOM.isHTMLElement(target)) {
+					const targetElement = <HTMLElement>target;
+					if (targetElement.classList.contains('cell-status-item-has-command')) {
+						itemHasCommand = true;
+					} else if (targetElement.parentElement && targetElement.parentElement.classList.contains('cell-status-item-has-command')) {
+						itemHasCommand = true;
+					}
+				}
+				if (itemHasCommand) {
 					this._onDidClick.fire({
 						type: ClickTargetType.ContributedCommandItem,
 						event: e

@@ -59,7 +59,7 @@ import { ICellRange } from '../../common/notebookRange.js';
 import { TextModelResolverService } from '../../../../services/textmodelResolver/common/textModelResolverService.js';
 import { IWorkingCopySaveEvent } from '../../../../services/workingCopy/common/workingCopy.js';
 import { TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
-import { TestStorageService, TestWorkspaceTrustRequestService } from '../../../../test/common/workbenchTestServices.js';
+import { TestStorageService, TestTextResourcePropertiesService, TestWorkspaceTrustRequestService } from '../../../../test/common/workbenchTestServices.js';
 import { FontInfo } from '../../../../../editor/common/config/fontInfo.js';
 import { EditorFontLigatures, EditorFontVariations } from '../../../../../editor/common/config/editorOptions.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
@@ -67,6 +67,10 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { TestCodeEditorService } from '../../../../../editor/test/browser/editorTestServices.js';
 import { INotebookCellOutlineDataSourceFactory, NotebookCellOutlineDataSourceFactory } from '../../browser/viewModel/notebookOutlineDataSourceFactory.js';
 import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
+import { INotebookOutlineEntryFactory, NotebookOutlineEntryFactory } from '../../browser/viewModel/notebookOutlineEntryFactory.js';
+import { IOutlineService } from '../../../../services/outline/browser/outline.js';
+import { DefaultEndOfLine } from '../../../../../editor/common/model.js';
+import { ITextResourcePropertiesService } from '../../../../../editor/common/services/textResourceConfiguration.js';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -78,7 +82,7 @@ export class TestCell extends NotebookCellTextModel {
 		outputs: IOutputDto[],
 		languageService: ILanguageService,
 	) {
-		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, Mimes.text, cellKind, outputs, undefined, undefined, undefined, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false, cellContentMetadata: {} }, languageService);
+		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, Mimes.text, cellKind, outputs, undefined, undefined, undefined, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false, cellContentMetadata: {} }, languageService, DefaultEndOfLine.LF);
 	}
 }
 
@@ -186,6 +190,7 @@ export function setupInstantiationService(disposables: Pick<DisposableStore, 'ad
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(IThemeService, testThemeService);
 	instantiationService.stub(ILanguageConfigurationService, disposables.add(new TestLanguageConfigurationService()));
+	instantiationService.stub(ITextResourcePropertiesService, instantiationService.createInstance(TestTextResourcePropertiesService));
 	instantiationService.stub(IModelService, disposables.add(instantiationService.createInstance(ModelService)));
 	instantiationService.stub(ITextModelService, <ITextModelService>disposables.add(instantiationService.createInstance(TextModelResolverService)));
 	instantiationService.stub(IContextKeyService, disposables.add(instantiationService.createInstance(ContextKeyService)));
@@ -199,7 +204,9 @@ export function setupInstantiationService(disposables: Pick<DisposableStore, 'ad
 	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	instantiationService.stub(INotebookCellStatusBarService, disposables.add(new NotebookCellStatusBarService()));
 	instantiationService.stub(ICodeEditorService, disposables.add(new TestCodeEditorService(testThemeService)));
+	instantiationService.stub(IOutlineService, new class extends mock<IOutlineService>() { override registerOutlineCreator() { return { dispose() { } }; } });
 	instantiationService.stub(INotebookCellOutlineDataSourceFactory, instantiationService.createInstance(NotebookCellOutlineDataSourceFactory));
+	instantiationService.stub(INotebookOutlineEntryFactory, instantiationService.createInstance(NotebookOutlineEntryFactory));
 
 	instantiationService.stub(ILanguageDetectionService, new class MockLanguageDetectionService implements ILanguageDetectionService {
 		_serviceBrand: undefined;
@@ -357,7 +364,8 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 					wsmiddotWidth: 10,
 					maxDigitWidth: 10,
 				}, true),
-				stickyHeight: 0
+				stickyHeight: 0,
+				listViewOffsetTop: 0,
 			};
 		}
 	};
@@ -558,6 +566,9 @@ export class TestNotebookExecutionStateService implements INotebookExecutionStat
 	}
 
 	getLastFailedCellForNotebook(notebook: URI): number | undefined {
+		return;
+	}
+	getLastCompletedCellForNotebook(notebook: URI): number | undefined {
 		return;
 	}
 	getExecution(notebook: URI): INotebookExecution | undefined {

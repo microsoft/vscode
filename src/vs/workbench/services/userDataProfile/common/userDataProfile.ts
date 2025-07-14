@@ -29,7 +29,6 @@ export interface IUserDataProfileService {
 	readonly currentProfile: IUserDataProfile;
 	readonly onDidChangeCurrentProfile: Event<DidChangeUserDataProfileEvent>;
 	updateCurrentProfile(currentProfile: IUserDataProfile): Promise<void>;
-	getShortName(profile: IUserDataProfile): string;
 }
 
 export interface IProfileTemplateInfo {
@@ -48,7 +47,7 @@ export interface IUserDataProfileManagementService {
 	updateProfile(profile: IUserDataProfile, updateOptions: IUserDataProfileUpdateOptions): Promise<IUserDataProfile>;
 	switchProfile(profile: IUserDataProfile): Promise<void>;
 	getBuiltinProfileTemplates(): Promise<IProfileTemplateInfo[]>;
-
+	getDefaultProfileToUse(): IUserDataProfile;
 }
 
 export interface IUserDataProfileTemplate {
@@ -60,6 +59,7 @@ export interface IUserDataProfileTemplate {
 	readonly snippets?: string;
 	readonly globalState?: string;
 	readonly extensions?: string;
+	readonly mcp?: string;
 }
 
 export function isUserDataProfileTemplate(thing: unknown): thing is IUserDataProfileTemplate {
@@ -68,7 +68,8 @@ export function isUserDataProfileTemplate(thing: unknown): thing is IUserDataPro
 	return !!(candidate && typeof candidate === 'object'
 		&& (isUndefined(candidate.settings) || typeof candidate.settings === 'string')
 		&& (isUndefined(candidate.globalState) || typeof candidate.globalState === 'string')
-		&& (isUndefined(candidate.extensions) || typeof candidate.extensions === 'string'));
+		&& (isUndefined(candidate.extensions) || typeof candidate.extensions === 'string')
+		&& (isUndefined(candidate.mcp) || typeof candidate.mcp === 'string'));
 }
 
 export const PROFILE_URL_AUTHORITY = 'profile';
@@ -150,7 +151,6 @@ export const PROFILES_TITLE = localize2('profiles', 'Profiles');
 export const PROFILES_CATEGORY = { ...PROFILES_TITLE };
 export const PROFILE_EXTENSION = 'code-profile';
 export const PROFILE_FILTER = [{ name: localize('profile', "Profile"), extensions: [PROFILE_EXTENSION] }];
-export const PROFILES_ENABLEMENT_CONTEXT = new RawContextKey<boolean>('profiles.enabled', true);
 export const CURRENT_PROFILE_CONTEXT = new RawContextKey<string>('currentProfile', '');
 export const IS_CURRENT_PROFILE_TRANSIENT_CONTEXT = new RawContextKey<boolean>('isCurrentProfileTransient', false);
 export const HAS_PROFILES_CONTEXT = new RawContextKey<boolean>('hasProfiles', false);

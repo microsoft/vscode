@@ -83,7 +83,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	hidePanel(): void {
 		// Hide the panel if the terminal is in the panel and it has no sibling views
 		const panel = this._viewDescriptorService.getViewContainerByViewId(TERMINAL_VIEW_ID);
-		if (panel && this._viewDescriptorService.getViewContainerModel(panel).activeViewDescriptors.length === 1) {
+		if (panel && this._viewDescriptorService.getViewContainerModel(panel).visibleViewDescriptors.length === 1) {
 			this._viewsService.closeView(TERMINAL_VIEW_ID);
 			TerminalContextKeys.tabsMouse.bindTo(this._contextKeyService).set(false);
 		}
@@ -218,7 +218,9 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			if (this.groups.length > 0 && !this._isQuickInputOpened) {
 				const newIndex = index < this.groups.length ? index : this.groups.length - 1;
 				this.setActiveGroupByIndex(newIndex, true);
-				this.activeInstance?.focus(true);
+				if (group.hadFocusOnExit) {
+					this.activeInstance?.focus(true);
+				}
 			}
 		} else {
 			// Adjust the active group if the removed group was above the active group

@@ -366,6 +366,11 @@ export enum ViewContentGroups {
 
 export interface IViewContentDescriptor {
 	readonly content: string;
+	/**
+	 * Whether to render all but the first button as secondary
+	 * if there are buttons in the `content` property.
+	 */
+	readonly renderSecondaryButtons?: boolean;
 	readonly when?: ContextKeyExpression | 'default';
 	readonly group?: string;
 	readonly order?: number;
@@ -657,7 +662,8 @@ export interface ITreeView extends IDisposable {
 
 	readonly container: any | undefined;
 
-	refresh(treeItems?: readonly ITreeItem[]): Promise<void>;
+	// checkboxesChanged is a subset of treeItems
+	refresh(treeItems?: readonly ITreeItem[], checkboxesChanged?: readonly ITreeItem[]): Promise<void>;
 
 	setVisibility(visible: boolean): void;
 
@@ -841,6 +847,7 @@ export interface ITreeViewDataProvider {
 	readonly isTreeEmpty?: boolean;
 	onDidChangeEmpty?: Event<void>;
 	getChildren(element?: ITreeItem): Promise<ITreeItem[] | undefined>;
+	getChildrenBatch?(element?: ITreeItem[]): Promise<ITreeItem[][] | undefined>;
 }
 
 export interface ITreeViewDragAndDropController {

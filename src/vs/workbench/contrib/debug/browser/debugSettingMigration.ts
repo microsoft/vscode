@@ -9,14 +9,12 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
 		key: 'debug.autoExpandLazyVariables',
 		migrateFn: (value: boolean) => {
-			let newValue: string | undefined;
 			if (value === true) {
-				newValue = 'on';
+				return { value: 'on' };
 			} else if (value === false) {
-				newValue = 'off';
+				return { value: 'off' };
 			}
-			return [
-				['debug.autoExpandLazyVariables', { value: newValue }],
-			];
+
+			return [];
 		}
 	}]);

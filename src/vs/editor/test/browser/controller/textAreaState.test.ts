@@ -6,10 +6,11 @@
 import assert from 'assert';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ITextAreaWrapper, PagedScreenReaderStrategy, TextAreaState } from '../../../browser/controller/textAreaState.js';
+import { ITextAreaWrapper, TextAreaState } from '../../../browser/controller/editContext/textArea/textAreaEditContextState.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
 import { createTextModel } from '../../common/testTextModel.js';
+import { PagedScreenReaderStrategy } from '../../../browser/controller/editContext/screenReaderUtils.js';
 
 class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
@@ -364,8 +365,9 @@ suite('TextAreaState', () => {
 
 		function testPagedScreenReaderStrategy(lines: string[], selection: Selection, expected: TextAreaState): void {
 			const model = createTextModel(lines.join('\n'));
-			const actual = PagedScreenReaderStrategy.fromEditorSelection(model, selection, 10, true);
-			assert.ok(equalsTextAreaState(actual, expected));
+			const screenReaderContentState = PagedScreenReaderStrategy.fromEditorSelection(model, selection, 10, true);
+			const textAreaState = TextAreaState.fromScreenReaderContentState(screenReaderContentState);
+			assert.ok(equalsTextAreaState(textAreaState, expected));
 			model.dispose();
 		}
 

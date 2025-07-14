@@ -44,7 +44,7 @@ export class RemoteTerminalBackendContribution implements IWorkbenchContribution
 			const channel = instantiationService.createInstance(RemoteTerminalChannelClient, connection.remoteAuthority, connection.getChannel(REMOTE_TERMINAL_CHANNEL_NAME));
 			const backend = instantiationService.createInstance(RemoteTerminalBackend, connection.remoteAuthority, channel);
 			Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).registerTerminalBackend(backend);
-			terminalInstanceService.didRegisterBackend(backend.remoteAuthority);
+			terminalInstanceService.didRegisterBackend(backend);
 		}
 	}
 }
@@ -119,30 +119,6 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			}
 		});
 
-		// Listen for config changes
-		const initialConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
-		for (const match of Object.keys(initialConfig.autoReplies)) {
-			// Ensure the value is truthy
-			const reply = initialConfig.autoReplies[match];
-			if (reply) {
-				this._remoteTerminalChannel.installAutoReply(match, reply);
-			}
-		}
-		// TODO: Could simplify update to a single call
-		this._register(this._configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration(TerminalSettingId.AutoReplies)) {
-				this._remoteTerminalChannel.uninstallAllAutoReplies();
-				const config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
-				for (const match of Object.keys(config.autoReplies)) {
-					// Ensure the value is truthy
-					const reply = config.autoReplies[match];
-					if (reply) {
-						await this._remoteTerminalChannel.installAutoReply(match, reply);
-					}
-				}
-			}
-		}));
-
 		this._onPtyHostConnected.fire();
 	}
 
@@ -212,7 +188,9 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			useShellEnvironment: shellLaunchConfig.useShellEnvironment,
 			reconnectionProperties: shellLaunchConfig.reconnectionProperties,
 			type: shellLaunchConfig.type,
-			isFeatureTerminal: shellLaunchConfig.isFeatureTerminal
+			isFeatureTerminal: shellLaunchConfig.isFeatureTerminal,
+			tabActions: shellLaunchConfig.tabActions,
+			shellIntegrationEnvironmentReporting: shellLaunchConfig.shellIntegrationEnvironmentReporting,
 		};
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 
@@ -371,5 +349,13 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 
 	async getPerformanceMarks(): Promise<PerformanceMark[]> {
 		return this._remoteTerminalChannel.getPerformanceMarks();
+	}
+
+	installAutoReply(match: string, reply: string): Promise<void> {
+		return this._remoteTerminalChannel.installAutoReply(match, reply);
+	}
+
+	uninstallAllAutoReplies(): Promise<void> {
+		return this._remoteTerminalChannel.uninstallAllAutoReplies();
 	}
 }

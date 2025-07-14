@@ -18,6 +18,10 @@ import { isDefined } from '../../../../base/common/types.js';
 import { BracketPairGuidesClassNames } from '../../../common/model/guidesTextModelPart.js';
 import { IndentGuide, HorizontalGuidesState } from '../../../common/textModelGuides.js';
 
+/**
+ * Indent guides are vertical lines that help identify the indentation level of
+ * the code.
+ */
 export class IndentGuidesOverlay extends DynamicViewOverlay {
 
 	private readonly _context: ViewContext;

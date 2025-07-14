@@ -12,7 +12,7 @@ import { DisposableStore, IDisposable, toDisposable } from '../../../base/common
 import { ResourceMap, ResourceSet } from '../../../base/common/map.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { isFalsyOrWhitespace } from '../../../base/common/strings.js';
-import { assertIsDefined } from '../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../base/common/types.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import * as files from '../../../platform/files/common/files.js';
@@ -200,7 +200,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 		const canonicalUri = await this._notebookDocumentsProxy.$tryOpenNotebook(uri);
 		const document = this._documents.get(URI.revive(canonicalUri));
-		return assertIsDefined(document?.apiNotebook);
+		return assertReturnsDefined(document?.apiNotebook);
 	}
 
 	async showNotebookDocument(notebook: vscode.NotebookDocument, options?: vscode.NotebookDocumentShowOptions): Promise<vscode.NotebookEditor> {
@@ -211,7 +211,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				preserveFocus: options.preserveFocus,
 				selections: options.selections && options.selections.map(typeConverters.NotebookRange.from),
 				pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
-				label: options?.label
+				label: typeof options.asRepl === 'string' ?
+					options.asRepl :
+					typeof options.asRepl === 'object' ?
+						options.asRepl.label :
+						undefined,
 			};
 		} else {
 			resolvedOptions = {
@@ -220,7 +224,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			};
 		}
 
-		const viewType = options?.asRepl ? 'repl' : notebook.notebookType;
+		const viewType = !!options?.asRepl ? 'repl' : notebook.notebookType;
 		const editorId = await this._notebookEditorsProxy.$tryShowNotebookDocument(notebook.uri, viewType, resolvedOptions);
 		const editor = editorId && this._editors.get(editorId)?.apiEditor;
 
@@ -323,7 +327,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 
 		if (document.versionId !== versionId) {
-			throw new Error('Document version mismatch');
+			throw new Error('Document version mismatch, expected: ' + versionId + ', actual: ' + document.versionId);
 		}
 
 		if (!this._extHostFileSystem.value.isWritableFileSystem(uri.scheme)) {
@@ -588,7 +592,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			document,
 			data.visibleRanges.map(typeConverters.NotebookRange.to),
 			data.selections.map(typeConverters.NotebookRange.to),
-			typeof data.viewColumn === 'number' ? typeConverters.ViewColumn.to(data.viewColumn) : undefined
+			typeof data.viewColumn === 'number' ? typeConverters.ViewColumn.to(data.viewColumn) : undefined,
+			data.viewType
 		);
 
 		this._editors.set(editorId, editor);

@@ -281,12 +281,12 @@ export class KeybindingResolver {
 		return result;
 	}
 
-	public lookupPrimaryKeybinding(commandId: string, context: IContextKeyService): ResolvedKeybindingItem | null {
+	public lookupPrimaryKeybinding(commandId: string, context: IContextKeyService, enforceContextCheck = false): ResolvedKeybindingItem | null {
 		const items = this._lookupMap.get(commandId);
 		if (typeof items === 'undefined' || items.length === 0) {
 			return null;
 		}
-		if (items.length === 1) {
+		if (items.length === 1 && !enforceContextCheck) {
 			return items[0];
 		}
 
@@ -295,6 +295,10 @@ export class KeybindingResolver {
 			if (context.contextMatchesRules(item.when)) {
 				return item;
 			}
+		}
+
+		if (enforceContextCheck) {
+			return null;
 		}
 
 		return items[items.length - 1];

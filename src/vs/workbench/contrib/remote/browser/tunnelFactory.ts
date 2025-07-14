@@ -13,7 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IRemoteExplorerService } from '../../../services/remote/common/remoteExplorerService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { forwardedPortsViewEnabled } from '../../../services/remote/common/tunnelModel.js';
+import { forwardedPortsFeaturesEnabled } from '../../../services/remote/common/tunnelModel.js';
 
 export class TunnelFactoryContribution extends Disposable implements IWorkbenchContribution {
 
@@ -31,7 +31,7 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 		const tunnelFactory = environmentService.options?.tunnelProvider?.tunnelFactory;
 		if (tunnelFactory) {
 			// At this point we clearly want the ports view/features since we have a tunnel factory
-			contextKeyService.createKey(forwardedPortsViewEnabled.key, true);
+			contextKeyService.createKey(forwardedPortsFeaturesEnabled.key, true);
 			let privacyOptions = environmentService.options?.tunnelProvider?.features?.privacyOptions ?? [];
 			if (environmentService.options?.tunnelProvider?.features?.public
 				&& (privacyOptions.length === 0)) {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ClientSecretCredential } from '@azure/identity';
+import { ClientAssertionCredential } from '@azure/identity';
 import { CosmosClient } from '@azure/cosmos';
 import { retry } from './retry';
 
@@ -45,7 +45,7 @@ async function main(force: boolean): Promise<void> {
 	const commit = getEnv('BUILD_SOURCEVERSION');
 	const quality = getEnv('VSCODE_QUALITY');
 
-	const aadCredentials = new ClientSecretCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_CLIENT_SECRET']!);
+	const aadCredentials = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));
 	const client = new CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT']!, aadCredentials });
 
 	if (!force) {

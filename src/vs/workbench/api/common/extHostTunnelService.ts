@@ -162,10 +162,10 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 			protocol: information.tunnelFeatures.protocol === undefined ? true : information.tunnelFeatures.protocol,
 		} : undefined;
 
-		this._proxy.$setTunnelProvider(tunnelFeatures);
+		this._proxy.$setTunnelProvider(tunnelFeatures, true);
 		return Promise.resolve(toDisposable(() => {
 			this._forwardPortProvider = undefined;
-			this._proxy.$setTunnelProvider(undefined);
+			this._proxy.$setTunnelProvider(undefined, false);
 		}));
 	}
 
@@ -214,7 +214,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 					protocol: true
 				} : undefined;
 
-				this._proxy.$setTunnelProvider(tunnelFeatures);
+				this._proxy.$setTunnelProvider(tunnelFeatures, !!provider.tunnelFactory);
 			}
 		} else {
 			this._forwardPortProvider = undefined;

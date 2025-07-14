@@ -775,4 +775,12 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => types.FileDecoration.validate({ badge: 'புன்சிரிப்போடு' }));
 		assert.throws(() => types.FileDecoration.validate({ badge: 'ããã' }));
 	});
+
+	test('runtime stable, type-def changed', function () {
+		// see https://github.com/microsoft/vscode/issues/231938
+		const m = new types.LanguageModelChatMessage(types.LanguageModelChatMessageRole.User, []);
+		assert.deepStrictEqual(m.content, []);
+		m.content = 'Hello';
+		assert.deepStrictEqual(m.content, [new types.LanguageModelTextPart('Hello')]);
+	});
 });

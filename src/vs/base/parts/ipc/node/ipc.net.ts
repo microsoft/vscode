@@ -60,7 +60,7 @@ export class NodeSocket implements ISocket {
 		};
 		this.socket.on('error', this._errorListener);
 
-		let endTimeoutHandle: NodeJS.Timeout | undefined;
+		let endTimeoutHandle: Timeout | undefined;
 		this._closeListener = (hadError: boolean) => {
 			this.traceSocketEvent(SocketDiagnosticsEventType.Close, { hadError });
 			this._canWrite = false;

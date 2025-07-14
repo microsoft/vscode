@@ -5,7 +5,6 @@
 
 import * as nls from '../../../../nls.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { isESM } from '../../../../base/common/amd.js';
 import { AppResourcePath, FileAccess } from '../../../../base/common/network.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { KeymapInfo, IRawMixedKeyboardMapping, IKeymapInfo } from '../common/keymapInfo.js';
@@ -457,10 +456,7 @@ export class BrowserKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBa
 
 		const platform = isWindows ? 'win' : isMacintosh ? 'darwin' : 'linux';
 
-		import(isESM ?
-			FileAccess.asBrowserUri(`vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.${platform}.js` satisfies AppResourcePath).path :
-			`vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.${platform}`
-		).then((m) => {
+		import(FileAccess.asBrowserUri(`vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.${platform}.js` satisfies AppResourcePath).path).then((m) => {
 			const keymapInfos: IKeymapInfo[] = m.KeyboardLayoutContribution.INSTANCE.layoutInfos;
 			this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.layout, info.secondaryLayouts, info.mapping, info.isUserKeyboardLayout))));
 			this._mru = this._keymapInfos;

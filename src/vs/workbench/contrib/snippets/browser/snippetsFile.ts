@@ -14,7 +14,6 @@ import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform
 import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 import { relativePath } from '../../../../base/common/resources.js';
 import { isObject } from '../../../../base/common/types.js';
-import { tail } from '../../../../base/common/arrays.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { WindowIdleValue, getActiveWindow } from '../../../../base/browser/dom.js';
 
@@ -54,7 +53,7 @@ class SnippetBodyInsights {
 		if (textmateSnippet.placeholders.length === 0) {
 			this.isTrivial = true;
 		} else if (placeholderMax === 0) {
-			const last = tail(textmateSnippet.children);
+			const last = textmateSnippet.children.at(-1);
 			this.isTrivial = last instanceof Placeholder && last.isFinalTabstop;
 		}
 

@@ -196,14 +196,6 @@ export class ContextMenuController implements IEditorContribution {
 			return;
 		}
 
-		// Disable hover
-		const oldHoverSetting = this._editor.getOption(EditorOption.hover);
-		this._editor.updateOptions({
-			hover: {
-				enabled: false
-			}
-		});
-
 		let anchor: IMouseEvent | IAnchor | null = event;
 		if (!anchor) {
 			// Ensure selection is visible
@@ -251,9 +243,6 @@ export class ContextMenuController implements IEditorContribution {
 
 			onHide: (wasCancelled: boolean) => {
 				this._contextMenuIsBeingShownCount--;
-				this._editor.updateOptions({
-					hover: oldHoverSetting
-				});
 			}
 		});
 	}
@@ -391,8 +380,7 @@ class ShowContextMenu extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.showContextMenu',
-			label: nls.localize('action.showContextMenu.label', "Show Editor Context Menu"),
-			alias: 'Show Editor Context Menu',
+			label: nls.localize2('action.showContextMenu.label', "Show Editor Context Menu"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,

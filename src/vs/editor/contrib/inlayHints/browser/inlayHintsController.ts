@@ -109,9 +109,9 @@ export class InlayHintsController implements IEditorContribution {
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _sessionDisposables = new DisposableStore();
-	private readonly _debounceInfo: IFeatureDebounceInformation;
 	private readonly _decorationsMetadata = new Map<string, InlayHintDecorationRenderInfo>();
-	private readonly _ruleFactory = new DynamicCssRules(this._editor);
+	private readonly _debounceInfo: IFeatureDebounceInformation;
+	private readonly _ruleFactory: DynamicCssRules;
 
 	private _cursorInfo?: { position: Position; notEarlierThan: number };
 	private _activeRenderMode = RenderMode.Normal;
@@ -126,6 +126,7 @@ export class InlayHintsController implements IEditorContribution {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
+		this._ruleFactory = new DynamicCssRules(this._editor);
 		this._debounceInfo = _featureDebounce.for(_languageFeaturesService.inlayHintsProvider, 'InlayHint', { min: 25 });
 		this._disposables.add(_languageFeaturesService.inlayHintsProvider.onDidChange(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
@@ -613,12 +614,14 @@ export class InlayHintsController implements IEditorContribution {
 
 				itemActualLength += textlabel.length;
 
-				const overFixedLength = itemFixedLength !== undefined ? (itemActualLength - itemFixedLength) : 0;
-				if (overFixedLength > 0) {
-					// longer than fixed length, trim
-					itemActualLength -= overFixedLength;
-					textlabel = textlabel.slice(0, -(1 + overFixedLength)) + '…';
-					tooLong = true;
+				if (itemFixedLength !== undefined) {
+					const overFixedLength = itemActualLength - itemFixedLength;
+					if (overFixedLength >= 0) {
+						// longer than fixed length, trim
+						itemActualLength -= overFixedLength;
+						textlabel = textlabel.slice(0, -(1 + overFixedLength)) + '…';
+						tooLong = true;
+					}
 				}
 
 				if (padding) {

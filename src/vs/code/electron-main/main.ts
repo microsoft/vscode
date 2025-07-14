@@ -53,12 +53,12 @@ import { ProtocolMainService } from '../../platform/protocol/electron-main/proto
 import { ITunnelService } from '../../platform/tunnel/common/tunnel.js';
 import { TunnelService } from '../../platform/tunnel/node/tunnelService.js';
 import { IRequestService } from '../../platform/request/common/request.js';
-import { RequestMainService } from '../../platform/request/electron-main/requestMainService.js';
+import { RequestService } from '../../platform/request/electron-utility/requestService.js';
 import { ISignService } from '../../platform/sign/common/sign.js';
 import { SignService } from '../../platform/sign/node/signService.js';
 import { IStateReadService, IStateService } from '../../platform/state/node/state.js';
 import { NullTelemetryService } from '../../platform/telemetry/common/telemetryUtils.js';
-import { IThemeMainService, ThemeMainService } from '../../platform/theme/electron-main/themeMainService.js';
+import { IThemeMainService } from '../../platform/theme/electron-main/themeMainService.js';
 import { IUserDataProfilesMainService, UserDataProfilesMainService } from '../../platform/userDataProfile/electron-main/userDataProfile.js';
 import { IPolicyService, NullPolicyService } from '../../platform/policy/common/policy.js';
 import { NativePolicyService } from '../../platform/policy/node/nativePolicyService.js';
@@ -72,6 +72,7 @@ import { massageMessageBoxOptions } from '../../platform/dialogs/common/dialogs.
 import { SaveStrategy, StateService } from '../../platform/state/node/stateService.js';
 import { FileUserDataProvider } from '../../platform/userData/common/fileUserDataProvider.js';
 import { addUNCHostToAllowlist, getUNCHost } from '../../base/node/unc.js';
+import { ThemeMainService } from '../../platform/theme/electron-main/themeMainServiceImpl.js';
 
 /**
  * The main VS Code entry point.
@@ -99,7 +100,7 @@ class CodeMain {
 		setUnexpectedErrorHandler(err => console.error(err));
 
 		// Create services
-		const [instantiationService, instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService, userDataProfilesMainService] = this.createServices();
+		const [instantiationService, instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogger, productService, userDataProfilesMainService] = this.createServices();
 
 		try {
 
@@ -133,7 +134,7 @@ class CodeMain {
 				});
 
 				// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
-				bufferLogService.logger = loggerService.createLogger('main', { name: localize('mainLog', "Main") });
+				bufferLogger.logger = loggerService.createLogger('main', { name: localize('mainLog', "Main") });
 
 				// Lifecycle
 				Event.once(lifecycleMainService.onWillShutdown)(evt => {
@@ -198,9 +199,16 @@ class CodeMain {
 		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.vscodeUserData, userDataProfilesMainService, uriIdentityService, logService));
 
 		// Policy
-		const policyService = isWindows && productService.win32RegValueName ? disposables.add(new NativePolicyService(logService, productService.win32RegValueName))
-			: environmentMainService.policyFile ? disposables.add(new FilePolicyService(environmentMainService.policyFile, fileService, logService))
-				: new NullPolicyService();
+		let policyService: IPolicyService | undefined;
+		if (isWindows && productService.win32RegValueName) {
+			policyService = disposables.add(new NativePolicyService(logService, productService.win32RegValueName));
+		} else if (isMacintosh && productService.darwinBundleIdentifier) {
+			policyService = disposables.add(new NativePolicyService(logService, productService.darwinBundleIdentifier));
+		} else if (environmentMainService.policyFile) {
+			policyService = disposables.add(new FilePolicyService(environmentMainService.policyFile, fileService, logService));
+		} else {
+			policyService = new NullPolicyService();
+		}
 		services.set(IPolicyService, policyService);
 
 		// Configuration
@@ -211,7 +219,7 @@ class CodeMain {
 		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService, undefined, false));
 
 		// Request
-		services.set(IRequestService, new SyncDescriptor(RequestMainService, undefined, true));
+		services.set(IRequestService, new SyncDescriptor(RequestService, undefined, true));
 
 		// Themes
 		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
@@ -350,7 +358,7 @@ class CodeMain {
 			// Show a warning dialog after some timeout if it takes long to talk to the other instance
 			// Skip this if we are running with --wait where it is expected that we wait for a while.
 			// Also skip when gathering diagnostics (--status) which can take a longer time.
-			let startupWarningDialogHandle: NodeJS.Timeout | undefined = undefined;
+			let startupWarningDialogHandle: Timeout | undefined = undefined;
 			if (!environmentMainService.args.wait && !environmentMainService.args.status) {
 				startupWarningDialogHandle = setTimeout(() => {
 					this.showStartupWarningDialog(
@@ -483,19 +491,33 @@ class CodeMain {
 		// Parse arguments
 		const args = this.validatePaths(parseMainProcessArgv(process.argv));
 
-		// If we are started with --wait create a random temporary file
-		// and pass it over to the starting instance. We can use this file
-		// to wait for it to be deleted to monitor that the edited file
-		// is closed and then exit the waiting process.
-		//
-		// Note: we are not doing this if the wait marker has been already
-		// added as argument. This can happen if VS Code was started from CLI.
-
 		if (args.wait && !args.waitMarkerFilePath) {
+			// If we are started with --wait create a random temporary file
+			// and pass it over to the starting instance. We can use this file
+			// to wait for it to be deleted to monitor that the edited file
+			// is closed and then exit the waiting process.
+			//
+			// Note: we are not doing this if the wait marker has been already
+			// added as argument. This can happen if VS Code was started from CLI.
 			const waitMarkerFilePath = createWaitMarkerFileSync(args.verbose);
 			if (waitMarkerFilePath) {
 				addArg(process.argv, '--waitMarkerFilePath', waitMarkerFilePath);
 				args.waitMarkerFilePath = waitMarkerFilePath;
+			}
+		}
+
+		if (args.chat) {
+			if (args.chat['new-window']) {
+				// Apply `--new-window` flag to the main arguments
+				args['new-window'] = true;
+			} else if (args.chat['reuse-window']) {
+				// Apply `--reuse-window` flag to the main arguments
+				args['reuse-window'] = true;
+			} else {
+				// Unless we are started with specific instructions about
+				// new windows or reusing existing ones, always take the
+				// current working directory as workspace to open.
+				args._ = [cwd()];
 			}
 		}
 

@@ -29,6 +29,10 @@ export const editorStickyScrollBackground = registerColor('editorStickyScroll.ba
 	editorBackground,
 	nls.localize('editorStickyScrollBackground', "Background color of sticky scroll in the editor"));
 
+export const editorStickyScrollGutterBackground = registerColor('editorStickyScrollGutter.background',
+	editorBackground,
+	nls.localize('editorStickyScrollGutterBackground', "Background color of the gutter part of sticky scroll in the editor"));
+
 export const editorStickyScrollHoverBackground = registerColor('editorStickyScrollHover.background',
 	{ dark: '#2A2D2E', light: '#F0F0F0', hcDark: null, hcLight: Color.fromHex('#0F4A85').transparent(0.1) },
 	nls.localize('editorStickyScrollHoverBackground', "Background color of sticky scroll on hover in the editor"));
@@ -133,6 +137,10 @@ export const editorSelectionHighlight = registerColor('editor.selectionHighlight
 export const editorSelectionHighlightBorder = registerColor('editor.selectionHighlightBorder',
 	{ light: null, dark: null, hcDark: activeContrastBorder, hcLight: activeContrastBorder },
 	nls.localize('editorSelectionHighlightBorder', "Border color for regions with the same content as the selection."));
+
+export const editorCompositionBorder = registerColor('editor.compositionBorder',
+	{ light: '#000000', dark: '#ffffff', hcLight: '#000000', hcDark: '#ffffff' },
+	nls.localize('editorCompositionBorder', "The border color for an IME composition."));
 
 
 // ----- editor find

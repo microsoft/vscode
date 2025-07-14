@@ -13,7 +13,7 @@ import { IRange } from '../../../../common/core/range.js';
 import { DEFAULT_WORD_REGEXP } from '../../../../common/core/wordHelper.js';
 import * as languages from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
-import { BaseEditorSimpleWorker } from '../../../../common/services/editorSimpleWorker.js';
+import { EditorWorker } from '../../../../common/services/editorWebWorker.js';
 import { EditorWorkerService } from '../../../../browser/services/editorWorkerService.js';
 import { IModelService } from '../../../../common/services/model.js';
 import { ITextResourceConfigurationService } from '../../../../common/services/textResourceConfiguration.js';
@@ -62,7 +62,7 @@ suite('suggest, word distance', function () {
 
 		const service = new class extends EditorWorkerService {
 
-			private _worker = new BaseEditorSimpleWorker();
+			private _worker = new EditorWorker();
 
 			constructor() {
 				super(null!, modelService, new class extends mock<ITextResourceConfigurationService>() { }, new NullLogService(), new TestLanguageConfigurationService(), new LanguageFeaturesService());

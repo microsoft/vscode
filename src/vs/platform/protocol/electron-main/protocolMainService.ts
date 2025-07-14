@@ -5,7 +5,7 @@
 
 import { session } from 'electron';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { COI, FileAccess, Schemas } from '../../../base/common/network.js';
+import { COI, FileAccess, Schemas, CacheControlheaders, DocumentPolicyheaders } from '../../../base/common/network.js';
 import { basename, extname, normalize } from '../../../base/common/path.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
@@ -24,7 +24,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 	declare readonly _serviceBrand: undefined;
 
 	private readonly validRoots = TernarySearchTree.forPaths<boolean>(!isLinux);
-	private readonly validExtensions = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.mp4']); // https://github.com/microsoft/vscode/issues/119384
+	private readonly validExtensions = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.mp4', '.otf', '.ttf']); // https://github.com/microsoft/vscode/issues/119384
 
 	constructor(
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
@@ -93,15 +93,34 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 	private handleResourceRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback): void {
 		const path = this.requestToNormalizedFilePath(request);
+		const pathBasename = basename(path);
 
 		let headers: Record<string, string> | undefined;
 		if (this.environmentService.crossOriginIsolated) {
-			const pathBasename = basename(path);
-			if (pathBasename === 'workbench.html' || pathBasename === 'workbench-dev.html' || pathBasename === 'workbench.esm.html' || pathBasename === 'workbench-dev.esm.html') {
+			if (pathBasename === 'workbench.html' || pathBasename === 'workbench-dev.html') {
 				headers = COI.CoopAndCoep;
 			} else {
 				headers = COI.getHeadersFromQuery(request.url);
 			}
+		}
+
+		// In OSS, evict resources from the memory cache in the renderer process
+		// Refs https://github.com/microsoft/vscode/issues/148541#issuecomment-2670891511
+		if (!this.environmentService.isBuilt) {
+			headers = {
+				...headers,
+				...CacheControlheaders
+			};
+		}
+
+		// Document-policy header is needed for collecting
+		// JavaScript callstacks via https://www.electronjs.org/docs/latest/api/web-frame-main#framecollectjavascriptcallstack-experimental
+		// until https://github.com/electron/electron/issues/45356 is resolved.
+		if (pathBasename === 'workbench.html' || pathBasename === 'workbench-dev.html') {
+			headers = {
+				...headers,
+				...DocumentPolicyheaders
+			};
 		}
 
 		// first check by validRoots
@@ -111,7 +130,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 		// then check by validExtensions
 		if (this.validExtensions.has(extname(path).toLowerCase())) {
-			return callback({ path });
+			return callback({ path, headers });
 		}
 
 		// finally block to load the resource

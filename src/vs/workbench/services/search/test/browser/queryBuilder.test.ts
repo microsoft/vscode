@@ -1082,6 +1082,126 @@ suite('QueryBuilder', () => {
 			assert(query.sortByScore);
 		});
 	});
+
+	suite('pattern processing', () => {
+		test('text query with comma-separated includes with no workspace', () => {
+			const query = queryBuilder.text(
+				{ pattern: `` },
+				[],
+				{
+					includePattern: '*.js,*.ts',
+					expandPatterns: true
+				}
+			);
+			assert.deepEqual(query.includePattern, {
+				"**/*.js/**": true,
+				"**/*.js": true,
+				"**/*.ts/**": true,
+				"**/*.ts": true,
+			});
+			assert.strictEqual(query.folderQueries.length, 0);
+		});
+		test('text query with comma-separated includes with workspace', () => {
+			const query = queryBuilder.text(
+				{ pattern: `` },
+				[ROOT_1_URI],
+				{
+					includePattern: '*.js,*.ts',
+					expandPatterns: true
+				}
+			);
+			assert.deepEqual(query.includePattern, {
+				"**/*.js/**": true,
+				"**/*.js": true,
+				"**/*.ts/**": true,
+				"**/*.ts": true,
+			});
+			assert.strictEqual(query.folderQueries.length, 1);
+		});
+		test('text query with comma-separated excludes globally', () => {
+			const query = queryBuilder.text(
+				{ pattern: `` },
+				[],
+				{
+					excludePattern: [{ pattern: '*.js,*.ts' }],
+					expandPatterns: true
+				}
+			);
+			assert.deepEqual(query.excludePattern, {
+				"**/*.js/**": true,
+				"**/*.js": true,
+				"**/*.ts/**": true,
+				"**/*.ts": true,
+			});
+			assert.strictEqual(query.folderQueries.length, 0);
+		});
+		test('text query with comma-separated excludes globally in a workspace', () => {
+			const query = queryBuilder.text(
+				{ pattern: `` },
+				[ROOT_1_NAMED_FOLDER.uri],
+				{
+					excludePattern: [{ pattern: '*.js,*.ts' }],
+					expandPatterns: true
+				}
+			);
+			assert.deepEqual(query.excludePattern, {
+				"**/*.js/**": true,
+				"**/*.js": true,
+				"**/*.ts/**": true,
+				"**/*.ts": true,
+			});
+			assert.strictEqual(query.folderQueries.length, 1);
+		});
+		test.skip('text query with multiple comma-separated excludes', () => {
+			// TODO: Fix. Will require `ICommonQueryProps.excludePattern` to support an array.
+			const query = queryBuilder.text(
+				{ pattern: `` },
+				[ROOT_1_NAMED_FOLDER.uri],
+				{
+					excludePattern: [{ pattern: '*.js,*.ts' }, { pattern: 'foo/*,bar/*' }],
+					expandPatterns: true
+				}
+			);
+			assert.deepEqual(query.excludePattern, [
+				{
+
+					"**/*.js/**": true,
+					"**/*.js": true,
+					"**/*.ts/**": true,
+					"**/*.ts": true,
+				},
+				{
+					"**/foo/*/**": true,
+					"**/foo/*": true,
+					"**/bar/*/**": true,
+					"**/bar/*": true,
+				}
+			]);
+			assert.strictEqual(query.folderQueries.length, 1);
+		});
+		test.skip('text query with base URI on exclud', () => {
+			// TODO: Fix. Will require `ICommonQueryProps.excludePattern` to support an baseURI.
+			const query = queryBuilder.text(
+				{ pattern: `` },
+				[ROOT_1_NAMED_FOLDER.uri],
+				{
+					excludePattern: [{ uri: ROOT_1_URI, pattern: '*.js,*.ts' }],
+					expandPatterns: true
+				}
+			);
+			// todo: incorporate the base URI into the pattern
+			assert.deepEqual(query.excludePattern, {
+				uri: ROOT_1_URI,
+				pattern: {
+					"**/*.js/**": true,
+					"**/*.js": true,
+					"**/*.ts/**": true,
+					"**/*.ts": true,
+				}
+			});
+			assert.strictEqual(query.folderQueries.length, 1);
+		});
+	});
 });
 function makeExcludePatternFromPatterns(...patterns: string[]): {
 	pattern: IExpression;

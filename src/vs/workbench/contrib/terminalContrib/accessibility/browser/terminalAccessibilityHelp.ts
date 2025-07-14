@@ -7,7 +7,6 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ShellIntegrationStatus, TerminalSettingId, WindowsShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { AccessibilityCommandId } from '../../../accessibility/common/accessibilityCommands.js';
 import { ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
@@ -19,6 +18,9 @@ import { TerminalAccessibilityCommandId } from '../common/terminal.accessibility
 import { TerminalLinksCommandId } from '../../links/common/terminal.links.js';
 import { IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { accessibleViewIsShown, accessibleViewCurrentProviderId, AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { TerminalHistoryCommandId } from '../../history/common/terminal.history.js';
+import { TerminalSuggestCommandId } from '../../suggest/common/terminal.suggest.js';
+import { TerminalSuggestSettingId } from '../../suggest/common/terminalSuggestConfiguration.js';
 
 export const enum ClassName {
 	Active = 'active',
@@ -46,10 +48,9 @@ export class TerminalAccessibilityHelpProvider extends Disposable implements IAc
 	constructor(
 		private readonly _instance: Pick<ITerminalInstance, 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource' | 'focus'>,
 		_xterm: Pick<IXtermTerminal, 'getFont' | 'shellIntegration'> & { raw: Terminal },
-		@IInstantiationService _instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
 		this._hasShellIntegration = _xterm.shellIntegration.status === ShellIntegrationStatus.VSCode;
@@ -60,11 +61,17 @@ export class TerminalAccessibilityHelpProvider extends Disposable implements IAc
 			localize('preserveCursor', 'Customize the behavior of the cursor when toggling between the terminal and accessible view with `terminal.integrated.accessibleViewPreserveCursorPosition.`'),
 			localize('openDetectedLink', 'The Open Detected Link command<keybinding:{0}> enables screen readers to easily open links found in the terminal.', TerminalLinksCommandId.OpenDetectedLink),
 			localize('newWithProfile', 'The Create New Terminal (With Profile) command<keybinding:{0}> allows for easy terminal creation using a specific profile.', TerminalCommandId.NewWithProfile),
-			localize('focusAfterRun', 'Configure what gets focused after running selected text in the terminal with `{0}`.', TerminalSettingId.FocusAfterRun)
+			localize('focusAfterRun', 'Configure what gets focused after running selected text in the terminal with `{0}`.', TerminalSettingId.FocusAfterRun),
 		];
 
 		if (!this._configurationService.getValue(TerminalAccessibilitySettingId.AccessibleViewFocusOnCommandExecution)) {
 			content.push(localize('focusViewOnExecution', 'Enable `terminal.integrated.accessibleViewFocusOnCommandExecution` to automatically focus the terminal accessible view when a command is executed in the terminal.'));
+		}
+
+		if (this._configurationService.getValue(TerminalSuggestSettingId.Enabled)) {
+			content.push(localize('suggestTrigger', 'The terminal request completions command can be invoked manually<keybinding:{0}>, but also appears while typing.', TerminalSuggestCommandId.RequestCompletions));
+			content.push(localize('suggestCommands', 'When the terminal suggest widget is focused, accept the suggestion<keybinding:{0}> and configure suggest settings<keybinding:{1}>.', TerminalSuggestCommandId.AcceptSelectedSuggestion, TerminalSuggestCommandId.ConfigureSettings));
+			content.push(localize('suggestCommandsMore', 'Also, when the suggest widget is focused, toggle between the widget and terminal<keybinding:{0}> and toggle details focus<keybinding:{1}> to learn more about the suggestion.', TerminalSuggestCommandId.ToggleDetails, TerminalSuggestCommandId.ToggleDetailsFocus));
 		}
 
 		if (this._instance.shellType === WindowsShellType.CommandPrompt) {
@@ -76,8 +83,8 @@ export class TerminalAccessibilityHelpProvider extends Disposable implements IAc
 			content.push('- ' + localize('goToNextCommand', 'Go to Next Command<keybinding:{0}> in the accessible view', TerminalAccessibilityCommandId.AccessibleBufferGoToNextCommand));
 			content.push('- ' + localize('goToPreviousCommand', 'Go to Previous Command<keybinding:{0}> in the accessible view', TerminalAccessibilityCommandId.AccessibleBufferGoToPreviousCommand));
 			content.push('- ' + localize('goToSymbol', 'Go to Symbol<keybinding:{0}>', AccessibilityCommandId.GoToSymbol));
-			content.push('- ' + localize('runRecentCommand', 'Run Recent Command<keybinding:{0}>', TerminalCommandId.RunRecentCommand));
-			content.push('- ' + localize('goToRecentDirectory', 'Go to Recent Directory<keybinding:{0}>', TerminalCommandId.GoToRecentDirectory));
+			content.push('- ' + localize('runRecentCommand', 'Run Recent Command<keybinding:{0}>', TerminalHistoryCommandId.RunRecentCommand));
+			content.push('- ' + localize('goToRecentDirectory', 'Go to Recent Directory<keybinding:{0}>', TerminalHistoryCommandId.GoToRecentDirectory));
 		} else {
 			content.push(localize('noShellIntegration', 'Shell integration is not enabled. Some accessibility features may not be available.'));
 		}

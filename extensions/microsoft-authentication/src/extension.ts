@@ -13,33 +13,33 @@ import Logger from './logger';
 
 function shouldUseMsal(expService: IExperimentationService): boolean {
 	// First check if there is a setting value to allow user to override the default
-	const inspect = workspace.getConfiguration('microsoft').inspect<boolean>('useMsal');
+	const inspect = workspace.getConfiguration('microsoft-authentication').inspect<'msal' | 'classic'>('implementation');
 	if (inspect?.workspaceFolderValue !== undefined) {
-		Logger.debug(`Acquired MSAL enablement value from 'workspaceFolderValue'. Value: ${inspect.workspaceFolderValue}`);
-		return inspect.workspaceFolderValue;
+		Logger.info(`Acquired MSAL enablement value from 'workspaceFolderValue'. Value: ${inspect.workspaceFolderValue}`);
+		return inspect.workspaceFolderValue === 'msal';
 	}
 	if (inspect?.workspaceValue !== undefined) {
-		Logger.debug(`Acquired MSAL enablement value from 'workspaceValue'. Value: ${inspect.workspaceValue}`);
-		return inspect.workspaceValue;
+		Logger.info(`Acquired MSAL enablement value from 'workspaceValue'. Value: ${inspect.workspaceValue}`);
+		return inspect.workspaceValue === 'msal';
 	}
 	if (inspect?.globalValue !== undefined) {
-		Logger.debug(`Acquired MSAL enablement value from 'globalValue'. Value: ${inspect.globalValue}`);
-		return inspect.globalValue;
+		Logger.info(`Acquired MSAL enablement value from 'globalValue'. Value: ${inspect.globalValue}`);
+		return inspect.globalValue === 'msal';
 	}
 
 	// Then check if the experiment value
 	const expValue = expService.getTreatmentVariable<boolean>('vscode', 'microsoft.useMsal');
 	if (expValue !== undefined) {
-		Logger.debug(`Acquired MSAL enablement value from 'exp'. Value: ${expValue}`);
+		Logger.info(`Acquired MSAL enablement value from 'exp'. Value: ${expValue}`);
 		return expValue;
 	}
 
-	Logger.debug('Acquired MSAL enablement value from default. Value: false');
-	// If no setting or experiment value is found, default to false
-	return false;
+	Logger.info('Acquired MSAL enablement value from default. Value: false');
+	// If no setting or experiment value is found, default to true
+	return true;
 }
-let useMsal: boolean | undefined;
 
+let useMsal: boolean | undefined;
 export async function activate(context: ExtensionContext) {
 	const mainTelemetryReporter = new MicrosoftAuthenticationTelemetryReporter(context.extension.packageJSON.aiKey);
 	const expService = await createExperimentationService(
@@ -48,9 +48,12 @@ export async function activate(context: ExtensionContext) {
 		env.uriScheme !== 'vscode', // isPreRelease
 	);
 	useMsal = shouldUseMsal(expService);
-
 	context.subscriptions.push(workspace.onDidChangeConfiguration(async e => {
-		if (!e.affectsConfiguration('microsoft.useMsal') || useMsal === shouldUseMsal(expService)) {
+		if (!e.affectsConfiguration('microsoft-authentication')) {
+			return;
+		}
+
+		if (useMsal === shouldUseMsal(expService)) {
 			return;
 		}
 
@@ -68,10 +71,12 @@ export async function activate(context: ExtensionContext) {
 			commands.executeCommand('workbench.action.reloadWindow');
 		}
 	}));
+	const isNodeEnvironment = typeof process !== 'undefined' && typeof process?.versions?.node === 'string';
 	// Only activate the new extension if we are not running in a browser environment
-	if (useMsal && typeof navigator === 'undefined') {
+	if (useMsal && isNodeEnvironment) {
 		await extensionV2.activate(context, mainTelemetryReporter);
 	} else {
+		mainTelemetryReporter.sendActivatedWithClassicImplementationEvent();
 		await extensionV1.activate(context, mainTelemetryReporter.telemetryReporter);
 	}
 }

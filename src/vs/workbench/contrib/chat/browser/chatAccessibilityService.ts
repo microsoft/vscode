@@ -37,17 +37,17 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		this._pendingSignalMap.set(this._requestId, this._instantiationService.createInstance(AccessibilityProgressSignalScheduler, CHAT_RESPONSE_PENDING_ALLOWANCE_MS, undefined));
 		return this._requestId;
 	}
-	acceptResponse(response: IChatResponseViewModel | string | undefined, requestId: number): void {
+	acceptResponse(response: IChatResponseViewModel | string | undefined, requestId: number, isVoiceInput?: boolean): void {
 		this._pendingSignalMap.deleteAndDispose(requestId);
 		const isPanelChat = typeof response !== 'string';
 		const responseContent = typeof response === 'string' ? response : response?.response.toString();
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatResponseReceived, { allowManyInParallel: true });
-		if (!response || !responseContent) {
+		if (!response) {
 			return;
 		}
 		const errorDetails = isPanelChat && response.errorDetails ? ` ${response.errorDetails.message}` : '';
 		const plainTextResponse = renderStringAsPlaintext(new MarkdownString(responseContent));
-		if (this._configurationService.getValue(AccessibilityVoiceSettingId.AutoSynthesize) !== 'on') {
+		if (!isVoiceInput || this._configurationService.getValue(AccessibilityVoiceSettingId.AutoSynthesize) !== 'on') {
 			status(plainTextResponse + errorDetails);
 		}
 	}

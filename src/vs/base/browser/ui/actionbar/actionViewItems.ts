@@ -228,16 +228,11 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		const title = this.getTooltip() ?? '';
 		this.updateAriaLabel();
 
-		if (this.options.hoverDelegate?.showNativeHover) {
-			/* While custom hover is not inside custom hover */
-			this.element.title = title;
-		} else {
-			if (!this.customHover && title !== '') {
-				const hoverDelegate = this.options.hoverDelegate ?? getDefaultHoverDelegate('element');
-				this.customHover = this._store.add(getBaseLayerHoverDelegate().setupManagedHover(hoverDelegate, this.element, title));
-			} else if (this.customHover) {
-				this.customHover.update(title);
-			}
+		if (!this.customHover && title !== '') {
+			const hoverDelegate = this.options.hoverDelegate ?? getDefaultHoverDelegate('element');
+			this.customHover = this._store.add(getBaseLayerHoverDelegate().setupManagedHover(hoverDelegate, this.element, title));
+		} else if (this.customHover) {
+			this.customHover.update(title);
 		}
 	}
 
@@ -270,6 +265,7 @@ export interface IActionViewItemOptions extends IBaseActionViewItemOptions {
 	icon?: boolean;
 	label?: boolean;
 	keybinding?: string | null;
+	keybindingNotRenderedWithLabel?: boolean;
 	toggleStyles?: IToggleStyles;
 }
 
@@ -300,7 +296,7 @@ export class ActionViewItem extends BaseActionViewItem {
 		this.label = label;
 		this.element.appendChild(label);
 
-		if (this.options.label && this.options.keybinding) {
+		if (this.options.label && this.options.keybinding && !this.options.keybindingNotRenderedWithLabel) {
 			const kbLabel = document.createElement('span');
 			kbLabel.classList.add('keybinding');
 			kbLabel.textContent = this.options.keybinding;
@@ -365,9 +361,8 @@ export class ActionViewItem extends BaseActionViewItem {
 		if (this.action.tooltip) {
 			title = this.action.tooltip;
 
-		} else if (!this.options.label && this.action.label && this.options.icon) {
+		} else if (this.action.label) {
 			title = this.action.label;
-
 			if (this.options.keybinding) {
 				title = nls.localize({ key: 'titleLabel', comment: ['action title', 'action keybinding'] }, "{0} ({1})", title, this.options.keybinding);
 			}
