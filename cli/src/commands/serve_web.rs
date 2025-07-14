@@ -88,8 +88,10 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 
 	let cm: Arc<ConnectionManager> = ConnectionManager::new(&ctx, platform, args.clone());
 	let update_check_interval = 3600;
-	cm.clone()
-		.start_update_checker(Duration::from_secs(update_check_interval));
+	if args.commit_id.is_none() {
+		cm.clone()
+			.start_update_checker(Duration::from_secs(update_check_interval));
+	}
 
 	let key = get_server_key_half(&ctx.paths);
 	let make_svc = move || {
