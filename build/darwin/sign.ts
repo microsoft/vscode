@@ -118,8 +118,10 @@ async function main(buildDir?: string): Promise<void> {
 }
 
 if (require.main === module) {
-	main(process.argv[2]).catch(err => {
+	main(process.argv[2]).catch(async err => {
 		console.error(err);
+		const identities = await spawn('security', ['find-identity', '-p', 'codesigning', '-v']);
+		console.error(`Available identities:\n${identities}`);
 		process.exit(1);
 	});
 }

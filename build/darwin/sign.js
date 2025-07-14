@@ -108,8 +108,10 @@ async function main(buildDir) {
     await electron_osx_sign_1.default.signAsync(appOpts);
 }
 if (require.main === module) {
-    main(process.argv[2]).catch(err => {
+    main(process.argv[2]).catch(async (err) => {
         console.error(err);
+        const identities = await (0, cross_spawn_promise_1.spawn)('security', ['find-identity', '-p', 'codesigning', '-v']);
+        console.error(`Available identities:\n${identities}`);
         process.exit(1);
     });
 }
