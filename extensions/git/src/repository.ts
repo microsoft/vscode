@@ -1709,6 +1709,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
 	}
 
+	async worktree(options: { name: string; path: string; baseBranch?: string }): Promise<void> {
+		await this.run(Operation.Worktree, () => this.repository.worktree(options));
+	}
+
 	async deleteWorktree(path: string): Promise<void> {
 		await this.run(Operation.DeleteWorktree, () => this.repository.deleteWorktree(path));
 	}
