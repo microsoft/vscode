@@ -14,6 +14,7 @@ import type { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -79,6 +80,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
@@ -277,19 +279,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				throw e;
 			} finally {
 				const timingExecuteMs = Date.now() - timingStart;
-				// TODO: Add telemetry back
-				// this.sendTelemetry({
-				// 	didUserEditCommand,
-				// 	didToolEditCommand,
-				// 	isBackground: false,
-				// 	shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
-				// 	error,
-				// 	isNewSession,
-				// 	outputLineCount,
-				// 	exitCode,
-				// 	timingExecuteMs,
-				// 	timingConnectMs,
-				// });
+				this._sendTelemetry({
+					didUserEditCommand,
+					didToolEditCommand,
+					isBackground: false,
+					shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
+					error,
+					isNewSession,
+					outputLineCount,
+					exitCode,
+					timingExecuteMs,
+					timingConnectMs,
+				});
 			}
 
 			const resultText: string[] = [];
@@ -368,6 +369,59 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		return commandLine;
+	}
+
+	private _sendTelemetry(state: {
+		didUserEditCommand: boolean;
+		didToolEditCommand: boolean;
+		error: string | undefined;
+		isBackground: boolean;
+		isNewSession: boolean;
+		shellIntegrationQuality: ShellIntegrationQuality;
+		outputLineCount: number;
+		timingConnectMs: number;
+		timingExecuteMs: number;
+		exitCode: number | undefined;
+	}) {
+		type TelemetryEvent = {
+			result: string;
+			strategy: 0 | 1 | 2;
+			userEditedCommand: 0 | 1;
+			toolEditedCommand: 0 | 1;
+			isBackground: 0 | 1;
+			isNewSession: 0 | 1;
+			outputLineCount: number;
+			nonZeroExitCode: -1 | 0 | 1;
+			timingConnectMs: number;
+			timingExecuteMs: number;
+		};
+		type TelemetryClassification = {
+			owner: 'tyriar';
+			comment: 'Understanding the usage of the runInTerminal tool';
+
+			result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the tool ran successfully, or the type of error' };
+			strategy: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'What strategy was used to execute the command (0=none, 1=basic, 2=rich)' };
+			userEditedCommand: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user edited the command' };
+			toolEditedCommand: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the tool edited the command' };
+			isBackground: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command is a background command' };
+			isNewSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether this was the first execution for the terminal session' };
+			outputLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How many lines of output were produced, this is -1 when isBackground is true or if there\'s an error' };
+			nonZeroExitCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command exited with a non-zero code (-1=error/unknown, 0=zero exit code, 1=non-zero)' };
+			timingConnectMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the terminal took to start up and connect to' };
+			timingExecuteMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the command took to execute' };
+		};
+		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal', {
+			result: state.error ?? 'success',
+			strategy: state.shellIntegrationQuality === ShellIntegrationQuality.Rich ? 2 : state.shellIntegrationQuality === ShellIntegrationQuality.Basic ? 1 : 0,
+			userEditedCommand: state.didUserEditCommand ? 1 : 0,
+			toolEditedCommand: state.didToolEditCommand ? 1 : 0,
+			isBackground: state.isBackground ? 1 : 0,
+			isNewSession: state.isNewSession ? 1 : 0,
+			outputLineCount: state.outputLineCount,
+			nonZeroExitCode: state.exitCode === undefined ? -1 : state.exitCode === 0 ? 0 : 1,
+			timingConnectMs: state.timingConnectMs,
+			timingExecuteMs: state.timingExecuteMs,
+		});
 	}
 }
 
