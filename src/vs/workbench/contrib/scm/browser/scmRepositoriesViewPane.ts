@@ -10,7 +10,7 @@ import { append, $ } from '../../../../base/browser/dom.js';
 import { IListVirtualDelegate, IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
 import { IAsyncDataSource, ITreeEvent, ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
 import { WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
-import { ISCMRepository, ISCMViewService } from '../common/scm.js';
+import { ISCMRepository, ISCMService, ISCMViewService } from '../common/scm.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -27,7 +27,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { autorun, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { autorun, IObservable, IObservableSignal, observableSignal, observableSignalFromEvent, runOnChange } from '../../../../base/common/observable.js';
 
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
@@ -60,18 +60,34 @@ class RepositoryTreeIdentityProvider implements IIdentityProvider<ISCMRepository
 }
 
 class SCMRepositoriesViewModel extends Disposable {
+	readonly onDidChangeRepositoryContextValueSignal: IObservableSignal<void>;
 	readonly onDidChangeRepositoriesSignal: IObservable<void>;
 	readonly onDidChangeVisibleRepositoriesSignal: IObservable<void>;
 
 	constructor(
+		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService
 	) {
 		super();
 
+		this.onDidChangeRepositoryContextValueSignal = observableSignal(this);
+
 		this.onDidChangeRepositoriesSignal = observableSignalFromEvent(this,
 			this.scmViewService.onDidChangeRepositories);
+
 		this.onDidChangeVisibleRepositoriesSignal = observableSignalFromEvent(this,
 			this.scmViewService.onDidChangeVisibleRepositories);
+
+		this.scmService.onDidAddRepository(this._onDidAddRepository, this, this._store);
+		for (const repository of this.scmService.repositories) {
+			this._onDidAddRepository(repository);
+		}
+	}
+
+	private _onDidAddRepository(repository: ISCMRepository): void {
+		this._store.add(runOnChange(repository.provider.contextValue, () => {
+			this.onDidChangeRepositoryContextValueSignal.trigger(undefined);
+		}));
 	}
 
 	get repositories(): ISCMRepository[] {
@@ -145,6 +161,12 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			// onDidChangeRepositoriesSignal
 			this.visibilityDisposables.add(autorun(async reader => {
 				this.treeViewModel.onDidChangeRepositoriesSignal.read(reader);
+				await this.updateChildren();
+			}));
+
+			// onDidChangeRepositoryContextValueSignal
+			this.visibilityDisposables.add(autorun(async reader => {
+				this.treeViewModel.onDidChangeRepositoryContextValueSignal.read(reader);
 				await this.updateChildren();
 			}));
 
