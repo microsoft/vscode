@@ -288,7 +288,7 @@ export class WalkThroughPart extends EditorPane {
 
 				const content = model.main;
 				if (!input.resource.path.endsWith('.md')) {
-					safeInnerHtml(this.content, content, { ALLOW_UNKNOWN_PROTOCOLS: true });
+					safeInnerHtml(this.content, content);
 
 					this.updateSizeClasses();
 					this.decorateContent();
@@ -303,7 +303,7 @@ export class WalkThroughPart extends EditorPane {
 				const innerContent = document.createElement('div');
 				innerContent.classList.add('walkThroughContent'); // only for markdown files
 				const markdown = this.expandMacros(content);
-				safeInnerHtml(innerContent, markdown, { ALLOW_UNKNOWN_PROTOCOLS: true });
+				safeInnerHtml(innerContent, markdown);
 				this.content.appendChild(innerContent);
 
 				model.snippets.forEach((snippet, i) => {
