@@ -134,9 +134,9 @@ class InputEditorDecorations extends Disposable {
 			let description = mode.description.get();
 			if (this.configurationService.getValue<boolean>('chat.emptyChatState.enabled')) {
 				if (mode.kind === ChatModeKind.Ask) {
-					description += ` ${localize('askPlaceholderHint', "# context, @ extensions, / commands")}`;
+					description += ` ${localize('askPlaceholderHint', "# to add context, @ for extensions, / for commands")}`;
 				} else if (mode.kind === ChatModeKind.Edit || mode.kind === ChatModeKind.Agent) {
-					description += ` ${localize('editPlaceholderHint', "# context")}`;
+					description += ` ${localize('editPlaceholderHint', "# to add context")}`;
 				}
 			}
 
