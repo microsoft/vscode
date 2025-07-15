@@ -90,6 +90,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._imeTextArea.setClassName(`ime-text-area`);
 		this._imeTextArea.setAttribute('readonly', 'true');
 		this._imeTextArea.setAttribute('tabindex', '-1');
+		this._imeTextArea.setAttribute('aria-hidden', 'true');
 		this.domNode.setAttribute('autocorrect', 'off');
 		this.domNode.setAttribute('autocapitalize', 'off');
 		this.domNode.setAttribute('autocomplete', 'off');
