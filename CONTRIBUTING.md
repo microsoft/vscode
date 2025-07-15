@@ -6,7 +6,6 @@ There are several ways in which you can contribute, beyond writing code. The goa
 
 ## Asking Questions
 
-
 Have a question? Instead of opening an issue, please ask on [Stack Overflow](https://stackoverflow.com/questions/tagged/visual-studio-code) using the tag `visual-studio-code`.
 
 The active community will be eager to assist you. Your well-worded question will serve as a resource to others searching for help.
@@ -29,7 +28,7 @@ Can you recreate the issue even after [disabling all extensions](https://code.vi
 
 ### Look For an Existing Issue
 
-Before you create a new issue, please do a search in [open issues](https://github.com/microsoft/vscode/issues) to see if the issue or feature request has already been filed.
+Before you create a new issue, please do a search in open [Issues](https://github.com/microsoft/vscode/issues) to see if the issue or feature request has already been filed.
 
 Be sure to scan through the [most popular](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc) feature requests.
 
@@ -64,7 +63,7 @@ Please include the following with each issue:
 
 ### Creating Pull Requests
 
-* Please refer to the article on [creating pull requests](https://github.com/microsoft/vscode/wiki/How-to-Contribute#pull-requests) and contributing to this project.
+* Please refer to the article on creating [pull requests](https://github.com/microsoft/vscode/wiki/How-to-Contribute#pull-requests) and contributing to this project.
 
 ### Final Checklist
 
@@ -78,11 +77,11 @@ Don't feel bad if the developers can't reproduce the issue right away. They will
 
 ### Follow Your Issue
 
-Once submitted, your report will go into the [issue tracking](https://github.com/microsoft/vscode/wiki/Issue-Tracking) workflow. Be sure to understand what will happen next, so you know what to expect and how to continue to assist throughout the process.
+Once submitted, your report will go into the [Issue Tracking](https://github.com/microsoft/vscode/wiki/Issue-Tracking) workflow. Be sure to understand what will happen next, so you know what to expect and how to continue to assist throughout the process.
 
 ## Automated Issue Management
 
-We use GitHub Actions to help us manage issues. These Actions and their descriptions can be [viewed here](https://github.com/microsoft/vscode-github-triage-actions). Some examples of what these Actions do are:
+We use GitHub Actions to help us manage issues. These Actions and their descriptions can be viewed [here](https://github.com/microsoft/vscode-github-triage-actions). Some examples of what these Actions do are:
 
 * Automatically close any issue marked `info-needed` if there has been no response in the past 7 days.
 * Automatically lock issues 45 days after they are closed.
