@@ -19,7 +19,7 @@ import { Range } from '../core/range.js';
 import { ISelection, Selection } from '../core/selection.js';
 import { ICommand, ICursorState, IViewState, ScrollType } from '../editorCommon.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
-import { EndOfLinePreference, IAttachedView, ICursorStateComputer, IGlyphMarginLanesModel, IIdentifiedSingleEditOperation, ITextModel, PositionAffinity, TrackedRangeStickiness } from '../model.js';
+import { EndOfLinePreference, IAttachedView, ICursorStateComputer, IGlyphMarginLanesModel, IIdentifiedSingleEditOperation, ITextModel, PositionAffinity, TextDirection, TrackedRangeStickiness } from '../model.js';
 import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide } from '../textModelGuides.js';
 import { ModelDecorationMinimapOptions, ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from '../model/textModel.js';
 import * as textModelEvents from '../textModelEvents.js';
@@ -800,19 +800,42 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._lines.getInjectedTextAt(viewPosition);
 	}
 
+	private _getTextDirection(lineNumber: number, decorations: ViewModelDecoration[]): TextDirection {
+		let rtlCount = 0;
+
+		for (const decoration of decorations) {
+			const range = decoration.range;
+			if (range.startLineNumber > lineNumber || range.endLineNumber < lineNumber) {
+				continue;
+			}
+			const textDirection = decoration.options.textDirection;
+			if (textDirection === TextDirection.RTL) {
+				rtlCount++;
+			} else if (textDirection === TextDirection.LTR) {
+				rtlCount--;
+			}
+		}
+
+		return rtlCount > 0 ? TextDirection.RTL : TextDirection.LTR;
+	}
+
+	public getTextDirection(lineNumber: number): TextDirection {
+		const decorationsCollection = this._decorations.getDecorationsOnLine(lineNumber);
+		return this._getTextDirection(lineNumber, decorationsCollection.decorations);
+	}
+
 	public getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
-		const decorationViewportData = this._decorations.getDecorationsViewportData(visibleRange);
-		const allInlineDecorations = decorationViewportData.inlineDecorations;
-		const inlineDecorations = allInlineDecorations[lineNumber - visibleRange.startLineNumber];
-		return this._getViewLineRenderingData(lineNumber, inlineDecorations, decorationViewportData.hasVariableFonts);
+		const viewportDecorationsCollection = this._decorations.getDecorationsViewportData(visibleRange);
+		const inlineDecorations = viewportDecorationsCollection.inlineDecorations[lineNumber - visibleRange.startLineNumber];
+		return this._getViewLineRenderingData(lineNumber, inlineDecorations, viewportDecorationsCollection.hasVariableFonts, viewportDecorationsCollection.decorations);
 	}
 
 	public getViewLineRenderingData(lineNumber: number): ViewLineRenderingData {
-		const decorations = this._decorations.getInlineDecorationsOnLine(lineNumber);
-		return this._getViewLineRenderingData(lineNumber, decorations.inlineDecorations, decorations.hasVariableFonts);
+		const decorationsCollection = this._decorations.getDecorationsOnLine(lineNumber);
+		return this._getViewLineRenderingData(lineNumber, decorationsCollection.inlineDecorations[0], decorationsCollection.hasVariableFonts, decorationsCollection.decorations);
 	}
 
-	private _getViewLineRenderingData(lineNumber: number, inlineDecorations: InlineDecoration[], hasVariableFonts: boolean): ViewLineRenderingData {
+	private _getViewLineRenderingData(lineNumber: number, inlineDecorations: InlineDecoration[], hasVariableFonts: boolean, decorations: ViewModelDecoration[]): ViewLineRenderingData {
 		const mightContainRTL = this.model.mightContainRTL();
 		const mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
 		const tabSize = this.getTabSize();
@@ -838,6 +861,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			inlineDecorations,
 			tabSize,
 			lineData.startVisibleColumn,
+			this._getTextDirection(lineNumber, decorations),
 			hasVariableFonts
 		);
 	}
