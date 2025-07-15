@@ -28,6 +28,7 @@ import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { autorun, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { Sequencer } from '../../../../base/common/async.js';
 
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
@@ -85,6 +86,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	private treeViewModel!: SCMRepositoriesViewModel;
 	private treeDataSource!: RepositoryTreeDataSource;
 	private treeIdentityProvider!: RepositoryTreeIdentityProvider;
+	private readonly treeOperationSequencer = new Sequencer();
 
 	private readonly visibleCountObs: IObservable<number>;
 	private readonly providerCountBadgeObs: IObservable<'hidden' | 'auto' | 'visible'>;
@@ -133,26 +135,28 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			this.treeViewModel = this.instantiationService.createInstance(SCMRepositoriesViewModel);
 			this._register(this.treeViewModel);
 
-			// Initial rendering
-			await this.tree.setInput(this.treeViewModel);
+			this.treeOperationSequencer.queue(async () => {
+				// Initial rendering
+				await this.tree.setInput(this.treeViewModel);
 
-			// scm.repositories.visible setting
-			this.visibilityDisposables.add(autorun(reader => {
-				const visibleCount = this.visibleCountObs.read(reader);
-				this.updateBodySize(visibleCount);
-			}));
+				// scm.repositories.visible setting
+				this.visibilityDisposables.add(autorun(reader => {
+					const visibleCount = this.visibleCountObs.read(reader);
+					this.updateBodySize(visibleCount);
+				}));
 
-			// onDidChangeRepositoriesSignal
-			this.visibilityDisposables.add(autorun(async reader => {
-				this.treeViewModel.onDidChangeRepositoriesSignal.read(reader);
-				await this.updateChildren();
-			}));
+				// onDidChangeRepositoriesSignal
+				this.visibilityDisposables.add(autorun(async reader => {
+					this.treeViewModel.onDidChangeRepositoriesSignal.read(reader);
+					await this.treeOperationSequencer.queue(() => this.updateChildren());
+				}));
 
-			// onDidChangeVisibleRepositoriesSignal
-			this.visibilityDisposables.add(autorun(async reader => {
-				this.treeViewModel.onDidChangeVisibleRepositoriesSignal.read(reader);
-				this.updateTreeSelection();
-			}));
+				// onDidChangeVisibleRepositoriesSignal
+				this.visibilityDisposables.add(autorun(async reader => {
+					this.treeViewModel.onDidChangeVisibleRepositoriesSignal.read(reader);
+					await this.treeOperationSequencer.queue(async () => this.updateTreeSelection());
+				}));
+			});
 		}, this, this._store);
 	}
 
