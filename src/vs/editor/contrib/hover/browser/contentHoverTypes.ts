@@ -3,58 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Position } from 'vs/editor/common/core/position';
-import { HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { HoverAnchor, IEditorHoverColorPickerWidget, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { ContentHoverComputerOptions } from './contentHoverComputer.js';
+import { HoverAnchor, IHoverPart } from './hoverTypes.js';
 
-export class HoverResult {
+export class ContentHoverResult {
 
 	constructor(
-		public readonly anchor: HoverAnchor,
 		public readonly hoverParts: IHoverPart[],
-		public readonly isComplete: boolean
+		public readonly isComplete: boolean,
+		public readonly options: ContentHoverComputerOptions
 	) { }
 
-	public filter(anchor: HoverAnchor): HoverResult {
+	public filter(anchor: HoverAnchor): ContentHoverResult {
 		const filteredHoverParts = this.hoverParts.filter((m) => m.isValidForHoverAnchor(anchor));
 		if (filteredHoverParts.length === this.hoverParts.length) {
 			return this;
 		}
-		return new FilteredHoverResult(this, this.anchor, filteredHoverParts, this.isComplete);
+		return new FilteredContentHoverResult(this, filteredHoverParts, this.isComplete, this.options);
 	}
 }
 
-export class FilteredHoverResult extends HoverResult {
+export class FilteredContentHoverResult extends ContentHoverResult {
 
 	constructor(
-		private readonly original: HoverResult,
-		anchor: HoverAnchor,
+		private readonly original: ContentHoverResult,
 		messages: IHoverPart[],
-		isComplete: boolean
+		isComplete: boolean,
+		options: ContentHoverComputerOptions
 	) {
-		super(anchor, messages, isComplete);
+		super(messages, isComplete, options);
 	}
 
-	public override filter(anchor: HoverAnchor): HoverResult {
+	public override filter(anchor: HoverAnchor): ContentHoverResult {
 		return this.original.filter(anchor);
 	}
-}
-
-export class ContentHoverVisibleData {
-
-	public closestMouseDistance: number | undefined = undefined;
-
-	constructor(
-		public initialMousePosX: number | undefined,
-		public initialMousePosY: number | undefined,
-		public readonly colorPicker: IEditorHoverColorPickerWidget | null,
-		public readonly showAtPosition: Position,
-		public readonly showAtSecondaryPosition: Position,
-		public readonly preferAbove: boolean,
-		public readonly stoleFocus: boolean,
-		public readonly source: HoverStartSource,
-		public readonly isBeforeContent: boolean,
-		public readonly disposables: DisposableStore
-	) { }
 }

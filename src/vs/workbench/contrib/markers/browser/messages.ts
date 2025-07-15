@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { basename } from 'vs/base/common/resources';
-import { MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { Marker } from './markersModel';
+import * as nls from '../../../../nls.js';
+import { basename } from '../../../../base/common/resources.js';
+import { MarkerSeverity, IRelatedInformation } from '../../../../platform/markers/common/markers.js';
+import { ILocalizedString } from '../../../../platform/action/common/action.js';
+import { Marker } from './markersModel.js';
 
 export default class Messages {
 

@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { IQuickPickSeparator, IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
-import { IPickerQuickAccessItem, PickerQuickAccessProvider } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { IViewDescriptorService, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { IOutputService } from 'vs/workbench/services/output/common/output';
-import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
-import { matchesFuzzy } from 'vs/base/common/filters';
-import { fuzzyContains } from 'vs/base/common/strings';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { IDebugService, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { localize, localize2 } from '../../../../nls.js';
+import { IQuickPickSeparator, IQuickInputService, ItemActivation } from '../../../../platform/quickinput/common/quickInput.js';
+import { IPickerQuickAccessItem, PickerQuickAccessProvider } from '../../../../platform/quickinput/browser/pickerQuickAccess.js';
+import { IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { IOutputService } from '../../../services/output/common/output.js';
+import { ITerminalGroupService, ITerminalService } from '../../terminal/browser/terminal.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { PaneCompositeDescriptor } from '../../../browser/panecomposite.js';
+import { matchesFuzzy } from '../../../../base/common/filters.js';
+import { fuzzyContains } from '../../../../base/common/strings.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { Action2 } from '../../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { IDebugService, REPL_VIEW_ID } from '../../debug/common/debug.js';
 
 interface IViewQuickPickItem extends IPickerQuickAccessItem {
 	containerLabel: string;

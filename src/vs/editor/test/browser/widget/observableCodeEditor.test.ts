@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from "assert";
-import { DisposableStore } from "vs/base/common/lifecycle";
-import { IObservable, derivedHandleChanges } from "vs/base/common/observable";
-import { ensureNoDisposablesAreLeakedInTestSuite } from "vs/base/test/common/utils";
-import { ICodeEditor } from "vs/editor/browser/editorBrowser";
-import { ObservableCodeEditor, observableCodeEditor } from "vs/editor/browser/observableUtilities";
-import { Position } from "vs/editor/common/core/position";
-import { Range } from "vs/editor/common/core/range";
-import { ViewModel } from "vs/editor/common/viewModel/viewModelImpl";
-import { withTestCodeEditor } from "vs/editor/test/browser/testCodeEditor";
+import { DisposableStore } from "../../../../base/common/lifecycle.js";
+import { IObservable, derivedHandleChanges } from "../../../../base/common/observable.js";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "../../../../base/test/common/utils.js";
+import { ICodeEditor } from "../../../browser/editorBrowser.js";
+import { ObservableCodeEditor, observableCodeEditor } from "../../../browser/observableCodeEditor.js";
+import { Position } from "../../../common/core/position.js";
+import { Range } from "../../../common/core/range.js";
+import { ViewModel } from "../../../common/viewModel/viewModelImpl.js";
+import { withTestCodeEditor } from "../testCodeEditor.js";
 
 suite("CodeEditorWidget", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function withTestFixture(
-		cb: (args: { editor: ICodeEditor; viewModel: ViewModel; log: Log; derived: IObservable<string>; }) => void
+		cb: (args: { editor: ICodeEditor; viewModel: ViewModel; log: Log; derived: IObservable<string> }) => void
 	) {
 		withEditorSetupTestFixture(undefined, cb);
 	}
@@ -27,7 +27,7 @@ suite("CodeEditorWidget", () => {
 		preSetupCallback:
 			| ((editor: ICodeEditor, disposables: DisposableStore) => void)
 			| undefined,
-		cb: (args: { editor: ICodeEditor; viewModel: ViewModel; log: Log; derived: IObservable<string>; }) => void
+		cb: (args: { editor: ICodeEditor; viewModel: ViewModel; log: Log; derived: IObservable<string> }) => void
 	) {
 		withTestCodeEditor("hello world", {}, (editor, viewModel) => {
 			const disposables = new DisposableStore();
@@ -37,11 +37,14 @@ suite("CodeEditorWidget", () => {
 
 			const derived = derivedHandleChanges(
 				{
-					createEmptyChangeSummary: () => undefined,
-					handleChange: (context) => {
-						const obsName = observableName(context.changedObservable, obsEditor);
-						log.log(`handle change: ${obsName} ${formatChange(context.change)}`);
-						return true;
+					changeTracker: {
+						createChangeSummary: () => undefined,
+						handleChange: (context) => {
+							const obsName = observableName(context.changedObservable, obsEditor);
+
+							log.log(`handle change: ${obsName} ${formatChange(context.change)}`);
+							return true;
+						},
 					},
 				},
 				(reader) => {
@@ -70,49 +73,49 @@ suite("CodeEditorWidget", () => {
 		withTestFixture(({ editor, log }) => {
 			editor.setPosition(new Position(1, 2));
 
-			assert.deepStrictEqual(log.getAndClearEntries(), [
-				'handle change: editor.selections {"selection":"[1,2 -> 1,2]","modelVersionId":1,"oldSelections":["[1,1 -> 1,1]"],"oldModelVersionId":1,"source":"api","reason":0}',
-				"running derived: selection: [1,2 -> 1,2], value: 1",
-			]);
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"handle change: editor.selections {\"selection\":\"[1,2 -> 1,2]\",\"modelVersionId\":1,\"oldSelections\":[\"[1,1 -> 1,1]\"],\"oldModelVersionId\":1,\"source\":\"api\",\"reason\":0}",
+				"running derived: selection: [1,2 -> 1,2], value: 1"
+			]));
 		}));
 
 	test("keyboard.type", () =>
 		withTestFixture(({ editor, log }) => {
 			editor.trigger("keyboard", "type", { text: "abc" });
 
-			assert.deepStrictEqual(log.getAndClearEntries(), [
-				'handle change: editor.onDidType "abc"',
-				'handle change: editor.versionId {"changes":[{"range":"[1,1 -> 1,1]","rangeLength":0,"text":"a","rangeOffset":0}],"eol":"\\n","versionId":2}',
-				'handle change: editor.versionId {"changes":[{"range":"[1,2 -> 1,2]","rangeLength":0,"text":"b","rangeOffset":1}],"eol":"\\n","versionId":3}',
-				'handle change: editor.versionId {"changes":[{"range":"[1,3 -> 1,3]","rangeLength":0,"text":"c","rangeOffset":2}],"eol":"\\n","versionId":4}',
-				'handle change: editor.selections {"selection":"[1,4 -> 1,4]","modelVersionId":4,"oldSelections":["[1,1 -> 1,1]"],"oldModelVersionId":1,"source":"keyboard","reason":0}',
-				"running derived: selection: [1,4 -> 1,4], value: 4",
-			]);
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"handle change: editor.onDidType \"abc\"",
+				"handle change: editor.versionId {\"changes\":[{\"range\":\"[1,1 -> 1,1]\",\"rangeLength\":0,\"text\":\"a\",\"rangeOffset\":0}],\"eol\":\"\\n\",\"versionId\":2,\"detailedReasons\":[{\"metadata\":{\"source\":\"cursor\",\"kind\":\"type\",\"detailedSource\":\"keyboard\"}}],\"detailedReasonsChangeLengths\":[1]}",
+				"handle change: editor.versionId {\"changes\":[{\"range\":\"[1,2 -> 1,2]\",\"rangeLength\":0,\"text\":\"b\",\"rangeOffset\":1}],\"eol\":\"\\n\",\"versionId\":3,\"detailedReasons\":[{\"metadata\":{\"source\":\"cursor\",\"kind\":\"type\",\"detailedSource\":\"keyboard\"}}],\"detailedReasonsChangeLengths\":[1]}",
+				"handle change: editor.versionId {\"changes\":[{\"range\":\"[1,3 -> 1,3]\",\"rangeLength\":0,\"text\":\"c\",\"rangeOffset\":2}],\"eol\":\"\\n\",\"versionId\":4,\"detailedReasons\":[{\"metadata\":{\"source\":\"cursor\",\"kind\":\"type\",\"detailedSource\":\"keyboard\"}}],\"detailedReasonsChangeLengths\":[1]}",
+				"handle change: editor.selections {\"selection\":\"[1,4 -> 1,4]\",\"modelVersionId\":4,\"oldSelections\":[\"[1,1 -> 1,1]\"],\"oldModelVersionId\":1,\"source\":\"keyboard\",\"reason\":0}",
+				"running derived: selection: [1,4 -> 1,4], value: 4"
+			]));
 		}));
 
 	test("keyboard.type and set position", () =>
 		withTestFixture(({ editor, log }) => {
 			editor.trigger("keyboard", "type", { text: "abc" });
 
-			assert.deepStrictEqual(log.getAndClearEntries(), [
-				'handle change: editor.onDidType "abc"',
-				'handle change: editor.versionId {"changes":[{"range":"[1,1 -> 1,1]","rangeLength":0,"text":"a","rangeOffset":0}],"eol":"\\n","versionId":2}',
-				'handle change: editor.versionId {"changes":[{"range":"[1,2 -> 1,2]","rangeLength":0,"text":"b","rangeOffset":1}],"eol":"\\n","versionId":3}',
-				'handle change: editor.versionId {"changes":[{"range":"[1,3 -> 1,3]","rangeLength":0,"text":"c","rangeOffset":2}],"eol":"\\n","versionId":4}',
-				'handle change: editor.selections {"selection":"[1,4 -> 1,4]","modelVersionId":4,"oldSelections":["[1,1 -> 1,1]"],"oldModelVersionId":1,"source":"keyboard","reason":0}',
-				"running derived: selection: [1,4 -> 1,4], value: 4",
-			]);
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"handle change: editor.onDidType \"abc\"",
+				"handle change: editor.versionId {\"changes\":[{\"range\":\"[1,1 -> 1,1]\",\"rangeLength\":0,\"text\":\"a\",\"rangeOffset\":0}],\"eol\":\"\\n\",\"versionId\":2,\"detailedReasons\":[{\"metadata\":{\"source\":\"cursor\",\"kind\":\"type\",\"detailedSource\":\"keyboard\"}}],\"detailedReasonsChangeLengths\":[1]}",
+				"handle change: editor.versionId {\"changes\":[{\"range\":\"[1,2 -> 1,2]\",\"rangeLength\":0,\"text\":\"b\",\"rangeOffset\":1}],\"eol\":\"\\n\",\"versionId\":3,\"detailedReasons\":[{\"metadata\":{\"source\":\"cursor\",\"kind\":\"type\",\"detailedSource\":\"keyboard\"}}],\"detailedReasonsChangeLengths\":[1]}",
+				"handle change: editor.versionId {\"changes\":[{\"range\":\"[1,3 -> 1,3]\",\"rangeLength\":0,\"text\":\"c\",\"rangeOffset\":2}],\"eol\":\"\\n\",\"versionId\":4,\"detailedReasons\":[{\"metadata\":{\"source\":\"cursor\",\"kind\":\"type\",\"detailedSource\":\"keyboard\"}}],\"detailedReasonsChangeLengths\":[1]}",
+				"handle change: editor.selections {\"selection\":\"[1,4 -> 1,4]\",\"modelVersionId\":4,\"oldSelections\":[\"[1,1 -> 1,1]\"],\"oldModelVersionId\":1,\"source\":\"keyboard\",\"reason\":0}",
+				"running derived: selection: [1,4 -> 1,4], value: 4"
+			]));
 
 			editor.setPosition(new Position(1, 5), "test");
 
-			assert.deepStrictEqual(log.getAndClearEntries(), [
-				'handle change: editor.selections {"selection":"[1,5 -> 1,5]","modelVersionId":4,"oldSelections":["[1,4 -> 1,4]"],"oldModelVersionId":4,"source":"test","reason":0}',
-				"running derived: selection: [1,5 -> 1,5], value: 4",
-			]);
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"handle change: editor.selections {\"selection\":\"[1,5 -> 1,5]\",\"modelVersionId\":4,\"oldSelections\":[\"[1,4 -> 1,4]\"],\"oldModelVersionId\":4,\"source\":\"test\",\"reason\":0}",
+				"running derived: selection: [1,5 -> 1,5], value: 4"
+			]));
 		}));
 
 	test("listener interaction (unforced)", () => {
-		let derived: IObservable<string, unknown>;
+		let derived: IObservable<string>;
 		let log: Log;
 		withEditorSetupTestFixture(
 			(editor, disposables) => {
@@ -130,20 +133,20 @@ suite("CodeEditorWidget", () => {
 				log = args.log;
 
 				editor.trigger("keyboard", "type", { text: "a" });
-				assert.deepStrictEqual(log.getAndClearEntries(), [
+				assert.deepStrictEqual(log.getAndClearEntries(), ([
 					">>> before get",
 					"<<< after get",
-					'handle change: editor.onDidType "a"',
-					'handle change: editor.versionId {"changes":[{"range":"[1,1 -> 1,1]","rangeLength":0,"text":"a","rangeOffset":0}],"eol":"\\n","versionId":2}',
-					'handle change: editor.selections {"selection":"[1,2 -> 1,2]","modelVersionId":2,"oldSelections":["[1,1 -> 1,1]"],"oldModelVersionId":1,"source":"keyboard","reason":0}',
-					"running derived: selection: [1,2 -> 1,2], value: 2",
-				]);
+					"handle change: editor.onDidType \"a\"",
+					"handle change: editor.versionId {\"changes\":[{\"range\":\"[1,1 -> 1,1]\",\"rangeLength\":0,\"text\":\"a\",\"rangeOffset\":0}],\"eol\":\"\\n\",\"versionId\":2,\"detailedReasons\":[{\"metadata\":{\"source\":\"cursor\",\"kind\":\"type\",\"detailedSource\":\"keyboard\"}}],\"detailedReasonsChangeLengths\":[1]}",
+					"handle change: editor.selections {\"selection\":\"[1,2 -> 1,2]\",\"modelVersionId\":2,\"oldSelections\":[\"[1,1 -> 1,1]\"],\"oldModelVersionId\":1,\"source\":\"keyboard\",\"reason\":0}",
+					"running derived: selection: [1,2 -> 1,2], value: 2"
+				]));
 			}
 		);
 	});
 
 	test("listener interaction ()", () => {
-		let derived: IObservable<string, unknown>;
+		let derived: IObservable<string>;
 		let log: Log;
 		withEditorSetupTestFixture(
 			(editor, disposables) => {
@@ -165,17 +168,17 @@ suite("CodeEditorWidget", () => {
 
 				editor.trigger("keyboard", "type", { text: "a" });
 
-				assert.deepStrictEqual(log.getAndClearEntries(), [
+				assert.deepStrictEqual(log.getAndClearEntries(), ([
 					">>> before forceUpdate",
 					">>> before get",
 					"handle change: editor.versionId undefined",
 					"running derived: selection: [1,2 -> 1,2], value: 2",
 					"<<< after get",
-					'handle change: editor.onDidType "a"',
-					'handle change: editor.versionId {"changes":[{"range":"[1,1 -> 1,1]","rangeLength":0,"text":"a","rangeOffset":0}],"eol":"\\n","versionId":2}',
-					'handle change: editor.selections {"selection":"[1,2 -> 1,2]","modelVersionId":2,"oldSelections":["[1,1 -> 1,1]"],"oldModelVersionId":1,"source":"keyboard","reason":0}',
-					"running derived: selection: [1,2 -> 1,2], value: 2",
-				]);
+					"handle change: editor.onDidType \"a\"",
+					"handle change: editor.versionId {\"changes\":[{\"range\":\"[1,1 -> 1,1]\",\"rangeLength\":0,\"text\":\"a\",\"rangeOffset\":0}],\"eol\":\"\\n\",\"versionId\":2,\"detailedReasons\":[{\"metadata\":{\"source\":\"cursor\",\"kind\":\"type\",\"detailedSource\":\"keyboard\"}}],\"detailedReasonsChangeLengths\":[1]}",
+					"handle change: editor.selections {\"selection\":\"[1,2 -> 1,2]\",\"modelVersionId\":2,\"oldSelections\":[\"[1,1 -> 1,1]\"],\"oldModelVersionId\":1,\"source\":\"keyboard\",\"reason\":0}",
+					"running derived: selection: [1,2 -> 1,2], value: 2"
+				]));
 			}
 		);
 	});

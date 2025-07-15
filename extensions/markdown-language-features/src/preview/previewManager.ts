@@ -170,6 +170,11 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		}
 	}
 
+	public openDocumentLink(linkText: string, fromResource: vscode.Uri) {
+		const viewColumn = this.findPreview(fromResource)?.resourceColumn;
+		return this._opener.openDocumentLink(linkText, fromResource, viewColumn);
+	}
+
 	public async deserializeWebviewPanel(
 		webview: vscode.WebviewPanel,
 		state: any

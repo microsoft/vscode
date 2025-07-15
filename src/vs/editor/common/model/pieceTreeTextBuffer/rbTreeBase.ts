@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Piece, PieceTreeBase } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
+import { Piece, PieceTreeBase } from './pieceTreeBase.js';
 
 export class TreeNode {
 	parent: TreeNode;
