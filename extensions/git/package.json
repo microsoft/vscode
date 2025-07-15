@@ -2566,6 +2566,7 @@
       ],
       "git.worktrees": [
         {
+          "when": "scmProviderContext == repository",
           "command": "git.createWorktree",
           "group": "worktrees@1"
         },
