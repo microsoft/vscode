@@ -655,8 +655,11 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					timeUntilShown: lifetimeSummary.timeUntilShown,
 					editorType: lifetimeSummary.editorType,
 					viewKind: lifetimeSummary.viewKind,
+					preceeded: lifetimeSummary.preceeded,
 					requestReason: lifetimeSummary.requestReason,
 					error: lifetimeSummary.error,
+					typingInterval: lifetimeSummary.typingInterval,
+					typingIntervalCharacterCount: lifetimeSummary.typingIntervalCharacterCount,
 					languageId: lifetimeSummary.languageId,
 					cursorColumnDistance: lifetimeSummary.cursorColumnDistance,
 					cursorLineDistance: lifetimeSummary.cursorLineDistance,
@@ -685,6 +688,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				}
 			},
 			groupId: groupId ?? extensionId,
+			providerId: new languages.ProviderId(extensionId, extensionVersion, groupId),
 			yieldsToGroupIds: yieldsToExtensionIds,
 			debounceDelayMs,
 			displayName,
@@ -1305,13 +1309,15 @@ type InlineCompletionEndOfLifeEvent = {
 	timeUntilShown: number | undefined;
 	reason: 'accepted' | 'rejected' | 'ignored';
 	partiallyAccepted: number;
+	preceeded: boolean;
 	requestReason: string;
 	languageId: string;
 	error: string | undefined;
+	typingInterval: number;
+	typingIntervalCharacterCount: number;
 	superseded: boolean;
 	editorType: string;
 	viewKind: string | undefined;
-	// render info
 	cursorColumnDistance: number | undefined;
 	cursorLineDistance: number | undefined;
 	lineCountOriginal: number | undefined;
@@ -1334,9 +1340,12 @@ type InlineCompletionsEndOfLifeClassification = {
 	timeUntilShown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be shown after the request' };
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion ending' };
 	partiallyAccepted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How often the inline completion was partially accepted by the user' };
+	preceeded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was preceeded by another one' };
 	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language ID of the document where the inline completion was shown' };
 	requestReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion request' };
 	error: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The error message if the inline completion failed' };
+	typingInterval: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The average typing interval of the user at the moment the inline completion was requested' };
+	typingIntervalCharacterCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The character count involved in the typing interval calculation' };
 	superseded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was superseded by another one' };
 	editorType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of the editor where the inline completion was shown' };
 	viewKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of the view where the inline completion was shown' };

@@ -57,26 +57,28 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 	) {
 		super(options);
 
-		// make sure the object is updated on file changes
-		this._register(
-			this.fileService.onDidFilesChange((event) => {
-				// if file was added or updated, forward the event to
-				// the `getContentsStream()` produce a new stream for file contents
-				if (event.contains(this.uri, FileChangeType.ADDED, FileChangeType.UPDATED)) {
-					// we support only full file parsing right now because
-					// the event doesn't contain a list of changed lines
-					this.onChangeEmitter.fire('full');
-					return;
-				}
+		if (options.updateOnChange) {
+			// make sure the object is updated on file changes
+			this._register(
+				this.fileService.onDidFilesChange((event) => {
+					// if file was added or updated, forward the event to
+					// the `getContentsStream()` produce a new stream for file contents
+					if (event.contains(this.uri, FileChangeType.ADDED, FileChangeType.UPDATED)) {
+						// we support only full file parsing right now because
+						// the event doesn't contain a list of changed lines
+						this.onChangeEmitter.fire('full');
+						return;
+					}
 
-				// if file was deleted, forward the event to
-				// the `getContentsStream()` produce an error
-				if (event.contains(this.uri, FileChangeType.DELETED)) {
-					this.onChangeEmitter.fire(event);
-					return;
-				}
-			}),
-		);
+					// if file was deleted, forward the event to
+					// the `getContentsStream()` produce an error
+					if (event.contains(this.uri, FileChangeType.DELETED)) {
+						this.onChangeEmitter.fire(event);
+						return;
+					}
+				}),
+			);
+		}
 	}
 
 	/**

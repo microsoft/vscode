@@ -333,9 +333,7 @@ export class Button extends Disposable implements IButton {
 	}
 
 	setTitle(title: string) {
-		if (this.options.hoverDelegate?.showNativeHover) {
-			this._element.title = title;
-		} else if (!this._hover && title !== '') {
+		if (!this._hover && title !== '') {
 			this._hover = this._register(getBaseLayerHoverDelegate().setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('element'), this._element, title));
 		} else if (this._hover) {
 			this._hover.update(title);
@@ -628,6 +626,10 @@ export class ButtonWithIcon extends Button {
 		this._element.append(this._iconElement, this._mdlabelElement);
 	}
 
+	override get label(): IMarkdownString | string {
+		return super.label;
+	}
+
 	override set label(value: IMarkdownString | string) {
 		if (this._label === value) {
 			return;
@@ -668,6 +670,10 @@ export class ButtonWithIcon extends Button {
 		this.setTitle(title);
 		this._setAriaLabel();
 		this._label = value;
+	}
+
+	override get icon(): ThemeIcon {
+		return super.icon;
 	}
 
 	override set icon(icon: ThemeIcon) {

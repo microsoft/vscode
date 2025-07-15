@@ -18,7 +18,7 @@ import { IViewModel } from '../../common/viewModel.js';
 import { CursorColumns } from '../../common/core/cursorColumns.js';
 import * as dom from '../../../base/browser/dom.js';
 import { AtomicTabMoveOperations, Direction } from '../../common/cursor/cursorAtomicMoveOperations.js';
-import { PositionAffinity } from '../../common/model.js';
+import { PositionAffinity, TextDirection } from '../../common/model.js';
 import { InjectedText } from '../../common/modelLineProjectionData.js';
 import { Mutable } from '../../../base/common/types.js';
 import { Lazy } from '../../../base/common/lazy.js';
@@ -365,6 +365,11 @@ export class HitTestContext {
 
 	public getLineWidth(lineNumber: number): number {
 		return this._viewHelper.getLineWidth(lineNumber);
+	}
+
+	public isRtl(lineNumber: number): boolean {
+		return this.viewModel.getTextDirection(lineNumber) === TextDirection.RTL;
+
 	}
 
 	public visibleRangeForPosition(lineNumber: number, column: number): HorizontalPosition | null {
@@ -744,15 +749,21 @@ export class MouseTargetFactory {
 		// See https://github.com/microsoft/vscode/issues/46942
 		if (ElementPath.isStrictChildOfViewLines(request.targetPath)) {
 			const lineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
-			if (ctx.viewModel.getLineLength(lineNumber) === 0) {
-				const lineWidth = ctx.getLineWidth(lineNumber);
+			const lineLength = ctx.viewModel.getLineLength(lineNumber);
+			const lineWidth = ctx.getLineWidth(lineNumber);
+			if (lineLength === 0) {
 				const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
 				return request.fulfillContentEmpty(new Position(lineNumber, 1), detail);
 			}
 
-			const lineWidth = ctx.getLineWidth(lineNumber);
-			if (request.mouseContentHorizontalOffset >= lineWidth) {
-				// TODO: This is wrong for RTL
+			const isRtl = ctx.isRtl(lineNumber);
+			if (isRtl) {
+				if (request.mouseContentHorizontalOffset + lineWidth <= ctx.layoutInfo.contentWidth - ctx.layoutInfo.verticalScrollbarWidth) {
+					const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
+					const pos = new Position(lineNumber, ctx.viewModel.getLineMaxColumn(lineNumber));
+					return request.fulfillContentEmpty(pos, detail);
+				}
+			} else if (request.mouseContentHorizontalOffset >= lineWidth) {
 				const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
 				const pos = new Position(lineNumber, ctx.viewModel.getLineMaxColumn(lineNumber));
 				return request.fulfillContentEmpty(pos, detail);
@@ -767,8 +778,14 @@ export class MouseTargetFactory {
 				}
 
 				const lineWidth = ctx.getLineWidth(lineNumber);
-				if (request.mouseContentHorizontalOffset >= lineWidth) {
-					// TODO: This is wrong for RTL
+				const isRtl = ctx.isRtl(lineNumber);
+				if (isRtl) {
+					if (request.mouseContentHorizontalOffset + lineWidth <= ctx.layoutInfo.contentWidth - ctx.layoutInfo.verticalScrollbarWidth) {
+						const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
+						const pos = new Position(lineNumber, ctx.viewModel.getLineMaxColumn(lineNumber));
+						return request.fulfillContentEmpty(pos, detail);
+					}
+				} else if (request.mouseContentHorizontalOffset >= lineWidth) {
 					const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
 					const pos = new Position(lineNumber, ctx.viewModel.getLineMaxColumn(lineNumber));
 					return request.fulfillContentEmpty(pos, detail);

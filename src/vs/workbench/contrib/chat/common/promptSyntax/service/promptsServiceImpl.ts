@@ -26,7 +26,6 @@ import { getCleanPromptName, PROMPT_FILE_EXTENSION } from '../config/promptFileL
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { PromptsConfig } from '../config/config.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { TModeMetadata } from '../parsers/promptHeader/modeHeader.js';
 
 /**
  * Provides prompt services.
@@ -84,7 +83,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const parser: TextModelPromptParser = instantiationService.createInstance(
 					TextModelPromptParser,
 					model,
-					{ seenReferences: [], allowNonPromptFiles: true, languageId: undefined },
+					{ allowNonPromptFiles: true, languageId: undefined, updateOnChange: true },
 				).start();
 
 				// this is a sanity check and the contract of the object cache,
@@ -165,7 +164,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public asPromptSlashCommand(command: string): IChatPromptSlashCommand | undefined {
-		if (command.match(/^[\w_\-\.]+$/)) {
+		if (command.match(/^[\p{L}\d_\-\.]+$/u)) {
 			return { command, detail: localize('prompt.file.detail', 'Prompt file: {0}', command) };
 		}
 		return undefined;
@@ -232,15 +231,23 @@ export class PromptsService extends Disposable implements IPromptsService {
 					parser = this.instantiationService.createInstance(
 						PromptParser,
 						uri,
-						{ seenReferences: [], allowNonPromptFiles: true, languageId: MODE_LANGUAGE_ID },
+						{ allowNonPromptFiles: true, languageId: MODE_LANGUAGE_ID, updateOnChange: false },
 					).start(token);
 
-					await parser.settled();
+					const completed = await parser.settled();
+					if (!completed) {
+						throw new Error(localize('promptParser.notCompleted', "Prompt parser for {0} did not complete.", uri.toString()));
+					}
 
-					const { description, model, tools } = parser.metadata as TModeMetadata;
 					const body = await parser.getBody();
 					const name = getCleanPromptName(uri);
-					return { uri: uri, name, description, tools, model, body };
+
+					const metadata = parser.metadata;
+					if (metadata?.promptType !== PromptsType.mode) {
+						return { uri, name, body };
+					}
+					const { description, model, tools } = metadata;
+					return { uri, name, description, model, tools, body };
 				} finally {
 					parser?.dispose();
 				}
@@ -254,8 +261,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 		let parser: PromptParser | undefined;
 		try {
 			const languageId = getLanguageIdForPromptsType(type);
-			parser = this.instantiationService.createInstance(PromptParser, uri, { seenReferences: [], allowNonPromptFiles: true, languageId }).start(token);
-			await parser.settled();
+			parser = this.instantiationService.createInstance(PromptParser, uri, { allowNonPromptFiles: true, languageId, updateOnChange: false }).start(token);
+			const completed = await parser.settled();
+			if (!completed) {
+				throw new Error(localize('promptParser.notCompleted', "Prompt parser for {0} did not complete.", uri.toString()));
+			}
 			// make a copy, to avoid leaking the parser instance
 			return {
 				uri: parser.uri,

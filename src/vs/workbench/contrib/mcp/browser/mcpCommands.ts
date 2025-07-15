@@ -55,6 +55,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { CHAT_CONFIG_MENU_ID } from '../../chat/browser/actions/chatActions.js';
+import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -730,19 +731,28 @@ export class ShowInstalledMcpServersCommand extends Action2 {
 			category,
 			precondition: HasInstalledMcpServersContext,
 			f1: true,
-			menu: {
-				id: CHAT_CONFIG_MENU_ID,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-				order: 14,
-				group: '0_level'
-			}
 		});
 	}
 
 	async run(accessor: ServicesAccessor) {
-		accessor.get(IViewsService).openView(InstalledMcpServersViewId, true);
+		const viewsService = accessor.get(IViewsService);
+		const view = await viewsService.openView(InstalledMcpServersViewId, true);
+		if (!view) {
+			await viewsService.openViewContainer(VIEW_CONTAINER.id);
+			await viewsService.openView(InstalledMcpServersViewId, true);
+		}
 	}
 }
+
+MenuRegistry.appendMenuItem(CHAT_CONFIG_MENU_ID, {
+	command: {
+		id: McpCommandIds.ShowInstalled,
+		title: localize2('mcp.servers', "MCP Servers")
+	},
+	when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
+	order: 14,
+	group: '0_level'
+});
 
 abstract class OpenMcpResourceCommand extends Action2 {
 	protected abstract getURI(accessor: ServicesAccessor): Promise<URI>;

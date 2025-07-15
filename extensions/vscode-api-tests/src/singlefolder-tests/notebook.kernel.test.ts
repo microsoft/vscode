@@ -213,7 +213,7 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 			}
 		}));
 
-		vscode.commands.executeCommand('notebook.cell.execute', { document: notebook.uri, ranges: [{ start: 0, end: 1 }, { start: 1, end: 2 }] });
+		await vscode.commands.executeCommand('notebook.cell.execute', { document: notebook.uri, ranges: [{ start: 0, end: 1 }, { start: 1, end: 2 }] });
 
 		await def.p;
 		await saveAllFilesAndCloseAll();

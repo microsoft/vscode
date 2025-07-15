@@ -18,19 +18,18 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IChatAgent, IChatAgentService } from '../../../chat/common/chatAgents.js';
+import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { IDetachedTerminalInstance, ITerminalContribution, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { registerTerminalContribution, type IDetachedCompatibleTerminalContributionContext, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalInstance } from '../../../terminal/browser/terminalInstance.js';
 import { TerminalInitialHintSettingId } from '../common/terminalInitialHintConfiguration.js';
 import './media/terminalInitialHint.css';
 import { TerminalChatCommandId } from './terminalChat.js';
-import { ChatAgentLocation } from '../../../chat/common/constants.js';
 
 const $ = dom.$;
 
@@ -215,12 +214,10 @@ class TerminalInitialHintWidget extends Disposable {
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
-		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IProductService private readonly _productService: IProductService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
@@ -244,13 +241,7 @@ class TerminalInitialHintWidget extends Disposable {
 	}
 
 	private _getHintInlineChat(agents: IChatAgent[]) {
-		let providerName = (agents.length === 1 ? agents[0].fullName : undefined) ?? this._productService.nameShort;
-		const defaultAgent = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
-		if (defaultAgent?.extensionId.value === agents[0].extensionId.value) {
-			providerName = defaultAgent.fullName ?? providerName;
-		}
-
-		let ariaLabel = `Ask ${providerName} something or start typing to dismiss.`;
+		let ariaLabel = `Open chat.`;
 
 		const handleClick = () => {
 			this._storageService.store(Constants.InitialHintHideStorageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
@@ -285,7 +276,7 @@ class TerminalInitialHintWidget extends Disposable {
 		const keybindingHintLabel = keybindingHint?.getLabel();
 
 		if (keybindingHint && keybindingHintLabel) {
-			const actionPart = localize('emptyHintText', 'Press {0} to ask {1} to do something. ', keybindingHintLabel, providerName);
+			const actionPart = localize('emptyHintText', 'Open chat {0}. ', keybindingHintLabel);
 
 			const [before, after] = actionPart.split(keybindingHintLabel).map((fragment) => {
 				const hintPart = $('a', undefined, fragment);
@@ -316,7 +307,7 @@ class TerminalInitialHintWidget extends Disposable {
 				comment: [
 					'Preserve double-square brackets and their order',
 				]
-			}, '[[Ask {0} to do something]] or start typing to dismiss.', providerName);
+			}, '[[Open chat]] or start typing to dismiss.');
 			const rendered = renderFormattedText(hintMsg, { actionHandler: hintHandler });
 			hintElement.appendChild(rendered);
 		}
