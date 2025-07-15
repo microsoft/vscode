@@ -1865,7 +1865,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session:not(.chat-widget > .interactive-session) {
 
 	.interactive-item-container {
-		padding: 0px 16px 5px 16px;
+		padding: 5px 16px;
 	}
 
 	.interactive-item-container.interactive-request {
