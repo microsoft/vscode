@@ -140,18 +140,18 @@ describe('API Integration Tests', function (): void {
 		beforeEach(async () => {
 			await page.goto(APP);
 			await injectAxe(page);
+			await page.evaluate(`
+			(function () {
+				instance.focus();
+				instance.trigger('keyboard', 'cursorHome');
+				instance.trigger('keyboard', 'type', {
+					text: 'a'
+				});
+			})()
+			`);
 		});
 
 		it('Editor should not have critical accessibility violations', async () => {
-			await page.evaluate(`
-		(function () {
-			instance.focus();
-			instance.trigger('keyboard', 'cursorHome');
-			instance.trigger('keyboard', 'type', {
-				text: 'a'
-			});
-		})()
-		`);
 
 			let violationCount = 0;
 			const checkedElements = new Set<string>();
@@ -208,15 +208,6 @@ describe('API Integration Tests', function (): void {
 			playwright.expect(violationCount).toBe(0);
 		});
 		it('Monaco editor container should have an ARIA role', async () => {
-			await page.evaluate(`
-		(function () {
-			instance.focus();
-			instance.trigger('keyboard', 'cursorHome');
-			instance.trigger('keyboard', 'type', {
-				text: 'a'
-			});
-		})()
-		`);
 			const role = await page.evaluate(() => {
 				const container = document.querySelector('.monaco-editor');
 				return container?.getAttribute('role');
@@ -225,15 +216,6 @@ describe('API Integration Tests', function (): void {
 		});
 
 		it('Monaco editor should have an ARIA label', async () => {
-			await page.evaluate(`
-		(function () {
-			instance.focus();
-			instance.trigger('keyboard', 'cursorHome');
-			instance.trigger('keyboard', 'type', {
-				text: 'a'
-			});
-		})()
-		`);
 			const ariaLabel = await page.evaluate(() => {
 				const container = document.querySelector('.monaco-editor');
 				return container?.getAttribute('aria-label');
@@ -242,15 +224,6 @@ describe('API Integration Tests', function (): void {
 		});
 
 		it('All toolbar buttons should have accessible names', async () => {
-			await page.evaluate(`
-		(function () {
-			instance.focus();
-			instance.trigger('keyboard', 'cursorHome');
-			instance.trigger('keyboard', 'type', {
-				text: 'a'
-			});
-		})()
-		`);
 			const buttonsWithoutLabel = await page.evaluate(() => {
 				return Array.from(document.querySelectorAll('button')).filter(btn => {
 					const label = btn.getAttribute('aria-label') || btn.textContent?.trim();
