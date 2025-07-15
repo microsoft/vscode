@@ -93,7 +93,23 @@ export class IssueFormService implements IIssueFormService {
 			// removes preset monaco-workbench
 			auxiliaryWindow.container.remove();
 			auxiliaryWindow.window.document.body.appendChild(div);
-			safeInnerHtml(div, BaseHtml());
+			safeInnerHtml(div, BaseHtml(), {
+				// Also allow input elements
+				allowedTags: {
+					augment: [
+						'input',
+						'select',
+						'checkbox',
+					]
+				},
+				allowedAttributes: {
+					augment: [
+						'id',
+						'class',
+						'style',
+					]
+				}
+			});
 
 			this.issueReporterWindow = auxiliaryWindow.window;
 		} else {

@@ -419,8 +419,6 @@ export const allowedMarkdownHtmlAttributes = [
 	'class',
 	'colspan',
 	'controls',
-	'data-code',
-	'data-href',
 	'disabled',
 	'draggable',
 	'height',
@@ -437,17 +435,20 @@ export const allowedMarkdownHtmlAttributes = [
 	'width',
 	'start',
 
+	// Custom markdown attributes
+	'data-code',
+	'data-href',
+
 	// These attributes are sanitized in the hooks
 	'style',
 	'class',
 ];
 
 function getSanitizerOptions(options: IInternalSanitizerOptions): domSanitize.SanitizeOptions {
-	const allowedSchemes = [
+	const allowedLinkSchemes = [
 		Schemas.http,
 		Schemas.https,
 		Schemas.mailto,
-		Schemas.data,
 		Schemas.file,
 		Schemas.vscodeFileResource,
 		Schemas.vscodeRemote,
@@ -456,11 +457,11 @@ function getSanitizerOptions(options: IInternalSanitizerOptions): domSanitize.Sa
 	];
 
 	if (options.isTrusted) {
-		allowedSchemes.push(Schemas.command);
+		allowedLinkSchemes.push(Schemas.command);
 	}
 
 	if (options.allowedProductProtocols) {
-		allowedSchemes.push(...options.allowedProductProtocols);
+		allowedLinkSchemes.push(...options.allowedProductProtocols);
 	}
 
 	return {
@@ -468,9 +469,26 @@ function getSanitizerOptions(options: IInternalSanitizerOptions): domSanitize.Sa
 		// Since we have our own sanitize function for marked, it's possible we missed some tag so let dompurify make sure.
 		// HTML tags that can result from markdown are from reading https://spec.commonmark.org/0.29/
 		// HTML table tags that can result from markdown are from https://github.github.com/gfm/#tables-extension-
-		overrideAllowedTags: options.allowedTags ?? domSanitize.basicMarkupHtmlTags,
-		overrideAllowedAttributes: allowedMarkdownHtmlAttributes,
-		overrideAllowedProtocols: allowedSchemes,
+		allowedTags: {
+			override: options.allowedTags ?? domSanitize.basicMarkupHtmlTags
+		},
+		allowedAttributes: {
+			override: allowedMarkdownHtmlAttributes,
+		},
+		allowedLinkProtocols: {
+			override: allowedLinkSchemes,
+		},
+		allowedMediaProtocols: {
+			override: [
+				Schemas.http,
+				Schemas.https,
+				Schemas.data,
+				Schemas.file,
+				Schemas.vscodeFileResource,
+				Schemas.vscodeRemote,
+				Schemas.vscodeRemoteResource,
+			]
+		},
 		hooks: {
 			uponSanitizeAttribute: (element, e) => {
 				if (options.customAttrSanitizer) {

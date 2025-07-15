@@ -7,11 +7,6 @@ import { DisposableStore, IDisposable, toDisposable } from '../common/lifecycle.
 import { Schemas } from '../common/network.js';
 import dompurify from './dompurify/dompurify.js';
 
-const defaultSafeProtocols = [
-	Schemas.http,
-	Schemas.https,
-	Schemas.command,
-];
 
 /**
  * List of safe, non-input html tags.
@@ -83,40 +78,27 @@ export const basicMarkupHtmlTags = Object.freeze([
 	'var',
 	'video',
 	'wbr',
-
-	// TODO: Move these out of the default
-	'select',
-	'input',
 ]);
 
 export const defaultAllowedAttrs = Object.freeze([
 	'href',
 	'target',
-	'title',
-	'name',
 	'src',
 	'alt',
+	'title',
+	'for',
+	'name',
 	'role',
 	'tabindex',
-	'width',
-	'height',
-	'align',
 	'x-dispatch',
 	'required',
 	'checked',
 	'placeholder',
 	'type',
 	'start',
-
-	// TODO: See if we can move these out of the default
-	'for',
-	'role',
-	'data-href',
-	'data-command',
-	'data-code',
-	'id',
-	'class',
-	'style',
+	'width',
+	'height',
+	'align',
 ]);
 
 
@@ -134,28 +116,35 @@ function addDompurifyHook(hook: 'uponSanitizeElement' | 'uponSanitizeAttribute',
  * Hooks dompurify using `afterSanitizeAttributes` to check that all `href` and `src`
  * attributes are valid.
  */
-function hookDomPurifyHrefAndSrcSanitizer(allowedProtocols: readonly string[] | '*', allowDataImages = false): IDisposable {
+function hookDomPurifyHrefAndSrcSanitizer(allowedLinkProtocols: readonly string[] | '*', allowedMediaProtocols: readonly string[]): IDisposable {
 	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
 	// build an anchor to map URLs to
 	const anchor = document.createElement('a');
+
+	function validateLink(value: string, allowedProtocols: readonly string[] | '*'): boolean {
+		if (allowedProtocols === '*') {
+			return true; // allow all protocols
+		}
+
+		anchor.href = value;
+		return allowedProtocols.includes(anchor.protocol.replace(/:$/, ''));
+	}
 
 	dompurify.addHook('afterSanitizeAttributes', (node) => {
 		// check all href/src attributes for validity
 		for (const attr of ['href', 'src']) {
 			if (node.hasAttribute(attr)) {
 				const attrValue = node.getAttribute(attr) as string;
-				if (attr === 'href' && attrValue.startsWith('#')) {
-					// Allow fragment links
-					continue;
-				}
+				if (attr === 'href') {
 
-				anchor.href = attrValue;
-				if (allowedProtocols !== '*' && !allowedProtocols.includes(anchor.protocol.replace(/:$/, ''))) {
-					if (allowDataImages && attr === 'src' && anchor.href.startsWith('data:')) {
-						continue;
+					if (!attrValue.startsWith('#') && !validateLink(attrValue, allowedLinkProtocols)) {
+						node.removeAttribute(attr);
 					}
 
-					node.removeAttribute(attr);
+				} else {// 'src'
+					if (!validateLink(attrValue, allowedMediaProtocols)) {
+						node.removeAttribute(attr);
+					}
 				}
 			}
 		}
@@ -165,16 +154,35 @@ function hookDomPurifyHrefAndSrcSanitizer(allowedProtocols: readonly string[] | 
 }
 
 export interface SanitizeOptions {
-	readonly overrideAllowedTags?: readonly string[];
-	readonly overrideAllowedAttributes?: readonly string[];
+	/**
+	 * Configured the allowed html tags.
+	 */
+	readonly allowedTags?: {
+		readonly override?: readonly string[];
+		readonly augment?: readonly string[];
+	};
 
 	/**
-	 * List of allowed protocols for `href` and `src` attributes.
-	 *
-	 * If this is
+	 * Configured the allowed html attributes.
 	 */
-	readonly overrideAllowedProtocols?: readonly string[] | '*';
-	readonly allowDataImages?: boolean;
+	readonly allowedAttributes?: {
+		readonly override?: readonly string[];
+		readonly augment?: readonly string[];
+	};
+
+	/**
+	 * List of allowed protocols for `href` attributes.
+	 */
+	readonly allowedLinkProtocols?: {
+		readonly override?: readonly string[] | '*';
+	};
+
+	/**
+	 * List of allowed protocols for `src` attributes.
+	 */
+	readonly allowedMediaProtocols?: {
+		readonly override?: readonly string[];
+	};
 
 	readonly hooks?: {
 		readonly uponSanitizeElement?: UponSanitizeElementCb;
@@ -205,16 +213,29 @@ export function sanitizeHtml(untrusted: string, config?: SanitizeOptions): Trust
 	try {
 		const resolvedConfig: dompurify.Config = { ...defaultDomPurifyConfig };
 
-		if (config?.overrideAllowedTags) {
-			resolvedConfig.ALLOWED_TAGS = [...config.overrideAllowedTags];
+		if (config?.allowedTags) {
+			if (config.allowedTags.override) {
+				resolvedConfig.ALLOWED_TAGS = [...config.allowedTags.override];
+			}
+
+			if (config?.allowedTags?.augment) {
+				resolvedConfig.ALLOWED_TAGS = [...(resolvedConfig.ALLOWED_TAGS ?? []), ...config.allowedTags.augment];
+			}
 		}
 
-		if (config?.overrideAllowedAttributes) {
-			resolvedConfig.ALLOWED_ATTR = [...config.overrideAllowedAttributes];
+		if (config?.allowedAttributes) {
+			if (config.allowedAttributes.override) {
+				resolvedConfig.ALLOWED_ATTR = [...config.allowedAttributes.override];
+			}
+
+			if (config?.allowedAttributes?.augment) {
+				resolvedConfig.ALLOWED_ATTR = [...(resolvedConfig.ALLOWED_ATTR ?? []), ...config.allowedAttributes.augment];
+			}
 		}
 
-		const allowedProtocols = config?.overrideAllowedProtocols ?? defaultSafeProtocols;
-		store.add(hookDomPurifyHrefAndSrcSanitizer(allowedProtocols, config?.allowDataImages));
+		store.add(hookDomPurifyHrefAndSrcSanitizer(
+			config?.allowedLinkProtocols?.override ?? [Schemas.http, Schemas.https],
+			config?.allowedMediaProtocols?.override ?? [Schemas.http, Schemas.https]));
 
 		if (config?.hooks?.uponSanitizeElement) {
 			store.add(addDompurifyHook('uponSanitizeElement', config?.hooks.uponSanitizeElement));
