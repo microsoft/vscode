@@ -464,6 +464,11 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 			return;
 		}
 
+		if (isRequestVM(item)) {
+			widget?.focusInput();
+			widget?.input.setValue(item.messageText, false);
+		}
+
 		widget?.viewModel?.model.setCheckpoint(item.id);
 		await restoreSnapshotWithConfirmation(accessor, item);
 	}
