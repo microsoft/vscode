@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -21,7 +22,8 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import type { IChatTerminalToolInvocationData } from '../../../chat/common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../chat/common/languageModelToolsService.js';
-import { ITerminalService } from '../../../terminal/browser/terminal.js';
+import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
+import type { XtermTerminal } from '../../../terminal/browser/xterm/xtermTerminal.js';
 import { ITerminalProfileResolverService } from '../../../terminal/common/terminal.js';
 import { getRecommendedToolsOverRunInTerminal } from './alternativeRecommendation.js';
 import { CommandLineAutoApprover } from './commandLineAutoApprover.js';
@@ -72,6 +74,7 @@ export interface IRunInTerminalInputParams {
 }
 
 export class RunInTerminalTool extends Disposable implements IToolImpl {
+
 	protected readonly _commandLineAutoApprover: CommandLineAutoApprover;
 	// TODO: Bring back reattaching sessions across reloads
 	private readonly _sessionTerminalAssociations: Map<string, IToolTerminal> = new Map();
@@ -83,6 +86,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	// TODO: These should not be part of the state as different sessions could get confused
 	private _alternativeRecommendation?: IToolResult;
 	private _rewrittenCommand?: string;
+
+	private static readonly _backgroundExecutions = new Map<string, BackgroundTerminalExecution>();
+	public static getBackgroundOutput(id: string): string {
+		const backgroundExecution = RunInTerminalTool._backgroundExecutions.get(id);
+		if (!backgroundExecution) {
+			throw new Error('Invalid terminal ID');
+		}
+		return backgroundExecution.getOutput();
+	}
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -191,43 +203,51 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 
 			this._terminalService.setActiveInstance(toolTerminal.instance);
-			// const timingConnectMs = Date.now() - timingStart;
+			const timingConnectMs = Date.now() - timingStart;
 
-			throw new Error('NYI run in bg terminal');
-			// try {
-			// 	this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
-			// 	const execution = new BackgroundTerminalExecution(toolTerminal.terminal, command);
-			// 	RunInTerminalTool.executions.set(termId, execution);
-			// 	const resultText = (
-			// 		didUserEditCommand
-			// 			? `Note: The user manually edited the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
-			// 			: didToolEditCommand
-			// 				? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
-			// 				: `Command is running in terminal with ID=${termId}`
-			// 	);
-			// 	return new LanguageModelToolResult([new LanguageModelTextPart(resultText)]);
-			// } catch (e) {
-			// 	error = 'threw';
-			// 	if (termId) {
-			// 		RunInTerminalTool.executions.delete(termId);
-			// 	}
-			// 	throw e;
-			// } finally {
-			// 	const timingExecuteMs = Date.now() - timingStart;
-			// 	// TODO: Add telemetry back
-			// 	// this.sendTelemetry({
-			// 	// 	didUserEditCommand,
-			// 	// 	didToolEditCommand,
-			// 	// 	shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
-			// 	// 	isBackground: true,
-			// 	// 	error,
-			// 	// 	outputLineCount: -1,
-			// 	// 	exitCode: undefined,
-			// 	// 	isNewSession: true,
-			// 	// 	timingExecuteMs,
-			// 	// 	timingConnectMs,
-			// 	// });
-			// }
+			try {
+				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
+				const xterm = await toolTerminal.instance.xtermReadyPromise;
+				if (!xterm) {
+					throw new Error('Instance was disposed before xterm.js was ready');
+				}
+				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command);
+				RunInTerminalTool._backgroundExecutions.set(termId, execution);
+				const resultText = (
+					didUserEditCommand
+						? `Note: The user manually edited the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
+						: didToolEditCommand
+							? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
+							: `Command is running in terminal with ID=${termId}`
+				);
+				return {
+					content: [{
+						kind: 'text',
+						value: resultText,
+					}]
+				};
+			} catch (e) {
+				error = 'threw';
+				if (termId) {
+					RunInTerminalTool._backgroundExecutions.get(termId)?.dispose();
+					RunInTerminalTool._backgroundExecutions.delete(termId);
+				}
+				throw e;
+			} finally {
+				const timingExecuteMs = Date.now() - timingStart;
+				this._sendTelemetry({
+					didUserEditCommand,
+					didToolEditCommand,
+					shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
+					isBackground: true,
+					error,
+					outputLineCount: -1,
+					exitCode: undefined,
+					isNewSession: true,
+					timingExecuteMs,
+					timingConnectMs,
+				});
+			}
 		} else {
 			let toolTerminal: IToolTerminal | undefined = this._sessionTerminalAssociations.get(chatSessionId);
 			const isNewSession = !toolTerminal;
@@ -252,21 +272,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let exitCode: number | undefined;
 			try {
 				let strategy: ITerminalExecuteStrategy;
+				const commandDetection = toolTerminal.instance.capabilities.get(TerminalCapability.CommandDetection);
 				switch (toolTerminal.shellIntegrationQuality) {
 					case ShellIntegrationQuality.None: {
 						strategy = this._instantiationService.createInstance(NoneExecuteStrategy, toolTerminal.instance);
 						break;
 					}
 					case ShellIntegrationQuality.Basic: {
-						// TODO: Don't use !
-						const commandDetection = toolTerminal.instance.capabilities.get(TerminalCapability.CommandDetection)!;
-						strategy = this._instantiationService.createInstance(BasicExecuteStrategy, toolTerminal.instance, commandDetection);
+						strategy = this._instantiationService.createInstance(BasicExecuteStrategy, toolTerminal.instance, commandDetection!);
 						break;
 					}
 					case ShellIntegrationQuality.Rich: {
-						// TODO: Don't use !
-						const commandDetection = toolTerminal.instance.capabilities.get(TerminalCapability.CommandDetection)!;
-						strategy = this._instantiationService.createInstance(RichExecuteStrategy, toolTerminal.instance, commandDetection);
+						strategy = this._instantiationService.createInstance(RichExecuteStrategy, toolTerminal.instance, commandDetection!);
 						break;
 					}
 				}
@@ -291,7 +308,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				this._sendTelemetry({
 					didUserEditCommand,
 					didToolEditCommand,
-					isBackground: args.isBackground,
+					isBackground: false,
 					shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
 					error,
 					isNewSession,
@@ -433,28 +450,29 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 }
 
-// class BackgroundTerminalExecution {
-// 	private _output: string = '';
-// 	get output(): string {
-// 		return sanitizeTerminalOutput(this._output);
-// 	}
+class BackgroundTerminalExecution extends Disposable {
+	private _startMarker?: IXtermMarker;
 
-// 	constructor(
-// 		public readonly terminal: vscode.Terminal,
-// 		command: string
-// 	) {
-// 		const shellExecution = terminal.shellIntegration!.executeCommand(command);
-// 		this.init(shellExecution);
-// 	}
+	constructor(
+		private readonly _instance: ITerminalInstance,
+		private readonly _xterm: XtermTerminal,
+		private readonly _commandLine: string
+	) {
+		super();
 
-// 	private async init(shellExecution: vscode.TerminalShellExecution) {
-// 		try {
-// 			const stream = shellExecution.read();
-// 			for await (const chunk of stream) {
-// 				this._output += chunk;
-// 			}
-// 		} catch (e) {
-// 			this._output += e instanceof Error ? e.message : String(e);
-// 		}
-// 	}
-// }
+		this._startMarker = this._register(this._xterm.raw.registerMarker());
+		this._instance.runCommand(this._commandLine);
+	}
+
+	getOutput(): string {
+		const lines: string[] = [];
+		for (let y = Math.min(this._startMarker?.line ?? 0, 0); y < this._xterm.raw.buffer.active.length; y++) {
+			const line = this._xterm.raw.buffer.active.getLine(y);
+			if (!line) {
+				continue;
+			}
+			lines.push(line.translateToString(true));
+		}
+		return lines.join('\n');
+	}
+}

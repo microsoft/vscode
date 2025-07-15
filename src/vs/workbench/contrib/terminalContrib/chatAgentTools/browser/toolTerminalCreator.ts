@@ -25,7 +25,6 @@ export const enum ShellIntegrationQuality {
 
 export interface IToolTerminal {
 	instance: ITerminalInstance;
-	// TODO: Since rich command detection can be fetched off instance in core, we don't need to return this here
 	shellIntegrationQuality: ShellIntegrationQuality;
 }
 
