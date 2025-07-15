@@ -546,7 +546,7 @@ abstract class FoldingAction<T> extends EditorAction {
 
 	abstract invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, args: T, languageConfigurationService: ILanguageConfigurationService): void;
 
-	public override runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: T): void | Promise<void> {
+	public override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: T): void | Promise<void> {
 		const languageConfigurationService = accessor?.get(ILanguageConfigurationService);
 		const foldingController = FoldingController.get(editor);
 		if (!foldingController) {

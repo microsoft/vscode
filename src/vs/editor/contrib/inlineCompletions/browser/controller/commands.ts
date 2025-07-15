@@ -71,7 +71,7 @@ export class TriggerInlineSuggestionAction extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
 		await asyncTransaction(async tx => {
 			/** @description triggerExplicitly from command */
@@ -112,7 +112,7 @@ export class TriggerInlineEditAction extends EditorCommand {
 		});
 	}
 
-	public override async runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: { triggerKind?: 'automatic' | 'explicit' }): Promise<void> {
+	public override async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: { triggerKind?: 'automatic' | 'explicit' }): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
 		await controller?.model.get()?.trigger(undefined, { onlyFetchInlineEdits: true });
 	}
