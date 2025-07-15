@@ -12,9 +12,9 @@ import { RunInTerminalTool, RunInTerminalToolData } from './runInTerminalTool.js
 
 // #region Workbench contributions
 
-class RunInTerminalToolContribution extends Disposable implements IWorkbenchContribution {
+class ChatAgentToolsContribution extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'chat.runInTerminalTool';
+	static readonly ID = 'terminal.chatAgentTools';
 
 	constructor(
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
@@ -31,6 +31,6 @@ class RunInTerminalToolContribution extends Disposable implements IWorkbenchCont
 		this._register(toolsService.registerToolImplementation(GetTerminalOutputToolData.id, getTerminalOutputTool));
 	}
 }
-registerWorkbenchContribution2(RunInTerminalToolContribution.ID, RunInTerminalToolContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatAgentToolsContribution.ID, ChatAgentToolsContribution, WorkbenchPhase.AfterRestored);
 
 // #endregion Contributions
