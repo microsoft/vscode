@@ -3822,6 +3822,8 @@ export function filterValidationDecorations(options: IComputedEditorOptions): bo
  * @internal
  */
 export function filterFontDecorations(options: IComputedEditorOptions): boolean {
+	const effectiveAllowVariableFonts = options.get(EditorOption.effectiveAllowVariableFonts);
+	console.log('effectiveAllowVariableFonts', effectiveAllowVariableFonts);
 	return !options.get(EditorOption.effectiveAllowVariableFonts);
 }
 

@@ -116,6 +116,8 @@ export class ViewLine implements IVisibleLine {
 		const lineData = viewportData.getViewLineRenderingData(lineNumber);
 		const options = this._options;
 		const actualInlineDecorations = LineDecoration.filter(lineData.inlineDecorations, lineNumber, lineData.minColumn, lineData.maxColumn);
+		console.log('lineNumber : ', lineNumber);
+		console.log('actualInlineDecorations : ', actualInlineDecorations);
 		const renderWhitespace = (lineData.hasVariableFonts || options.experimentalWhitespaceRendering === 'off') ? options.renderWhitespace : 'none';
 		const allowFastRendering = !lineData.hasVariableFonts;
 
