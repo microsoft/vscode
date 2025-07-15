@@ -18,7 +18,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import product from '../../../../platform/product/common/product.js';
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../files/browser/fileConstants.js';
 
-const allowedHtmlTags = [
+export const allowedChatMarkdownHtmlTags = [
 	'b',
 	'blockquote',
 	'br',
@@ -76,7 +76,7 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 			remoteImageIsAllowed: (_uri) => false,
 			sanitizerOptions: {
 				replaceWithPlaintext: true,
-				allowedTags: allowedHtmlTags,
+				allowedTags: allowedChatMarkdownHtmlTags,
 				...options?.sanitizerOptions,
 				allowedProductProtocols: [product.urlProtocol]
 			}
