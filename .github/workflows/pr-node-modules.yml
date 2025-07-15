@@ -72,6 +72,7 @@ jobs:
         id: cache-builtin-extensions
         uses: actions/cache@v4
         with:
+          enableCrossOsArchive: true
           path: .build/builtInExtensions
           key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
 

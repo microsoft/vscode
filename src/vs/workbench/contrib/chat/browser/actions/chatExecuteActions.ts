@@ -142,6 +142,8 @@ abstract class SubmitAction extends Action2 {
 				const snapshotRequestId = chatRequests[itemIndex].id;
 				await session.restoreSnapshot(snapshotRequestId, undefined);
 			}
+		} else if (widget?.viewModel?.model.checkpoint) {
+			widget.viewModel.model.setCheckpoint(undefined);
 		}
 		widget?.acceptInput(context?.inputValue);
 	}
@@ -207,13 +209,6 @@ class ToggleChatModeAction extends Action2 {
 				ChatContextKeys.enabled,
 				ChatContextKeys.requestInProgress.negate()),
 			tooltip: localize('setChatMode', "Set Mode"),
-			keybinding: {
-				when: ContextKeyExpr.and(
-					ChatContextKeys.inChatInput,
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)),
-				primary: KeyMod.CtrlCmd | KeyCode.Period,
-				weight: KeybindingWeight.EditorContrib
-			},
 			menu: [
 				{
 					id: MenuId.ChatInput,
@@ -387,6 +382,13 @@ class OpenModePickerAction extends Action2 {
 			category: CHAT_CATEGORY,
 			f1: false,
 			precondition: ChatContextKeys.enabled,
+			keybinding: {
+				when: ContextKeyExpr.and(
+					ChatContextKeys.inChatInput,
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)),
+				primary: KeyMod.CtrlCmd | KeyCode.Period,
+				weight: KeybindingWeight.EditorContrib
+			},
 		});
 	}
 

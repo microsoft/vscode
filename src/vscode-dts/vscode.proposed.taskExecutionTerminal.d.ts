@@ -10,6 +10,6 @@ declare module 'vscode' {
 		/**
 		 * The terminal associated with this task execution, if any.
 		 */
-		readonly terminal?: Terminal;
+		terminal?: Terminal;
 	}
 }

@@ -25,7 +25,7 @@ export class MarkedKatexSupport {
 					return this.sanitizeKatexStyles(attrValue);
 				}
 
-				return false;
+				return dom.defaultAllowedAttrs.includes(attrName);
 			},
 		};
 	}

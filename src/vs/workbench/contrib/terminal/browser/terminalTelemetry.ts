@@ -62,7 +62,7 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 			shellIntegrationInjected: boolean;
 			shellIntegrationInjectionFailureReason: ShellIntegrationInjectionFailureReason | undefined;
 
-			sessionId: string;
+			terminalSessionId: string;
 		};
 		type TerminalCreationTelemetryClassification = {
 			owner: 'tyriar';
@@ -80,7 +80,7 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 			shellIntegrationInjected: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the shell integration script was injected.' };
 			shellIntegrationInjectionFailureReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Info about shell integration injection.' };
 
-			sessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID of the terminal instance.' };
+			terminalSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID of the terminal instance.' };
 		};
 		this._telemetryService.publicLog2<TerminalCreationTelemetryData, TerminalCreationTelemetryClassification>('terminal/createInstance', {
 			shellType: getSanitizedShellType(slc),
@@ -94,7 +94,7 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 			shellIntegrationQuality: commandDetection?.hasRichCommandDetection ? 2 : commandDetection ? 1 : 0,
 			shellIntegrationInjected: instance.usedShellIntegrationInjection,
 			shellIntegrationInjectionFailureReason: instance.shellIntegrationInjectionFailureReason,
-			sessionId: instance.sessionId,
+			terminalSessionId: instance.sessionId,
 		});
 	}
 }

@@ -1618,7 +1618,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				}));
 
 				// Update context
-				this._scmProviderCtx.set(repository.provider.contextValue);
+				this._scmProviderCtx.set(repository.provider.providerId);
 				this._scmCurrentHistoryItemRefInFilter.set(this._isCurrentHistoryItemInFilter(historyItemRefId.get()));
 
 				// We skip refreshing the graph on the first execution of the autorun

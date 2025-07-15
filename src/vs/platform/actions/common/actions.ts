@@ -128,7 +128,6 @@ export class MenuId {
 	static readonly SCMSourceControlTitle = new MenuId('SCMSourceControlTitle');
 	static readonly SCMHistoryTitle = new MenuId('SCMHistoryTitle');
 	static readonly SCMHistoryItemContext = new MenuId('SCMHistoryItemContext');
-	static readonly SCMHistoryItemChatContext = new MenuId('SCMHistoryItemChatContext');
 	static readonly SCMHistoryItemChangeContext = new MenuId('SCMHistoryItemChangeContext');
 	static readonly SCMHistoryItemHover = new MenuId('SCMHistoryItemHover');
 	static readonly SCMHistoryItemRefContext = new MenuId('SCMHistoryItemRefContext');
@@ -248,11 +247,12 @@ export class MenuId {
 	static readonly ChatInputSymbolAttachmentContext = new MenuId('ChatInputSymbolAttachmentContext');
 	static readonly ChatInlineResourceAnchorContext = new MenuId('ChatInlineResourceAnchorContext');
 	static readonly ChatInlineSymbolAnchorContext = new MenuId('ChatInlineSymbolAnchorContext');
+	static readonly ChatMessageCheckpoint: MenuId = new MenuId('ChatMessageCheckpoint');
+	static readonly ChatMessageRestoreCheckpoint: MenuId = new MenuId('ChatMessageRestoreCheckpoint');
 	static readonly ChatEditingCodeBlockContext = new MenuId('ChatEditingCodeBlockContext');
 	static readonly ChatTitleBarMenu = new MenuId('ChatTitleBarMenu');
 	static readonly ChatAttachmentsContext = new MenuId('ChatAttachmentsContext');
 	static readonly ChatToolOutputResourceToolbar = new MenuId('ChatToolOutputResourceToolbar');
-	static readonly ChatExplorerMenu = new MenuId('ChatExplorerMenu');
 	static readonly ChatTextEditorMenu = new MenuId('ChatTextEditorMenu');
 	static readonly ChatTerminalMenu = new MenuId('ChatTerminalMenu');
 	static readonly ChatToolOutputResourceContext = new MenuId('ChatToolOutputResourceContext');

@@ -76,7 +76,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		const uriLabel = this.labelService.getUriLabel(file, { relative: true });
 		const currentFile = localize('openEditor', "Current {0} context", attachmentTypeName);
 		const inactive = localize('enableHint', "disabled");
-		const currentFileHint = currentFile + (this.attachment.enabled ? '' : ` (${inactive})`);
+		const currentFileHint = currentFile + (this.attachment.enabled || this.attachment.isSelection ? '' : ` (${inactive})`);
 		const title = `${currentFileHint}\n${uriLabel}`;
 
 		label.setFile(file, {

@@ -492,11 +492,23 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	toToolAndToolSetEnablementMap(enabledToolOrToolSetNames: readonly string[] | undefined): Map<ToolSet | IToolData, boolean> {
 		const toolOrToolSetNames = enabledToolOrToolSetNames ? new Set(enabledToolOrToolSetNames) : undefined;
 		const result = new Map<ToolSet | IToolData, boolean>();
-		for (const tool of this._tools.values()) {
-			result.set(tool.data, tool.data.toolReferenceName !== undefined && (toolOrToolSetNames === undefined || toolOrToolSetNames.has(tool.data.toolReferenceName)));
+		for (const tool of this.getTools()) {
+			if (tool.canBeReferencedInPrompt) {
+				result.set(tool, toolOrToolSetNames === undefined || toolOrToolSetNames.has(tool.toolReferenceName ?? tool.displayName));
+			}
 		}
 		for (const toolSet of this._toolSets) {
-			result.set(toolSet, (toolOrToolSetNames === undefined || toolOrToolSetNames.has(toolSet.referenceName)));
+			const enabled = toolOrToolSetNames === undefined || toolOrToolSetNames.has(toolSet.referenceName);
+			result.set(toolSet, enabled);
+
+			// if a mcp toolset is enabled, all tools in it are enabled
+			if (enabled && toolSet.source.type === 'mcp') {
+				for (const tool of toolSet.getTools()) {
+					if (tool.canBeReferencedInPrompt) {
+						result.set(tool, enabled);
+					}
+				}
+			}
 		}
 		return result;
 	}

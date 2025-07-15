@@ -129,7 +129,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		}));
 
 		const repositoryMenus = this.scmViewService.menus.getRepositoryMenus(repository.provider);
-		const menu = this.toolbarMenuId === MenuId.SCMTitle ? repositoryMenus.titleMenu.menu : repositoryMenus.repositoryMenu;
+		const menu = this.toolbarMenuId === MenuId.SCMTitle ? repositoryMenus.titleMenu.menu : repositoryMenus.getRepositoryMenu(repository);
 		templateData.elementDisposables.add(connectPrimaryMenu(menu, (primary, secondary) => {
 			menuPrimaryActions = primary;
 			menuSecondaryActions = secondary;
