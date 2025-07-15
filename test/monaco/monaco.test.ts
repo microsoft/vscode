@@ -5,7 +5,7 @@
 
 import * as playwright from '@playwright/test';
 import { assert } from 'chai';
-import { checkA11y, injectAxe } from 'axe-playwright';
+import { injectAxe } from 'axe-playwright';
 
 const PORT = 8563;
 const TIMEOUT = 20 * 1000;
@@ -152,7 +152,6 @@ describe('API Integration Tests', function (): void {
 		});
 
 		it('Editor should not have critical accessibility violations', async () => {
-
 			let violationCount = 0;
 			const checkedElements = new Set<string>();
 
@@ -161,7 +160,13 @@ describe('API Integration Tests', function (): void {
 				return window.axe.run(document, {
 					runOnly: {
 						type: 'tag',
-						values: ['wcag2a']
+						values: [
+							'wcag2a',
+							'wcag2aa',
+							'wcag21a',
+							'wcag21aa',
+							'best-practice'
+						]
 					}
 				});
 			});
@@ -180,7 +185,6 @@ describe('API Integration Tests', function (): void {
 				violationCount += isCritical ? 1 : 0;
 			});
 
-
 			// Log passed elements
 			axeResults.passes.forEach((pass: any) => {
 				pass.nodes.forEach((node: any) => {
@@ -192,19 +196,45 @@ describe('API Integration Tests', function (): void {
 				});
 			});
 
+			playwright.expect(violationCount).toBe(0);
+		});
 
-			// Now run the actual checkA11y for test assertion and violation logging
-			await checkA11y(page, '.monaco-editor', {
-				axeOptions: {
+		it('Editor should not have color contrast accessibility violations', async () => {
+			let violationCount = 0;
+			const checkedElements = new Set<string>();
+
+			const axeResults = await page.evaluate(() => {
+				return window.axe.run(document, {
 					runOnly: {
-						type: 'tag',
-						values: ['wcag2a']
+						type: 'rule',
+						values: ['color-contrast']
 					}
-				},
-				includedImpacts: ['critical', 'serious'],
-				detailedReport: true,
-				detailedReportOptions: { html: true }
-			}, false);
+				});
+			});
+
+			axeResults.violations.forEach((v: any) => {
+				const isCritical = v.impact === 'critical';
+				const emoji = isCritical ? '❌' : '⚠️ ';
+				v.nodes.forEach((node: any) => {
+					const selector = node.target?.join(' ');
+					if (selector) {
+						checkedElements.add(selector);
+						console.log(`${emoji} FAIL: ${selector} - ${v.id} - ${v.description}`);
+					}
+				});
+				violationCount += 1;
+			});
+
+			axeResults.passes.forEach((pass: any) => {
+				pass.nodes.forEach((node: any) => {
+					const selector = node.target?.join(' ');
+					if (selector && !checkedElements.has(selector)) {
+						checkedElements.add(selector);
+						console.log(`✅ PASS: ${selector} - ${pass.id} - ${pass.description}`);
+					}
+				});
+			});
+
 			playwright.expect(violationCount).toBe(0);
 		});
 		it('Monaco editor container should have an ARIA role', async () => {
