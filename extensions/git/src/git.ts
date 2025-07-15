@@ -2033,7 +2033,7 @@ export class Repository {
 		await this.exec(args);
 	}
 
-	async worktree(options: { name: string; path: string }): Promise<void> {
+	async worktree(options: { path: string; name: string }): Promise<void> {
 		const args = ['worktree', 'add', options.path, options.name];
 		await this.exec(args);
 	}

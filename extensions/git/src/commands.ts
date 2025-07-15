@@ -3338,73 +3338,81 @@ export class CommandCenter {
 
 	@command('git.createWorktree', { repository: true })
 	async createWorktree(repository: Repository): Promise<void> {
+		await this._createWorktree(repository, undefined, undefined);
+	}
+
+	private async _createWorktree(repository: Repository, worktreePath?: string, name?: string): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
 
-		const getBranchPicks = async () => {
-			const refs = await repository.getRefs({
-				pattern: 'refs/heads',
-				includeCommitDetails: showRefDetails
-			});
-			const processors = [new RefProcessor(RefType.Head, BranchItem)];
-			const itemsProcessor = new RefItemsProcessor(repository, processors);
-			return itemsProcessor.processRefs(refs);
-		};
+		if (!name) {
+			const getBranchPicks = async () => {
+				const refs = await repository.getRefs({
+					pattern: 'refs/heads',
+					includeCommitDetails: showRefDetails
+				});
+				const processors = [new RefProcessor(RefType.Head, BranchItem)];
+				const itemsProcessor = new RefItemsProcessor(repository, processors);
 
-		const placeHolder = l10n.t('Select a branch to create the new worktree from');
-		const choice = await this.pickRef(getBranchPicks(), placeHolder);
+				return itemsProcessor.processRefs(refs);
+			};
 
-		if (!(choice instanceof BranchItem) || !choice.refName) {
-			return;
-		}
+			const placeHolder = l10n.t('Select a branch to create the new worktree from');
+			const choice = await this.pickRef(getBranchPicks(), placeHolder);
 
-		const defaultWorktreePath = path.join(repository.root, choice.refName);
-
-		const quickPickItems: QuickPickItem[] = [
-			{
-				label: l10n.t('$(folder) Create worktree in'),
-				description: l10n.t(`<root>/${choice.refName}`),
-				detail: l10n.t(`Will create worktree in ${repository.root} under ${choice.refName}`),
-			},
-			{
-				label: l10n.t('$(folder) Change root folder...'),
-				description: l10n.t('Current root: {0}', repository.root),
-			},
-			{
-				label: l10n.t('$(folder) Choose a specific folder...'),
-			},
-		];
-
-		const quickPick = window.createQuickPick();
-		quickPick.items = quickPickItems;
-		quickPick.placeholder = l10n.t('Select a location for the new worktree');
-		quickPick.show();
-
-		const selected = await new Promise<QuickPickItem | undefined>(resolve => {
-			quickPick.onDidAccept(() => resolve(quickPick.activeItems[0]));
-			quickPick.onDidHide(() => resolve(undefined));
-		});
-		quickPick.dispose();
-
-		let worktreePath: string;
-
-		if (!selected) {
-			return;
-		}
-
-		if (selected.label === quickPickItems[0].label) {
-			worktreePath = defaultWorktreePath;
-		} else {
-			const folderUris = await window.showOpenDialog({
-				canSelectFolders: true,
-				canSelectFiles: false,
-				canSelectMany: false,
-				openLabel: l10n.t('Choose worktree folder'),
-			});
-			if (!folderUris || folderUris.length === 0) {
+			if (!(choice instanceof BranchItem) || !choice.refName) {
 				return;
 			}
-			worktreePath = path.join(folderUris[0].fsPath, choice.refName);
+			name = choice.refName;
+		}
+
+		if (!worktreePath) {
+			const quickPickItems: QuickPickItem[] = [
+				{
+					label: l10n.t('$(folder) Create worktree in'),
+					description: l10n.t(`<root>/${name}`),
+				},
+				{
+					label: l10n.t('$(folder) Choose a specific folder...'),
+				},
+			];
+
+			const disposables: Disposable[] = [];
+
+			const quickPick = window.createQuickPick();
+			quickPick.busy = true;
+			quickPick.items = quickPickItems;
+			quickPick.placeholder = l10n.t('Select a location for the new worktree');
+			quickPick.show();
+
+			const destinationFolder = await new Promise<QuickPickItem | undefined>(resolve => {
+				disposables.push(quickPick.onDidAccept(() => resolve(quickPick.activeItems[0])));
+				disposables.push(quickPick.onDidHide(() => resolve(undefined)));
+			});
+
+			dispose(disposables);
+			quickPick.dispose();
+
+			if (!destinationFolder) {
+				return;
+			}
+
+			if (destinationFolder.label === quickPickItems[0].label) {
+				worktreePath = path.join(repository.root, name);
+			} else {
+				const uris = await window.showOpenDialog({
+					canSelectFiles: false,
+					canSelectFolders: true,
+					canSelectMany: false,
+					openLabel: l10n.t('Select as Worktree Destination'),
+				});
+
+				if (!uris || uris.length === 0) {
+					return;
+				}
+
+				worktreePath = path.join(uris[0].fsPath, name);
+			}
 		}
 
 		if (!worktreePath) {
@@ -3412,7 +3420,7 @@ export class CommandCenter {
 		}
 
 		await repository.worktree({
-			name: choice.refName,
+			name: name,
 			path: worktreePath,
 		});
 	}
