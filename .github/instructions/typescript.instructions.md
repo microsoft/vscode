@@ -9,6 +9,7 @@ You MUST check compilation output before running ANY script or declaring work co
 1. **ALWAYS** check the "Core - Build" task output for compilation errors
 2. **ALWAYS** check the "Ext - Build" task output for compilation errors
 3. **NEVER** run tests if there are compilation errors
+3. **NEVER** use `npm run compile` to compile TypeScript files, always check task output
 4. **FIX** all compilation errors before moving forward
 
 ## TypeScript compilation steps
