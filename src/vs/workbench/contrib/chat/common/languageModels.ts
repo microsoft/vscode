@@ -204,6 +204,8 @@ export interface ILanguageModelsService {
 
 	getLanguageModelIds(): string[];
 
+	getVendors(): IUserFriendlyLanguageModel[];
+
 	lookupLanguageModel(modelId: string): ILanguageModelChatMetadata | undefined;
 
 	selectLanguageModels(selector: ILanguageModelChatSelector): Promise<string[]>;
@@ -233,7 +235,7 @@ const languageModelType: IJSONSchema = {
 	}
 };
 
-interface IUserFriendlyLanguageModel {
+export interface IUserFriendlyLanguageModel {
 	vendor: string;
 	displayName: string;
 	managementCommand?: string;
@@ -322,12 +324,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 		this._providers.clear();
 	}
 
+	getVendors(): IUserFriendlyLanguageModel[] {
+		return Array.from(this._vendors.values());
+	}
+
 	getLanguageModelIds(): string[] {
 		return Array.from(this._modelCache.keys());
 	}
 
-	lookupLanguageModel(modelId: string): ILanguageModelChatMetadata | undefined {
-		return this._modelCache.get(modelId);
+	lookupLanguageModel(modelIdentifier: string): ILanguageModelChatMetadata | undefined {
+		return this._modelCache.get(modelIdentifier);
 	}
 
 	private _clearModelCache(vendors: string | string[]): void {
