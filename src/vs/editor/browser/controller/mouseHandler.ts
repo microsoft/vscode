@@ -149,6 +149,13 @@ export class MouseHandler extends ViewEventHandler {
 			this.viewController.emitMouseWheel(browserEvent);
 
 			if (!this._context.configuration.options.get(EditorOption.mouseWheelZoom)) {
+				// Even when mouse wheel zoom is disabled, we should prevent pinch gesture events from
+				// reaching other handlers (like scrollableElement) to avoid unwanted scrolling on macOS
+				if (hasMouseWheelZoomModifiers(browserEvent)) {
+					const e = new StandardWheelEvent(browserEvent);
+					e.preventDefault();
+					e.stopPropagation();
+				}
 				return;
 			}
 
