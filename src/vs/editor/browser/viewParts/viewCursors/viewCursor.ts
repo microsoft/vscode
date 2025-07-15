@@ -165,7 +165,11 @@ export class ViewCursor {
 		let textContentClassName = '';
 		const [position, nextGrapheme] = this._getGraphemeAwarePosition();
 		const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(position.lineNumber);
-		const lineCursorHeight = Math.min(lineHeight, this._lineCursorHeight);
+		const lineCursorHeight = (
+			this._lineCursorHeight === 0
+				? lineHeight // 0 indicates that the cursor should take the full line height
+				: Math.min(lineHeight, this._lineCursorHeight)
+		);
 		const lineHeightAdjustment = (lineHeight - lineCursorHeight) / 2;
 
 		if (this._cursorStyle === TextEditorCursorStyle.Line || this._cursorStyle === TextEditorCursorStyle.LineThin) {
@@ -226,11 +230,11 @@ export class ViewCursor {
 		}
 
 		let top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.bigNumbersDelta;
-		let height = lineCursorHeight;
+		let height = lineHeight;
 
 		// Underline might interfere with clicking
 		if (this._cursorStyle === TextEditorCursorStyle.Underline || this._cursorStyle === TextEditorCursorStyle.UnderlineThin) {
-			top += lineCursorHeight - 2;
+			top += lineHeight - 2;
 			height = 2;
 		}
 
