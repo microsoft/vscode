@@ -174,10 +174,10 @@ describe('API Integration Tests', function (): void {
 			// Log failed elements
 			axeResults.violations.forEach((v: any) => {
 				const isCritical = v.impact === 'critical';
-				const emoji = isCritical ? '❌' : '⚠️ ';
+				const emoji = isCritical ? '❌' : undefined;
 				v.nodes.forEach((node: any) => {
 					const selector = node.target?.join(' ');
-					if (selector) {
+					if (selector && emoji) {
 						checkedElements.add(selector);
 						console.log(`${emoji} FAIL: ${selector} - ${v.id} - ${v.description}`);
 					}
@@ -191,7 +191,6 @@ describe('API Integration Tests', function (): void {
 					const selector = node.target?.join(' ');
 					if (selector && !checkedElements.has(selector)) {
 						checkedElements.add(selector);
-						console.log(`✅ PASS: ${selector} - ${pass.id} - ${pass.description}`);
 					}
 				});
 			});
@@ -214,10 +213,10 @@ describe('API Integration Tests', function (): void {
 
 			axeResults.violations.forEach((v: any) => {
 				const isCritical = v.impact === 'critical';
-				const emoji = isCritical ? '❌' : '⚠️ ';
+				const emoji = isCritical ? '❌' : undefined;
 				v.nodes.forEach((node: any) => {
 					const selector = node.target?.join(' ');
-					if (selector) {
+					if (selector && emoji) {
 						checkedElements.add(selector);
 						console.log(`${emoji} FAIL: ${selector} - ${v.id} - ${v.description}`);
 					}
@@ -230,7 +229,6 @@ describe('API Integration Tests', function (): void {
 					const selector = node.target?.join(' ');
 					if (selector && !checkedElements.has(selector)) {
 						checkedElements.add(selector);
-						console.log(`✅ PASS: ${selector} - ${pass.id} - ${pass.description}`);
 					}
 				});
 			});
