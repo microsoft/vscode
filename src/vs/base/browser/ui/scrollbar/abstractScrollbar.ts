@@ -218,13 +218,19 @@ export abstract class AbstractScrollbar extends Widget {
 			offsetY = e.pageY - domNodePosition.top;
 		}
 
-		if (e.button === 0) {
+		const isMouse = (e.pointerType === 'mouse');
+		const isLeftClick = (e.button === 0);
+
+		if (isLeftClick || !isMouse) {
 			const offset = this._pointerDownRelativePosition(offsetX, offsetY);
 			this._setDesiredScrollPositionNow(
 				this._scrollByPage
 					? this._scrollbarState.getDesiredScrollPositionFromOffsetPaged(offset)
 					: this._scrollbarState.getDesiredScrollPositionFromOffset(offset)
 			);
+		}
+
+		if (isLeftClick) {
 			// left button
 			e.preventDefault();
 			this._sliderPointerDown(e);

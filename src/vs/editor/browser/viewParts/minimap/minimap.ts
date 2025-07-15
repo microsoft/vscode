@@ -1237,6 +1237,9 @@ class InnerMinimap extends Disposable {
 		this._pointerDownListener = dom.addStandardDisposableListener(this._domNode.domNode, dom.EventType.POINTER_DOWN, (e) => {
 			e.preventDefault();
 
+			const isMouse = (e.pointerType === 'mouse');
+			const isLeftClick = (e.button === 0);
+
 			const renderMinimap = this._model.options.renderMinimap;
 			if (renderMinimap === RenderMinimap.None) {
 				return;
@@ -1245,7 +1248,7 @@ class InnerMinimap extends Disposable {
 				return;
 			}
 			if (this._model.options.size !== 'proportional') {
-				if (e.button === 0 && this._lastRenderData) {
+				if (isLeftClick && this._lastRenderData) {
 					// pretend the click occurred in the center of the slider
 					const position = dom.getDomNodePagePosition(this._slider.domNode);
 					const initialPosY = position.top + position.height / 2;
@@ -1253,14 +1256,17 @@ class InnerMinimap extends Disposable {
 				}
 				return;
 			}
-			const minimapLineHeight = this._model.options.minimapLineHeight;
-			const internalOffsetY = (this._model.options.canvasInnerHeight / this._model.options.canvasOuterHeight) * e.offsetY;
-			const lineIndex = Math.floor(internalOffsetY / minimapLineHeight);
 
-			let lineNumber = lineIndex + this._lastRenderData.renderedLayout.startLineNumber - this._lastRenderData.renderedLayout.topPaddingLineCount;
-			lineNumber = Math.min(lineNumber, this._model.getLineCount());
+			if (isLeftClick || !isMouse) {
+				const minimapLineHeight = this._model.options.minimapLineHeight;
+				const internalOffsetY = (this._model.options.canvasInnerHeight / this._model.options.canvasOuterHeight) * e.offsetY;
+				const lineIndex = Math.floor(internalOffsetY / minimapLineHeight);
 
-			this._model.revealLineNumber(lineNumber);
+				let lineNumber = lineIndex + this._lastRenderData.renderedLayout.startLineNumber - this._lastRenderData.renderedLayout.topPaddingLineCount;
+				lineNumber = Math.min(lineNumber, this._model.getLineCount());
+
+				this._model.revealLineNumber(lineNumber);
+			}
 		});
 
 		this._sliderPointerMoveMonitor = new GlobalPointerMoveMonitor();
