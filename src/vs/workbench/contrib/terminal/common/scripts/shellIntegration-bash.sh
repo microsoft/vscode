@@ -29,7 +29,9 @@ fi
 
 # Run relevant rc/profile only if shell integration has been injected, not when run manually
 if [ "$VSCODE_INJECTION" == "1" ]; then
-	if [ -z "$VSCODE_SHELL_LOGIN" ]; then
+	# -n is true if the value of $VSCODE_SHELL_LOGIN is non-zero
+	# and the value is non-zero when the shell was launched as a login shell
+	if [ -n "$VSCODE_SHELL_LOGIN" ]; then
 		if [ -r ~/.bashrc ]; then
 			. ~/.bashrc
 		fi
@@ -158,6 +160,7 @@ __vsc_escape_value() {
 
 	builtin printf '%s\n' "$out"
 }
+export -f __vsc_escape_value
 
 # Send the IsWindows property if the environment looks like Windows
 __vsc_regex_environment="^CYGWIN*|MINGW*|MSYS*"
@@ -239,6 +242,7 @@ __vsc_update_cwd() {
 	fi
 	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "$__vsc_cwd")"
 }
+export -f __vsc_update_cwd
 
 __updateEnvCacheAA() {
 	local key="$1"
@@ -320,6 +324,7 @@ __vsc_update_env() {
 		builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce
 	fi
 }
+export -f __vsc_update_env
 
 __vsc_command_output_start() {
 	if [[ -z "${__vsc_first_prompt-}" ]]; then
@@ -349,6 +354,8 @@ __vsc_command_complete() {
 	fi
 	__vsc_update_cwd
 }
+export -f __vsc_command_complete
+
 __vsc_update_prompt() {
 	# in command execution
 	if [ "$__vsc_in_command_execution" = "1" ]; then
@@ -367,6 +374,7 @@ __vsc_update_prompt() {
 		__vsc_in_command_execution="0"
 	fi
 }
+export -f __vsc_update_prompt
 
 __vsc_precmd() {
 	__vsc_command_complete "$__vsc_status"
@@ -379,6 +387,7 @@ __vsc_precmd() {
 	__vsc_update_prompt
 	__vsc_update_env
 }
+export -f __vsc_precmd
 
 __vsc_preexec() {
 	__vsc_initialized=1
@@ -434,6 +443,7 @@ __vsc_update_prompt
 __vsc_restore_exit_code() {
 	return "$1"
 }
+export -f __vsc_restore_exit_code
 
 __vsc_prompt_cmd_original() {
 	__vsc_status="$?"
@@ -446,6 +456,7 @@ __vsc_prompt_cmd_original() {
 	done
 	__vsc_precmd
 }
+export -f __vsc_prompt_cmd_original
 
 __vsc_prompt_cmd() {
 	__vsc_status="$?"
