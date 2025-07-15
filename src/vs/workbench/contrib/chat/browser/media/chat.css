@@ -2062,7 +2062,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			outline: 1px solid var(--vscode-focusBorder);
 		}
 
-		.request-hover {
+		.request-hover:not(.has-no-actions) {
 			display: block;
 		}
 	}
