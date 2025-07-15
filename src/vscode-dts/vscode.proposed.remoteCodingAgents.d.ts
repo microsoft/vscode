@@ -3,6 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// empty placeholder for coding agent contribution point from core
+declare module 'vscode' {
+	export interface RemoteCodingAgentInformation {
+		id: number;
+		number: number;
+		title: string;
+		user: {
+			login: string;
+		};
+		html_url: string;
+		state: string;
+		created_at: string;
+		updated_at: string;
+	}
 
-// @joshspicer
+	export interface RemoteCodingAgentInformationProvider extends Disposable {
+		onDidChangeAgentInformation: Event<RemoteCodingAgentInformation>;
+		onDidSelectItem: (codingAgentId: string) => void;
+		provideCodingAgentsInformation(token: CancellationToken): AsyncIterable<RemoteCodingAgentInformation>;
+	}
+
+	export namespace remoteCodingAgents {
+		export function registerAgentInformationProvider(provider: RemoteCodingAgentInformationProvider): Disposable;
+	}
+}

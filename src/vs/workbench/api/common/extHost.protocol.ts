@@ -68,6 +68,7 @@ import * as notebookCommon from '../../contrib/notebook/common/notebookCommon.js
 import { CellExecutionUpdateType } from '../../contrib/notebook/common/notebookExecutionService.js';
 import { ICellExecutionComplete, ICellExecutionStateUpdate } from '../../contrib/notebook/common/notebookExecutionStateService.js';
 import { ICellRange } from '../../contrib/notebook/common/notebookRange.js';
+import { IRemoteCodingAgentInformation } from '../../contrib/remoteCodingAgents/common/remoteCodingAgentsService.js';
 import { ISCMHistoryOptions } from '../../contrib/scm/common/history.js';
 import { InputValidationType } from '../../contrib/scm/common/scm.js';
 import { IWorkspaceSymbol, NotebookPriorityInfo } from '../../contrib/search/common/search.js';
@@ -3106,6 +3107,17 @@ export interface MainThreadChatStatusShape {
 	$disposeEntry(id: string): void;
 }
 
+export interface MainThreadRemoteCodingAgentsShape extends IDisposable {
+	$registerAgentInformationProvider(handle: number): void;
+	$unregisterAgentInformationProvider(handle: number): void;
+	$onDidChangeAgentInformation(handle: number, information: IRemoteCodingAgentInformation): void;
+}
+
+export interface ExtHostRemoteCodingAgentsShape {
+	$onDidSelectItem(handle: number, codingAgentId: string): void;
+	$provideCodingAgentsInformation(handle: number, token: CancellationToken): Promise<IRemoteCodingAgentInformation[]>;
+}
+
 // --- proxy identifiers
 
 export const MainContext = {
@@ -3182,6 +3194,7 @@ export const MainContext = {
 	MainThreadAiEmbeddingVector: createProxyIdentifier<MainThreadAiEmbeddingVectorShape>('MainThreadAiEmbeddingVector'),
 	MainThreadChatStatus: createProxyIdentifier<MainThreadChatStatusShape>('MainThreadChatStatus'),
 	MainThreadAiSettingsSearch: createProxyIdentifier<MainThreadAiSettingsSearchShape>('MainThreadAiSettingsSearch'),
+	MainThreadRemoteCodingAgents: createProxyIdentifier<MainThreadRemoteCodingAgentsShape>('MainThreadRemoteCodingAgents'),
 };
 
 export const ExtHostContext = {
@@ -3254,4 +3267,5 @@ export const ExtHostContext = {
 	ExtHostTelemetry: createProxyIdentifier<ExtHostTelemetryShape>('ExtHostTelemetry'),
 	ExtHostLocalization: createProxyIdentifier<ExtHostLocalizationShape>('ExtHostLocalization'),
 	ExtHostMcp: createProxyIdentifier<ExtHostMcpShape>('ExtHostMcp'),
+	ExtHostRemoteCodingAgents: createProxyIdentifier<ExtHostRemoteCodingAgentsShape>('ExtHostRemoteCodingAgents'),
 };

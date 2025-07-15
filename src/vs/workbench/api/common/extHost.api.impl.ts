@@ -111,6 +111,7 @@ import { ExtHostWebviewViews } from './extHostWebviewView.js';
 import { IExtHostWindow } from './extHostWindow.js';
 import { IExtHostWorkspace } from './extHostWorkspace.js';
 import { ExtHostAiSettingsSearch } from './extHostAiSettingsSearch.js';
+import { IExtHostRemoteCodingAgents } from './extHostRemoteCodingAgents.js';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -151,6 +152,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostAuthentication = accessor.get(IExtHostAuthentication);
 	const extHostLanguageModels = accessor.get(IExtHostLanguageModels);
 	const extHostMcp = accessor.get(IExtHostMpcService);
+	const extHostRemoteCodingAgents = accessor.get(IExtHostRemoteCodingAgents);
 
 	// register addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostFileSystemInfo, extHostFileSystemInfo);
@@ -169,6 +171,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostProgress, extHostProgress);
 	rpcProtocol.set(ExtHostContext.ExtHostAuthentication, extHostAuthentication);
 	rpcProtocol.set(ExtHostContext.ExtHostChatProvider, extHostLanguageModels);
+	rpcProtocol.set(ExtHostContext.ExtHostRemoteCodingAgents, extHostRemoteCodingAgents);
 
 	// automatically create and register addressable instances
 	const extHostDecorations = rpcProtocol.set(ExtHostContext.ExtHostDecorations, accessor.get(IExtHostDecorations));
@@ -1555,6 +1558,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			}
 		};
 
+		// namespace: remoteCodingAgents
+		const remoteCodingAgents = {
+			registerAgentInformationProvider(provider: vscode.RemoteCodingAgentInformationProvider) {
+				checkProposedApiEnabled(extension, 'remoteCodingAgents');
+				return extHostRemoteCodingAgents.registerAgentInformationProvider(provider);
+			},
+		};
+
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return <typeof vscode>{
 			version: initData.version,
@@ -1572,6 +1583,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			languages,
 			lm,
 			notebooks,
+			remoteCodingAgents,
 			scm,
 			speech,
 			tasks,
