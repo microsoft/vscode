@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { safeInnerHtml } from '../../../../base/browser/dom.js';
+import { safeInnerHtml } from '../../../../base/browser/domSanitize.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import Severity from '../../../../base/common/severity.js';
