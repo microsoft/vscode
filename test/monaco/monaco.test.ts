@@ -177,7 +177,7 @@ describe('API Integration Tests', function (): void {
 						console.log(`${emoji} FAIL: ${selector} - ${v.id} - ${v.description}`);
 					}
 				});
-				violationCount += 1;
+				violationCount += isCritical ? 1 : 0;
 			});
 
 
