@@ -3,21 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IViewsService } from 'vs/workbench/common/views';
-import { AutoOpenTesting, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
-import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
-import { ITestResult, LiveTestResult, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ExplorerTestCoverageBars } from './testCoverageBars.js';
+import { AutoOpenTesting, getTestingConfiguration, TestingConfigKeys } from '../common/configuration.js';
+import { Testing } from '../common/constants.js';
+import { ITestCoverageService } from '../common/testCoverageService.js';
+import { isFailedState } from '../common/testingStates.js';
+import { ITestResult, LiveTestResult, TestResultItemChangeReason } from '../common/testResult.js';
+import { ITestResultService } from '../common/testResultService.js';
+import { TestResultState } from '../common/testTypes.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 
 /** Workbench contribution that triggers updates in the TestingProgressUi service */
 export class TestingProgressTrigger extends Disposable {
 	constructor(
 		@ITestResultService resultService: ITestResultService,
+		@ITestCoverageService testCoverageService: ITestCoverageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IViewsService private readonly viewsService: IViewsService,
 	) {
@@ -28,14 +32,26 @@ export class TestingProgressTrigger extends Disposable {
 				this.attachAutoOpenForNewResults(e.started);
 			}
 		}));
+
+		const barContributionRegistration = autorun(reader => {
+			const hasCoverage = !!testCoverageService.selected.read(reader);
+			if (!hasCoverage) {
+				return;
+			}
+
+			barContributionRegistration.dispose();
+			ExplorerTestCoverageBars.register();
+		});
+
+		this._register(barContributionRegistration);
 	}
 
 	private attachAutoOpenForNewResults(result: LiveTestResult) {
-		if (result.request.isUiTriggered === false) {
+		if (result.request.preserveFocus === true) {
 			return;
 		}
 
-		const cfg = getTestingConfiguration(this.configurationService, TestingConfigKeys.OpenTesting);
+		const cfg = getTestingConfiguration(this.configurationService, TestingConfigKeys.OpenResults);
 		if (cfg === AutoOpenTesting.NeverOpen) {
 			return;
 		}

@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { localize } from '../../../../nls.js';
+import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+import { TERMINAL_VIEW_ID } from './terminal.js';
 
 export const enum TerminalContextKeyStrings {
 	IsOpen = 'terminalIsOpen',
@@ -79,8 +81,8 @@ export namespace TerminalContextKeys {
 	/** Whether the mouse is within the terminal tabs list. */
 	export const tabsMouse = new RawContextKey<boolean>(TerminalContextKeyStrings.TabsMouse, false, true);
 
-	/** The shell type of the active terminal, this is set to the last known value when no terminals exist. */
-	export const shellType = new RawContextKey<string>(TerminalContextKeyStrings.ShellType, undefined, { type: 'string', description: localize('terminalShellTypeContextKey', "The shell type of the active terminal, this is set to the last known value when no terminals exist.") });
+	/** The shell type of the active terminal, this is set if the type can be detected. */
+	export const shellType = new RawContextKey<string>(TerminalContextKeyStrings.ShellType, undefined, { type: 'string', description: localize('terminalShellTypeContextKey', "The shell type of the active terminal, this is set if the type can be detected.") });
 
 	/** Whether the terminal's alt buffer is active. */
 	export const altBufferActive = new RawContextKey<boolean>(TerminalContextKeyStrings.AltBufferActive, false, localize('terminalAltBufferActive', "Whether the terminal's alt buffer is active."));
@@ -132,4 +134,28 @@ export namespace TerminalContextKeys {
 
 	/** Whether shell integration is enabled in the active terminal. This only considers full VS Code shell integration. */
 	export const terminalShellIntegrationEnabled = new RawContextKey<boolean>(TerminalContextKeyStrings.TerminalShellIntegrationEnabled, false, localize('terminalShellIntegrationEnabled', "Whether shell integration is enabled in the active terminal"));
+
+	export const shouldShowViewInlineActions = ContextKeyExpr.and(
+		ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+		ContextKeyExpr.notEquals(`config.${TerminalSettingId.TabsHideCondition}`, 'never'),
+		ContextKeyExpr.or(
+			ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
+			ContextKeyExpr.and(
+				ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminal'),
+				ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
+			),
+			ContextKeyExpr.and(
+				ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminalOrNarrow'),
+				ContextKeyExpr.or(
+					ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1),
+					ContextKeyExpr.has(TerminalContextKeyStrings.TabsNarrow)
+				)
+			),
+			ContextKeyExpr.and(
+				ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleGroup'),
+				ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
+			),
+			ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'always')
+		)
+	);
 }

@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { Action, IAction } from 'vs/base/common/actions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import Messages from 'vs/workbench/contrib/markers/browser/messages';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Marker } from 'vs/workbench/contrib/markers/browser/markersModel';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { MarkersContextKeys } from 'vs/workbench/contrib/markers/common/markers';
-import 'vs/css!./markersViewActions';
+import * as DOM from '../../../../base/browser/dom.js';
+import { Action, IAction } from '../../../../base/common/actions.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import Messages from './messages.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Marker } from './markersModel.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { MarkersContextKeys } from '../common/markers.js';
+import './markersViewActions.css';
 
 export interface IMarkersFiltersChangeEvent {
 	excludedFiles?: boolean;
@@ -39,71 +39,81 @@ export class MarkersFilters extends Disposable {
 	private readonly _onDidChange: Emitter<IMarkersFiltersChangeEvent> = this._register(new Emitter<IMarkersFiltersChangeEvent>());
 	readonly onDidChange: Event<IMarkersFiltersChangeEvent> = this._onDidChange.event;
 
-	constructor(options: IMarkersFiltersOptions, private readonly contextKeyService: IContextKeyService) {
+	constructor(options: IMarkersFiltersOptions, contextKeyService: IContextKeyService) {
 		super();
 
-		this._showErrors.set(options.showErrors);
-		this._showWarnings.set(options.showWarnings);
-		this._showInfos.set(options.showInfos);
+		this._excludedFiles = MarkersContextKeys.ShowExcludedFilesFilterContextKey.bindTo(contextKeyService);
 		this._excludedFiles.set(options.excludedFiles);
+
+		this._activeFile = MarkersContextKeys.ShowActiveFileFilterContextKey.bindTo(contextKeyService);
 		this._activeFile.set(options.activeFile);
+
+		this._showWarnings = MarkersContextKeys.ShowWarningsFilterContextKey.bindTo(contextKeyService);
+		this._showWarnings.set(options.showWarnings);
+
+		this._showInfos = MarkersContextKeys.ShowInfoFilterContextKey.bindTo(contextKeyService);
+		this._showInfos.set(options.showInfos);
+
+		this._showErrors = MarkersContextKeys.ShowErrorsFilterContextKey.bindTo(contextKeyService);
+		this._showErrors.set(options.showErrors);
+
 		this.filterHistory = options.filterHistory;
 	}
 
 	filterHistory: string[];
 
-	private readonly _excludedFiles = MarkersContextKeys.ShowExcludedFilesFilterContextKey.bindTo(this.contextKeyService);
+	private readonly _excludedFiles: IContextKey<boolean>;
 	get excludedFiles(): boolean {
 		return !!this._excludedFiles.get();
 	}
 	set excludedFiles(filesExclude: boolean) {
 		if (this._excludedFiles.get() !== filesExclude) {
 			this._excludedFiles.set(filesExclude);
-			this._onDidChange.fire(<IMarkersFiltersChangeEvent>{ excludedFiles: true });
+			this._onDidChange.fire({ excludedFiles: true });
 		}
 	}
 
-	private readonly _activeFile = MarkersContextKeys.ShowActiveFileFilterContextKey.bindTo(this.contextKeyService);
+	private readonly _activeFile: IContextKey<boolean>;
 	get activeFile(): boolean {
 		return !!this._activeFile.get();
 	}
 	set activeFile(activeFile: boolean) {
 		if (this._activeFile.get() !== activeFile) {
 			this._activeFile.set(activeFile);
-			this._onDidChange.fire(<IMarkersFiltersChangeEvent>{ activeFile: true });
+			this._onDidChange.fire({ activeFile: true });
 		}
 	}
 
-	private readonly _showWarnings = MarkersContextKeys.ShowWarningsFilterContextKey.bindTo(this.contextKeyService);
+	private readonly _showWarnings: IContextKey<boolean>;
 	get showWarnings(): boolean {
 		return !!this._showWarnings.get();
 	}
 	set showWarnings(showWarnings: boolean) {
 		if (this._showWarnings.get() !== showWarnings) {
 			this._showWarnings.set(showWarnings);
-			this._onDidChange.fire(<IMarkersFiltersChangeEvent>{ showWarnings: true });
+			this._onDidChange.fire({ showWarnings: true });
 		}
 	}
 
-	private readonly _showErrors = MarkersContextKeys.ShowErrorsFilterContextKey.bindTo(this.contextKeyService);
+	private readonly _showErrors: IContextKey<boolean>;
 	get showErrors(): boolean {
 		return !!this._showErrors.get();
 	}
 	set showErrors(showErrors: boolean) {
 		if (this._showErrors.get() !== showErrors) {
 			this._showErrors.set(showErrors);
-			this._onDidChange.fire(<IMarkersFiltersChangeEvent>{ showErrors: true });
+			this._onDidChange.fire({ showErrors: true });
 		}
 	}
 
-	private readonly _showInfos = MarkersContextKeys.ShowInfoFilterContextKey.bindTo(this.contextKeyService);
+	private readonly _showInfos: IContextKey<boolean>;
 	get showInfos(): boolean {
 		return !!this._showInfos.get();
 	}
 	set showInfos(showInfos: boolean) {
 		if (this._showInfos.get() !== showInfos) {
 			this._showInfos.set(showInfos);
-			this._onDidChange.fire(<IMarkersFiltersChangeEvent>{ showInfos: true });
+			this._onDidChange.fire({ showInfos: true });
 		}
 	}
 
@@ -145,10 +155,12 @@ export class QuickFixAction extends Action {
 
 export class QuickFixActionViewItem extends ActionViewItem {
 
-	constructor(action: QuickFixAction,
+	constructor(
+		action: QuickFixAction,
+		options: IActionViewItemOptions,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
-		super(null, action, { icon: true, label: false });
+		super(null, action, { ...options, icon: true, label: false });
 	}
 
 	public override onClick(event: DOM.EventLike): void {

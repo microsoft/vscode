@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/searchEditor';
-import { ICodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { EditorsOrder } from 'vs/workbench/common/editor';
-import { IViewsService } from 'vs/workbench/common/views';
-import { getSearchView } from 'vs/workbench/contrib/search/browser/searchActionsBase';
-import { SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
-import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
-import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
-import { getOrMakeSearchEditorInput, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
-import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
+import './media/searchEditor.css';
+import { ICodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { EditorsOrder } from '../../../common/editor.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { getSearchView } from '../../search/browser/searchActionsBase.js';
+import { SearchEditor } from './searchEditor.js';
+import { OpenSearchEditorArgs } from './searchEditor.contribution.js';
+import { getOrMakeSearchEditorInput, SearchEditorInput } from './searchEditorInput.js';
+import { serializeSearchResultForEditor } from './searchEditorSerialization.js';
+import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { IHistoryService } from '../../../services/history/common/history.js';
+import { ISearchConfigurationProperties } from '../../../services/search/common/search.js';
+import { ISearchResult } from '../../search/browser/searchTreeModel/searchTreeCommon.js';
 
 export const toggleSearchEditorCaseSensitiveCommand = (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IEditorService);
@@ -185,7 +185,7 @@ export const openNewSearchEditor =
 	};
 
 export const createEditorFromSearchResult =
-	async (accessor: ServicesAccessor, searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, onlySearchInOpenEditors: boolean) => {
+	async (accessor: ServicesAccessor, searchResult: ISearchResult, rawIncludePattern: string, rawExcludePattern: string, onlySearchInOpenEditors: boolean) => {
 		if (!searchResult.query) {
 			console.error('Expected searchResult.query to be defined. Got', searchResult);
 			return;
@@ -219,6 +219,6 @@ export const createEditorFromSearchResult =
 		} else {
 			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'rawData', resultsContents: '', config: { ...config, contextLines } });
 			const editor = await editorService.openEditor(input, { pinned: true }) as SearchEditor;
-			editor.triggerSearch({ focusResults: true });
+			editor.triggerSearch();
 		}
 	};

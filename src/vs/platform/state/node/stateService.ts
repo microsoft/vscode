@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStateReadService, IStateService } from 'vs/platform/state/node/state';
+import { ThrottledDelayer } from '../../../base/common/async.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { isUndefined, isUndefinedOrNull } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../files/common/files.js';
+import { ILogService } from '../../log/common/log.js';
+import { IStateReadService, IStateService } from './state.js';
 
 type StorageDatabase = { [key: string]: unknown };
 
@@ -25,18 +25,20 @@ export class FileStorage extends Disposable {
 	private storage: StorageDatabase = Object.create(null);
 	private lastSavedStorageContents = '';
 
-	private readonly flushDelayer = this._register(new ThrottledDelayer<void>(this.saveStrategy === SaveStrategy.IMMEDIATE ? 0 : 100 /* buffer saves over a short time */));
+	private readonly flushDelayer: ThrottledDelayer<void>;
 
 	private initializing: Promise<void> | undefined = undefined;
 	private closing: Promise<void> | undefined = undefined;
 
 	constructor(
 		private readonly storagePath: URI,
-		private readonly saveStrategy: SaveStrategy,
+		saveStrategy: SaveStrategy,
 		private readonly logService: ILogService,
 		private readonly fileService: IFileService,
 	) {
 		super();
+
+		this.flushDelayer = this._register(new ThrottledDelayer<void>(saveStrategy === SaveStrategy.IMMEDIATE ? 0 : 100 /* buffer saves over a short time */));
 	}
 
 	init(): Promise<void> {

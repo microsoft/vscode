@@ -81,34 +81,31 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 		this._disposables.push(vscode.workspace.onWillSaveNotebookDocument(e => {
 			if (e.reason === vscode.TextDocumentSaveReason.Manual) {
 				this._delayer.dispose();
-
-				e.waitUntil(new Promise((resolve) => {
-					if (e.notebook.getCells().length === 0) {
-						return;
+				if (e.notebook.getCells().length === 0) {
+					return;
+				}
+				const notebookEdits: vscode.NotebookEdit[] = [];
+				for (const cell of e.notebook.getCells()) {
+					if (cell.kind !== vscode.NotebookCellKind.Markup) {
+						continue;
 					}
 
-					const notebookEdits: vscode.NotebookEdit[] = [];
-					for (const cell of e.notebook.getCells()) {
-						if (cell.kind !== vscode.NotebookCellKind.Markup) {
-							continue;
-						}
+					const metadataEdit = this.cleanNotebookAttachments({
+						notebook: e.notebook,
+						cell: cell,
+						document: cell.document
+					});
 
-						const metadataEdit = this.cleanNotebookAttachments({
-							notebook: e.notebook,
-							cell: cell,
-							document: cell.document
-						});
-
-						if (metadataEdit) {
-							notebookEdits.push(metadataEdit);
-						}
+					if (metadataEdit) {
+						notebookEdits.push(metadataEdit);
 					}
-
-					const workspaceEdit = new vscode.WorkspaceEdit();
-					workspaceEdit.set(e.notebook.uri, notebookEdits);
-
-					resolve(workspaceEdit);
-				}));
+				}
+				if (!notebookEdits.length) {
+					return;
+				}
+				const workspaceEdit = new vscode.WorkspaceEdit();
+				workspaceEdit.set(e.notebook.uri, notebookEdits);
+				e.waitUntil(Promise.resolve(workspaceEdit));
 			}
 		}));
 
@@ -229,7 +226,7 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 
 		this.updateDiagnostics(cell.document.uri, diagnostics);
 
-		if (cell.index > -1 && !objectEquals(markdownAttachmentsInUse, cell.metadata.attachments)) {
+		if (cell.index > -1 && !objectEquals(markdownAttachmentsInUse || {}, cell.metadata.attachments || {})) {
 			const updateMetadata: { [key: string]: any } = deepClone(cell.metadata);
 			if (Object.keys(markdownAttachmentsInUse).length === 0) {
 				updateMetadata.attachments = undefined;

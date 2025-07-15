@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IRegisteredCodeWindow } from 'vs/base/browser/dom';
-import { CodeWindow, mainWindow } from 'vs/base/browser/window';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { BaseWindow } from 'vs/workbench/browser/window';
+import assert from 'assert';
+import { IRegisteredCodeWindow } from '../../../base/browser/dom.js';
+import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { BaseWindow } from '../../browser/window.js';
+import { TestEnvironmentService, TestHostService } from './workbenchTestServices.js';
 
 suite('Window', () => {
 
@@ -18,8 +19,10 @@ suite('Window', () => {
 	class TestWindow extends BaseWindow {
 
 		constructor(window: CodeWindow, dom: { getWindowsCount: () => number; getWindows: () => Iterable<IRegisteredCodeWindow> }) {
-			super(window, dom);
+			super(window, dom, new TestHostService(), TestEnvironmentService);
 		}
+
+		protected override enableWindowFocusOnElementFocus(): void { }
 	}
 
 	test('multi window aware setTimeout()', async function () {

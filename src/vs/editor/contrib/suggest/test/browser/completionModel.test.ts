@@ -2,13 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { EditorOptions, InternalSuggestOptions } from 'vs/editor/common/config/editorOptions';
-import { IPosition } from 'vs/editor/common/core/position';
-import * as languages from 'vs/editor/common/languages';
-import { CompletionModel } from 'vs/editor/contrib/suggest/browser/completionModel';
-import { CompletionItem, getSuggestionComparator, SnippetSortOrder } from 'vs/editor/contrib/suggest/browser/suggest';
-import { WordDistance } from 'vs/editor/contrib/suggest/browser/wordDistance';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { EditorOptions, InternalSuggestOptions } from '../../../../common/config/editorOptions.js';
+import { IPosition } from '../../../../common/core/position.js';
+import * as languages from '../../../../common/languages.js';
+import { CompletionModel } from '../../browser/completionModel.js';
+import { CompletionItem, getSuggestionComparator, SnippetSortOrder } from '../../browser/suggest.js';
+import { WordDistance } from '../../browser/wordDistance.js';
 
 export function createSuggestItem(label: string | languages.CompletionItemLabel, overwriteBefore: number, kind = languages.CompletionItemKind.Property, incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }, sortText?: string, filterText?: string): CompletionItem {
 	const suggestion: languages.CompletionItem = {
@@ -82,6 +83,8 @@ suite('CompletionModel', function () {
 			characterCountDelta: 0
 		}, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue, undefined);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('filtering - cached', function () {
 

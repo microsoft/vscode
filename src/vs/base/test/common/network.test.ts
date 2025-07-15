@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { isWeb } from 'vs/base/common/platform';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
+import assert from 'assert';
+import { FileAccess, Schemas } from '../../common/network.js';
+import { isWeb } from '../../common/platform.js';
+import { isEqual } from '../../common/resources.js';
+import { URI } from '../../common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('network', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	(isWeb ? test.skip : test)('FileAccess: URI (native)', () => {
 

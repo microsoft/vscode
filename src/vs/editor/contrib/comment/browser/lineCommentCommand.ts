@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { Constants } from 'vs/base/common/uint';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { BlockCommentCommand } from 'vs/editor/contrib/comment/browser/blockCommentCommand';
+import { CharCode } from '../../../../base/common/charCode.js';
+import * as strings from '../../../../base/common/strings.js';
+import { Constants } from '../../../../base/common/uint.js';
+import { EditOperation, ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from '../../../common/editorCommon.js';
+import { ITextModel } from '../../../common/model.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { BlockCommentCommand } from './blockCommentCommand.js';
 
 export interface IInsertionPoint {
 	ignore: boolean;
@@ -50,7 +50,7 @@ export const enum Type {
 export class LineCommentCommand implements ICommand {
 
 	private readonly _selection: Selection;
-	private readonly _tabSize: number;
+	private readonly _indentSize: number;
 	private readonly _type: Type;
 	private readonly _insertSpace: boolean;
 	private readonly _ignoreEmptyLines: boolean;
@@ -62,14 +62,14 @@ export class LineCommentCommand implements ICommand {
 	constructor(
 		private readonly languageConfigurationService: ILanguageConfigurationService,
 		selection: Selection,
-		tabSize: number,
+		indentSize: number,
 		type: Type,
 		insertSpace: boolean,
 		ignoreEmptyLines: boolean,
 		ignoreFirstLine?: boolean,
 	) {
 		this._selection = selection;
-		this._tabSize = tabSize;
+		this._indentSize = indentSize;
 		this._type = type;
 		this._insertSpace = insertSpace;
 		this._selectionId = null;
@@ -112,8 +112,11 @@ export class LineCommentCommand implements ICommand {
 	 * Analyze lines and decide which lines are relevant and what the toggle should do.
 	 * Also, build up several offsets and lengths useful in the generation of editor operations.
 	 */
-	public static _analyzeLines(type: Type, insertSpace: boolean, model: ISimpleModel, lines: ILinePreflightData[], startLineNumber: number, ignoreEmptyLines: boolean, ignoreFirstLine: boolean, languageConfigurationService: ILanguageConfigurationService): IPreflightData {
+	public static _analyzeLines(type: Type, insertSpace: boolean, model: ISimpleModel, lines: ILinePreflightData[], startLineNumber: number, ignoreEmptyLines: boolean, ignoreFirstLine: boolean, languageConfigurationService: ILanguageConfigurationService, languageId: string): IPreflightData {
 		let onlyWhitespaceLines = true;
+
+		const config = languageConfigurationService.getLanguageConfiguration(languageId).comments;
+		const lineCommentNoIndent = config?.lineCommentNoIndent ?? false;
 
 		let shouldRemoveComments: boolean;
 		if (type === Type.Toggle) {
@@ -140,15 +143,16 @@ export class LineCommentCommand implements ICommand {
 			if (lineContentStartOffset === -1) {
 				// Empty or whitespace only line
 				lineData.ignore = ignoreEmptyLines;
-				lineData.commentStrOffset = lineContent.length;
+				lineData.commentStrOffset = lineCommentNoIndent ? 0 : lineContent.length;
 				continue;
 			}
 
 			onlyWhitespaceLines = false;
+			const offset = lineCommentNoIndent ? 0 : lineContentStartOffset;
 			lineData.ignore = false;
-			lineData.commentStrOffset = lineContentStartOffset;
+			lineData.commentStrOffset = offset;
 
-			if (shouldRemoveComments && !BlockCommentCommand._haystackHasNeedleAtOffset(lineContent, lineData.commentStr, lineContentStartOffset)) {
+			if (shouldRemoveComments && !BlockCommentCommand._haystackHasNeedleAtOffset(lineContent, lineData.commentStr, offset)) {
 				if (type === Type.Toggle) {
 					// Every line so far has been a line comment, but this one is not
 					shouldRemoveComments = false;
@@ -190,13 +194,14 @@ export class LineCommentCommand implements ICommand {
 	 */
 	public static _gatherPreflightData(type: Type, insertSpace: boolean, model: ITextModel, startLineNumber: number, endLineNumber: number, ignoreEmptyLines: boolean, ignoreFirstLine: boolean, languageConfigurationService: ILanguageConfigurationService): IPreflightData {
 		const lines = LineCommentCommand._gatherPreflightCommentStrings(model, startLineNumber, endLineNumber, languageConfigurationService);
+		const languageId = model.getLanguageIdAtPosition(startLineNumber, 1);
 		if (lines === null) {
 			return {
 				supported: false
 			};
 		}
 
-		return LineCommentCommand._analyzeLines(type, insertSpace, model, lines, startLineNumber, ignoreEmptyLines, ignoreFirstLine, languageConfigurationService);
+		return LineCommentCommand._analyzeLines(type, insertSpace, model, lines, startLineNumber, ignoreEmptyLines, ignoreFirstLine, languageConfigurationService, languageId);
 	}
 
 	/**
@@ -209,7 +214,7 @@ export class LineCommentCommand implements ICommand {
 		if (data.shouldRemoveComments) {
 			ops = LineCommentCommand._createRemoveLineCommentsOperations(data.lines, s.startLineNumber);
 		} else {
-			LineCommentCommand._normalizeInsertionPoint(model, data.lines, s.startLineNumber, this._tabSize);
+			LineCommentCommand._normalizeInsertionPoint(model, data.lines, s.startLineNumber, this._indentSize);
 			ops = this._createAddLineCommentsOperations(data.lines, s.startLineNumber);
 		}
 
@@ -420,9 +425,9 @@ export class LineCommentCommand implements ICommand {
 		return res;
 	}
 
-	private static nextVisibleColumn(currentVisibleColumn: number, tabSize: number, isTab: boolean, columnSize: number): number {
+	private static nextVisibleColumn(currentVisibleColumn: number, indentSize: number, isTab: boolean, columnSize: number): number {
 		if (isTab) {
-			return currentVisibleColumn + (tabSize - (currentVisibleColumn % tabSize));
+			return currentVisibleColumn + (indentSize - (currentVisibleColumn % indentSize));
 		}
 		return currentVisibleColumn + columnSize;
 	}
@@ -430,7 +435,7 @@ export class LineCommentCommand implements ICommand {
 	/**
 	 * Adjust insertion points to have them vertically aligned in the add line comment case
 	 */
-	public static _normalizeInsertionPoint(model: ISimpleModel, lines: IInsertionPoint[], startLineNumber: number, tabSize: number): void {
+	public static _normalizeInsertionPoint(model: ISimpleModel, lines: IInsertionPoint[], startLineNumber: number, indentSize: number): void {
 		let minVisibleColumn = Constants.MAX_SAFE_SMALL_INTEGER;
 		let j: number;
 		let lenJ: number;
@@ -444,7 +449,7 @@ export class LineCommentCommand implements ICommand {
 
 			let currentVisibleColumn = 0;
 			for (let j = 0, lenJ = lines[i].commentStrOffset; currentVisibleColumn < minVisibleColumn && j < lenJ; j++) {
-				currentVisibleColumn = LineCommentCommand.nextVisibleColumn(currentVisibleColumn, tabSize, lineContent.charCodeAt(j) === CharCode.Tab, 1);
+				currentVisibleColumn = LineCommentCommand.nextVisibleColumn(currentVisibleColumn, indentSize, lineContent.charCodeAt(j) === CharCode.Tab, 1);
 			}
 
 			if (currentVisibleColumn < minVisibleColumn) {
@@ -452,7 +457,7 @@ export class LineCommentCommand implements ICommand {
 			}
 		}
 
-		minVisibleColumn = Math.floor(minVisibleColumn / tabSize) * tabSize;
+		minVisibleColumn = Math.floor(minVisibleColumn / indentSize) * indentSize;
 
 		for (let i = 0, len = lines.length; i < len; i++) {
 			if (lines[i].ignore) {
@@ -463,7 +468,7 @@ export class LineCommentCommand implements ICommand {
 
 			let currentVisibleColumn = 0;
 			for (j = 0, lenJ = lines[i].commentStrOffset; currentVisibleColumn < minVisibleColumn && j < lenJ; j++) {
-				currentVisibleColumn = LineCommentCommand.nextVisibleColumn(currentVisibleColumn, tabSize, lineContent.charCodeAt(j) === CharCode.Tab, 1);
+				currentVisibleColumn = LineCommentCommand.nextVisibleColumn(currentVisibleColumn, indentSize, lineContent.charCodeAt(j) === CharCode.Tab, 1);
 			}
 
 			if (currentVisibleColumn > minVisibleColumn) {

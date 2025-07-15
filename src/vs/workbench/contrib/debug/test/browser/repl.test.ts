@@ -4,35 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import * as assert from 'assert';
-import { TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { timeout } from 'vs/base/common/async';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import severity from 'vs/base/common/severity';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
-import { ReplFilter } from 'vs/workbench/contrib/debug/browser/replFilter';
-import { DebugModel, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
-import { RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup, ReplModel, ReplOutputElement, ReplVariableElement } from 'vs/workbench/contrib/debug/common/replModel';
-import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
-import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
-import { MockDebugAdapter, MockRawSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import assert from 'assert';
+import { TreeVisibility } from '../../../../../base/browser/ui/tree/tree.js';
+import { timeout } from '../../../../../base/common/async.js';
+import severity from '../../../../../base/common/severity.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { RawDebugSession } from '../../browser/rawDebugSession.js';
+import { ReplFilter } from '../../browser/replFilter.js';
+import { DebugModel, StackFrame, Thread } from '../../common/debugModel.js';
+import { RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup, ReplModel, ReplOutputElement, ReplVariableElement } from '../../common/replModel.js';
+import { createTestSession } from './callStack.test.js';
+import { createMockDebugModel } from './mockDebugModel.js';
+import { MockDebugAdapter, MockRawSession } from '../common/mockDebug.js';
 
 suite('Debug - REPL', () => {
 	let model: DebugModel;
 	let rawSession: MockRawSession;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const configurationService = new TestConfigurationService({ debug: { console: { collapseIdenticalLines: true } } });
-	let disposables: DisposableStore;
-
 
 	setup(() => {
-		disposables = new DisposableStore();
 		model = createMockDebugModel(disposables);
 		rawSession = new MockRawSession();
-	});
-
-	teardown(() => {
-		disposables.dispose();
 	});
 
 	test('repl output', () => {
@@ -207,7 +201,7 @@ suite('Debug - REPL', () => {
 		const repl = new ReplModel(configurationService);
 
 		repl.appendToRepl(session, { output: 'first global line', sev: severity.Info });
-		repl.startGroup('group_1', true);
+		repl.startGroup(session, 'group_1', true);
 		repl.appendToRepl(session, { output: 'first line in group', sev: severity.Info });
 		repl.appendToRepl(session, { output: 'second line in group', sev: severity.Info });
 		const elements = repl.getReplElements();
@@ -218,7 +212,7 @@ suite('Debug - REPL', () => {
 		assert.strictEqual(group.hasChildren, true);
 		assert.strictEqual(group.hasEnded, false);
 
-		repl.startGroup('group_2', false);
+		repl.startGroup(session, 'group_2', false);
 		repl.appendToRepl(session, { output: 'first line in subgroup', sev: severity.Info });
 		repl.appendToRepl(session, { output: 'second line in subgroup', sev: severity.Info });
 		const children = group.getChildren();
@@ -245,9 +239,9 @@ suite('Debug - REPL', () => {
 		const repl = new ReplModel(configurationService);
 		const replFilter = new ReplFilter();
 
-		const getFilteredElements = () => {
+		const getFilteredElements = (): ReplOutputElement[] => {
 			const elements = repl.getReplElements();
-			return elements.filter(e => {
+			return elements.filter((e): e is ReplOutputElement => {
 				const filterResult = replFilter.filter(e, TreeVisibility.Visible);
 				return filterResult === true || filterResult === TreeVisibility.Visible;
 			});
@@ -259,19 +253,19 @@ suite('Debug - REPL', () => {
 		repl.appendToRepl(session, { output: 'fourth line\n', sev: severity.Info });
 
 		replFilter.filterQuery = 'first';
-		const r1 = <ReplOutputElement[]>getFilteredElements();
+		const r1 = getFilteredElements();
 		assert.strictEqual(r1.length, 1);
 		assert.strictEqual(r1[0].value, 'first line\n');
 
 		replFilter.filterQuery = '!first';
-		const r2 = <ReplOutputElement[]>getFilteredElements();
+		const r2 = getFilteredElements();
 		assert.strictEqual(r1.length, 1);
 		assert.strictEqual(r2[0].value, 'second line\n');
 		assert.strictEqual(r2[1].value, 'third line\n');
 		assert.strictEqual(r2[2].value, 'fourth line\n');
 
 		replFilter.filterQuery = 'first, line';
-		const r3 = <ReplOutputElement[]>getFilteredElements();
+		const r3 = getFilteredElements();
 		assert.strictEqual(r3.length, 4);
 		assert.strictEqual(r3[0].value, 'first line\n');
 		assert.strictEqual(r3[1].value, 'second line\n');
@@ -279,22 +273,22 @@ suite('Debug - REPL', () => {
 		assert.strictEqual(r3[3].value, 'fourth line\n');
 
 		replFilter.filterQuery = 'line, !second';
-		const r4 = <ReplOutputElement[]>getFilteredElements();
+		const r4 = getFilteredElements();
 		assert.strictEqual(r4.length, 3);
 		assert.strictEqual(r4[0].value, 'first line\n');
 		assert.strictEqual(r4[1].value, 'third line\n');
 		assert.strictEqual(r4[2].value, 'fourth line\n');
 
 		replFilter.filterQuery = '!second, line';
-		const r4_same = <ReplOutputElement[]>getFilteredElements();
+		const r4_same = getFilteredElements();
 		assert.strictEqual(r4.length, r4_same.length);
 
 		replFilter.filterQuery = '!line';
-		const r5 = <ReplOutputElement[]>getFilteredElements();
+		const r5 = getFilteredElements();
 		assert.strictEqual(r5.length, 0);
 
 		replFilter.filterQuery = 'smth';
-		const r6 = <ReplOutputElement[]>getFilteredElements();
+		const r6 = getFilteredElements();
 		assert.strictEqual(r6.length, 0);
 	});
 });

@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { formatDocumentRangesWithSelectedProvider, formatDocumentWithSelectedProvider, FormattingMode, getOnTypeFormattingEdits } from 'vs/editor/contrib/format/browser/format';
-import { FormattingEdit } from 'vs/editor/contrib/format/browser/formattingEdit';
-import * as nls from 'vs/nls';
-import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IEditorProgressService, Progress } from 'vs/platform/progress/common/progress';
+import { isNonEmptyArray } from '../../../../base/common/arrays.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { CharacterSet } from '../../../common/core/characterClassifier.js';
+import { Range } from '../../../common/core/range.js';
+import { IEditorContribution } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { IEditorWorkerService } from '../../../common/services/editorWorker.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { formatDocumentRangesWithSelectedProvider, formatDocumentWithSelectedProvider, FormattingMode, getOnTypeFormattingEdits } from './format.js';
+import { FormattingEdit } from './formattingEdit.js';
+import * as nls from '../../../../nls.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IEditorProgressService, Progress } from '../../../../platform/progress/common/progress.js';
 
 export class FormatOnType implements IEditorContribution {
 
@@ -40,7 +40,7 @@ export class FormatOnType implements IEditorContribution {
 		private readonly _editor: ICodeEditor,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IEditorWorkerService private readonly _workerService: IEditorWorkerService,
-		@IAccessibleNotificationService private readonly _accessibleNotificationService: IAccessibleNotificationService
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService
 	) {
 		this._disposables.add(_languageFeaturesService.onTypeFormattingEditProvider.onDidChange(this._update, this));
 		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
@@ -143,7 +143,7 @@ export class FormatOnType implements IEditorContribution {
 				return;
 			}
 			if (isNonEmptyArray(edits)) {
-				this._accessibleNotificationService.notify(AccessibleNotificationEvent.Format, false);
+				this._accessibilitySignalService.playSignal(AccessibilitySignal.format, { userGesture: false });
 				FormattingEdit.execute(this._editor, edits, true);
 			}
 		}).finally(() => {
@@ -214,8 +214,7 @@ class FormatDocumentAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.formatDocument',
-			label: nls.localize('formatDocument.label', "Format Document"),
-			alias: 'Format Document',
+			label: nls.localize2('formatDocument.label', "Format Document"),
 			precondition: ContextKeyExpr.and(EditorContextKeys.notInCompositeEditor, EditorContextKeys.writable, EditorContextKeys.hasDocumentFormattingProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -247,8 +246,7 @@ class FormatSelectionAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.formatSelection',
-			label: nls.localize('formatSelection.label', "Format Selection"),
-			alias: 'Format Selection',
+			label: nls.localize2('formatSelection.label', "Format Selection"),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentSelectionFormattingProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,

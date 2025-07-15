@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMarkProperties, IMarker, ISerializedTerminalCommand, ITerminalCommand, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalOutputMatcher, ITerminalOutputMatch } from 'vs/platform/terminal/common/terminal';
-
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
-import type { IBuffer, IBufferLine, Terminal } from '@xterm/headless';
+import { IMarkProperties, ISerializedTerminalCommand, ITerminalCommand } from '../capabilities.js';
+import { ITerminalOutputMatcher, ITerminalOutputMatch } from '../../terminal.js';
+import type { IBuffer, IBufferLine, IMarker, Terminal } from '@xterm/headless';
 
 export interface ITerminalCommandProperties {
 	command: string;
+	commandLineConfidence: 'low' | 'medium' | 'high';
 	isTrusted: boolean;
 	timestamp: number;
-	marker: IXtermMarker | undefined;
+	duration: number;
+	marker: IMarker | undefined;
 	cwd: string | undefined;
 	exitCode: number | undefined;
 	commandStartLineContent: string | undefined;
@@ -23,8 +22,8 @@ export interface ITerminalCommandProperties {
 	startX: number | undefined;
 
 	promptStartMarker?: IMarker | undefined;
-	endMarker?: IXtermMarker | undefined;
-	executedMarker?: IXtermMarker | undefined;
+	endMarker?: IMarker | undefined;
+	executedMarker?: IMarker | undefined;
 	aliases?: string[][] | undefined;
 	wasReplayed?: boolean | undefined;
 }
@@ -32,12 +31,14 @@ export interface ITerminalCommandProperties {
 export class TerminalCommand implements ITerminalCommand {
 
 	get command() { return this._properties.command; }
+	get commandLineConfidence() { return this._properties.commandLineConfidence; }
 	get isTrusted() { return this._properties.isTrusted; }
 	get timestamp() { return this._properties.timestamp; }
+	get duration() { return this._properties.duration; }
 	get promptStartMarker() { return this._properties.promptStartMarker; }
 	get marker() { return this._properties.marker; }
 	get endMarker() { return this._properties.endMarker; }
-	set endMarker(value: IXtermMarker | undefined) { this._properties.endMarker = value; }
+	set endMarker(value: IMarker | undefined) { this._properties.endMarker = value; }
 	get executedMarker() { return this._properties.executedMarker; }
 	get aliases() { return this._properties.aliases; }
 	get wasReplayed() { return this._properties.wasReplayed; }
@@ -69,6 +70,7 @@ export class TerminalCommand implements ITerminalCommand {
 		const executedMarker = serialized.executedLine !== undefined ? xterm.registerMarker(serialized.executedLine - (buffer.baseY + buffer.cursorY)) : undefined;
 		const newCommand = new TerminalCommand(xterm, {
 			command: isCommandStorageDisabled ? '' : serialized.command,
+			commandLineConfidence: serialized.commandLineConfidence ?? 'low',
 			isTrusted: serialized.isTrusted,
 			promptStartMarker,
 			marker,
@@ -77,6 +79,7 @@ export class TerminalCommand implements ITerminalCommand {
 			executedMarker,
 			executedX: serialized.executedX,
 			timestamp: serialized.timestamp,
+			duration: serialized.duration,
 			cwd: serialized.cwd,
 			commandStartLineContent: serialized.commandStartLineContent,
 			exitCode: serialized.exitCode,
@@ -96,13 +99,19 @@ export class TerminalCommand implements ITerminalCommand {
 			executedLine: this.executedMarker?.line,
 			executedX: this.executedX,
 			command: isCommandStorageDisabled ? '' : this.command,
+			commandLineConfidence: isCommandStorageDisabled ? 'low' : this.commandLineConfidence,
 			isTrusted: this.isTrusted,
 			cwd: this.cwd,
 			exitCode: this.exitCode,
 			commandStartLineContent: this.commandStartLineContent,
 			timestamp: this.timestamp,
+			duration: this.duration,
 			markProperties: this.markProperties,
 		};
+	}
+
+	extractCommandLine(): string {
+		return extractCommandLine(this._xterm.buffer.active, this._xterm.cols, this.marker, this.startX, this.executedMarker, this.executedX);
 	}
 
 	getOutput(): string | undefined {
@@ -251,12 +260,17 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 	commandExecutedMarker?: IMarker;
 	commandExecutedX?: number;
 
+	private commandExecutedTimestamp?: number;
+	private commandDuration?: number;
+
 	commandFinishedMarker?: IMarker;
 
 	currentContinuationMarker?: IMarker;
 	continuations?: { marker: IMarker; end: number }[];
 
+	cwd?: string;
 	command?: string;
+	commandLineConfidence?: 'low' | 'medium' | 'high';
 
 	isTrusted?: boolean;
 	isInvalid?: boolean;
@@ -279,11 +293,13 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 			executedLine: undefined,
 			executedX: undefined,
 			command: '',
+			commandLineConfidence: 'low',
 			isTrusted: true,
 			cwd,
 			exitCode: undefined,
 			commandStartLineContent: undefined,
 			timestamp: 0,
+			duration: 0,
 			markProperties: undefined
 		};
 	}
@@ -297,6 +313,7 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 		if ((this.command !== undefined && !this.command.startsWith('\\')) || ignoreCommandLine) {
 			return new TerminalCommand(this._xterm, {
 				command: ignoreCommandLine ? '' : (this.command || ''),
+				commandLineConfidence: ignoreCommandLine ? 'low' : (this.commandLineConfidence || 'low'),
 				isTrusted: !!this.isTrusted,
 				promptStartMarker: this.promptStartMarker,
 				marker: this.commandStartMarker,
@@ -305,6 +322,7 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 				executedMarker: this.commandExecutedMarker,
 				executedX: this.commandExecutedX,
 				timestamp: Date.now(),
+				duration: this.commandDuration || 0,
 				cwd,
 				exitCode,
 				commandStartLineContent: this.commandStartLineContent,
@@ -315,6 +333,22 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 		return undefined;
 	}
 
+	markExecutedTime() {
+		if (this.commandExecutedTimestamp === undefined) {
+			this.commandExecutedTimestamp = Date.now();
+		}
+	}
+
+	markFinishedTime() {
+		if (this.commandDuration === undefined && this.commandExecutedTimestamp !== undefined) {
+			this.commandDuration = Date.now() - this.commandExecutedTimestamp;
+		}
+	}
+
+	extractCommandLine(): string {
+		return extractCommandLine(this._xterm.buffer.active, this._xterm.cols, this.commandStartMarker, this.commandStartX, this.commandExecutedMarker, this.commandExecutedX);
+	}
+
 	getPromptRowCount(): number {
 		return getPromptRowCount(this, this._xterm.buffer.active);
 	}
@@ -322,6 +356,27 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 	getCommandRowCount(): number {
 		return getCommandRowCount(this);
 	}
+}
+
+function extractCommandLine(
+	buffer: IBuffer,
+	cols: number,
+	commandStartMarker: IMarker | undefined,
+	commandStartX: number | undefined,
+	commandExecutedMarker: IMarker | undefined,
+	commandExecutedX: number | undefined
+): string {
+	if (!commandStartMarker || !commandExecutedMarker || commandStartX === undefined || commandExecutedX === undefined) {
+		return '';
+	}
+	let content = '';
+	for (let i = commandStartMarker.line; i <= commandExecutedMarker.line; i++) {
+		const line = buffer.getLine(i);
+		if (line) {
+			content += line.translateToString(true, i === commandStartMarker.line ? commandStartX : 0, i === commandExecutedMarker.line ? commandExecutedX : cols);
+		}
+	}
+	return content;
 }
 
 function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): string {

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { ILinkComputerTarget, LinkComputer } from 'vs/editor/common/languages/linkComputer';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITerminalLinkDetector, ITerminalLinkResolver, ITerminalSimpleLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
-import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { Schemas } from '../../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ILinkComputerTarget, LinkComputer } from '../../../../../editor/common/languages/linkComputer.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { ITerminalLinkDetector, ITerminalLinkResolver, ITerminalSimpleLink, TerminalBuiltinLinkType } from './links.js';
+import { convertLinkRangeToBuffer, getXtermLineContent } from './terminalLinkHelpers.js';
+import { ITerminalProcessManager } from '../../../terminal/common/terminal.js';
 import type { IBufferLine, Terminal } from '@xterm/xterm';
-import { ITerminalBackend } from 'vs/platform/terminal/common/terminal';
+import { ITerminalBackend, ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 
 const enum Constants {
 	/**
@@ -32,6 +32,7 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 		readonly xterm: Terminal,
 		private readonly _processManager: Pick<ITerminalProcessManager, 'initialCwd' | 'os' | 'remoteAuthority' | 'userHome'> & { backend?: Pick<ITerminalBackend, 'getWslPath'> },
 		private readonly _linkResolver: ITerminalLinkResolver,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
@@ -44,6 +45,7 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 		const computedLinks = LinkComputer.computeLinks(linkComputerTarget);
 
 		let resolvedLinkCount = 0;
+		this._logService.trace('terminalUriLinkDetector#detect computedLinks', computedLinks);
 		for (const computedLink of computedLinks) {
 			const bufferRange = convertLinkRangeToBuffer(lines, this.xterm.cols, computedLink.range, startLine);
 
@@ -88,6 +90,7 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 			}
 
 			// Iterate over all candidates, pushing the candidate on the first that's verified
+			this._logService.trace('terminalUriLinkDetector#detect uriCandidates', uriCandidates);
 			for (const uriCandidate of uriCandidates) {
 				const linkStat = await this._linkResolver.resolveLink(this._processManager, text, uriCandidate);
 
@@ -103,13 +106,15 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 					} else {
 						type = TerminalBuiltinLinkType.LocalFile;
 					}
-					links.push({
+					const simpleLink: ITerminalSimpleLink = {
 						// Use computedLink.url if it's a string to retain the line/col suffix
 						text: typeof computedLink.url === 'string' ? computedLink.url : linkStat.link,
 						uri: uriCandidate,
 						bufferRange,
 						type
-					});
+					};
+					this._logService.trace('terminalUriLinkDetector#detect verified link', simpleLink);
+					links.push(simpleLink);
 					resolvedLinkCount++;
 					break;
 				}

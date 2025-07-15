@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.retry = void 0;
+exports.retry = retry;
 async function retry(fn) {
     let lastError;
     for (let run = 1; run <= 10; run++) {
@@ -24,5 +24,4 @@ async function retry(fn) {
     console.error(`Too many retries, aborting.`);
     throw lastError;
 }
-exports.retry = retry;
 //# sourceMappingURL=retry.js.map

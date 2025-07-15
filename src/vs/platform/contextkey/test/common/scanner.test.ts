@@ -2,10 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { Scanner, Token, TokenType } from 'vs/platform/contextkey/common/scanner';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Scanner, Token, TokenType } from '../../common/scanner.js';
 
 suite('Context Key Scanner', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function tokenTypeToStr(token: Token) {
 		switch (token.type) {
 			case TokenType.LParen:

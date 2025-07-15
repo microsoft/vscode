@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
+import fs from 'fs';
+import path from 'path';
 import type * as ts from 'typescript';
 
 const TYPESCRIPT_LIB_FOLDER = path.dirname(require.resolve('typescript/lib/lib.d.ts'));
@@ -53,7 +53,7 @@ export interface ITreeShakingOptions {
 	 */
 	shakeLevel: ShakeLevel;
 	/**
-	 * regex pattern to ignore certain imports e.g. `vs/css!` imports
+	 * regex pattern to ignore certain imports e.g. `.css` imports
 	 */
 	importIgnorePattern: RegExp;
 
@@ -155,38 +155,43 @@ function discoverAndReadFiles(ts: typeof import('typescript'), options: ITreeSha
 
 	while (queue.length > 0) {
 		const moduleId = queue.shift()!;
-		const dts_filename = path.join(options.sourcesRoot, moduleId + '.d.ts');
+		let redirectedModuleId: string = moduleId;
+		if (options.redirects[moduleId]) {
+			redirectedModuleId = options.redirects[moduleId];
+		}
+
+		const dts_filename = path.join(options.sourcesRoot, redirectedModuleId + '.d.ts');
 		if (fs.existsSync(dts_filename)) {
 			const dts_filecontents = fs.readFileSync(dts_filename).toString();
 			FILES[`${moduleId}.d.ts`] = dts_filecontents;
 			continue;
 		}
 
-		const js_filename = path.join(options.sourcesRoot, moduleId + '.js');
+
+		const js_filename = path.join(options.sourcesRoot, redirectedModuleId + '.js');
 		if (fs.existsSync(js_filename)) {
 			// This is an import for a .js file, so ignore it...
 			continue;
 		}
 
-		let ts_filename: string;
-		if (options.redirects[moduleId]) {
-			ts_filename = path.join(options.sourcesRoot, options.redirects[moduleId] + '.ts');
-		} else {
-			ts_filename = path.join(options.sourcesRoot, moduleId + '.ts');
-		}
+		const ts_filename = path.join(options.sourcesRoot, redirectedModuleId + '.ts');
+
 		const ts_filecontents = fs.readFileSync(ts_filename).toString();
 		const info = ts.preProcessFile(ts_filecontents);
 		for (let i = info.importedFiles.length - 1; i >= 0; i--) {
 			const importedFileName = info.importedFiles[i].fileName;
 
 			if (options.importIgnorePattern.test(importedFileName)) {
-				// Ignore vs/css! imports
+				// Ignore *.css imports
 				continue;
 			}
 
 			let importedModuleId = importedFileName;
 			if (/(^\.\/)|(^\.\.\/)/.test(importedModuleId)) {
 				importedModuleId = path.join(path.dirname(moduleId), importedModuleId);
+				if (importedModuleId.endsWith('.js')) { // ESM: code imports require to be relative and have a '.js' file extension
+					importedModuleId = importedModuleId.substr(0, importedModuleId.length - 3);
+				}
 			}
 			enqueue(importedModuleId);
 		}
@@ -565,6 +570,9 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 		const nodeSourceFile = node.getSourceFile();
 		let fullPath: string;
 		if (/(^\.\/)|(^\.\.\/)/.test(importText)) {
+			if (importText.endsWith('.js')) { // ESM: code imports require to be relative and to have a '.js' file extension
+				importText = importText.substr(0, importText.length - 3);
+			}
 			fullPath = path.join(path.dirname(nodeSourceFile.fileName), importText) + '.ts';
 		} else {
 			fullPath = importText + '.ts';

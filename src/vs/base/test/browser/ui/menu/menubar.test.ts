@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { $ } from 'vs/base/browser/dom';
-import { unthemedMenuStyles } from 'vs/base/browser/ui/menu/menu';
-import { MenuBar } from 'vs/base/browser/ui/menu/menubar';
+import assert from 'assert';
+import { $, ModifierKeyEmitter } from '../../../../browser/dom.js';
+import { unthemedMenuStyles } from '../../../../browser/ui/menu/menu.js';
+import { MenuBar } from '../../../../browser/ui/menu/menubar.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 function getButtonElementByAriaLabel(menubarElement: HTMLElement, ariaLabel: string): HTMLElement | null {
 	let i;
@@ -53,30 +54,44 @@ function validateMenuBarItem(menubar: MenuBar, menubarContainer: HTMLElement, la
 	const buttonElement = getButtonElementByAriaLabel(menubarContainer, readableLabel);
 	assert(buttonElement !== null, `Button element not found for ${readableLabel} button.`);
 
-	const titleDiv = getTitleDivFromButtonDiv(buttonElement!);
+	const titleDiv = getTitleDivFromButtonDiv(buttonElement);
 	assert(titleDiv !== null, `Title div not found for ${readableLabel} button.`);
 
-	const mnem = getMnemonicFromTitleDiv(titleDiv!);
+	const mnem = getMnemonicFromTitleDiv(titleDiv);
 	assert.strictEqual(mnem, mnemonic, 'Mnemonic not correct');
 }
 
 suite('Menubar', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	const container = $('.container');
 
-	const menubar = new MenuBar(container, {
-		enableMnemonics: true,
-		visibility: 'visible'
-	}, unthemedMenuStyles);
+	const withMenuMenubar = (callback: (menubar: MenuBar) => void) => {
+		const menubar = new MenuBar(container, {
+			enableMnemonics: true,
+			visibility: 'visible'
+		}, unthemedMenuStyles);
+
+		callback(menubar);
+
+		menubar.dispose();
+		ModifierKeyEmitter.disposeInstance();
+	};
 
 	test('English File menu renders mnemonics', function () {
-		validateMenuBarItem(menubar, container, '&File', 'File', 'F');
+		withMenuMenubar(menubar => {
+			validateMenuBarItem(menubar, container, '&File', 'File', 'F');
+		});
 	});
 
 	test('Russian File menu renders mnemonics', function () {
-		validateMenuBarItem(menubar, container, '&Файл', 'Файл', 'Ф');
+		withMenuMenubar(menubar => {
+			validateMenuBarItem(menubar, container, '&Файл', 'Файл', 'Ф');
+		});
 	});
 
 	test('Chinese File menu renders mnemonics', function () {
-		validateMenuBarItem(menubar, container, '文件(&F)', '文件', 'F');
+		withMenuMenubar(menubar => {
+			validateMenuBarItem(menubar, container, '文件(&F)', '文件', 'F');
+		});
 	});
 });

@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { INotebookEditor, INotebookEditorMouseEvent, INotebookEditorContribution, getNotebookEditorFromEditorPane, CellFoldingState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { FoldingModel } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel'; import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { localize } from 'vs/nls';
-import { FoldingRegion } from 'vs/editor/contrib/folding/browser/foldingRanges';
-import { ICommandMetadata } from 'vs/platform/commands/common/commands';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from '../../common/notebookContextKeys.js';
+import { INotebookEditor, INotebookEditorMouseEvent, INotebookEditorContribution, getNotebookEditorFromEditorPane, CellFoldingState } from '../notebookBrowser.js';
+import { FoldingModel } from '../viewModel/foldingModel.js'; import { CellKind } from '../../common/notebookCommon.js';
+import { ICellRange } from '../../common/notebookRange.js';
+import { registerNotebookContribution } from '../notebookEditorExtensions.js';
+import { registerAction2, Action2 } from '../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { InputFocusedContextKey } from '../../../../../platform/contextkey/common/contextkeys.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { NOTEBOOK_ACTIONS_CATEGORY } from './coreActions.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { FoldingRegion } from '../../../../../editor/contrib/folding/browser/foldingRanges.js';
+import { ICommandMetadata } from '../../../../../platform/commands/common/commands.js';
+import { NotebookViewModel } from '../viewModel/notebookViewModelImpl.js';
 
 export class FoldingController extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.foldingController';
@@ -43,7 +43,6 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 			this._localStore.add(this._notebookEditor.onDidChangeCellState(e => {
 				if (e.source.editStateChanged && e.cell.cellKind === CellKind.Markup) {
 					this._foldingModel?.recompute();
-					// this._updateEditorFoldingRanges();
 				}
 			}));
 
@@ -145,13 +144,17 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 
 		return;
 	}
+
+	recompute() {
+		this._foldingModel?.recompute();
+	}
 }
 
 registerNotebookContribution(FoldingController.id, FoldingController);
 
 
 const NOTEBOOK_FOLD_COMMAND_LABEL = localize('fold.cell', "Fold Cell");
-const NOTEBOOK_UNFOLD_COMMAND_LABEL = localize('unfold.cell', "Unfold Cell");
+const NOTEBOOK_UNFOLD_COMMAND_LABEL = localize2('unfold.cell', "Unfold Cell");
 
 const FOLDING_COMMAND_ARGS: Pick<ICommandMetadata, 'args'> = {
 	args: [{
@@ -183,7 +186,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.fold',
-			title: { value: localize('fold.cell', "Fold Cell"), original: 'Fold Cell' },
+			title: localize2('fold.cell', "Fold Cell"),
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
@@ -253,7 +256,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.unfold',
-			title: { value: NOTEBOOK_UNFOLD_COMMAND_LABEL, original: 'Unfold Cell' },
+			title: NOTEBOOK_UNFOLD_COMMAND_LABEL,
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),

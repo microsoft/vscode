@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/TypeScript-TmLanguage/commit/8c7482b94b548eab56da64dbfb30b82589b3f747",
+	"version": "https://github.com/microsoft/TypeScript-TmLanguage/commit/48f608692aa6d6ad7bd65b478187906c798234a8",
 	"name": "TypeScript",
 	"scopeName": "source.ts",
 	"patterns": [
@@ -2348,12 +2348,15 @@
 			]
 		},
 		"import-export-assert-clause": {
-			"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(assert)\\s*(\\{)",
+			"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(with)|(assert))\\s*(\\{)",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.control.assert.ts"
+					"name": "keyword.control.with.ts"
 				},
 				"2": {
+					"name": "keyword.control.assert.ts"
+				},
+				"3": {
 					"name": "punctuation.definition.block.ts"
 				}
 			},
@@ -2406,7 +2409,7 @@
 					"include": "#comment"
 				},
 				{
-					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(?:(\\btype)\\s+)?(?:(\\bdefault)|(\\*)|(\\b[_$[:alpha:]][_$[:alnum:]]*)))\\s+(as)\\s+(?:(default(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.)))|([_$[:alpha:]][_$[:alnum:]]*))",
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(?:(\\btype)\\s+)?(?:(\\bdefault)|(\\*)|(\\b[_$[:alpha:]][_$[:alnum:]]*)|((\\'([^\\'\\\\]|\\\\.)*\\')|(\\\"([^\\\"\\\\]|\\\\.)*\\\")|(\\`([^\\`\\\\]|\\\\.)*\\`))))\\s+(as)\\s+(?:(default(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.)))|([_$[:alpha:]][_$[:alnum:]]*)|((\\'([^\\'\\\\]|\\\\.)*\\')|(\\\"([^\\\"\\\\]|\\\\.)*\\\")|(\\`([^\\`\\\\]|\\\\.)*\\`)))",
 					"captures": {
 						"1": {
 							"name": "keyword.control.type.ts"
@@ -2421,13 +2424,19 @@
 							"name": "variable.other.readwrite.ts"
 						},
 						"5": {
+							"name": "string.quoted.alias.ts"
+						},
+						"12": {
 							"name": "keyword.control.as.ts"
 						},
-						"6": {
+						"13": {
 							"name": "keyword.control.default.ts"
 						},
-						"7": {
+						"14": {
 							"name": "variable.other.readwrite.alias.ts"
+						},
+						"15": {
+							"name": "string.quoted.alias.ts"
 						}
 					}
 				},
@@ -2443,13 +2452,16 @@
 					"match": "\\b(default)\\b"
 				},
 				{
-					"match": "(?:(\\btype)\\s+)?([_$[:alpha:]][_$[:alnum:]]*)",
+					"match": "(?:(\\btype)\\s+)?(?:([_$[:alpha:]][_$[:alnum:]]*)|((\\'([^\\'\\\\]|\\\\.)*\\')|(\\\"([^\\\"\\\\]|\\\\.)*\\\")|(\\`([^\\`\\\\]|\\\\.)*\\`)))",
 					"captures": {
 						"1": {
 							"name": "keyword.control.type.ts"
 						},
 						"2": {
 							"name": "variable.other.readwrite.alias.ts"
+						},
+						"3": {
+							"name": "string.quoted.alias.ts"
 						}
 					}
 				}
@@ -2630,13 +2642,13 @@
 						},
 						{
 							"name": "string.regexp.ts",
-							"begin": "(?<=\\))\\s*\\/(?![\\/*])(?=(?:[^\\/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)*\\])+\\/([dgimsuy]+|(?![\\/\\*])|(?=\\/\\*))(?!\\s*[a-zA-Z0-9_$]))",
+							"begin": "(?<=\\))\\s*\\/(?![\\/*])(?=(?:[^\\/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)*\\])+\\/([dgimsuvy]+|(?![\\/\\*])|(?=\\/\\*))(?!\\s*[a-zA-Z0-9_$]))",
 							"beginCaptures": {
 								"0": {
 									"name": "punctuation.definition.string.begin.ts"
 								}
 							},
-							"end": "(/)([dgimsuy]*)",
+							"end": "(/)([dgimsuvy]*)",
 							"endCaptures": {
 								"1": {
 									"name": "punctuation.definition.string.end.ts"
@@ -4935,13 +4947,13 @@
 			"patterns": [
 				{
 					"name": "string.regexp.ts",
-					"begin": "(?<!\\+\\+|--|})(?<=[=(:,\\[?+!]|^return|[^\\._$[:alnum:]]return|^case|[^\\._$[:alnum:]]case|=>|&&|\\|\\||\\*\\/)\\s*(\\/)(?![\\/*])(?=(?:[^\\/\\\\\\[\\()]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\]|\\(([^\\)\\\\]|\\\\.)+\\))+\\/([dgimsuy]+|(?![\\/\\*])|(?=\\/\\*))(?!\\s*[a-zA-Z0-9_$]))",
+					"begin": "(?<!\\+\\+|--|})(?<=[=(:,\\[?+!]|^return|[^\\._$[:alnum:]]return|^case|[^\\._$[:alnum:]]case|=>|&&|\\|\\||\\*\\/)\\s*(\\/)(?![\\/*])(?=(?:[^\\/\\\\\\[\\()]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\]|\\(([^\\)\\\\]|\\\\.)+\\))+\\/([dgimsuvy]+|(?![\\/\\*])|(?=\\/\\*))(?!\\s*[a-zA-Z0-9_$]))",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.definition.string.begin.ts"
 						}
 					},
-					"end": "(/)([dgimsuy]*)",
+					"end": "(/)([dgimsuvy]*)",
 					"endCaptures": {
 						"1": {
 							"name": "punctuation.definition.string.end.ts"
@@ -4958,13 +4970,13 @@
 				},
 				{
 					"name": "string.regexp.ts",
-					"begin": "((?<![_$[:alnum:])\\]]|\\+\\+|--|}|\\*\\/)|((?<=^return|[^\\._$[:alnum:]]return|^case|[^\\._$[:alnum:]]case))\\s*)\\/(?![\\/*])(?=(?:[^\\/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)*\\])+\\/([dgimsuy]+|(?![\\/\\*])|(?=\\/\\*))(?!\\s*[a-zA-Z0-9_$]))",
+					"begin": "((?<![_$[:alnum:])\\]]|\\+\\+|--|}|\\*\\/)|((?<=^return|[^\\._$[:alnum:]]return|^case|[^\\._$[:alnum:]]case))\\s*)\\/(?![\\/*])(?=(?:[^\\/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)*\\])+\\/([dgimsuvy]+|(?![\\/\\*])|(?=\\/\\*))(?!\\s*[a-zA-Z0-9_$]))",
 					"beginCaptures": {
 						"0": {
 							"name": "punctuation.definition.string.begin.ts"
 						}
 					},
-					"end": "(/)([dgimsuy]*)",
+					"end": "(/)([dgimsuvy]*)",
 					"endCaptures": {
 						"1": {
 							"name": "punctuation.definition.string.end.ts"

@@ -60,7 +60,7 @@ impl Display for AuthProvider {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			AuthProvider::Microsoft => write!(f, "Microsoft Account"),
-			AuthProvider::Github => write!(f, "Github Account"),
+			AuthProvider::Github => write!(f, "GitHub Account"),
 		}
 	}
 }
@@ -93,10 +93,9 @@ impl AuthProvider {
 
 	pub fn get_default_scopes(&self) -> String {
 		match self {
-			AuthProvider::Microsoft => format!(
-				"{}/.default+offline_access+profile+openid",
-				PROD_FIRST_PARTY_APP_ID
-			),
+			AuthProvider::Microsoft => {
+				format!("{PROD_FIRST_PARTY_APP_ID}/.default+offline_access+profile+openid")
+			}
 			AuthProvider::Github => "read:user+read:org".to_string(),
 		}
 	}
@@ -105,7 +104,7 @@ impl AuthProvider {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StoredCredential {
 	#[serde(rename = "p")]
-	provider: AuthProvider,
+	pub(crate) provider: AuthProvider,
 	#[serde(rename = "a")]
 	access_token: String,
 	#[serde(rename = "r")]
@@ -122,7 +121,7 @@ async fn get_github_user(
 ) -> Result<reqwest::Response, reqwest::Error> {
 	client
 		.get(GH_USER_ENDPOINT)
-		.header("Authorization", format!("token {}", access_token))
+		.header("Authorization", format!("token {access_token}"))
 		.header("User-Agent", get_default_user_agent())
 		.send()
 		.await
@@ -144,7 +143,7 @@ impl StoredCredential {
 				let res = match res {
 					Ok(r) => r,
 					Err(e) => {
-						warning!(log, "failed to check Github token: {}", e);
+						warning!(log, "failed to check GitHub token: {}", e);
 						return false;
 					}
 				};
@@ -154,7 +153,7 @@ impl StoredCredential {
 				}
 
 				let err = StatusError::from_res(res).await;
-				debug!(log, "github token looks expired: {:?}", err);
+				debug!(log, "GitHub token looks expired: {:?}", err);
 				true
 			}
 		}
@@ -287,7 +286,7 @@ impl StorageImplementation for ThreadKeyringStorage {
 
 #[derive(Default)]
 struct KeyringStorage {
-	// keywring storage can be split into multiple entries due to entry length limits
+	// keyring storage can be split into multiple entries due to entry length limits
 	// on Windows https://github.com/microsoft/vscode-cli/issues/358
 	entries: Vec<keyring::Entry>,
 }
@@ -404,7 +403,10 @@ impl Auth {
 		let mut keyring_storage = KeyringStorage::default();
 		#[cfg(target_os = "linux")]
 		let mut keyring_storage = ThreadKeyringStorage::default();
-		let mut file_storage = FileStorage(PersistedState::new(self.file_storage_path.clone()));
+		let mut file_storage = FileStorage(PersistedState::new_with_mode(
+			self.file_storage_path.clone(),
+			0o600,
+		));
 
 		let native_storage_result = if std::env::var("VSCODE_CLI_USE_FILE_KEYCHAIN").is_ok()
 			|| self.file_storage_path.exists()
@@ -477,6 +479,7 @@ impl Auth {
 		&self,
 		provider: Option<AuthProvider>,
 		access_token: Option<String>,
+		refresh_token: Option<String>,
 	) -> Result<StoredCredential, AnyError> {
 		let provider = match provider {
 			Some(p) => p,
@@ -487,8 +490,12 @@ impl Auth {
 			Some(t) => StoredCredential {
 				provider,
 				access_token: t,
-				refresh_token: None,
-				expires_at: None,
+				// if a refresh token is given, assume it's valid now but refresh it
+				// soon in order to get the real expiry time.
+				expires_at: refresh_token
+					.as_ref()
+					.map(|_| Utc::now() + chrono::Duration::minutes(5)),
+				refresh_token,
 			},
 			None => self.do_device_code_flow_with_provider(provider).await?,
 		};
@@ -658,12 +665,12 @@ impl Auth {
 			.into();
 		}
 
-		return StatusError {
+		StatusError {
 			body: String::from_utf8_lossy(&body).to_string(),
 			status_code,
 			url: url.to_string(),
 		}
-		.into();
+		.into()
 	}
 	/// Implements the device code flow, returning the credentials upon success.
 	async fn do_device_code_flow(&self) -> Result<StoredCredential, AnyError> {
@@ -675,14 +682,14 @@ impl Auth {
 		if !*IS_INTERACTIVE_CLI {
 			info!(
 				self.log,
-				"Using Github for authentication, run `{} tunnel user login --provider <provider>` option to change this.",
+				"Using GitHub for authentication, run `{} tunnel user login --provider <provider>` option to change this.",
 				APPLICATION_NAME
 			);
 			return Ok(AuthProvider::Github);
 		}
 
 		let provider = prompt_options(
-			format!("How would you like to log in to {}?", PRODUCT_NAME_LONG),
+			format!("How would you like to log in to {PRODUCT_NAME_LONG}?"),
 			&[AuthProvider::Microsoft, AuthProvider::Github],
 		)?;
 
@@ -715,7 +722,7 @@ impl Auth {
 
 			match &init_code_json.message {
 				Some(m) => self.log.result(m),
-				None => self.log.result(&format!(
+				None => self.log.result(format!(
 					"To grant access to the server, please log into {} and use code {}",
 					init_code_json.verification_uri, init_code_json.user_code
 				)),

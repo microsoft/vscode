@@ -2,8 +2,8 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "yarn",
-			"command": "yarn",
+			"label": "npm install",
+			"command": "npm i",
 			"args": ["compile"],
 			"type": "shell",
 			"presentation": {

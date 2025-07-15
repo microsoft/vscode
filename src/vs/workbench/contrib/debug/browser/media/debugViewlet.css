@@ -174,10 +174,6 @@
 	min-width: fit-content;
 }
 
-.debug-pane .debug-call-stack .stack-frame.subtle {
-	font-style: italic;
-}
-
 .debug-pane .debug-call-stack .stack-frame.label > .file {
 	display: none;
 }
@@ -230,6 +226,7 @@
 }
 
 .debug-pane .monaco-list-row .expression .value {
+	height: 22px;
 	overflow: hidden;
 	white-space: pre;
 	text-overflow: ellipsis;
@@ -276,6 +273,12 @@
 	overflow: hidden;
 	font-family: var(--monaco-monospace-font);
 	font-weight: normal;
+}
+.debug-view-content .monaco-tl-contents .highlight {
+	color: unset !important;
+	background-color: var(--vscode-list-filterMatchBackground);
+	outline: 1px dotted var(--vscode-list-filterMatchBorder);
+	outline-offset: -1px;
 }
 
 /* Breakpoints */

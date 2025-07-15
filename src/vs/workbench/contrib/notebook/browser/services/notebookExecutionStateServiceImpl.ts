@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { combinedDisposable, Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellEditType, CellUri, ICellEditOperation, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookExecutionState, NotebookTextModelWillAddRemoveEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellExecutionUpdateType, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
-import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, ICellExecutionStateUpdate, IExecutionStateChangedEvent, IFailedCellInfo, INotebookCellExecution, INotebookExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { Emitter } from '../../../../../base/common/event.js';
+import { combinedDisposable, Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
+import { CellEditType, CellUri, ICellEditOperation, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookExecutionState, NotebookTextModelWillAddRemoveEvent } from '../../common/notebookCommon.js';
+import { CellExecutionUpdateType, INotebookExecutionService } from '../../common/notebookExecutionService.js';
+import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, ICellExecutionStateUpdate, IExecutionStateChangedEvent, IFailedCellInfo, INotebookCellExecution, INotebookExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent, NotebookExecutionType } from '../../common/notebookExecutionStateService.js';
+import { INotebookKernelService } from '../../common/notebookKernelService.js';
+import { INotebookService } from '../../common/notebookService.js';
 
 export class NotebookExecutionStateService extends Disposable implements INotebookExecutionStateService {
 	declare _serviceBrand: undefined;
@@ -27,6 +27,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 	private readonly _notebookListeners = new ResourceMap<NotebookExecutionListeners>();
 	private readonly _cellListeners = new ResourceMap<IDisposable>();
 	private readonly _lastFailedCells = new ResourceMap<IFailedCellInfo>();
+	private readonly _lastCompletedCellHandles = new ResourceMap<number>();
 
 	private readonly _onDidChangeExecution = this._register(new Emitter<ICellExecutionStateChangedEvent | IExecutionStateChangedEvent>());
 	onDidChangeExecution = this._onDidChangeExecution.event;
@@ -38,7 +39,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotebookService private readonly _notebookService: INotebookService,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService
 	) {
 		super();
 	}
@@ -46,6 +47,10 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 	getLastFailedCellForNotebook(notebook: URI): number | undefined {
 		const failedCell = this._lastFailedCells.get(notebook);
 		return failedCell?.visible ? failedCell.cellHandle : undefined;
+	}
+
+	getLastCompletedCellForNotebook(notebook: URI): number | undefined {
+		return this._lastCompletedCellHandles.get(notebook);
 	}
 
 	forceCancelNotebookExecutions(notebookUri: URI): void {
@@ -112,13 +117,14 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		if (lastRunSuccess !== undefined) {
 			if (lastRunSuccess) {
 				if (this._executions.size === 0) {
-					this._audioCueService.playAudioCue(AudioCue.notebookCellCompleted);
+					this._accessibilitySignalService.playSignal(AccessibilitySignal.notebookCellCompleted);
 				}
 				this._clearLastFailedCell(notebookUri);
 			} else {
-				this._audioCueService.playAudioCue(AudioCue.notebookCellFailed);
+				this._accessibilitySignalService.playSignal(AccessibilitySignal.notebookCellFailed);
 				this._setLastFailedCell(notebookUri, cellHandle);
 			}
+			this._lastCompletedCellHandles.set(notebookUri, cellHandle);
 		}
 
 		this._onDidChangeExecution.fire(new NotebookCellExecutionEvent(notebookUri, cellHandle));
@@ -527,6 +533,7 @@ class CellExecution extends Disposable implements INotebookCellExecution {
 					lastRunSuccess: completionData.lastRunSuccess,
 					runStartTime: this._didPause ? null : cellModel.internalMetadata.runStartTime,
 					runEndTime: this._didPause ? null : completionData.runEndTime,
+					error: completionData.error
 				}
 			};
 			this._applyExecutionEdits([edit]);

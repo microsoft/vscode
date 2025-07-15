@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ContextView, ContextViewDOMPosition } from 'vs/base/browser/ui/contextview/contextview';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { IContextViewDelegate, IContextViewService } from './contextView';
-import { getWindow } from 'vs/base/browser/dom';
+import { ContextView, ContextViewDOMPosition, IContextViewProvider } from '../../../base/browser/ui/contextview/contextview.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { ILayoutService } from '../../layout/browser/layoutService.js';
+import { IContextViewDelegate, IContextViewService, IOpenContextView } from './contextView.js';
+import { getWindow } from '../../../base/browser/dom.js';
 
-export class ContextViewService extends Disposable implements IContextViewService {
+export class ContextViewHandler extends Disposable implements IContextViewProvider {
 
-	declare readonly _serviceBrand: undefined;
-
-	private currentViewDisposable: IDisposable = Disposable.None;
-	private readonly contextView = this._register(new ContextView(this.layoutService.mainContainer, ContextViewDOMPosition.ABSOLUTE));
+	private openContextView: IOpenContextView | undefined;
+	protected readonly contextView: ContextView;
 
 	constructor(
 		@ILayoutService private readonly layoutService: ILayoutService
 	) {
 		super();
+
+		this.contextView = this._register(new ContextView(this.layoutService.mainContainer, ContextViewDOMPosition.ABSOLUTE));
 
 		this.layout();
 		this._register(layoutService.onDidLayoutContainer(() => this.layout()));
@@ -27,7 +27,7 @@ export class ContextViewService extends Disposable implements IContextViewServic
 
 	// ContextView
 
-	showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IDisposable {
+	showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IOpenContextView {
 		let domPosition: ContextViewDOMPosition;
 		if (container) {
 			if (container === this.layoutService.getContainer(getWindow(container))) {
@@ -45,18 +45,16 @@ export class ContextViewService extends Disposable implements IContextViewServic
 
 		this.contextView.show(delegate);
 
-		const disposable = toDisposable(() => {
-			if (this.currentViewDisposable === disposable) {
-				this.hideContextView();
+		const openContextView: IOpenContextView = {
+			close: () => {
+				if (this.openContextView === openContextView) {
+					this.hideContextView();
+				}
 			}
-		});
+		};
 
-		this.currentViewDisposable = disposable;
-		return disposable;
-	}
-
-	getContextViewElement(): HTMLElement {
-		return this.contextView.getViewElement();
+		this.openContextView = openContextView;
+		return openContextView;
 	}
 
 	layout(): void {
@@ -65,12 +63,15 @@ export class ContextViewService extends Disposable implements IContextViewServic
 
 	hideContextView(data?: any): void {
 		this.contextView.hide(data);
+		this.openContextView = undefined;
 	}
+}
 
-	override dispose(): void {
-		super.dispose();
+export class ContextViewService extends ContextViewHandler implements IContextViewService {
 
-		this.currentViewDisposable.dispose();
-		this.currentViewDisposable = Disposable.None;
+	declare readonly _serviceBrand: undefined;
+
+	getContextViewElement(): HTMLElement {
+		return this.contextView.getViewElement();
 	}
 }

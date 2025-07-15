@@ -8,15 +8,15 @@
  * using regular expressions.
  */
 
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import * as languages from 'vs/editor/common/languages';
-import { NullState, nullTokenizeEncoded, nullTokenize } from 'vs/editor/common/languages/nullTokenize';
-import { TokenTheme } from 'vs/editor/common/languages/supports/tokenization';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import * as monarchCommon from 'vs/editor/standalone/common/monarch/monarchCommon';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { LanguageId, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import * as languages from '../../../common/languages.js';
+import { NullState, nullTokenizeEncoded, nullTokenize } from '../../../common/languages/nullTokenize.js';
+import { TokenTheme } from '../../../common/languages/supports/tokenization.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import * as monarchCommon from './monarchCommon.js';
+import { IStandaloneThemeService } from '../standaloneTheme.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { LanguageId, MetadataConsts } from '../../../common/encodedTokenAttributes.js';
 
 const CACHE_STACK_DEPTH = 5;
 
@@ -519,8 +519,8 @@ export class MonarchTokenizer extends Disposable implements languages.ITokenizat
 			}
 			hasEmbeddedPopRule = true;
 
-			let regex = rule.regex;
-			const regexSource = rule.regex.source;
+			let regex = rule.resolveRegex(state.stack.state);
+			const regexSource = regex.source;
 			if (regexSource.substr(0, 4) === '^(?:' && regexSource.substr(regexSource.length - 1, 1) === ')') {
 				const flags = (regex.ignoreCase ? 'i' : '') + (regex.unicode ? 'u' : '');
 				regex = new RegExp(regexSource.substr(4, regexSource.length - 5), flags);
@@ -643,7 +643,7 @@ export class MonarchTokenizer extends Disposable implements languages.ITokenizat
 				const restOfLine = line.substr(pos);
 				for (const rule of rules) {
 					if (pos === 0 || !rule.matchOnlyAtLineStart) {
-						matches = restOfLine.match(rule.regex);
+						matches = restOfLine.match(rule.resolveRegex(state));
 						if (matches) {
 							matched = matches[0];
 							action = rule.action;

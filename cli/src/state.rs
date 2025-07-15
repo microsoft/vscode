@@ -6,7 +6,8 @@
 extern crate dirs;
 
 use std::{
-	fs::{create_dir_all, read_to_string, remove_dir_all, write},
+	fs::{self, create_dir_all, read_to_string, remove_dir_all},
+	io::Write,
 	path::{Path, PathBuf},
 	sync::{Arc, Mutex},
 };
@@ -34,6 +35,8 @@ where
 {
 	path: PathBuf,
 	state: Option<T>,
+	#[allow(dead_code)]
+	mode: u32,
 }
 
 impl<T> PersistedStateContainer<T>
@@ -58,12 +61,27 @@ where
 	fn save(&mut self, state: T) -> Result<(), WrappedError> {
 		let s = serde_json::to_string(&state).unwrap();
 		self.state = Some(state);
-		write(&self.path, s).map_err(|e| {
+		self.write_state(s).map_err(|e| {
 			wrap(
 				e,
 				format!("error saving launcher state into {}", self.path.display()),
 			)
 		})
+	}
+
+	fn write_state(&mut self, s: String) -> std::io::Result<()> {
+		#[cfg(not(windows))]
+		use std::os::unix::fs::OpenOptionsExt;
+
+		let mut f = fs::OpenOptions::new();
+		f.create(true);
+		f.write(true);
+		f.truncate(true);
+		#[cfg(not(windows))]
+		f.mode(self.mode);
+
+		let mut f = f.open(&self.path)?;
+		f.write_all(s.as_bytes())
 	}
 }
 
@@ -82,8 +100,17 @@ where
 {
 	/// Creates a new state container that persists to the given path.
 	pub fn new(path: PathBuf) -> PersistedState<T> {
+		Self::new_with_mode(path, 0o644)
+	}
+
+	/// Creates a new state container that persists to the given path.
+	pub fn new_with_mode(path: PathBuf, mode: u32) -> PersistedState<T> {
 		PersistedState {
-			container: Arc::new(Mutex::new(PersistedStateContainer { path, state: None })),
+			container: Arc::new(Mutex::new(PersistedStateContainer {
+				path,
+				state: None,
+				mode,
+			})),
 		}
 	}
 
@@ -128,17 +155,14 @@ impl LauncherPaths {
 
 		if let Err(e) = std::fs::rename(&old_dir, &new_dir) {
 			// no logger exists at this point in the lifecycle, so just log to stderr
-			eprintln!(
-				"Failed to migrate old CLI data directory, will create a new one ({})",
-				e
-			);
+			eprintln!("Failed to migrate old CLI data directory, will create a new one ({e})");
 		}
 
 		Self::new_for_path(new_dir)
 	}
 
 	pub fn new(root: Option<String>) -> Result<LauncherPaths, AnyError> {
-		let root = root.unwrap_or_else(|| format!("~/{}/cli", DEFAULT_DATA_PARENT_DIR));
+		let root = root.unwrap_or_else(|| format!("~/{DEFAULT_DATA_PARENT_DIR}/cli"));
 		let mut replaced = root.to_owned();
 		for token in HOME_DIR_ALTS {
 			if root.contains(token) {
@@ -217,5 +241,4 @@ impl LauncherPaths {
 	pub fn web_server_storage(&self) -> PathBuf {
 		self.root.join("serve-web")
 	}
-
 }

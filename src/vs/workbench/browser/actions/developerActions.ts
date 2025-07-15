@@ -3,49 +3,51 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/actions';
+import './media/actions.css';
 
-import { localize } from 'vs/nls';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { DomEmitter } from 'vs/base/browser/event';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable, dispose, DisposableStore, setDisposableTracker, DisposableTracker, DisposableInfo } from 'vs/base/common/lifecycle';
-import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $, getActiveDocument, onDidRegisterWindow, getWindows } from 'vs/base/browser/dom';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { clamp } from 'vs/base/common/numbers';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { ResolutionResult, ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IOutputService } from 'vs/workbench/services/output/common/output';
-import { windowLogId } from 'vs/workbench/services/log/common/logConstants';
-import { ByteSize } from 'vs/platform/files/common/files';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import product from 'vs/platform/product/common/product';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { localize, localize2 } from '../../../nls.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { DomEmitter } from '../../../base/browser/event.js';
+import { Color } from '../../../base/common/color.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IDisposable, toDisposable, dispose, DisposableStore, setDisposableTracker, DisposableTracker, DisposableInfo } from '../../../base/common/lifecycle.js';
+import { getDomNodePagePosition, append, $, getActiveDocument, onDidRegisterWindow, getWindows } from '../../../base/browser/dom.js';
+import { createCSSRule, createStyleSheet } from '../../../base/browser/domStylesheets.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../platform/contextkey/common/contextkey.js';
+import { Context } from '../../../platform/contextkey/browser/contextKeyService.js';
+import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
+import { RunOnceScheduler } from '../../../base/common/async.js';
+import { ILayoutService } from '../../../platform/layout/browser/layoutService.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
+import { registerAction2, Action2, MenuRegistry } from '../../../platform/actions/common/actions.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
+import { clamp } from '../../../base/common/numbers.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../platform/configuration/common/configurationRegistry.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { IWorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { Categories } from '../../../platform/action/common/actionCommonCategories.js';
+import { IWorkingCopyBackupService } from '../../services/workingCopy/common/workingCopyBackup.js';
+import { ResolutionResult, ResultKind } from '../../../platform/keybinding/common/keybindingResolver.js';
+import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
+import { IOutputService } from '../../services/output/common/output.js';
+import { windowLogId } from '../../services/log/common/logConstants.js';
+import { ByteSize } from '../../../platform/files/common/files.js';
+import { IQuickInputService, IQuickPickItem } from '../../../platform/quickinput/common/quickInput.js';
+import { IUserDataProfileService } from '../../services/userDataProfile/common/userDataProfile.js';
+import { IEditorService } from '../../services/editor/common/editorService.js';
+import product from '../../../platform/product/common/product.js';
+import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
+import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 
 class InspectContextKeysAction extends Action2 {
 
 	constructor() {
 		super({
 			id: 'workbench.action.inspectContextKeys',
-			title: { value: localize('inspect context keys', "Inspect Context Keys"), original: 'Inspect Context Keys' },
+			title: localize2('inspect context keys', 'Inspect Context Keys'),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -62,7 +64,7 @@ class InspectContextKeysAction extends Action2 {
 		const hoverFeedback = document.createElement('div');
 		const activeDocument = getActiveDocument();
 		activeDocument.body.appendChild(hoverFeedback);
-		disposables.add(toDisposable(() => activeDocument.body.removeChild(hoverFeedback)));
+		disposables.add(toDisposable(() => hoverFeedback.remove()));
 
 		hoverFeedback.style.position = 'absolute';
 		hoverFeedback.style.pointerEvents = 'none';
@@ -111,7 +113,7 @@ class ToggleScreencastModeAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.toggleScreencastMode',
-			title: { value: localize('toggle screencast mode', "Toggle Screencast Mode"), original: 'Toggle Screencast Mode' },
+			title: localize2('toggle screencast mode', 'Toggle Screencast Mode'),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -349,7 +351,7 @@ class ToggleScreencastModeAction extends Action2 {
 				append(keyboardMarker, $('span.title', {}, `${commandAndGroupLabel} `));
 			}
 
-			if ((options.showKeys ?? true) || (commandDetails && (options.showKeybindings ?? true))) {
+			if ((options.showKeys ?? true) || ((options.showKeybindings ?? true) && this._isKbFound(shortcut))) {
 				// Fix label for arrow keys
 				keyLabel = keyLabel?.replace('UpArrow', '↑')
 					?.replace('DownArrow', '↓')
@@ -395,7 +397,7 @@ class LogStorageAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.logStorage',
-			title: { value: localize({ key: 'logStorage', comment: ['A developer only action to log the contents of the storage for the current window.'] }, "Log Storage Database Contents"), original: 'Log Storage Database Contents' },
+			title: localize2({ key: 'logStorage', comment: ['A developer only action to log the contents of the storage for the current window.'] }, "Log Storage Database Contents"),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -416,7 +418,7 @@ class LogWorkingCopiesAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.logWorkingCopies',
-			title: { value: localize({ key: 'logWorkingCopies', comment: ['A developer only action to log the working copies that exist.'] }, "Log Working Copies"), original: 'Log Working Copies' },
+			title: localize2({ key: 'logWorkingCopies', comment: ['A developer only action to log the working copies that exist.'] }, "Log Working Copies"),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -456,7 +458,7 @@ class RemoveLargeStorageEntriesAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.removeLargeStorageDatabaseEntries',
-			title: { value: localize('removeLargeStorageDatabaseEntries', "Remove Large Storage Database Entries..."), original: 'Remove Large Storage Database Entries...' },
+			title: localize2('removeLargeStorageDatabaseEntries', 'Remove Large Storage Database Entries...'),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -467,6 +469,7 @@ class RemoveLargeStorageEntriesAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const userDataProfileService = accessor.get(IUserDataProfileService);
 		const dialogService = accessor.get(IDialogService);
+		const environmentService = accessor.get(IEnvironmentService);
 
 		interface IStorageItem extends IQuickPickItem {
 			readonly key: string;
@@ -485,7 +488,7 @@ class RemoveLargeStorageEntriesAction extends Action2 {
 			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
 				for (const key of storageService.keys(scope, target)) {
 					const value = storageService.get(key, scope);
-					if (value && value.length > RemoveLargeStorageEntriesAction.SIZE_THRESHOLD) {
+					if (value && (!environmentService.isBuilt /* show all keys in dev */ || value.length > RemoveLargeStorageEntriesAction.SIZE_THRESHOLD)) {
 						items.push({
 							key,
 							scope,
@@ -565,7 +568,7 @@ class StartTrackDisposables extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.startTrackDisposables',
-			title: { value: localize('startTrackDisposables', "Start Tracking Disposables"), original: 'Start Tracking Disposables' },
+			title: localize2('startTrackDisposables', 'Start Tracking Disposables'),
 			category: Categories.Developer,
 			f1: true,
 			precondition: ContextKeyExpr.and(DisposablesSnapshotStateContext.isEqualTo('pending').negate(), DisposablesSnapshotStateContext.isEqualTo('started').negate())
@@ -588,7 +591,7 @@ class SnapshotTrackedDisposables extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.snapshotTrackedDisposables',
-			title: { value: localize('snapshotTrackedDisposables', "Snapshot Tracked Disposables"), original: 'Snapshot Tracked Disposables' },
+			title: localize2('snapshotTrackedDisposables', 'Snapshot Tracked Disposables'),
 			category: Categories.Developer,
 			f1: true,
 			precondition: DisposablesSnapshotStateContext.isEqualTo('started')
@@ -608,7 +611,7 @@ class StopTrackDisposables extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.stopTrackDisposables',
-			title: { value: localize('stopTrackDisposables', "Stop Tracking Disposables"), original: 'Stop Tracking Disposables' },
+			title: localize2('stopTrackDisposables', 'Stop Tracking Disposables'),
 			category: Categories.Developer,
 			f1: true,
 			precondition: DisposablesSnapshotStateContext.isEqualTo('pending')

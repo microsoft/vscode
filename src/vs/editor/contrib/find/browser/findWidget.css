@@ -14,8 +14,14 @@
 	padding: 0 4px;
 	box-sizing: border-box;
 	transform: translateY(calc(-100% - 10px)); /* shadow (10px) */
+	box-shadow: 0 0 8px 2px var(--vscode-widget-shadow);
+	color: var(--vscode-editorWidget-foreground);
+	border-left: 1px solid var(--vscode-widget-border);
+	border-right: 1px solid var(--vscode-widget-border);
+	border-bottom: 1px solid var(--vscode-widget-border);
 	border-bottom-left-radius: 4px;
 	border-bottom-right-radius: 4px;
+	background-color: var(--vscode-editorWidget-background);
 }
 
 .monaco-workbench.reduce-motion .monaco-editor .find-widget {
@@ -39,9 +45,11 @@
 	transform: translateY(0);
 }
 
+/* This outline-color rule is used to override the outline color for synthetic-focus find input. */
 .monaco-editor .find-widget .monaco-inputbox.synthetic-focus {
 	outline: 1px solid -webkit-focus-ring-color;
 	outline-offset: -1px;
+	outline-color: var(--vscode-focusBorder);
 }
 
 .monaco-editor .find-widget .monaco-inputbox .input {
@@ -214,19 +222,58 @@
 	display:none;
 }
 
+.monaco-editor .find-widget.no-results .matchesCount {
+	color: var(--vscode-errorForeground);
+}
+
 .monaco-editor .findMatch {
 	animation-duration: 0;
 	animation-name: inherit !important;
+	background-color: var(--vscode-editor-findMatchHighlightBackground);
+}
+
+.monaco-editor .currentFindMatch {
+	background-color: var(--vscode-editor-findMatchBackground);
+	border: 2px solid var(--vscode-editor-findMatchBorder);
+	padding: 1px;
+	box-sizing: border-box;
+}
+
+.monaco-editor .findScope {
+	background-color: var(--vscode-editor-findRangeHighlightBackground);
 }
 
 .monaco-editor .find-widget .monaco-sash {
 	left: 0 !important;
+	background-color: var(--vscode-editorWidget-resizeBorder, var(--vscode-editorWidget-border));
 }
 
 .monaco-editor.hc-black .find-widget .button:before {
 	position: relative;
 	top: 1px;
 	left: 2px;
+}
+
+/* Action bars */
+.monaco-editor .find-widget .button:not(.disabled):hover,
+.monaco-editor .find-widget .codicon-find-selection:hover {
+	background-color: var(--vscode-toolbar-hoverBackground) !important;
+}
+
+.monaco-editor.findMatch {
+	background-color: var(--vscode-editor-findMatchHighlightBackground);
+}
+
+.monaco-editor.currentFindMatch {
+	background-color: var(--vscode-editor-findMatchBackground);
+}
+
+.monaco-editor.findScope {
+	background-color: var(--vscode-editor-findRangeHighlightBackground);
+}
+
+.monaco-editor.findMatch {
+	background-color: var(--vscode-editorWidget-background);
 }
 
 /* Close button position. */

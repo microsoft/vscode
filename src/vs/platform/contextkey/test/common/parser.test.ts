@@ -2,8 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { Parser } from 'vs/platform/contextkey/common/contextkey';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Parser } from '../../common/contextkey.js';
 
 function parseToStr(input: string): string {
 	const parser = new Parser();
@@ -33,6 +34,8 @@ function parseToStr(input: string): string {
 }
 
 suite('Context Key Parser', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test(' foo', () => {
 		const input = ' foo';

@@ -3,20 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ContextScopedFindInput } from 'vs/platform/history/browser/contextScopedHistoryWidget';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
-import { NotebookFindInputFilterButton } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindReplaceWidget';
-import * as nls from 'vs/nls';
+import { IContextViewProvider } from '../../../../base/browser/ui/contextview/contextview.js';
+import { IFindInputOptions } from '../../../../base/browser/ui/findinput/findInput.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { ContextScopedFindInput } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { NotebookFindFilters } from '../../notebook/browser/contrib/find/findFilters.js';
+import { NotebookFindInputFilterButton } from '../../notebook/browser/contrib/find/notebookFindReplaceWidget.js';
+import * as nls from '../../../../nls.js';
+import { Emitter } from '../../../../base/common/event.js';
+
 
 export class SearchFindInput extends ContextScopedFindInput {
 	private _findFilter: NotebookFindInputFilterButton;
 	private _filterChecked: boolean = false;
-	private _visible: boolean = false;
+	private readonly _onDidChangeAIToggle = this._register(new Emitter<boolean>());
+	public readonly onDidChangeAIToggle = this._onDidChangeAIToggle.event;
 
 	constructor(
 		container: HTMLElement | null,
@@ -37,29 +40,39 @@ export class SearchFindInput extends ContextScopedFindInput {
 				options,
 				nls.localize('searchFindInputNotebookFilter.label', "Notebook Find Filters")
 			));
-		this.inputBox.paddingRight = (this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0) + this._findFilter.width;
+
+
+		this._updatePadding();
+
 		this.controls.appendChild(this._findFilter.container);
 		this._findFilter.container.classList.add('monaco-custom-toggle');
-
 		this.filterVisible = filterStartVisiblitity;
 	}
 
-	set filterVisible(show: boolean) {
-		this._findFilter.container.style.display = show ? '' : 'none';
-		this._visible = show;
-		this.updateStyles();
+	private _updatePadding() {
+		this.inputBox.paddingRight =
+			(this.caseSensitive?.visible ? this.caseSensitive.width() : 0) +
+			(this.wholeWords?.visible ? this.wholeWords.width() : 0) +
+			(this.regex?.visible ? this.regex.width() : 0) +
+			(this._findFilter.visible ? this._findFilter.width() : 0);
+	}
+
+	set filterVisible(visible: boolean) {
+		this._findFilter.visible = visible;
+		this.updateFilterStyles();
+		this._updatePadding();
 	}
 
 	override setEnabled(enabled: boolean) {
 		super.setEnabled(enabled);
-		if (enabled && (!this._filterChecked || !this._visible)) {
+		if (enabled && (!this._filterChecked || !this._findFilter.visible)) {
 			this.regex?.enable();
 		} else {
 			this.regex?.disable();
 		}
 	}
 
-	updateStyles() {
+	updateFilterStyles() {
 		// filter is checked if it's in a non-default state
 		this._filterChecked =
 			!this.filters.markupInput ||
@@ -68,7 +81,6 @@ export class SearchFindInput extends ContextScopedFindInput {
 			!this.filters.codeOutput;
 
 		// TODO: find a way to express that searching notebook output and markdown preview don't support regex.
-
 		this._findFilter.applyStyles(this._filterChecked);
 	}
 }

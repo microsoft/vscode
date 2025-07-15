@@ -3,21 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ExtHostContext, MainContext, MainThreadDecorationsShape, ExtHostDecorationsShape, DecorationData, DecorationRequest } from '../common/extHost.protocol';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IDecorationsService, IDecorationData } from 'vs/workbench/services/decorations/common/decorations';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { Emitter } from '../../../base/common/event.js';
+import { IDisposable, dispose } from '../../../base/common/lifecycle.js';
+import { ExtHostContext, MainContext, MainThreadDecorationsShape, ExtHostDecorationsShape, DecorationData, DecorationRequest } from '../common/extHost.protocol.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { IDecorationsService, IDecorationData } from '../../services/decorations/common/decorations.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { DeferredPromise } from '../../../base/common/async.js';
+import { CancellationError } from '../../../base/common/errors.js';
 
 class DecorationRequestsQueue {
 
 	private _idPool = 0;
 	private _requests = new Map<number, DecorationRequest>();
-	private _resolver = new Map<number, (data: DecorationData) => any>();
+	private _resolver = new Map<number, DeferredPromise<DecorationData>>();
 
-	private _timer: any;
+	private _timer: Timeout | undefined;
 
 	constructor(
 		private readonly _proxy: ExtHostDecorationsShape,
@@ -28,20 +30,22 @@ class DecorationRequestsQueue {
 
 	enqueue(uri: URI, token: CancellationToken): Promise<DecorationData> {
 		const id = ++this._idPool;
-		const result = new Promise<DecorationData>(resolve => {
-			this._requests.set(id, { id, uri });
-			this._resolver.set(id, resolve);
-			this._processQueue();
-		});
+
+		const defer = new DeferredPromise<DecorationData>();
+		this._requests.set(id, { id, uri });
+		this._resolver.set(id, defer);
+		this._processQueue();
+
 		const sub = token.onCancellationRequested(() => {
 			this._requests.delete(id);
 			this._resolver.delete(id);
+			defer.error(new CancellationError());
 		});
-		return result.finally(() => sub.dispose());
+		return defer.p.finally(() => sub.dispose());
 	}
 
 	private _processQueue(): void {
-		if (typeof this._timer === 'number') {
+		if (this._timer !== undefined) {
 			// already queued
 			return;
 		}
@@ -50,8 +54,8 @@ class DecorationRequestsQueue {
 			const requests = this._requests;
 			const resolver = this._resolver;
 			this._proxy.$provideDecorations(this._handle, [...requests.values()], CancellationToken.None).then(data => {
-				for (const [id, resolve] of resolver) {
-					resolve(data[id]);
+				for (const [id, defer] of resolver) {
+					defer.complete(data[id]);
 				}
 			});
 
@@ -87,13 +91,13 @@ export class MainThreadDecorations implements MainThreadDecorationsShape {
 		const registration = this._decorationsService.registerDecorationsProvider({
 			label,
 			onDidChange: emitter.event,
-			provideDecorations: async (uri, token) => {
+			provideDecorations: async (uri, token): Promise<IDecorationData | undefined> => {
 				const data = await queue.enqueue(uri, token);
 				if (!data) {
 					return undefined;
 				}
 				const [bubble, tooltip, letter, themeColor] = data;
-				return <IDecorationData>{
+				return {
 					weight: 10,
 					bubble: bubble ?? false,
 					color: themeColor?.id,

@@ -13,5 +13,7 @@ export interface ITextDocument {
 	readonly version: number;
 
 	getText(range?: vscode.Range): string;
+
+	positionAt(offset: number): vscode.Position;
 }
 

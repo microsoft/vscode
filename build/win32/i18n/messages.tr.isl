@@ -7,3 +7,4 @@ RunAfter=Kurulumdan sonra %1 uygulamasýný çalýþtýr.
 Other=Diðer:
 SourceFile=%1 Kaynak Dosyasý
 OpenWithCodeContextMenu=%1 Ýle Aç
+UpdatingVisualStudioCode=Visual Studio Code güncelleniyor...

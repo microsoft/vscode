@@ -6,7 +6,8 @@ There are several ways in which you can contribute, beyond writing code. The goa
 
 ## Asking Questions
 
-Have a question? Instead of opening an issue, please ask on [Stack Overflow](https://stackoverflow.com/questions/tagged/vscode) using the tag `vscode`.
+
+Have a question? Instead of opening an issue, please ask on [Stack Overflow](https://stackoverflow.com/questions/tagged/visual-studio-code) using the tag `visual-studio-code`.
 
 The active community will be eager to assist you. Your well-worded question will serve as a resource to others searching for help.
 

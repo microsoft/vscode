@@ -3,24 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWeb } from 'vs/base/common/platform';
-import { format2 } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { IHeaders } from 'vs/base/parts/request/common/request';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { getServiceMachineId } from 'vs/platform/externalServices/common/serviceMachineId';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { getTelemetryLevel, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { RemoteAuthorities } from 'vs/base/common/network';
-import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
-import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { isWeb } from '../../../base/common/platform.js';
+import { format2 } from '../../../base/common/strings.js';
+import { URI } from '../../../base/common/uri.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { IFileService } from '../../files/common/files.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IProductService } from '../../product/common/productService.js';
+import { getServiceMachineId } from '../../externalServices/common/serviceMachineId.js';
+import { IStorageService } from '../../storage/common/storage.js';
+import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
+import { getTelemetryLevel, supportsTelemetry } from '../../telemetry/common/telemetryUtils.js';
+import { RemoteAuthorities } from '../../../base/common/network.js';
+import { TargetPlatform } from '../../extensions/common/extensions.js';
+import { ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../extensionManagement/common/extensionGalleryManifest.js';
+import { ILogService } from '../../log/common/log.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 
-const WEB_EXTENSION_RESOURCE_END_POINT = 'web-extension-resource';
+const WEB_EXTENSION_RESOURCE_END_POINT_SEGMENT = '/web-extension-resource/';
 
 export const IExtensionResourceLoaderService = createDecorator<IExtensionResourceLoaderService>('extensionResourceLoaderService');
 
@@ -38,17 +39,17 @@ export interface IExtensionResourceLoaderService {
 	/**
 	 * Returns whether the gallery provides extension resources.
 	 */
-	readonly supportsExtensionGalleryResources: boolean;
+	supportsExtensionGalleryResources(): Promise<boolean>;
 
 	/**
 	 * Return true if the given URI is a extension gallery resource.
 	 */
-	isExtensionGalleryResource(uri: URI): boolean;
+	isExtensionGalleryResource(uri: URI): Promise<boolean>;
 
 	/**
 	 * Computes the URL of a extension gallery resource. Returns `undefined` if gallery does not provide extension resources.
 	 */
-	getExtensionGalleryResourceURL(galleryExtension: { publisher: string; name: string; version: string; targetPlatform?: TargetPlatform }, path?: string): URI | undefined;
+	getExtensionGalleryResourceURL(galleryExtension: { publisher: string; name: string; version: string; targetPlatform?: TargetPlatform }, path?: string): Promise<URI | undefined>;
 }
 
 export function migratePlatformSpecificExtensionGalleryResourceURL(resource: URI, targetPlatform: TargetPlatform): URI | undefined {
@@ -63,13 +64,14 @@ export function migratePlatformSpecificExtensionGalleryResourceURL(resource: URI
 	return resource.with({ query: null, path: paths.join('/') });
 }
 
-export abstract class AbstractExtensionResourceLoaderService implements IExtensionResourceLoaderService {
+export abstract class AbstractExtensionResourceLoaderService extends Disposable implements IExtensionResourceLoaderService {
 
 	readonly _serviceBrand: undefined;
 
-	private readonly _webExtensionResourceEndPoint: string;
-	private readonly _extensionGalleryResourceUrlTemplate: string | undefined;
-	private readonly _extensionGalleryAuthority: string | undefined;
+	private readonly _initPromise: Promise<void>;
+
+	private _extensionGalleryResourceUrlTemplate: string | undefined;
+	private _extensionGalleryAuthority: string | undefined;
 
 	constructor(
 		protected readonly _fileService: IFileService,
@@ -77,19 +79,35 @@ export abstract class AbstractExtensionResourceLoaderService implements IExtensi
 		private readonly _productService: IProductService,
 		private readonly _environmentService: IEnvironmentService,
 		private readonly _configurationService: IConfigurationService,
+		private readonly _extensionGalleryManifestService: IExtensionGalleryManifestService,
+		protected readonly _logService: ILogService,
 	) {
-		this._webExtensionResourceEndPoint = `${getRemoteServerRootPath(_productService)}/${WEB_EXTENSION_RESOURCE_END_POINT}/`;
-		if (_productService.extensionsGallery) {
-			this._extensionGalleryResourceUrlTemplate = _productService.extensionsGallery.resourceUrlTemplate;
-			this._extensionGalleryAuthority = this._extensionGalleryResourceUrlTemplate ? this._getExtensionGalleryAuthority(URI.parse(this._extensionGalleryResourceUrlTemplate)) : undefined;
+		super();
+		this._initPromise = this._init();
+	}
+
+	private async _init(): Promise<void> {
+		try {
+			const manifest = await this._extensionGalleryManifestService.getExtensionGalleryManifest();
+			this.resolve(manifest);
+			this._register(this._extensionGalleryManifestService.onDidChangeExtensionGalleryManifest(() => this.resolve(manifest)));
+		} catch (error) {
+			this._logService.error(error);
 		}
 	}
 
-	public get supportsExtensionGalleryResources(): boolean {
+	private resolve(manifest: IExtensionGalleryManifest | null): void {
+		this._extensionGalleryResourceUrlTemplate = manifest ? getExtensionGalleryManifestResourceUri(manifest, ExtensionGalleryResourceType.ExtensionResourceUri) : undefined;
+		this._extensionGalleryAuthority = this._extensionGalleryResourceUrlTemplate ? this._getExtensionGalleryAuthority(URI.parse(this._extensionGalleryResourceUrlTemplate)) : undefined;
+	}
+
+	public async supportsExtensionGalleryResources(): Promise<boolean> {
+		await this._initPromise;
 		return this._extensionGalleryResourceUrlTemplate !== undefined;
 	}
 
-	public getExtensionGalleryResourceURL({ publisher, name, version, targetPlatform }: { publisher: string; name: string; version: string; targetPlatform?: TargetPlatform }, path?: string): URI | undefined {
+	public async getExtensionGalleryResourceURL({ publisher, name, version, targetPlatform }: { publisher: string; name: string; version: string; targetPlatform?: TargetPlatform }, path?: string): Promise<URI | undefined> {
+		await this._initPromise;
 		if (this._extensionGalleryResourceUrlTemplate) {
 			const uri = URI.parse(format2(this._extensionGalleryResourceUrlTemplate, {
 				publisher,
@@ -109,12 +127,13 @@ export abstract class AbstractExtensionResourceLoaderService implements IExtensi
 
 	public abstract readExtensionResource(uri: URI): Promise<string>;
 
-	isExtensionGalleryResource(uri: URI): boolean {
+	async isExtensionGalleryResource(uri: URI): Promise<boolean> {
+		await this._initPromise;
 		return !!this._extensionGalleryAuthority && this._extensionGalleryAuthority === this._getExtensionGalleryAuthority(uri);
 	}
 
-	protected async getExtensionGalleryRequestHeaders(): Promise<IHeaders> {
-		const headers: IHeaders = {
+	protected async getExtensionGalleryRequestHeaders(): Promise<Record<string, string>> {
+		const headers: Record<string, string> = {
 			'X-Client-Name': `${this._productService.applicationName}${isWeb ? '-web' : ''}`,
 			'X-Client-Version': this._productService.version
 		};
@@ -144,7 +163,9 @@ export abstract class AbstractExtensionResourceLoaderService implements IExtensi
 	}
 
 	protected _isWebExtensionResourceEndPoint(uri: URI): boolean {
-		return uri.path.startsWith(this._webExtensionResourceEndPoint);
+		const uriPath = uri.path, serverRootPath = RemoteAuthorities.getServerRootPath();
+		// test if the path starts with the server root path followed by the web extension resource end point segment
+		return uriPath.startsWith(serverRootPath) && uriPath.startsWith(WEB_EXTENSION_RESOURCE_END_POINT_SEGMENT, serverRootPath.length);
 	}
 
 }

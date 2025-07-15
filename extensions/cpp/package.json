@@ -11,6 +11,7 @@
   "scripts": {
     "update-grammar": "node ./build/update-grammars.js"
   },
+  "categories": ["Programming Languages"],
   "contributes": {
     "languages": [
       {
@@ -29,9 +30,13 @@
         "id": "cpp",
         "extensions": [
           ".cpp",
+          ".cppm",
           ".cc",
+          ".ccm",
           ".cxx",
+          ".cxxm",
           ".c++",
+          ".c++m",
           ".hpp",
           ".hh",
           ".hxx",
