@@ -72,10 +72,14 @@
 	outline: none;
 }
 
-.inline-chat-widget .checkpoint-container,
-.inline-chat-widget .checkpoint-restore-container {
-	display: none;
+.inline-chat-widget,
+.terminal-inline-chat {
+	.checkpoint-container,
+	.checkpoint-restore-container {
+		display: none;
+	}
 }
+
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part {
 	padding: 4px 0 0 0;
