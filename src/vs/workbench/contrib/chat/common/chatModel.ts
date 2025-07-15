@@ -1169,7 +1169,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		const message = typeof firstRequestMessage === 'string' ?
 			firstRequestMessage :
 			firstRequestMessage.text;
-		return message.split('\n')[0].substring(0, 50);
+		return message.split('\n')[0].substring(0, 200);
 	}
 
 	private readonly _onDidDispose = this._register(new Emitter<void>());
