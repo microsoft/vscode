@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { localize } from 'vs/nls';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { EditorCommand, registerEditorCommand } from '../../../browser/editorExtensions.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { IContextKeyService, RawContextKey, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { CancellationTokenSource, CancellationToken } from '../../../../base/common/cancellation.js';
+import { LinkedList } from '../../../../base/common/linkedList.js';
+import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { localize } from '../../../../nls.js';
 
 
 const IEditorCancellationTokens = createDecorator<IEditorCancellationTokens>('IEditorCancelService');

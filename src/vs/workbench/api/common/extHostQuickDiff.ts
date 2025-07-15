@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ExtHostQuickDiffShape, IMainContext, MainContext, MainThreadQuickDiffShape } from 'vs/workbench/api/common/extHost.protocol';
-import { asPromise } from 'vs/base/common/async';
-import { DocumentSelector } from 'vs/workbench/api/common/extHostTypeConverters';
-import { IURITransformer } from 'vs/base/common/uriIpc';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { ExtHostQuickDiffShape, IMainContext, MainContext, MainThreadQuickDiffShape } from './extHost.protocol.js';
+import { asPromise } from '../../../base/common/async.js';
+import { DocumentSelector } from './extHostTypeConverters.js';
+import { IURITransformer } from '../../../base/common/uriIpc.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 
 export class ExtHostQuickDiff implements ExtHostQuickDiffShape {
 	private static handlePool: number = 0;
@@ -36,10 +37,12 @@ export class ExtHostQuickDiff implements ExtHostQuickDiffShape {
 			.then<UriComponents | null>(r => r || null);
 	}
 
-	registerQuickDiffProvider(selector: vscode.DocumentSelector, quickDiffProvider: vscode.QuickDiffProvider, label: string, rootUri?: vscode.Uri): vscode.Disposable {
+	registerQuickDiffProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, quickDiffProvider: vscode.QuickDiffProvider, id: string, label: string, rootUri?: vscode.Uri): vscode.Disposable {
 		const handle = ExtHostQuickDiff.handlePool++;
 		this.providers.set(handle, quickDiffProvider);
-		this.proxy.$registerQuickDiffProvider(handle, DocumentSelector.from(selector, this.uriTransformer), label, rootUri);
+
+		const extensionId = ExtensionIdentifier.toKey(extension.identifier);
+		this.proxy.$registerQuickDiffProvider(handle, DocumentSelector.from(selector, this.uriTransformer), `${extensionId}.${id}`, label, rootUri);
 		return {
 			dispose: () => {
 				this.proxy.$unregisterQuickDiffProvider(handle);

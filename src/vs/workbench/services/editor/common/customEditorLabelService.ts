@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { ParsedPattern, parse as parseGlob } from 'vs/base/common/glob';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isAbsolute, parse as parsePath, ParsedPath, dirname } from 'vs/base/common/path';
-import { dirname as resourceDirname, relativePath as getRelativePath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { MRUCache } from 'vs/base/common/map';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { ParsedPattern, parse as parseGlob } from '../../../../base/common/glob.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { isAbsolute, parse as parsePath, ParsedPath, dirname } from '../../../../base/common/path.js';
+import { dirname as resourceDirname, relativePath as getRelativePath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { MRUCache } from '../../../../base/common/map.js';
 
 interface ICustomEditorLabelObject {
 	readonly [key: string]: string;

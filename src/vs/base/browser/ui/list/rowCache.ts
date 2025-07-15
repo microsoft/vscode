@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from 'vs/base/browser/dom';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IListRenderer } from './list';
+import { $ } from '../../dom.js';
+import { IDisposable } from '../../../common/lifecycle.js';
+import { IListRenderer } from './list.js';
 
 export interface IRow {
 	domNode: HTMLElement;

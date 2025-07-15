@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mock } from 'vs/base/test/common/mock';
-import { NotebookClipboardContribution, runCopyCells, runCutCells } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
-import { CellKind, NOTEBOOK_EDITOR_ID, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IActiveNotebookEditor, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { IVisibleEditorPane } from 'vs/workbench/common/editor';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { mock } from '../../../../../../base/test/common/mock.js';
+import { NotebookClipboardContribution, runCopyCells, runCutCells } from '../../../browser/contrib/clipboard/notebookClipboard.js';
+import { CellKind, NOTEBOOK_EDITOR_ID, SelectionStateType } from '../../../common/notebookCommon.js';
+import { withTestNotebook } from '../testNotebookEditor.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IActiveNotebookEditor, INotebookEditor } from '../../../browser/notebookBrowser.js';
+import { IVisibleEditorPane } from '../../../../../common/editor.js';
+import { INotebookService } from '../../../common/notebookService.js';
+import { FoldingModel, updateFoldingStateAtIndex } from '../../../browser/viewModel/foldingModel.js';
+import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 
 suite('Notebook Clipboard', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

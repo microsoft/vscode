@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { Schemas } from 'vs/base/common/network';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { EditorInputCapabilities, IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
 
 const WorkspaceTrustEditorIcon = registerIcon('workspace-trust-editor-label-icon', Codicon.shield, localize('workspaceTrustEditorLabelIcon', 'Icon of the workspace trust editor label.'));
 

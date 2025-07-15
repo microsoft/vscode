@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { compareAnything } from 'vs/base/common/comparers';
-import { createMatches as createFuzzyMatches, fuzzyScore, IMatch, isUpper, matchesPrefix } from 'vs/base/common/filters';
-import { hash } from 'vs/base/common/hash';
-import { sep } from 'vs/base/common/path';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { equalsIgnoreCase, stripWildcards } from 'vs/base/common/strings';
+import { CharCode } from './charCode.js';
+import { compareAnything } from './comparers.js';
+import { createMatches as createFuzzyMatches, fuzzyScore, IMatch, isUpper, matchesPrefix } from './filters.js';
+import { hash } from './hash.js';
+import { sep } from './path.js';
+import { isLinux, isWindows } from './platform.js';
+import { equalsIgnoreCase, stripWildcards } from './strings.js';
 
 //#region Fuzzy scorer
 
@@ -173,9 +173,11 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 	// 	console.log(`%cCharacter match bonus: +1`, 'font-weight: normal');
 	// }
 
-	// Consecutive match bonus
+	// Consecutive match bonus: sequences up to 3 get the full bonus (6)
+	// and the remainder gets half the bonus (3). This helps reduce the
+	// overall boost for long sequence matches.
 	if (matchesSequenceLength > 0) {
-		score += (matchesSequenceLength * 5);
+		score += (Math.min(matchesSequenceLength, 3) * 6) + (Math.max(0, matchesSequenceLength - 3) * 3);
 
 		// if (DEBUG) {
 		// 	console.log(`Consecutive match bonus: +${matchesSequenceLength * 5}`);

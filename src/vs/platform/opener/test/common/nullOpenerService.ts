@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IOpenerService } from '../../common/opener';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IOpenerService } from '../../common/opener.js';
 
 export const NullOpenerService = Object.freeze<IOpenerService>({
 	_serviceBrand: undefined,

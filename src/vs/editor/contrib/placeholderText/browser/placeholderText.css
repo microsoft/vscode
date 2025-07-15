@@ -4,9 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor {
-	--vscode-editor-placeholder-foreground: var(--vscode-editorGhostText-foreground);
-}
+	.editorPlaceholder {
+		top: 0px;
+		position: absolute;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		text-wrap: nowrap;
+		pointer-events: none;
 
-.monaco-editor .placeholder-text {
-	color: var(--vscode-editor-placeholder-foreground);
+		color: var(--vscode-editor-placeholder-foreground);
+	}
 }

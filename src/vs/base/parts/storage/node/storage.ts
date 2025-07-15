@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { mapToString, setToString } from 'vs/base/common/map';
-import { basename } from 'vs/base/common/path';
-import { Promises } from 'vs/base/node/pfs';
-import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
+import * as fs from 'fs';
+import { timeout } from '../../../common/async.js';
+import { Event } from '../../../common/event.js';
+import { mapToString, setToString } from '../../../common/map.js';
+import { basename } from '../../../common/path.js';
+import { Promises } from '../../../node/pfs.js';
+import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from '../common/storage.js';
 import type { Database, Statement } from '@vscode/sqlite3';
 
 interface IDatabaseConnection {
@@ -37,13 +38,20 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	private static readonly BUSY_OPEN_TIMEOUT = 2000; // timeout in ms to retry when opening DB fails with SQLITE_BUSY
 	private static readonly MAX_HOST_PARAMETERS = 256; // maximum number of parameters within a statement
 
-	private readonly name = basename(this.path);
+	private readonly name: string;
 
-	private readonly logger = new SQLiteStorageDatabaseLogger(this.options.logging);
+	private readonly logger: SQLiteStorageDatabaseLogger;
 
-	private readonly whenConnected = this.connect(this.path);
+	private readonly whenConnected: Promise<IDatabaseConnection>;
 
-	constructor(private readonly path: string, private readonly options: ISQLiteStorageDatabaseOptions = Object.create(null)) { }
+	constructor(
+		private readonly path: string,
+		options: ISQLiteStorageDatabaseOptions = Object.create(null)
+	) {
+		this.name = basename(this.path);
+		this.logger = new SQLiteStorageDatabaseLogger(options.logging);
+		this.whenConnected = this.connect(this.path);
+	}
 
 	async getItems(): Promise<Map<string, string>> {
 		const connection = await this.whenConnected;
@@ -194,7 +202,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 					// Delete the existing DB. If the path does not exist or fails to
 					// be deleted, we do not try to recover anymore because we assume
 					// that the path is no longer writeable for us.
-					return Promises.unlink(this.path).then(() => {
+					return fs.promises.unlink(this.path).then(() => {
 
 						// Re-open the DB fresh
 						return this.doConnect(this.path).then(recoveryConnection => {
@@ -280,7 +288,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 			// folder is really not writeable for us.
 			//
 			try {
-				await Promises.unlink(path);
+				await fs.promises.unlink(path);
 				try {
 					await Promises.rename(this.toBackupPath(path), path, false /* no retry */);
 				} catch (error) {
@@ -308,8 +316,9 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	private doConnect(path: string): Promise<IDatabaseConnection> {
 		return new Promise((resolve, reject) => {
 			import('@vscode/sqlite3').then(sqlite3 => {
+				const ctor = (this.logger.isTracing ? sqlite3.default.verbose().Database : sqlite3.default.Database);
 				const connection: IDatabaseConnection = {
-					db: new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, (error: (Error & { code?: string }) | null) => {
+					db: new ctor(path, (error: (Error & { code?: string }) | null) => {
 						if (error) {
 							return (connection.db && error.code !== 'SQLITE_CANTOPEN' /* https://github.com/TryGhost/node-sqlite3/issues/1617 */) ? connection.db.close(() => reject(error)) : reject(error);
 						}

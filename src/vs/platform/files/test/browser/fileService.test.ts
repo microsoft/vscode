@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from 'vs/base/common/async';
-import { bufferToReadable, bufferToStream, VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import { consumeStream, newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IFileOpenOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileType, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IStat, IFileAtomicReadOptions, IFileAtomicWriteOptions, IFileAtomicDeleteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileAtomicWriteCapability, IFileAtomicOptions, IFileChange, isFileSystemWatcher, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { bufferToReadable, bufferToStream, VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { consumeStream, newWriteableStream, ReadableStreamEvents } from '../../../../base/common/stream.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IFileOpenOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileType, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IStat, IFileAtomicReadOptions, IFileAtomicWriteOptions, IFileAtomicDeleteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileAtomicWriteCapability, IFileAtomicOptions, IFileChange, isFileSystemWatcher, FileChangesEvent, FileChangeType } from '../../common/files.js';
+import { FileService } from '../../common/fileService.js';
+import { NullFileSystemProvider } from '../common/nullFileSystemProvider.js';
+import { NullLogService } from '../../../log/common/log.js';
 
 suite('File Service', () => {
 

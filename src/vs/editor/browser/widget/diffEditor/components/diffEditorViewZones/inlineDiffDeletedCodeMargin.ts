@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addStandardDisposableListener, getDomNodePagePosition } from 'vs/base/browser/dom';
-import { Action } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isIOS } from 'vs/base/common/platform';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
-import { localize } from 'vs/nls';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { addStandardDisposableListener, getDomNodePagePosition } from '../../../../../../base/browser/dom.js';
+import { Action } from '../../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { isIOS } from '../../../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { IEditorMouseEvent, MouseTargetType } from '../../../../editorBrowser.js';
+import { CodeEditorWidget } from '../../../codeEditor/codeEditorWidget.js';
+import { DiffEditorWidget } from '../../diffEditorWidget.js';
+import { EditorOption } from '../../../../../common/config/editorOptions.js';
+import { DetailedLineRangeMapping } from '../../../../../common/diff/rangeMapping.js';
+import { EndOfLineSequence, ITextModel } from '../../../../../common/model.js';
+import { localize } from '../../../../../../nls.js';
+import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 
 export class InlineDiffDeletedCodeMargin extends Disposable {
 	private readonly _diffActions: HTMLElement;
