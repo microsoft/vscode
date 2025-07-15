@@ -220,6 +220,11 @@ export interface IEditorOptions {
 	 */
 	fixedOverflowWidgets?: boolean;
 	/**
+	 * Allow content widgets and overflow widgets to overflow the editor viewport.
+	 * Defaults to `true`.
+	 */
+	allowOverflow?: boolean;
+	/**
 	 * The number of vertical lanes the overview ruler should render.
 	 * Defaults to 3.
 	 */
@@ -5577,6 +5582,7 @@ export const enum EditorOption {
 	acceptSuggestionOnEnter,
 	accessibilitySupport,
 	accessibilityPageSize,
+	allowOverflow,
 	allowVariableLineHeights,
 	allowVariableFonts,
 	allowVariableFontsInAccessibilityMode,
@@ -5767,7 +5773,11 @@ export const EditorOptions = {
 		{
 			description: nls.localize('accessibilityPageSize', "Controls the number of lines in the editor that can be read out by a screen reader at once. When we detect a screen reader we automatically set the default to be 500. Warning: this has a performance implication for numbers larger than the default."),
 			tags: ['accessibility']
-		})),
+		}
+	)),
+	allowOverflow: register(new EditorBooleanOption(
+		EditorOption.allowOverflow, 'allowOverflow', true,
+	)),
 	allowVariableLineHeights: register(new EditorBooleanOption(
 		EditorOption.allowVariableLineHeights, 'allowVariableLineHeights', true,
 		{
