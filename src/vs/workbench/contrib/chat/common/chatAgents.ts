@@ -59,6 +59,7 @@ export interface IChatAgentData {
 	metadata: IChatAgentMetadata;
 	slashCommands: IChatAgentCommand[];
 	locations: ChatAgentLocation[];
+	/** This is only relevant for isDefault agents. Others should have all modes available. */
 	modes: ChatModeKind[];
 	disambiguation: { category: string; description: string; examples: string[] }[];
 }
