@@ -18,12 +18,12 @@ declare module 'vscode' {
 	}
 
 	export interface RemoteCodingAgentInformationProvider extends Disposable {
-		onDidChangeAgentInformation: Event<RemoteCodingAgentInformation>;
+		onDidChangeCodingAgentInformation: Event<RemoteCodingAgentInformation>;
 		onDidSelectItem: (codingAgentId: string) => void;
 		provideCodingAgentsInformation(token: CancellationToken): AsyncIterable<RemoteCodingAgentInformation>;
 	}
 
 	export namespace remoteCodingAgents {
-		export function registerAgentInformationProvider(provider: RemoteCodingAgentInformationProvider): Disposable;
+		export function registerCodingAgentInformationProvider(provider: RemoteCodingAgentInformationProvider): Disposable;
 	}
 }

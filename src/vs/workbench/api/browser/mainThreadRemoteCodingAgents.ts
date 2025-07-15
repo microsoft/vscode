@@ -23,7 +23,7 @@ export class MainThreadRemoteCodingAgents extends Disposable implements MainThre
 		super();
 	}
 
-	$registerAgentInformationProvider(handle: number): void {
+	$registerCodingAgentInformationProvider(handle: number): void {
 		// Register the provider handle - this tracks that a provider exists
 		const provider: IRemoteCodingAgentInformationProvider = {
 			onDidSelectItem: (codingAgentId: string) => {
@@ -55,11 +55,11 @@ export class MainThreadRemoteCodingAgents extends Disposable implements MainThre
 		}
 	}
 
-	$unregisterAgentInformationProvider(handle: number): void {
+	$unregisterCodingAgentInformationProvider(handle: number): void {
 		this._registrations.deleteAndDispose(handle);
 	}
 
-	$onDidChangeAgentInformation(handle: number, information: IRemoteCodingAgentInformation): void {
+	$onDidChangeCodingAgentInformation(handle: number, information: IRemoteCodingAgentInformation): void {
 		this._remoteCodingAgentsService.updateCodingAgentsInformation(handle, information);
 	}
 }

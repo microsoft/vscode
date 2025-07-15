@@ -1560,9 +1560,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: remoteCodingAgents
 		const remoteCodingAgents = {
-			registerAgentInformationProvider(provider: vscode.RemoteCodingAgentInformationProvider) {
+			registerCodingAgentInformationProvider(provider: vscode.RemoteCodingAgentInformationProvider) {
 				checkProposedApiEnabled(extension, 'remoteCodingAgents');
-				return extHostRemoteCodingAgents.registerAgentInformationProvider(provider);
+				return extHostRemoteCodingAgents.registerCodingAgentInformationProvider(provider);
 			},
 		};
 

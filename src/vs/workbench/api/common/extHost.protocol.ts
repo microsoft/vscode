@@ -3108,9 +3108,9 @@ export interface MainThreadChatStatusShape {
 }
 
 export interface MainThreadRemoteCodingAgentsShape extends IDisposable {
-	$registerAgentInformationProvider(handle: number): void;
-	$unregisterAgentInformationProvider(handle: number): void;
-	$onDidChangeAgentInformation(handle: number, information: IRemoteCodingAgentInformation): void;
+	$registerCodingAgentInformationProvider(handle: number): void;
+	$unregisterCodingAgentInformationProvider(handle: number): void;
+	$onDidChangeCodingAgentInformation(handle: number, information: IRemoteCodingAgentInformation): void;
 }
 
 export interface ExtHostRemoteCodingAgentsShape {

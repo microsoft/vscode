@@ -11,7 +11,7 @@ import type * as vscode from 'vscode';
 import { ILogService } from '../../../platform/log/common/log.js';
 
 export interface IExtHostRemoteCodingAgents extends ExtHostRemoteCodingAgentsShape {
-	registerAgentInformationProvider(provider: vscode.RemoteCodingAgentInformationProvider): vscode.Disposable;
+	registerCodingAgentInformationProvider(provider: vscode.RemoteCodingAgentInformationProvider): vscode.Disposable;
 }
 export const IExtHostRemoteCodingAgents = createDecorator<IExtHostRemoteCodingAgents>('IExtHostRemoteCodingAgents');
 
@@ -29,25 +29,25 @@ export class ExtHostRemoteCodingAgents extends Disposable implements IExtHostRem
 		super();
 	}
 
-	registerAgentInformationProvider(provider: vscode.RemoteCodingAgentInformationProvider): vscode.Disposable {
+	registerCodingAgentInformationProvider(provider: vscode.RemoteCodingAgentInformationProvider): vscode.Disposable {
 		const handle = this._nextHandle++;
 		const disposables = new DisposableStore();
 
 		this._statusProviders.set(handle, { provider, disposable: disposables });
 
 		// Subscribe to provider's event and forward changes to main thread
-		disposables.add(provider.onDidChangeAgentInformation((info) => {
-			this._proxy.$onDidChangeAgentInformation(handle, info);
+		disposables.add(provider.onDidChangeCodingAgentInformation((info) => {
+			this._proxy.$onDidChangeCodingAgentInformation(handle, info);
 		}));
 
-		this._proxy.$registerAgentInformationProvider(handle);
+		this._proxy.$registerCodingAgentInformationProvider(handle);
 
 		return {
 			dispose: () => {
 				this._statusProviders.delete(handle);
 				disposables.dispose();
 				provider.dispose();
-				this._proxy.$unregisterAgentInformationProvider(handle);
+				this._proxy.$unregisterCodingAgentInformationProvider(handle);
 			}
 		};
 	}
