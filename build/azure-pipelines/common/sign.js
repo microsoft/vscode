@@ -94,7 +94,7 @@ function getParams(type) {
                 }];
         case 'sign-pgp-500207':
             return [{
-                    keyCode: 'CP-500207-pgp',
+                    keyCode: 'CP-500207-Pgp',
                     operationSetCode: 'LinuxSign',
                     parameters: [],
                     toolName: 'sign',
