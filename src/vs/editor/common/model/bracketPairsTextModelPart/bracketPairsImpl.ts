@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CallbackIterable, compareBy } from 'vs/base/common/arrays';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ILanguageConfigurationService, LanguageConfigurationServiceChangeEvent } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ignoreBracketsInToken } from 'vs/editor/common/languages/supports';
-import { LanguageBracketsConfiguration } from 'vs/editor/common/languages/supports/languageBracketsConfiguration';
-import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/common/languages/supports/richEditBrackets';
-import { BracketPairsTree } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/bracketPairsTree';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { BracketInfo, BracketPairInfo, BracketPairWithMinIndentationInfo, IBracketPairsTextModelPart, IFoundBracket } from 'vs/editor/common/textModelBracketPairs';
-import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
+import { CallbackIterable, compareBy } from '../../../../base/common/arrays.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { IPosition, Position } from '../../core/position.js';
+import { Range } from '../../core/range.js';
+import { ILanguageConfigurationService, LanguageConfigurationServiceChangeEvent } from '../../languages/languageConfigurationRegistry.js';
+import { ignoreBracketsInToken } from '../../languages/supports.js';
+import { LanguageBracketsConfiguration } from '../../languages/supports/languageBracketsConfiguration.js';
+import { BracketsUtils, RichEditBracket, RichEditBrackets } from '../../languages/supports/richEditBrackets.js';
+import { BracketPairsTree } from './bracketPairsTree/bracketPairsTree.js';
+import { TextModel } from '../textModel.js';
+import { BracketInfo, BracketPairInfo, BracketPairWithMinIndentationInfo, IBracketPairsTextModelPart, IFoundBracket } from '../../textModelBracketPairs.js';
+import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from '../../textModelEvents.js';
+import { LineTokens } from '../../tokens/lineTokens.js';
 
 export class BracketPairsTextModelPart extends Disposable implements IBracketPairsTextModelPart {
 	private readonly bracketPairsTree = this._register(new MutableDisposable<IReference<BracketPairsTree>>());

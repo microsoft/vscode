@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { IResolvableEditorModel } from 'vs/platform/editor/common/editor';
+import { EditorModel } from './editorModel.js';
+import { IResolvableEditorModel } from '../../../platform/editor/common/editor.js';
 
 /**
  * The base editor model for the diff editor. It is made up of two editor models, the original version

@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { URI } from 'vs/base/common/uri';
-import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ITextModel } from 'vs/editor/common/model';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { TextDiffEditorModel } from '../../../../common/editor/textDiffEditorModel.js';
+import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
+import { TextResourceEditorInput } from '../../../../common/editor/textResourceEditorInput.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { workbenchInstantiationService, TestServiceAccessor } from '../../workbenchTestServices.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('TextDiffEditorModel', () => {
 

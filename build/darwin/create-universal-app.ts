@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as fs from 'fs';
+import path from 'path';
+import fs from 'fs';
+import minimatch from 'minimatch';
 import { makeUniversalApp } from 'vscode-universal-bundler';
-import { spawn } from '@malept/cross-spawn-promise';
 
 const root = path.dirname(path.dirname(__dirname));
 
@@ -21,27 +21,34 @@ async function main(buildDir?: string) {
 	const appName = product.nameLong + '.app';
 	const x64AppPath = path.join(buildDir, 'VSCode-darwin-x64', appName);
 	const arm64AppPath = path.join(buildDir, 'VSCode-darwin-arm64', appName);
-	const x64AsarPath = path.join(x64AppPath, 'Contents', 'Resources', 'app', 'node_modules.asar');
-	const arm64AsarPath = path.join(arm64AppPath, 'Contents', 'Resources', 'app', 'node_modules.asar');
+	const asarRelativePath = path.join('Contents', 'Resources', 'app', 'node_modules.asar');
 	const outAppPath = path.join(buildDir, `VSCode-darwin-${arch}`, appName);
 	const productJsonPath = path.resolve(outAppPath, 'Contents', 'Resources', 'app', 'product.json');
+
+	const filesToSkip = [
+		'**/CodeResources',
+		'**/Credits.rtf',
+		'**/policies/{*.mobileconfig,**/*.plist}',
+		// TODO: Should we consider expanding this to other files in this area?
+		'**/node_modules/@parcel/node-addon-api/nothing.target.mk'
+	];
 
 	await makeUniversalApp({
 		x64AppPath,
 		arm64AppPath,
-		x64AsarPath,
-		arm64AsarPath,
-		filesToSkip: [
-			'product.json',
-			'Credits.rtf',
-			'CodeResources',
-			'fsevents.node',
-			'Info.plist', // TODO@deepak1556: regressed with 11.4.2 internal builds
-			'MainMenu.nib', // Generated sequence is not deterministic with Xcode 13
-			'.npmrc'
-		],
+		asarPath: asarRelativePath,
 		outAppPath,
-		force: true
+		force: true,
+		mergeASARs: true,
+		x64ArchFiles: '*/kerberos.node',
+		filesToSkipComparison: (file: string) => {
+			for (const expected of filesToSkip) {
+				if (minimatch(file, expected)) {
+					return true;
+				}
+			}
+			return false;
+		}
 	});
 
 	const productJson = JSON.parse(fs.readFileSync(productJsonPath, 'utf8'));
@@ -49,13 +56,6 @@ async function main(buildDir?: string) {
 		darwinUniversalAssetId: 'darwin-universal'
 	});
 	fs.writeFileSync(productJsonPath, JSON.stringify(productJson, null, '\t'));
-
-	// Verify if native module architecture is correct
-	const findOutput = await spawn('find', [outAppPath, '-name', 'kerberos.node']);
-	const lipoOutput = await spawn('lipo', ['-archs', findOutput.replace(/\n$/, '')]);
-	if (lipoOutput.replace(/\n$/, '') !== 'x86_64 arm64') {
-		throw new Error(`Invalid arch, got : ${lipoOutput}`);
-	}
 }
 
 if (require.main === module) {

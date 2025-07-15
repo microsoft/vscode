@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hide, show } from 'vs/base/browser/dom';
-import { getProgressAcccessibilitySignalScheduler } from 'vs/base/browser/ui/progressbar/progressAccessibilitySignal';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isNumber } from 'vs/base/common/types';
-import 'vs/css!./progressbar';
+import { hide, show } from '../../dom.js';
+import { getProgressAcccessibilitySignalScheduler } from './progressAccessibilitySignal.js';
+import { RunOnceScheduler } from '../../../common/async.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../common/lifecycle.js';
+import { isNumber } from '../../../common/types.js';
+import './progressbar.css';
 
 const CSS_DONE = 'done';
 const CSS_ACTIVE = 'active';

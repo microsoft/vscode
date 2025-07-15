@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter, Event } from 'vs/base/common/event';
-import { dispose } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { dispose } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { SyncDescriptor } from '../../common/descriptors.js';
+import { createDecorator, IInstantiationService, ServicesAccessor } from '../../common/instantiation.js';
+import { InstantiationService } from '../../common/instantiationService.js';
+import { ServiceCollection } from '../../common/serviceCollection.js';
 
 const IService1 = createDecorator<IService1>('service1');
 

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { join } from 'vs/base/common/path';
-import { Promises } from 'vs/base/node/pfs';
+import { join } from '../../../base/common/path.js';
+import { Promises } from '../../../base/node/pfs.js';
 
 export async function buildTelemetryMessage(appRoot: string, extensionsPath?: string): Promise<string> {
 	const mergedTelemetry = Object.create(null);

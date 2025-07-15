@@ -3,23 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveElement } from 'vs/base/browser/dom';
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction2, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { localize2 } from 'vs/nls';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import './registrations.contribution';
-import { DiffEditorSelectionHunkToolbarContext } from 'vs/editor/browser/widget/diffEditor/features/gutterFeature';
-import { URI } from 'vs/base/common/uri';
+import { getActiveElement } from '../../../../base/browser/dom.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { ICodeEditor, IDiffEditor } from '../../editorBrowser.js';
+import { EditorAction2, ServicesAccessor } from '../../editorExtensions.js';
+import { ICodeEditorService } from '../../services/codeEditorService.js';
+import { DiffEditorWidget } from './diffEditorWidget.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { localize2 } from '../../../../nls.js';
+import { ILocalizedString } from '../../../../platform/action/common/action.js';
+import { Action2, MenuId } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import './registrations.contribution.js';
+import { DiffEditorSelectionHunkToolbarContext } from './features/gutterFeature.js';
+import { URI } from '../../../../base/common/uri.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
 
 export class ToggleCollapseUnchangedRegions extends Action2 {
 	constructor() {
@@ -255,7 +256,7 @@ export function findFocusedDiffEditor(accessor: ServicesAccessor): IDiffEditor |
 	if (activeElement) {
 		for (const d of diffEditors) {
 			const container = d.getContainerDomNode();
-			if (isElementOrParentOf(container, activeElement)) {
+			if (container.contains(activeElement)) {
 				return d;
 			}
 		}
@@ -264,13 +265,24 @@ export function findFocusedDiffEditor(accessor: ServicesAccessor): IDiffEditor |
 	return null;
 }
 
-function isElementOrParentOf(elementOrParent: Element, element: Element): boolean {
-	let e: Element | null = element;
-	while (e) {
-		if (e === elementOrParent) {
-			return true;
-		}
-		e = e.parentElement;
+
+/**
+ * If `editor` is the original or modified editor of a diff editor, it returns it.
+ * It returns null otherwise.
+ */
+export function findDiffEditorContainingCodeEditor(accessor: ServicesAccessor, editor: ICodeEditor): IDiffEditor | null {
+	if (!editor.getOption(EditorOption.inDiffEditor)) {
+		return null;
 	}
-	return false;
+
+	const codeEditorService = accessor.get(ICodeEditorService);
+
+	for (const diffEditor of codeEditorService.listDiffEditors()) {
+		const originalEditor = diffEditor.getOriginalEditor();
+		const modifiedEditor = diffEditor.getModifiedEditor();
+		if (originalEditor === editor || modifiedEditor === editor) {
+			return diffEditor;
+		}
+	}
+	return null;
 }

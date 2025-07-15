@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter, Event } from '../../../base/common/event.js';
 
 export interface IEditorZoom {
 	onDidChangeZoomLevel: Event<number>;

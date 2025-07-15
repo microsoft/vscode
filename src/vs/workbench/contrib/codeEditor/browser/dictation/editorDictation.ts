@@ -3,33 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./editorDictation';
-import { localize, localize2 } from 'vs/nls';
-import { IDimension } from 'vs/base/browser/dom';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { HasSpeechProvider, ISpeechService, SpeechToTextInProgress, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
-import { Codicon } from 'vs/base/common/codicons';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { EditorAction2, EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { assertIsDefined } from 'vs/base/common/types';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { toAction } from 'vs/base/common/actions';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { isWindows } from 'vs/base/common/platform';
+import './editorDictation.css';
+import { localize, localize2 } from '../../../../../nls.js';
+import { IDimension } from '../../../../../base/browser/dom.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../../editor/browser/editorBrowser.js';
+import { IEditorContribution } from '../../../../../editor/common/editorCommon.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { HasSpeechProvider, ISpeechService, SpeechToTextInProgress, SpeechToTextStatus } from '../../../speech/common/speechService.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
+import { EditorAction2, EditorContributionInstantiation, registerEditorContribution } from '../../../../../editor/browser/editorExtensions.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { Selection } from '../../../../../editor/common/core/selection.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { assertReturnsDefined } from '../../../../../base/common/types.js';
+import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { toAction } from '../../../../../base/common/actions.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { isWindows } from '../../../../../base/common/platform.js';
 
 const EDITOR_DICTATION_IN_PROGRESS = new RawContextKey<boolean>('editorDictation.inProgress', false);
 const VOICE_CATEGORY = localize2('voiceCategory', "Voice");
@@ -152,7 +152,8 @@ export class DictationWidget extends Disposable implements IContentWidget {
 	}
 
 	beforeRender(): IDimension | null {
-		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
+		const position = this.editor.getPosition();
+		const lineHeight = position ? this.editor.getLineHeightForPosition(position) : this.editor.getOption(EditorOption.lineHeight);
 		const width = this.editor.getLayoutInfo().contentWidth * 0.7;
 
 		this.domNode.style.setProperty('--vscode-editor-dictation-widget-height', `${lineHeight}px`);
@@ -187,18 +188,21 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 		return editor.getContribution<EditorDictation>(EditorDictation.ID);
 	}
 
-	private readonly widget = this._register(new DictationWidget(this.editor, this.keybindingService));
-	private readonly editorDictationInProgress = EDITOR_DICTATION_IN_PROGRESS.bindTo(this.contextKeyService);
+	private readonly widget: DictationWidget;
+	private readonly editorDictationInProgress: IContextKey<boolean>;
 
 	private readonly sessionDisposables = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly editor: ICodeEditor,
 		@ISpeechService private readonly speechService: ISpeechService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super();
+
+		this.widget = this._register(new DictationWidget(this.editor, keybindingService));
+		this.editorDictationInProgress = EDITOR_DICTATION_IN_PROGRESS.bindTo(contextKeyService);
 	}
 
 	async start(): Promise<void> {
@@ -221,7 +225,7 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 		let lastReplaceTextLength = 0;
 		const replaceText = (text: string, isPreview: boolean) => {
 			if (!previewStart) {
-				previewStart = assertIsDefined(this.editor.getPosition());
+				previewStart = assertReturnsDefined(this.editor.getPosition());
 			}
 
 			const endPosition = new Position(previewStart.lineNumber, previewStart.column + text.length);
