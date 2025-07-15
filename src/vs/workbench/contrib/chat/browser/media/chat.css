@@ -1876,7 +1876,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.interactive-item-container.interactive-request:not(.editing):hover .request-hover {
 		opacity: 1 !important;
 	}
+	.interactive-item-container.interactive-request .header .monaco-toolbar {
+		opacity: 0;
+		transition: opacity 0.15s;
+	}
 
+	.interactive-item-container.interactive-request:hover .header .monaco-toolbar,
+	.interactive-item-container.interactive-request:focus-within .header .monaco-toolbar {
+		opacity: 1;
+	}
 	.interactive-item-container.interactive-request.confirmation-message {
 		align-items: flex-start;
 	}
@@ -2080,7 +2088,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		padding: 0px;
 	}
 }
-
 
 .chat-buttons-container {
 	display: flex;
