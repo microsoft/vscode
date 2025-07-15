@@ -907,7 +907,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					});
 
 					if (confirmed) {
-						return Boolean(await commandService.executeCommand(CHAT_SETUP_ACTION_ID));
+						return Boolean(await commandService.executeCommand(CHAT_SETUP_ACTION_ID, mode));
 					}
 				}
 
