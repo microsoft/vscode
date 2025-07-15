@@ -21,10 +21,7 @@ class WebExtensionGalleryManifestService extends ExtensionGalleryManifestService
 			const channel = remoteConnection.getChannel('extensionGalleryManifest');
 			this.getExtensionGalleryManifest().then(manifest => {
 				channel.call('setExtensionGalleryManifest', [manifest]);
-				this._register(this.onDidChangeExtensionGalleryManifestStatus(async () => {
-					const currentManifest = await this.getExtensionGalleryManifest();
-					channel.call('setExtensionGalleryManifest', [currentManifest]);
-				}));
+				this._register(this.onDidChangeExtensionGalleryManifest(manifest => channel.call('setExtensionGalleryManifest', [manifest])));
 			});
 		}
 	}
