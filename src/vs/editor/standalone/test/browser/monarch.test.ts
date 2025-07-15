@@ -115,17 +115,17 @@ suite('Monarch', () => {
 	test('Test nextEmbedded: "@pop" in cases statement', () => {
 		const disposables = new DisposableStore();
 		const languageService = disposables.add(new LanguageService());
-		const configurationService = new StandaloneConfigurationService();
+		const configurationService = new StandaloneConfigurationService(new NullLogService());
 		disposables.add(languageService.registerLanguage({ id: 'sql' }));
-		disposables.add(TokenizationRegistry.register('sql', createMonarchTokenizer(languageService, 'sql', {
+		disposables.add(TokenizationRegistry.register('sql', disposables.add(createMonarchTokenizer(languageService, 'sql', {
 			tokenizer: {
 				root: [
 					[/./, 'token']
 				]
 			}
-		}, configurationService)));
+		}, configurationService))));
 		const SQL_QUERY_START = '(SELECT|INSERT|UPDATE|DELETE|CREATE|REPLACE|ALTER|WITH)';
-		const tokenizer = createMonarchTokenizer(languageService, 'test1', {
+		const tokenizer = disposables.add(createMonarchTokenizer(languageService, 'test1', {
 			tokenizer: {
 				root: [
 					[`(\"\"\")${SQL_QUERY_START}`, [{ 'token': 'string.quote', }, { token: '@rematch', next: '@endStringWithSQL', nextEmbedded: 'sql', },]],
@@ -156,7 +156,7 @@ suite('Monarch', () => {
 					}
 				}]],
 			}
-		}, configurationService);
+		}, configurationService));
 
 		const lines = [
 			`mysql_query("""SELECT * FROM table_name WHERE ds = '<DATEID>'""")`,
