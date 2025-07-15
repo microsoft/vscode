@@ -110,7 +110,7 @@ export interface ScrollableElementCreationOptions {
 	vertical?: ScrollbarVisibility;
 	/**
 	 * Width (in px) of the vertical scrollbar.
-	 * Defaults to 14.
+	 * Defaults to 10.
 	 */
 	verticalScrollbarSize?: number;
 	/**
