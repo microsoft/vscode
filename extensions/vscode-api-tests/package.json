@@ -77,17 +77,14 @@
           }
         ],
         "modes": [
-          "agent"
+          "agent", "ask", "edit"
         ]
       },
       {
         "id": "api-test.participant2",
         "name": "participant2",
         "description": "test",
-        "commands": [],
-        "modes": [
-          "agent"
-        ]
+        "commands": []
       }
     ],
     "configuration": {
