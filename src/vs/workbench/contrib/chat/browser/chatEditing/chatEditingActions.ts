@@ -308,6 +308,8 @@ registerAction2(ChatEditingShowChangesAction);
 async function restoreSnapshotWithConfirmation(accessor: ServicesAccessor, item: ChatTreeItem): Promise<void> {
 	const configurationService = accessor.get(IConfigurationService);
 	const dialogService = accessor.get(IDialogService);
+	const chatWidgetService = accessor.get(IChatWidgetService);
+	const widget = chatWidgetService.lastFocusedWidget;
 	const chatService = accessor.get(IChatService);
 	const chatModel = chatService.getSession(item.sessionId);
 	if (!chatModel) {
@@ -360,6 +362,7 @@ async function restoreSnapshotWithConfirmation(accessor: ServicesAccessor, item:
 			: { confirmed: true };
 
 		if (!confirmation.confirmed) {
+			widget?.viewModel?.model.setCheckpoint(undefined);
 			return;
 		}
 

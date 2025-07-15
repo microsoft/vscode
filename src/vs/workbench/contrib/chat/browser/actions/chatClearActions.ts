@@ -163,7 +163,7 @@ export function registerNewChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.redoEdit',
-				title: localize2('chat.redoEdit.label', "Redo Last Request"),
+				title: localize2('chat.redoEdit.label', "Redo Checkpoint Restore"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.redo,
 				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanRedo, ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
@@ -189,7 +189,7 @@ export function registerNewChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.redoEdit2',
-				title: localize2('chat.redoEdit.label2', "Redo Last Request"),
+				title: localize2('chat.redoEdit.label2', "Redo Checkpoint Restore"),
 				category: CHAT_CATEGORY,
 				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanRedo, ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
 				f1: true,
@@ -205,16 +205,9 @@ export function registerNewChatActions() {
 		async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession) {
 			const widget = accessor.get(IChatWidgetService);
 
-			const redoUntilDone = async () => {
-				if (!editingSession.canRedo.get()) {
-					return;
-				}
-
+			while (editingSession.canRedo.get()) {
 				await editingSession.redoInteraction();
-				setTimeout(() => redoUntilDone(), 0);
-			};
-
-			await redoUntilDone();
+			}
 			widget.lastFocusedWidget?.viewModel?.model.setCheckpoint(undefined);
 		}
 	});
