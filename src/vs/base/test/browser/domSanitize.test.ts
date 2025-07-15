@@ -6,6 +6,7 @@
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 import { sanitizeHtml } from '../../browser/domSanitize.js';
 import * as assert from 'assert';
+import { Schemas } from '../../common/network.js';
 
 suite('DomSanitize', () => {
 
@@ -34,19 +35,26 @@ suite('DomSanitize', () => {
 	});
 
 	test('allows custom tags via config', () => {
-		const html = '<custom-tag>hello</custom-tag>';
-		const result = sanitizeHtml(html, {
-			overrideAllowedTags: ['custom-tag']
-		});
-		const str = result.toString();
-
-		assert.ok(str.includes('<custom-tag>hello</custom-tag>'));
+		{
+			const html = '<div>removed</div><custom-tag>hello</custom-tag>';
+			const result = sanitizeHtml(html, {
+				allowedTags: { override: ['custom-tag'] }
+			});
+			assert.strictEqual(result.toString(), 'removed<custom-tag>hello</custom-tag>');
+		}
+		{
+			const html = '<div>kept</div><augmented-tag>world</augmented-tag>';
+			const result = sanitizeHtml(html, {
+				allowedTags: { augment: ['augmented-tag'] }
+			});
+			assert.strictEqual(result.toString(), '<div>kept</div><augmented-tag>world</augmented-tag>');
+		}
 	});
 
 	test('allows custom attributes via config', () => {
 		const html = '<div custom-attr="value">content</div>';
 		const result = sanitizeHtml(html, {
-			overrideAllowedAttributes: ['custom-attr']
+			allowedAttributes: { override: ['custom-attr'] }
 		});
 		const str = result.toString();
 
@@ -98,7 +106,9 @@ suite('DomSanitize', () => {
 
 	test('allows data images when enabled', () => {
 		const html = '<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==">';
-		const result = sanitizeHtml(html, { allowDataImages: true });
+		const result = sanitizeHtml(html, {
+			allowedMediaProtocols: { override: [Schemas.data] }
+		});
 		const str = result.toString();
 
 		assert.ok(str.includes('src="data:image/png;base64,'));

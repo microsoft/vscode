@@ -163,20 +163,28 @@ const allowedProtocols = [
 ];
 
 function sanitize(documentContent: string, allowAllProtocols = false): TrustedHTML {
+	// TODO: Move most of these options to the callers
 	return sanitizeHtml(documentContent, {
-		overrideAllowedProtocols: allowAllProtocols ? '*' : allowedProtocols,
-		overrideAllowedTags: [
-			...basicMarkupHtmlTags,
-			'input',
-			'checkbox',
-			'checklist',
-		],
-		overrideAllowedAttributes: [
-			...allowedMarkdownHtmlAttributes,
-			'data-command', 'name', 'id', 'role', 'tabindex',
-			'x-dispatch',
-			'required', 'checked', 'placeholder', 'when-checked', 'checked-on',
-		],
+		allowedLinkProtocols: {
+			override: allowAllProtocols ? '*' : allowedProtocols,
+		},
+		allowedTags: {
+			override: [
+				...basicMarkupHtmlTags,
+				'input',
+				'select',
+				'checkbox',
+				'checklist',
+			],
+		},
+		allowedAttributes: {
+			override: [
+				...allowedMarkdownHtmlAttributes,
+				'data-command', 'name', 'id', 'role', 'tabindex',
+				'x-dispatch',
+				'required', 'checked', 'placeholder', 'when-checked', 'checked-on',
+			],
+		}
 	});
 }
 
