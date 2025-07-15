@@ -25,7 +25,7 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 	}
 }
 
-suite.only('RunInTerminalTool', () => {
+suite('RunInTerminalTool', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: IInstantiationService;
