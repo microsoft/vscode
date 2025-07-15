@@ -10,7 +10,7 @@ import { append, $ } from '../../../../base/browser/dom.js';
 import { IListVirtualDelegate, IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
 import { IAsyncDataSource, ITreeEvent, ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
 import { WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
-import { ISCMRepository, ISCMViewService } from '../common/scm.js';
+import { ISCMRepository, ISCMService, ISCMViewService } from '../common/scm.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -27,7 +27,8 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { autorun, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { autorun, IObservable, IObservableSignal, observableSignal, observableSignalFromEvent, runOnChange } from '../../../../base/common/observable.js';
+import { Sequencer } from '../../../../base/common/async.js';
 
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
@@ -60,18 +61,34 @@ class RepositoryTreeIdentityProvider implements IIdentityProvider<ISCMRepository
 }
 
 class SCMRepositoriesViewModel extends Disposable {
+	readonly onDidChangeRepositoryContextValueSignal: IObservableSignal<void>;
 	readonly onDidChangeRepositoriesSignal: IObservable<void>;
 	readonly onDidChangeVisibleRepositoriesSignal: IObservable<void>;
 
 	constructor(
+		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService
 	) {
 		super();
 
+		this.onDidChangeRepositoryContextValueSignal = observableSignal(this);
+
 		this.onDidChangeRepositoriesSignal = observableSignalFromEvent(this,
 			this.scmViewService.onDidChangeRepositories);
+
 		this.onDidChangeVisibleRepositoriesSignal = observableSignalFromEvent(this,
 			this.scmViewService.onDidChangeVisibleRepositories);
+
+		this.scmService.onDidAddRepository(this._onDidAddRepository, this, this._store);
+		for (const repository of this.scmService.repositories) {
+			this._onDidAddRepository(repository);
+		}
+	}
+
+	private _onDidAddRepository(repository: ISCMRepository): void {
+		this._store.add(runOnChange(repository.provider.contextValue, () => {
+			this.onDidChangeRepositoryContextValueSignal.trigger(undefined);
+		}));
 	}
 
 	get repositories(): ISCMRepository[] {
@@ -85,6 +102,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	private treeViewModel!: SCMRepositoriesViewModel;
 	private treeDataSource!: RepositoryTreeDataSource;
 	private treeIdentityProvider!: RepositoryTreeIdentityProvider;
+	private readonly treeOperationSequencer = new Sequencer();
 
 	private readonly visibleCountObs: IObservable<number>;
 	private readonly providerCountBadgeObs: IObservable<'hidden' | 'auto' | 'visible'>;
@@ -133,26 +151,32 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			this.treeViewModel = this.instantiationService.createInstance(SCMRepositoriesViewModel);
 			this._register(this.treeViewModel);
 
-			// Initial rendering
-			await this.tree.setInput(this.treeViewModel);
+			this.treeOperationSequencer.queue(async () => {
+				// Initial rendering
+				await this.tree.setInput(this.treeViewModel);
 
-			// scm.repositories.visible setting
-			this.visibilityDisposables.add(autorun(reader => {
-				const visibleCount = this.visibleCountObs.read(reader);
-				this.updateBodySize(visibleCount);
-			}));
+				// scm.repositories.visible setting
+				this.visibilityDisposables.add(autorun(reader => {
+					const visibleCount = this.visibleCountObs.read(reader);
+					this.updateBodySize(visibleCount);
+				}));
 
-			// onDidChangeRepositoriesSignal
-			this.visibilityDisposables.add(autorun(async reader => {
-				this.treeViewModel.onDidChangeRepositoriesSignal.read(reader);
-				await this.updateChildren();
-			}));
+				// onDidChangeRepositoriesSignal
+				// onDidChangeRepositoryContextValueSignal
+				this.visibilityDisposables.add(autorun(async reader => {
+					this.treeViewModel.onDidChangeRepositoriesSignal.read(reader);
+					this.treeViewModel.onDidChangeRepositoryContextValueSignal.read(reader);
 
-			// onDidChangeVisibleRepositoriesSignal
-			this.visibilityDisposables.add(autorun(async reader => {
-				this.treeViewModel.onDidChangeVisibleRepositoriesSignal.read(reader);
-				this.updateTreeSelection();
-			}));
+					await this.treeOperationSequencer.queue(() => this.updateChildren());
+				}));
+
+				// onDidChangeVisibleRepositoriesSignal
+				this.visibilityDisposables.add(autorun(async reader => {
+					this.treeViewModel.onDidChangeVisibleRepositoriesSignal.read(reader);
+
+					await this.treeOperationSequencer.queue(async () => this.updateTreeSelection());
+				}));
+			});
 		}, this, this._store);
 	}
 

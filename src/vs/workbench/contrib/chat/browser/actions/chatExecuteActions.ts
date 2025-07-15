@@ -142,6 +142,8 @@ abstract class SubmitAction extends Action2 {
 				const snapshotRequestId = chatRequests[itemIndex].id;
 				await session.restoreSnapshot(snapshotRequestId, undefined);
 			}
+		} else if (widget?.viewModel?.model.checkpoint) {
+			widget.viewModel.model.setCheckpoint(undefined);
 		}
 		widget?.acceptInput(context?.inputValue);
 	}

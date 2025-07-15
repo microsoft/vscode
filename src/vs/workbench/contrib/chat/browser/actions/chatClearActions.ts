@@ -17,7 +17,7 @@ import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession } from '../../common/chatEditingService.js';
 import { ChatModeKind } from '../../common/constants.js';
-import { ChatViewId, IChatWidget } from '../chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { EditingSessionAction } from '../chatEditing/chatEditingActions.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
@@ -148,7 +148,8 @@ export function registerNewChatActions() {
 					id: MenuId.ViewTitle,
 					when: ContextKeyExpr.equals('view', ChatViewId),
 					group: 'navigation',
-					order: -3
+					order: -3,
+					isHiddenByDefault: true
 				}]
 			});
 		}
@@ -162,22 +163,52 @@ export function registerNewChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.redoEdit',
-				title: localize2('chat.redoEdit.label', "Redo Last Request"),
+				title: localize2('chat.redoEdit.label', "Redo Checkpoint Restore"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.redo,
 				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanRedo, ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
 				f1: true,
-				menu: [{
-					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.equals('view', ChatViewId),
-					group: 'navigation',
-					order: -2
-				}]
+				menu: [
+					{
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.equals('view', ChatViewId),
+						group: 'navigation',
+						order: -2,
+						isHiddenByDefault: true
+					}
+				]
 			});
 		}
 
 		async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession) {
 			await editingSession.redoInteraction();
+		}
+	});
+
+	registerAction2(class RedoChatEditInteractionAction2 extends EditingSessionAction {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.redoEdit2',
+				title: localize2('chat.redoEdit.label2', "Redo Checkpoint Restore"),
+				category: CHAT_CATEGORY,
+				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanRedo, ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
+				f1: true,
+				menu: [{
+					id: MenuId.ChatMessageRestoreCheckpoint,
+					when: ContextKeyExpr.equals('view', ChatViewId),
+					group: 'navigation',
+					order: -1
+				}]
+			});
+		}
+
+		async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession) {
+			const widget = accessor.get(IChatWidgetService);
+
+			while (editingSession.canRedo.get()) {
+				await editingSession.redoInteraction();
+			}
+			widget.lastFocusedWidget?.viewModel?.model.setCheckpoint(undefined);
 		}
 	});
 }

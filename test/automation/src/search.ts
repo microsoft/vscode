@@ -42,9 +42,9 @@ export class Search extends Viewlet {
 	async openSearchViewlet(): Promise<any> {
 		const accept = () => this.waitForInputFocus(INPUT);
 		if (process.platform === 'darwin') {
-			await this.code.sendKeybinding('cmd+shift+f', accept);
+			await this.code.dispatchKeybinding('cmd+shift+f', accept);
 		} else {
-			await this.code.sendKeybinding('ctrl+shift+f', accept);
+			await this.code.dispatchKeybinding('ctrl+shift+f', accept);
 		}
 	}
 
@@ -68,16 +68,16 @@ export class Search extends Viewlet {
 	}
 
 	async waitForPageUp(): Promise<void> {
-		await this.code.sendKeybinding('PageUp');
+		await this.code.dispatchKeybinding('PageUp', async () => { });
 	}
 
 	async waitForPageDown(): Promise<void> {
-		await this.code.sendKeybinding('PageDown');
+		await this.code.dispatchKeybinding('PageDown', async () => { });
 	}
 
 	async submitSearch(): Promise<void> {
 		await this.waitForInputFocus(INPUT);
-		await this.code.sendKeybinding('enter', async () => { await this.code.waitForElement(`${VIEWLET} .messages`); });
+		await this.code.dispatchKeybinding('enter', async () => { await this.code.waitForElement(`${VIEWLET} .messages`); });
 	}
 
 	async setFilesToIncludeText(text: string): Promise<void> {
