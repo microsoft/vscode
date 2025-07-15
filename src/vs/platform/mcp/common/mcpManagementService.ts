@@ -319,6 +319,13 @@ export abstract class AbstractMcpResourceManagementService extends Disposable im
 			else if (serverPackage.registry_name === PackageType.DOCKER) {
 				args.push(serverPackage.version ? `${serverPackage.name}:${serverPackage.version}` : serverPackage.name);
 			}
+			else if (serverPackage.registry_name === PackageType.NUGET) {
+				args.push(serverPackage.version ? `${serverPackage.name}@${serverPackage.version}` : serverPackage.name);
+			}
+
+			if (serverPackage.package_arguments && serverPackage.registry_name === PackageType.NUGET) {
+				args.push('--');
+			}
 
 			for (const arg of serverPackage.package_arguments ?? []) {
 				const variables = arg.variables ? this.getVariables(arg.variables) : [];
@@ -364,6 +371,7 @@ export abstract class AbstractMcpResourceManagementService extends Disposable im
 			case PackageType.NODE: return 'npx';
 			case PackageType.DOCKER: return 'docker';
 			case PackageType.PYTHON: return 'uvx';
+			case PackageType.NUGET: return 'dnx';
 		}
 		return packageType;
 	}
