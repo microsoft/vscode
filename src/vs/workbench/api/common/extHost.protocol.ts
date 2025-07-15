@@ -1583,6 +1583,7 @@ export interface SCMProviderFeatures {
 	acceptInputCommand?: languages.Command;
 	actionButton?: SCMActionButtonDto | null;
 	statusBarCommands?: ICommandDto[];
+	contextValue?: string;
 }
 
 export interface SCMActionButtonDto {

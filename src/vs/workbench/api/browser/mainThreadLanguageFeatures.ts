@@ -655,6 +655,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					timeUntilShown: lifetimeSummary.timeUntilShown,
 					editorType: lifetimeSummary.editorType,
 					viewKind: lifetimeSummary.viewKind,
+					preceeded: lifetimeSummary.preceeded,
 					requestReason: lifetimeSummary.requestReason,
 					error: lifetimeSummary.error,
 					typingInterval: lifetimeSummary.typingInterval,
@@ -1308,6 +1309,7 @@ type InlineCompletionEndOfLifeEvent = {
 	timeUntilShown: number | undefined;
 	reason: 'accepted' | 'rejected' | 'ignored';
 	partiallyAccepted: number;
+	preceeded: boolean;
 	requestReason: string;
 	languageId: string;
 	error: string | undefined;
@@ -1338,6 +1340,7 @@ type InlineCompletionsEndOfLifeClassification = {
 	timeUntilShown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be shown after the request' };
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion ending' };
 	partiallyAccepted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How often the inline completion was partially accepted by the user' };
+	preceeded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was preceeded by another one' };
 	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language ID of the document where the inline completion was shown' };
 	requestReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion request' };
 	error: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The error message if the inline completion failed' };
