@@ -171,7 +171,6 @@ describe('API Integration Tests', function (): void {
 				});
 			});
 
-			// Log failed elements
 			axeResults.violations.forEach((v: any) => {
 				const isCritical = v.impact === 'critical';
 				const emoji = isCritical ? '❌' : undefined;
@@ -185,7 +184,6 @@ describe('API Integration Tests', function (): void {
 				violationCount += isCritical ? 1 : 0;
 			});
 
-			// Log passed elements
 			axeResults.passes.forEach((pass: any) => {
 				pass.nodes.forEach((node: any) => {
 					const selector = node.target?.join(' ');
