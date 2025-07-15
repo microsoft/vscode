@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Transform } from 'stream';
-import { binaryIndexOf } from 'vs/base/common/buffer';
+import { binaryIndexOf } from '../common/buffer.js';
 
 /**
  * A Transform stream that splits the input on the "splitter" substring.
@@ -28,7 +28,7 @@ export class StreamSplitter extends Transform {
 		}
 	}
 
-	override _transform(chunk: Buffer, _encoding: string, callback: (error?: Error | null, data?: any) => void): void {
+	override _transform(chunk: Buffer, _encoding: string, callback: (error?: Error | null, data?: Buffer) => void): void {
 		if (!this.buffer) {
 			this.buffer = chunk;
 		} else {
@@ -52,7 +52,7 @@ export class StreamSplitter extends Transform {
 		callback();
 	}
 
-	override _flush(callback: (error?: Error | null, data?: any) => void): void {
+	override _flush(callback: (error?: Error | null, data?: Buffer) => void): void {
 		if (this.buffer) {
 			this.push(this.buffer);
 		}

@@ -5,23 +5,23 @@
 
 import * as childProcess from 'child_process';
 import * as fs from 'fs';
-import * as path from 'vs/base/common/path';
+import * as path from '../../../../base/common/path.js';
 import { Readable } from 'stream';
 import { StringDecoder } from 'string_decoder';
-import * as arrays from 'vs/base/common/arrays';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import * as glob from 'vs/base/common/glob';
-import * as normalization from 'vs/base/common/normalization';
-import { isEqualOrParent } from 'vs/base/common/extpath';
-import * as platform from 'vs/base/common/platform';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import * as strings from 'vs/base/common/strings';
-import * as types from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { Promises } from 'vs/base/node/pfs';
-import { IFileQuery, IFolderQuery, IProgressMessage, ISearchEngineStats, IRawFileMatch, ISearchEngine, ISearchEngineSuccess, isFilePatternMatch, hasSiblingFn } from 'vs/workbench/services/search/common/search';
-import { spawnRipgrepCmd } from './ripgrepFileSearch';
-import { prepareQuery } from 'vs/base/common/fuzzyScorer';
+import * as arrays from '../../../../base/common/arrays.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import * as glob from '../../../../base/common/glob.js';
+import * as normalization from '../../../../base/common/normalization.js';
+import { isEqualOrParent } from '../../../../base/common/extpath.js';
+import * as platform from '../../../../base/common/platform.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import * as strings from '../../../../base/common/strings.js';
+import * as types from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Promises } from '../../../../base/node/pfs.js';
+import { IFileQuery, IFolderQuery, IProgressMessage, ISearchEngineStats, IRawFileMatch, ISearchEngine, ISearchEngineSuccess, isFilePatternMatch, hasSiblingFn } from '../common/search.js';
+import { spawnRipgrepCmd } from './ripgrepFileSearch.js';
+import { prepareQuery } from '../../../../base/common/fuzzyScorer.js';
 
 interface IDirectoryEntry extends IRawFileMatch {
 	base: string;
@@ -82,7 +82,15 @@ export class FileWalker {
 		this.folderExcludePatterns = new Map<string, AbsoluteAndRelativeParsedExpression>();
 
 		config.folderQueries.forEach(folderQuery => {
-			const folderExcludeExpression: glob.IExpression = Object.assign({}, folderQuery.excludePattern || {}, this.config.excludePattern || {});
+			const folderExcludeExpression: glob.IExpression = {}; // todo: consider exclude baseURI
+
+			folderQuery.excludePattern?.forEach(excludePattern => {
+				Object.assign(folderExcludeExpression, excludePattern.pattern || {}, this.config.excludePattern || {});
+			});
+
+			if (!folderQuery.excludePattern?.length) {
+				Object.assign(folderExcludeExpression, this.config.excludePattern || {});
+			}
 
 			// Add excludes for other root folders
 			const fqPath = folderQuery.folder.fsPath;
@@ -105,7 +113,7 @@ export class FileWalker {
 		killCmds.forEach(cmd => cmd());
 	}
 
-	walk(folderQueries: IFolderQuery[], extraFiles: URI[], onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgressMessage) => void, done: (error: Error | null, isLimitHit: boolean) => void): void {
+	walk(folderQueries: IFolderQuery[], extraFiles: URI[], numThreads: number | undefined, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgressMessage) => void, done: (error: Error | null, isLimitHit: boolean) => void): void {
 		this.fileWalkSW = StopWatch.create(false);
 
 		// Support that the file pattern is a full path to a file that exists
@@ -128,7 +136,7 @@ export class FileWalker {
 
 		// For each root folder
 		this.parallel<IFolderQuery, void>(folderQueries, (folderQuery: IFolderQuery, rootFolderDone: (err: Error | null, result: void) => void) => {
-			this.call(this.cmdTraversal, this, folderQuery, onResult, onMessage, (err?: Error) => {
+			this.call(this.cmdTraversal, this, folderQuery, numThreads, onResult, onMessage, (err?: Error) => {
 				if (err) {
 					const errorMessage = toErrorMessage(err);
 					console.error(errorMessage);
@@ -181,7 +189,7 @@ export class FileWalker {
 		}
 	}
 
-	private cmdTraversal(folderQuery: IFolderQuery, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgressMessage) => void, cb: (err?: Error) => void): void {
+	private cmdTraversal(folderQuery: IFolderQuery, numThreads: number | undefined, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgressMessage) => void, cb: (err?: Error) => void): void {
 		const rootFolder = folderQuery.folder.fsPath;
 		const isMac = platform.isMacintosh;
 
@@ -196,7 +204,7 @@ export class FileWalker {
 		let leftover = '';
 		const tree = this.initDirectoryTree();
 
-		const ripgrep = spawnRipgrepCmd(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.expression);
+		const ripgrep = spawnRipgrepCmd(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.expression, numThreads);
 		const cmd = ripgrep.cmd;
 		const noSiblingsClauses = !Object.keys(ripgrep.siblingClauses).length;
 
@@ -628,16 +636,18 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 	private folderQueries: IFolderQuery[];
 	private extraFiles: URI[];
 	private walker: FileWalker;
+	private numThreads?: number;
 
-	constructor(config: IFileQuery) {
+	constructor(config: IFileQuery, numThreads?: number) {
 		this.folderQueries = config.folderQueries;
 		this.extraFiles = config.extraFileResources || [];
+		this.numThreads = numThreads;
 
 		this.walker = new FileWalker(config);
 	}
 
 	search(onResult: (result: IRawFileMatch) => void, onProgress: (progress: IProgressMessage) => void, done: (error: Error | null, complete: ISearchEngineSuccess) => void): void {
-		this.walker.walk(this.folderQueries, this.extraFiles, onResult, onProgress, (err: Error | null, isLimitHit: boolean) => {
+		this.walker.walk(this.folderQueries, this.extraFiles, this.numThreads, onResult, onProgress, (err: Error | null, isLimitHit: boolean) => {
 			done(err, {
 				limitHit: isLimitHit,
 				stats: this.walker.getStats(),

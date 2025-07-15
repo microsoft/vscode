@@ -28,7 +28,11 @@ export class StreamSplitter extends Transform {
 		}
 	}
 
-	override _transform(chunk: Buffer, _encoding: string, callback: (error?: Error | null, data?: any) => void): void {
+	override _transform(
+		chunk: Buffer,
+		_encoding: string,
+		callback: (error?: Error | null, data?: any) => void
+	): void {
 		if (!this.buffer) {
 			this.buffer = chunk;
 		} else {

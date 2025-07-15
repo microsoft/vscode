@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { release, hostname } from 'os';
-import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/common/workbenchCommonProperties';
-import { StorageScope, InMemoryStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
-import { timeout } from 'vs/base/common/async';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { resolveWorkbenchCommonProperties } from '../../common/workbenchCommonProperties.js';
+import { StorageScope, InMemoryStorageService, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('Telemetry - common properties', function () {
 	const commit: string = (undefined)!;
 	const version: string = (undefined)!;
+	const date = undefined;
 	let testStorageService: InMemoryStorageService;
 
 	teardown(() => {
@@ -26,7 +27,7 @@ suite('Telemetry - common properties', function () {
 	});
 
 	test('default', function () {
-		const props = resolveWorkbenchCommonProperties(testStorageService, release(), hostname(), commit, version, 'someMachineId', 'someSqmId', false, process);
+		const props = resolveWorkbenchCommonProperties(testStorageService, release(), hostname(), commit, version, 'someMachineId', 'someSqmId', 'somedevDeviceId', false, process, date);
 		assert.ok('commitHash' in props);
 		assert.ok('sessionID' in props);
 		assert.ok('timestamp' in props);
@@ -39,6 +40,7 @@ suite('Telemetry - common properties', function () {
 		// assert.ok('common.version.renderer' in first.data);
 		assert.ok('common.platformVersion' in props, 'platformVersion');
 		assert.ok('version' in props);
+		assert.ok('common.releaseDate' in props);
 		assert.ok('common.firstSessionDate' in props, 'firstSessionDate');
 		assert.ok('common.lastSessionDate' in props, 'lastSessionDate'); // conditional, see below, 'lastSessionDate'ow
 		assert.ok('common.isNewSession' in props, 'isNewSession');
@@ -50,14 +52,14 @@ suite('Telemetry - common properties', function () {
 
 		testStorageService.store('telemetry.lastSessionDate', new Date().toUTCString(), StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-		const props = resolveWorkbenchCommonProperties(testStorageService, release(), hostname(), commit, version, 'someMachineId', 'someSqmId', false, process);
+		const props = resolveWorkbenchCommonProperties(testStorageService, release(), hostname(), commit, version, 'someMachineId', 'someSqmId', 'somedevDeviceId', false, process, date);
 		assert.ok('common.lastSessionDate' in props); // conditional, see below
 		assert.ok('common.isNewSession' in props);
 		assert.strictEqual(props['common.isNewSession'], '0');
 	});
 
 	test('values chance on ask', async function () {
-		const props = resolveWorkbenchCommonProperties(testStorageService, release(), hostname(), commit, version, 'someMachineId', 'someSqmId', false, process);
+		const props = resolveWorkbenchCommonProperties(testStorageService, release(), hostname(), commit, version, 'someMachineId', 'someSqmId', 'somedevDeviceId', false, process, date);
 		let value1 = props['common.sequence'];
 		let value2 = props['common.sequence'];
 		assert.ok(value1 !== value2, 'seq');

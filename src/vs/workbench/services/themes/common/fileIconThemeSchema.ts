@@ -2,12 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as nls from 'vs/nls';
+import * as nls from '../../../../nls.js';
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { fontWeightRegex, fontStyleRegex, fontSizeRegex, fontIdRegex } from 'vs/workbench/services/themes/common/productIconThemeSchema';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { fontWeightRegex, fontStyleRegex, fontSizeRegex, fontIdRegex, fontColorRegex, fontIdErrorMessage } from '../../../../platform/theme/common/iconRegistry.js';
 
 const schemaId = 'vscode://schemas/icon-theme';
 const schema: IJSONSchema = {
@@ -148,8 +148,8 @@ const schema: IJSONSchema = {
 					id: {
 						type: 'string',
 						description: nls.localize('schema.id', 'The ID of the font.'),
-						pattern: fontIdRegex,
-						patternErrorMessage: nls.localize('schema.id.formatError', 'The ID must only contain letter, numbers, underscore and minus.')
+						pattern: fontIdRegex.source,
+						patternErrorMessage: fontIdErrorMessage
 					},
 					src: {
 						type: 'array',
@@ -176,17 +176,17 @@ const schema: IJSONSchema = {
 					weight: {
 						type: 'string',
 						description: nls.localize('schema.font-weight', 'The weight of the font. See https://developer.mozilla.org/en-US/docs/Web/CSS/font-weight for valid values.'),
-						pattern: fontWeightRegex
+						pattern: fontWeightRegex.source
 					},
 					style: {
 						type: 'string',
 						description: nls.localize('schema.font-style', 'The style of the font. See https://developer.mozilla.org/en-US/docs/Web/CSS/font-style for valid values.'),
-						pattern: fontStyleRegex
+						pattern: fontStyleRegex.source
 					},
 					size: {
 						type: 'string',
-						description: nls.localize('schema.font-size', 'The default size of the font. See https://developer.mozilla.org/en-US/docs/Web/CSS/font-size for valid values.'),
-						pattern: fontSizeRegex
+						description: nls.localize('schema.font-size', 'The default size of the font. We strongly recommend using a percentage value, for example: 125%.'),
+						pattern: fontSizeRegex.source
 					}
 				},
 				required: [
@@ -213,16 +213,19 @@ const schema: IJSONSchema = {
 					fontColor: {
 						type: 'string',
 						format: 'color-hex',
-						description: nls.localize('schema.fontColor', 'When using a glyph font: The color to use.')
+						description: nls.localize('schema.fontColor', 'When using a glyph font: The color to use.'),
+						pattern: fontColorRegex.source
 					},
 					fontSize: {
 						type: 'string',
 						description: nls.localize('schema.fontSize', 'When using a font: The font size in percentage to the text font. If not set, defaults to the size in the font definition.'),
-						pattern: fontSizeRegex
+						pattern: fontSizeRegex.source
 					},
 					fontId: {
 						type: 'string',
-						description: nls.localize('schema.fontId', 'When using a font: The id of the font. If not set, defaults to the first font definition.')
+						description: nls.localize('schema.fontId', 'When using a font: The id of the font. If not set, defaults to the first font definition.'),
+						pattern: fontIdRegex.source,
+						patternErrorMessage: fontIdErrorMessage
 					}
 				}
 			}

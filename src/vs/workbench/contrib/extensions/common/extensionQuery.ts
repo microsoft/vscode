@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten } from 'vs/base/common/arrays';
-import { EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
+import { IExtensionGalleryManifest } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { FilterType, SortBy } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { EXTENSION_CATEGORIES } from '../../../../platform/extensions/common/extensions.js';
 
 export class Query {
 
@@ -12,11 +13,32 @@ export class Query {
 		this.value = value.trim();
 	}
 
-	static suggestions(query: string): string[] {
-		const commands = ['installed', 'updates', 'enabled', 'disabled', 'builtin', 'featured', 'popular', 'recommended', 'recentlyPublished', 'workspaceUnsupported', 'deprecated', 'sort', 'category', 'tag', 'ext', 'id'] as const;
+	static suggestions(query: string, galleryManifest: IExtensionGalleryManifest | null): string[] {
+
+		const commands = ['installed', 'updates', 'enabled', 'disabled', 'builtin'];
+		if (galleryManifest?.capabilities.extensionQuery?.filtering?.some(c => c.name === FilterType.Featured)) {
+			commands.push('featured');
+		}
+
+		commands.push(...['mcp', 'popular', 'recommended', 'recentlyPublished', 'workspaceUnsupported', 'deprecated', 'sort']);
+		const isCategoriesEnabled = galleryManifest?.capabilities.extensionQuery?.filtering?.some(c => c.name === FilterType.Category);
+		if (isCategoriesEnabled) {
+			commands.push('category');
+		}
+
+		commands.push(...['tag', 'ext', 'id', 'outdated', 'recentlyUpdated']);
+		const sortCommands = [];
+		if (galleryManifest?.capabilities.extensionQuery?.sorting?.some(c => c.name === SortBy.InstallCount)) {
+			sortCommands.push('installs');
+		}
+		if (galleryManifest?.capabilities.extensionQuery?.sorting?.some(c => c.name === SortBy.WeightedRating)) {
+			sortCommands.push('rating');
+		}
+		sortCommands.push('name', 'publishedDate', 'updateDate');
+
 		const subcommands = {
-			'sort': ['installs', 'rating', 'name', 'publishedDate', 'updateDate'],
-			'category': EXTENSION_CATEGORIES.map(c => `"${c.toLowerCase()}"`),
+			'sort': sortCommands,
+			'category': isCategoriesEnabled ? EXTENSION_CATEGORIES.map(c => `"${c.toLowerCase()}"`) : [],
 			'tag': [''],
 			'ext': [''],
 			'id': ['']
@@ -26,19 +48,18 @@ export class Query {
 		const hasSort = subcommands.sort.some(subcommand => queryContains(`@sort:${subcommand}`));
 		const hasCategory = subcommands.category.some(subcommand => queryContains(`@category:${subcommand}`));
 
-		return flatten(
-			commands.map(command => {
-				if (hasSort && command === 'sort' || hasCategory && command === 'category') {
-					return [];
-				}
-				if (command in subcommands) {
-					return (subcommands as Record<string, readonly string[]>)[command]
-						.map(subcommand => `@${command}:${subcommand}${subcommand === '' ? '' : ' '}`);
-				}
-				else {
-					return queryContains(`@${command}`) ? [] : [`@${command} `];
-				}
-			}));
+		return commands.flatMap(command => {
+			if (hasSort && command === 'sort' || hasCategory && command === 'category') {
+				return [];
+			}
+			if (command in subcommands) {
+				return (subcommands as Record<string, readonly string[]>)[command]
+					.map(subcommand => `@${command}:${subcommand}${subcommand === '' ? '' : ' '}`);
+			}
+			else {
+				return queryContains(`@${command}`) ? [] : [`@${command} `];
+			}
+		});
 	}
 
 	static parse(value: string): Query {

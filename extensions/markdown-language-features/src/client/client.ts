@@ -7,8 +7,9 @@ import * as vscode from 'vscode';
 import { BaseLanguageClient, LanguageClientOptions, NotebookDocumentSyncRegistrationType, Range, TextEdit } from 'vscode-languageclient';
 import { IMdParser } from '../markdownEngine';
 import { IDisposable } from '../util/dispose';
-import { looksLikeMarkdownPath, markdownFileExtensions } from '../util/file';
+import { looksLikeMarkdownPath, markdownFileExtensions, markdownLanguageIds } from '../util/file';
 import { FileWatcherManager } from './fileWatchingManager';
+import { InMemoryDocument } from './inMemoryDocument';
 import * as proto from './protocol';
 import { VsCodeMdWorkspace } from './workspace';
 
@@ -59,7 +60,7 @@ export async function startClient(factory: LanguageClientConstructor, parser: IM
 	const mdFileGlob = `**/*.{${markdownFileExtensions.join(',')}}`;
 
 	const clientOptions: LanguageClientOptions = {
-		documentSelector: [{ language: 'markdown' }],
+		documentSelector: markdownLanguageIds,
 		synchronize: {
 			configurationSection: ['markdown'],
 			fileEvents: vscode.workspace.createFileSystemWatcher(mdFileGlob),
@@ -101,11 +102,15 @@ export async function startClient(factory: LanguageClientConstructor, parser: IM
 
 	client.onRequest(proto.parse, async (e) => {
 		const uri = vscode.Uri.parse(e.uri);
-		const doc = await workspace.getOrLoadMarkdownDocument(uri);
-		if (doc) {
-			return parser.tokenize(doc);
+		if (typeof e.text === 'string') {
+			return parser.tokenize(new InMemoryDocument(uri, e.text, -1));
 		} else {
-			return [];
+			const doc = await workspace.getOrLoadMarkdownDocument(uri);
+			if (doc) {
+				return parser.tokenize(doc);
+			} else {
+				return [];
+			}
 		}
 	});
 

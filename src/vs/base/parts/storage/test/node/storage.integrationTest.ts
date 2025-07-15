@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { tmpdir } from 'os';
-import { timeout } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { join } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { Promises } from 'vs/base/node/pfs';
-import { isStorageItemsChangeEvent, IStorageDatabase, IStorageItemsChangeEvent, Storage } from 'vs/base/parts/storage/common/storage';
-import { ISQLiteStorageDatabaseOptions, SQLiteStorageDatabase } from 'vs/base/parts/storage/node/storage';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { timeout } from '../../../../common/async.js';
+import { Emitter, Event } from '../../../../common/event.js';
+import { join } from '../../../../common/path.js';
+import { isWindows } from '../../../../common/platform.js';
+import { URI } from '../../../../common/uri.js';
+import { generateUuid } from '../../../../common/uuid.js';
+import { Promises } from '../../../../node/pfs.js';
+import { isStorageItemsChangeEvent, IStorageDatabase, IStorageItemsChangeEvent, Storage } from '../../common/storage.js';
+import { ISQLiteStorageDatabaseOptions, SQLiteStorageDatabase } from '../../node/storage.js';
+import { runWithFakedTimers } from '../../../../test/common/timeTravelScheduler.js';
+import { flakySuite, getRandomTestPath } from '../../../../test/node/testUtils.js';
 
 flakySuite('Storage Library', function () {
 
@@ -24,7 +25,7 @@ flakySuite('Storage Library', function () {
 	setup(function () {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'storagelibrary');
 
-		return Promises.mkdir(testDir, { recursive: true });
+		return fs.promises.mkdir(testDir, { recursive: true });
 	});
 
 	teardown(function () {
@@ -353,7 +354,7 @@ flakySuite('SQLite Storage Library', function () {
 	setup(function () {
 		testdir = getRandomTestPath(tmpdir(), 'vsctests', 'storagelibrary');
 
-		return Promises.mkdir(testdir, { recursive: true });
+		return fs.promises.mkdir(testdir, { recursive: true });
 	});
 
 	teardown(function () {
@@ -534,7 +535,7 @@ flakySuite('SQLite Storage Library', function () {
 		// on shutdown.
 		await storage.checkIntegrity(true).then(null, error => { } /* error is expected here but we do not want to fail */);
 
-		await Promises.unlink(backupPath); // also test that the recovery DB is backed up properly
+		await fs.promises.unlink(backupPath); // also test that the recovery DB is backed up properly
 
 		let recoveryCalled = false;
 		await storage.close(() => {
@@ -798,7 +799,7 @@ flakySuite('SQLite Storage Library', function () {
 		await storage.optimize();
 		await storage.close();
 
-		const sizeBeforeDeleteAndOptimize = (await Promises.stat(dbPath)).size;
+		const sizeBeforeDeleteAndOptimize = (await fs.promises.stat(dbPath)).size;
 
 		storage = new SQLiteStorageDatabase(dbPath);
 
@@ -820,7 +821,7 @@ flakySuite('SQLite Storage Library', function () {
 
 		await storage.close();
 
-		const sizeAfterDeleteAndOptimize = (await Promises.stat(dbPath)).size;
+		const sizeAfterDeleteAndOptimize = (await fs.promises.stat(dbPath)).size;
 
 		strictEqual(sizeAfterDeleteAndOptimize < sizeBeforeDeleteAndOptimize, true);
 	});

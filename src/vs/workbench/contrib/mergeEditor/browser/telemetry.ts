@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { InputNumber } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { InputNumber } from './model/modifiedBaseRange.js';
 export class MergeEditorTelemetry {
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export function formatStackTrace(stack: string) {
+export function formatStackTrace(stack: string, trustHtml: boolean): { formattedStack: string; errorLocation?: string } {
 	let cleaned: string;
 	// Ansi colors are described here:
 	// https://en.wikipedia.org/wiki/ANSI_escape_code under the SGR section
@@ -11,6 +11,7 @@ export function formatStackTrace(stack: string) {
 	// Remove background colors. The ones from IPython don't work well with
 	// themes 40-49 sets background color
 	cleaned = stack.replace(/\u001b\[4\dm/g, '');
+	cleaned = cleaned.replace(/(?<=\u001b\[[\d;]*?);4\d(?=m)/g, '');
 
 	// Also remove specific foreground colors (38 is the ascii code for picking one) (they don't translate either)
 	// Turn them into default foreground
@@ -22,17 +23,19 @@ export function formatStackTrace(stack: string) {
 		return `${prefix}${num}${suffix}\n`;
 	});
 
-	if (isIpythonStackTrace(cleaned)) {
+	if (isIpythonStackTrace(cleaned) && trustHtml) {
 		return linkifyStack(cleaned);
 	}
 
-	return cleaned;
+	return { formattedStack: cleaned };
 }
 
 const formatSequence = /\u001b\[.+?m/g;
 const fileRegex = /File\s+(?:\u001b\[.+?m)?(.+):(\d+)/;
-const lineNumberRegex = /^((?:\u001b\[.+?m)?[ \->]+?)(\d+)(?:\u001b\[0m)?( .*)/;
-const cellRegex = /(?<prefix>Cell\s+(?:\u001b\[.+?m)?In\s*\[(?<executionCount>\d+)\],\s*)(?<lineLabel>line (?<lineNumber>\d+)).*/;
+// look for the "--->" before a line number
+const lineNumberRegex = /(-+>(?:\u001b\[[\d;]*m|\s)*)(\d+)(.*)/;
+// just capturing parts of "Cell In[3], line 2" with lots of formatting in between
+const cellRegex = /^(?<prefix>(?:\u001b\[[\d;]*m|\s)*Cell(?:\u001b\[[\d;]*m|\s)*In(?:\u001b\[[\d;]*m|\s)*\[(?<executionCount>\d+)\](?:\u001b\[[\d;]*m|\s|,)+)(?<lineLabel>line (?<lineNumber>\d+))[^\n]*$/m;
 // older versions of IPython ~8.3.0
 const inputRegex = /(?<prefix>Input\s+?(?:\u001b\[.+?m)(?<cellLabel>In\s*\[(?<executionCount>\d+)\]))(?<postfix>.*)/;
 
@@ -49,10 +52,11 @@ type fileLocation = { kind: 'file'; path: string };
 
 type location = cellLocation | fileLocation;
 
-function linkifyStack(stack: string) {
+function linkifyStack(stack: string): { formattedStack: string; errorLocation?: string } {
 	const lines = stack.split('\n');
 
 	let fileOrCell: location | undefined;
+	let locationLink = '';
 
 	for (const i in lines) {
 
@@ -67,7 +71,9 @@ function linkifyStack(stack: string) {
 				kind: 'cell',
 				path: stripFormatting(original.replace(cellRegex, 'vscode-notebook-cell:?execution_count=$<executionCount>'))
 			};
-			lines[i] = original.replace(cellRegex, `$<prefix><a href=\'${fileOrCell.path}&line=$<lineNumber>\'>line $<lineNumber></a>`);
+			const link = original.replace(cellRegex, `<a href=\'${fileOrCell.path}&line=$<lineNumber>\'>line $<lineNumber></a>`);
+			lines[i] = original.replace(cellRegex, `$<prefix>${link}`);
+			locationLink = locationLink || link;
 
 			continue;
 		} else if (inputRegex.test(original)) {
@@ -75,7 +81,8 @@ function linkifyStack(stack: string) {
 				kind: 'cell',
 				path: stripFormatting(original.replace(inputRegex, 'vscode-notebook-cell:?execution_count=$<executionCount>'))
 			};
-			lines[i] = original.replace(inputRegex, `Input <a href=\'${fileOrCell.path}>\'>$<cellLabel></a>$<postfix>`);
+			const link = original.replace(inputRegex, `<a href=\'${fileOrCell.path}\'>$<cellLabel></a>`);
+			lines[i] = original.replace(inputRegex, `Input ${link}$<postfix>`);
 
 			continue;
 		} else if (!fileOrCell || original.trim() === '') {
@@ -94,5 +101,6 @@ function linkifyStack(stack: string) {
 		}
 	}
 
-	return lines.join('\n');
+	const errorLocation = locationLink;
+	return { formattedStack: lines.join('\n'), errorLocation };
 }

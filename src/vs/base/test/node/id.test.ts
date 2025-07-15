@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { getMachineId, getSqmMachineId } from 'vs/base/node/id';
-import { getMac } from 'vs/base/node/macAddress';
-import { flakySuite } from 'vs/base/test/node/testUtils';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { getMachineId, getSqmMachineId, getdevDeviceId } from '../../node/id.js';
+import { getMac } from '../../node/macAddress.js';
+import { flakySuite } from './testUtils.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 flakySuite('ID', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -22,6 +22,13 @@ flakySuite('ID', () => {
 	test('getSqmId', async function () {
 		const errors = [];
 		const id = await getSqmMachineId(err => errors.push(err));
+		assert.ok(typeof id === 'string');
+		assert.strictEqual(errors.length, 0);
+	});
+
+	test('getdevDeviceId', async function () {
+		const errors = [];
+		const id = await getdevDeviceId(err => errors.push(err));
 		assert.ok(typeof id === 'string');
 		assert.strictEqual(errors.length, 0);
 	});

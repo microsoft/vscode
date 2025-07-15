@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { localize } from 'vs/nls';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { localize } from '../../../../nls.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 
 export const searchDetailsIcon = registerIcon('search-details', Codicon.ellipsis, localize('searchDetailsIcon', 'Icon to make search details visible.'));
 export const searchActivityBarIcon = registerIcon('search-see-more', Codicon.goToSearch, localize('searchSeeMoreIcon', 'Icon to view more context in the search view.'));

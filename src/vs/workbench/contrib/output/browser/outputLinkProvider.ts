@@ -3,32 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILink } from 'vs/editor/common/languages';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { OUTPUT_MODE_ID, LOG_MODE_ID } from 'vs/workbench/services/output/common/output';
-import { MonacoWebWorker, createWebWorker } from 'vs/editor/browser/services/webWorker';
-import { ICreateData, OutputLinkComputer } from 'vs/workbench/contrib/output/common/outputLinkComputer';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { URI } from '../../../../base/common/uri.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ILink } from '../../../../editor/common/languages.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { OUTPUT_MODE_ID, LOG_MODE_ID } from '../../../services/output/common/output.js';
+import { OutputLinkComputer } from '../common/outputLinkComputer.js';
+import { IDisposable, dispose, Disposable } from '../../../../base/common/lifecycle.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import { createWebWorker } from '../../../../base/browser/webWorkerFactory.js';
+import { IWebWorkerClient } from '../../../../base/common/worker/webWorker.js';
+import { WorkerTextModelSyncClient } from '../../../../editor/common/services/textModelSync/textModelSync.impl.js';
+import { FileAccess } from '../../../../base/common/network.js';
 
-export class OutputLinkProvider {
+export class OutputLinkProvider extends Disposable {
 
 	private static readonly DISPOSE_WORKER_TIME = 3 * 60 * 1000; // dispose worker after 3 minutes of inactivity
 
-	private worker?: MonacoWebWorker<OutputLinkComputer>;
+	private worker?: OutputLinkWorkerClient;
 	private disposeWorkerScheduler: RunOnceScheduler;
 	private linkProviderRegistration: IDisposable | undefined;
 
 	constructor(
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IModelService private readonly modelService: IModelService,
-		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
+		super();
+
 		this.disposeWorkerScheduler = new RunOnceScheduler(() => this.disposeWorker(), OutputLinkProvider.DISPOSE_WORKER_TIME);
 
 		this.registerListeners();
@@ -36,7 +39,7 @@ export class OutputLinkProvider {
 	}
 
 	private registerListeners(): void {
-		this.contextService.onDidChangeWorkspaceFolders(() => this.updateLinkProviderWorker());
+		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.updateLinkProviderWorker()));
 	}
 
 	private updateLinkProviderWorker(): void {
@@ -63,28 +66,18 @@ export class OutputLinkProvider {
 		this.disposeWorkerScheduler.cancel();
 	}
 
-	private getOrCreateWorker(): MonacoWebWorker<OutputLinkComputer> {
+	private getOrCreateWorker(): OutputLinkWorkerClient {
 		this.disposeWorkerScheduler.schedule();
 
 		if (!this.worker) {
-			const createData: ICreateData = {
-				workspaceFolders: this.contextService.getWorkspace().folders.map(folder => folder.uri.toString())
-			};
-
-			this.worker = createWebWorker<OutputLinkComputer>(this.modelService, this.languageConfigurationService, {
-				moduleId: 'vs/workbench/contrib/output/common/outputLinkComputer',
-				createData,
-				label: 'outputLinkComputer'
-			});
+			this.worker = new OutputLinkWorkerClient(this.contextService, this.modelService);
 		}
 
 		return this.worker;
 	}
 
 	private async provideLinks(modelUri: URI): Promise<ILink[]> {
-		const linkComputer = await this.getOrCreateWorker().withSyncedResources([modelUri]);
-
-		return linkComputer.computeLinks(modelUri.toString());
+		return this.getOrCreateWorker().provideLinks(modelUri);
 	}
 
 	private disposeWorker(): void {
@@ -92,5 +85,34 @@ export class OutputLinkProvider {
 			this.worker.dispose();
 			this.worker = undefined;
 		}
+	}
+}
+
+class OutputLinkWorkerClient extends Disposable {
+	private readonly _workerClient: IWebWorkerClient<OutputLinkComputer>;
+	private readonly _workerTextModelSyncClient: WorkerTextModelSyncClient;
+	private readonly _initializeBarrier: Promise<void>;
+
+	constructor(
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IModelService modelService: IModelService,
+	) {
+		super();
+		this._workerClient = this._register(createWebWorker<OutputLinkComputer>(
+			FileAccess.asBrowserUri('vs/workbench/contrib/output/common/outputLinkComputerMain.js'),
+			'OutputLinkDetectionWorker'
+		));
+		this._workerTextModelSyncClient = WorkerTextModelSyncClient.create(this._workerClient, modelService);
+		this._initializeBarrier = this._ensureWorkspaceFolders();
+	}
+
+	private async _ensureWorkspaceFolders(): Promise<void> {
+		await this._workerClient.proxy.$setWorkspaceFolders(this.contextService.getWorkspace().folders.map(folder => folder.uri.toString()));
+	}
+
+	public async provideLinks(modelUri: URI): Promise<ILink[]> {
+		await this._initializeBarrier;
+		await this._workerTextModelSyncClient.ensureSyncedResources([modelUri]);
+		return this._workerClient.proxy.$computeLinks(modelUri.toString());
 	}
 }

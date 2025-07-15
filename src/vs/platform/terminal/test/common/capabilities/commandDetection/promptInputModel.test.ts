@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { PromptInputModel, type IPromptInputModelState } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
-import { Emitter } from 'vs/base/common/event';
-import type { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-
-// eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
-import { Terminal } from '@xterm/headless';
-import { notDeepStrictEqual, strictEqual } from 'assert';
-import { timeout } from 'vs/base/common/async';
+import type { Terminal } from '@xterm/headless';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../log/common/log.js';
+import { PromptInputModel, type IPromptInputModelState } from '../../../../common/capabilities/commandDetection/promptInputModel.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import type { ITerminalCommand } from '../../../../common/capabilities/capabilities.js';
+import { ok, notDeepStrictEqual, strictEqual } from 'assert';
+import { timeout } from '../../../../../../base/common/async.js';
+import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { GeneralShellType, PosixShellType } from '../../../../common/terminal.js';
 
 suite('PromptInputModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -20,6 +20,7 @@ suite('PromptInputModel', () => {
 	let promptInputModel: PromptInputModel;
 	let xterm: Terminal;
 	let onCommandStart: Emitter<ITerminalCommand>;
+	let onCommandStartChanged: Emitter<void>;
 	let onCommandExecuted: Emitter<ITerminalCommand>;
 
 	async function writePromise(data: string) {
@@ -32,6 +33,10 @@ suite('PromptInputModel', () => {
 
 	function fireCommandExecuted() {
 		onCommandExecuted.fire(null!);
+	}
+
+	function setContinuationPrompt(prompt: string) {
+		promptInputModel.setContinuationPrompt(prompt);
 	}
 
 	async function assertPromptInput(valueWithCursor: string) {
@@ -52,13 +57,16 @@ suite('PromptInputModel', () => {
 		const cursorIndex = valueWithCursor.indexOf('|');
 		strictEqual(promptInputModel.value, value);
 		strictEqual(promptInputModel.cursorIndex, cursorIndex, `value=${promptInputModel.value}`);
+		ok(promptInputModel.ghostTextIndex === -1 || cursorIndex <= promptInputModel.ghostTextIndex, `cursorIndex (${cursorIndex}) must be before ghostTextIndex (${promptInputModel.ghostTextIndex})`);
 	}
 
-	setup(() => {
-		xterm = store.add(new Terminal({ allowProposedApi: true }));
+	setup(async () => {
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+		xterm = store.add(new TerminalCtor({ allowProposedApi: true }));
 		onCommandStart = store.add(new Emitter());
+		onCommandStartChanged = store.add(new Emitter());
 		onCommandExecuted = store.add(new Emitter());
-		promptInputModel = store.add(new PromptInputModel(xterm, onCommandStart.event, onCommandExecuted.event, new NullLogService));
+		promptInputModel = store.add(new PromptInputModel(xterm, onCommandStart.event, onCommandStartChanged.event, onCommandExecuted.event, new NullLogService));
 	});
 
 	test('basic input and execute', async () => {
@@ -155,16 +163,271 @@ suite('PromptInputModel', () => {
 		await assertPromptInput('foo bar|');
 	});
 
-	test('ghost text', async () => {
-		await writePromise('$ ');
-		fireCommandStart();
-		await assertPromptInput('|');
+	suite('ghost text', () => {
+		test('basic ghost text', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
 
-		await writePromise('foo\x1b[2m bar\x1b[0m\x1b[4D');
-		await assertPromptInput('foo|[ bar]');
+			await writePromise('foo\x1b[2m bar\x1b[0m\x1b[4D');
+			await assertPromptInput('foo|[ bar]');
 
-		await writePromise('\x1b[2D');
-		await assertPromptInput('f|oo[ bar]');
+			await writePromise('\x1b[2D');
+			await assertPromptInput('f|oo[ bar]');
+		});
+		test('trailing whitespace', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+			await writePromise('foo    ');
+			await writePromise('\x1b[4D');
+			await assertPromptInput('foo|    ');
+		});
+		test('basic ghost text one word', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('pw\x1b[2md\x1b[1D');
+			await assertPromptInput('pw|[d]');
+		});
+		test('ghost text with cursor navigation', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('foo\x1b[2m bar\x1b[0m\x1b[4D');
+			await assertPromptInput('foo|[ bar]');
+
+			await writePromise('\x1b[2D');
+			await assertPromptInput('f|oo[ bar]');
+
+			await writePromise('\x1b[C');
+			await assertPromptInput('fo|o[ bar]');
+
+			await writePromise('\x1b[C');
+			await assertPromptInput('foo|[ bar]');
+		});
+		test('ghost text with different foreground colors only', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('foo\x1b[38;2;255;0;0m bar\x1b[0m\x1b[4D');
+			await assertPromptInput('foo|[ bar]');
+
+			await writePromise('\x1b[2D');
+			await assertPromptInput('f|oo[ bar]');
+		});
+		test('no ghost text when foreground color matches earlier text', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(
+				'\x1b[38;2;255;0;0mred1\x1b[0m ' +  // Red "red1"
+				'\x1b[38;2;0;255;0mgreen\x1b[0m ' + // Green "green"
+				'\x1b[38;2;255;0;0mred2\x1b[0m'     // Red "red2" (same as red1)
+			);
+
+			await assertPromptInput('red1 green red2|'); // No ghost text expected
+		});
+
+		test('ghost text detected when foreground color is unique at the end', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(
+				'\x1b[38;2;255;0;0mcmd\x1b[0m ' +   // Red "cmd"
+				'\x1b[38;2;0;255;0marg\x1b[0m ' +   // Green "arg"
+				'\x1b[38;2;0;0;255mfinal\x1b[5D'    // Blue "final" (ghost text)
+			);
+
+			await assertPromptInput('cmd arg |[final]');
+		});
+
+		test('no ghost text when background color matches earlier text', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(
+				'\x1b[48;2;255;0;0mred_bg1\x1b[0m ' +  // Red background
+				'\x1b[48;2;0;255;0mgreen_bg\x1b[0m ' + // Green background
+				'\x1b[48;2;255;0;0mred_bg2\x1b[0m'     // Red background again
+			);
+
+			await assertPromptInput('red_bg1 green_bg red_bg2|'); // No ghost text expected
+		});
+
+		test('ghost text detected when background color is unique at the end', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(
+				'\x1b[48;2;255;0;0mred_bg\x1b[0m ' +  // Red background
+				'\x1b[48;2;0;255;0mgreen_bg\x1b[0m ' + // Green background
+				'\x1b[48;2;0;0;255mblue_bg\x1b[7D'     // Blue background (ghost text)
+			);
+
+			await assertPromptInput('red_bg green_bg |[blue_bg]');
+		});
+
+		test('ghost text detected when bold style is unique at the end', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(
+				'text ' +
+				'\x1b[1mBOLD\x1b[4D' // Bold "BOLD" (ghost text)
+			);
+
+			await assertPromptInput('text |[BOLD]');
+		});
+
+		test('no ghost text when earlier text has the same bold style', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(
+				'\x1b[1mBOLD1\x1b[0m ' + // Bold "BOLD1"
+				'normal ' +
+				'\x1b[1mBOLD2\x1b[0m'    // Bold "BOLD2" (same style as "BOLD1")
+			);
+
+			await assertPromptInput('BOLD1 normal BOLD2|'); // No ghost text expected
+		});
+
+		test('ghost text detected when italic style is unique at the end', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(
+				'text ' +
+				'\x1b[3mITALIC\x1b[6D' // Italic "ITALIC" (ghost text)
+			);
+
+			await assertPromptInput('text |[ITALIC]');
+		});
+
+		test('no ghost text when earlier text has the same italic style', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(
+				'\x1b[3mITALIC1\x1b[0m ' + // Italic "ITALIC1"
+				'normal ' +
+				'\x1b[3mITALIC2\x1b[0m'    // Italic "ITALIC2" (same style as "ITALIC1")
+			);
+
+			await assertPromptInput('ITALIC1 normal ITALIC2|'); // No ghost text expected
+		});
+
+		test('ghost text detected when underline style is unique at the end', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(
+				'text ' +
+				'\x1b[4mUNDERLINE\x1b[9D' // Underlined "UNDERLINE" (ghost text)
+			);
+
+			await assertPromptInput('text |[UNDERLINE]');
+		});
+
+		test('no ghost text when earlier text has the same underline style', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(
+				'\x1b[4mUNDERLINE1\x1b[0m ' + // Underlined "UNDERLINE1"
+				'normal ' +
+				'\x1b[4mUNDERLINE2\x1b[0m'    // Underlined "UNDERLINE2" (same style as "UNDERLINE1")
+			);
+
+			await assertPromptInput('UNDERLINE1 normal UNDERLINE2|'); // No ghost text expected
+		});
+
+		test('ghost text detected when strikethrough style is unique at the end', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(
+				'text ' +
+				'\x1b[9mSTRIKE\x1b[6D' // Strikethrough "STRIKE" (ghost text)
+			);
+
+			await assertPromptInput('text |[STRIKE]');
+		});
+
+		test('no ghost text when earlier text has the same strikethrough style', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(
+				'\x1b[9mSTRIKE1\x1b[0m ' + // Strikethrough "STRIKE1"
+				'normal ' +
+				'\x1b[9mSTRIKE2\x1b[0m'    // Strikethrough "STRIKE2" (same style as "STRIKE1")
+			);
+
+			await assertPromptInput('STRIKE1 normal STRIKE2|'); // No ghost text expected
+		});
+		suite('With wrapping', () => {
+			test('Fish ghost text in long line with wrapped content', async () => {
+				promptInputModel.setShellType(PosixShellType.Fish);
+				await writePromise('$ ');
+				fireCommandStart();
+				await assertPromptInput('|');
+
+				// Write a command with ghost text that will wrap
+				await writePromise('find . -name');
+				await assertPromptInput(`find . -name|`);
+
+				// Add ghost text with dim style
+				await writePromise('\x1b[2m test\x1b[0m\x1b[4D');
+				await assertPromptInput(`find . -name |[test]`);
+
+				// Move cursor within the ghost text
+				await writePromise('\x1b[C');
+				await assertPromptInput(`find . -name t|[est]`);
+
+				// Accept ghost text
+				await writePromise('\x1b[C\x1b[C\x1b[C\x1b[C\x1b[C');
+				await assertPromptInput(`find . -name test|`);
+			});
+			test('Pwsh ghost text in long line with wrapped content', async () => {
+				promptInputModel.setShellType(GeneralShellType.PowerShell);
+				await writePromise('$ ');
+				fireCommandStart();
+				await assertPromptInput('|');
+
+				// Write a command with ghost text that will wrap
+				await writePromise('find . -name');
+				await assertPromptInput(`find . -name|`);
+
+				// Add ghost text with dim style
+				await writePromise('\x1b[2m test\x1b[0m\x1b[4D');
+				await assertPromptInput(`find . -name |[test]`);
+
+				// Move cursor within the ghost text
+				await writePromise('\x1b[C');
+				await assertPromptInput(`find . -name t|[est]`);
+
+				// Accept ghost text
+				await writePromise('\x1b[C\x1b[C\x1b[C\x1b[C\x1b[C');
+				await assertPromptInput(`find . -name test|`);
+			});
+		});
 	});
 
 	test('wide input (Korean)', async () => {
@@ -225,6 +488,324 @@ suite('PromptInputModel', () => {
 
 		await writePromise('\x1b[D');
 		await assertPromptInput('|✌️👍\n😎😕😅\n🤔🤷😩');
+	});
+
+	suite('trailing whitespace', () => {
+		test('delete whitespace with backspace', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(' ');
+			await assertPromptInput(` |`);
+
+			xterm.input('\x7F', true); // Backspace
+			await writePromise('\x1b[D');
+			await assertPromptInput('|');
+
+			xterm.input(' '.repeat(4), true);
+			await writePromise(' '.repeat(4));
+			await assertPromptInput(`    |`);
+
+			xterm.input('\x1b[D'.repeat(2), true); // Left
+			await writePromise('\x1b[2D');
+			await assertPromptInput(`  |  `);
+
+			xterm.input('\x7F', true); // Backspace
+			await writePromise('\x1b[D');
+			await assertPromptInput(` |  `);
+
+			xterm.input('\x7F', true); // Backspace
+			await writePromise('\x1b[D');
+			await assertPromptInput(`|  `);
+
+			xterm.input(' ', true);
+			await writePromise(' ');
+			await assertPromptInput(` |  `);
+
+			xterm.input(' ', true);
+			await writePromise(' ');
+			await assertPromptInput(`  |  `);
+
+			xterm.input('\x1b[C', true); // Right
+			await writePromise('\x1b[C');
+			await assertPromptInput(`   | `);
+
+			xterm.input('a', true);
+			await writePromise('a');
+			await assertPromptInput(`   a| `);
+
+			xterm.input('\x7F', true); // Backspace
+			await writePromise('\x1b[D\x1b[K');
+			await assertPromptInput(`   | `);
+
+			xterm.input('\x1b[D'.repeat(2), true); // Left
+			await writePromise('\x1b[2D');
+			await assertPromptInput(` |   `);
+
+			xterm.input('\x1b[3~', true); // Delete
+			await writePromise('');
+			await assertPromptInput(` |  `);
+		});
+
+		// TODO: This doesn't work correctly but it doesn't matter too much as it only happens when
+		// there is a lot of whitespace at the end of a prompt input
+		test.skip('track whitespace when ConPTY deletes whitespace unexpectedly', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			xterm.input('ls', true);
+			await writePromise('ls');
+			await assertPromptInput(`ls|`);
+
+			xterm.input(' '.repeat(4), true);
+			await writePromise(' '.repeat(4));
+			await assertPromptInput(`ls    |`);
+
+			xterm.input(' ', true);
+			await writePromise('\x1b[4D\x1b[5X\x1b[5C'); // Cursor left x(N-1), delete xN, cursor right xN
+			await assertPromptInput(`ls     |`);
+		});
+
+		test('track whitespace beyond cursor', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(' '.repeat(8));
+			await assertPromptInput(`${' '.repeat(8)}|`);
+
+			await writePromise('\x1b[4D');
+			await assertPromptInput(`${' '.repeat(4)}|${' '.repeat(4)}`);
+		});
+	});
+
+	suite('multi-line', () => {
+		test('basic 2 line', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('echo "a');
+			await assertPromptInput(`echo "a|`);
+
+			await writePromise('\n\r\∙ ');
+			setContinuationPrompt('∙ ');
+			await assertPromptInput(`echo "a\n|`);
+
+			await writePromise('b');
+			await assertPromptInput(`echo "a\nb|`);
+		});
+
+		test('basic 3 line', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('echo "a');
+			await assertPromptInput(`echo "a|`);
+
+			await writePromise('\n\r\∙ ');
+			setContinuationPrompt('∙ ');
+			await assertPromptInput(`echo "a\n|`);
+
+			await writePromise('b');
+			await assertPromptInput(`echo "a\nb|`);
+
+			await writePromise('\n\r\∙ ');
+			setContinuationPrompt('∙ ');
+			await assertPromptInput(`echo "a\nb\n|`);
+
+			await writePromise('c');
+			await assertPromptInput(`echo "a\nb\nc|`);
+		});
+
+		test('navigate left in multi-line', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('echo "a');
+			await assertPromptInput(`echo "a|`);
+
+			await writePromise('\n\r\∙ ');
+			setContinuationPrompt('∙ ');
+			await assertPromptInput(`echo "a\n|`);
+
+			await writePromise('b');
+			await assertPromptInput(`echo "a\nb|`);
+
+			await writePromise('\x1b[D');
+			await assertPromptInput(`echo "a\n|b`);
+
+			await writePromise('\x1b[@c');
+			await assertPromptInput(`echo "a\nc|b`);
+
+			await writePromise('\x1b[K\n\r\∙ ');
+			await assertPromptInput(`echo "a\nc\n|`);
+
+			await writePromise('b');
+			await assertPromptInput(`echo "a\nc\nb|`);
+
+			await writePromise(' foo');
+			await assertPromptInput(`echo "a\nc\nb foo|`);
+
+			await writePromise('\x1b[3D');
+			await assertPromptInput(`echo "a\nc\nb |foo`);
+		});
+
+		test('navigate up in multi-line', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('echo "foo');
+			await assertPromptInput(`echo "foo|`);
+
+			await writePromise('\n\r\∙ ');
+			setContinuationPrompt('∙ ');
+			await assertPromptInput(`echo "foo\n|`);
+
+			await writePromise('bar');
+			await assertPromptInput(`echo "foo\nbar|`);
+
+			await writePromise('\n\r\∙ ');
+			setContinuationPrompt('∙ ');
+			await assertPromptInput(`echo "foo\nbar\n|`);
+
+			await writePromise('baz');
+			await assertPromptInput(`echo "foo\nbar\nbaz|`);
+
+			await writePromise('\x1b[A');
+			await assertPromptInput(`echo "foo\nbar|\nbaz`);
+
+			await writePromise('\x1b[D');
+			await assertPromptInput(`echo "foo\nba|r\nbaz`);
+
+			await writePromise('\x1b[D');
+			await assertPromptInput(`echo "foo\nb|ar\nbaz`);
+
+			await writePromise('\x1b[D');
+			await assertPromptInput(`echo "foo\n|bar\nbaz`);
+
+			await writePromise('\x1b[1;9H');
+			await assertPromptInput(`echo "|foo\nbar\nbaz`);
+
+			await writePromise('\x1b[C');
+			await assertPromptInput(`echo "f|oo\nbar\nbaz`);
+
+			await writePromise('\x1b[C');
+			await assertPromptInput(`echo "fo|o\nbar\nbaz`);
+
+			await writePromise('\x1b[C');
+			await assertPromptInput(`echo "foo|\nbar\nbaz`);
+		});
+
+		test('navigating up when first line contains invalid/stale trailing whitespace', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('echo "foo      \x1b[6D');
+			await assertPromptInput(`echo "foo|`);
+
+			await writePromise('\n\r\∙ ');
+			setContinuationPrompt('∙ ');
+			await assertPromptInput(`echo "foo\n|`);
+
+			await writePromise('bar');
+			await assertPromptInput(`echo "foo\nbar|`);
+
+			await writePromise('\x1b[D');
+			await assertPromptInput(`echo "foo\nba|r`);
+
+			await writePromise('\x1b[D');
+			await assertPromptInput(`echo "foo\nb|ar`);
+
+			await writePromise('\x1b[D');
+			await assertPromptInput(`echo "foo\n|bar`);
+		});
+	});
+
+	suite('multi-line wrapped (no continuation prompt)', () => {
+		test('basic wrapped line', async () => {
+			xterm.resize(5, 10);
+
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('ech');
+			await assertPromptInput(`ech|`);
+
+			await writePromise('o ');
+			await assertPromptInput(`echo |`);
+
+			await writePromise('"a"');
+			// HACK: Trailing whitespace is due to flaky detection in wrapped lines (but it doesn't matter much)
+			await assertPromptInput(`echo "a"| `);
+			await writePromise('\n\r\ b');
+			await assertPromptInput(`echo "a"\n b|`);
+			await writePromise('\n\r\ c');
+			await assertPromptInput(`echo "a"\n b\n c|`);
+		});
+	});
+	suite('multi-line wrapped (continuation prompt)', () => {
+		test('basic wrapped line', async () => {
+			xterm.resize(5, 10);
+			promptInputModel.setContinuationPrompt('∙ ');
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('ech');
+			await assertPromptInput(`ech|`);
+
+			await writePromise('o ');
+			await assertPromptInput(`echo |`);
+
+			await writePromise('"a"');
+			// HACK: Trailing whitespace is due to flaky detection in wrapped lines (but it doesn't matter much)
+			await assertPromptInput(`echo "a"| `);
+			await writePromise('\n\r\∙ ');
+			await assertPromptInput(`echo "a"\n|`);
+			await writePromise('b');
+			await assertPromptInput(`echo "a"\nb|`);
+			await writePromise('\n\r\∙ ');
+			await assertPromptInput(`echo "a"\nb\n|`);
+			await writePromise('c');
+			await assertPromptInput(`echo "a"\nb\nc|`);
+			await writePromise('\n\r\∙ ');
+			await assertPromptInput(`echo "a"\nb\nc\n|`);
+		});
+	});
+	suite('multi-line wrapped fish', () => {
+		test('forward slash continuation', async () => {
+			promptInputModel.setShellType(PosixShellType.Fish);
+			await writePromise('$ ');
+			await assertPromptInput('|');
+			await writePromise('[I] meganrogge@Megans-MacBook-Pro ~ (main|BISECTING)>');
+			fireCommandStart();
+
+			await writePromise('ech\\');
+			await assertPromptInput(`ech\\|`);
+			await writePromise('\no bye');
+			await assertPromptInput(`echo bye|`);
+		});
+		test('newline with no continuation', async () => {
+			promptInputModel.setShellType(PosixShellType.Fish);
+			await writePromise('$ ');
+			await assertPromptInput('|');
+			await writePromise('[I] meganrogge@Megans-MacBook-Pro ~ (main|BISECTING)>');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('echo "hi');
+			await assertPromptInput(`echo "hi|`);
+			await writePromise('\nand bye\nwhy"');
+			await assertPromptInput(`echo "hi\nand bye\nwhy"|`);
+		});
 	});
 
 	// To "record a session" for these tests:
