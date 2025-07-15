@@ -3366,11 +3366,12 @@ export class CommandCenter {
 			name = choice.refName;
 		}
 
+		const defaultWorktreePath = path.join(repository.root, name);
 		if (!worktreePath) {
 			const quickPickItems: QuickPickItem[] = [
 				{
 					label: l10n.t('$(folder) Create worktree in'),
-					description: l10n.t(`<root>/${name}`),
+					description: defaultWorktreePath,
 				},
 				{
 					label: l10n.t('$(folder) Choose a specific folder...'),
@@ -3398,7 +3399,7 @@ export class CommandCenter {
 			}
 
 			if (destinationFolder.label === quickPickItems[0].label) {
-				worktreePath = path.join(repository.root, name);
+				worktreePath = defaultWorktreePath;
 			} else {
 				const uris = await window.showOpenDialog({
 					canSelectFiles: false,
