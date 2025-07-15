@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { normalizeIndentation } from 'vs/editor/common/core/indentation';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ProcessedIndentRulesSupport } from 'vs/editor/common/languages/supports/indentationLineProcessor';
-import { ITextModel } from 'vs/editor/common/model';
+import * as strings from '../../../../base/common/strings.js';
+import { ShiftCommand } from '../../../common/commands/shiftCommand.js';
+import { EditOperation, ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { normalizeIndentation } from '../../../common/core/misc/indentation.js';
+import { Selection } from '../../../common/core/selection.js';
+import { StandardTokenType } from '../../../common/encodedTokenAttributes.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { ProcessedIndentRulesSupport } from '../../../common/languages/supports/indentationLineProcessor.js';
+import { ITextModel } from '../../../common/model.js';
 
 export function getReindentEditOperations(model: ITextModel, languageConfigurationService: ILanguageConfigurationService, startLineNumber: number, endLineNumber: number): ISingleEditOperation[] {
 	if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
@@ -71,6 +72,9 @@ export function getReindentEditOperations(model: ITextModel, languageConfigurati
 
 	// Calculate indentation adjustment for all following lines
 	for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+		if (doesLineStartWithString(model, lineNumber)) {
+			continue;
+		}
 		const text = model.getLineContent(lineNumber);
 		const oldIndentation = strings.getLeadingWhitespace(text);
 		const currentIdealIndent = idealIndentForNextLine;
@@ -100,4 +104,12 @@ export function getReindentEditOperations(model: ITextModel, languageConfigurati
 	}
 
 	return indentEdits;
+}
+
+function doesLineStartWithString(model: ITextModel, lineNumber: number): boolean {
+	if (!model.tokenization.isCheapToTokenize(lineNumber)) {
+		return false;
+	}
+	const lineTokens = model.tokenization.getLineTokens(lineNumber);
+	return lineTokens.getStandardTokenType(0) === StandardTokenType.String;
 }

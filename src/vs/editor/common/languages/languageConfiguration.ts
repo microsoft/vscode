@@ -3,18 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { ScopedLineTokens } from 'vs/editor/common/languages/supports';
+import { CharCode } from '../../../base/common/charCode.js';
+import { StandardTokenType } from '../encodedTokenAttributes.js';
+import { ScopedLineTokens } from './supports.js';
+
+/**
+ * Configuration for line comments.
+ */
+export interface LineCommentConfig {
+	/**
+	 * The line comment token, like `//`
+	 */
+	comment: string;
+	/**
+	 * Whether the comment token should not be indented and placed at the first column.
+	 * Defaults to false.
+	 */
+	noIndent?: boolean;
+}
 
 /**
  * Describes how comments for a language work.
  */
 export interface CommentRule {
 	/**
-	 * The line comment token, like `// this is a comment`
+	 * The line comment token, like `// this is a comment`.
+	 * Can be a string or an object with comment and optional noIndent properties.
 	 */
-	lineComment?: string | null;
+	lineComment?: string | LineCommentConfig | null;
 	/**
 	 * The block comment character pair, like `/* block comment *&#47;`
 	 */

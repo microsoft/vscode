@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { isWeb } from 'vs/base/common/platform';
-import { isString } from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionManagementCLI } from 'vs/platform/extensionManagement/common/extensionManagementCLI';
-import { getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { AbstractMessageLogger, ILogger, LogLevel } from 'vs/platform/log/common/log';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+import { Schemas } from '../../../base/common/network.js';
+import { isWeb } from '../../../base/common/platform.js';
+import { isString } from '../../../base/common/types.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { CommandsRegistry, ICommandService } from '../../../platform/commands/common/commands.js';
+import { IExtensionGalleryService, IExtensionManagementService } from '../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionManagementCLI } from '../../../platform/extensionManagement/common/extensionManagementCLI.js';
+import { getExtensionId } from '../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { IExtensionManifest } from '../../../platform/extensions/common/extensions.js';
+import { IInstantiationService, ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
+import { ILabelService } from '../../../platform/label/common/label.js';
+import { AbstractMessageLogger, ILogger, LogLevel } from '../../../platform/log/common/log.js';
+import { IOpenerService } from '../../../platform/opener/common/opener.js';
+import { IOpenWindowOptions, IWindowOpenable } from '../../../platform/window/common/window.js';
+import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
+import { IExtensionManagementServerService } from '../../services/extensionManagement/common/extensionManagement.js';
+import { IExtensionManifestPropertiesService } from '../../services/extensions/common/extensionManifestPropertiesService.js';
 
 
 // this class contains the commands that the CLI server is reying on
@@ -65,28 +65,34 @@ CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (
 			lines.push(message);
 		}
 	}();
-	const cliService = instantiationService.createChild(new ServiceCollection([IExtensionManagementService, remoteExtensionManagementService])).createInstance(RemoteExtensionManagementCLI, logger);
+	const childInstantiationService = instantiationService.createChild(new ServiceCollection([IExtensionManagementService, remoteExtensionManagementService]));
+	try {
+		const cliService = childInstantiationService.createInstance(RemoteExtensionManagementCLI, logger);
 
-	if (args.list) {
-		await cliService.listExtensions(!!args.list.showVersions, args.list.category, undefined);
-	} else {
-		const revive = (inputs: (string | UriComponents)[]) => inputs.map(input => isString(input) ? input : URI.revive(input));
-		if (Array.isArray(args.install) && args.install.length) {
-			try {
-				await cliService.installExtensions(revive(args.install), [], { isMachineScoped: true }, !!args.force);
-			} catch (e) {
-				lines.push(e.message);
+		if (args.list) {
+			await cliService.listExtensions(!!args.list.showVersions, args.list.category, undefined);
+		} else {
+			const revive = (inputs: (string | UriComponents)[]) => inputs.map(input => isString(input) ? input : URI.revive(input));
+			if (Array.isArray(args.install) && args.install.length) {
+				try {
+					await cliService.installExtensions(revive(args.install), [], { isMachineScoped: true }, !!args.force);
+				} catch (e) {
+					lines.push(e.message);
+				}
+			}
+			if (Array.isArray(args.uninstall) && args.uninstall.length) {
+				try {
+					await cliService.uninstallExtensions(revive(args.uninstall), !!args.force, undefined);
+				} catch (e) {
+					lines.push(e.message);
+				}
 			}
 		}
-		if (Array.isArray(args.uninstall) && args.uninstall.length) {
-			try {
-				await cliService.uninstallExtensions(revive(args.uninstall), !!args.force, undefined);
-			} catch (e) {
-				lines.push(e.message);
-			}
-		}
+		return lines.join('\n');
+	} finally {
+		childInstantiationService.dispose();
 	}
-	return lines.join('\n');
+
 });
 
 class RemoteExtensionManagementCLI extends ExtensionManagementCLI {

@@ -3,24 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IAuxiliaryEditorPartCreateEvent, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { Emitter } from 'vs/base/common/event';
-import { DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { GroupIdentifier } from 'vs/workbench/common/editor';
-import { EditorPart, IEditorPartUIState, MainEditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { distinct, firstOrDefault } from 'vs/base/common/arrays';
-import { AuxiliaryEditorPart, IAuxiliaryEditorPartOpenOptions } from 'vs/workbench/browser/parts/editor/auxiliaryEditorPart';
-import { MultiWindowParts } from 'vs/workbench/browser/part';
-import { DeferredPromise } from 'vs/base/common/async';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { localize } from '../../../../nls.js';
+import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { GroupIdentifier, IEditorPartOptions } from '../../../common/editor.js';
+import { EditorPart, IEditorPartUIState, MainEditorPart } from './editorPart.js';
+import { IEditorGroupView, IEditorPartsView } from './editor.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { distinct } from '../../../../base/common/arrays.js';
+import { AuxiliaryEditorPart, IAuxiliaryEditorPartOpenOptions } from './auxiliaryEditorPart.js';
+import { MultiWindowParts } from '../../part.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { isHTMLElement } from '../../../../base/browser/dom.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { DeepPartial } from '../../../../base/common/types.js';
+import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 
 interface IEditorPartsUIState {
 	readonly auxiliary: IAuxiliaryEditorPartState[];
@@ -41,9 +46,9 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	declare readonly _serviceBrand: undefined;
 
-	readonly mainPart = this._register(this.createMainEditorPart());
+	readonly mainPart: MainEditorPart;
 
-	private mostRecentActiveParts = [this.mainPart];
+	private mostRecentActiveParts: MainEditorPart[];
 
 	constructor(
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
@@ -54,7 +59,19 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 	) {
 		super('workbench.editorParts', themeService, storageService);
 
+		this.editorWorkingSets = (() => {
+			const workingSetsRaw = this.storageService.get(EditorParts.EDITOR_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE);
+			if (workingSetsRaw) {
+				return JSON.parse(workingSetsRaw);
+			}
+
+			return [];
+		})();
+
+		this.mainPart = this._register(this.createMainEditorPart());
 		this._register(this.registerPart(this.mainPart));
+
+		this.mostRecentActiveParts = [this.mainPart];
 
 		this.restoreParts();
 		this.registerListeners();
@@ -69,19 +86,46 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		return this.instantiationService.createInstance(MainEditorPart, this);
 	}
 
+	//#region Scoped Instantiation Services
+
+	private readonly mapPartToInstantiationService = new Map<number /* window ID */, IInstantiationService>();
+
+	getScopedInstantiationService(part: IEditorPart): IInstantiationService {
+		if (part === this.mainPart) {
+			if (!this.mapPartToInstantiationService.has(part.windowId)) {
+				this.instantiationService.invokeFunction(accessor => {
+					const editorService = accessor.get(IEditorService);
+					const statusbarService = accessor.get(IStatusbarService);
+
+					this.mapPartToInstantiationService.set(part.windowId, this._register(this.mainPart.scopedInstantiationService.createChild(new ServiceCollection(
+						[IEditorService, editorService.createScoped(this.mainPart, this._store)],
+						[IStatusbarService, statusbarService.createScoped(statusbarService, this._store)]
+					))));
+				});
+			}
+		}
+
+		return this.mapPartToInstantiationService.get(part.windowId) ?? this.instantiationService;
+	}
+
+	//#endregion
+
 	//#region Auxiliary Editor Parts
 
-	private readonly _onDidCreateAuxiliaryEditorPart = this._register(new Emitter<IAuxiliaryEditorPartCreateEvent>());
+	private readonly _onDidCreateAuxiliaryEditorPart = this._register(new Emitter<IAuxiliaryEditorPart>());
 	readonly onDidCreateAuxiliaryEditorPart = this._onDidCreateAuxiliaryEditorPart.event;
 
 	async createAuxiliaryEditorPart(options?: IAuxiliaryEditorPartOpenOptions): Promise<IAuxiliaryEditorPart> {
 		const { part, instantiationService, disposables } = await this.instantiationService.createInstance(AuxiliaryEditorPart, this).create(this.getGroupsLabel(this._parts.size), options);
 
+		// Keep instantiation service
+		this.mapPartToInstantiationService.set(part.windowId, instantiationService);
+		disposables.add(toDisposable(() => this.mapPartToInstantiationService.delete(part.windowId)));
+
 		// Events
 		this._onDidAddGroup.fire(part.activeGroup);
 
-		const eventDisposables = disposables.add(new DisposableStore());
-		this._onDidCreateAuxiliaryEditorPart.fire({ part, instantiationService, disposables: eventDisposables });
+		this._onDidCreateAuxiliaryEditorPart.fire(part);
 
 		return part;
 	}
@@ -161,7 +205,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 	override getPart(element: HTMLElement): EditorPart;
 	override getPart(groupOrElement: IEditorGroupView | GroupIdentifier | HTMLElement): EditorPart {
 		if (this._parts.size > 1) {
-			if (groupOrElement instanceof HTMLElement) {
+			if (isHTMLElement(groupOrElement)) {
 				const element = groupOrElement;
 
 				return this.getPartByDocument(element.ownerDocument);
@@ -222,7 +266,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 			}
 		}
 
-		const mostRecentActivePart = firstOrDefault(this.mostRecentActiveParts);
+		const mostRecentActivePart = this.mostRecentActiveParts.at(0);
 		mostRecentActivePart?.activeGroup.focus();
 
 		this._isReady = true;
@@ -335,14 +379,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	private static readonly EDITOR_WORKING_SETS_STORAGE_KEY = 'editor.workingSets';
 
-	private editorWorkingSets: IEditorWorkingSetState[] = (() => {
-		const workingSetsRaw = this.storageService.get(EditorParts.EDITOR_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE);
-		if (workingSetsRaw) {
-			return JSON.parse(workingSetsRaw);
-		}
-
-		return [];
-	})();
+	private editorWorkingSets: IEditorWorkingSetState[];
 
 	saveWorkingSet(name: string): IEditorWorkingSet {
 		const workingSet: IEditorWorkingSetState = {
@@ -399,7 +436,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 		// Restore Focus unless instructed otherwise
 		if (!options?.preserveFocus) {
-			const mostRecentActivePart = firstOrDefault(this.mostRecentActiveParts);
+			const mostRecentActivePart = this.mostRecentActiveParts.at(0);
 			if (mostRecentActivePart) {
 				await mostRecentActivePart.whenReady;
 				mostRecentActivePart.activeGroup.focus();
@@ -620,8 +657,8 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		return this.getPart(group).mergeGroup(group, target, options);
 	}
 
-	mergeAllGroups(target: IEditorGroupView | GroupIdentifier): boolean {
-		return this.activePart.mergeAllGroups(target);
+	mergeAllGroups(target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): boolean {
+		return this.activePart.mergeAllGroups(target, options);
 	}
 
 	copyGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView {
@@ -760,7 +797,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		let groupRegisteredContextKeys = this.registeredContextKeys.get(group.id);
 		if (!groupRegisteredContextKeys) {
 			groupRegisteredContextKeys = new Map<string, IContextKey>();
-			this.scopedContextKeys.set(group.id, groupRegisteredContextKeys);
+			this.registeredContextKeys.set(group.id, groupRegisteredContextKeys);
 		}
 
 		let scopedRegisteredContextKey = groupRegisteredContextKeys.get(provider.contextKey.key);
@@ -779,6 +816,10 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	get partOptions() { return this.mainPart.partOptions; }
 	get onDidChangeEditorPartOptions() { return this.mainPart.onDidChangeEditorPartOptions; }
+
+	enforcePartOptions(options: DeepPartial<IEditorPartOptions>): IDisposable {
+		return this.mainPart.enforcePartOptions(options);
+	}
 
 	//#endregion
 }

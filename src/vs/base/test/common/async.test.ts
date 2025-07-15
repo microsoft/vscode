@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as async from 'vs/base/common/async';
-import * as MicrotaskDelay from "vs/base/common/symbols";
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isCancellationError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import assert from 'assert';
+import * as async from '../../common/async.js';
+import * as MicrotaskDelay from "../../common/symbols.js";
+import { CancellationToken, CancellationTokenSource } from '../../common/cancellation.js';
+import { isCancellationError } from '../../common/errors.js';
+import { Event } from '../../common/event.js';
+import { URI } from '../../common/uri.js';
+import { runWithFakedTimers } from './timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
+import { DisposableStore } from '../../common/lifecycle.js';
+import { Iterable } from '../../common/iterator.js';
 
 suite('Async', () => {
 
@@ -46,6 +47,22 @@ suite('Async', () => {
 			});
 			promise.cancel();
 			return result;
+		});
+
+		test('cancel disposes result', function () {
+
+			const store = new DisposableStore();
+
+			const promise = async.createCancelablePromise(async token => {
+				return store;
+			});
+			promise.then(_ => assert.ok(false), err => {
+
+				assert.ok(isCancellationError(err));
+				assert.ok(store.isDisposed);
+			});
+
+			promise.cancel();
 		});
 
 		// Cancelling a sync cancelable promise will fire the cancelled token.
@@ -1519,6 +1536,44 @@ suite('Async', () => {
 			assert.strictEqual(worker.pending, 0);
 			assert.strictEqual(worked, false);
 		});
+
+		//  https://github.com/microsoft/vscode/issues/230366
+		// 	test('waitThrottleDelayBetweenWorkUnits option', async () => {
+		// 		const handled: number[] = [];
+		// 		let handledCallback: Function;
+		// 		let handledPromise = new Promise(resolve => handledCallback = resolve);
+		// 		let currentTime = 0;
+
+		// 		const handler = (units: readonly number[]) => {
+		// 			handled.push(...units);
+		// 			handledCallback();
+		// 			handledPromise = new Promise(resolve => handledCallback = resolve);
+		// 		};
+
+		// 		const worker = store.add(new async.ThrottledWorker<number>({
+		// 			maxWorkChunkSize: 5,
+		// 			maxBufferedWork: undefined,
+		// 			throttleDelay: 5,
+		// 			waitThrottleDelayBetweenWorkUnits: true
+		// 		}, handler));
+
+		// 		// Schedule work, it should execute immediately
+		// 		currentTime = Date.now();
+		// 		let worked = worker.work([1, 2, 3]);
+		// 		assert.strictEqual(worked, true);
+		// 		assertArrayEquals(handled, [1, 2, 3]);
+		// 		assert.strictEqual(Date.now() - currentTime < 5, true);
+
+		// 		// Schedule work again, it should wait at least throttle delay before executing
+		// 		currentTime = Date.now();
+		// 		worked = worker.work([4, 5]);
+		// 		assert.strictEqual(worked, true);
+		// 		// Throttle delay hasn't reset so we still must wait
+		// 		assertArrayEquals(handled, [1, 2, 3]);
+		// 		await handledPromise;
+		// 		assert.strictEqual(Date.now() - currentTime >= 5, true);
+		// 		assertArrayEquals(handled, [1, 2, 3, 4, 5]);
+		// 	});
 	});
 
 	suite('LimitedQueue', () => {
@@ -1675,6 +1730,143 @@ suite('Async', () => {
 			}
 
 			assert.strictEqual(calledOnReturn, false);
+		});
+
+		test('emitMany emits all items', async function () {
+			const source = new async.AsyncIterableSource<number>();
+			const values = [10, 20, 30, 40];
+			source.emitMany(values);
+			source.resolve();
+
+			const result: number[] = [];
+			for await (const item of source.asyncIterable) {
+				result.push(item);
+			}
+
+			assert.deepStrictEqual(result, values);
+		});
+
+
+	});
+
+	suite('cancellableIterable', () => {
+		let cts: CancellationTokenSource;
+		setup(() => {
+			cts = store.add(new CancellationTokenSource());
+		});
+
+		test('should iterate through all values when not canceled', async function () {
+			const asyncIterable = {
+				async *[Symbol.asyncIterator]() {
+					yield 'a';
+					yield 'b';
+					yield 'c';
+				}
+			};
+
+			const cancelableIterable = async.cancellableIterable(asyncIterable, cts.token);
+
+			const result = await Iterable.asyncToArray(cancelableIterable);
+			assert.deepStrictEqual(result, ['a', 'b', 'c']);
+		});
+
+		test('should stop iteration immediately when cancelled before starting', async function () {
+			const values: string[] = [];
+
+			const asyncIterable = {
+				async *[Symbol.asyncIterator]() {
+					values.push('iterator created');
+					yield 'a';
+					values.push('after a');
+					yield 'b';
+					values.push('after b');
+					yield 'c';
+					values.push('after c');
+				}
+			};
+
+			// Cancel before iteration starts
+			cts.cancel();
+			const cancelableIterable = async.cancellableIterable(asyncIterable, cts.token);
+
+			const result = await Iterable.asyncToArray(cancelableIterable);
+			assert.deepStrictEqual(result, []);
+			assert.deepStrictEqual(values, []);
+		});
+
+		test('should stop iteration when cancelled during iteration', async function () {
+			const cts = new CancellationTokenSource();
+			const deferredA = new async.DeferredPromise<void>();
+			const deferredB = new async.DeferredPromise<void>();
+			const deferredC = new async.DeferredPromise<void>();
+
+			const values: string[] = [];
+
+			const asyncIterable = {
+				async *[Symbol.asyncIterator]() {
+					values.push('a yielded');
+					yield 'a';
+					await deferredA.p;
+
+					values.push('b yielded');
+					yield 'b';
+					await deferredB.p;
+
+					values.push('c yielded');
+					yield 'c';
+					await deferredC.p;
+				}
+			};
+
+			for await (const value of async.cancellableIterable(asyncIterable, cts.token)) {
+				if (value === 'a') {
+					deferredA.complete();
+				} else if (value === 'b') {
+					cts.cancel();
+					deferredB.complete();
+				} else {
+					throw new Error('Unexpected value');
+				}
+			}
+
+			assert.deepStrictEqual(values, ['a yielded', 'b yielded']);
+		});
+
+		test('should handle return method correctly', async function () {
+			let returnCalled = false;
+			let n = 0;
+			const asyncIterable = {
+				async *[Symbol.asyncIterator]() {
+					try {
+						yield 'a'; n++;
+						yield 'b'; n++;
+						yield 'c'; n++;
+					} finally {
+						returnCalled = true;
+					}
+				},
+			};
+
+			// Add a return method to the iterator
+			const originalIterable = asyncIterable[Symbol.asyncIterator]();
+			originalIterable.return = async function () {
+				returnCalled = true;
+				return Promise.resolve({ done: true, value: undefined });
+			};
+
+			// Create a test-specific iterable with our mocked iterator
+			const testIterable = {
+				[Symbol.asyncIterator]: () => originalIterable
+			};
+
+			for await (const value of async.cancellableIterable(testIterable, cts.token)) {
+				if (value === 'b') {
+					break;
+				}
+			}
+
+			assert.strictEqual(returnCalled, true);
+			assert.strictEqual(n < 2, true);
 		});
 	});
 });

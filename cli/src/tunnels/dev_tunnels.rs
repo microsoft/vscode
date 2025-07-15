@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-use super::protocol::{self, PortPrivacy};
+use super::protocol::{self, PortPrivacy, PortProtocol};
 use crate::auth;
 use crate::constants::{IS_INTERACTIVE_CLI, PROTOCOL_VERSION_TAG, TUNNEL_SERVICE_USER_AGENT};
 use crate::state::{LauncherPaths, PersistedState};
@@ -65,7 +65,7 @@ mod tunnel_flags {
 			flags |= IS_WSL_INSTALLED;
 		}
 
-		format!("_flag{}", flags)
+		format!("_flag{flags}")
 	}
 }
 
@@ -221,8 +221,11 @@ impl ActiveTunnel {
 		&self,
 		port_number: u16,
 		privacy: PortPrivacy,
+		protocol: PortProtocol,
 	) -> Result<(), AnyError> {
-		self.manager.add_port_tcp(port_number, privacy).await?;
+		self.manager
+			.add_port_tcp(port_number, privacy, protocol)
+			.await?;
 		Ok(())
 	}
 
@@ -279,8 +282,7 @@ fn get_host_token_from_tunnel(tunnel: &Tunnel) -> String {
 fn is_valid_name(name: &str) -> Result<(), InvalidTunnelName> {
 	if name.len() > MAX_TUNNEL_NAME_LENGTH {
 		return Err(InvalidTunnelName(format!(
-			"Names cannot be longer than {} characters. Please try a different name.",
-			MAX_TUNNEL_NAME_LENGTH
+			"Names cannot be longer than {MAX_TUNNEL_NAME_LENGTH} characters. Please try a different name."
 		)));
 	}
 
@@ -614,7 +616,7 @@ impl DevTunnels {
 					Err(e) => {
 						return Err(AnyError::from(TunnelCreationFailed(
 							name.to_string(),
-							format!("{:?}", e),
+							format!("{e:?}"),
 						)))
 					}
 					Ok(t) => break t,
@@ -786,7 +788,7 @@ impl DevTunnels {
 		let mut placeholder_name = Self::get_placeholder_name();
 		if !is_name_free(&placeholder_name) {
 			for i in 2.. {
-				let fixed_name = format!("{}{}", placeholder_name, i);
+				let fixed_name = format!("{placeholder_name}{i}");
 				if is_name_free(&fixed_name) {
 					placeholder_name = fixed_name;
 					break;
@@ -972,13 +974,14 @@ impl ActiveTunnelManager {
 		&self,
 		port_number: u16,
 		privacy: PortPrivacy,
+		protocol: PortProtocol,
 	) -> Result<(), WrappedError> {
 		self.relay
 			.lock()
 			.await
 			.add_port(&TunnelPort {
 				port_number,
-				protocol: Some(TUNNEL_PROTOCOL_AUTO.to_owned()),
+				protocol: Some(protocol.to_contract_str().to_string()),
 				access_control: Some(privacy_to_tunnel_acl(privacy)),
 				..Default::default()
 			})

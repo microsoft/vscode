@@ -11,12 +11,12 @@ import { formatStackTrace } from './stackTraceHelper';
 
 function clearContainer(container: HTMLElement) {
 	while (container.firstChild) {
-		container.removeChild(container.firstChild);
+		container.firstChild.remove();
 	}
 }
 
 function renderImage(outputInfo: OutputItem, element: HTMLElement): IDisposable {
-	const blob = new Blob([outputInfo.data()], { type: outputInfo.mime });
+	const blob = new Blob([outputInfo.data() as Uint8Array<ArrayBuffer>], { type: outputInfo.mime });
 	const src = URL.createObjectURL(blob);
 	const disposable = {
 		dispose: () => {
@@ -190,7 +190,7 @@ function renderError(
 		const minimalError = ctx.settings.minimalError && !!headerMessage?.length;
 		outputElement.classList.add('traceback');
 
-		const { formattedStack, errorLocation } = formatStackTrace(err.stack);
+		const { formattedStack, errorLocation } = formatStackTrace(err.stack, trustHtml);
 
 		const outputScrolling = !minimalError && scrollingEnabled(outputInfo, ctx.settings);
 		const lineLimit = minimalError ? 1000 : ctx.settings.lineLimit;
@@ -378,7 +378,7 @@ function renderStream(outputInfo: OutputWithAppend, outputElement: HTMLElement, 
 			contentParent = document.createElement('div');
 			contentParent.appendChild(newContent);
 			while (outputElement.firstChild) {
-				outputElement.removeChild(outputElement.firstChild);
+				outputElement.firstChild.remove();
 			}
 			outputElement.appendChild(contentParent);
 		}
@@ -404,9 +404,9 @@ function renderText(outputInfo: OutputItem, outputElement: HTMLElement, ctx: IRi
 	const outputOptions = { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml: false, linkifyFilePaths: ctx.settings.linkifyFilePaths };
 	const content = createOutputContent(outputInfo.id, text, outputOptions);
 	content.classList.add('output-plaintext');
-	outputElement.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
+	content.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
 	disposableStore.push(ctx.onDidChangeSettings(e => {
-		outputElement.classList.toggle('word-wrap', e.outputWordWrap);
+		content.classList.toggle('word-wrap', e.outputWordWrap);
 	}));
 
 	content.classList.toggle('scrollable', outputScrolling);
@@ -462,7 +462,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		border-color: var(--theme-input-focus-border-color);
 	}
 	#container div.output .scrollable {
-		overflow-y: scroll;
+		overflow-y: auto;
 		max-height: var(--notebook-cell-output-max-height);
 	}
 	#container div.output .scrollable.scrollbar-visible {

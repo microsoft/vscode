@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IEditorSerializer } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
-import { isEqual, toLocalResource } from 'vs/base/common/resources';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IWorkingCopyIdentifier, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import { Schemas } from '../../../../base/common/network.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { IEditorSerializer } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { ITextEditorService } from '../../textfile/common/textEditorService.js';
+import { isEqual, toLocalResource } from '../../../../base/common/resources.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { IFilesConfigurationService } from '../../filesConfiguration/common/filesConfigurationService.js';
+import { IPathService } from '../../path/common/pathService.js';
+import { UntitledTextEditorInput } from './untitledTextEditorInput.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IWorkingCopyIdentifier, NO_TYPE_ID } from '../../workingCopy/common/workingCopy.js';
+import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from '../../workingCopy/common/workingCopyEditorService.js';
+import { IUntitledTextEditorService } from './untitledTextEditorService.js';
 
 interface ISerializedUntitledTextEditorInput {
 	readonly resourceJSON: UriComponents;
