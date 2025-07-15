@@ -1981,16 +1981,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (!this.promptCompletionState) {
 				return;
 			}
-			const requests = this.viewModel?.model.getRequests() ?? [];
-			const resolvedRequests = requests.map(r => r.message.text);
-			const context: InlineCompletionContext = {
-				triggerKind: InlineCompletionTriggerKind.Automatic,
-				includeInlineEdits: true,
-				includeInlineCompletions: true,
-				selectedSuggestionInfo: undefined,
-				requests: resolvedRequests,
-				requestUuid: ''
-			};
 			const model = this.inputEditor.getModel();
 			const position = this.inputEditor.getPosition();
 			if (!model || !position) {
@@ -2001,6 +1991,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				startTime: Date.now(),
 				languageId: model.getLanguageId(),
 				reason: '',
+			};
+			const context: InlineCompletionContext = {
+				triggerKind: InlineCompletionTriggerKind.Automatic,
+				includeInlineEdits: false,
+				includeInlineCompletions: false,
+				selectedSuggestionInfo: undefined,
+				requestUuid: ''
 			};
 			const updatedCompletions = provideInlineCompletions(
 				this.languageFeaturesService.inlineCompletionsProvider.all(model),
