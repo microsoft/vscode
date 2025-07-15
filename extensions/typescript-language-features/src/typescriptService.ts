@@ -78,6 +78,7 @@ interface StandardTsServerRequests {
 	'linkedEditingRange': [Proto.FileLocationRequestArgs, Proto.LinkedEditingRangeResponse];
 	'mapCode': [Proto.MapCodeRequestArgs, Proto.MapCodeResponse];
 	'getPasteEdits': [Proto.GetPasteEditsRequestArgs, Proto.GetPasteEditsResponse];
+	'preparePasteEdits': [Proto.PreparePasteEditsRequestArgs, Proto.PreparePasteEditsResponse];
 }
 
 interface NoResponseTsServerRequests {
@@ -150,7 +151,7 @@ export interface ITypeScriptServiceClient {
 	 *
 	 * @return The normalized path or `undefined` if the document is not open on the server.
 	 */
-	toOpenTsFilePath(document: vscode.TextDocument, options?: {
+	toOpenTsFilePath(document: vscode.TextDocument | vscode.Uri, options?: {
 		suppressAlertOnFailure?: boolean;
 	}): string | undefined;
 

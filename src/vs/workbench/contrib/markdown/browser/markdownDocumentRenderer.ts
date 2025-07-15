@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basicMarkupHtmlTags, hookDomPurifyHrefAndSrcSanitizer } from 'vs/base/browser/dom';
-import * as dompurify from 'vs/base/browser/dompurify/dompurify';
-import { allowedMarkdownAttr } from 'vs/base/browser/markdownRenderer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import * as marked from 'vs/base/common/marked/marked';
-import { Schemas } from 'vs/base/common/network';
-import { escape } from 'vs/base/common/strings';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { basicMarkupHtmlTags, sanitizeHtml } from '../../../../base/browser/domSanitize.js';
+import { allowedMarkdownHtmlAttributes } from '../../../../base/browser/markdownRenderer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import * as marked from '../../../../base/common/marked/marked.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { escape } from '../../../../base/common/strings.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { tokenizeToString } from '../../../../editor/common/languages/textToHtmlTokenizer.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { markedGfmHeadingIdPlugin } from './markedGfmHeadingIdPlugin.js';
 
 export const DEFAULT_MARKDOWN_STYLES = `
 body {
@@ -156,41 +156,38 @@ pre code {
 }
 `;
 
-const allowedProtocols = [Schemas.http, Schemas.https, Schemas.command];
-function sanitize(documentContent: string, allowUnknownProtocols: boolean): string {
+const allowedProtocols = [
+	Schemas.http,
+	Schemas.https,
+	Schemas.command,
+];
 
-	const hook = hookDomPurifyHrefAndSrcSanitizer(allowedProtocols, true);
-
-	try {
-		return dompurify.sanitize(documentContent, {
-			...{
-				ALLOWED_TAGS: [
-					...basicMarkupHtmlTags,
-					'checkbox',
-					'checklist',
-				],
-				ALLOWED_ATTR: [
-					...allowedMarkdownAttr,
-					'data-command', 'name', 'id', 'role', 'tabindex',
-					'x-dispatch',
-					'required', 'checked', 'placeholder', 'when-checked', 'checked-on',
-				],
-			},
-			...(allowUnknownProtocols ? { ALLOW_UNKNOWN_PROTOCOLS: true } : {}),
-		});
-	} finally {
-		hook.dispose();
-	}
+function sanitize(documentContent: string, allowAllProtocols = false): TrustedHTML {
+	return sanitizeHtml(documentContent, {
+		overrideAllowedProtocols: allowAllProtocols ? '*' : allowedProtocols,
+		overrideAllowedTags: [
+			...basicMarkupHtmlTags,
+			'input',
+			'checkbox',
+			'checklist',
+		],
+		overrideAllowedAttributes: [
+			...allowedMarkdownHtmlAttributes,
+			'data-command', 'name', 'id', 'role', 'tabindex',
+			'x-dispatch',
+			'required', 'checked', 'placeholder', 'when-checked', 'checked-on',
+		],
+	});
 }
 
 interface IRenderMarkdownDocumentOptions {
 	readonly shouldSanitize?: boolean;
 	readonly allowUnknownProtocols?: boolean;
-	readonly renderer?: marked.Renderer;
+	readonly markedExtensions?: marked.MarkedExtension[];
 	readonly token?: CancellationToken;
 }
 
-/*marked.*
+/**
  * Renders a string of markdown as a document.
  *
  * Uses VS Code's syntax highlighting code blocks.
@@ -217,12 +214,14 @@ export async function renderMarkdownDocument(
 				const languageId = languageService.getLanguageIdByLanguageName(lang) ?? languageService.getLanguageIdByLanguageName(lang.split(/\s+|:|,|(?!^)\{|\?]/, 1)[0]);
 				return tokenizeToString(languageService, code, languageId);
 			}
-		})
+		}),
+		markedGfmHeadingIdPlugin(),
+		...(options?.markedExtensions ?? []),
 	);
 
-	const raw = await m.parse(text, { renderer: options?.renderer, async: true });
+	const raw = await m.parse(text, { async: true });
 	if (options?.shouldSanitize ?? true) {
-		return sanitize(raw, options?.allowUnknownProtocols ?? false);
+		return sanitize(raw, options?.allowUnknownProtocols ?? false) as any as string;
 	} else {
 		return raw;
 	}
@@ -231,7 +230,7 @@ export async function renderMarkdownDocument(
 namespace MarkedHighlight {
 	// Copied from https://github.com/markedjs/marked-highlight/blob/main/src/index.js
 
-	export function markedHighlight(options: marked.MarkedOptions & { highlight: (code: string, lang: string, info: string) => string | Promise<string> }) {
+	export function markedHighlight(options: marked.MarkedOptions & { highlight: (code: string, lang: string) => string | Promise<string> }): marked.MarkedExtension {
 		if (typeof options === 'function') {
 			options = {
 				highlight: options,
@@ -249,13 +248,11 @@ namespace MarkedHighlight {
 					return;
 				}
 
-				const lang = getLang(token.lang);
-
 				if (options.async) {
-					return Promise.resolve(options.highlight(token.text, lang, token.lang || '')).then(updateToken(token));
+					return Promise.resolve(options.highlight(token.text, token.lang)).then(updateToken(token));
 				}
 
-				const code = options.highlight(token.text, lang, token.lang || '');
+				const code = options.highlight(token.text, token.lang);
 				if (code instanceof Promise) {
 					throw new Error('markedHighlight is not set to async but the highlight function is async. Set the async option to true on markedHighlight to await the async highlight function.');
 				}
@@ -269,12 +266,8 @@ namespace MarkedHighlight {
 					text = text.replace(/\n$/, '');
 					return `<pre><code${classAttr}>${escaped ? text : escape(text, true)}\n</code></pre>`;
 				},
-			} as any,
+			},
 		};
-	}
-
-	function getLang(lang: string) {
-		return (lang || '').match(/\S*/)![0];
 	}
 
 	function updateToken(token: any) {

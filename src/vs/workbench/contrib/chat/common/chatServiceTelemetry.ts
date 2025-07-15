@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IChatUserActionEvent, ChatAgentVoteDirection, ChatCopyKind } from 'vs/workbench/contrib/chat/common/chatService';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ChatAgentVoteDirection, ChatCopyKind, IChatUserActionEvent } from './chatService.js';
 
 type ChatVoteEvent = {
 	direction: 'up' | 'down';
 	agentId: string;
 	command: string | undefined;
+	reason: string | undefined;
 };
 
 type ChatVoteClassification = {
 	direction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user voted up or down.' };
 	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat agent that this vote is for.' };
 	command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the slash command that this vote is for.' };
+	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason selected by the user for voting down.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of Chat agents.';
 };
@@ -49,17 +50,21 @@ type ChatInsertClassification = {
 	comment: 'Provides insight into the usage of Chat features.';
 };
 
-type ChatCommandEvent = {
-	commandId: string;
+type ChatApplyEvent = {
+	newFile: boolean;
 	agentId: string;
 	command: string | undefined;
+	codeMapper: string | undefined;
+	editsProposed: boolean;
 };
 
-type ChatCommandClassification = {
-	commandId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the command that was executed.' };
-	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the related chat agent.' };
-	command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the related slash command.' };
-	owner: 'roblourens';
+type ChatApplyClassification = {
+	newFile: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the code was inserted into a new untitled file.' };
+	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat agent that this insertion is for.' };
+	command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the slash command that this insertion is for.' };
+	codeMapper: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The code mapper that wa used to compute the edit.' };
+	editsProposed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether there was a change proposed to the user.' };
+	owner: 'aeschli';
 	comment: 'Provides insight into the usage of Chat features.';
 };
 
@@ -114,6 +119,7 @@ export class ChatServiceTelemetry {
 				direction: action.action.direction === ChatAgentVoteDirection.Up ? 'up' : 'down',
 				agentId: action.agentId ?? '',
 				command: action.command,
+				reason: action.action.reason,
 			});
 		} else if (action.action.kind === 'copy') {
 			this.telemetryService.publicLog2<ChatCopyEvent, ChatCopyClassification>('interactiveSessionCopy', {
@@ -127,14 +133,13 @@ export class ChatServiceTelemetry {
 				agentId: action.agentId ?? '',
 				command: action.command,
 			});
-		} else if (action.action.kind === 'command') {
-			// TODO not currently called
-			const command = CommandsRegistry.getCommand(action.action.commandButton.command.id);
-			const commandId = command ? action.action.commandButton.command.id : 'INVALID';
-			this.telemetryService.publicLog2<ChatCommandEvent, ChatCommandClassification>('interactiveSessionCommand', {
-				commandId,
+		} else if (action.action.kind === 'apply') {
+			this.telemetryService.publicLog2<ChatApplyEvent, ChatApplyClassification>('interactiveSessionApply', {
+				newFile: !!action.action.newFile,
+				codeMapper: action.action.codeMapper,
 				agentId: action.agentId ?? '',
 				command: action.command,
+				editsProposed: !!action.action.editsProposed,
 			});
 		} else if (action.action.kind === 'runInTerminal') {
 			this.telemetryService.publicLog2<ChatTerminalEvent, ChatTerminalClassification>('interactiveSessionRunInTerminal', {

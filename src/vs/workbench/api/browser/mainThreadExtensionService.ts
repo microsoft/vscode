@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { SerializedError, transformErrorFromSerialization } from 'vs/base/common/errors';
-import { FileAccess } from 'vs/base/common/network';
-import Severity from 'vs/base/common/severity';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IRemoteConnectionData, ManagedRemoteConnection, RemoteConnection, RemoteConnectionType, ResolvedAuthority, WebSocketRemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ExtHostContext, ExtHostExtensionServiceShape, MainContext, MainThreadExtensionServiceShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { EnablementState, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
-import { IExtensionDescriptionDelta } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { IExtensionHostProxy, IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
-import { ActivationKind, ExtensionActivationReason, IExtensionService, IInternalExtensionService, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
-import { extHostNamedCustomer, IExtHostContext, IInternalExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
+import { Action } from '../../../base/common/actions.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { SerializedError, transformErrorFromSerialization } from '../../../base/common/errors.js';
+import { FileAccess } from '../../../base/common/network.js';
+import Severity from '../../../base/common/severity.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { ILocalExtension } from '../../../platform/extensionManagement/common/extensionManagement.js';
+import { areSameExtensions } from '../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { INotificationService } from '../../../platform/notification/common/notification.js';
+import { IRemoteConnectionData, ManagedRemoteConnection, RemoteConnection, RemoteConnectionType, ResolvedAuthority, WebSocketRemoteConnection } from '../../../platform/remote/common/remoteAuthorityResolver.js';
+import { ExtHostContext, ExtHostExtensionServiceShape, MainContext, MainThreadExtensionServiceShape } from '../common/extHost.protocol.js';
+import { IExtension, IExtensionsWorkbenchService } from '../../contrib/extensions/common/extensions.js';
+import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
+import { EnablementState, IWorkbenchExtensionEnablementService } from '../../services/extensionManagement/common/extensionManagement.js';
+import { ExtensionHostKind } from '../../services/extensions/common/extensionHostKind.js';
+import { IExtensionDescriptionDelta } from '../../services/extensions/common/extensionHostProtocol.js';
+import { IExtensionHostProxy, IResolveAuthorityResult } from '../../services/extensions/common/extensionHostProxy.js';
+import { ActivationKind, ExtensionActivationReason, IExtensionService, IInternalExtensionService, MissingExtensionDependency } from '../../services/extensions/common/extensions.js';
+import { extHostNamedCustomer, IExtHostContext, IInternalExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
+import { IHostService } from '../../services/host/browser/host.js';
+import { ITimerService } from '../../services/timer/browser/timerService.js';
 
 @extHostNamedCustomer(MainContext.MainThreadExtensionService)
 export class MainThreadExtensionService implements MainThreadExtensionServiceShape {

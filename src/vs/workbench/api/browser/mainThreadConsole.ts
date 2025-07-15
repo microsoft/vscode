@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IRemoteConsoleLog, log } from 'vs/base/common/console';
-import { logRemoteEntry, logRemoteEntryIfError } from 'vs/workbench/services/extensions/common/remoteConsoleUtil';
-import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
-import { ILogService } from 'vs/platform/log/common/log';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { MainContext, MainThreadConsoleShape } from '../common/extHost.protocol.js';
+import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
+import { IRemoteConsoleLog, log } from '../../../base/common/console.js';
+import { logRemoteEntry, logRemoteEntryIfError } from '../../services/extensions/common/remoteConsoleUtil.js';
+import { parseExtensionDevOptions } from '../../services/extensions/common/extensionDevOptions.js';
+import { ILogService } from '../../../platform/log/common/log.js';
 
 @extHostNamedCustomer(MainContext.MainThreadConsole)
 export class MainThreadConsole implements MainThreadConsoleShape {

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { safeStorage as safeStorageElectron, app } from 'electron';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { KnownStorageProvider, IEncryptionMainService, PasswordStoreCLIOption } from 'vs/platform/encryption/common/encryptionService';
-import { ILogService } from 'vs/platform/log/common/log';
+import { isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { KnownStorageProvider, IEncryptionMainService, PasswordStoreCLIOption } from '../common/encryptionService.js';
+import { ILogService } from '../../log/common/log.js';
 
 // These APIs are currently only supported in our custom build of electron so
 // we need to guard against them not being available.

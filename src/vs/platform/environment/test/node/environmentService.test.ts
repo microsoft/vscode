@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { parseExtensionHostDebugPort } from 'vs/platform/environment/common/environmentService';
-import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
-import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import product from 'vs/platform/product/common/product';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { parseExtensionHostDebugPort } from '../../common/environmentService.js';
+import { OPTIONS, parseArgs } from '../../node/argv.js';
+import { NativeEnvironmentService } from '../../node/environmentService.js';
+import product from '../../../product/common/product.js';
 
 suite('EnvironmentService', () => {
 

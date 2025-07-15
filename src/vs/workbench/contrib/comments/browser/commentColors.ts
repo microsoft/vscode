@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color } from 'vs/base/common/color';
-import * as languages from 'vs/editor/common/languages';
-import { peekViewTitleBackground } from 'vs/editor/contrib/peekView/browser/peekView';
-import * as nls from 'vs/nls';
-import { contrastBorder, disabledForeground, listFocusOutline, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
+import { Color } from '../../../../base/common/color.js';
+import * as languages from '../../../../editor/common/languages.js';
+import { peekViewTitleBackground } from '../../../../editor/contrib/peekView/browser/peekView.js';
+import * as nls from '../../../../nls.js';
+import { contrastBorder, disabledForeground, listFocusOutline, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
+import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
 
 const resolvedCommentViewIcon = registerColor('commentsView.resolvedIcon', { dark: disabledForeground, light: disabledForeground, hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('resolvedCommentIcon', 'Icon color for resolved comments.'));
 const unresolvedCommentViewIcon = registerColor('commentsView.unresolvedIcon', { dark: listFocusOutline, light: listFocusOutline, hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('unresolvedCommentIcon', 'Icon color for unresolved comments.'));

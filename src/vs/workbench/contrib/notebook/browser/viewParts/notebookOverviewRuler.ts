@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindow } from 'vs/base/browser/dom';
-import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
-import { PixelRatio } from 'vs/base/browser/pixelRatio';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { INotebookEditorDelegate, NotebookOverviewRulerLane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getWindow } from '../../../../../base/browser/dom.js';
+import { createFastDomNode, FastDomNode } from '../../../../../base/browser/fastDomNode.js';
+import { PixelRatio } from '../../../../../base/browser/pixelRatio.js';
+import { IThemeService, Themable } from '../../../../../platform/theme/common/themeService.js';
+import { INotebookEditorDelegate, NotebookOverviewRulerLane } from '../notebookBrowser.js';
 
 export class NotebookOverviewRuler extends Themable {
 	private readonly _domNode: FastDomNode<HTMLCanvasElement>;
@@ -110,6 +110,45 @@ export class NotebookOverviewRuler extends Themable {
 				});
 
 				currentFrom += cellHeight;
+			}
+
+			const overviewRulerDecorations = viewModel.getOverviewRulerDecorations();
+
+			for (let i = 0; i < overviewRulerDecorations.length; i++) {
+				const decoration = overviewRulerDecorations[i];
+				if (!decoration.options.overviewRuler) {
+					continue;
+				}
+				const viewZoneInfo = this.notebookEditor.getViewZoneLayoutInfo(decoration.viewZoneId);
+
+				if (!viewZoneInfo) {
+					continue;
+				}
+
+				const fillStyle = this.getColor(decoration.options.overviewRuler.color) ?? '#000000';
+				let x = 0;
+				switch (decoration.options.overviewRuler.position) {
+					case NotebookOverviewRulerLane.Left:
+						x = 0;
+						break;
+					case NotebookOverviewRulerLane.Center:
+						x = laneWidth;
+						break;
+					case NotebookOverviewRulerLane.Right:
+						x = laneWidth * 2;
+						break;
+					default:
+						break;
+				}
+
+				const width = decoration.options.overviewRuler.position === NotebookOverviewRulerLane.Full ? laneWidth * 3 : laneWidth;
+
+				ctx.fillStyle = fillStyle;
+
+				const viewZoneHeight = (viewZoneInfo.height / scrollHeight) * ratio * height;
+				const viewZoneTop = (viewZoneInfo.top / scrollHeight) * ratio * height;
+
+				ctx.fillRect(x, viewZoneTop, width, viewZoneHeight);
 			}
 		}
 	}
