@@ -65,7 +65,7 @@ export const RunInTerminalToolData: IToolData = {
 	}
 };
 
-interface IInputParams {
+export interface IRunInTerminalInputParams {
 	command: string;
 	explanation: string;
 	isBackground: boolean;
@@ -101,7 +101,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
-		const args = context.parameters as IInputParams;
+		const args = context.parameters as IRunInTerminalInputParams;
 
 		this._alternativeRecommendation = getRecommendedToolsOverRunInTerminal(args.command, this._languageModelToolsService);
 		const presentation = this._alternativeRecommendation ? 'hidden' : undefined;
@@ -158,7 +158,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return this._alternativeRecommendation;
 		}
 
-		const args = invocation.parameters as IInputParams;
+		const args = invocation.parameters as IRunInTerminalInputParams;
 		const toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined; // undefined when auto-approved
 
 		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
@@ -319,7 +319,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	protected async _rewriteCommandIfNeeded(context: IToolInvocationPreparationContext, args: IInputParams, shell: string): Promise<string> {
+	protected async _rewriteCommandIfNeeded(context: IToolInvocationPreparationContext, args: IRunInTerminalInputParams, shell: string): Promise<string> {
 		const commandLine = args.command;
 		const os = await this._osBackend.value;
 
