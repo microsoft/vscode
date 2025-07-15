@@ -80,7 +80,7 @@ extends:
               name: ACESLabTest
               os: macOS
             variables:
-              NODE_OPTIONS: "--max-old-space-size=4096"
+              NODE_OPTIONS: "--max-old-space-size=8192"
             steps:
               - template: build/azure-pipelines/product-compile.yml@self
                 parameters:
