@@ -69,10 +69,15 @@ export interface ITestCodeEditor extends IActiveCodeEditor {
 	registerAndInstantiateContribution<T extends IEditorContribution, Services extends BrandedService[]>(id: string, ctor: new (editor: ICodeEditor, ...services: Services) => T): T;
 	registerDisposable(disposable: IDisposable): void;
 	runCommand(command: ITestEditorCommand, args?: any): void | Promise<void>;
+	runAction(action: ITestEditorAction, args?: any): void | Promise<void>;
 }
 
 export interface ITestEditorCommand {
 	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args?: any): void | Promise<void>;
+}
+
+export interface ITestEditorAction {
+	run(accessor: ServicesAccessor, editor: ICodeEditor, args?: any): void | Promise<void>;
 }
 
 export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
@@ -109,6 +114,11 @@ export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 	public runCommand(command: EditorCommand, args?: any): void | Promise<void> {
 		return this._instantiationService.invokeFunction((accessor) => {
 			return command.runEditorCommand(accessor, this, args);
+		});
+	}
+	public runAction(action: ITestEditorAction, args?: any): void | Promise<void> {
+		return this._instantiationService.invokeFunction((accessor) => {
+			return action.run(accessor, this, args);
 		});
 	}
 }
