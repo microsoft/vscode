@@ -369,7 +369,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		disposables.add(DockBadgeManager.INSTANCE.acquireBadge(this));
 
 		// Flash/Bounce
-		if (isWindows) {
+		if (isWindows || isLinux) {
 			this.win?.flashFrame(true);
 			disposables.add(toDisposable(() => this.win?.flashFrame(false)));
 		} else if (isMacintosh) {
