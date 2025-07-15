@@ -29,12 +29,14 @@ import { localize } from '../../../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ChatAgentLocation } from '../../../../chat/common/constants.js';
 import { ChatModel, IChatModel } from '../../../../chat/common/chatModel.js';
 import { IChatService } from '../../../../chat/common/chatService.js';
 import { countWords } from '../../../../chat/common/chatWordCounter.js';
 import { ProgressingEditsOptions } from '../../../../inlineChat/browser/inlineChatStrategies.js';
 import { InlineChatWidget } from '../../../../inlineChat/browser/inlineChatWidget.js';
+import { InlineChatConfigKeys } from '../../../../inlineChat/common/inlineChat.js';
 import { asProgressiveEdit, performAsyncTextEdit } from '../../../../inlineChat/browser/utils.js';
 import { insertCell, runDeleteAction } from '../cellOperations.js';
 import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_WIDGET_STATUS } from './notebookChatContext.js';
@@ -42,6 +44,7 @@ import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebook
 import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
 import { CellKind } from '../../../common/notebookCommon.js';
 import { INotebookExecutionStateService, NotebookExecutionType } from '../../../common/notebookExecutionStateService.js';
+import { NotebookInlineChatV2Controller } from './notebookInlineChatV2Controller.js';
 
 class NotebookChatWidget extends Disposable implements INotebookViewZone {
 	set afterModelPosition(afterModelPosition: number) {
@@ -266,6 +269,10 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 	private _widget: NotebookChatWidget | undefined;
 
 	private readonly _model: MutableDisposable<ChatModel> = this._register(new MutableDisposable());
+
+	// V2 Controller delegation
+	private _v2Controller: NotebookInlineChatV2Controller | undefined;
+
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -275,9 +282,14 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@INotebookExecutionStateService private _executionStateService: INotebookExecutionStateService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IChatService private readonly _chatService: IChatService
+		@IChatService private readonly _chatService: IChatService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
+
+		// Initialize v2 controller if enabled
+		this._initializeV2ControllerIfNeeded();
+
 		this._ctxHasActiveRequest = CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST.bindTo(this._contextKeyService);
 		this._ctxCellWidgetFocused = CTX_NOTEBOOK_CELL_CHAT_FOCUSED.bindTo(this._contextKeyService);
 		this._ctxUserDidEdit = CTX_NOTEBOOK_CHAT_USER_DID_EDIT.bindTo(this._contextKeyService);
@@ -319,6 +331,13 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 	}
 
 	run(index: number, input: string | undefined, autoSend: boolean | undefined): void {
+		// Use v2 implementation if enabled
+		if (this._shouldUseV2()) {
+			this._v2Controller!.run(index, input, autoSend);
+			return;
+		}
+
+		// Existing v1 implementation
 		if (this._widget) {
 			if (this._widget.afterModelPosition !== index) {
 				const window = getWindow(this._widget.domNode);
@@ -900,6 +919,60 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		const cellId = NotebookCellTextModelLikeId.str({ uri: cell.uri, viewType: this._notebookEditor.textModel.viewType });
 		return this._promptCache.get(cellId);
 	}
+
+	/**
+	 * Initialize the v2 controller if the feature is enabled
+	 */
+	private _initializeV2ControllerIfNeeded(): void {
+		const isV2Enabled = this._configurationService.getValue<boolean>(InlineChatConfigKeys.NotebookEnableV2);
+		if (isV2Enabled) {
+			this._v2Controller = this._register(this._instantiationService.createInstance(NotebookInlineChatV2Controller, this._notebookEditor));
+		}
+	}
+
+	/**
+	 * Check if we should delegate to the v2 controller
+	 */
+	private _shouldUseV2(): boolean {
+		return this._v2Controller?.isV2Enabled === true;
+	}
+
+	/**
+	 * Run notebook chat using either v1 or v2 implementation
+	 */
+	async runWithV2Support(cellIndex: number, input?: string, autoSend?: boolean): Promise<void> {
+		if (this._shouldUseV2()) {
+			return this._v2Controller!.run(cellIndex, input, autoSend);
+		}
+
+		// Fall back to existing v1 implementation
+		return this.run(cellIndex, input, autoSend);
+	}
+
+	/**
+	 * Accept session using either v1 or v2 implementation
+	 */
+	async acceptSessionWithV2Support(): Promise<void> {
+		if (this._shouldUseV2()) {
+			return this._v2Controller!.acceptSession();
+		}
+
+		// Fall back to existing v1 implementation
+		return this.acceptSession();
+	}
+
+	/**
+	 * Discard session using either v1 or v2 implementation
+	 */
+	async discardSessionWithV2Support(): Promise<void> {
+		if (this._shouldUseV2()) {
+			return this._v2Controller!.discardSession();
+		}
+
+		// Fall back to existing v1 implementation
+		this.discard();
+	}
+
 	public override dispose(): void {
 		this.dismiss(false);
 		super.dispose();
