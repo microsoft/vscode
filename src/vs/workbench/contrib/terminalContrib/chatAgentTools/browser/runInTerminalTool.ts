@@ -21,7 +21,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import type { IChatTerminalToolInvocationData } from '../../../chat/common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../chat/common/languageModelToolsService.js';
-import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
+import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../terminal/common/terminal.js';
 import { getRecommendedToolsOverRunInTerminal } from './alternativeRecommendation.js';
 import { CommandLineAutoApprover } from './commandLineAutoApprover.js';
@@ -191,7 +191,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 
 			this._terminalService.setActiveInstance(toolTerminal.instance);
-			const timingConnectMs = Date.now() - timingStart;
+			// const timingConnectMs = Date.now() - timingStart;
 
 			throw new Error('NYI run in bg terminal');
 			// try {
@@ -291,7 +291,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				this._sendTelemetry({
 					didUserEditCommand,
 					didToolEditCommand,
-					isBackground: false,
+					isBackground: args.isBackground,
 					shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
 					error,
 					isNewSession,

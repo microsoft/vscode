@@ -7,15 +7,15 @@ import { ok, strictEqual } from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { IToolInvocationPreparationContext, IPreparedToolInvocation } from '../../../../chat/common/languageModelToolsService.js';
+import { IToolInvocationPreparationContext, IPreparedToolInvocation, ILanguageModelToolsService } from '../../../../chat/common/languageModelToolsService.js';
 import { CommandLineAutoApprover } from '../../browser/commandLineAutoApprover.js';
 import { RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/runInTerminalTool.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
+import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	get commandLineAutoApprover(): CommandLineAutoApprover { return this._commandLineAutoApprover; }
@@ -28,16 +28,22 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 suite('RunInTerminalTool', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let instantiationService: IInstantiationService;
+	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let workspaceService: TestContextService;
+
 	let runInTerminalTool: TestRunInTerminalTool;
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
 		instantiationService = workbenchInstantiationService({
-			configurationService: () => configurationService
+			configurationService: () => configurationService,
 		}, store);
+		instantiationService.stub(ILanguageModelToolsService, {
+			getTools() {
+				return [];
+			},
+		});
 		workspaceService = instantiationService.invokeFunction(accessor => accessor.get(IWorkspaceContextService)) as TestContextService;
 
 		runInTerminalTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
@@ -57,7 +63,6 @@ suite('RunInTerminalTool', () => {
 		}
 		setConfig(TerminalChatAgentToolsSettingId.AllowList, allowListObject);
 		setConfig(TerminalChatAgentToolsSettingId.DenyList, denyListObject);
-		runInTerminalTool.commandLineAutoApprover.updateConfiguration();
 	}
 
 	function setConfig(key: string, value: unknown) {
@@ -228,6 +233,18 @@ suite('RunInTerminalTool', () => {
 				strictEqual(result, 'cd /some/path');
 			});
 
+			test('should rewrite command with ; separator when directory matches cwd', async () => {
+				const testDir = '/test/workspace';
+				const options = createRewriteOptions(`cd ${testDir}; npm test`, 'session-1');
+				workspaceService.setWorkspace({
+					folders: [{ uri: { fsPath: testDir } }]
+				} as any);
+
+				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, 'pwsh');
+
+				strictEqual(result, 'npm test');
+			});
+
 			test('should rewrite command with && separator when directory matches cwd', async () => {
 				const testDir = '/test/workspace';
 				const options = createRewriteOptions(`cd ${testDir} && npm install`, 'session-1');
@@ -250,18 +267,6 @@ suite('RunInTerminalTool', () => {
 				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, 'bash');
 
 				strictEqual(result, 'npm install');
-			});
-
-			test('should rewrite command with ; separator when directory matches cwd', async () => {
-				const testDir = '/test/workspace';
-				const options = createRewriteOptions(`cd ${testDir}; npm test`, 'session-1');
-				workspaceService.setWorkspace({
-					folders: [{ uri: { fsPath: testDir } }]
-				} as any);
-
-				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, 'bash');
-
-				strictEqual(result, 'npm test');
 			});
 
 			test('should not rewrite command when directory does not match cwd', async () => {
