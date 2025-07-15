@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ColorId, FontStyle, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { EncodedTokenizationResult, IState, TokenizationRegistry } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { _tokenizeToString, tokenizeLineToHTML } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
-import { TestLineToken, TestLineTokens } from 'vs/editor/test/common/core/testLineToken';
-import { createModelServices } from 'vs/editor/test/common/testTextModel';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ColorId, FontStyle, MetadataConsts } from '../../../common/encodedTokenAttributes.js';
+import { EncodedTokenizationResult, IState, TokenizationRegistry } from '../../../common/languages.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { _tokenizeToString, tokenizeLineToHTML } from '../../../common/languages/textToHtmlTokenizer.js';
+import { LanguageIdCodec } from '../../../common/services/languagesRegistry.js';
+import { TestLineToken, TestLineTokens } from '../core/testLineToken.js';
+import { createModelServices } from '../testTextModel.js';
+import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
 suite('Editor Modes - textToHtmlTokenizer', () => {
 

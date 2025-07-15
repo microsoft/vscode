@@ -2,6 +2,7 @@
 	"extends": "./tsconfig.json",
 	"compilerOptions": {
 		"noEmit": true,
+		"skipLibCheck": true,
 		"plugins": [
 			{
 				"name": "tsec",
@@ -10,6 +11,7 @@
 		]
 	},
 	"exclude": [
+		"./vs/workbench/contrib/webview/browser/pre/service-worker.js",
 		"*/test/*",
 		"**/*.test.ts"
 	]

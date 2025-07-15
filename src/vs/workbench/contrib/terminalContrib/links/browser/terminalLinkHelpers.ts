@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IViewportRange, IBufferRange, IBufferLine, IBuffer, IBufferCellPosition } from '@xterm/xterm';
-import { IRange } from 'vs/editor/common/core/range';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { IPath, posix, win32 } from 'vs/base/common/path';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
+import { IRange } from '../../../../../editor/common/core/range.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { IPath, posix, win32 } from '../../../../../base/common/path.js';
+import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 
 /**
  * Converts a possibly wrapped link's range (comprised of string indices) into a buffer range that plays nicely with xterm.js

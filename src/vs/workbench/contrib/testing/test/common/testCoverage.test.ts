@@ -3,19 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-
 import assert from 'assert';
 import { SinonSandbox, createSandbox } from 'sinon';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { onObservableChange } from 'vs/workbench/contrib/testing/common/observableUtils';
-import { ICoverageAccessor, TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
-import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
-import { IFileCoverage } from 'vs/workbench/contrib/testing/common/testTypes';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { onObservableChange } from '../../common/observableUtils.js';
+import { ICoverageAccessor, TestCoverage } from '../../common/testCoverage.js';
+import { LiveTestResult } from '../../common/testResult.js';
+import { IFileCoverage } from '../../common/testTypes.js';
 
 suite('TestCoverage', () => {
 	let sandbox: SinonSandbox;

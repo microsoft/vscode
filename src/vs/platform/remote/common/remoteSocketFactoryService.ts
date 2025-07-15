@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ISocket } from 'vs/base/parts/ipc/common/ipc.net';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { RemoteConnectionOfType, RemoteConnectionType, RemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { ISocket } from '../../../base/parts/ipc/common/ipc.net.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { RemoteConnectionOfType, RemoteConnectionType, RemoteConnection } from './remoteAuthorityResolver.js';
 
 export const IRemoteSocketFactoryService = createDecorator<IRemoteSocketFactoryService>('remoteSocketFactoryService');
 

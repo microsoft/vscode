@@ -64,12 +64,24 @@ export function toMergeUris(uri: Uri): { base: Uri; ours: Uri; theirs: Uri } {
 export function toMultiFileDiffEditorUris(change: Change, originalRef: string, modifiedRef: string): { originalUri: Uri | undefined; modifiedUri: Uri | undefined } {
 	switch (change.status) {
 		case Status.INDEX_ADDED:
-			return { originalUri: undefined, modifiedUri: toGitUri(change.uri, modifiedRef) };
+			return {
+				originalUri: undefined,
+				modifiedUri: toGitUri(change.uri, modifiedRef)
+			};
 		case Status.DELETED:
-			return { originalUri: toGitUri(change.uri, originalRef), modifiedUri: undefined };
+			return {
+				originalUri: toGitUri(change.uri, originalRef),
+				modifiedUri: undefined
+			};
 		case Status.INDEX_RENAMED:
-			return { originalUri: toGitUri(change.originalUri, originalRef), modifiedUri: toGitUri(change.uri, modifiedRef) };
+			return {
+				originalUri: toGitUri(change.originalUri, originalRef),
+				modifiedUri: toGitUri(change.uri, modifiedRef)
+			};
 		default:
-			return { originalUri: toGitUri(change.uri, originalRef), modifiedUri: toGitUri(change.uri, modifiedRef) };
+			return {
+				originalUri: toGitUri(change.uri, originalRef),
+				modifiedUri: toGitUri(change.uri, modifiedRef)
+			};
 	}
 }

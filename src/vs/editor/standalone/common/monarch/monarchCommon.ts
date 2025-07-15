@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
+
 /*
  * This module exports common types and functionality shared between
  * the Monarch compiler that compiles JSON to ILexer, and the Monarch
@@ -189,7 +191,7 @@ export function substituteMatchesRe(lexer: ILexerMin, str: string, state: string
 			stateMatches.unshift(state);
 		}
 		if (!empty(s) && s < stateMatches.length) {
-			return fixCase(lexer, stateMatches[s]); //$Sn
+			return escapeRegExpCharacters(fixCase(lexer, stateMatches[s])); //$Sn
 		}
 		return '';
 	});

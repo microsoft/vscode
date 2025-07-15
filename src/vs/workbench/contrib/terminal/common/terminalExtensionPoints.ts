@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { terminalContributionsDescriptor } from 'vs/workbench/contrib/terminal/common/terminal';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionTerminalProfile, ITerminalContributions, ITerminalProfileContribution } from 'vs/platform/terminal/common/terminal';
-import { URI } from 'vs/base/common/uri';
+import * as extensionsRegistry from '../../../services/extensions/common/extensionsRegistry.js';
+import { terminalContributionsDescriptor } from './terminal.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IExtensionTerminalProfile, ITerminalContributions, ITerminalProfileContribution } from '../../../../platform/terminal/common/terminal.js';
+import { URI } from '../../../../base/common/uri.js';
 
 // terminal extension point
 const terminalsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<ITerminalContributions>(terminalContributionsDescriptor);

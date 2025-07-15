@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { range } from 'vs/base/common/arrays';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { UTF8_BOM } from 'vs/workbench/services/textfile/common/encoding';
+import { range } from '../../../../../../base/common/arrays.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { UTF8_BOM } from '../../../common/encoding.js';
 
 const fixtures: { [filename: string]: Uint8Array } = {};
 

@@ -32,7 +32,21 @@ export function groupBy<K extends string | number | symbol, V>(data: V[], groupF
 	return result;
 }
 
-export function diffSets<T>(before: Set<T>, after: Set<T>): { removed: T[]; added: T[] } {
+export function groupByMap<K, V>(data: V[], groupFn: (element: V) => K): Map<K, V[]> {
+	const result = new Map<K, V[]>();
+	for (const element of data) {
+		const key = groupFn(element);
+		let target = result.get(key);
+		if (!target) {
+			target = [];
+			result.set(key, target);
+		}
+		target.push(element);
+	}
+	return result;
+}
+
+export function diffSets<T>(before: ReadonlySet<T>, after: ReadonlySet<T>): { removed: T[]; added: T[] } {
 	const removed: T[] = [];
 	const added: T[] = [];
 	for (const element of before) {
@@ -84,7 +98,7 @@ export function intersection<T>(setA: Set<T>, setB: Iterable<T>): Set<T> {
 export class SetWithKey<T> implements Set<T> {
 	private _map = new Map<any, T>();
 
-	constructor(values: T[], private toKey: (t: T) => any) {
+	constructor(values: T[], private toKey: (t: T) => unknown) {
 		for (const value of values) {
 			this.add(value);
 		}
