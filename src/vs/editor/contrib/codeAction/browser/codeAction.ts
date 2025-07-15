@@ -126,13 +126,13 @@ export async function getCodeActions(
 		const handle = setTimeout(() => progress.report(provider), 1250);
 		try {
 			const providedCodeActions = await provider.provideCodeActions(model, rangeOrSelection, codeActionContext, cts.token);
+			if (cts.token.isCancellationRequested) {
+				providedCodeActions?.dispose();
+				return emptyCodeActionsResponse;
+			}
 
 			if (providedCodeActions) {
 				disposables.add(providedCodeActions);
-			}
-
-			if (cts.token.isCancellationRequested) {
-				return emptyCodeActionsResponse;
 			}
 
 			const filteredActions = (providedCodeActions?.actions || []).filter(action => action && filtersAction(filter, action));
