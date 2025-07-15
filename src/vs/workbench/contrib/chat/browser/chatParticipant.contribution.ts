@@ -291,7 +291,8 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 								locations: isNonEmptyArray(providerDescriptor.locations) ?
 									providerDescriptor.locations.map(ChatAgentLocation.fromRaw) :
 									[ChatAgentLocation.Panel],
-								modes: providerDescriptor.modes ?? [ChatModeKind.Ask],
+								// todo: edit mode? remove participant modes, and switching to ask for participant in open action
+								modes: [ChatModeKind.Agent, ChatModeKind.Ask, ChatModeKind.Edit],
 								slashCommands: providerDescriptor.commands ?? [],
 								disambiguation: coalesce(participantsDisambiguation.flat()),
 							} satisfies IChatAgentData));
