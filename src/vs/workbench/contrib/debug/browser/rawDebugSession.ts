@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
-import * as objects from 'vs/base/common/objects';
-import { toAction } from 'vs/base/common/actions';
-import * as errors from 'vs/base/common/errors';
-import { createErrorWithActions } from 'vs/base/common/errorMessage';
-import { formatPII, isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench/contrib/debug/common/debug';
-import { IExtensionHostDebugService, IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
-import { URI } from 'vs/base/common/uri';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { Schemas } from 'vs/base/common/network';
+import * as nls from '../../../../nls.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import * as objects from '../../../../base/common/objects.js';
+import { toAction } from '../../../../base/common/actions.js';
+import * as errors from '../../../../base/common/errors.js';
+import { createErrorWithActions } from '../../../../base/common/errorMessage.js';
+import { formatPII, isUri } from '../common/debugUtils.js';
+import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from '../common/debug.js';
+import { IExtensionHostDebugService, IOpenExtensionWindowResult } from '../../../../platform/debug/common/extensionHostDebug.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { Schemas } from '../../../../base/common/network.js';
 
 /**
  * This interface represents a single command line argument split into a "prefix" and a "path" half.
@@ -589,7 +589,7 @@ export class RawDebugSession implements IDisposable {
 
 	//---- private
 
-	private async shutdown(error?: Error, restart = false, terminateDebuggee: boolean | undefined = undefined, suspendDebuggee: boolean | undefined = undefined): Promise<any> {
+	private async shutdown(error?: Error, restart = false, terminateDebuggee: boolean | undefined = undefined, suspendDebuggee: boolean | undefined = undefined): Promise<void> {
 		if (!this.inShutdown) {
 			this.inShutdown = true;
 			if (this.debugAdapter) {
@@ -616,7 +616,7 @@ export class RawDebugSession implements IDisposable {
 		}
 	}
 
-	private async stopAdapter(error?: Error): Promise<any> {
+	private async stopAdapter(error?: Error): Promise<void> {
 		try {
 			if (this.debugAdapter) {
 				const da = this.debugAdapter;

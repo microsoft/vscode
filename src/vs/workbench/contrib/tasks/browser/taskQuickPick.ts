@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as Objects from 'vs/base/common/objects';
-import { Task, ContributedTask, CustomTask, ConfiguringTask, TaskSorter, KeyedTaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
-import { IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import * as Types from 'vs/base/common/types';
-import { ITaskService, IWorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
-import { IQuickPickItem, QuickPickInput, IQuickPick, IQuickInputButton, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { Codicon } from 'vs/base/common/codicons';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { getColorClass, createColorStyleElement } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { TaskQuickPickEntryType } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
-import { showWithPinnedItems } from 'vs/platform/quickinput/browser/quickPickPin';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import * as nls from '../../../../nls.js';
+import * as Objects from '../../../../base/common/objects.js';
+import { Task, ContributedTask, CustomTask, ConfiguringTask, TaskSorter, KeyedTaskIdentifier } from '../common/tasks.js';
+import { IWorkspace, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import * as Types from '../../../../base/common/types.js';
+import { ITaskService, IWorkspaceFolderTaskResult } from '../common/taskService.js';
+import { IQuickPickItem, QuickPickInput, IQuickPick, IQuickInputButton, IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { getColorClass, createColorStyleElement } from '../../terminal/browser/terminalIcon.js';
+import { TaskQuickPickEntryType } from './abstractTaskService.js';
+import { showWithPinnedItems } from '../../../../platform/quickinput/browser/quickPickPin.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 
 export const QUICKOPEN_DETAIL_CONFIG = 'task.quickOpen.detail';
 export const QUICKOPEN_SKIP_CONFIG = 'task.quickOpen.skip';

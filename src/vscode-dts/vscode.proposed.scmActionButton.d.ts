@@ -7,9 +7,8 @@ declare module 'vscode' {
 	// https://github.com/microsoft/vscode/issues/133935
 
 	export interface SourceControlActionButton {
-		command: Command;
+		command: Command & { shortTitle?: string };
 		secondaryCommands?: Command[][];
-		description?: string;
 		enabled: boolean;
 	}
 

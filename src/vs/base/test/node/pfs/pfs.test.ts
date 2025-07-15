@@ -6,15 +6,15 @@
 import assert from 'assert';
 import * as fs from 'fs';
 import { tmpdir } from 'os';
-import { timeout } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { randomPath } from 'vs/base/common/extpath';
-import { FileAccess } from 'vs/base/common/network';
-import { basename, dirname, join, sep } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { configureFlushOnWrite, Promises, RimRafMode, rimrafSync, SymlinkSupport, writeFileSync } from 'vs/base/node/pfs';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { timeout } from '../../../common/async.js';
+import { VSBuffer } from '../../../common/buffer.js';
+import { randomPath } from '../../../common/extpath.js';
+import { FileAccess } from '../../../common/network.js';
+import { basename, dirname, join, sep } from '../../../common/path.js';
+import { isWindows } from '../../../common/platform.js';
+import { configureFlushOnWrite, Promises, realcase, realpathSync, RimRafMode, SymlinkSupport, writeFileSync } from '../../../node/pfs.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../common/utils.js';
+import { flakySuite, getRandomTestPath } from '../testUtils.js';
 
 configureFlushOnWrite(false); // speed up all unit tests by disabling flush on write
 
@@ -143,34 +143,6 @@ flakySuite('PFS', function () {
 		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
 
 		await Promises.rm(`${testDir}${sep}`, RimRafMode.MOVE);
-		assert.ok(!fs.existsSync(testDir));
-	});
-
-	test('rimrafSync - swallows file not found error', function () {
-		const nonExistingDir = join(testDir, 'not-existing');
-		rimrafSync(nonExistingDir);
-
-		assert.ok(!fs.existsSync(nonExistingDir));
-	});
-
-	test('rimrafSync - simple', async () => {
-		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
-		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
-
-		rimrafSync(testDir);
-
-		assert.ok(!fs.existsSync(testDir));
-	});
-
-	test('rimrafSync - recursive folder structure', async () => {
-		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
-		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
-
-		fs.mkdirSync(join(testDir, 'somefolder'));
-		fs.writeFileSync(join(testDir, 'somefolder', 'somefile.txt'), 'Contents');
-
-		rimrafSync(testDir);
-
 		assert.ok(!fs.existsSync(testDir));
 	});
 
@@ -488,6 +460,40 @@ flakySuite('PFS', function () {
 
 		writeFileSync(testFile, largeString);
 		assert.strictEqual(fs.readFileSync(testFile).toString(), largeString);
+	});
+
+	test('realcase', async () => {
+
+		// assume case insensitive file system
+		if (process.platform === 'win32' || process.platform === 'darwin') {
+			const upper = testDir.toUpperCase();
+			const real = await realcase(upper);
+
+			if (real) { // can be null in case of permission errors
+				assert.notStrictEqual(real, upper);
+				assert.strictEqual(real.toUpperCase(), upper);
+				assert.strictEqual(real, testDir);
+			}
+		}
+
+		// linux, unix, etc. -> assume case sensitive file system
+		else {
+			let real = await realcase(testDir);
+			assert.strictEqual(real, testDir);
+
+			real = await realcase(testDir.toUpperCase());
+			assert.strictEqual(real, testDir.toUpperCase());
+		}
+	});
+
+	test('realpath', async () => {
+		const realpathVal = await Promises.realpath(testDir);
+		assert.ok(realpathVal);
+	});
+
+	test('realpathSync', () => {
+		const realpath = realpathSync(testDir);
+		assert.ok(realpath);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

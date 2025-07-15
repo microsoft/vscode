@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { doHash } from 'vs/base/common/hash';
-import { LRUCache } from 'vs/base/common/map';
-import { clamp, MovingAverage, SlidingWindowAverage } from 'vs/base/common/numbers';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { ITextModel } from 'vs/editor/common/model';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { matchesScheme } from 'vs/base/common/network';
+import { doHash } from '../../../base/common/hash.js';
+import { LRUCache } from '../../../base/common/map.js';
+import { clamp, MovingAverage, SlidingWindowAverage } from '../../../base/common/numbers.js';
+import { LanguageFeatureRegistry } from '../languageFeatureRegistry.js';
+import { ITextModel } from '../model.js';
+import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
+import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { matchesScheme } from '../../../base/common/network.js';
 
 
 export const ILanguageFeatureDebounceService = createDecorator<ILanguageFeatureDebounceService>('ILanguageFeatureDebounceService');

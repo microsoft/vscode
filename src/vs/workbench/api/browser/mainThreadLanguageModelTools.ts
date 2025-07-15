@@ -3,17 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
-import { ExtHostLanguageModelToolsShape, ExtHostContext, MainContext, MainThreadLanguageModelToolsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IToolData, ILanguageModelToolsService, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
-import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
+import { revive } from '../../../base/common/marshalling.js';
+import { CountTokensCallback, ILanguageModelToolsService, IToolInvocation, IToolProgressStep, IToolResult, ToolProgress, toolResultHasBuffers } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
+import { Dto, SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
+import { ExtHostContext, ExtHostLanguageModelToolsShape, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageModelTools)
 export class MainThreadLanguageModelTools extends Disposable implements MainThreadLanguageModelToolsShape {
 
 	private readonly _proxy: ExtHostLanguageModelToolsShape;
 	private readonly _tools = this._register(new DisposableMap<string>());
+	private readonly _runningToolCalls = new Map</* call ID */string, {
+		countTokens: CountTokensCallback;
+		progress: ToolProgress;
+	}>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -22,26 +28,68 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostLanguageModelTools);
 
-		this._register(this._languageModelToolsService.onDidChangeTools(e => this._proxy.$acceptToolDelta(e)));
+		this._register(this._languageModelToolsService.onDidChangeTools(e => this._proxy.$onDidChangeTools(this.getToolDtos())));
 	}
 
-	async $getTools(): Promise<IToolData[]> {
-		return Array.from(this._languageModelToolsService.getTools());
+	private getToolDtos(): IToolDataDto[] {
+		return Array.from(this._languageModelToolsService.getTools())
+			.map(tool => ({
+				id: tool.id,
+				displayName: tool.displayName,
+				toolReferenceName: tool.toolReferenceName,
+				tags: tool.tags,
+				userDescription: tool.userDescription,
+				modelDescription: tool.modelDescription,
+				inputSchema: tool.inputSchema,
+			} satisfies IToolDataDto));
 	}
 
-	$invokeTool(id: string, parameters: any, token: CancellationToken): Promise<IToolResult> {
-		return this._languageModelToolsService.invokeTool(id, parameters, token);
+	async $getTools(): Promise<IToolDataDto[]> {
+		return this.getToolDtos();
 	}
 
-	$registerTool(name: string): void {
+	async $invokeTool(dto: IToolInvocation, token?: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>> {
+		const result = await this._languageModelToolsService.invokeTool(
+			dto,
+			(input, token) => this._proxy.$countTokensForInvocation(dto.callId, input, token),
+			token ?? CancellationToken.None,
+		);
+
+		// Don't return extra metadata to EH
+		const out: Dto<IToolResult> = { content: result.content };
+		return toolResultHasBuffers(result) ? new SerializableObjectWithBuffers(out) : out;
+	}
+
+	$acceptToolProgress(callId: string, progress: IToolProgressStep): void {
+		this._runningToolCalls.get(callId)?.progress.report(progress);
+	}
+
+	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number> {
+		const fn = this._runningToolCalls.get(callId);
+		if (!fn) {
+			throw new Error(`Tool invocation call ${callId} not found`);
+		}
+
+		return fn.countTokens(input, token);
+	}
+
+	$registerTool(id: string): void {
 		const disposable = this._languageModelToolsService.registerToolImplementation(
-			name,
+			id,
 			{
-				invoke: async (parameters, token) => {
-					return await this._proxy.$invokeTool(name, parameters, token);
+				invoke: async (dto, countTokens, progress, token) => {
+					try {
+						this._runningToolCalls.set(dto.callId, { countTokens, progress });
+						const resultSerialized = await this._proxy.$invokeTool(dto, token);
+						const resultDto: Dto<IToolResult> = resultSerialized instanceof SerializableObjectWithBuffers ? resultSerialized.value : resultSerialized;
+						return revive<IToolResult>(resultDto);
+					} finally {
+						this._runningToolCalls.delete(dto.callId);
+					}
 				},
+				prepareToolInvocation: (context, token) => this._proxy.$prepareToolInvocation(id, context, token),
 			});
-		this._tools.set(name, disposable);
+		this._tools.set(id, disposable);
 	}
 
 	$unregisterTool(name: string): void {

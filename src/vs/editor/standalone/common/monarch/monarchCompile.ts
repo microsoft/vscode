@@ -8,9 +8,9 @@
  * into a typed and checked ILexer definition.
  */
 
-import * as monarchCommon from 'vs/editor/standalone/common/monarch/monarchCommon';
-import { IMonarchLanguage, IMonarchLanguageBracket } from 'vs/editor/standalone/common/monarch/monarchTypes';
-import { isString } from 'vs/base/common/types';
+import { isString } from '../../../../base/common/types.js';
+import * as monarchCommon from './monarchCommon.js';
+import { IMonarchLanguage, IMonarchLanguageBracket } from './monarchTypes.js';
 
 /*
  * Type helpers

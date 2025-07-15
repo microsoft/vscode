@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Extensions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
-import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { localize } from '../../../nls.js';
+import { Registry } from '../../registry/common/platform.js';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { IKeybindingService } from '../../keybinding/common/keybinding.js';
+import { Extensions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessRegistry } from '../common/quickAccess.js';
+import { IQuickInputService, IQuickPick, IQuickPickItem } from '../common/quickInput.js';
 
 interface IHelpQuickAccessPickItem extends IQuickPickItem {
 	readonly prefix: string;

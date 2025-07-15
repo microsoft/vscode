@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandHandler } from 'vs/platform/commands/common/commands';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { getIEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorViewState, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
-import { IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
-import { IUntitledTextResourceEditorInput, IUntypedEditorInput, GroupIdentifier, IEditorPane } from 'vs/workbench/common/editor';
+import { localize } from '../../nls.js';
+import { ContextKeyExpr, RawContextKey } from '../../platform/contextkey/common/contextkey.js';
+import { ICommandHandler } from '../../platform/commands/common/commands.js';
+import { IKeybindingService } from '../../platform/keybinding/common/keybinding.js';
+import { IQuickInputService } from '../../platform/quickinput/common/quickInput.js';
+import { Disposable } from '../../base/common/lifecycle.js';
+import { getIEditor } from '../../editor/browser/editorBrowser.js';
+import { ICodeEditorViewState, IDiffEditorViewState } from '../../editor/common/editorCommon.js';
+import { IResourceEditorInput, ITextResourceEditorInput } from '../../platform/editor/common/editor.js';
+import { EditorInput } from '../common/editor/editorInput.js';
+import { IEditorGroup, IEditorGroupsService } from '../services/editor/common/editorGroupsService.js';
+import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from '../services/editor/common/editorService.js';
+import { IUntitledTextResourceEditorInput, IUntypedEditorInput, GroupIdentifier, IEditorPane } from '../common/editor.js';
 
 export const inQuickPickContextKeyValue = 'inQuickOpen';
 export const InQuickPickContextKey = new RawContextKey<boolean>(inQuickPickContextKeyValue, false, localize('inQuickOpen', "Whether keyboard focus is inside the quick open control"));

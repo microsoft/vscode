@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { IVisibleLine, VisibleLinesCollection } from 'vs/editor/browser/view/viewLayer';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { FastDomNode, createFastDomNode } from '../../../base/browser/fastDomNode.js';
+import { applyFontInfo } from '../config/domFontInfo.js';
+import { DynamicViewOverlay } from './dynamicViewOverlay.js';
+import { IVisibleLine, VisibleLinesCollection } from './viewLayer.js';
+import { ViewPart } from './viewPart.js';
+import { StringBuilder } from '../../common/core/stringBuilder.js';
+import { RenderingContext, RestrictedRenderingContext } from './renderingContext.js';
+import { ViewContext } from '../../common/viewModel/viewContext.js';
+import * as viewEvents from '../../common/viewEvents.js';
+import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
+import { EditorOption } from '../../common/config/editorOptions.js';
 
 export class ViewOverlays extends ViewPart {
 	private readonly _visibleLines: VisibleLinesCollection<ViewOverlayLine>;
@@ -24,7 +24,7 @@ export class ViewOverlays extends ViewPart {
 	constructor(context: ViewContext) {
 		super(context);
 
-		this._visibleLines = new VisibleLinesCollection<ViewOverlayLine>({
+		this._visibleLines = new VisibleLinesCollection(this._context, {
 			createLine: () => new ViewOverlayLine(this._dynamicOverlays)
 		});
 		this.domNode = this._visibleLines.domNode;
@@ -178,6 +178,8 @@ export class ViewOverlayLine implements IVisibleLine {
 		sb.appendString(String(deltaTop));
 		sb.appendString('px;height:');
 		sb.appendString(String(lineHeight));
+		sb.appendString('px;line-height:');
+		sb.appendString(String(lineHeight));
 		sb.appendString('px;">');
 		sb.appendString(result);
 		sb.appendString('</div>');
@@ -189,6 +191,7 @@ export class ViewOverlayLine implements IVisibleLine {
 		if (this._domNode) {
 			this._domNode.setTop(deltaTop);
 			this._domNode.setHeight(lineHeight);
+			this._domNode.setLineHeight(lineHeight);
 		}
 	}
 }

@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IssueFormService } from 'vs/workbench/contrib/issue/browser/issueFormService';
-import { BrowserIssueService } from 'vs/workbench/contrib/issue/browser/issueService';
-import 'vs/workbench/contrib/issue/browser/issueTroubleshoot';
-import { IIssueFormService, IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
-import { BaseIssueContribution } from 'vs/workbench/contrib/issue/common/issue.contribution';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import * as nls from '../../../../nls.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { IssueFormService } from './issueFormService.js';
+import { BrowserIssueService } from './issueService.js';
+import './issueTroubleshoot.js';
+import { IIssueFormService, IWorkbenchIssueService } from '../common/issue.js';
+import { BaseIssueContribution } from '../common/issue.contribution.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 
 
 class WebIssueContribution extends BaseIssueContribution {

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { incrementFileName } from 'vs/workbench/contrib/files/browser/fileActions';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { incrementFileName } from '../../browser/fileActions.js';
 
 suite('Files - Increment file name simple', () => {
 

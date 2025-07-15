@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as errors from 'vs/base/common/errors';
-import * as platform from 'vs/base/common/platform';
-import { equalsIgnoreCase, startsWithIgnoreCase } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/path';
+import * as errors from './errors.js';
+import * as platform from './platform.js';
+import { equalsIgnoreCase, startsWithIgnoreCase } from './strings.js';
+import { URI } from './uri.js';
+import * as paths from './path.js';
 
 export namespace Schemas {
 
@@ -63,7 +63,10 @@ export namespace Schemas {
 
 	export const vscodeNotebookCell = 'vscode-notebook-cell';
 	export const vscodeNotebookCellMetadata = 'vscode-notebook-cell-metadata';
+	export const vscodeNotebookCellMetadataDiff = 'vscode-notebook-cell-metadata-diff';
 	export const vscodeNotebookCellOutput = 'vscode-notebook-cell-output';
+	export const vscodeNotebookCellOutputDiff = 'vscode-notebook-cell-output-diff';
+	export const vscodeNotebookMetadata = 'vscode-notebook-metadata';
 	export const vscodeInteractiveInput = 'vscode-interactive-input';
 
 	export const vscodeSettings = 'vscode-settings';
@@ -80,6 +83,9 @@ export namespace Schemas {
 
 	/** Scheme used for the chat input editor. */
 	export const vscodeChatSesssion = 'vscode-chat-editor';
+
+	/** Scheme used for the chat input part */
+	export const vscodeChatInput = 'chatSessionInput';
 
 	/**
 	 * Scheme used internally for webviews that aren't linked to a resource (i.e. not custom editors)
@@ -131,6 +137,11 @@ export namespace Schemas {
 	 * Scheme used for output panel resources
 	 */
 	export const outputChannel = 'output';
+
+	/**
+	 * Scheme used for the accessible view
+	 */
+	export const accessibleView = 'accessible-view';
 }
 
 export function matchesScheme(target: URI | string, scheme: string): boolean {
@@ -165,7 +176,7 @@ class RemoteAuthoritiesImpl {
 	}
 
 	setServerRootPath(product: { quality?: string; commit?: string }, serverBasePath: string | undefined): void {
-		this._serverRootPath = getServerRootPath(product, serverBasePath);
+		this._serverRootPath = paths.posix.join(serverBasePath ?? '/', getServerProductSegment(product));
 	}
 
 	getServerRootPath(): string {
@@ -220,8 +231,8 @@ class RemoteAuthoritiesImpl {
 
 export const RemoteAuthorities = new RemoteAuthoritiesImpl();
 
-export function getServerRootPath(product: { quality?: string; commit?: string }, basePath: string | undefined): string {
-	return paths.posix.join(basePath ?? '/', `${product.quality ?? 'oss'}-${product.commit ?? 'dev'}`);
+export function getServerProductSegment(product: { quality?: string; commit?: string }) {
+	return `${product.quality ?? 'oss'}-${product.commit ?? 'dev'}`;
 }
 
 /**
@@ -253,12 +264,7 @@ class FileAccessImpl {
 	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
 	 */
 	asBrowserUri(resourcePath: AppResourcePath | ''): URI {
-		// ESM-comment-begin
-		const uri = this.toUri(resourcePath, require);
-		// ESM-comment-end
-		// ESM-uncomment-begin
-		// const uri = this.toUri(resourcePath);
-		// ESM-uncomment-end
+		const uri = this.toUri(resourcePath);
 		return this.uriToBrowserUri(uri);
 	}
 
@@ -305,12 +311,7 @@ class FileAccessImpl {
 	 * is responsible for loading.
 	 */
 	asFileUri(resourcePath: AppResourcePath | ''): URI {
-		// ESM-comment-begin
-		const uri = this.toUri(resourcePath, require);
-		// ESM-comment-end
-		// ESM-uncomment-begin
-		// const uri = this.toUri(resourcePath);
-		// ESM-uncomment-end
+		const uri = this.toUri(resourcePath);
 		return this.uriToFileUri(uri);
 	}
 
@@ -335,7 +336,7 @@ class FileAccessImpl {
 		return uri;
 	}
 
-	private toUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
+	private toUri(uriOrModule: URI | string): URI {
 		if (URI.isUri(uriOrModule)) {
 			return uriOrModule;
 		}
@@ -353,12 +354,19 @@ class FileAccessImpl {
 			return URI.file(modulePath);
 		}
 
-		return URI.parse(moduleIdToUrl!.toUrl(uriOrModule));
+		throw new Error('Cannot determine URI for module id!');
 	}
 }
 
 export const FileAccess = new FileAccessImpl();
 
+export const CacheControlheaders: Record<string, string> = Object.freeze({
+	'Cache-Control': 'no-cache, no-store'
+});
+
+export const DocumentPolicyheaders: Record<string, string> = Object.freeze({
+	'Document-Policy': 'include-js-call-stacks-in-crash-reports'
+});
 
 export namespace COI {
 

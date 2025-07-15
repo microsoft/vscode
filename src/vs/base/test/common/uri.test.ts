@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { isWindows } from 'vs/base/common/platform';
-import { URI, UriComponents, isUriComponents } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { isWindows } from '../../common/platform.js';
+import { URI, UriComponents, isUriComponents } from '../../common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 
 suite('URI', () => {
@@ -470,6 +470,12 @@ suite('URI', () => {
 			with() { return this; },
 			toString() { return ''; }
 		}), true);
+
+		assert.strictEqual(URI.isUri(1), false);
+		assert.strictEqual(URI.isUri("1"), false);
+		assert.strictEqual(URI.isUri("http://sample.com"), false);
+		assert.strictEqual(URI.isUri(null), false);
+		assert.strictEqual(URI.isUri(undefined), false);
 	});
 
 	test('isUriComponents', function () {

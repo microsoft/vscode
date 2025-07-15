@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IPickerQuickAccessItem } from '../../../../platform/quickinput/browser/pickerQuickAccess.js';
 
 export function resolveContentAndKeybindingItems(keybindingService: IKeybindingService, value?: string): { content: MarkdownString; configureKeybindingItems: IPickerQuickAccessItem[] | undefined; configuredKeybindingItems: IPickerQuickAccessItem[] | undefined } | undefined {
 	if (!value) {

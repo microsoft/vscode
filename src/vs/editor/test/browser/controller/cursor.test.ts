@@ -4,30 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/coreCommands';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { MetadataConsts, StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IndentAction, IndentationRule } from 'vs/editor/common/languages/languageConfiguration';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { NullState } from 'vs/editor/common/languages/nullTokenize';
-import { EndOfLinePreference, EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModelEventDispatcher';
-import { ITestCodeEditor, TestCodeEditorInstantiationOptions, createCodeEditorServices, instantiateTestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { IRelaxedTextModelCreationOptions, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { CoreEditingCommands, CoreNavigationCommands } from '../../../browser/coreCommands.js';
+import { IEditorOptions } from '../../../common/config/editorOptions.js';
+import { EditOperation } from '../../../common/core/editOperation.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { ICursorPositionChangedEvent } from '../../../common/cursorEvents.js';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from '../../../common/editorCommon.js';
+import { MetadataConsts, StandardTokenType } from '../../../common/encodedTokenAttributes.js';
+import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from '../../../common/languages.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { IndentAction, IndentationRule } from '../../../common/languages/languageConfiguration.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { NullState } from '../../../common/languages/nullTokenize.js';
+import { EndOfLinePreference, EndOfLineSequence, ITextModel } from '../../../common/model.js';
+import { TextModel } from '../../../common/model/textModel.js';
+import { ViewModel } from '../../../common/viewModel/viewModelImpl.js';
+import { OutgoingViewModelEventKind } from '../../../common/viewModelEventDispatcher.js';
+import { ITestCodeEditor, TestCodeEditorInstantiationOptions, createCodeEditorServices, instantiateTestCodeEditor, withTestCodeEditor } from '../testCodeEditor.js';
+import { IRelaxedTextModelCreationOptions, createTextModel, instantiateTextModel } from '../../common/testTextModel.js';
+import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { InputMode } from '../../../common/inputMode.js';
+import { EditReasons } from '../../../common/textModelEditReason.js';
 
 // --------- utils
 
@@ -1367,6 +1369,7 @@ suite('Editor Controller', () => {
 	const indentRulesLanguageId = 'indentRulesLanguage';
 	const electricCharLanguageId = 'electricCharLanguage';
 	const autoClosingLanguageId = 'autoClosingLanguage';
+	const emptyClosingSurroundLanguageId = 'emptyClosingSurroundLanguage';
 
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
@@ -1382,6 +1385,11 @@ suite('Editor Controller', () => {
 		disposables.add(languageService.registerLanguage({ id: surroundingLanguageId }));
 		disposables.add(languageConfigurationService.register(surroundingLanguageId, {
 			autoClosingPairs: [{ open: '(', close: ')' }]
+		}));
+
+		disposables.add(languageService.registerLanguage({ id: emptyClosingSurroundLanguageId }));
+		disposables.add(languageConfigurationService.register(emptyClosingSurroundLanguageId, {
+			surroundingPairs: [{ open: '<', close: '' }]
 		}));
 
 		setupIndentRulesLanguage(indentRulesLanguageId, {
@@ -1993,6 +2001,32 @@ suite('Editor Controller', () => {
 
 			viewModel.type('(', 'keyboard');
 			assertCursor(viewModel, new Selection(1, 5, 1, 7));
+		});
+	});
+
+	test('issue #206774: SurroundSelectionCommand with empty charAfterSelection should not throw', () => {
+		// This test reproduces the issue where SurroundSelectionCommand throws when charAfterSelection is empty
+		// The problem is that addTrackedEditOperation ignores empty strings, causing computeCursorState to fail
+		// when trying to access inverseEditOperations[1].range (which is undefined)
+
+		usingCursor({
+			text: [
+				'hello world'
+			],
+			languageId: emptyClosingSurroundLanguageId
+		}, (editor, model, viewModel) => {
+			// Select "hello"
+			moveTo(editor, viewModel, 1, 1, false);
+			moveTo(editor, viewModel, 1, 6, true);
+			assertCursor(viewModel, new Selection(1, 1, 1, 6));
+
+			// Type < which should surround with '<' and empty string
+			// This reproduces the crash where charAfterSelection is empty
+			viewModel.type('<', 'keyboard');
+
+			// Test passes if we don't crash - the exact cursor position depends on the fix
+			// The main issue is that computeCursorState fails when charAfterSelection is empty
+			assert.strictEqual(model.getValue(), '<hello world');
 		});
 	});
 
@@ -5649,7 +5683,7 @@ suite('Editor Controller', () => {
 		}, (editor, model, viewModel) => {
 			viewModel.setSelections('test', [new Selection(1, 8, 1, 8)]);
 
-			viewModel.executeEdits('snippet', [{ range: new Range(1, 6, 1, 8), text: 'id=""' }], () => [new Selection(1, 10, 1, 10)]);
+			viewModel.executeEdits('snippet', [{ range: new Range(1, 6, 1, 8), text: 'id=""' }], () => [new Selection(1, 10, 1, 10)], EditReasons.unknown({}));
 			assert.strictEqual(model.getLineContent(1), '<div id=""');
 
 			viewModel.type('a', 'keyboard');
@@ -6446,6 +6480,186 @@ suite('Undo stops', () => {
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '', 'assert4');
+		});
+
+		model.dispose();
+	});
+});
+
+suite('Overtype Mode', () => {
+
+	setup(() => {
+		InputMode.setInputMode('overtype');
+	});
+
+	teardown(() => {
+		InputMode.setInputMode('insert');
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('simple type', () => {
+		const model = createTextModel(
+			[
+				'123456789',
+				'123456789',
+			].join('\n'),
+			undefined,
+			{
+				insertSpaces: false,
+			}
+		);
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			viewModel.type('a', 'keyboard');
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
+				'12a456789',
+				'123456789',
+			].join('\n'), 'assert1');
+
+			viewModel.setSelections('test', [new Selection(1, 9, 1, 9)]);
+			viewModel.type('bbb', 'keyboard');
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
+				'12a45678bbb',
+				'123456789',
+			].join('\n'), 'assert2');
+		});
+
+		model.dispose();
+	});
+
+	test('multi-line selection type', () => {
+		const model = createTextModel(
+			[
+				'123456789',
+				'123456789',
+			].join('\n'),
+			undefined,
+			{
+				insertSpaces: false,
+			}
+		);
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 5, 2, 3)]);
+			viewModel.type('cc', 'keyboard');
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
+				'1234cc456789',
+			].join('\n'), 'assert1');
+		});
+
+		model.dispose();
+	});
+
+	test('simple paste', () => {
+		const model = createTextModel(
+			[
+				'123456789',
+				'123456789',
+			].join('\n'),
+			undefined,
+			{
+				insertSpaces: false,
+			}
+		);
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			viewModel.paste('cc', false);
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
+				'1234cc789',
+				'123456789',
+			].join('\n'), 'assert1');
+
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			viewModel.paste('dddddddd', false);
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
+				'1234dddddddd',
+				'123456789',
+			].join('\n'), 'assert2');
+		});
+
+		model.dispose();
+	});
+
+	test('multi-line selection paste', () => {
+		const model = createTextModel(
+			[
+				'123456789',
+				'123456789',
+			].join('\n'),
+			undefined,
+			{
+				insertSpaces: false,
+			}
+		);
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 5, 2, 3)]);
+			viewModel.paste('cc', false);
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
+				'1234cc456789',
+			].join('\n'), 'assert1');
+		});
+
+		model.dispose();
+	});
+
+	test('paste multi-line text', () => {
+		const model = createTextModel(
+			[
+				'123456789',
+				'123456789',
+			].join('\n'),
+			undefined,
+			{
+				insertSpaces: false,
+			}
+		);
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			viewModel.paste([
+				'aaaaaaa',
+				'bbbbbbb'
+			].join('\n'), false);
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
+				'1234aaaaaaa',
+				'bbbbbbb',
+				'123456789',
+			].join('\n'), 'assert1');
+		});
+
+		model.dispose();
+	});
+
+	test('composition type', () => {
+		const model = createTextModel(
+			[
+				'123456789',
+				'123456789',
+			].join('\n'),
+			undefined,
+			{
+				insertSpaces: false,
+			}
+		);
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			viewModel.startComposition();
+			viewModel.compositionType('セ', 0, 0, 0, 'keyboard');
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
+				'1234セ56789',
+				'123456789',
+			].join('\n'), 'assert1');
+
+			viewModel.endComposition('keyboard');
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
+				'1234セ6789',
+				'123456789',
+			].join('\n'), 'assert1');
 		});
 
 		model.dispose();

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { INotebookFindScope, NotebookFindScopeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { INotebookFindScope, NotebookFindScopeType } from '../../../common/notebookCommon.js';
 
 export interface INotebookFindChangeEvent {
 	markupInput?: boolean;

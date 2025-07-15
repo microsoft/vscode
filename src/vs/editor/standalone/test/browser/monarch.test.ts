@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Token, TokenizationRegistry } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { LanguageService } from 'vs/editor/common/services/languageService';
-import { StandaloneConfigurationService } from 'vs/editor/standalone/browser/standaloneServices';
-import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';
-import { MonarchTokenizer } from 'vs/editor/standalone/common/monarch/monarchLexer';
-import { IMonarchLanguage } from 'vs/editor/standalone/common/monarch/monarchTypes';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Token, TokenizationRegistry } from '../../../common/languages.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { LanguageService } from '../../../common/services/languageService.js';
+import { StandaloneConfigurationService } from '../../browser/standaloneServices.js';
+import { compile } from '../../common/monarch/monarchCompile.js';
+import { MonarchTokenizer } from '../../common/monarch/monarchLexer.js';
+import { IMonarchLanguage } from '../../common/monarch/monarchTypes.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
 
 suite('Monarch', () => {
 
@@ -478,6 +478,39 @@ suite('Monarch', () => {
 			[new Token(0, 'source.test', 'test')],
 			[],
 			[new Token(0, 'source.test', 'test')],
+		]);
+
+		disposables.dispose();
+	});
+
+	test('microsoft/monaco-editor#4775: Raw-strings in c++ can break monarch', () => {
+		const disposables = new DisposableStore();
+		const configurationService = new StandaloneConfigurationService(new NullLogService());
+		const languageService = disposables.add(new LanguageService());
+
+		const tokenizer = disposables.add(createMonarchTokenizer(languageService, 'test', {
+			ignoreCase: false,
+			encoding: /u|u8|U|L/,
+			tokenizer: {
+				root: [
+					// C++ 11 Raw String
+					[/@encoding?R\"(?:([^ ()\\\t]*))\(/, { token: 'string.raw.begin', next: '@raw.$1' }],
+				],
+
+				raw: [
+					[/.*\)$S2\"/, 'string.raw', '@pop'],
+					[/.*/, 'string.raw']
+				],
+			},
+		}, configurationService));
+
+		const lines = [
+			`R"[())"`,
+		];
+
+		const actualTokens = getTokens(tokenizer, lines);
+		assert.deepStrictEqual(actualTokens, [
+			[new Token(0, 'string.raw.begin.test', 'test'), new Token(4, 'string.raw.test', 'test')],
 		]);
 
 		disposables.dispose();

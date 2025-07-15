@@ -5,7 +5,7 @@
 
 import { constants as FSConstants, promises as FSPromises } from 'fs';
 import { createInterface as readLines } from 'readline';
-import * as Platform from 'vs/base/common/platform';
+import * as Platform from '../common/platform.js';
 
 type ReleaseInfo = {
 	id: string;

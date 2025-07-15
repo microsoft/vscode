@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import * as path from 'vs/base/common/path';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import * as glob from 'vs/base/common/glob';
-import { URI } from 'vs/base/common/uri';
-import { deserializeSearchError, IFolderQuery, ISearchRange, ITextQuery, ITextSearchContext, ITextSearchMatch, QueryType, SearchErrorCode, ISerializedFileMatch } from 'vs/workbench/services/search/common/search';
-import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
-import { flakySuite } from 'vs/base/test/node/testUtils';
-import { FileAccess } from 'vs/base/common/network';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import * as glob from '../../../../../base/common/glob.js';
+import { FileAccess } from '../../../../../base/common/network.js';
+import * as path from '../../../../../base/common/path.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { flakySuite } from '../../../../../base/test/node/testUtils.js';
+import { deserializeSearchError, IFolderQuery, ISearchRange, ISerializedFileMatch, ITextQuery, ITextSearchContext, ITextSearchMatch, QueryType, SearchErrorCode } from '../../common/search.js';
+import { TextSearchEngineAdapter } from '../../node/textSearchAdapter.js';
 
 const TEST_FIXTURES = path.normalize(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath);
 const EXAMPLES_FIXTURES = path.join(TEST_FIXTURES, 'examples');
@@ -292,9 +292,9 @@ flakySuite('TextSearch-integration', function () {
 			type: QueryType.Text,
 			folderQueries: [
 				{
-					folder: URI.file(EXAMPLES_FIXTURES), excludePattern: {
+					folder: URI.file(EXAMPLES_FIXTURES), excludePattern: [{
 						pattern: makeExpression('**/e*.js')
-					}
+					}]
 				},
 				{ folder: URI.file(MORE_FIXTURES) }
 			],
@@ -405,7 +405,7 @@ flakySuite('TextSearch-integration', function () {
 				throw new Error('expected fail');
 			}, err => {
 				const searchError = deserializeSearchError(err);
-				const regexParseErrorForLookAround = 'Regex parse error: lookbehind assertion is not fixed length';
+				const regexParseErrorForLookAround = 'Regex parse error: length of lookbehind assertion is not limited';
 				assert.strictEqual(searchError.message, regexParseErrorForLookAround);
 				assert.strictEqual(searchError.code, SearchErrorCode.regexParseError);
 			});
