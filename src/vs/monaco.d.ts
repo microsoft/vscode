@@ -3860,6 +3860,11 @@ declare namespace monaco.editor {
 		 */
 		useTabStops?: boolean;
 		/**
+		 * Controls whether the editor should automatically remove indentation whitespace when joining lines with Delete.
+		 * Defaults to false.
+		 */
+		trimWhitespaceOnDelete?: boolean;
+		/**
 		 * The font family
 		 */
 		fontFamily?: string;
@@ -5159,37 +5164,38 @@ declare namespace monaco.editor {
 		suggestSelection = 134,
 		tabCompletion = 135,
 		tabIndex = 136,
-		unicodeHighlighting = 137,
-		unusualLineTerminators = 138,
-		useShadowDOM = 139,
-		useTabStops = 140,
-		wordBreak = 141,
-		wordSegmenterLocales = 142,
-		wordSeparators = 143,
-		wordWrap = 144,
-		wordWrapBreakAfterCharacters = 145,
-		wordWrapBreakBeforeCharacters = 146,
-		wordWrapColumn = 147,
-		wordWrapOverride1 = 148,
-		wordWrapOverride2 = 149,
-		wrappingIndent = 150,
-		wrappingStrategy = 151,
-		showDeprecated = 152,
-		inertialScroll = 153,
-		inlayHints = 154,
-		wrapOnEscapedLineFeeds = 155,
-		effectiveCursorStyle = 156,
-		editorClassName = 157,
-		pixelRatio = 158,
-		tabFocusMode = 159,
-		layoutInfo = 160,
-		wrappingInfo = 161,
-		defaultColorDecorators = 162,
-		colorDecoratorsActivatedOn = 163,
-		inlineCompletionsAccessibilityVerbose = 164,
-		effectiveEditContext = 165,
-		scrollOnMiddleClick = 166,
-		effectiveAllowVariableFonts = 167
+		trimWhitespaceOnDelete = 137,
+		unicodeHighlighting = 138,
+		unusualLineTerminators = 139,
+		useShadowDOM = 140,
+		useTabStops = 141,
+		wordBreak = 142,
+		wordSegmenterLocales = 143,
+		wordSeparators = 144,
+		wordWrap = 145,
+		wordWrapBreakAfterCharacters = 146,
+		wordWrapBreakBeforeCharacters = 147,
+		wordWrapColumn = 148,
+		wordWrapOverride1 = 149,
+		wordWrapOverride2 = 150,
+		wrappingIndent = 151,
+		wrappingStrategy = 152,
+		showDeprecated = 153,
+		inertialScroll = 154,
+		inlayHints = 155,
+		wrapOnEscapedLineFeeds = 156,
+		effectiveCursorStyle = 157,
+		editorClassName = 158,
+		pixelRatio = 159,
+		tabFocusMode = 160,
+		layoutInfo = 161,
+		wrappingInfo = 162,
+		defaultColorDecorators = 163,
+		colorDecoratorsActivatedOn = 164,
+		inlineCompletionsAccessibilityVerbose = 165,
+		effectiveEditContext = 166,
+		scrollOnMiddleClick = 167,
+		effectiveAllowVariableFonts = 168
 	}
 
 	export const EditorOptions: {
@@ -5336,6 +5342,7 @@ declare namespace monaco.editor {
 		suggestSelection: IEditorOption<EditorOption.suggestSelection, 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>;
 		tabCompletion: IEditorOption<EditorOption.tabCompletion, 'on' | 'off' | 'onlySnippets'>;
 		tabIndex: IEditorOption<EditorOption.tabIndex, number>;
+		trimWhitespaceOnDelete: IEditorOption<EditorOption.trimWhitespaceOnDelete, boolean>;
 		unicodeHighlight: IEditorOption<EditorOption.unicodeHighlighting, any>;
 		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'off' | 'auto' | 'prompt'>;
 		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;

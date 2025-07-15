@@ -727,6 +727,11 @@ export interface IEditorOptions {
 	 */
 	useTabStops?: boolean;
 	/**
+	 * Controls whether the editor should automatically remove indentation whitespace when joining lines with Delete.
+	 * Defaults to false.
+	 */
+	trimWhitespaceOnDelete?: boolean;
+	/**
 	 * The font family
 	 */
 	fontFamily?: string;
@@ -5710,6 +5715,7 @@ export const enum EditorOption {
 	suggestSelection,
 	tabCompletion,
 	tabIndex,
+	trimWhitespaceOnDelete,
 	unicodeHighlighting,
 	unusualLineTerminators,
 	useShadowDOM,
@@ -6491,6 +6497,10 @@ export const EditorOptions = {
 	tabIndex: register(new EditorIntOption(
 		EditorOption.tabIndex, 'tabIndex',
 		0, -1, Constants.MAX_SAFE_SMALL_INTEGER
+	)),
+	trimWhitespaceOnDelete: register(new EditorBooleanOption(
+		EditorOption.trimWhitespaceOnDelete, 'trimWhitespaceOnDelete', false,
+		{ description: nls.localize('trimWhitespaceOnDelete', "Controls whether the editor will also delete the next line's indentation whitespace when deleting a newline.") }
 	)),
 	unicodeHighlight: register(new UnicodeHighlight()),
 	unusualLineTerminators: register(new EditorStringEnumOption(

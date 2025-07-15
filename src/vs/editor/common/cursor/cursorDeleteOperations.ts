@@ -23,18 +23,7 @@ export class DeleteOperations {
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 
-			let deleteSelection: Range = selection;
-
-			if (deleteSelection.isEmpty()) {
-				const position = selection.getPosition();
-				const rightOfPosition = MoveOperations.right(config, model, position);
-				deleteSelection = new Range(
-					rightOfPosition.lineNumber,
-					rightOfPosition.column,
-					position.lineNumber,
-					position.column
-				);
-			}
+			const deleteSelection = this.getDeleteRightRange(selection, model, config);
 
 			if (deleteSelection.isEmpty()) {
 				// Probably at end of file => ignore
@@ -49,6 +38,37 @@ export class DeleteOperations {
 			commands[i] = new ReplaceCommand(deleteSelection, '');
 		}
 		return [shouldPushStackElementBefore, commands];
+	}
+
+	private static getDeleteRightRange(selection: Selection, model: ICursorSimpleModel, config: CursorConfiguration): Range {
+		if (!selection.isEmpty()) {
+			return selection;
+		}
+
+		const position = selection.getPosition();
+		const rightOfPosition = MoveOperations.right(config, model, position);
+
+		if (config.trimWhitespaceOnDelete && rightOfPosition.lineNumber !== position.lineNumber) {
+			// Smart line join (deleting leading whitespace) is on
+			// (and) Delete is happening at the end of a line
+			const firstNonWhitespaceColumn = model.getLineFirstNonWhitespaceColumn(rightOfPosition.lineNumber);
+			if (firstNonWhitespaceColumn > 0) {
+				// The next line has content
+				return new Range(
+					rightOfPosition.lineNumber,
+					firstNonWhitespaceColumn,
+					position.lineNumber,
+					position.column
+				);
+			}
+		}
+
+		return new Range(
+			rightOfPosition.lineNumber,
+			rightOfPosition.column,
+			position.lineNumber,
+			position.column
+		);
 	}
 
 	public static isAutoClosingPairDelete(
@@ -150,7 +170,7 @@ export class DeleteOperations {
 		const commands: Array<ICommand | null> = [];
 		let shouldPushStackElementBefore = (prevEditOperationType !== EditOperationType.DeletingLeft);
 		for (let i = 0, len = selections.length; i < len; i++) {
-			const deleteRange = DeleteOperations.getDeleteRange(selections[i], model, config);
+			const deleteRange = DeleteOperations.getDeleteLeftRange(selections[i], model, config);
 
 			// Ignore empty delete ranges, as they have no effect
 			// They happen if the cursor is at the beginning of the file.
@@ -169,42 +189,12 @@ export class DeleteOperations {
 
 	}
 
-	private static getDeleteRange(selection: Selection, model: ICursorSimpleModel, config: CursorConfiguration,): Range {
-		const position = selection.getPosition();
-		const startPosition = selection.getSelectionStart();
-
-		const startLineNumber = Math.min(startPosition.lineNumber, position.lineNumber);
-		const endLineNumber = Math.max(startPosition.lineNumber, position.lineNumber);
-		let startColumn = position.column;
-		let endColumn = startPosition.column;
-		if (startLineNumber === startPosition.lineNumber) {
-			//top down deletion
-			startColumn = startPosition.column;
-			endColumn = position.column;
-		}
-		let firstNonWhiteSpaceColumn = model.getLineFirstNonWhitespaceColumn(endLineNumber);
-		let lastNonWhiteSpaceColumn = model.getLineLastNonWhitespaceColumn(startLineNumber);
-		//deleting new line character + trimming white space
-		if (startLineNumber !== endLineNumber && model.getLineContent(startLineNumber).length > 0) {
-			//expand delete range to include extra white space (last non whitespace char to first non white char on following line)
-			if (startColumn < lastNonWhiteSpaceColumn) {
-				lastNonWhiteSpaceColumn = startColumn;
-			}
-			if (endColumn > firstNonWhiteSpaceColumn) {
-				firstNonWhiteSpaceColumn = endColumn;
-			}
-			if (/^[ \t]*$/.test(model.getLineContent(startLineNumber))) {
-				//if line with '\n' character has only spaces/tabs -- no need to trim left side
-				return Range.fromPositions(new Position(startLineNumber, startColumn),
-					new Position(endLineNumber, firstNonWhiteSpaceColumn));
-			}
-			return Range.fromPositions(new Position(startLineNumber, lastNonWhiteSpaceColumn),
-				new Position(endLineNumber, firstNonWhiteSpaceColumn));
-		}
-
+	private static getDeleteLeftRange(selection: Selection, model: ICursorSimpleModel, config: CursorConfiguration): Range {
 		if (!selection.isEmpty()) {
 			return selection;
 		}
+
+		const position = selection.getPosition();
 
 		// Unintend when using tab stops and cursor is within indentation
 		if (config.useTabStops && position.column > 1) {
