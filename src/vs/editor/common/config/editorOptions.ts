@@ -5273,23 +5273,20 @@ class WordSegmenterLocales extends BaseEditorOption<EditorOption.wordSegmenterLo
 				anyOf: [
 					{
 						type: 'string',
-					},
-					{
-						description: nls.localize('wordSegmenterLocales', "Locales to be used for word segmentation when doing word related navigations or operations. Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.)."),
+					}, {
 						type: 'array',
 						items: {
 							type: 'string'
 						}
 					}
 				],
-
 				description: nls.localize('wordSegmenterLocales', "Locales to be used for word segmentation when doing word related navigations or operations. Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.)."),
 				type: 'array',
 				items: {
 					type: 'string',
 				},
 				default: defaults,
-			}
+			},
 		);
 	}
 

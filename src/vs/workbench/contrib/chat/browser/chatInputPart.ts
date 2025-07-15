@@ -3,62 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { DEFAULT_FONT_FAMILY } from 'vs/base/browser/fonts';
-import { IHistoryNavigationWidget } from 'vs/base/browser/history';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { IAction } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter } from 'vs/base/common/event';
-import { HistoryNavigator2 } from 'vs/base/common/history';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { basename, dirname } from 'vs/base/common/path';
-import { isMacintosh } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
-import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IDimension } from 'vs/editor/common/core/dimension';
-import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
-import { MarginHoverController } from 'vs/editor/contrib/hover/browser/marginHoverController';
-import { localize } from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { FileKind } from 'vs/platform/files/common/files';
-import { registerAndCreateHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ResourceLabels } from 'vs/workbench/browser/labels';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { CancelAction, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
-import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
-import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INPUT_HAS_FOCUS, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { IChatHistoryEntry, IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
-import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import * as dom from '../../../../base/browser/dom.js';
 import { addDisposableListener } from '../../../../base/browser/dom.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
@@ -87,7 +31,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { EditorOptions, IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IDimension } from '../../../../editor/common/core/2d/dimension.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
@@ -486,8 +430,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			const newOptions: IEditorOptions = {};
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Chat)) {
-				this.inputEditor.updateOptions({ ariaLabel: this._getAriaLabel() });
+				newOptions.ariaLabel = this._getAriaLabel();
 			}
+			if (e.affectsConfiguration('editor.wordSegmenterLocales')) {
+				newOptions.wordSegmenterLocales = this.configurationService.getValue<string | string[]>('editor.wordSegmenterLocales');
+			}
+
+			this.inputEditor.updateOptions(newOptions);
 		}));
 
 		this._chatEditsListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, MenuId.ChatEditingWidgetModifiedFilesToolbar, { verticalScrollMode: ScrollbarVisibility.Visible }));
