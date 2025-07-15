@@ -16,7 +16,7 @@ export type ResolvedDocumentLinkTarget =
 	| { readonly kind: 'external'; readonly uri: vscode.Uri };
 
 //#region From server
-export const parse = new RequestType<{ uri: string }, Token[], any>('markdown/parse');
+export const parse = new RequestType<{ uri: string; text?: string }, Token[], any>('markdown/parse');
 
 export const fs_readFile = new RequestType<{ uri: string }, number[], any>('markdown/fs/readFile');
 export const fs_readDirectory = new RequestType<{ uri: string }, [string, { isDirectory: boolean }][], any>('markdown/fs/readDirectory');

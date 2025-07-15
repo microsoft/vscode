@@ -6,7 +6,7 @@
 				"git": {
 					"name": "language-less",
 					"repositoryUrl": "https://github.com/radium-v/Better-Less",
-					"commitHash": "05de79f600227201e35f07a49f07acce80e49dbf"
+					"commitHash": "63c0cba9792e49e255cce0f6dd03250fb30591e6"
 				}
 			},
 			"license": "MIT",

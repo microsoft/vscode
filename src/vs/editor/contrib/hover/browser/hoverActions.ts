@@ -3,19 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
-import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
-import * as nls from 'vs/nls';
-import 'vs/css!./hover';
+import { DECREASE_HOVER_VERBOSITY_ACTION_ID, DECREASE_HOVER_VERBOSITY_ACTION_LABEL, GO_TO_BOTTOM_HOVER_ACTION_ID, GO_TO_TOP_HOVER_ACTION_ID, HIDE_HOVER_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_LABEL, PAGE_DOWN_HOVER_ACTION_ID, PAGE_UP_HOVER_ACTION_ID, SCROLL_DOWN_HOVER_ACTION_ID, SCROLL_LEFT_HOVER_ACTION_ID, SCROLL_RIGHT_HOVER_ACTION_ID, SCROLL_UP_HOVER_ACTION_ID, SHOW_DEFINITION_PREVIEW_HOVER_ACTION_ID, SHOW_OR_FOCUS_HOVER_ACTION_ID } from './hoverActionIds.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { Range } from '../../../common/core/range.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { GotoDefinitionAtPositionEditorContribution } from '../../gotoSymbol/browser/link/goToDefinitionAtPosition.js';
+import { HoverStartMode, HoverStartSource } from './hoverOperation.js';
+import { AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ContentHoverController } from './contentHoverController.js';
+import { HoverVerbosityAction } from '../../../common/languages.js';
+import * as nls from '../../../../nls.js';
+import './hover.css';
 
 enum HoverFocusBehavior {
 	NoAutoFocus = 'noAutoFocus',
@@ -27,8 +29,8 @@ export class ShowOrFocusHoverAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.showHover',
-			label: nls.localize({
+			id: SHOW_OR_FOCUS_HOVER_ACTION_ID,
+			label: nls.localize2({
 				key: 'showOrFocusHover',
 				comment: [
 					'Label for action that will trigger the showing/focusing of a hover in the editor.',
@@ -57,7 +59,6 @@ export class ShowOrFocusHoverAction extends EditorAction {
 					}
 				}]
 			},
-			alias: 'Show or Focus Hover',
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -72,7 +73,7 @@ export class ShowOrFocusHoverAction extends EditorAction {
 			return;
 		}
 
-		const controller = HoverController.get(editor);
+		const controller = ContentHoverController.get(editor);
 		if (!controller) {
 			return;
 		}
@@ -109,15 +110,14 @@ export class ShowDefinitionPreviewHoverAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.showDefinitionPreviewHover',
-			label: nls.localize({
+			id: SHOW_DEFINITION_PREVIEW_HOVER_ACTION_ID,
+			label: nls.localize2({
 				key: 'showDefinitionPreviewHover',
 				comment: [
 					'Label for action that will trigger the showing of definition preview hover in the editor.',
 					'This allows for users to show the definition preview hover without using the mouse.'
 				]
 			}, "Show Definition Preview Hover"),
-			alias: 'Show Definition Preview Hover',
 			precondition: undefined,
 			metadata: {
 				description: nls.localize2('showDefinitionPreviewHoverDescription', 'Show the definition preview hover in the editor.'),
@@ -126,7 +126,7 @@ export class ShowDefinitionPreviewHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = HoverController.get(editor);
+		const controller = ContentHoverController.get(editor);
 		if (!controller) {
 			return;
 		}
@@ -149,18 +149,36 @@ export class ShowDefinitionPreviewHoverAction extends EditorAction {
 	}
 }
 
+export class HideContentHoverAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: HIDE_HOVER_ACTION_ID,
+			label: nls.localize2({
+				key: 'hideHover',
+				comment: ['Label for action that will hide the hover in the editor.']
+			}, "Hide Hover"),
+			alias: 'Hide Content Hover',
+			precondition: undefined
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		ContentHoverController.get(editor)?.hideContentHover();
+	}
+}
+
 export class ScrollUpHoverAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.scrollUpHover',
-			label: nls.localize({
+			id: SCROLL_UP_HOVER_ACTION_ID,
+			label: nls.localize2({
 				key: 'scrollUpHover',
 				comment: [
 					'Action that allows to scroll up in the hover widget with the up arrow when the hover widget is focused.'
 				]
 			}, "Scroll Up Hover"),
-			alias: 'Scroll Up Hover',
 			precondition: EditorContextKeys.hoverFocused,
 			kbOpts: {
 				kbExpr: EditorContextKeys.hoverFocused,
@@ -174,7 +192,7 @@ export class ScrollUpHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = HoverController.get(editor);
+		const controller = ContentHoverController.get(editor);
 		if (!controller) {
 			return;
 		}
@@ -186,14 +204,13 @@ export class ScrollDownHoverAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.scrollDownHover',
-			label: nls.localize({
+			id: SCROLL_DOWN_HOVER_ACTION_ID,
+			label: nls.localize2({
 				key: 'scrollDownHover',
 				comment: [
 					'Action that allows to scroll down in the hover widget with the up arrow when the hover widget is focused.'
 				]
 			}, "Scroll Down Hover"),
-			alias: 'Scroll Down Hover',
 			precondition: EditorContextKeys.hoverFocused,
 			kbOpts: {
 				kbExpr: EditorContextKeys.hoverFocused,
@@ -207,7 +224,7 @@ export class ScrollDownHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = HoverController.get(editor);
+		const controller = ContentHoverController.get(editor);
 		if (!controller) {
 			return;
 		}
@@ -219,14 +236,13 @@ export class ScrollLeftHoverAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.scrollLeftHover',
-			label: nls.localize({
+			id: SCROLL_LEFT_HOVER_ACTION_ID,
+			label: nls.localize2({
 				key: 'scrollLeftHover',
 				comment: [
 					'Action that allows to scroll left in the hover widget with the left arrow when the hover widget is focused.'
 				]
 			}, "Scroll Left Hover"),
-			alias: 'Scroll Left Hover',
 			precondition: EditorContextKeys.hoverFocused,
 			kbOpts: {
 				kbExpr: EditorContextKeys.hoverFocused,
@@ -240,7 +256,7 @@ export class ScrollLeftHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = HoverController.get(editor);
+		const controller = ContentHoverController.get(editor);
 		if (!controller) {
 			return;
 		}
@@ -252,14 +268,13 @@ export class ScrollRightHoverAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.scrollRightHover',
-			label: nls.localize({
+			id: SCROLL_RIGHT_HOVER_ACTION_ID,
+			label: nls.localize2({
 				key: 'scrollRightHover',
 				comment: [
 					'Action that allows to scroll right in the hover widget with the right arrow when the hover widget is focused.'
 				]
 			}, "Scroll Right Hover"),
-			alias: 'Scroll Right Hover',
 			precondition: EditorContextKeys.hoverFocused,
 			kbOpts: {
 				kbExpr: EditorContextKeys.hoverFocused,
@@ -273,7 +288,7 @@ export class ScrollRightHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = HoverController.get(editor);
+		const controller = ContentHoverController.get(editor);
 		if (!controller) {
 			return;
 		}
@@ -285,14 +300,13 @@ export class PageUpHoverAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.pageUpHover',
-			label: nls.localize({
+			id: PAGE_UP_HOVER_ACTION_ID,
+			label: nls.localize2({
 				key: 'pageUpHover',
 				comment: [
 					'Action that allows to page up in the hover widget with the page up command when the hover widget is focused.'
 				]
 			}, "Page Up Hover"),
-			alias: 'Page Up Hover',
 			precondition: EditorContextKeys.hoverFocused,
 			kbOpts: {
 				kbExpr: EditorContextKeys.hoverFocused,
@@ -307,7 +321,7 @@ export class PageUpHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = HoverController.get(editor);
+		const controller = ContentHoverController.get(editor);
 		if (!controller) {
 			return;
 		}
@@ -319,14 +333,13 @@ export class PageDownHoverAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.pageDownHover',
-			label: nls.localize({
+			id: PAGE_DOWN_HOVER_ACTION_ID,
+			label: nls.localize2({
 				key: 'pageDownHover',
 				comment: [
 					'Action that allows to page down in the hover widget with the page down command when the hover widget is focused.'
 				]
 			}, "Page Down Hover"),
-			alias: 'Page Down Hover',
 			precondition: EditorContextKeys.hoverFocused,
 			kbOpts: {
 				kbExpr: EditorContextKeys.hoverFocused,
@@ -341,7 +354,7 @@ export class PageDownHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = HoverController.get(editor);
+		const controller = ContentHoverController.get(editor);
 		if (!controller) {
 			return;
 		}
@@ -353,14 +366,13 @@ export class GoToTopHoverAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.goToTopHover',
-			label: nls.localize({
+			id: GO_TO_TOP_HOVER_ACTION_ID,
+			label: nls.localize2({
 				key: 'goToTopHover',
 				comment: [
 					'Action that allows to go to the top of the hover widget with the home command when the hover widget is focused.'
 				]
 			}, "Go To Top Hover"),
-			alias: 'Go To Bottom Hover',
 			precondition: EditorContextKeys.hoverFocused,
 			kbOpts: {
 				kbExpr: EditorContextKeys.hoverFocused,
@@ -375,7 +387,7 @@ export class GoToTopHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = HoverController.get(editor);
+		const controller = ContentHoverController.get(editor);
 		if (!controller) {
 			return;
 		}
@@ -388,14 +400,13 @@ export class GoToBottomHoverAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.goToBottomHover',
-			label: nls.localize({
+			id: GO_TO_BOTTOM_HOVER_ACTION_ID,
+			label: nls.localize2({
 				key: 'goToBottomHover',
 				comment: [
 					'Action that allows to go to the bottom in the hover widget with the end command when the hover widget is focused.'
 				]
 			}, "Go To Bottom Hover"),
-			alias: 'Go To Bottom Hover',
 			precondition: EditorContextKeys.hoverFocused,
 			kbOpts: {
 				kbExpr: EditorContextKeys.hoverFocused,
@@ -410,10 +421,52 @@ export class GoToBottomHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = HoverController.get(editor);
+		const controller = ContentHoverController.get(editor);
 		if (!controller) {
 			return;
 		}
 		controller.goToBottom();
+	}
+}
+
+export class IncreaseHoverVerbosityLevel extends EditorAction {
+
+	constructor() {
+		super({
+			id: INCREASE_HOVER_VERBOSITY_ACTION_ID,
+			label: INCREASE_HOVER_VERBOSITY_ACTION_LABEL,
+			alias: 'Increase Hover Verbosity Level',
+			precondition: EditorContextKeys.hoverVisible
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args?: { index: number; focus: boolean }): void {
+		const hoverController = ContentHoverController.get(editor);
+		if (!hoverController) {
+			return;
+		}
+		const index = args?.index !== undefined ? args.index : hoverController.focusedHoverPartIndex();
+		hoverController.updateHoverVerbosityLevel(HoverVerbosityAction.Increase, index, args?.focus);
+	}
+}
+
+export class DecreaseHoverVerbosityLevel extends EditorAction {
+
+	constructor() {
+		super({
+			id: DECREASE_HOVER_VERBOSITY_ACTION_ID,
+			label: DECREASE_HOVER_VERBOSITY_ACTION_LABEL,
+			alias: 'Decrease Hover Verbosity Level',
+			precondition: EditorContextKeys.hoverVisible
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args?: { index: number; focus: boolean }): void {
+		const hoverController = ContentHoverController.get(editor);
+		if (!hoverController) {
+			return;
+		}
+		const index = args?.index !== undefined ? args.index : hoverController.focusedHoverPartIndex();
+		ContentHoverController.get(editor)?.updateHoverVerbosityLevel(HoverVerbosityAction.Decrease, index, args?.focus);
 	}
 }

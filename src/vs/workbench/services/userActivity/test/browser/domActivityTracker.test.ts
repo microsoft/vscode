@@ -3,31 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { DomActivityTracker } from 'vs/workbench/services/userActivity/browser/domActivityTracker';
-import { UserActivityService } from 'vs/workbench/services/userActivity/common/userActivityService';
+import assert from 'assert';
 import * as sinon from 'sinon';
-import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { DomActivityTracker } from '../../browser/domActivityTracker.js';
+import { UserActivityService } from '../../common/userActivityService.js';
 
 suite('DomActivityTracker', () => {
 	let uas: UserActivityService;
-	let dom: DomActivityTracker;
 	let insta: TestInstantiationService;
 	let clock: sinon.SinonFakeTimers;
 	const maxTimeToBecomeIdle = 3 * 30_000; // (MIN_INTERVALS_WITHOUT_ACTIVITY + 1) * CHECK_INTERVAL;
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
 		clock = sinon.useFakeTimers();
-		insta = new TestInstantiationService();
-		uas = new UserActivityService(insta);
-		dom = new DomActivityTracker(uas);
+		insta = store.add(new TestInstantiationService());
+		uas = store.add(new UserActivityService(insta));
+		store.add(new DomActivityTracker(uas));
 	});
 
 	teardown(() => {
-		dom.dispose();
-		uas.dispose();
 		clock.restore();
-		insta.dispose();
 	});
 
 
