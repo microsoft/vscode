@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { stripIcons } from 'vs/base/common/iconLabels';
-import { localize } from 'vs/nls';
-import { TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
+import { stripIcons } from '../../../../base/common/iconLabels.js';
+import { localize } from '../../../../nls.js';
+import { TestResultState, TestRunProfileBitset } from './testTypes.js';
 
 export const enum Testing {
 	// marked as "extension" so that any existing test extensions are assigned to it.
@@ -77,17 +77,23 @@ export const enum TestCommandId {
 	DebugByUri = 'testing.debug.uri',
 	DebugCurrentFile = 'testing.debugCurrentFile',
 	DebugFailedTests = 'testing.debugFailTests',
+	DebugFailedFromLastRun = 'testing.debugFailedFromLastRun',
 	DebugLastRun = 'testing.debugLastRun',
 	DebugSelectedAction = 'testing.debugSelected',
 	FilterAction = 'workbench.actions.treeView.testExplorer.filter',
 	GetExplorerSelection = '_testing.getExplorerSelection',
 	GetSelectedProfiles = 'testing.getSelectedProfiles',
 	GoToTest = 'testing.editFocusedTest',
+	GoToRelatedTest = 'testing.goToRelatedTest',
+	PeekRelatedTest = 'testing.peekRelatedTest',
+	GoToRelatedCode = 'testing.goToRelatedCode',
+	PeekRelatedCode = 'testing.peekRelatedCode',
 	HideTestAction = 'testing.hideTest',
 	OpenCoverage = 'testing.openCoverage',
 	OpenOutputPeek = 'testing.openOutputPeek',
 	RefreshTestsAction = 'testing.refreshTests',
 	ReRunFailedTests = 'testing.reRunFailTests',
+	ReRunFailedFromLastRun = 'testing.reRunFailedFromLastRun',
 	ReRunLastRun = 'testing.reRunLastRun',
 	RunAction = 'testing.run',
 	RunAllAction = 'testing.runAll',
@@ -102,6 +108,8 @@ export const enum TestCommandId {
 	SelectDefaultTestProfiles = 'testing.selectDefaultTestProfiles',
 	ShowMostRecentOutputAction = 'testing.showMostRecentOutput',
 	StartContinousRun = 'testing.startContinuousRun',
+	StartContinousRunFromExtension = 'testing.startContinuousRunFromExtension',
+	StopContinousRunFromExtension = 'testing.stopContinuousRunFromExtension',
 	StopContinousRun = 'testing.stopContinuousRun',
 	TestingSortByDurationAction = 'testing.sortByDuration',
 	TestingSortByLocationAction = 'testing.sortByLocation',

@@ -16,6 +16,7 @@ import * as vscode from 'vscode';
 import { istanbulCoverageContext, PerTestCoverageTracker } from './coverageProvider';
 import { attachTestMessageMetadata } from './metadata';
 import { snapshotComment } from './snapshot';
+import { StackTraceLocation, StackTraceParser } from './stackTraceParser';
 import { StreamSplitter } from './streamSplitter';
 import { getContentFromFilesystem } from './testTree';
 import { IScriptCoverage } from './v8CoverageWrangling';
@@ -288,7 +289,7 @@ export async function scanTestOutput(
 
 							enqueueExitBlocker(
 								(async () => {
-									const location = await tryDeriveStackLocation(store, rawErr, tcase!);
+									const stackInfo = await deriveStackLocations(store, rawErr, tcase!);
 									let message: vscode.TestMessage;
 
 									if (hasDiff) {
@@ -310,7 +311,8 @@ export async function scanTestOutput(
 										);
 									}
 
-									message.location = location ?? testFirstLine;
+									message.location = stackInfo.primary ?? testFirstLine;
+									message.stackTrace = stackInfo.stack;
 									task.failed(tcase!, message, duration);
 								})()
 							);
@@ -424,36 +426,62 @@ const tryMakeMarkdown = (message: string) => {
 const inlineSourcemapRe = /^\/\/# sourceMappingURL=data:application\/json;base64,(.+)/m;
 const sourceMapBiases = [GREATEST_LOWER_BOUND, LEAST_UPPER_BOUND] as const;
 
-export type SourceLocationMapper = (line: number, col: number) => vscode.Location | undefined;
+export const enum SearchStrategy {
+	FirstBefore = -1,
+	FirstAfter = 1,
+}
+
+export type SourceLocationMapper = (line: number, col: number, strategy: SearchStrategy) => vscode.Location | undefined;
 
 export class SourceMapStore {
 	private readonly cache = new Map</* file uri */ string, Promise<TraceMap | undefined>>();
 
-	async getSourceLocationMapper(fileUri: string) {
+	async getSourceLocationMapper(fileUri: string): Promise<SourceLocationMapper> {
 		const sourceMap = await this.loadSourceMap(fileUri);
-		return (line: number, col: number) => {
+		return (line, col, strategy) => {
 			if (!sourceMap) {
 				return undefined;
 			}
 
-			let smLine = line + 1;
+			// 1. Look for the ideal position on this line if it exists
+			const idealPosition = originalPositionFor(sourceMap, { column: col, line: line + 1, bias: SearchStrategy.FirstAfter ? GREATEST_LOWER_BOUND : LEAST_UPPER_BOUND });
+			if (idealPosition.line !== null && idealPosition.column !== null && idealPosition.source !== null) {
+				return new vscode.Location(
+					this.completeSourceMapUrl(sourceMap, idealPosition.source),
+					new vscode.Position(idealPosition.line - 1, idealPosition.column)
+				);
+			}
 
-			// if the range is after the end of mappings, adjust it to the last mapped line
+			// Otherwise get the first/last valid mapping on another line.
 			const decoded = decodedMappings(sourceMap);
-			if (decoded.length <= line) {
-				smLine = decoded.length; // base 1, no -1 needed
-				col = Number.MAX_SAFE_INTEGER;
+			const enum MapField {
+				COLUMN = 0,
+				SOURCES_INDEX = 1,
+				SOURCE_LINE = 2,
+				SOURCE_COLUMN = 3,
 			}
 
-			for (const bias of sourceMapBiases) {
-				const position = originalPositionFor(sourceMap, { column: col, line: smLine, bias });
-				if (position.line !== null && position.column !== null && position.source !== null) {
-					return new vscode.Location(
-						this.completeSourceMapUrl(sourceMap, position.source),
-						new vscode.Position(position.line - 1, position.column)
-					);
+			do {
+				line += strategy;
+				const segments = decoded[line];
+				if (!segments?.length) {
+					continue;
 				}
-			}
+
+				const index = strategy === SearchStrategy.FirstBefore
+					? findLastIndex(segments, s => s.length !== 1)
+					: segments.findIndex(s => s.length !== 1);
+				const segment = segments[index];
+
+				if (!segment || segment.length === 1) {
+					continue;
+				}
+
+				return new vscode.Location(
+					this.completeSourceMapUrl(sourceMap, sourceMap.sources[segment[MapField.SOURCES_INDEX]]!),
+					new vscode.Position(segment[MapField.SOURCE_LINE] - 1, segment[MapField.SOURCE_COLUMN])
+				);
+			} while (strategy === SearchStrategy.FirstBefore ? line > 0 : line < decoded.length);
 
 			return undefined;
 		};
@@ -461,7 +489,31 @@ export class SourceMapStore {
 
 	/** Gets an original location from a base 0 line and column */
 	async getSourceLocation(fileUri: string, line: number, col = 0) {
-		return this.getSourceLocationMapper(fileUri).then(m => m(line, col));
+		const sourceMap = await this.loadSourceMap(fileUri);
+		if (!sourceMap) {
+			return undefined;
+		}
+
+		let smLine = line + 1;
+
+		// if the range is after the end of mappings, adjust it to the last mapped line
+		const decoded = decodedMappings(sourceMap);
+		if (decoded.length <= line) {
+			smLine = decoded.length; // base 1, no -1 needed
+			col = Number.MAX_SAFE_INTEGER;
+		}
+
+		for (const bias of sourceMapBiases) {
+			const position = originalPositionFor(sourceMap, { column: col, line: smLine, bias });
+			if (position.line !== null && position.column !== null && position.source !== null) {
+				return new vscode.Location(
+					this.completeSourceMapUrl(sourceMap, position.source),
+					new vscode.Position(position.line - 1, position.column)
+				);
+			}
+		}
+
+		return undefined;
 	}
 
 	async getSourceFile(compiledUri: string) {
@@ -558,47 +610,51 @@ async function replaceAllLocations(store: SourceMapStore, str: string) {
 	return values.join('');
 }
 
-async function tryDeriveStackLocation(
+async function deriveStackLocations(
 	store: SourceMapStore,
 	stack: string,
 	tcase: vscode.TestItem
 ) {
 	locationRe.lastIndex = 0;
 
-	return new Promise<vscode.Location | undefined>(resolve => {
-		const matches = [...stack.matchAll(locationRe)];
-		let todo = matches.length;
-		if (todo === 0) {
-			return resolve(undefined);
-		}
+	const locationsRaw = [...new StackTraceParser(stack)].filter(t => t instanceof StackTraceLocation);
+	const locationsMapped = await Promise.all(locationsRaw.map(async location => {
+		const mapped = location.path.startsWith('file:') ? await store.getSourceLocation(location.path, location.lineBase1 - 1, location.columnBase1 - 1) : undefined;
+		const stack = new vscode.TestMessageStackFrame(location.label || '<anonymous>', mapped?.uri, mapped?.range.start || new vscode.Position(location.lineBase1 - 1, location.columnBase1 - 1));
+		return { location: mapped, stack };
+	}));
 
-		let best: undefined | { location: vscode.Location; i: number; score: number };
-		for (const [i, match] of matches.entries()) {
-			deriveSourceLocation(store, match)
-				.catch(() => undefined)
-				.then(location => {
-					if (location) {
-						let score = 0;
-						if (tcase.uri && tcase.uri.toString() === location.uri.toString()) {
-							score = 1;
-							if (tcase.range && tcase.range.contains(location?.range)) {
-								score = 2;
-							}
-						}
-						if (!best || score > best.score || (score === best.score && i < best.i)) {
-							best = { location, i, score };
-						}
-					}
-
-					if (!--todo) {
-						resolve(best?.location);
-					}
-				});
+	let best: undefined | { location: vscode.Location; score: number };
+	for (const { location } of locationsMapped) {
+		if (!location) {
+			continue;
 		}
-	});
+		let score = 0;
+		if (tcase.uri && tcase.uri.toString() === location.uri.toString()) {
+			score = 1;
+			if (tcase.range && tcase.range.contains(location?.range)) {
+				score = 2;
+			}
+		}
+		if (!best || score > best.score) {
+			best = { location, score };
+		}
+	}
+
+	return { stack: locationsMapped.map(s => s.stack), primary: best?.location };
 }
 
 async function deriveSourceLocation(store: SourceMapStore, parts: RegExpMatchArray) {
 	const [, fileUri, line, col] = parts;
 	return store.getSourceLocation(fileUri, Number(line) - 1, Number(col));
+}
+
+function findLastIndex<T>(arr: T[], predicate: (value: T) => boolean) {
+	for (let i = arr.length - 1; i >= 0; i--) {
+		if (predicate(arr[i])) {
+			return i;
+		}
+	}
+
+	return -1;
 }

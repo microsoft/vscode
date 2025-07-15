@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { compressConsecutiveTextChanges, TextChange } from 'vs/editor/common/core/textChange';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { compressConsecutiveTextChanges, TextChange } from '../../../common/core/textChange.js';
 
 const GENERATE_TESTS = false;
 

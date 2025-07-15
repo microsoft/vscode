@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ActionRunner, IAction } from 'vs/base/common/actions';
+import { ActionRunner, IAction } from '../../../../base/common/actions.js';
 
 export class ActionRunnerWithContext extends ActionRunner {
 	constructor(private readonly _getContext: () => unknown) {

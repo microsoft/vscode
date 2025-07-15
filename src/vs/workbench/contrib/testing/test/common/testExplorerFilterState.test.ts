@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { InMemoryStorageService } from 'vs/platform/storage/common/storage';
-import { TestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
+import assert from 'assert';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { TestExplorerFilterState, TestFilterTerm } from '../../common/testExplorerFilterState.js';
 
 suite('TestExplorerFilterState', () => {
 	let t: TestExplorerFilterState;

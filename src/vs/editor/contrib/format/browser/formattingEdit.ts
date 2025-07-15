@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { EndOfLineSequence } from 'vs/editor/common/model';
-import { TextEdit } from 'vs/editor/common/languages';
-import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditOperation, ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { Range } from '../../../common/core/range.js';
+import { EndOfLineSequence } from '../../../common/model.js';
+import { TextEdit } from '../../../common/languages.js';
+import { StableEditorScrollState } from '../../../browser/stableEditorScroll.js';
 
 export class FormattingEdit {
 

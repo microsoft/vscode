@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AccessibilitySignalService, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { registerWorkbenchContribution2, WorkbenchPhase } from 'vs/workbench/common/contributions';
-import { AccessibilitySignalLineDebuggerContribution } from 'vs/workbench/contrib/accessibilitySignals/browser/accessibilitySignalDebuggerContribution';
-import { ShowAccessibilityAnnouncementHelp, ShowSignalSoundHelp } from 'vs/workbench/contrib/accessibilitySignals/browser/commands';
-import { EditorTextPropertySignalsContribution } from 'vs/workbench/contrib/accessibilitySignals/browser/editorTextPropertySignalsContribution';
-import { wrapInReloadableClass } from 'vs/workbench/contrib/accessibilitySignals/browser/reloadableWorkbenchContribution';
+import { AccessibilitySignalService, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { AccessibilitySignalLineDebuggerContribution } from './accessibilitySignalDebuggerContribution.js';
+import { ShowAccessibilityAnnouncementHelp, ShowSignalSoundHelp } from './commands.js';
+import { EditorTextPropertySignalsContribution } from './editorTextPropertySignalsContribution.js';
+import { wrapInReloadableClass0 } from '../../../../platform/observable/common/wrapInReloadableClass.js';
 
 registerSingleton(IAccessibilitySignalService, AccessibilitySignalService, InstantiationType.Delayed);
 
-registerWorkbenchContribution2('EditorTextPropertySignalsContribution', wrapInReloadableClass(() => EditorTextPropertySignalsContribution), WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2('EditorTextPropertySignalsContribution', wrapInReloadableClass0(() => EditorTextPropertySignalsContribution), WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2('AccessibilitySignalLineDebuggerContribution', AccessibilitySignalLineDebuggerContribution, WorkbenchPhase.AfterRestored);
 
 registerAction2(ShowSignalSoundHelp);

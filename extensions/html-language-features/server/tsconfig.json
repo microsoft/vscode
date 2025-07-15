@@ -5,7 +5,8 @@
 		"lib": [
 			"ES2020",
 			"WebWorker"
-		]
+		],
+		"module": "Node16",
 	},
 	"include": [
 		"src/**/*"

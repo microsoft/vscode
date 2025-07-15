@@ -2,28 +2,28 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-// eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
-import { Terminal } from '@xterm/xterm';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { InitialHintAddon } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminal.initialHint.contribution';
-import { getActiveDocument } from 'vs/base/browser/dom';
-import { Emitter } from 'vs/base/common/event';
-import { strictEqual } from 'assert';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ChatAgentLocation, IChatAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
 
-// Test TerminalInitialHintAddon
+import type { Terminal } from '@xterm/xterm';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ShellIntegrationAddon } from '../../../../../../platform/terminal/common/xterm/shellIntegrationAddon.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { InitialHintAddon } from '../../browser/terminal.initialHint.contribution.js';
+import { getActiveDocument } from '../../../../../../base/browser/dom.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { strictEqual } from 'assert';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
+import { IChatAgent } from '../../../../chat/common/chatAgents.js';
+import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../../chat/common/constants.js';
 
 suite('Terminal Initial Hint Addon', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let eventCount = 0;
 	let xterm: Terminal;
 	let initialHintAddon: InitialHintAddon;
-	const _onDidChangeAgents: Emitter<IChatAgent | undefined> = new Emitter();
-	const onDidChangeAgents = _onDidChangeAgents.event;
+	const onDidChangeAgentsEmitter: Emitter<IChatAgent | undefined> = new Emitter();
+	const onDidChangeAgents = onDidChangeAgentsEmitter.event;
 	const agent: IChatAgent = {
 		id: 'termminal',
 		name: 'terminal',
@@ -32,7 +32,9 @@ suite('Terminal Initial Hint Addon', () => {
 		extensionDisplayName: 'test',
 		metadata: {},
 		slashCommands: [{ name: 'test', description: 'test' }],
+		disambiguation: [],
 		locations: [ChatAgentLocation.fromRaw('terminal')],
+		modes: [ChatModeKind.Ask],
 		invoke: async () => { return {}; }
 	};
 	const editorAgent: IChatAgent = {
@@ -44,12 +46,15 @@ suite('Terminal Initial Hint Addon', () => {
 		metadata: {},
 		slashCommands: [{ name: 'test', description: 'test' }],
 		locations: [ChatAgentLocation.fromRaw('editor')],
+		modes: [ChatModeKind.Ask],
+		disambiguation: [],
 		invoke: async () => { return {}; }
 	};
-	setup(() => {
+	setup(async () => {
 		const instantiationService = workbenchInstantiationService({}, store);
-		xterm = store.add(new Terminal());
-		const shellIntegrationAddon = store.add(new ShellIntegrationAddon('', true, undefined, new NullLogService));
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+		xterm = store.add(new TerminalCtor());
+		const shellIntegrationAddon = store.add(new ShellIntegrationAddon('', true, undefined, undefined, new NullLogService));
 		initialHintAddon = store.add(instantiationService.createInstance(InitialHintAddon, shellIntegrationAddon.capabilities, onDidChangeAgents));
 		store.add(initialHintAddon.onDidRequestCreateHint(() => eventCount++));
 		const testContainer = document.createElement('div');
@@ -68,35 +73,25 @@ suite('Terminal Initial Hint Addon', () => {
 		});
 		test('hint is not shown when there is just an editor agent', () => {
 			eventCount = 0;
-			_onDidChangeAgents.fire(editorAgent);
+			onDidChangeAgentsEmitter.fire(editorAgent);
 			xterm.focus();
 			strictEqual(eventCount, 0);
 		});
 		test('hint is shown when there is a terminal chat agent', () => {
 			eventCount = 0;
-			_onDidChangeAgents.fire(editorAgent);
+			onDidChangeAgentsEmitter.fire(editorAgent);
 			xterm.focus();
 			strictEqual(eventCount, 0);
-			_onDidChangeAgents.fire(agent);
+			onDidChangeAgentsEmitter.fire(agent);
 			strictEqual(eventCount, 1);
 		});
 		test('hint is not shown again when another terminal chat agent is added if it has already shown', () => {
 			eventCount = 0;
-			_onDidChangeAgents.fire(agent);
+			onDidChangeAgentsEmitter.fire(agent);
 			xterm.focus();
 			strictEqual(eventCount, 1);
-			_onDidChangeAgents.fire(agent);
+			onDidChangeAgentsEmitter.fire(agent);
 			strictEqual(eventCount, 1);
-		});
-	});
-	suite('Input', () => {
-		test('hint is not shown when there has been input', () => {
-			_onDidChangeAgents.fire(agent);
-			xterm.writeln('data');
-			setTimeout(() => {
-				xterm.focus();
-				strictEqual(eventCount, 0);
-			}, 50);
 		});
 	});
 });

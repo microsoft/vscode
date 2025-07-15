@@ -22,8 +22,8 @@
 	outline: 1px solid var(--vscode-chat-requestBorder);
 }
 
-.monaco-hover .markdown-hover .hover-contents .chat-agent-hover-icon .codicon {
-	font-size: 23px;
+.chat-agent-hover .chat-agent-hover-icon .codicon {
+	font-size: 23px !important; /* Override workbench hover styles */
 	display: flex;
 	justify-content: center;
 	align-items: center;
@@ -34,7 +34,7 @@
 	gap: 4px;
 }
 
-.monaco-hover .chat-agent-hover .chat-agent-hover-publisher .codicon.codicon-extensions-verified-publisher {
+.chat-agent-hover .chat-agent-hover-publisher .codicon.codicon-extensions-verified-publisher {
 	color: var(--vscode-extensionIcon-verifiedForeground);
 }
 
@@ -44,6 +44,8 @@
 
 .chat-agent-hover.verifiedPublisher .extension-verified-publisher {
 	display: flex;
+	align-items: start;
+	margin-top: 1px;
 }
 
 .chat-agent-hover .chat-agent-hover-warning .codicon {
@@ -58,6 +60,10 @@
 .chat-agent-hover-header .chat-agent-hover-name {
 	font-size: 14px;
 	font-weight: 600;
+}
+
+.chat-agent-hover-header .chat-agent-hover-details {
+	font-size: 12px;
 }
 
 .chat-agent-hover-extension {

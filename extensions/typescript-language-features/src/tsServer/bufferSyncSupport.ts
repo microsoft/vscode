@@ -78,24 +78,14 @@ class BufferSynchronizer {
 	}
 
 	public open(resource: vscode.Uri, args: Proto.OpenRequestArgs) {
-		if (this.supportsBatching) {
-			this.updatePending(resource, new OpenOperation(args, args.scriptKindName));
-		} else {
-			this.client.executeWithoutWaitingForResponse('open', args);
-		}
+		this.updatePending(resource, new OpenOperation(args, args.scriptKindName));
 	}
 
 	/**
 	 * @return Was the buffer open?
 	 */
 	public close(resource: vscode.Uri, filepath: string, scriptKind: ScriptKind | undefined): boolean {
-		if (this.supportsBatching) {
-			return this.updatePending(resource, new CloseOperation(filepath, scriptKind));
-		} else {
-			const args: Proto.FileRequestArgs = { file: filepath };
-			this.client.executeWithoutWaitingForResponse('close', args);
-			return true;
-		}
+		return this.updatePending(resource, new CloseOperation(filepath, scriptKind));
 	}
 
 	public change(resource: vscode.Uri, filepath: string, events: readonly vscode.TextDocumentContentChangeEvent[]) {
@@ -103,24 +93,14 @@ class BufferSynchronizer {
 			return;
 		}
 
-		if (this.supportsBatching) {
-			this.updatePending(resource, new ChangeOperation({
-				fileName: filepath,
-				textChanges: events.map((change): Proto.CodeEdit => ({
-					newText: change.text,
-					start: typeConverters.Position.toLocation(change.range.start),
-					end: typeConverters.Position.toLocation(change.range.end),
-				})).reverse(), // Send the edits end-of-document to start-of-document order
-			}));
-		} else {
-			for (const { range, text } of events) {
-				const args: Proto.ChangeRequestArgs = {
-					insertString: text,
-					...typeConverters.Range.toFormattingRequestArgs(filepath, range)
-				};
-				this.client.executeWithoutWaitingForResponse('change', args);
-			}
-		}
+		this.updatePending(resource, new ChangeOperation({
+			fileName: filepath,
+			textChanges: events.map((change): Proto.CodeEdit => ({
+				newText: change.text,
+				start: typeConverters.Position.toLocation(change.range.start),
+				end: typeConverters.Position.toLocation(change.range.end),
+			})).reverse(), // Send the edits end-of-document to start-of-document order
+		}));
 	}
 
 	public reset(): void {
@@ -136,12 +116,6 @@ class BufferSynchronizer {
 	}
 
 	private flush() {
-		if (!this.supportsBatching) {
-			// We've already eagerly synchronized
-			this._pending.clear();
-			return;
-		}
-
 		if (this._pending.size > 0) {
 			const closedFiles: string[] = [];
 			const openFiles: Proto.OpenRequestArgs[] = [];
@@ -156,10 +130,6 @@ class BufferSynchronizer {
 			this.client.execute('updateOpen', { changedFiles, closedFiles, openFiles }, nulToken, { nonRecoverable: true });
 			this._pending.clear();
 		}
-	}
-
-	private get supportsBatching(): boolean {
-		return this.client.apiVersion.gte(API.v340);
 	}
 
 	private updatePending(resource: vscode.Uri, op: BufferOperation): boolean {
@@ -221,13 +191,26 @@ class SyncedBuffer {
 	}
 
 	private getProjectRootPath(resource: vscode.Uri): string | undefined {
-		const workspaceRoot = this.client.getWorkspaceRootForResource(resource);
+		let workspaceRoot = this.client.getWorkspaceRootForResource(resource);
+
+		// If we didn't find a real workspace, we still want to try sending along a workspace folder
+		// to prevent TS from loading projects from outside of any workspace.
+		// Just pick the highest level one on the same FS even though the file is outside of it
+		if (!workspaceRoot && vscode.workspace.workspaceFolders) {
+			for (const root of Array.from(vscode.workspace.workspaceFolders).sort((a, b) => a.uri.path.length - b.uri.path.length)) {
+				if (root.uri.scheme === resource.scheme && root.uri.authority === resource.authority) {
+					workspaceRoot = root.uri;
+					break;
+				}
+			}
+		}
+
 		if (workspaceRoot) {
 			const tsRoot = this.client.toTsFilePath(workspaceRoot);
 			return tsRoot?.startsWith(inMemoryResourcePrefix) ? undefined : tsRoot;
 		}
 
-		return fileSchemes.isOfScheme(resource, fileSchemes.officeScript, fileSchemes.chatCodeBlock, fileSchemes.chatBackingCodeBlock) ? '/' : undefined;
+		return fileSchemes.isOfScheme(resource, fileSchemes.officeScript, fileSchemes.chatCodeBlock) ? '/' : undefined;
 	}
 
 	public get resource(): vscode.Uri {
@@ -275,12 +258,12 @@ class SyncedBufferMap extends ResourceMap<SyncedBuffer> {
 }
 
 class PendingDiagnostics extends ResourceMap<number> {
-	public getOrderedFileSet(): ResourceMap<void> {
+	public getOrderedFileSet(): ResourceMap<void | vscode.Range[]> {
 		const orderedResources = Array.from(this.entries())
 			.sort((a, b) => a.value - b.value)
 			.map(entry => entry.resource);
 
-		const map = new ResourceMap<void>(this._normalizePath, this.config);
+		const map = new ResourceMap<void | vscode.Range[]>(this._normalizePath, this.config);
 		for (const resource of orderedResources) {
 			map.set(resource, undefined);
 		}
@@ -292,7 +275,7 @@ class GetErrRequest {
 
 	public static executeGetErrRequest(
 		client: ITypeScriptServiceClient,
-		files: ResourceMap<void>,
+		files: ResourceMap<void | vscode.Range[]>,
 		onDone: () => void
 	) {
 		return new GetErrRequest(client, files, onDone);
@@ -303,7 +286,7 @@ class GetErrRequest {
 
 	private constructor(
 		private readonly client: ITypeScriptServiceClient,
-		public readonly files: ResourceMap<void>,
+		public readonly files: ResourceMap<void | vscode.Range[]>,
 		onDone: () => void
 	) {
 		if (!this.isErrorReportingEnabled()) {
@@ -313,19 +296,39 @@ class GetErrRequest {
 		}
 
 		const supportsSyntaxGetErr = this.client.apiVersion.gte(API.v440);
-		const allFiles = coalesce(Array.from(files.entries())
-			.filter(entry => supportsSyntaxGetErr || client.hasCapabilityForResource(entry.resource, ClientCapability.Semantic))
+		const fileEntries = Array.from(files.entries()).filter(entry => supportsSyntaxGetErr || client.hasCapabilityForResource(entry.resource, ClientCapability.Semantic));
+		const allFiles = coalesce(fileEntries
 			.map(entry => client.toTsFilePath(entry.resource)));
 
 		if (!allFiles.length) {
 			this._done = true;
 			setImmediate(onDone);
 		} else {
-			const request = this.areProjectDiagnosticsEnabled()
+			let request;
+			if (this.areProjectDiagnosticsEnabled()) {
 				// Note that geterrForProject is almost certainly not the api we want here as it ends up computing far
 				// too many diagnostics
-				? client.executeAsync('geterrForProject', { delay: 0, file: allFiles[0] }, this._token.token)
-				: client.executeAsync('geterr', { delay: 0, files: allFiles }, this._token.token);
+				request = client.executeAsync('geterrForProject', { delay: 0, file: allFiles[0] }, this._token.token);
+			}
+			else {
+				let requestFiles;
+				if (this.areRegionDiagnosticsEnabled()) {
+					requestFiles = coalesce(fileEntries
+						.map(entry => {
+							const file = client.toTsFilePath(entry.resource);
+							const ranges = entry.value;
+							if (file && ranges) {
+								return typeConverters.Range.toFileRangesRequestArgs(file, ranges);
+							}
+
+							return file;
+						}));
+				}
+				else {
+					requestFiles = allFiles;
+				}
+				request = client.executeAsync('geterr', { delay: 0, files: requestFiles }, this._token.token);
+			}
 
 			request.finally(() => {
 				if (this._done) {
@@ -348,6 +351,10 @@ class GetErrRequest {
 
 	private areProjectDiagnosticsEnabled() {
 		return this.client.configuration.enableProjectDiagnostics && this.client.capabilities.has(ClientCapability.Semantic);
+	}
+
+	private areRegionDiagnosticsEnabled() {
+		return this.client.configuration.enableRegionDiagnostics && this.client.apiVersion.gte(API.v560);
 	}
 
 	public cancel(): any {
@@ -638,6 +645,10 @@ export default class BufferSyncSupport extends Disposable {
 		this.synchronizer.beforeCommand(command);
 	}
 
+	public lineCount(resource: vscode.Uri): number | undefined {
+		return this.syncedBuffers.get(resource)?.lineCount;
+	}
+
 	private onDidCloseTextDocument(document: vscode.TextDocument): void {
 		this.closeResource(document.uri);
 	}
@@ -722,7 +733,9 @@ export default class BufferSyncSupport extends Disposable {
 
 		// Add all open TS buffers to the geterr request. They might be visible
 		for (const buffer of this.syncedBuffers.values()) {
-			orderedFileSet.set(buffer.resource, undefined);
+			const editors = vscode.window.visibleTextEditors.filter(editor => editor.document.uri.toString() === buffer.resource.toString());
+			const visibleRanges = editors.flatMap(editor => editor.visibleRanges);
+			orderedFileSet.set(buffer.resource, visibleRanges.length ? visibleRanges : undefined);
 		}
 
 		for (const { resource } of orderedFileSet.entries()) {
@@ -752,7 +765,7 @@ export default class BufferSyncSupport extends Disposable {
 	}
 
 	private shouldValidate(buffer: SyncedBuffer): boolean {
-		if (fileSchemes.isOfScheme(buffer.resource, fileSchemes.chatCodeBlock, fileSchemes.chatBackingCodeBlock)) {
+		if (fileSchemes.isOfScheme(buffer.resource, fileSchemes.chatCodeBlock)) {
 			return false;
 		}
 
