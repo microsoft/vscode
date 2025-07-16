@@ -70,7 +70,7 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 		super(options ?? {}, languageService, openerService);
 	}
 
-	override render(markdown: IMarkdownString | undefined, options?: MarkdownRenderOptions, markedOptions?: MarkedOptions): IMarkdownRenderResult {
+	override render(markdown: IMarkdownString | undefined, options?: MarkdownRenderOptions, markedOptions?: MarkedOptions, outElement?: HTMLElement): IMarkdownRenderResult {
 		options = {
 			...options,
 			remoteImageIsAllowed: (_uri) => false,
@@ -91,7 +91,7 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 				value: `<body>\n\n${markdown.value}</body>`,
 			}
 			: markdown;
-		const result = super.render(mdWithBody, options, markedOptions);
+		const result = super.render(mdWithBody, options, markedOptions, outElement);
 
 		// In some cases, the renderer can return text that is not inside a <p>,
 		// but our CSS expects text to be in a <p> for margin to be applied properly.
