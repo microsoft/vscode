@@ -170,6 +170,7 @@ export class RenderLineInput {
 			&& this.sameSelection(other.selectionsOnLine)
 			&& this.textDirection === other.textDirection
 			&& this.verticalScrollbarSize === other.verticalScrollbarSize
+			&& this.renderNewLineWhenEmpty === other.renderNewLineWhenEmpty
 		);
 	}
 }
