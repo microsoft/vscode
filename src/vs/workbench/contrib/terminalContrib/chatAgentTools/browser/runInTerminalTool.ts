@@ -8,7 +8,6 @@ import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
 import { count } from '../../../../../base/common/strings.js';
@@ -90,7 +89,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private readonly _sessionTerminalAssociations: Map<string, IToolTerminal> = new Map();
 
 	// Immutable window state
-	private readonly _osBackend: Lazy<Promise<OperatingSystem>>;
+	protected readonly _osBackend: Promise<OperatingSystem>;
 
 	// HACK: Per-tool call state, saved globally
 	// TODO: These should not be part of the state as different sessions could get confused https://github.com/microsoft/vscode/issues/255889
@@ -120,7 +119,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		super();
 
 		this._commandLineAutoApprover = this._register(_instantiationService.createInstance(CommandLineAutoApprover));
-		this._osBackend = new Lazy(async () => (await this._remoteAgentService.getEnvironment())?.os ?? OS);
+		this._osBackend = this._remoteAgentService.getEnvironment().then(remoteEnv => remoteEnv?.os ?? OS);
 
 		// Restore terminal associations from storage
 		this._restoreTerminalAssociations();
@@ -132,7 +131,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._alternativeRecommendation = getRecommendedToolsOverRunInTerminal(args.command, this._languageModelToolsService);
 		const presentation = this._alternativeRecommendation ? 'hidden' : undefined;
 
-		const os = await this._osBackend.value;
+		const os = await this._osBackend;
 		const shell = await this._terminalProfileResolverService.getDefaultShell({
 			os,
 			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority
@@ -355,7 +354,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	protected async _rewriteCommandIfNeeded(context: IToolInvocationPreparationContext, args: IRunInTerminalInputParams, instance: Pick<ITerminalInstance, 'getCwdResource'> | undefined, shell: string): Promise<string> {
 		const commandLine = args.command;
-		const os = await this._osBackend.value;
+		const os = await this._osBackend;
 
 		// Re-write the command if it starts with `cd <dir> && <suffix>` or `cd <dir>; <suffix>`
 		// to just `<suffix>` if the directory matches the current terminal's cwd. This simplifies

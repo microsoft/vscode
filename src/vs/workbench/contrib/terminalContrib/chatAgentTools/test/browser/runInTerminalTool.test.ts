@@ -18,13 +18,19 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { isWindows } from '../../../../../../base/common/platform.js';
+import { OperatingSystem } from '../../../../../../base/common/platform.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
+	override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
+
 	get commandLineAutoApprover(): CommandLineAutoApprover { return this._commandLineAutoApprover; }
 
 	async rewriteCommandIfNeeded(options: IToolInvocationPreparationContext, args: IRunInTerminalInputParams, instance: Pick<ITerminalInstance, 'getCwdResource'> | undefined, shell: string): Promise<string> {
 		return this._rewriteCommandIfNeeded(options, args, instance, shell);
+	}
+
+	setBackendOs(os: OperatingSystem) {
+		this._osBackend = Promise.resolve(os);
 	}
 }
 
@@ -228,252 +234,265 @@ suite('RunInTerminalTool', () => {
 		}
 
 		suite('cd <cwd> && <suffix> -> <suffix>', () => {
-			test('should return original command when no cd prefix pattern matches', async () => {
-				const options = createRewriteOptions('echo hello world');
-				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'pwsh');
+			suite('Posix', () => {
+				setup(() => {
+					runInTerminalTool.setBackendOs(OperatingSystem.Linux);
+				});
 
-				strictEqual(result, 'echo hello world');
+				test('should return original command when no cd prefix pattern matches', async () => {
+					const options = createRewriteOptions('echo hello world');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'pwsh');
+
+					strictEqual(result, 'echo hello world');
+				});
+
+				test('should return original command when cd pattern does not have suffix', async () => {
+					runInTerminalTool.setBackendOs(OperatingSystem.Linux);
+					const options = createRewriteOptions('cd /some/path');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'pwsh');
+
+					strictEqual(result, 'cd /some/path');
+				});
+
+				test('should rewrite command with ; separator when directory matches cwd', async () => {
+					const testDir = '/test/workspace';
+					const options = createRewriteOptions(`cd ${testDir}; npm test`, 'session-1');
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: testDir } }]
+					} as any);
+
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'pwsh');
+
+					strictEqual(result, 'npm test');
+				});
+
+				test('should rewrite command with && separator when directory matches cwd', async () => {
+					const testDir = '/test/workspace';
+					const options = createRewriteOptions(`cd ${testDir} && npm install`, 'session-1');
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: testDir } }]
+					} as any);
+
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'bash');
+
+					strictEqual(result, 'npm install');
+				});
+
+				test('should rewrite command when the path is wrapped in double quotes', async () => {
+					const testDir = '/test/workspace';
+					const options = createRewriteOptions(`cd "${testDir}" && npm install`, 'session-1');
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: testDir } }]
+					} as any);
+
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'bash');
+
+					strictEqual(result, 'npm install');
+				});
+
+				test('should not rewrite command when directory does not match cwd', async () => {
+					const testDir = '/test/workspace';
+					const differentDir = '/different/path';
+					const command = `cd ${differentDir} && npm install`;
+					const options = createRewriteOptions(command, 'session-1');
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: testDir } }]
+					} as any);
+
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'bash');
+
+					strictEqual(result, command);
+				});
+
+				test('should return original command when no workspace folders available', async () => {
+					const command = 'cd /some/path && npm install';
+					const options = createRewriteOptions(command, 'session-1');
+					workspaceService.setWorkspace({
+						folders: []
+					} as any);
+
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'bash');
+
+					strictEqual(result, command);
+				});
+
+				test('should return original command when multiple workspace folders available', async () => {
+					const command = 'cd /some/path && npm install';
+					const options = createRewriteOptions(command, 'session-1');
+					workspaceService.setWorkspace({
+						folders: [
+							{ uri: { fsPath: '/workspace1' } },
+							{ uri: { fsPath: '/workspace2' } }
+						]
+					} as any);
+
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'bash');
+
+					strictEqual(result, command);
+				});
+
+				test('should handle commands with complex suffixes', async () => {
+					const testDir = '/test/workspace';
+					const command = `cd ${testDir} && npm install && npm test && echo "done"`;
+					const options = createRewriteOptions(command, 'session-1');
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: testDir } }]
+					} as any);
+
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'bash');
+
+					strictEqual(result, 'npm install && npm test && echo "done"');
+				});
+
+				test('should handle session without chatSessionId', async () => {
+					const command = 'cd /some/path && npm install';
+					const options = createRewriteOptions(command);
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: '/some/path' } }]
+					} as any);
+
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'bash');
+
+					strictEqual(result, 'npm install');
+				});
+
+				test('should ignore any trailing forward slash', async () => {
+					const testDir = '/test/workspace';
+					const options = createRewriteOptions(`cd ${testDir}/ && npm install`, 'session-1');
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: testDir } }]
+					} as any);
+
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'bash');
+
+					strictEqual(result, 'npm install');
+				});
 			});
 
-			test('should return original command when cd pattern does not have suffix', async () => {
-				const options = createRewriteOptions('cd /some/path');
-				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'pwsh');
+			suite('Windows', () => {
+				setup(() => {
+					runInTerminalTool.setBackendOs(OperatingSystem.Windows);
+				});
 
-				strictEqual(result, 'cd /some/path');
-			});
+				test('should ignore any trailing back slash', async () => {
+					const testDir = 'c:\\test\\workspace';
+					const options = createRewriteOptions(`cd ${testDir}\\ && npm install`, 'session-1');
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: testDir } }]
+					} as any);
 
-			test('should rewrite command with ; separator when directory matches cwd', async () => {
-				const testDir = '/test/workspace';
-				const options = createRewriteOptions(`cd ${testDir}; npm test`, 'session-1');
-				workspaceService.setWorkspace({
-					folders: [{ uri: { fsPath: testDir } }]
-				} as any);
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'cmd');
 
-				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'pwsh');
+					strictEqual(result, 'npm install');
+				});
 
-				strictEqual(result, 'npm test');
-			});
+				test('should prioritize instance cwd over workspace service', async () => {
+					const instanceDir = 'C:\\instance\\workspace';
+					const workspaceDir = 'C:\\workspace\\service';
+					const command = `cd ${instanceDir} && npm test`;
+					const options = createRewriteOptions(command, 'session-1');
 
-			test('should rewrite command with && separator when directory matches cwd', async () => {
-				const testDir = '/test/workspace';
-				const options = createRewriteOptions(`cd ${testDir} && npm install`, 'session-1');
-				workspaceService.setWorkspace({
-					folders: [{ uri: { fsPath: testDir } }]
-				} as any);
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: workspaceDir } }]
+					} as any);
+					const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
 
-				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'bash');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
 
-				strictEqual(result, 'npm install');
-			});
+					strictEqual(result, 'npm test');
+				});
 
-			test('should rewrite command when the path is wrapped in double quotes', async () => {
-				const testDir = '/test/workspace';
-				const options = createRewriteOptions(`cd "${testDir}" && npm install`, 'session-1');
-				workspaceService.setWorkspace({
-					folders: [{ uri: { fsPath: testDir } }]
-				} as any);
+				test('should prioritize instance cwd over workspace service - PowerShell style', async () => {
+					const instanceDir = 'C:\\instance\\workspace';
+					const workspaceDir = 'C:\\workspace\\service';
+					const command = `cd ${instanceDir}; npm test`;
+					const options = createRewriteOptions(command, 'session-1');
 
-				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'bash');
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: workspaceDir } }]
+					} as any);
+					const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
 
-				strictEqual(result, 'npm install');
-			});
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'pwsh');
 
-			test('should not rewrite command when directory does not match cwd', async () => {
-				const testDir = '/test/workspace';
-				const differentDir = '/different/path';
-				const command = `cd ${differentDir} && npm install`;
-				const options = createRewriteOptions(command, 'session-1');
-				workspaceService.setWorkspace({
-					folders: [{ uri: { fsPath: testDir } }]
-				} as any);
+					strictEqual(result, 'npm test');
+				});
 
-				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'bash');
+				test('should not rewrite when instance cwd differs from cd path', async () => {
+					const instanceDir = 'C:\\instance\\workspace';
+					const cdDir = 'C:\\different\\path';
+					const workspaceDir = 'C:\\workspace\\service';
+					const command = `cd ${cdDir} && npm test`;
+					const options = createRewriteOptions(command, 'session-1');
 
-				strictEqual(result, command);
-			});
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: workspaceDir } }]
+					} as any);
+					const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
 
-			test('should return original command when no workspace folders available', async () => {
-				const command = 'cd /some/path && npm install';
-				const options = createRewriteOptions(command, 'session-1');
-				workspaceService.setWorkspace({
-					folders: []
-				} as any);
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
 
-				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'bash');
+					// Should not rewrite since instance cwd doesn't match cd path
+					strictEqual(result, command);
+				});
 
-				strictEqual(result, command);
-			});
+				test('should fallback to workspace service when instance getCwdResource returns undefined', async () => {
+					const workspaceDir = 'C:\\workspace\\service';
+					const command = `cd ${workspaceDir} && npm test`;
+					const options = createRewriteOptions(command, 'session-1');
 
-			test('should return original command when multiple workspace folders available', async () => {
-				const command = 'cd /some/path && npm install';
-				const options = createRewriteOptions(command, 'session-1');
-				workspaceService.setWorkspace({
-					folders: [
-						{ uri: { fsPath: '/workspace1' } },
-						{ uri: { fsPath: '/workspace2' } }
-					]
-				} as any);
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: workspaceDir } }]
+					} as any);
+					const instance = createInstanceWithCwd(undefined);
 
-				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'bash');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
 
-				strictEqual(result, command);
-			});
+					strictEqual(result, 'npm test');
+				});
 
-			test('should handle commands with complex suffixes', async () => {
-				const testDir = '/test/workspace';
-				const command = `cd ${testDir} && npm install && npm test && echo "done"`;
-				const options = createRewriteOptions(command, 'session-1');
-				workspaceService.setWorkspace({
-					folders: [{ uri: { fsPath: testDir } }]
-				} as any);
+				test('should prioritize instance cwd over workspace service even when both match cd path', async () => {
+					const sharedDir = 'C:\\shared\\workspace';
+					const command = `cd ${sharedDir} && npm build`;
+					const options = createRewriteOptions(command, 'session-1');
 
-				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'bash');
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: sharedDir } }]
+					} as any);
+					const instance = createInstanceWithCwd({ fsPath: sharedDir } as any);
 
-				strictEqual(result, 'npm install && npm test && echo "done"');
-			});
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
 
-			test('should handle session without chatSessionId', async () => {
-				const command = 'cd /some/path && npm install';
-				const options = createRewriteOptions(command);
-				workspaceService.setWorkspace({
-					folders: [{ uri: { fsPath: '/some/path' } }]
-				} as any);
+					strictEqual(result, 'npm build');
+				});
 
-				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'bash');
+				test('should handle case-insensitive comparison on Windows with instance', async () => {
+					const instanceDir = 'C:\\Instance\\Workspace';
+					const cdDir = 'c:\\instance\\workspace'; // Different case
+					const command = `cd ${cdDir} && npm test`;
+					const options = createRewriteOptions(command, 'session-1');
 
-				strictEqual(result, 'npm install');
-			});
+					const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
 
-			test('should ignore any trailing back slash', async () => {
-				const testDir = 'c:\\test\\workspace';
-				const options = createRewriteOptions(`cd ${testDir}\\ && npm install`, 'session-1');
-				workspaceService.setWorkspace({
-					folders: [{ uri: { fsPath: testDir } }]
-				} as any);
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
 
-				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'cmd');
+					strictEqual(result, 'npm test');
+				});
 
-				strictEqual(result, 'npm install');
-			});
+				test('should handle quoted paths with instance priority', async () => {
+					const instanceDir = 'C:\\instance\\workspace';
+					const command = 'cd "C:\\instance\\workspace" && npm test';
+					const options = createRewriteOptions(command, 'session-1');
 
-			test('should ignore any trailing forward slash', async () => {
-				const testDir = '/test/workspace';
-				const options = createRewriteOptions(`cd ${testDir}/ && npm install`, 'session-1');
-				workspaceService.setWorkspace({
-					folders: [{ uri: { fsPath: testDir } }]
-				} as any);
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: 'C:\\different\\workspace' } }]
+					} as any);
+					const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
 
-				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'bash');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
 
-				strictEqual(result, 'npm install');
-			});
-
-			test('should prioritize instance cwd over workspace service', async () => {
-				const instanceDir = 'C:\\instance\\workspace';
-				const workspaceDir = 'C:\\workspace\\service';
-				const command = `cd ${instanceDir} && npm test`;
-				const options = createRewriteOptions(command, 'session-1');
-
-				workspaceService.setWorkspace({
-					folders: [{ uri: { fsPath: workspaceDir } }]
-				} as any);
-				const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
-
-				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
-
-				strictEqual(result, 'npm test');
-			});
-
-			test('should prioritize instance cwd over workspace service - PowerShell style', async () => {
-				const instanceDir = 'C:\\instance\\workspace';
-				const workspaceDir = 'C:\\workspace\\service';
-				const command = `cd ${instanceDir}; npm test`;
-				const options = createRewriteOptions(command, 'session-1');
-
-				workspaceService.setWorkspace({
-					folders: [{ uri: { fsPath: workspaceDir } }]
-				} as any);
-				const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
-
-				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'pwsh');
-
-				strictEqual(result, 'npm test');
-			});
-
-			test('should not rewrite when instance cwd differs from cd path', async () => {
-				const instanceDir = 'C:\\instance\\workspace';
-				const cdDir = 'C:\\different\\path';
-				const workspaceDir = 'C:\\workspace\\service';
-				const command = `cd ${cdDir} && npm test`;
-				const options = createRewriteOptions(command, 'session-1');
-
-				workspaceService.setWorkspace({
-					folders: [{ uri: { fsPath: workspaceDir } }]
-				} as any);
-				const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
-
-				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
-
-				// Should not rewrite since instance cwd doesn't match cd path
-				strictEqual(result, command);
-			});
-
-			test('should fallback to workspace service when instance getCwdResource returns undefined', async () => {
-				const workspaceDir = 'C:\\workspace\\service';
-				const command = `cd ${workspaceDir} && npm test`;
-				const options = createRewriteOptions(command, 'session-1');
-
-				workspaceService.setWorkspace({
-					folders: [{ uri: { fsPath: workspaceDir } }]
-				} as any);
-				const instance = createInstanceWithCwd(undefined);
-
-				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
-
-				strictEqual(result, 'npm test');
-			});
-
-			test('should prioritize instance cwd over workspace service even when both match cd path', async () => {
-				const sharedDir = 'C:\\shared\\workspace';
-				const command = `cd ${sharedDir} && npm build`;
-				const options = createRewriteOptions(command, 'session-1');
-
-				workspaceService.setWorkspace({
-					folders: [{ uri: { fsPath: sharedDir } }]
-				} as any);
-				const instance = createInstanceWithCwd({ fsPath: sharedDir } as any);
-
-				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
-
-				strictEqual(result, 'npm build');
-			});
-
-			(isWindows ? test : test.skip)('should handle case-insensitive comparison on Windows with instance', async () => {
-				const instanceDir = 'C:\\Instance\\Workspace';
-				const cdDir = 'c:\\instance\\workspace'; // Different case
-				const command = `cd ${cdDir} && npm test`;
-				const options = createRewriteOptions(command, 'session-1');
-
-				const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
-
-				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
-
-				strictEqual(result, 'npm test');
-			});
-
-			test('should handle quoted paths with instance priority', async () => {
-				const instanceDir = 'C:\\instance\\workspace';
-				const command = 'cd "C:\\instance\\workspace" && npm test';
-				const options = createRewriteOptions(command, 'session-1');
-
-				workspaceService.setWorkspace({
-					folders: [{ uri: { fsPath: 'C:\\different\\workspace' } }]
-				} as any);
-				const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
-
-				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
-
-				strictEqual(result, 'npm test');
+					strictEqual(result, 'npm test');
+				});
 			});
 		});
 	});
