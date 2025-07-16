@@ -243,7 +243,7 @@ export class ArcTelemetryReporter {
 	private _getLineCountInfo(): { deletedLineCounts: number; insertedLineCounts: number } {
 		const e = this._arcTracker.getTrackedEdit();
 		const le = LineEdit.fromEdit(e, this._documentValueBeforeTrackedEdit);
-		const deletedLineCount = sumBy(le.edits, r => r.lineRange.length);
+		const deletedLineCount = sumBy(le.replacements, r => r.lineRange.length);
 		const insertedLineCount = sumBy(le.getNewLineRanges(), r => r.length);
 		return {
 			deletedLineCounts: deletedLineCount,
