@@ -83,7 +83,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private readonly _osBackend: Lazy<Promise<OperatingSystem>>;
 
 	// HACK: Per-tool call state, saved globally
-	// TODO: These should not be part of the state as different sessions could get confused
+	// TODO: These should not be part of the state as different sessions could get confused https://github.com/microsoft/vscode/issues/255889
 	private _alternativeRecommendation?: IToolResult;
 	private _rewrittenCommand?: string;
 
@@ -146,7 +146,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		}
 
-		const rewrittenCommand = await this._rewriteCommandIfNeeded(context, args, shell);
+		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
+		const rewrittenCommand = await this._rewriteCommandIfNeeded(context, args, instance, shell);
 		if (rewrittenCommand && rewrittenCommand !== args.command) {
 			this._rewrittenCommand = rewrittenCommand;
 		} else {
@@ -158,7 +159,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			presentation,
 			toolSpecificData: {
 				kind: 'terminal',
-				// TODO: Ideally this would be named something like editedCommand for clarity
+				// TODO: Ideally this would be named something like editedCommand for clarity https://github.com/microsoft/vscode/issues/256227
 				command: this._rewrittenCommand ?? args.command,
 				language,
 			}
@@ -336,14 +337,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	protected async _rewriteCommandIfNeeded(context: IToolInvocationPreparationContext, args: IRunInTerminalInputParams, shell: string): Promise<string> {
+	protected async _rewriteCommandIfNeeded(context: IToolInvocationPreparationContext, args: IRunInTerminalInputParams, instance: Pick<ITerminalInstance, 'getCwdResource'> | undefined, shell: string): Promise<string> {
 		const commandLine = args.command;
 		const os = await this._osBackend.value;
 
 		// Re-write the command if it starts with `cd <dir> && <suffix>` or `cd <dir>; <suffix>`
 		// to just `<suffix>` if the directory matches the current terminal's cwd. This simplifies
 		// the result in the chat by removing redundancies that some models like to add.
-		// TODO: Fix pulling default shell (was this.envService.shell)
 		const isPwsh = isPowerShell(shell, os);
 		const cdPrefixMatch = commandLine.match(
 			isPwsh
@@ -356,12 +356,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let cwd: URI | undefined;
 
 			// Get the current session terminal's cwd
-			if (context.chatSessionId) {
-				// TODO: Just pass in the instance to _rewriteCommandIfNeeded?
-				const terminal = this._sessionTerminalAssociations.get(context.chatSessionId);
-				if (terminal) {
-					cwd = await terminal.instance.getCwdResource();
-				}
+			if (instance) {
+				cwd = await instance.getCwdResource();
 			}
 
 			// If a terminal is not available, use the workspace root

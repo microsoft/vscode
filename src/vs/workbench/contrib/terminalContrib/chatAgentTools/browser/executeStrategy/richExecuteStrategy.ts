@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from '../../../../../../base/common/async.js';
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
@@ -28,7 +27,6 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		private readonly _commandDetection: ICommandDetectionCapability,
-		// TODO: Use copilot
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 	}
@@ -53,33 +51,10 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 			// IMPORTANT: This must not be awaited, otherwise data events could be missed
 			this._instance.runCommand(commandLine, true);
 
-			// TODO: Start listening to data
 			this._logService.debug(`RunInTerminalTool#Rich: Reading data stream`);
 
-			// const dataStream = execution.read();
 			const dataEvents: string[] = [];
 
-			// HACK: Read the data stream in a separate async function to avoid the off chance the
-			// data stream doesn't resolve which can block the tool from ever finishing.
-			enum DataStreamState {
-				Reading,
-				Timeout,
-				Done,
-			}
-			let dataStreamState = DataStreamState.Reading as DataStreamState;
-			// const dataStreamDone = new DeferredPromise<void>();
-			// (async () => {
-			// 	for await (const chunk of dataStream) {
-			// 		checkCancellation(token);
-			// 		if (dataStreamState === DataStreamState.Timeout) {
-			// 			return;
-			// 		}
-			// 		result += chunk;
-			// 	}
-			// 	this._logService.debug('RunInTerminalTool#Rich: Data stream flushed');
-			// 	dataStreamState = DataStreamState.Done;
-			// 	dataStreamDone.complete();
-			// })();
 			this._instance.onData(e => dataEvents.push(e));
 
 			this._logService.debug(`RunInTerminalTool#Rich: Waiting for done event`);
@@ -87,22 +62,6 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
-			}
-
-			// Give a little time for the data stream to flush before abandoning it
-			if (dataStreamState !== DataStreamState.Done) {
-				await Promise.race([
-					Event.toPromise(this._commandDetection.onCommandFinished, store),
-					// dataStreamDone.p,
-					timeout(500),
-				]);
-				if (token.isCancellationRequested) {
-					throw new CancellationError();
-				}
-				if (dataStreamState === DataStreamState.Reading) {
-					dataStreamState = DataStreamState.Timeout;
-					this._logService.debug('RunInTerminalTool#Rich: Data stream timed out');
-				}
 			}
 
 			let result: string | undefined;
@@ -118,7 +77,7 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 				result = sanitizeTerminalOutput(dataEvents.join(''));
 			}
 
-			if (!result.trim()) {
+			if (result.trim().length === 0) {
 				result = 'Command produced no output';
 			}
 
