@@ -115,7 +115,7 @@ export class ChatArcTelemetrySender extends Disposable {
 			const data = edit.replacements[0].data.editReason;
 
 			const docWithJustReason = createDocWithJustReason(docWithAnnotatedEdits, this._store);
-			const reporter = this._instantiationService.createInstance(ArcTelemetryReporter, [0, 300].map(s => s * 1000), _prev, docWithJustReason, scmRepoBridge, edit, res => {
+			const reporter = this._instantiationService.createInstance(ArcTelemetryReporter, [0, 60, 300].map(s => s * 1000), _prev, docWithJustReason, scmRepoBridge, edit, res => {
 				res.telemetryService.publicLog2<{
 					extensionId: string | undefined;
 					extensionVersion: string | undefined;
@@ -243,7 +243,7 @@ export class ArcTelemetryReporter {
 	private _getLineCountInfo(): { deletedLineCounts: number; insertedLineCounts: number } {
 		const e = this._arcTracker.getTrackedEdit();
 		const le = LineEdit.fromEdit(e, this._documentValueBeforeTrackedEdit);
-		const deletedLineCount = sumBy(le.edits, r => r.lineRange.length);
+		const deletedLineCount = sumBy(le.replacements, r => r.lineRange.length);
 		const insertedLineCount = sumBy(le.getNewLineRanges(), r => r.length);
 		return {
 			deletedLineCounts: deletedLineCount,

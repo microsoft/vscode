@@ -8,7 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { observableSignal, runOnChange, IReader } from '../../../../base/common/observable.js';
 import { AnnotatedStringEdit } from '../../../../editor/common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
-import { TextModelEditReason } from '../../../../editor/common/textModelEditReason.js';
+import { TextModelEditSource } from '../../../../editor/common/textModelEditSource.js';
 import { IDocumentWithAnnotatedEdits, EditKeySourceData, EditSource } from './documentWithAnnotatedEdits.js';
 
 /**
@@ -108,6 +108,6 @@ export class TrackedEdit {
 		public readonly range: OffsetRange,
 		public readonly sourceKey: string,
 		public readonly source: EditSource,
-		public readonly sourceRepresentative: TextModelEditReason,
+		public readonly sourceRepresentative: TextModelEditSource,
 	) { }
 }
