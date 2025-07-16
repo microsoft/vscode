@@ -147,7 +147,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 				// scm.repositories.visible setting
 				this.visibilityDisposables.add(autorun(reader => {
 					const visibleCount = this.visibleCountObs.read(reader);
-					this.updateBodySize(visibleCount);
+					this.updateBodySize(this.tree.contentHeight, visibleCount);
 				}));
 
 				// Update tree
@@ -205,6 +205,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 				horizontalScrolling: false,
 				compressionEnabled: compressionEnabled.get(),
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
+				expandOnDoubleClick: false,
 				expandOnlyOnTwistieClick: true,
 				accessibilityProvider: {
 					getAriaLabel(r: ISCMRepository) {
@@ -265,21 +266,22 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	}
 
 	private onTreeContentHeightChange(height: number): void {
-		this.updateBodySize(height / 22);
+		this.updateBodySize(height);
 	}
 
 	private async updateChildren(): Promise<void> {
 		await this.tree.updateChildren();
-		this.updateBodySize(this.visibleCountObs.get());
+		this.updateBodySize(this.tree.contentHeight);
 	}
 
-	private updateBodySize(visibleCount: number): void {
+	private updateBodySize(contentHeight: number, visibleCount?: number): void {
 		if (this.orientation === Orientation.HORIZONTAL) {
 			return;
 		}
 
+		visibleCount = visibleCount ?? this.visibleCountObs.get();
 		const empty = this.scmViewService.repositories.length === 0;
-		const size = Math.min(this.scmViewService.repositories.length, visibleCount) * 22;
+		const size = Math.min(contentHeight / 22, visibleCount) * 22;
 
 		this.minimumBodySize = visibleCount === 0 ? 22 : size;
 		this.maximumBodySize = visibleCount === 0 ? Number.POSITIVE_INFINITY : empty ? Number.POSITIVE_INFINITY : size;
