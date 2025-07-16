@@ -198,7 +198,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				kind: 'terminal2',
 				commandLine: {
 					original: args.command,
-					toolEdited: this._rewrittenCommand
+					toolEdited: toolEditedCommand
 				},
 				language,
 			}
@@ -232,8 +232,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			didToolEditCommand = !didUserEditCommand && this._rewrittenCommand !== undefined;
 		} else {
 			command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
-			didUserEditCommand = toolSpecificData.commandLine.userEdited !== toolSpecificData.commandLine.original;
-			didToolEditCommand = !didUserEditCommand && toolSpecificData.commandLine.toolEdited !== toolSpecificData.commandLine.original;
+			didUserEditCommand = (
+				toolSpecificData.commandLine.userEdited !== undefined &&
+				toolSpecificData.commandLine.userEdited !== toolSpecificData.commandLine.original
+			);
+			didToolEditCommand = (
+				!didUserEditCommand &&
+				toolSpecificData.commandLine.toolEdited !== undefined &&
+				toolSpecificData.commandLine.toolEdited !== toolSpecificData.commandLine.original
+			);
 		}
 
 		if (token.isCancellationRequested) {
