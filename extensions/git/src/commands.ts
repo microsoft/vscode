@@ -3353,7 +3353,6 @@ export class CommandCenter {
 				});
 				const processors = [new RefProcessor(RefType.Head, BranchItem)];
 				const itemsProcessor = new RefItemsProcessor(repository, processors);
-
 				return itemsProcessor.processRefs(refs);
 			};
 
@@ -3366,56 +3365,40 @@ export class CommandCenter {
 			name = choice.refName;
 		}
 
-		if (!worktreePath) {
-			const quickPickItems: QuickPickItem[] = [
-				{
-					label: l10n.t('$(folder) Choose folder...'),
-				},
-			];
+		const disposables: Disposable[] = [];
+		const inputBox = window.createInputBox();
+		inputBox.prompt = l10n.t('Please provide a worktree name');
+		inputBox.value = name || '';
+		inputBox.show();
 
-			const disposables: Disposable[] = [];
+		const worktreeName = await new Promise<string | undefined>((resolve) => {
+			disposables.push(inputBox.onDidHide(() => resolve(undefined)));
+			disposables.push(inputBox.onDidAccept(() => resolve(inputBox.value)));
+		});
 
-			const quickPick = window.createQuickPick();
-			quickPick.busy = true;
-			quickPick.items = quickPickItems;
-			quickPick.placeholder = l10n.t('Select a location for the new worktree');
-			quickPick.show();
+		dispose(disposables);
+		inputBox.dispose();
 
-			const destinationFolder = await new Promise<QuickPickItem | undefined>(resolve => {
-				disposables.push(quickPick.onDidAccept(() => resolve(quickPick.activeItems[0])));
-				disposables.push(quickPick.onDidHide(() => resolve(undefined)));
-			});
+		// Default to view parent directory of repository root
+		const defaultUri = Uri.file(path.dirname(repository.root));
 
-			dispose(disposables);
-			quickPick.dispose();
+		const uris = await window.showOpenDialog({
+			defaultUri,
+			canSelectFiles: false,
+			canSelectFolders: true,
+			canSelectMany: false,
+			openLabel: l10n.t('Select as Worktree Destination'),
+		});
 
-			if (!destinationFolder) {
-				return;
-			}
-
-			// Default to view parent directory of repository root
-			const defaultUri = Uri.file(path.dirname(repository.root));
-
-			if (destinationFolder.label === quickPickItems[0].label) {
-				const uris = await window.showOpenDialog({
-					defaultUri,
-					canSelectFiles: false,
-					canSelectFolders: true,
-					canSelectMany: false,
-					openLabel: l10n.t('Select as Worktree Destination'),
-				});
-
-				if (!uris || uris.length === 0) {
-					return;
-				}
-
-				worktreePath = path.join(uris[0].fsPath, name);
-			}
-		}
-
-		if (!worktreePath) {
+		if (!uris || uris.length === 0) {
 			return;
 		}
+
+		if (!worktreeName || worktreeName.trim() === '') {
+			return;
+		}
+
+		worktreePath = path.join(uris[0].fsPath, worktreeName);
 
 		await repository.worktree({
 			name: name,
