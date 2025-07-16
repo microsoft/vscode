@@ -73,7 +73,7 @@ export class RichScreenReaderContent extends Disposable implements IScreenReader
 
 	public updateScrollTop(primarySelection: Selection): void {
 		const intervals = this._state.intervals;
-		if (!intervals) {
+		if (!intervals.length) {
 			return;
 		}
 		const viewLayout = this._context.viewModel.viewLayout;
