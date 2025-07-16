@@ -166,9 +166,8 @@ export class ChatSelectedTools extends Disposable {
 		await this._instantiationService.createInstance(PromptFileRewriter).openAndRewriteTools(uri, enablementMap, CancellationToken.None);
 	}
 
-	asEnablementMap(): Map<IToolData, boolean> {
+	public readonly enablementMap: IObservable<ReadonlyMap<IToolData, boolean>> = this.entriesMap.map((map, r) => {
 		const result = new Map<IToolData, boolean>();
-		const map = this.entriesMap.get();
 
 		const _set = (tool: IToolData, enabled: boolean) => {
 			// ONLY disable a tool that isn't enabled yet
@@ -180,7 +179,7 @@ export class ChatSelectedTools extends Disposable {
 
 		for (const [item, enabled] of map) {
 			if (item instanceof ToolSet) {
-				for (const tool of item.getTools()) {
+				for (const tool of item.getTools(r)) {
 					// Tools from an mcp tool set are explicitly enabled/disabled under the tool set.
 					// Other toolsets don't show individual tools under the tool set and enablement just follows the toolset.
 					const toolEnabled = item.source.type === 'mcp' ?
@@ -195,5 +194,5 @@ export class ChatSelectedTools extends Disposable {
 			}
 		}
 		return result;
-	}
+	});
 }

@@ -1371,6 +1371,7 @@ export interface ExtHostChatAgentsShape2 {
 	$releaseSession(sessionId: string): void;
 	$detectChatParticipant(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { participants: IChatParticipantMetadata[]; location: ChatAgentLocation }, token: CancellationToken): Promise<IChatParticipantDetectionResult | null | undefined>;
 	$provideRelatedFiles(handle: number, request: Dto<IChatRequestDraft>, token: CancellationToken): Promise<Dto<IChatRelatedFile>[] | undefined>;
+	$setRequestTools(requestId: string, tools: Pick<IChatAgentRequest, 'userSelectedTools'>): void;
 }
 export interface IChatParticipantMetadata {
 	participant: string;
