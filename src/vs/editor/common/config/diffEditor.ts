@@ -20,6 +20,7 @@ export const diffEditorDefaultOptions = {
 	renderOverviewRuler: true,
 	diffWordWrap: 'inherit',
 	diffAlgorithm: 'advanced',
+	diffEditorLoopChanges: true,
 	accessibilityVerbose: false,
 	experimental: {
 		showMoves: false,
