@@ -25,7 +25,7 @@ import { ICodeEditorService } from '../../../../editor/browser/services/codeEdit
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ITextResourceEditorInput } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -33,7 +33,6 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
@@ -120,8 +119,6 @@ export function isInlineChat(widget: IChatWidget): boolean {
 
 export class ChatWidget extends Disposable implements IChatWidget {
 	public static readonly CONTRIBS: { new(...args: [IChatWidget, ...any]): IChatWidgetContrib }[] = [];
-
-	private static readonly STORAGE_KEY_HAS_SENT_REQUEST = 'chat.hasSentRequest';
 
 	private readonly _onDidSubmitAgent = this._register(new Emitter<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>());
 	public readonly onDidSubmitAgent = this._onDidSubmitAgent.event;
@@ -295,8 +292,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IStorageService private readonly storageService: IStorageService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super();
 
@@ -313,7 +309,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		ChatContextKeys.inChatSession.bindTo(contextKeyService).set(true);
 		ChatContextKeys.location.bindTo(contextKeyService).set(this._location.location);
 		ChatContextKeys.inQuickChat.bindTo(contextKeyService).set(isQuickChat(this));
-		ChatContextKeys.chatPanelNeverUsed.bindTo(contextKeyService).set(!this.hasEverSentChatRequest());
 		this.agentInInput = ChatContextKeys.inputHasAgent.bindTo(contextKeyService);
 		this.requestInProgress = ChatContextKeys.requestInProgress.bindTo(contextKeyService);
 		this.isRequestPaused = ChatContextKeys.isRequestPaused.bindTo(contextKeyService);
@@ -471,11 +466,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(new Set([
-				ChatContextKeys.chatPanelNeverUsed.key
+				ChatContextKeys.Setup.installed.key,
+				ChatContextKeys.Entitlement.canSignUp.key
 			]))) {
-
-				if (this.contextKeyService.contextMatchesRules(ChatContextKeys.chatPanelNeverUsed.negate())
-					&& this.container.classList.contains('experimental-welcome-view')) {
+				// reset the input in welcome view if it was rendered in experimental mode
+				if (this.container.classList.contains('experimental-welcome-view')) {
 					this.container.classList.remove('experimental-welcome-view');
 					const renderFollowups = this.viewOptions.renderFollowups ?? false;
 					const renderStyle = this.viewOptions.renderStyle;
@@ -534,15 +529,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		} else {
 			this.logService.debug('ChatWidget#waitForReady: no viewModel');
 		}
-	}
-
-	private hasEverSentChatRequest(): boolean {
-		return this.storageService.getBoolean(ChatWidget.STORAGE_KEY_HAS_SENT_REQUEST, StorageScope.APPLICATION, false);
-	}
-
-	private markChatRequestSent(): void {
-		this.storageService.store(ChatWidget.STORAGE_KEY_HAS_SENT_REQUEST, true, StorageScope.APPLICATION, StorageTarget.USER);
-		ChatContextKeys.chatPanelNeverUsed.bindTo(this.contextKeyService).set(false);
 	}
 
 	render(parent: HTMLElement): void {
@@ -771,13 +757,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			const expEmptyState = this.configurationService.getValue<boolean>('chat.emptyChatState.enabled');
 
+			const chatSetupTriggerContext = ContextKeyExpr.or(
+				ChatContextKeys.Setup.installed.negate(),
+				ChatContextKeys.Entitlement.canSignUp
+			);
+
 			let welcomeContent: IChatViewWelcomeContent;
 			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
 			const additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
 			if ((startupExpValue === StartupExperimentGroup.MaximizedChat
 				|| startupExpValue === StartupExperimentGroup.SplitEmptyEditorChat
 				|| startupExpValue === StartupExperimentGroup.SplitWelcomeChat
-				|| expIsActive) && this.contextKeyService.contextMatchesRules(ChatContextKeys.chatPanelNeverUsed)) {
+				|| expIsActive) && this.contextKeyService.contextMatchesRules(chatSetupTriggerContext)) {
 				welcomeContent = this.getExpWelcomeViewContent();
 				this.container.classList.add('experimental-welcome-view');
 			}
@@ -1717,10 +1708,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						this.chatService.removeRequest(this.viewModel.sessionId, request.id);
 					}
 				}
-			}
-
-			if (this.location === ChatAgentLocation.Panel && !this.hasEverSentChatRequest()) {
-				this.markChatRequestSent();
 			}
 
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, requestInputs.input, {
