@@ -7,7 +7,7 @@ import { ProviderId } from './languages.js';
 
 const privateSymbol = Symbol('TextModelEditSource');
 
-export class TextModelEditReason {
+export class TextModelEditSource {
 	constructor(
 		public readonly metadata: ITextModelEditSourceMetadata,
 		_privateCtorGuard: typeof privateSymbol,
@@ -54,15 +54,15 @@ export class TextModelEditReason {
 	}
 }
 
-type TextModelEditSourceT<T> = TextModelEditReason & {
+type TextModelEditSourceT<T> = TextModelEditSource & {
 	metadataT: T;
 };
 
 function createEditSource<T extends Record<string, any>>(metadata: T): TextModelEditSourceT<T> {
-	return new TextModelEditReason(metadata as any, privateSymbol) as any;
+	return new TextModelEditSource(metadata as any, privateSymbol) as any;
 }
 
-export const EditReasons = {
+export const EditSources = {
 	unknown(data: { name?: string | null }) {
 		return createEditSource({
 			source: 'unknown',
@@ -141,8 +141,8 @@ function toProperties(version: ProviderId | undefined) {
 }
 
 type Values<T> = T[keyof T];
-type ITextModelEditSourceMetadata = Values<{ [TKey in keyof typeof EditReasons]: ReturnType<typeof EditReasons[TKey]>['metadataT'] }>;
-type ITextModelEditSourceMetadataKeys = Values<{ [TKey in keyof typeof EditReasons]: keyof ReturnType<typeof EditReasons[TKey]>['metadataT'] }>;
+type ITextModelEditSourceMetadata = Values<{ [TKey in keyof typeof EditSources]: ReturnType<typeof EditSources[TKey]>['metadataT'] }>;
+type ITextModelEditSourceMetadataKeys = Values<{ [TKey in keyof typeof EditSources]: keyof ReturnType<typeof EditSources[TKey]>['metadataT'] }>;
 
 
 function avoidPathRedaction(str: string | undefined): string | undefined {

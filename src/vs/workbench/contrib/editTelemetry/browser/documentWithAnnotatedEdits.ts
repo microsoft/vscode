@@ -10,7 +10,7 @@ import { IObservableWithChange, ISettableObservable, observableValue, RemoveUnde
 import { AnnotatedStringEdit, IEditData } from '../../../../editor/common/core/edits/stringEdit.js';
 import { StringText } from '../../../../editor/common/core/text/abstractText.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
-import { TextModelEditReason } from '../../../../editor/common/textModelEditReason.js';
+import { TextModelEditSource } from '../../../../editor/common/textModelEditSource.js';
 import { IObservableDocument } from './observableWorkspace.js';
 import { AsyncReader, AsyncReaderEndOfStream, mapObservableDelta } from './utils.js';
 
@@ -54,7 +54,7 @@ export class EditSourceData implements IEditData<EditSourceData> {
 	public readonly key;
 
 	constructor(
-		public readonly editReason: TextModelEditReason
+		public readonly editReason: TextModelEditSource
 	) {
 		this.key = this.editReason.toKey(1);
 		this.source = EditSourceBase.create(this.editReason);
@@ -76,7 +76,7 @@ export class EditKeySourceData implements IEditData<EditKeySourceData> {
 	constructor(
 		public readonly key: string,
 		public readonly source: EditSource,
-		public readonly representative: TextModelEditReason,
+		public readonly representative: TextModelEditSource,
 	) { }
 
 	join(data: EditKeySourceData): EditKeySourceData | undefined {
@@ -94,7 +94,7 @@ export class EditKeySourceData implements IEditData<EditKeySourceData> {
 export abstract class EditSourceBase {
 	private static _cache = new CachedFunction({ getCacheKey: v => v.toString() }, (arg: EditSource) => arg);
 
-	public static create(reason: TextModelEditReason): EditSource {
+	public static create(reason: TextModelEditSource): EditSource {
 		const data = reason.metadata;
 		switch (data.source) {
 			case 'reloadFromDisk':
