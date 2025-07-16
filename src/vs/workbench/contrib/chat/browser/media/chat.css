@@ -1870,7 +1870,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.interactive-item-container.interactive-request {
 		align-items: flex-end;
-		padding-bottom: 0px;
 	}
 
 	.interactive-item-container.interactive-request:not(.editing):hover .request-hover {
@@ -1983,6 +1982,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.checkpoint-restore-container {
 		display: flex;
 		width: 100%;
+		position: relative;
 
 		.checkpoint-divider {
 			border-top: 1px dashed var(--vscode-editorWidget-border);
@@ -2005,22 +2005,38 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		}
 
 		.monaco-toolbar {
-			user-select: none;
 			opacity: 0;
-			width: 0;
+			height: fit-content;
+			width: fit-content;
+			user-select: none;
+			position: absolute;
+			top: 5px;
+			left: 25px;
+			background: var(--vscode-sideBar-background);
 		}
 
 		.monaco-toolbar .action-label {
 			border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background));
 			padding: 1px 5px;
 			background-color: var(--vscode-sideBar-background);
-			margin-top: 5px;
-			margin-left: 10px;
 		}
 	}
 
 	.checkpoint-restore-container {
 		margin-top: 10px;
+
+		.checkpoint-label-text {
+			font-size: 12px;
+			color: var(--vscode-descriptionForeground);
+			padding-right: 4px;
+			display: flex;
+			align-items: center;
+			gap: 4px;
+		}
+
+		.monaco-toolbar {
+			left: 145px;
+		}
 	}
 
 	.checkpoint-container .monaco-toolbar:focus-within,

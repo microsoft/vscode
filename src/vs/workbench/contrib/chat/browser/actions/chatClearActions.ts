@@ -163,7 +163,7 @@ export function registerNewChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.redoEdit',
-				title: localize2('chat.redoEdit.label', "Redo Checkpoint Restore"),
+				title: localize2('chat.redoEdit.label', "Redo Last Request"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.redo,
 				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanRedo, ChatContextKeys.enabled),
@@ -185,11 +185,12 @@ export function registerNewChatActions() {
 		}
 	});
 
-	registerAction2(class RedoChatEditInteractionAction2 extends EditingSessionAction {
+	registerAction2(class RedoChatCheckpoints extends EditingSessionAction {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.redoEdit2',
-				title: localize2('chat.redoEdit.label2', "Redo Checkpoint Restore"),
+				title: localize2('chat.redoEdit.label2', "Redo"),
+				tooltip: localize2('chat.redoEdit.tooltip', "Reapply discarded workspace changes and chat"),
 				category: CHAT_CATEGORY,
 				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanRedo, ChatContextKeys.enabled),
 				f1: true,
