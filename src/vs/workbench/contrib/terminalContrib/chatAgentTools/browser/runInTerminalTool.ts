@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
+import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -15,6 +16,7 @@ import type { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
@@ -34,6 +36,15 @@ import { RichExecuteStrategy } from './executeStrategy/richExecuteStrategy.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from './subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from './toolTerminalCreator.js';
+
+const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
+
+interface IStoredTerminalAssociation {
+	sessionId: string;
+	id: string;
+	shellIntegrationQuality: ShellIntegrationQuality;
+	isBackground?: boolean;
+}
 
 export const RunInTerminalToolData: IToolData = {
 	id: 'vscode_runInTerminal',
@@ -76,7 +87,6 @@ export interface IRunInTerminalInputParams {
 export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	protected readonly _commandLineAutoApprover: CommandLineAutoApprover;
-	// TODO: Bring back reattaching sessions across reloads
 	private readonly _sessionTerminalAssociations: Map<string, IToolTerminal> = new Map();
 
 	// Immutable window state
@@ -99,6 +109,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
+		@IStorageService private readonly _storageService: IStorageService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
@@ -110,6 +121,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		this._commandLineAutoApprover = this._register(_instantiationService.createInstance(CommandLineAutoApprover));
 		this._osBackend = new Lazy(async () => (await this._remoteAgentService.getEnvironment())?.os ?? OS);
+
+		// Restore terminal associations from storage
+		this._restoreTerminalAssociations();
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -202,6 +216,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				toolTerminal.instance.dispose();
 				throw new CancellationError();
 			}
+			await this._setupTerminalAssociation(toolTerminal, chatSessionId, termId, args.isBackground);
 
 			this._terminalService.setActiveInstance(toolTerminal.instance);
 			const timingConnectMs = Date.now() - timingStart;
@@ -262,6 +277,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					toolTerminal.instance.dispose();
 					throw new CancellationError();
 				}
+				await this._setupTerminalAssociation(toolTerminal, chatSessionId, termId, args.isBackground);
 			}
 
 			this._terminalService.setActiveInstance(toolTerminal.instance);
@@ -390,6 +406,88 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		return commandLine;
+	}
+
+	private _restoreTerminalAssociations(): void {
+		const storedAssociations = this._storageService.get(TERMINAL_SESSION_STORAGE_KEY, StorageScope.WORKSPACE, '{}');
+		try {
+			const associations: Record<number, IStoredTerminalAssociation> = JSON.parse(storedAssociations);
+
+			// Find existing terminals and associate them with sessions
+			for (const instance of this._terminalService.instances) {
+				if (instance.processId) {
+					const association = associations[instance.processId];
+					if (association) {
+						this._logService.debug(`RunInTerminalTool: Restored terminal association for PID ${instance.processId}, session ${association.sessionId}`);
+						const toolTerminal: IToolTerminal = {
+							instance,
+							shellIntegrationQuality: association.shellIntegrationQuality
+						};
+						this._sessionTerminalAssociations.set(association.sessionId, toolTerminal);
+
+						// Listen for terminal disposal to clean up storage
+						this._register(instance.onDisposed(() => {
+							this._removeTerminalAssociation(instance.processId!);
+						}));
+					}
+				}
+			}
+		} catch (error) {
+			this._logService.debug(`RunInTerminalTool: Failed to restore terminal associations: ${error}`);
+		}
+	}
+
+	private async _setupTerminalAssociation(toolTerminal: IToolTerminal, chatSessionId: string, termId: string, isBackground: boolean) {
+		await this._associateTerminalWithSession(toolTerminal.instance, chatSessionId, termId, toolTerminal.shellIntegrationQuality, isBackground);
+		this._register(toolTerminal.instance.onDisposed(() => {
+			if (toolTerminal!.instance.processId) {
+				this._removeTerminalAssociation(toolTerminal!.instance.processId);
+			}
+		}));
+	}
+
+	private async _associateTerminalWithSession(terminal: ITerminalInstance, sessionId: string, id: string, shellIntegrationQuality: ShellIntegrationQuality, isBackground?: boolean): Promise<void> {
+		try {
+			// Wait for process ID with timeout
+			const pid = await Promise.race([
+				terminal.processReady.then(() => terminal.processId),
+				timeout(5000).then(() => { throw new Error('Timeout'); })
+			]);
+
+			if (typeof pid === 'number') {
+				const storedAssociations = this._storageService.get(TERMINAL_SESSION_STORAGE_KEY, StorageScope.WORKSPACE, '{}');
+				const associations: Record<number, IStoredTerminalAssociation> = JSON.parse(storedAssociations);
+
+				const existingAssociation = associations[pid] || {};
+				associations[pid] = {
+					...existingAssociation,
+					sessionId,
+					shellIntegrationQuality,
+					id,
+					isBackground
+				};
+
+				this._storageService.store(TERMINAL_SESSION_STORAGE_KEY, JSON.stringify(associations), StorageScope.WORKSPACE, StorageTarget.USER);
+				this._logService.debug(`RunInTerminalTool: Associated terminal PID ${pid} with session ${sessionId}`);
+			}
+		} catch (error) {
+			this._logService.debug(`RunInTerminalTool: Failed to associate terminal with session: ${error}`);
+		}
+	}
+
+	private async _removeTerminalAssociation(pid: number): Promise<void> {
+		try {
+			const storedAssociations = this._storageService.get(TERMINAL_SESSION_STORAGE_KEY, StorageScope.WORKSPACE, '{}');
+			const associations: Record<number, IStoredTerminalAssociation> = JSON.parse(storedAssociations);
+
+			if (associations[pid]) {
+				delete associations[pid];
+				this._storageService.store(TERMINAL_SESSION_STORAGE_KEY, JSON.stringify(associations), StorageScope.WORKSPACE, StorageTarget.USER);
+				this._logService.debug(`RunInTerminalTool: Removed terminal association for PID ${pid}`);
+			}
+		} catch (error) {
+			this._logService.debug(`RunInTerminalTool: Failed to remove terminal association: ${error}`);
+		}
 	}
 
 	private _sendTelemetry(state: {
