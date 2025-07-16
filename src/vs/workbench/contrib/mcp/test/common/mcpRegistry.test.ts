@@ -23,12 +23,12 @@ import { IConfigurationResolverService } from '../../../../services/configuratio
 import { ConfigurationResolverExpression } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
 import { TestLoggerService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { mcpEnabledSection } from '../../common/mcpConfiguration.js';
 import { McpRegistry } from '../../common/mcpRegistry.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistryTypes.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { LazyCollectionState, McpCollectionDefinition, McpServerDefinition, McpServerTransportStdio, McpServerTransportType } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
+import { mcpEnabledConfig } from '../../../../../platform/mcp/common/mcpManagement.js';
 
 class TestConfigurationResolverService implements Partial<IConfigurationResolverService> {
 	declare readonly _serviceBrand: undefined;
@@ -130,7 +130,7 @@ suite('Workbench - MCP - Registry', () => {
 		testConfigResolverService = new TestConfigurationResolverService();
 		testStorageService = store.add(new TestStorageService());
 		testDialogService = new TestDialogService();
-		configurationService = new TestConfigurationService({ [mcpEnabledSection]: true });
+		configurationService = new TestConfigurationService({ [mcpEnabledConfig]: true });
 
 		const services = new ServiceCollection(
 			[IConfigurationService, configurationService],
@@ -191,12 +191,12 @@ suite('Workbench - MCP - Registry', () => {
 
 		assert.strictEqual(registry.collections.get().length, 1);
 
-		configurationService.setUserConfiguration(mcpEnabledSection, false);
+		configurationService.setUserConfiguration(mcpEnabledConfig, false);
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 
 		assert.strictEqual(registry.collections.get().length, 0);
 
-		configurationService.setUserConfiguration(mcpEnabledSection, true);
+		configurationService.setUserConfiguration(mcpEnabledConfig, true);
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 	});
 
