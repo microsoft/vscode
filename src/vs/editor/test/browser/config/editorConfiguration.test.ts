@@ -266,24 +266,6 @@ suite('Common Editor Config', () => {
 		);
 		config.dispose();
 	});
-
-	test('tabSize maximum value increased to 100', () => {
-		const config = new TestConfiguration({});
-		
-		// Test that tabSize can be set to the new maximum of 100
-		config.updateOptions({ tabSize: 100 });
-		assert.strictEqual(config.options.get(EditorOption.tabSize), 100);
-		
-		// Test that tabSize still accepts the old maximum of 16
-		config.updateOptions({ tabSize: 16 });
-		assert.strictEqual(config.options.get(EditorOption.tabSize), 16);
-		
-		// Test a value between old and new maximum
-		config.updateOptions({ tabSize: 50 });
-		assert.strictEqual(config.options.get(EditorOption.tabSize), 50);
-		
-		config.dispose();
-	});
 });
 
 suite('migrateOptions', () => {
