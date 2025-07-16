@@ -20,9 +20,10 @@ suite('Markdown Katex Support Test', () => {
 			sanitizerOptions: MarkedKatexSupport.getSanitizerOptions({
 				allowedTags: basicMarkupHtmlTags,
 				allowedAttributes: defaultAllowedAttrs,
-			})
-		}, {
-			markedExtensions: [katex],
+			}),
+			markedOptions: {
+				markedExtensions: [katex],
+			}
 		}));
 		return rendered;
 	}

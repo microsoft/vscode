@@ -247,11 +247,6 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						continue;
 					}
 
-					if (providerDescriptor.isDefault && !providerDescriptor.modes?.length) {
-						extension.collector.error(`Extension '${extension.description.identifier.value}' CANNOT register default participant without modes.`);
-						continue;
-					}
-
 					if (providerDescriptor.locations && !isProposedApiEnabled(extension.description, 'chatParticipantAdditions')) {
 						extension.collector.error(`Extension '${extension.description.identifier.value}' CANNOT use API proposal: chatParticipantAdditions.`);
 						continue;
@@ -296,7 +291,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 								locations: isNonEmptyArray(providerDescriptor.locations) ?
 									providerDescriptor.locations.map(ChatAgentLocation.fromRaw) :
 									[ChatAgentLocation.Panel],
-								modes: providerDescriptor.isDefault ? providerDescriptor.modes! : [ChatModeKind.Agent, ChatModeKind.Ask, ChatModeKind.Edit],
+								modes: providerDescriptor.isDefault ? (providerDescriptor.modes ?? [ChatModeKind.Ask]) : [ChatModeKind.Agent, ChatModeKind.Ask, ChatModeKind.Edit],
 								slashCommands: providerDescriptor.commands ?? [],
 								disambiguation: coalesce(participantsDisambiguation.flat()),
 							} satisfies IChatAgentData));

@@ -2033,6 +2033,11 @@ export class Repository {
 		await this.exec(args);
 	}
 
+	async worktree(options: { path: string; name: string }): Promise<void> {
+		const args = ['worktree', 'add', options.path, options.name];
+		await this.exec(args);
+	}
+
 	async deleteWorktree(path: string): Promise<void> {
 		const args = ['worktree', 'remove', path];
 		await this.exec(args);
@@ -2755,10 +2760,22 @@ export class Repository {
 	}
 
 	private async getWorktreesFS(): Promise<Worktree[]> {
-		const worktreesPath = path.join(this.repositoryRoot, '.git', 'worktrees');
+		const config = workspace.getConfiguration('git', Uri.file(this.repositoryRoot));
+		const shouldDetectWorktrees = config.get<boolean>('detectWorktrees') === true;
+
+		if (!shouldDetectWorktrees) {
+			this.logger.info('[Git][getWorktreesFS] Worktree detection is disabled, skipping worktree detection');
+			return [];
+		}
+
+		if (this.kind !== 'repository') {
+			this.logger.info('[Git][getWorktreesFS] Either a submodule or a worktree, skipping worktree detection');
+			return [];
+		}
 
 		try {
 			// List all worktree folder names
+			const worktreesPath = path.join(this.repositoryRoot, '.git', 'worktrees');
 			const dirents = await fs.readdir(worktreesPath, { withFileTypes: true });
 			const result: Worktree[] = [];
 
@@ -2786,7 +2803,7 @@ export class Repository {
 			return result;
 		}
 		catch (err) {
-			if (/ENOENT/.test(err.message)) {
+			if (/ENOENT/.test(err.message) || /ENOTDIR/.test(err.message)) {
 				return [];
 			}
 
