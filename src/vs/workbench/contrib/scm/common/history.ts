@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -21,17 +22,18 @@ export interface ISCMHistoryProvider {
 
 	readonly historyItemRefChanges: IObservable<ISCMHistoryItemRefsChangeEvent>;
 
-	provideHistoryItemRefs(historyItemsRefs?: string[]): Promise<ISCMHistoryItemRef[] | undefined>;
-	provideHistoryItems(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
-	provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItemChange[] | undefined>;
-	resolveHistoryItemChatContext(historyItemId: string): Promise<string | undefined>;
-	resolveHistoryItemRefsCommonAncestor(historyItemRefs: string[]): Promise<string | undefined>;
+	provideHistoryItemRefs(historyItemsRefs?: string[], token?: CancellationToken): Promise<ISCMHistoryItemRef[] | undefined>;
+	provideHistoryItems(options: ISCMHistoryOptions, token?: CancellationToken): Promise<ISCMHistoryItem[] | undefined>;
+	provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined, token?: CancellationToken): Promise<ISCMHistoryItemChange[] | undefined>;
+	resolveHistoryItemChatContext(historyItemId: string, token?: CancellationToken): Promise<string | undefined>;
+	resolveHistoryItemRefsCommonAncestor(historyItemRefs: string[], token?: CancellationToken): Promise<string | undefined>;
 }
 
 export interface ISCMHistoryOptions {
 	readonly skip?: number;
 	readonly limit?: number | { id?: string };
 	readonly historyItemRefs?: readonly string[];
+	readonly filterText?: string;
 }
 
 export interface ISCMHistoryItemStatistics {

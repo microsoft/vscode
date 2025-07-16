@@ -29,7 +29,7 @@ export function setup(logger: Logger) {
 
 			await app.workbench.keybindingsEditor.updateKeybinding('workbench.action.toggleSidebarPosition', 'View: Toggle Primary Side Bar Position', 'ctrl+u', 'Control+U');
 
-			await app.code.sendKeybinding('ctrl+u', () => app.workbench.activitybar.waitForActivityBar(ActivityBarPosition.RIGHT));
+			await app.code.dispatchKeybinding('ctrl+u', () => app.workbench.activitybar.waitForActivityBar(ActivityBarPosition.RIGHT));
 		});
 	});
 
@@ -52,7 +52,7 @@ export function setup(logger: Logger) {
 			const app = this.app as Application;
 
 			await app.workbench.editors.newUntitledFile();
-			await app.code.sendKeybinding('enter', async () => {
+			await app.code.dispatchKeybinding('enter', async () => {
 				await app.code.waitForElements('.line-numbers', false, elements => !!elements.length);
 			});
 

@@ -18,9 +18,10 @@ import { IEditorOpenContext } from '../../../common/editor.js';
 import { Memento } from '../../../common/memento.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatModel, IExportableChatData, ISerializableChatData } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
-import { ChatAgentLocation, ChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { clearChatEditor } from './actions/chatClear.js';
 import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
@@ -60,6 +61,7 @@ export class ChatEditor extends EditorPane {
 	protected override createEditor(parent: HTMLElement): void {
 		this._scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
+		ChatContextKeys.inChatEditor.bindTo(this._scopedContextKeyService).set(true);
 
 		this.widget = this._register(
 			scopedInstantiationService.createInstance(
@@ -67,7 +69,7 @@ export class ChatEditor extends EditorPane {
 				ChatAgentLocation.Panel,
 				undefined,
 				{
-					autoScroll: mode => mode !== ChatMode.Ask,
+					autoScroll: mode => mode !== ChatModeKind.Ask,
 					renderFollowups: true,
 					supportsFileReferences: true,
 					rendererOptions: {
@@ -75,7 +77,7 @@ export class ChatEditor extends EditorPane {
 							return true;
 						},
 						referencesExpandedWhenEmptyResponse: false,
-						progressMessageAtBottomOfResponse: mode => mode !== ChatMode.Ask,
+						progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
 					},
 					enableImplicitContext: true,
 					enableWorkingSet: 'explicit',

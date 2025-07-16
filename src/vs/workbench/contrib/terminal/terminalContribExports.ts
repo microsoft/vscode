@@ -30,8 +30,8 @@ export const enum TerminalContribCommandId {
 // soft layer breakers between `terminal/` and `terminalContrib/` but there are difficulties in
 // removing the dependency. These are explicitly defined here to avoid an eslint line override.
 export const enum TerminalContribSettingId {
-	SuggestEnabled = TerminalSuggestSettingId.Enabled,
 	StickyScrollEnabled = TerminalStickyScrollSettingId.Enabled,
+	SuggestEnabled = TerminalSuggestSettingId.Enabled,
 }
 
 // Export configuration schemes from terminalContrib - this is an exception to the eslint rule since

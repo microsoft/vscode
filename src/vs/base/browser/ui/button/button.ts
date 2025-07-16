@@ -36,6 +36,7 @@ export interface IButtonOptions extends Partial<IButtonStyles> {
 	readonly supportShortLabel?: boolean;
 	readonly secondary?: boolean;
 	readonly hoverDelegate?: IHoverDelegate;
+	readonly disabled?: boolean;
 }
 
 export interface IButtonStyles {
@@ -131,6 +132,7 @@ export class Button extends Disposable implements IButton {
 			this._element.setAttribute('aria-label', options.ariaLabel);
 		}
 		container.appendChild(this._element);
+		this.enabled = !options.disabled;
 
 		this._register(Gesture.addTarget(this._element));
 
@@ -235,7 +237,7 @@ export class Button extends Disposable implements IButton {
 		const labelElement = this.options.supportShortLabel ? this._labelElement! : this._element;
 
 		if (isMarkdownString(value)) {
-			const rendered = renderMarkdown(value, { inline: true });
+			const rendered = renderMarkdown(value, undefined, document.createElement('span'));
 			rendered.dispose();
 
 			// Don't include outer `<p>`
@@ -624,6 +626,10 @@ export class ButtonWithIcon extends Button {
 		this._element.append(this._iconElement, this._mdlabelElement);
 	}
 
+	override get label(): IMarkdownString | string {
+		return super.label;
+	}
+
 	override set label(value: IMarkdownString | string) {
 		if (this._label === value) {
 			return;
@@ -635,7 +641,7 @@ export class ButtonWithIcon extends Button {
 
 		this._element.classList.add('monaco-text-button');
 		if (isMarkdownString(value)) {
-			const rendered = renderMarkdown(value, { inline: true });
+			const rendered = renderMarkdown(value, undefined, document.createElement('span'));
 			rendered.dispose();
 
 			const root = rendered.element.querySelector('p')?.innerHTML;
@@ -664,6 +670,10 @@ export class ButtonWithIcon extends Button {
 		this.setTitle(title);
 		this._setAriaLabel();
 		this._label = value;
+	}
+
+	override get icon(): ThemeIcon {
+		return super.icon;
 	}
 
 	override set icon(icon: ThemeIcon) {

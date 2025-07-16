@@ -1399,6 +1399,14 @@ suite('vscode API - workspace', () => {
 		assert.strictEqual(doc2.encoding, 'cp1252');
 	});
 
+	test('encoding: openTextDocument - can change the encoding of an existing untitled document', async () => {
+		const doc = await vscode.workspace.openTextDocument({ content: 'Hello World' });
+		assert.strictEqual(doc.encoding, 'utf8');
+
+		await vscode.workspace.openTextDocument(doc.uri, { encoding: 'windows1252' });
+		assert.strictEqual(doc.encoding, 'windows1252');
+	});
+
 	test('encoding: decode', async function () {
 		const uri = root.with({ path: posix.join(root.path, 'file.txt') });
 

@@ -19,7 +19,14 @@ interface IGettingStartedContentProvider {
 	(): string;
 }
 
-export const copilotSettingsMessage = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "{0} Copilot Free, Pro and Pro+ may show [public code]({1}) suggestions and we may use your data for product improvement. You can change these [settings]({2}) at any time.", product.defaultChatAgent?.providerName, product.defaultChatAgent?.publicCodeMatchesUrl, product.defaultChatAgent?.manageSettingsUrl);
+const defaultChat = {
+	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
+	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
+	provider: product.defaultChatAgent?.provider ?? { default: { name: '' } },
+	publicCodeMatchesUrl: product.defaultChatAgent?.publicCodeMatchesUrl ?? '',
+};
+
+export const copilotSettingsMessage = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "{0} Copilot Free, Pro and Pro+ may show [public code]({1}) suggestions and we may use your data for product improvement. You can change these [settings]({2}) at any time.", defaultChat.provider.default.name, defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
 
 class GettingStartedContentProviderRegistry {
 
@@ -217,7 +224,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 const Button = (title: string, href: string) => `[${title}](${href})`;
 
 const CopilotStepTitle = localize('gettingStarted.copilotSetup.title', "Use AI features with Copilot for free");
-const CopilotDescription = localize({ key: 'gettingStarted.copilotSetup.description', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "You can use [Copilot]({0}) to generate code across multiple files, fix errors, ask questions about your code and much more using natural language.", product.defaultChatAgent?.documentationUrl ?? '');
+const CopilotDescription = localize({ key: 'gettingStarted.copilotSetup.description', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "You can use [Copilot]({0}) to generate code across multiple files, fix errors, ask questions about your code and much more using natural language.", defaultChat.documentationUrl ?? '');
 const CopilotSignedOutButton = Button(localize('setupCopilotButton.signIn', "Set up Copilot"), `command:workbench.action.chat.triggerSetup`);
 const CopilotSignedInButton = Button(localize('setupCopilotButton.setup', "Set up Copilot"), `command:workbench.action.chat.triggerSetup`);
 const CopilotCompleteButton = Button(localize('setupCopilotButton.chatWithCopilot', "Chat with Copilot"), 'command:workbench.action.chat.open');
@@ -252,7 +259,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 			type: 'steps',
 			steps: [
 				createCopilotSetupStep('CopilotSetupSignedOut', CopilotSignedOutButton, 'chatEntitlementSignedOut', true),
-				createCopilotSetupStep('CopilotSetupComplete', CopilotCompleteButton, 'chatSetupInstalled && !chatSetupDisabled && (chatPlanPro || chatPlanProPlus || chatPlanBusiness || chatPlanEnterprise || chatPlanLimited)', false),
+				createCopilotSetupStep('CopilotSetupComplete', CopilotCompleteButton, 'chatSetupInstalled && !chatSetupDisabled && (chatPlanPro || chatPlanProPlus || chatPlanBusiness || chatPlanEnterprise || chatPlanFree)', false),
 				createCopilotSetupStep('CopilotSetupSignedIn', CopilotSignedInButton, '!chatEntitlementSignedOut && (!chatSetupInstalled || chatSetupDisabled || chatPlanCanSignUp)', true),
 				{
 					id: 'pickColorTheme',
@@ -700,7 +707,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'copilotSetup.customize',
 					title: localize('gettingStarted.customize.title', "Personalized to how you work"),
-					description: localize('gettingStarted.customize.description', "Swap models, add agent mode tools, and create personalized instructions.\n{0}", Button(localize('signUp', "Set up AI"), 'command:workbench.action.chat.triggerSetupWithoutDialog')),
+					description: localize('gettingStarted.customize.description', "Swap models, add agent mode tools, and create personalized instructions.\n{0}", Button(localize('signUp', "Enable AI features"), 'command:workbench.action.chat.triggerSetupWithoutDialog')),
 					media: {
 						type: 'svg', altText: 'Personalize', path: 'customize-ai.svg'
 					},
@@ -730,16 +737,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 						type: 'svg', altText: 'Language extensions', path: 'languages.svg'
 					},
 				},
-				{
-					id: 'newSettingsAndSync',
-					title: localize('newgettingStarted.settings.title', "Customize every aspect of VS Code"),
-					description: localize('newgettingStarted.settingsAndSync.description.interpolated', "[Back up and sync](command:workbench.userDataSync.actions.turnOn) settings across all your devices.\n{0}", Button(localize('tweakSettings', "Open Settings"), 'command:toSide:workbench.action.openSettings')),
-					when: 'syncStatus != uninitialized',
-					completionEvents: ['onEvent:sync-enabled'],
-					media: {
-						type: 'svg', altText: 'VS Code Settings', path: 'settings.svg'
-					},
-				},
+
 			]
 		}
 	}

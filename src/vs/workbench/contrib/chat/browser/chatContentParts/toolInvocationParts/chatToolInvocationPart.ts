@@ -111,7 +111,8 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				this.toolInvocation.originMessage,
 				this.toolInvocation.resultDetails.input,
 				this.toolInvocation.resultDetails.output,
-				!!this.toolInvocation.resultDetails.isError
+				!!this.toolInvocation.resultDetails.isError,
+				this.currentWidthDelegate
 			);
 		}
 
@@ -126,7 +127,8 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				this.toolInvocation.originMessage,
 				typeof this.toolInvocation.toolSpecificData.rawInput === 'string' ? this.toolInvocation.toolSpecificData.rawInput : JSON.stringify(this.toolInvocation.toolSpecificData.rawInput, null, 2),
 				undefined,
-				false
+				false,
+				this.currentWidthDelegate
 			);
 		}
 

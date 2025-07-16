@@ -205,7 +205,7 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 				return true;
 			}
 			// TODO this is very ugly. The entire copy/paste/cut system needs a complete refactoring.
-			if (focusedEditor.getOption(EditorOption.effectiveExperimentalEditContextEnabled) && browserCommand === 'cut') {
+			if (focusedEditor.getOption(EditorOption.effectiveEditContext) && browserCommand === 'cut') {
 				// execCommand(copy) works for edit context, but not execCommand(cut).
 				focusedEditor.getContainerDomNode().ownerDocument.execCommand('copy');
 				focusedEditor.trigger(undefined, Handler.Cut, undefined);
@@ -239,8 +239,8 @@ if (PasteAction) {
 		const focusedEditor = codeEditorService.getFocusedCodeEditor();
 		if (focusedEditor && focusedEditor.hasModel() && focusedEditor.hasTextFocus()) {
 			// execCommand(paste) does not work with edit context
-			const experimentalEditContextEnabled = focusedEditor.getOption(EditorOption.effectiveExperimentalEditContextEnabled);
-			if (experimentalEditContextEnabled) {
+			const editContextEnabled = focusedEditor.getOption(EditorOption.effectiveEditContext);
+			if (editContextEnabled) {
 				const nativeEditContext = NativeEditContextRegistry.get(focusedEditor.getId());
 				if (nativeEditContext) {
 					nativeEditContext.onWillPaste();

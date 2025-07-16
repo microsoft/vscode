@@ -238,10 +238,14 @@ export interface IProgressMessage {
 	message: string;
 }
 
-export type ISearchProgressItem = IFileMatch | IProgressMessage;
+export type ISearchProgressItem = IFileMatch | IProgressMessage | AISearchKeyword;
 
 export function isFileMatch(p: ISearchProgressItem): p is IFileMatch {
 	return !!(<IFileMatch>p).resource;
+}
+
+export function isAIKeyword(p: ISearchProgressItem): p is AISearchKeyword {
+	return !!(<AISearchKeyword>p).keyword;
 }
 
 export function isProgressMessage(p: ISearchProgressItem | ISerializedSearchProgressItem): p is IProgressMessage {

@@ -487,7 +487,7 @@ const terminalConfiguration: IConfigurationNode = {
 			markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.22.250204002) shipped with VS Code, instead of the one bundled with Windows."),
 			type: 'boolean',
 			tags: ['preview'],
-			default: product.quality !== 'stable'
+			default: false
 		},
 		[TerminalSettingId.SplitCwd]: {
 			description: localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),
@@ -639,14 +639,6 @@ const terminalConfiguration: IConfigurationNode = {
 				localize('terminal.integrated.focusAfterRun.accessible-buffer', "Always focus the accessible buffer."),
 				localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
 			]
-		},
-		[TerminalSettingId.KillGracefully]: {
-			type: 'boolean',
-			default: false,
-			markdownDescription: localize(
-				'terminal.integrated.killGracefully',
-				'Controls how terminal processes are terminated. When enabled, attempts a graceful shutdown of the process tree. On POSIX, this will send \`SIGTERM\`. On Windows, it uses \`taskkill.exe\` without the \`/F\` (force) flag. Note that this may allow misbehaving processes to remain running. When disabled (default), processes are terminated with: \`SIGHUP\`.'
-			),
 		},
 		...terminalContribConfiguration,
 	}

@@ -13,7 +13,6 @@ import { TextLength } from '../../../core/text/textLength.js';
 import { IModelContentChangedEvent, IModelContentChange } from '../../../textModelEvents.js';
 import { TextModel } from '../../textModel.js';
 import { gotoParent, getClosestPreviousNodes, nextSiblingOrParentSibling, gotoNthChild } from './cursorUtils.js';
-import { rangesIntersect, rangesEqual } from './treeSitterSyntaxTokenBackend.js';
 import { Range } from '../../../core/range.js';
 
 export class TreeSitterTree extends Disposable {
@@ -444,4 +443,17 @@ function newTimeOutProgressCallback(): (state: TreeSitter.ParseState) => void {
 		}
 		return false;
 	};
+}
+export function rangesEqual(a: TreeSitter.Range, b: TreeSitter.Range) {
+	return (a.startPosition.row === b.startPosition.row)
+		&& (a.startPosition.column === b.startPosition.column)
+		&& (a.endPosition.row === b.endPosition.row)
+		&& (a.endPosition.column === b.endPosition.column)
+		&& (a.startIndex === b.startIndex)
+		&& (a.endIndex === b.endIndex);
+}
+
+export function rangesIntersect(a: TreeSitter.Range, b: TreeSitter.Range) {
+	return (a.startIndex <= b.startIndex && a.endIndex >= b.startIndex) ||
+		(b.startIndex <= a.startIndex && b.endIndex >= a.startIndex);
 }

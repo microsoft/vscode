@@ -7,7 +7,7 @@ import { DisposableMap, IDisposable } from '../../../../../base/common/lifecycle
 import { observableValue } from '../../../../../base/common/observable.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
@@ -56,6 +56,7 @@ export class CursorWorkspaceMcpDiscoveryAdapter extends FilesystemMcpDiscovery i
 			scope: StorageScope.WORKSPACE,
 			isTrustedByDefault: false,
 			serverDefinitions: observableValue(this, []),
+			configTarget: ConfigurationTarget.WORKSPACE_FOLDER,
 			presentation: {
 				origin: configFile,
 				order: McpCollectionSortOrder.WorkspaceFolder + 1,

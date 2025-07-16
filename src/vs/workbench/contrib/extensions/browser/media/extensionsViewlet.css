@@ -163,17 +163,16 @@
 	align-items: flex-start;
 	padding-top: 10px;
 }
-.extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container > .icon {
+.extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container > .extension-icon .icon {
 	width: 24px;
 	height: 24px;
 	padding-right: 8px;
 }
-.extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container > .codicon {
+.extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container > .extension-icon .codicon {
 	font-size: 24px !important;
 	padding-right: 8px;
 }
 
-.extensions-viewlet:not(.narrow) > .extensions .extension-list-item > .details > .header-container > .header > .extension-remote-badge-container,
 .extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container .extension-badge,
 .extensions-viewlet.mini > .extensions .extension-list-item > .icon-container,
 .extensions-viewlet.mini > .extensions .extension-list-item > .details > .header-container > .header > .ratings,
@@ -185,8 +184,8 @@
 	max-width: 100px;
 }
 
-.monaco-workbench.vs .extensions-viewlet > .extensions .monaco-list-row.disabled:not(.selected) > .extension-list-item > .icon-container > .icon,
-.monaco-workbench.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled:not(.selected) > .extension-list-item > .icon-container > .icon,
+.monaco-workbench.vs .extensions-viewlet > .extensions .monaco-list-row.disabled:not(.selected) > .extension-list-item > .icon-container > .extension-icon .icon,
+.monaco-workbench.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled:not(.selected) > .extension-list-item > .icon-container > .extension-icon .icon,
 .monaco-workbench.vs .extensions-viewlet > .extensions .monaco-list-row.disabled:not(.selected) > .extension-list-item > .details > .header-container .codicon,
 .monaco-workbench.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled:not(.selected) > .extension-list-item > .details > .header-container .codicon {
 	opacity: 0.5;

@@ -25,6 +25,12 @@ export interface IGit {
 	version: string;
 }
 
+export interface IDotGit {
+	readonly path: string;
+	readonly commonPath?: string;
+	readonly superProjectPath?: string;
+}
+
 export interface IFileStatus {
 	x: string;
 	y: string;
@@ -341,6 +347,8 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.InvalidBranchName;
 	} else if (/Please,? commit your changes or stash them/.test(stderr)) {
 		return GitErrorCodes.DirtyWorkTree;
+	} else if (/detected dubious ownership in repository at/.test(stderr)) {
+		return GitErrorCodes.NotASafeGitRepository;
 	}
 
 	return undefined;
@@ -401,7 +409,7 @@ export class Git {
 		return Versions.compare(Versions.fromString(this.version), Versions.fromString(version));
 	}
 
-	open(repositoryRoot: string, repositoryRootRealPath: string | undefined, dotGit: { path: string; commonPath?: string }, logger: LogOutputChannel): Repository {
+	open(repositoryRoot: string, repositoryRootRealPath: string | undefined, dotGit: IDotGit, logger: LogOutputChannel): Repository {
 		return new Repository(this, repositoryRoot, repositoryRootRealPath, dotGit, logger);
 	}
 
@@ -537,9 +545,16 @@ export class Git {
 		return repositoryRootPath;
 	}
 
-	async getRepositoryDotGit(repositoryPath: string): Promise<{ path: string; commonPath?: string }> {
-		const result = await this.exec(repositoryPath, ['rev-parse', '--git-dir', '--git-common-dir']);
-		let [dotGitPath, commonDotGitPath] = result.stdout.split('\n').map(r => r.trim());
+	async getRepositoryDotGit(repositoryPath: string): Promise<IDotGit> {
+		let dotGitPath: string | undefined, commonDotGitPath: string | undefined, superProjectPath: string | undefined;
+
+		const args = ['rev-parse', '--git-dir', '--git-common-dir'];
+		if (this.compareGitVersionTo('2.13.0') >= 0) {
+			args.push('--show-superproject-working-tree');
+		}
+
+		const result = await this.exec(repositoryPath, args);
+		[dotGitPath, commonDotGitPath, superProjectPath] = result.stdout.split('\n').map(r => r.trim());
 
 		if (!path.isAbsolute(dotGitPath)) {
 			dotGitPath = path.join(repositoryPath, dotGitPath);
@@ -551,11 +566,13 @@ export class Git {
 				commonDotGitPath = path.join(repositoryPath, commonDotGitPath);
 			}
 			commonDotGitPath = path.normalize(commonDotGitPath);
-
-			return { path: dotGitPath, commonPath: commonDotGitPath !== dotGitPath ? commonDotGitPath : undefined };
 		}
 
-		return { path: dotGitPath };
+		return {
+			path: dotGitPath,
+			commonPath: commonDotGitPath !== dotGitPath ? commonDotGitPath : undefined,
+			superProjectPath: superProjectPath ? path.normalize(superProjectPath) : undefined
+		};
 	}
 
 	async exec(cwd: string, args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
@@ -841,6 +858,11 @@ export class GitStatusParser {
 
 		return lastIndex + 1;
 	}
+}
+
+export interface Worktree {
+	readonly name: string;
+	readonly path: string;
 }
 
 export interface Submodule {
@@ -1211,9 +1233,20 @@ export class Repository {
 		private _git: Git,
 		private repositoryRoot: string,
 		private repositoryRootRealPath: string | undefined,
-		readonly dotGit: { path: string; commonPath?: string },
+		readonly dotGit: IDotGit,
 		private logger: LogOutputChannel
-	) { }
+	) {
+		this._kind = this.dotGit.commonPath
+			? 'worktree'
+			: this.dotGit.superProjectPath
+				? 'submodule'
+				: 'repository';
+	}
+
+	private readonly _kind: 'repository' | 'submodule' | 'worktree';
+	get kind(): 'repository' | 'submodule' | 'worktree' {
+		return this._kind;
+	}
 
 	get git(): Git {
 		return this._git;
@@ -1280,8 +1313,8 @@ export class Repository {
 		});
 	}
 
-	async log(options?: LogOptions): Promise<Commit[]> {
-		const spawnOptions: SpawnOptions = {};
+	async log(options?: LogOptions, cancellationToken?: CancellationToken): Promise<Commit[]> {
+		const spawnOptions: SpawnOptions = { cancellationToken };
 		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
 
 		if (options?.shortStats) {
@@ -1307,7 +1340,13 @@ export class Repository {
 		}
 
 		if (options?.author) {
-			args.push(`--author="${options.author}"`);
+			args.push(`--author=${options.author}`);
+		}
+
+		if (options?.grep) {
+			args.push(`--grep=${options.grep}`);
+			args.push('--extended-regexp');
+			args.push('--regexp-ignore-case');
 		}
 
 		if (typeof options?.maxParents === 'number') {
@@ -1342,7 +1381,7 @@ export class Repository {
 		return parseGitCommits(result.stdout);
 	}
 
-	async logFile(uri: Uri, options?: LogFileOptions): Promise<Commit[]> {
+	async logFile(uri: Uri, options?: LogFileOptions, cancellationToken?: CancellationToken): Promise<Commit[]> {
 		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
 
 		if (options?.maxEntries && !options?.reverse) {
@@ -1373,7 +1412,7 @@ export class Repository {
 		args.push('--', uri.fsPath);
 
 		try {
-			const result = await this.exec(args);
+			const result = await this.exec(args, { cancellationToken });
 			if (result.exitCode) {
 				// No file history, e.g. a new file or untracked
 				return [];
@@ -1991,6 +2030,11 @@ export class Repository {
 
 	async deleteTag(name: string): Promise<void> {
 		const args = ['tag', '-d', name];
+		await this.exec(args);
+	}
+
+	async deleteWorktree(path: string): Promise<void> {
+		const args = ['worktree', 'remove', path];
 		await this.exec(args);
 	}
 
@@ -2704,6 +2748,50 @@ export class Repository {
 	async getStashes(): Promise<Stash[]> {
 		const result = await this.exec(['stash', 'list', `--format=${STASH_FORMAT}`, '-z']);
 		return parseGitStashes(result.stdout.trim());
+	}
+
+	async getWorktrees(): Promise<Worktree[]> {
+		return await this.getWorktreesFS();
+	}
+
+	private async getWorktreesFS(): Promise<Worktree[]> {
+		const worktreesPath = path.join(this.repositoryRoot, '.git', 'worktrees');
+
+		try {
+			// List all worktree folder names
+			const dirents = await fs.readdir(worktreesPath, { withFileTypes: true });
+			const result: Worktree[] = [];
+
+			for (const dirent of dirents) {
+				if (!dirent.isDirectory()) {
+					continue;
+				}
+
+				const gitdirPath = path.join(worktreesPath, dirent.name, 'gitdir');
+
+				try {
+					const gitdirContent = (await fs.readFile(gitdirPath, 'utf8')).trim();
+					// Remove trailing '/.git'
+					const gitdirTrimmed = gitdirContent.replace(/\.git.*$/, '');
+					result.push({ name: dirent.name, path: gitdirTrimmed });
+				} catch (err) {
+					if (/ENOENT/.test(err.message)) {
+						continue;
+					}
+
+					throw err;
+				}
+			}
+
+			return result;
+		}
+		catch (err) {
+			if (/ENOENT/.test(err.message)) {
+				return [];
+			}
+
+			throw err;
+		}
 	}
 
 	async getRemotes(): Promise<Remote[]> {

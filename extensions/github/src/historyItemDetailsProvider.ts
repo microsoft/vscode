@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { authentication, Command, l10n, LogOutputChannel, workspace } from 'vscode';
+import { Command, l10n, LogOutputChannel, workspace } from 'vscode';
 import { Commit, Repository as GitHubRepository, Maybe } from '@octokit/graphql-schema';
 import { API, AvatarQuery, AvatarQueryCommit, Repository, SourceControlHistoryItemDetailsProvider } from './typings/git.js';
 import { DisposableStore, getRepositoryDefaultRemote, getRepositoryDefaultRemoteUrl, getRepositoryFromUrl, groupBy, sequentialize } from './util.js';
-import { AuthenticationError, getOctokitGraphql } from './auth.js';
+import { AuthenticationError, OctokitService } from './auth.js';
 import { getAvatarLink } from './links.js';
 
 const ISSUE_EXPRESSION = /(([A-Za-z0-9_.\-]+)\/([A-Za-z0-9_.\-]+))?(#|GH-)([1-9][0-9]*)($|\b)/g;
@@ -82,13 +82,16 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 	private readonly _store = new Map<string, GitHubRepositoryStore>();
 	private readonly _disposables = new DisposableStore();
 
-	constructor(private readonly _gitAPI: API, private readonly _logger: LogOutputChannel) {
+	constructor(
+		private readonly _gitAPI: API,
+		private readonly _octokitService: OctokitService,
+		private readonly _logger: LogOutputChannel
+	) {
 		this._disposables.add(this._gitAPI.onDidCloseRepository(repository => this._onDidCloseRepository(repository)));
 
-		this._disposables.add(authentication.onDidChangeSessions(e => {
-			if (e.provider.id === 'github') {
-				this._isUserAuthenticated = true;
-			}
+		this._disposables.add(this._octokitService.onDidChangeSessions(() => {
+			this._isUserAuthenticated = true;
+			this._store.clear();
 		}));
 
 		this._disposables.add(workspace.onDidChangeConfiguration(e => {
@@ -116,7 +119,6 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 			this._logger.trace(`[GitHubSourceControlHistoryItemDetailsProvider][provideAvatar] Repository does not have a GitHub remote.`);
 			return undefined;
 		}
-
 
 		try {
 			const logs = { cached: 0, email: 0, github: 0, incomplete: 0 };
@@ -265,7 +267,7 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 		this._logger.trace(`[GitHubSourceControlHistoryItemDetailsProvider][_loadAssignableUsers] Querying assignable user(s) for ${descriptor.owner}/${descriptor.repo}.`);
 
 		try {
-			const graphql = await getOctokitGraphql();
+			const graphql = await this._octokitService.getOctokitGraphql();
 			const { repository } = await graphql<{ repository: GitHubRepository }>(ASSIGNABLE_USERS_QUERY, descriptor);
 
 			const users: GitHubUser[] = [];
@@ -295,7 +297,7 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 		this._logger.trace(`[GitHubSourceControlHistoryItemDetailsProvider][_getCommitAuthor] Querying commit author for ${descriptor.owner}/${descriptor.repo}/${commit}.`);
 
 		try {
-			const graphql = await getOctokitGraphql();
+			const graphql = await this._octokitService.getOctokitGraphql();
 			const { repository } = await graphql<{ repository: GitHubRepository }>(COMMIT_AUTHOR_QUERY, { ...descriptor, commit });
 
 			const commitAuthor = (repository.object as Commit).author;

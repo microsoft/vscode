@@ -16,7 +16,6 @@ import { parse, revive } from '../../../base/common/marshalling.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { Mimes } from '../../../base/common/mime.js';
 import { cloneAndChange } from '../../../base/common/objects.js';
-import { isWindows } from '../../../base/common/platform.js';
 import { IPrefixTreeNode, WellDefinedPrefixTree } from '../../../base/common/prefixTree.js';
 import { basename } from '../../../base/common/resources.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
@@ -41,7 +40,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
 import { IViewBadge } from '../../common/views.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
-import { IChatRequestVariableEntry, isImageVariableEntry } from '../../contrib/chat/common/chatModel.js';
+import { IChatRequestVariableEntry, isImageVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
 import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatPrepareToolInvocationPart, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
 import { IToolData, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
@@ -407,7 +406,7 @@ export namespace MarkdownString {
 		if (!part) {
 			return part;
 		}
-		let data: any;
+		let data: unknown;
 		try {
 			data = parse(part);
 		} catch (e) {
@@ -1115,6 +1114,18 @@ export namespace CompletionItemTag {
 		switch (kind) {
 			case languages.CompletionItemTag.Deprecated: return types.CompletionItemTag.Deprecated;
 		}
+	}
+}
+
+export namespace CompletionCommand {
+	export function from(c: vscode.Command | { command: vscode.Command; icon: vscode.ThemeIcon }, converter: CommandsConverter, disposables: DisposableStore): { command: extHostProtocol.ICommandDto; icon?: languages.IconPath } {
+		if ('icon' in c && 'command' in c) {
+			return {
+				command: converter.toInternal(c.command, disposables),
+				icon: IconPath.fromThemeIcon(c.icon)
+			};
+		}
+		return { command: converter.toInternal(c, disposables) };
 	}
 }
 
@@ -2922,8 +2933,19 @@ export namespace ChatResponsePart {
 
 export namespace ChatAgentRequest {
 	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], tools: Map<string, boolean>, extension: IRelaxedExtensionDescription, logService: ILogService): vscode.ChatRequest {
-		const toolReferences = request.variables.variables.filter(v => v.kind === 'tool');
-		const variableReferences = request.variables.variables.filter(v => v.kind !== 'tool');
+
+		const toolReferences: typeof request.variables.variables = [];
+		const variableReferences: typeof request.variables.variables = [];
+		for (const v of request.variables.variables) {
+			if (v.kind === 'tool') {
+				toolReferences.push(v);
+			} else if (v.kind === 'toolset') {
+				toolReferences.push(...v.value);
+			} else {
+				variableReferences.push(v);
+			}
+		}
+
 		const requestWithAllProps: vscode.ChatRequest = {
 			id: request.requestId,
 			prompt: request.message,
@@ -2943,6 +2965,7 @@ export namespace ChatAgentRequest {
 			tools,
 			model,
 			editedFileEvents: request.editedFileEvents,
+			modeInstructions: request.modeInstructions,
 		};
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
@@ -3176,7 +3199,7 @@ export namespace TerminalCompletionItemDto {
 }
 
 export namespace TerminalCompletionList {
-	export function from(completions: vscode.TerminalCompletionList | vscode.TerminalCompletionItem[]): extHostProtocol.TerminalCompletionListDto {
+	export function from(completions: vscode.TerminalCompletionList | vscode.TerminalCompletionItem[], pathSeparator: string): extHostProtocol.TerminalCompletionListDto {
 		if (Array.isArray(completions)) {
 			return {
 				items: completions.map(i => TerminalCompletionItemDto.from(i)),
@@ -3184,17 +3207,17 @@ export namespace TerminalCompletionList {
 		}
 		return {
 			items: completions.items.map(i => TerminalCompletionItemDto.from(i)),
-			resourceRequestConfig: completions.resourceRequestConfig ? TerminalResourceRequestConfig.from(completions.resourceRequestConfig) : undefined,
+			resourceRequestConfig: completions.resourceRequestConfig ? TerminalResourceRequestConfig.from(completions.resourceRequestConfig, pathSeparator) : undefined,
 		};
 	}
 }
 
 export namespace TerminalResourceRequestConfig {
-	export function from(resourceRequestConfig: vscode.TerminalResourceRequestConfig): extHostProtocol.TerminalResourceRequestConfigDto {
+	export function from(resourceRequestConfig: vscode.TerminalResourceRequestConfig, pathSeparator: string): extHostProtocol.TerminalResourceRequestConfigDto {
 		return {
 			...resourceRequestConfig,
-			pathSeparator: isWindows ? '\\' : '/',
-			cwd: resourceRequestConfig.cwd ? URI.revive(resourceRequestConfig.cwd) : undefined,
+			pathSeparator,
+			cwd: resourceRequestConfig.cwd,
 		};
 	}
 }
@@ -3406,7 +3429,7 @@ export namespace McpServerDefinition {
 				}
 				: {
 					type: McpServerTransportType.Stdio,
-					cwd: item.cwd,
+					cwd: item.cwd?.fsPath,
 					args: item.args,
 					command: item.command,
 					env: item.env,

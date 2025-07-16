@@ -53,7 +53,7 @@ export interface IDialogOptions {
 	readonly renderBody?: (container: HTMLElement) => void;
 	readonly renderFooter?: (container: HTMLElement) => void;
 	readonly icon?: ThemeIcon;
-	readonly buttonOptions?: Array<undefined | { sublabel?: string; extraClasses?: string[] }>;
+	readonly buttonOptions?: Array<undefined | { sublabel?: string; styleButton?: (button: IButton) => void }>;
 	readonly primaryButtonDropdown?: IButtonWithDropdownOptions;
 	readonly disableCloseAction?: boolean;
 	readonly disableCloseButton?: boolean;
@@ -277,7 +277,7 @@ export class Dialog extends Disposable {
 				});
 			};
 
-			// Handle button clicks
+			// Buttons
 			buttonMap.forEach((_, index) => {
 				const primary = buttonMap[index].index === 0;
 
@@ -304,8 +304,8 @@ export class Dialog extends Disposable {
 					button = this._register(buttonBar.addButton({ secondary: !primary, ...this.buttonStyles }));
 				}
 
-				if (buttonOptions?.extraClasses) {
-					button.element.classList.add(...buttonOptions.extraClasses);
+				if (buttonOptions?.styleButton) {
+					buttonOptions.styleButton(button);
 				}
 
 				button.label = mnemonicButtonLabel(buttonMap[index].label, true);

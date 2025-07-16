@@ -190,6 +190,16 @@ declare module 'vscode' {
 		terminalCommand?: string;
 	}
 
+	export interface LanguageModelToolInvocationPrepareOptions<T> {
+		/**
+		 * The input that the tool is being invoked with.
+		 */
+		input: T;
+		chatRequestId?: string;
+		chatSessionId?: string;
+		chatInteractionId?: string;
+	}
+
 	export interface PreparedToolInvocation {
 		pastTenseMessage?: string | MarkdownString;
 		presentation?: 'hidden' | undefined;
@@ -203,11 +213,13 @@ declare module 'vscode' {
 		readonly command: string;
 		readonly language: string;
 		readonly confirmationMessages?: LanguageModelToolConfirmationMessages;
+		readonly presentation?: 'hidden' | undefined;
 
 		constructor(
 			command: string,
 			language: string,
 			confirmationMessages?: LanguageModelToolConfirmationMessages,
+			presentation?: 'hidden'
 		);
 	}
 
@@ -237,6 +249,19 @@ declare module 'vscode' {
 		export function registerChatParticipantDetectionProvider(participantDetectionProvider: ChatParticipantDetectionProvider): Disposable;
 
 		export const onDidDisposeChatSession: Event<string>;
+	}
+
+	// #endregion
+
+	// #region ChatErrorDetailsWithConfirmation
+
+	export interface ChatErrorDetails {
+		confirmationButtons?: ChatErrorDetailsConfirmationButton[];
+	}
+
+	export interface ChatErrorDetailsConfirmationButton {
+		data: any;
+		label: string;
 	}
 
 	// #endregion

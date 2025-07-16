@@ -11,6 +11,7 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { Barrier } from '../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { mark } from '../../../../base/common/performance.js';
 import { isFirefox, isWeb } from '../../../../base/common/platform.js';
@@ -360,8 +361,10 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		if (!auxiliaryWindow && isWeb) {
 			return (await this.dialogService.prompt({
 				type: Severity.Warning,
-				message: localize('unableToOpenWindow', "The browser interrupted the opening of a new window. Press 'Retry' to try again."),
-				detail: localize('unableToOpenWindowDetail', "To avoid this problem in the future, please ensure to allow popups for this website."),
+				message: localize('unableToOpenWindow', "The browser blocked opening a new window. Press 'Retry' to try again."),
+				custom: {
+					markdownDetails: [{ markdown: new MarkdownString(localize('unableToOpenWindowDetail', "Please allow pop-ups for this website in your [browser settings]({0}).", 'https://aka.ms/allow-vscode-popup'), true) }]
+				},
 				buttons: [
 					{
 						label: localize({ key: 'retry', comment: ['&& denotes a mnemonic'] }, "&&Retry"),

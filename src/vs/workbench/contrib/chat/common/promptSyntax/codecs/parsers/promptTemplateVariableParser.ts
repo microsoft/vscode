@@ -5,10 +5,10 @@
 
 import { assert } from '../../../../../../../base/common/assert.js';
 import { PromptTemplateVariable } from '../tokens/promptTemplateVariable.js';
-import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.js';
-import { TSimpleDecoderToken } from '../../../../../../../editor/common/codecs/simpleCodec/simpleDecoder.js';
-import { DollarSign, LeftCurlyBrace, RightCurlyBrace } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
-import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../../../../../../editor/common/codecs/simpleCodec/parserBase.js';
+import { BaseToken } from '../base/baseToken.js';
+import { TSimpleDecoderToken } from '../base/simpleCodec/simpleDecoder.js';
+import { DollarSign, LeftCurlyBrace, RightCurlyBrace } from '../base/simpleCodec/tokens/tokens.js';
+import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../base/simpleCodec/parserBase.js';
 
 /**
  * Parsers of the `${variable}` token sequence in a prompt text.
