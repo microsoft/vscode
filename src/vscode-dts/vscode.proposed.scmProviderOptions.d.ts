@@ -27,4 +27,8 @@ declare module 'vscode' {
 		 */
 		contextValue?: string;
 	}
+
+	export namespace scm {
+		export function createSourceControl(id: string, label: string, rootUri?: Uri, parent?: SourceControl): SourceControl;
+	}
 }
