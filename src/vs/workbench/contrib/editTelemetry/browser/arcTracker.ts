@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { sumBy } from '../../../../base/common/arrays.js';
-import { AnnotatedStringEdit, BaseStringEdit, IEditData } from '../../../../editor/common/core/edits/stringEdit.js';
+import { AnnotatedStringEdit, BaseStringEdit, IEditData, StringEdit } from '../../../../editor/common/core/edits/stringEdit.js';
+import { AbstractText } from '../../../../editor/common/core/text/abstractText.js';
 
 /**
  * The ARC (accepted and retained characters) counts how many characters inserted by the initial suggestion (trackedEdit)
@@ -14,10 +15,10 @@ export class ArcTracker {
 	private _updatedTrackedEdit: AnnotatedStringEdit<IsTrackedEditData>;
 
 	constructor(
-		public readonly originalText: string,
+		public readonly valueBeforeTrackedEdit: AbstractText,
 		private readonly _trackedEdit: BaseStringEdit,
 	) {
-		const eNormalized = _trackedEdit.removeCommonSuffixPrefix(originalText);
+		const eNormalized = _trackedEdit.removeCommonSuffixPrefix(valueBeforeTrackedEdit.getValue());
 		this._updatedTrackedEdit = eNormalized.mapData(() => new IsTrackedEditData(true));
 	}
 
@@ -26,6 +27,10 @@ export class ArcTracker {
 		const composedEdit = this._updatedTrackedEdit.compose(e);
 		const onlyTrackedEdit = composedEdit.decomposeSplit(e => !e.data.isTrackedEdit).e2;
 		this._updatedTrackedEdit = onlyTrackedEdit;
+	}
+
+	getTrackedEdit(): StringEdit {
+		return this._updatedTrackedEdit.toStringEdit();
 	}
 
 	getAcceptedRestrainedCharactersCount(): number {
