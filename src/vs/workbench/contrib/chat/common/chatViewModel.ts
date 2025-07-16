@@ -175,10 +175,14 @@ export interface IChatErrorDetailsPart {
 	isLast: boolean;
 }
 
+export interface IChatChangesSummaryPart {
+	kind: 'changesSummary';
+}
+
 /**
  * Type for content parts rendered by IChatListRenderer (not necessarily in the model)
  */
-export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatWorkingProgress | IChatErrorDetailsPart;
+export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatWorkingProgress | IChatErrorDetailsPart | IChatChangesSummaryPart;
 
 export interface IChatLiveUpdateData {
 	totalTime: number;

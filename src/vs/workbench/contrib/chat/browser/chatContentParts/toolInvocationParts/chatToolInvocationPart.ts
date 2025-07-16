@@ -54,6 +54,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	) {
 		super();
 
+		//
 		this.domNode = dom.$('.chat-tool-invocation-part');
 		if (toolInvocation.presentation === 'hidden') {
 			return;
