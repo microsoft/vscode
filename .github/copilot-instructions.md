@@ -108,8 +108,9 @@ function f(x: number, y: string): void { }
 ### Code Quality
 
 - All files must include Microsoft copyright header
-- Prefer async/await over Promises, handle cancellation with `CancellationToken`
+- Prefer `async` and `await` over `Promise` and `then` calls
 - All user facing messages must be localized using the applicable localization framework (for example `nls.localize()` method)
 - Don't add tests to the wrong test suite (e.g., adding to end of file instead of inside relevant suite)
 - Look for existing test patterns before creating new structures
 - Use `describe` and `test` consistently with existing patterns
+- If you create any temporary new files, scripts, or helper files for iteration, clean up these files by removing them at the end of the task

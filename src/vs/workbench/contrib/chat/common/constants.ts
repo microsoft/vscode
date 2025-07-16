@@ -11,6 +11,7 @@ export enum ChatConfiguration {
 	EditRequests = 'chat.editRequests',
 	EnableMath = 'chat.math.enabled',
 	EnginePicker = 'chat.enginePicker',
+	CheckpointsEnabled = 'chat.checkpoints.enabled',
 }
 
 /**

@@ -37,15 +37,17 @@ const enum AddConfigurationType {
 
 	NpmPackage,
 	PipPackage,
+	NuGetPackage,
 	DockerImage,
 }
 
-type AssistedConfigurationType = AddConfigurationType.NpmPackage | AddConfigurationType.PipPackage | AddConfigurationType.DockerImage;
+type AssistedConfigurationType = AddConfigurationType.NpmPackage | AddConfigurationType.PipPackage | AddConfigurationType.NuGetPackage | AddConfigurationType.DockerImage;
 
 const assistedTypes = {
 	[AddConfigurationType.NpmPackage]: {
 		title: localize('mcp.npm.title', "Enter NPM Package Name"),
-		placeholder: localize('mcp.npm.placeholder', "Package name (e.g., @org/package)"), pickLabel: localize('mcp.serverType.npm', "NPM Package"),
+		placeholder: localize('mcp.npm.placeholder', "Package name (e.g., @org/package)"),
+		pickLabel: localize('mcp.serverType.npm', "NPM Package"),
 		pickDescription: localize('mcp.serverType.npm.description', "Install from an NPM package name")
 	},
 	[AddConfigurationType.PipPackage]: {
@@ -53,6 +55,12 @@ const assistedTypes = {
 		placeholder: localize('mcp.pip.placeholder', "Package name (e.g., package-name)"),
 		pickLabel: localize('mcp.serverType.pip', "Pip Package"),
 		pickDescription: localize('mcp.serverType.pip.description', "Install from a Pip package name")
+	},
+	[AddConfigurationType.NuGetPackage]: {
+		title: localize('mcp.nuget.title', "Enter NuGet Package Name"),
+		placeholder: localize('mcp.nuget.placeholder', "Package name (e.g., Package.Name)"),
+		pickLabel: localize('mcp.serverType.nuget', "NuGet Package"),
+		pickDescription: localize('mcp.serverType.nuget.description', "Install from a NuGet package name")
 	},
 	[AddConfigurationType.DockerImage]: {
 		title: localize('mcp.docker.title', "Enter Docker Image Name"),
@@ -387,6 +395,7 @@ export class McpAddConfigurationCommand {
 				break;
 			case AddConfigurationType.NpmPackage:
 			case AddConfigurationType.PipPackage:
+			case AddConfigurationType.NuGetPackage:
 			case AddConfigurationType.DockerImage: {
 				const r = await this.getAssistedConfig(serverType);
 				config = r?.server ? { ...r.server, type: McpServerType.LOCAL } : undefined;
@@ -491,6 +500,8 @@ export class McpAddConfigurationCommand {
 				return 'npm';
 			case AddConfigurationType.PipPackage:
 				return 'pip';
+			case AddConfigurationType.NuGetPackage:
+				return 'nuget';
 			case AddConfigurationType.DockerImage:
 				return 'docker';
 			case AddConfigurationType.Stdio:
