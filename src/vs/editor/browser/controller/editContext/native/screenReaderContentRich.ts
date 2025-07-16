@@ -8,11 +8,9 @@ import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { EditorFontLigatures, EditorOption, FindComputedEditorOptionValueById, IComputedEditorOptions } from '../../../../common/config/editorOptions.js';
-import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { StringBuilder } from '../../../../common/core/stringBuilder.js';
-import { EndOfLinePreference } from '../../../../common/model.js';
 import { LineDecoration } from '../../../../common/viewLayout/lineDecorations.js';
 import { CharacterMapping, RenderLineInput, renderViewLine } from '../../../../common/viewLayout/viewLineRenderer.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
@@ -206,6 +204,8 @@ export class RichScreenReaderContent extends Disposable implements IScreenReader
 			renderControlCharacters,
 			useFontLigatures,
 			null,
+			null,
+			0,
 			true
 		);
 		const htmlBuilder = new StringBuilder(10000);
@@ -262,24 +262,7 @@ export class RichScreenReaderContent extends Disposable implements IScreenReader
 	}
 
 	private _getScreenReaderContentLineIntervals(primarySelection: Selection): RichScreenReaderState {
-		const simpleModel: ISimpleModel = {
-			getLineCount: (): number => {
-				return this._context.viewModel.getLineCount();
-			},
-			getLineMaxColumn: (lineNumber: number): number => {
-				return this._context.viewModel.getLineMaxColumn(lineNumber);
-			},
-			getValueInRange: (range: Range, eol: EndOfLinePreference): string => {
-				return this._context.viewModel.getValueInRange(range, eol);
-			},
-			getValueLengthInRange: (range: Range, eol: EndOfLinePreference): number => {
-				return this._context.viewModel.getValueLengthInRange(range, eol);
-			},
-			modifyPosition: (position: Position, offset: number): Position => {
-				return this._context.viewModel.modifyPosition(position, offset);
-			}
-		};
-		return this._strategy.fromEditorSelection(simpleModel, primarySelection, this._accessibilityPageSize);
+		return this._strategy.fromEditorSelection(this._context.viewModel, primarySelection, this._accessibilityPageSize);
 	}
 
 	private _getEditorSelectionFromDomRange(): Selection | undefined {

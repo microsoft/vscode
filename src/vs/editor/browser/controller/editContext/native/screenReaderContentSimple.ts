@@ -7,12 +7,10 @@ import { addDisposableListener, getActiveWindow } from '../../../../../base/brow
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { AccessibilitySupport, IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { EditorOption, IComputedEditorOptions } from '../../../../common/config/editorOptions.js';
-import { EndOfLinePreference, EndOfLineSequence } from '../../../../common/model.js';
+import { EndOfLineSequence } from '../../../../common/model.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
-import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
-import { Position } from '../../../../common/core/position.js';
-import { ISimpleModel, SimplePagedScreenReaderStrategy, ISimpleScreenReaderContentState } from '../screenReaderUtils.js';
+import { SimplePagedScreenReaderStrategy, ISimpleScreenReaderContentState } from '../screenReaderUtils.js';
 import { PositionOffsetTransformer } from '../../../../common/core/text/positionToOffset.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IME } from '../../../../../base/common/ime.js';
@@ -160,25 +158,8 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 	}
 
 	private _getScreenReaderContentState(primarySelection: Selection): ISimpleScreenReaderContentState {
-		const simpleModel: ISimpleModel = {
-			getLineCount: (): number => {
-				return this._context.viewModel.getLineCount();
-			},
-			getLineMaxColumn: (lineNumber: number): number => {
-				return this._context.viewModel.getLineMaxColumn(lineNumber);
-			},
-			getValueInRange: (range: Range, eol: EndOfLinePreference): string => {
-				return this._context.viewModel.getValueInRange(range, eol);
-			},
-			getValueLengthInRange: (range: Range, eol: EndOfLinePreference): number => {
-				return this._context.viewModel.getValueLengthInRange(range, eol);
-			},
-			modifyPosition: (position: Position, offset: number): Position => {
-				return this._context.viewModel.modifyPosition(position, offset);
-			}
-		};
 		const state = this._strategy.fromEditorSelection(
-			simpleModel,
+			this._context.viewModel,
 			primarySelection,
 			this._accessibilityPageSize,
 			this._accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Unknown
