@@ -138,7 +138,21 @@ function buildDebPackage(arch) {
  * @param {string} elVersion
  */
 function getRpmBuildPath(rpmArch, elVersion) {
+	if (elVersion === 'el8') {
+		return `.build/linux/rpm/${rpmArch}/rpmbuild`;
+	}
 	return `.build/linux/rpm-${elVersion}/${rpmArch}/rpmbuild`;
+}
+
+/**
+ * @param {string} rpmArch
+ * @param {string} elVersion
+ */
+function getRpmDestinationPath(rpmArch, elVersion) {
+	if (elVersion === 'el8') {
+		return `.build/linux/rpm/${rpmArch}`;
+	}
+	return `.build/linux/rpm-${elVersion}/${rpmArch}`;
 }
 
 /**
@@ -230,7 +244,7 @@ function buildRpmPackage(arch, elVersion) {
 	const rpmArch = getRpmPackageArch(arch);
 	const rpmBuildPath = getRpmBuildPath(rpmArch, elVersion);
 	const rpmOut = `${rpmBuildPath}/RPMS/${rpmArch}`;
-	const destination = `.build/linux/rpm-${elVersion}/${rpmArch}`;
+	const destination = getRpmDestinationPath(rpmArch, elVersion);
 
 	return async () => {
 		await exec(`mkdir -p ${destination}`);
