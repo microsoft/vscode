@@ -215,16 +215,22 @@ class McpHTTPHandle extends Disposable {
 
 	async send(message: string) {
 		try {
-			await this._requestSequencer.queue(() => {
-				if (this._mode.value === HttpMode.SSE) {
-					return this._sendLegacySSE(this._mode.endpoint, message);
-				} else {
-					return this._sendStreamableHttp(message, this._mode.value === HttpMode.Http ? this._mode.sessionId : undefined);
-				}
-			});
+			if (this._mode.value === HttpMode.Unknown) {
+				await this._requestSequencer.queue(() => this._send(message));
+			} else {
+				await this._send(message);
+			}
 		} catch (err) {
 			const msg = `Error sending message to ${this._launch.uri}: ${String(err)}`;
 			this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: msg });
+		}
+	}
+
+	_send(message: string) {
+		if (this._mode.value === HttpMode.SSE) {
+			return this._sendLegacySSE(this._mode.endpoint, message);
+		} else {
+			return this._sendStreamableHttp(message, this._mode.value === HttpMode.Http ? this._mode.sessionId : undefined);
 		}
 	}
 
@@ -297,8 +303,7 @@ class McpHTTPHandle extends Disposable {
 			this._attachStreamableBackchannel();
 		}
 
-		// Not awaited, we don't need to block the sequencer while we read the response
-		this._handleSuccessfulStreamableHttp(res, message);
+		await this._handleSuccessfulStreamableHttp(res, message);
 	}
 
 	private async _sseFallbackWithMessage(message: string) {

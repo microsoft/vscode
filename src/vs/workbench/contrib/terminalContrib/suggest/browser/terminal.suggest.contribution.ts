@@ -8,7 +8,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { AutoOpenBarrier } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
 import { isLinux, isWindows } from '../../../../../base/common/platform.js';
 import { localize2 } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -21,7 +21,7 @@ import { registerActiveInstanceAction, registerTerminalAction } from '../../../t
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { TerminalSuggestCommandId } from '../common/terminal.suggest.js';
-import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
+import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration, registerTerminalSuggestProvidersConfiguration } from '../common/terminalSuggestConfiguration.js';
 import { ITerminalCompletionService, TerminalCompletionService } from './terminalCompletionService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { SuggestAddon } from './terminalSuggestAddon.js';
@@ -94,6 +94,9 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 				}
 			}
 		}));
+
+		// Initialize the dynamic providers configuration manager
+		TerminalSuggestProvidersConfigurationManager.initialize(this._instantiationService);
 	}
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
@@ -486,5 +489,36 @@ registerActiveInstanceAction({
 		activeInstance.sendText('\u001b[A', false); // Up arrow
 	}
 });
+
+// #endregion
+
+// #region Dynamic Providers Configuration
+
+class TerminalSuggestProvidersConfigurationManager extends Disposable {
+	private static _instance: TerminalSuggestProvidersConfigurationManager | undefined;
+
+	static initialize(instantiationService: IInstantiationService): void {
+		if (!this._instance) {
+			this._instance = instantiationService.createInstance(TerminalSuggestProvidersConfigurationManager);
+		}
+	}
+
+	constructor(
+		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService
+	) {
+		super();
+		this._register(this._terminalCompletionService.onDidChangeProviders(() => {
+			this._updateConfiguration();
+		}));
+		// Initial configuration
+		this._updateConfiguration();
+	}
+
+	private _updateConfiguration(): void {
+		const providers = Array.from(this._terminalCompletionService.providers);
+		const providerIds = providers.map(p => p.id).filter((id): id is string => typeof id === 'string');
+		registerTerminalSuggestProvidersConfiguration(providerIds);
+	}
+}
 
 // #endregion

@@ -208,8 +208,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					metadata: revive(metadata),
 					slashCommands: [],
 					disambiguation: [],
-					locations: [ChatAgentLocation.Panel], // TODO all dynamic participants are panel only?
-					modes: [ChatModeKind.Ask]
+					locations: [ChatAgentLocation.Panel],
+					modes: [ChatModeKind.Ask, ChatModeKind.Agent, ChatModeKind.Edit],
 				},
 				impl);
 		} else {

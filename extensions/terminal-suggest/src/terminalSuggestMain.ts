@@ -46,7 +46,7 @@ type ShellGlobalsCacheEntryWithMeta = ShellGlobalsCacheEntry & { timestamp: numb
 const cachedGlobals: Map<string, ShellGlobalsCacheEntryWithMeta> = new Map();
 let pathExecutableCache: PathExecutableCache;
 const CACHE_KEY = 'terminalSuggestGlobalsCacheV2';
-let globalStorage: vscode.Memento;
+let globalStorageUri: vscode.Uri;
 const CACHE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
 
 function getCacheKey(machineId: string, remoteAuthority: string | undefined, shellType: TerminalShellType): string {
@@ -150,7 +150,7 @@ async function fetchAndCacheShellGlobals(
 
 
 async function writeGlobalsCache(): Promise<void> {
-	if (!globalStorage) {
+	if (!globalStorageUri) {
 		return;
 	}
 	// Remove old entries
@@ -165,7 +165,12 @@ async function writeGlobalsCache(): Promise<void> {
 		obj[key] = value;
 	}
 	try {
-		await globalStorage.update(CACHE_KEY, obj);
+		// Ensure the directory exists
+		const terminalSuggestDir = vscode.Uri.joinPath(globalStorageUri, 'terminal-suggest');
+		await vscode.workspace.fs.createDirectory(terminalSuggestDir);
+		const cacheFile = vscode.Uri.joinPath(terminalSuggestDir, `${CACHE_KEY}.json`);
+		const data = Buffer.from(JSON.stringify(obj), 'utf8');
+		await vscode.workspace.fs.writeFile(cacheFile, data);
 	} catch (err) {
 		console.error('Failed to write terminal suggest globals cache:', err);
 	}
@@ -173,17 +178,27 @@ async function writeGlobalsCache(): Promise<void> {
 
 
 async function readGlobalsCache(): Promise<void> {
-	if (!globalStorage) {
+	if (!globalStorageUri) {
 		return;
 	}
 	try {
-		const obj = globalStorage.get<Record<string, ShellGlobalsCacheEntryWithMeta>>(CACHE_KEY);
+		const terminalSuggestDir = vscode.Uri.joinPath(globalStorageUri, 'terminal-suggest');
+		const cacheFile = vscode.Uri.joinPath(terminalSuggestDir, `${CACHE_KEY}.json`);
+		const data = await vscode.workspace.fs.readFile(cacheFile);
+		const obj = JSON.parse(data.toString()) as Record<string, ShellGlobalsCacheEntryWithMeta>;
 		if (obj) {
 			for (const key of Object.keys(obj)) {
 				cachedGlobals.set(key, obj[key]);
 			}
 		}
-	} catch { }
+	} catch (err) {
+		// File might not exist yet, which is expected on first run
+		if (err instanceof vscode.FileSystemError && err.code === 'FileNotFound') {
+			// This is expected on first run
+			return;
+		}
+		console.error('Failed to read terminal suggest globals cache:', err);
+	}
 }
 
 
@@ -193,7 +208,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(pathExecutableCache);
 	let currentTerminalEnv: ITerminalEnvironment = process.env;
 
-	globalStorage = context.globalState;
+	globalStorageUri = context.globalStorageUri;
 	await readGlobalsCache();
 
 	// Get a machineId for this install (persisted per machine, not synced)

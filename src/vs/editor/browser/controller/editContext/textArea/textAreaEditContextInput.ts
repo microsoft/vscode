@@ -342,7 +342,15 @@ export class TextAreaInput extends Disposable {
 				|| typeInput.replaceNextCharCnt !== 0
 				|| typeInput.positionDelta !== 0
 			) {
-				this._onType.fire(typeInput);
+				// https://w3c.github.io/input-events/#interface-InputEvent-Attributes
+				if (e.inputType === 'insertFromPaste') {
+					this._onPaste.fire({
+						text: typeInput.text,
+						metadata: InMemoryClipboardMetadataManager.INSTANCE.get(typeInput.text)
+					});
+				} else {
+					this._onType.fire(typeInput);
+				}
 			}
 		}));
 

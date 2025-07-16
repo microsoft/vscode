@@ -594,7 +594,7 @@ export class StartFindWithArgsAction extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor, args?: IFindStartArguments): Promise<void> {
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor, args?: IFindStartArguments): Promise<void> {
 		const controller = CommonFindController.get(editor);
 		if (controller) {
 			const newState: INewFindReplaceState = args ? {
@@ -645,7 +645,7 @@ export class StartFindWithSelectionAction extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const controller = CommonFindController.get(editor);
 		if (controller) {
 			await controller.start({
@@ -664,7 +664,7 @@ export class StartFindWithSelectionAction extends EditorAction {
 	}
 }
 export abstract class MatchFindAction extends EditorAction {
-	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const controller = CommonFindController.get(editor);
 		if (controller && !this._run(controller)) {
 			await controller.start({
@@ -860,7 +860,7 @@ export class MoveToMatchFindAction extends EditorAction {
 }
 
 export abstract class SelectionMatchFindAction extends EditorAction {
-	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const controller = CommonFindController.get(editor);
 		if (!controller) {
 			return;

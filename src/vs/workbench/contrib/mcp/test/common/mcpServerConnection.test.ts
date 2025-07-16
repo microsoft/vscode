@@ -21,6 +21,7 @@ import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { Event } from '../../../../../base/common/event.js';
 
 class TestMcpHostDelegate extends Disposable implements IMcpHostDelegate {
 	private readonly _transport: TestMcpMessageTransport;
@@ -288,6 +289,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 			delegate,
 			serverDefinition.launch,
 			{
+				onDidChangeLogLevel: Event.None,
 				getLevel: () => LogLevel.Debug,
 				info: (message: string) => {
 					loggedMessages.push(message);

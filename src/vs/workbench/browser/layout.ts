@@ -2094,7 +2094,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return (
 			this.getPanelAlignment() === 'center' || 	// the workbench grid currently prevents us from supporting panel
 			!isHorizontal(this.getPanelPosition())		// maximization with non-center panel alignment
-		) && this.isVisible(Parts.PANEL_PART, mainWindow) && !this.isVisible(Parts.EDITOR_PART, mainWindow);
+		) && !this.isVisible(Parts.EDITOR_PART, mainWindow) && !this.isAuxiliaryBarMaximized();
 	}
 
 	toggleMaximizedPanel(): void {

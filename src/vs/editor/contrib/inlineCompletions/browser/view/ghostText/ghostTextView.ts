@@ -617,7 +617,9 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 			renderWhitespace,
 			renderControlCharacters,
 			fontLigatures !== EditorFontLigatures.OFF,
-			null
+			null,
+			null,
+			0
 		), sb);
 
 		sb.appendString('</div>');

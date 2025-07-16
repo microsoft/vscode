@@ -14,6 +14,7 @@ import { localize } from '../../../../nls.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { mcpEnabledConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { observableMemento } from '../../../../platform/observable/common/observableMemento.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
@@ -23,7 +24,6 @@ import { IWorkspaceFolderData } from '../../../../platform/workspace/common/work
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression, IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
-import { mcpEnabledSection } from './mcpConfiguration.js';
 import { IMcpDevModeDebugging } from './mcpDevMode.js';
 import { McpRegistryInputStorage } from './mcpRegistryInputStorage.js';
 import { IMcpHostDelegate, IMcpRegistry, IMcpResolveConnectionOptions } from './mcpRegistryTypes.js';
@@ -86,7 +86,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
-		this._enabled = observableConfigValue(mcpEnabledSection, true, configurationService);
+		this._enabled = observableConfigValue(mcpEnabledConfig, true, configurationService);
 	}
 
 	public registerDelegate(delegate: IMcpHostDelegate): IDisposable {

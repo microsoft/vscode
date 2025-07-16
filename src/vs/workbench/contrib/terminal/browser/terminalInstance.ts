@@ -141,6 +141,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 * before xterm.js could be created.
 	 */
 	private _xtermReadyPromise: Promise<XtermTerminal | undefined>;
+	get xtermReadyPromise(): Promise<XtermTerminal | undefined> { return this._xtermReadyPromise; }
 
 	private _pressAnyKeyToCloseListener: IDisposable | undefined;
 	private _instanceId: number;

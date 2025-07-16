@@ -155,10 +155,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		}
 
 		const switchToModeInput = opts?.mode ?? this.mode;
-		let switchToMode = switchToModeInput && (chatModeService.findModeById(switchToModeInput) ?? chatModeService.findModeByName(switchToModeInput));
-		if (!switchToMode) {
-			switchToMode = opts?.query?.startsWith('@') ? ChatMode.Ask : undefined;
-		}
+		const switchToMode = switchToModeInput && (chatModeService.findModeById(switchToModeInput) ?? chatModeService.findModeByName(switchToModeInput));
 		if (switchToMode) {
 			await this.handleSwitchToMode(switchToMode, chatWidget, instaService, commandService);
 		}

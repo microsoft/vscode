@@ -26,7 +26,7 @@ registerEditorCommand(new class extends EditorCommand {
 		});
 	}
 
-	public override runEditorCommand(_accessor: ServicesAccessor | null, editor: ICodeEditor, _args: any) {
+	public override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, _args: any) {
 		DropIntoEditorController.get(editor)?.changeDropType();
 	}
 });
@@ -43,7 +43,7 @@ registerEditorCommand(new class extends EditorCommand {
 		});
 	}
 
-	public override runEditorCommand(_accessor: ServicesAccessor | null, editor: ICodeEditor, _args: any) {
+	public override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, _args: any) {
 		DropIntoEditorController.get(editor)?.clearWidgets();
 	}
 });

@@ -34,8 +34,9 @@ import * as search from '../../contrib/search/common/search.js';
 import * as typeh from '../../contrib/typeHierarchy/common/typeHierarchy.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol.js';
-import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { InlineCompletionEndOfLifeReasonKind } from '../common/extHostTypes.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { DataChannelForwardingTelemetryService } from '../../contrib/editTelemetry/browser/forwardingTelemetryService.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -49,7 +50,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -655,6 +656,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					timeUntilShown: lifetimeSummary.timeUntilShown,
 					editorType: lifetimeSummary.editorType,
 					viewKind: lifetimeSummary.viewKind,
+					preceeded: lifetimeSummary.preceeded,
 					requestReason: lifetimeSummary.requestReason,
 					error: lifetimeSummary.error,
 					typingInterval: lifetimeSummary.typingInterval,
@@ -676,7 +678,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 						: reason.kind === InlineCompletionEndOfLifeReasonKind.Rejected ? 'rejected'
 							: 'ignored'
 				};
-				this._telemetryService.publicLog2<InlineCompletionEndOfLifeEvent, InlineCompletionsEndOfLifeClassification>('inlineCompletion.endOfLife', endOfLifeSummary);
+
+				const telemetryService = this._instantiationService.createInstance(DataChannelForwardingTelemetryService);
+				telemetryService.publicLog2<InlineCompletionEndOfLifeEvent, InlineCompletionsEndOfLifeClassification>('inlineCompletion.endOfLife', endOfLifeSummary);
 			},
 			disposeInlineCompletions: (completions: IdentifiableInlineCompletions, reason: languages.InlineCompletionsDisposeReason): void => {
 				this._proxy.$freeInlineCompletionsList(handle, completions.pid, reason);
@@ -1308,6 +1312,7 @@ type InlineCompletionEndOfLifeEvent = {
 	timeUntilShown: number | undefined;
 	reason: 'accepted' | 'rejected' | 'ignored';
 	partiallyAccepted: number;
+	preceeded: boolean;
 	requestReason: string;
 	languageId: string;
 	error: string | undefined;
@@ -1338,6 +1343,7 @@ type InlineCompletionsEndOfLifeClassification = {
 	timeUntilShown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be shown after the request' };
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion ending' };
 	partiallyAccepted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How often the inline completion was partially accepted by the user' };
+	preceeded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was preceeded by another one' };
 	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language ID of the document where the inline completion was shown' };
 	requestReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion request' };
 	error: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The error message if the inline completion failed' };

@@ -25,17 +25,16 @@ import { getServiceMachineId } from '../../externalServices/common/serviceMachin
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { HEADER_EXECUTION_ID, HEADER_OPERATION_ID, IAuthenticationProvider, IResourceRefHandle, IUserData, IUserDataManifest, IUserDataSyncLatestData, IUserDataSyncLogService, IUserDataSyncStore, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, ServerResource, SYNC_SERVICE_URL_TYPE, UserDataSyncErrorCode, UserDataSyncStoreError, UserDataSyncStoreType } from './userDataSync.js';
 import { VSBufferReadableStream } from '../../../base/common/buffer.js';
-import { basename } from '../../../base/common/path.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 
 type IDownloadLatestDataType = {
 	resources?: {
-		[resourceId: string]: [IUserData & { url: string }];
+		[resourceId: string]: [IUserData];
 	};
 	collections?: {
 		[collectionId: string]: {
 			resources?: {
-				[resourceId: string]: [IUserData & { url: string }];
+				[resourceId: string]: [IUserData];
 			} | undefined;
 		};
 	};
@@ -504,7 +503,7 @@ export class UserDataSyncStoreClient extends Disposable {
 				const [resourceData] = serverData.resources[resource];
 				result.resources[resource] = {
 					content: resourceData.content,
-					ref: basename(resourceData.url)
+					ref: resourceData.ref
 				};
 			}
 		}
@@ -518,7 +517,7 @@ export class UserDataSyncStoreClient extends Disposable {
 					const [resourceData] = serverData.collections[collection].resources[resource];
 					resources[resource] = {
 						content: resourceData.content,
-						ref: basename(resourceData.url)
+						ref: resourceData.ref
 					};
 				}
 			}

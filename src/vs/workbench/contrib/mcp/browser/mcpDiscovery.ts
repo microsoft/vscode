@@ -7,10 +7,10 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { autorun } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { mcpEnabledConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { mcpDiscoveryRegistry } from '../common/discovery/mcpDiscovery.js';
-import { mcpEnabledSection } from '../common/mcpConfiguration.js';
 
 export class McpDiscovery extends Disposable implements IWorkbenchContribution {
 	public static readonly ID = 'workbench.contrib.mcp.discovery';
@@ -21,7 +21,7 @@ export class McpDiscovery extends Disposable implements IWorkbenchContribution {
 	) {
 		super();
 
-		const enabled = observableConfigValue(mcpEnabledSection, true, configurationService);
+		const enabled = observableConfigValue(mcpEnabledConfig, true, configurationService);
 		const store = this._register(new DisposableStore());
 
 		this._register(autorun(reader => {

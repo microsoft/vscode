@@ -50,9 +50,8 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 			return;
 		}
 
-		this._updateListener();
-
 		if (this._enabled) {
+			this._updateListener();
 			this._createNotebookOverlay();
 			this._createCellOverlays();
 		}

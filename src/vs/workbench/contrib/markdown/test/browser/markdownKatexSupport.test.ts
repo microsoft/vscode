@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { getWindow } from '../../../../../base/browser/dom.js';
+import { basicMarkupHtmlTags, defaultAllowedAttrs } from '../../../../../base/browser/domSanitize.js';
 import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
@@ -16,9 +17,13 @@ suite('Markdown Katex Support Test', () => {
 	async function renderMarkdownWithKatex(str: string) {
 		const katex = await MarkedKatexSupport.loadExtension(getWindow(document), {});
 		const rendered = store.add(renderMarkdown(new MarkdownString(str), {
-			sanitizerOptions: MarkedKatexSupport.getSanitizerOptions()
-		}, {
-			markedExtensions: [katex],
+			sanitizerOptions: MarkedKatexSupport.getSanitizerOptions({
+				allowedTags: basicMarkupHtmlTags,
+				allowedAttributes: defaultAllowedAttrs,
+			}),
+			markedOptions: {
+				markedExtensions: [katex],
+			}
 		}));
 		return rendered;
 	}

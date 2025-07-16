@@ -21,15 +21,15 @@ import { WorkbenchPagedList } from '../../../../platform/list/browser/listServic
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { getLocationBasedViewColors, ViewPane } from '../../../browser/parts/views/viewPane.js';
+import { getLocationBasedViewColors } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
-import { IViewDescriptorService, IViewsRegistry, Extensions as ViewExtensions } from '../../../common/views.js';
+import { IViewDescriptorService, IViewsRegistry, ViewContainerLocation, Extensions as ViewExtensions } from '../../../common/views.js';
 import { HasInstalledMcpServersContext, IMcpWorkbenchService, InstalledMcpServersViewId, IWorkbenchMcpServer, McpServerContainers, mcpServerIcon, McpServerInstallState } from '../common/mcpTypes.js';
-import { DropDownAction, InstallAction, InstallingLabelAction, ManageMcpServerAction } from './mcpServerActions.js';
-import { PublisherWidget, InstallCountWidget, RatingsWidget, McpServerIconWidget } from './mcpServerWidgets.js';
+import { DropDownAction, InstallAction, InstallingLabelAction, ManageMcpServerAction, McpServerStatusAction } from './mcpServerActions.js';
+import { PublisherWidget, InstallCountWidget, RatingsWidget, McpServerIconWidget, McpServerHoverWidget } from './mcpServerWidgets.js';
 import { ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IMcpGalleryService } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IAllowedMcpServersService, IMcpGalleryService } from '../../../../platform/mcp/common/mcpManagement.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -43,6 +43,10 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { AbstractExtensionsListView } from '../../extensions/browser/extensionsViews.js';
+import { ExtensionListRendererOptions } from '../../extensions/browser/extensionsList.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 
 export interface McpServerListViewOptions {
 	showWelcomeOnEmpty?: boolean;
@@ -55,7 +59,7 @@ interface IQueryResult {
 	onDidChangeModel?: Event<IPagedModel<IWorkbenchMcpServer>>;
 }
 
-export class McpServersListView extends ViewPane {
+export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcpServer> {
 
 	private list: WorkbenchPagedList<IWorkbenchMcpServer> | null = null;
 	private listContainer: HTMLElement | null = null;
@@ -78,6 +82,7 @@ export class McpServersListView extends ViewPane {
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@IMcpGalleryService private readonly mcpGalleryService: IMcpGalleryService,
 		@IProductService private readonly productService: IProductService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 	}
@@ -97,7 +102,20 @@ export class McpServersListView extends ViewPane {
 				getHeight() { return 72; },
 				getTemplateId: () => McpServerRenderer.templateId,
 			},
-			[this.instantiationService.createInstance(McpServerRenderer)],
+			[this.instantiationService.createInstance(McpServerRenderer, {
+				hoverOptions: {
+					position: () => {
+						const viewLocation = this.viewDescriptorService.getViewLocationById(this.id);
+						if (viewLocation === ViewContainerLocation.Sidebar) {
+							return this.layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT;
+						}
+						if (viewLocation === ViewContainerLocation.AuxiliaryBar) {
+							return this.layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.LEFT : HoverPosition.RIGHT;
+						}
+						return HoverPosition.RIGHT;
+					}
+				}
+			})],
 			{
 				multipleSelectionSupport: false,
 				setRowLineHeight: false,
@@ -300,6 +318,8 @@ class McpServerRenderer implements IListRenderer<IWorkbenchMcpServer, IMcpServer
 	readonly templateId = McpServerRenderer.templateId;
 
 	constructor(
+		private readonly options: ExtensionListRendererOptions,
+		@IAllowedMcpServersService private readonly allowedMcpServersService: IAllowedMcpServersService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) { }
@@ -329,11 +349,13 @@ class McpServerRenderer implements IListRenderer<IWorkbenchMcpServer, IMcpServer
 
 		actionbar.setFocusable(false);
 		const actionBarListener = actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
+		const mcpServerStatusAction = this.instantiationService.createInstance(McpServerStatusAction);
 
 		const actions = [
 			this.instantiationService.createInstance(InstallAction, false),
 			this.instantiationService.createInstance(InstallingLabelAction),
 			this.instantiationService.createInstance(ManageMcpServerAction, false),
+			mcpServerStatusAction
 		];
 
 		const widgets = [
@@ -341,6 +363,7 @@ class McpServerRenderer implements IListRenderer<IWorkbenchMcpServer, IMcpServer
 			publisherWidget,
 			this.instantiationService.createInstance(InstallCountWidget, installCount, true),
 			this.instantiationService.createInstance(RatingsWidget, ratings, true),
+			this.instantiationService.createInstance(McpServerHoverWidget, { target: root, position: this.options.hoverOptions.position }, mcpServerStatusAction)
 		];
 		const extensionContainers: McpServerContainers = this.instantiationService.createInstance(McpServerContainers, [...actions, ...widgets]);
 
@@ -366,6 +389,13 @@ class McpServerRenderer implements IListRenderer<IWorkbenchMcpServer, IMcpServer
 		data.installCount.style.display = '';
 		data.ratings.style.display = '';
 		data.mcpServer = mcpServer;
+
+		const updateEnablement = () => {
+			const disabled = mcpServer.installState === McpServerInstallState.Installed && !!mcpServer.local && this.allowedMcpServersService.isAllowed(mcpServer.local) !== true;
+			data.root.classList.toggle('disabled', disabled);
+		};
+		updateEnablement();
+		this.allowedMcpServersService.onDidChangeAllowedMcpServers(() => updateEnablement(), this, data.mcpServerDisposables);
 	}
 
 	disposeElement(mcpServer: IWorkbenchMcpServer, index: number, data: IMcpServerTemplateData): void {

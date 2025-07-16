@@ -774,7 +774,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	toggleAiSearch(): void {
-		if (this.showAiResultsAction) {
+		if (this.searchInputActionBar && this.showAiResultsAction && this.searchInputActionBar.hasAction(this.showAiResultsAction)) {
 			if (!this.showAiResultsAction.enabled) {
 				aria.status(localize('noAiResults', "No AI results available at this time."));
 			}
@@ -1824,23 +1824,27 @@ export class SettingsEditor2 extends EditorPane {
 				return;
 			}
 
-			// Kick off an AI search in the background. We purposely do not await it.
 			if (this.aiSearchPromise) {
 				this.aiSearchPromise.cancel();
 			}
-			this.aiSearchPromise = createCancelablePromise(token => {
-				return this.doAiSearch(query, token).then((results) => {
-					if (results && this.showAiResultsAction) {
-						this.showAiResultsAction.enabled = true;
-						this.showAiResultsAction.label = SHOW_AI_RESULTS_ENABLED_LABEL;
-						this.renderResultCountMessages(true);
-					}
-				}).catch(e => {
-					if (!isCancellationError(e)) {
-						this.logService.trace('Error during AI settings search:', e);
-					}
+
+			// Kick off an AI search in the background if the toggle is shown.
+			// We purposely do not await it.
+			if (this.searchInputActionBar && this.showAiResultsAction && this.searchInputActionBar.hasAction(this.showAiResultsAction)) {
+				this.aiSearchPromise = createCancelablePromise(token => {
+					return this.doAiSearch(query, token).then((results) => {
+						if (results && this.showAiResultsAction) {
+							this.showAiResultsAction.enabled = true;
+							this.showAiResultsAction.label = SHOW_AI_RESULTS_ENABLED_LABEL;
+							this.renderResultCountMessages(true);
+						}
+					}).catch(e => {
+						if (!isCancellationError(e)) {
+							this.logService.trace('Error during AI settings search:', e);
+						}
+					});
 				});
-			});
+			}
 
 			this.onDidFinishSearch(expandResults, progressRunner);
 		});

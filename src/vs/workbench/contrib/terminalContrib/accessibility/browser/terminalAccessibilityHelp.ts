@@ -70,8 +70,11 @@ export class TerminalAccessibilityHelpProvider extends Disposable implements IAc
 
 		if (this._configurationService.getValue(TerminalSuggestSettingId.Enabled)) {
 			content.push(localize('suggestTrigger', 'The terminal request completions command can be invoked manually<keybinding:{0}>, but also appears while typing.', TerminalSuggestCommandId.RequestCompletions));
-			content.push(localize('suggestCommands', 'When the terminal suggest widget is focused, accept the suggestion<keybinding:{0}> and configure suggest settings<keybinding:{1}>.', TerminalSuggestCommandId.AcceptSelectedSuggestion, TerminalSuggestCommandId.ConfigureSettings));
-			content.push(localize('suggestCommandsMore', 'Also, when the suggest widget is focused, toggle between the widget and terminal<keybinding:{0}> and toggle details focus<keybinding:{1}> to learn more about the suggestion.', TerminalSuggestCommandId.ToggleDetails, TerminalSuggestCommandId.ToggleDetailsFocus));
+			content.push(localize('suggest', 'When the terminal suggest widget is focused:'));
+			content.push(localize('suggestCommands', '- Accept the suggestion<keybinding:{0}> and configure suggest settings<keybinding:{1}>.', TerminalSuggestCommandId.AcceptSelectedSuggestion, TerminalSuggestCommandId.ConfigureSettings));
+			content.push(localize('suggestCommandsMore', '- Toggle between the widget and terminal<keybinding:{0}> and toggle details focus<keybinding:{1}> to learn more about the suggestion.', TerminalSuggestCommandId.ToggleDetails, TerminalSuggestCommandId.ToggleDetailsFocus));
+			content.push(localize('suggestLearnMore', '- Learn more about the suggestion<keybinding:{0}>.', TerminalSuggestCommandId.LearnMore));
+			content.push(localize('suggestConfigure', '-Configure suggest settings<keybinding:{0}> ', TerminalSuggestCommandId.ConfigureSettings));
 		}
 
 		if (this._instance.shellType === WindowsShellType.CommandPrompt) {

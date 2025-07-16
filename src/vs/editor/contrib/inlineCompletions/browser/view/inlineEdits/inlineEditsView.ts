@@ -446,15 +446,16 @@ export class InlineEditsView extends Disposable {
 		}));
 
 		const cursorPosition = inlineEdit.cursorPosition;
+		const startsWithEOL = stringChanges[0].modified.startsWith(textModel.getEOL());
 		const viewData: InlineCompletionViewData = {
 			cursorColumnDistance: inlineEdit.edit.replacements[0].range.getStartPosition().column - cursorPosition.column,
-			cursorLineDistance: inlineEdit.lineEdit.lineRange.startLineNumber - cursorPosition.lineNumber,
+			cursorLineDistance: inlineEdit.lineEdit.lineRange.startLineNumber - cursorPosition.lineNumber + (startsWithEOL && inlineEdit.lineEdit.lineRange.startLineNumber >= cursorPosition.lineNumber ? 1 : 0),
 			lineCountOriginal: inlineEdit.lineEdit.lineRange.length,
 			lineCountModified: inlineEdit.lineEdit.newLines.length,
 			characterCountOriginal: stringChanges.reduce((acc, r) => acc + r.original.length, 0),
 			characterCountModified: stringChanges.reduce((acc, r) => acc + r.modified.length, 0),
 			disjointReplacements: stringChanges.length,
-			sameShapeReplacements: stringChanges.length > 1 ? stringChanges.every(r => r.original === stringChanges[0].original && r.modified === stringChanges[0].modified) : undefined,
+			sameShapeReplacements: stringChanges.every(r => r.original === stringChanges[0].original && r.modified === stringChanges[0].modified),
 		};
 
 		switch (view) {

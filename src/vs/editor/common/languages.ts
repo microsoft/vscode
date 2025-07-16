@@ -992,6 +992,7 @@ export type LifetimeSummary = {
 	editorType: string;
 	viewKind: string | undefined;
 	error: string | undefined;
+	preceeded: boolean;
 	languageId: string;
 	requestReason: string;
 	cursorColumnDistance?: number;

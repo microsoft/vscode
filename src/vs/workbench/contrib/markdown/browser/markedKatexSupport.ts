@@ -6,17 +6,19 @@
 import { importAMDNodeModule, resolveAmdNodeModulePath } from '../../../../amdX.js';
 import { ISanitizerOptions } from '../../../../base/browser/markdownRenderer.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
-import * as dom from '../../../../base/browser/dom.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import type * as marked from '../../../../base/common/marked/marked.js';
 
 export class MarkedKatexSupport {
 
-	public static getSanitizerOptions(): ISanitizerOptions {
+	public static getSanitizerOptions(baseConfig: {
+		readonly allowedTags: readonly string[];
+		readonly allowedAttributes: readonly string[];
+	}): ISanitizerOptions {
 		return {
 			allowedTags: [
-				...dom.basicMarkupHtmlTags,
-				...dom.trustedMathMlTags,
+				...baseConfig.allowedTags,
+				...trustedMathMlTags,
 			],
 			customAttrSanitizer: (attrName, attrValue) => {
 				if (attrName === 'class') {
@@ -25,7 +27,7 @@ export class MarkedKatexSupport {
 					return this.sanitizeKatexStyles(attrValue);
 				}
 
-				return dom.defaultAllowedAttrs.includes(attrName);
+				return baseConfig.allowedAttributes.includes(attrName);
 			},
 		};
 	}
@@ -219,3 +221,78 @@ export namespace MarkedKatexExtension {
 		};
 	}
 }
+const trustedMathMlTags = Object.freeze([
+	'semantics',
+	'annotation',
+	'math',
+	'menclose',
+	'merror',
+	'mfenced',
+	'mfrac',
+	'mglyph',
+	'mi',
+	'mlabeledtr',
+	'mmultiscripts',
+	'mn',
+	'mo',
+	'mover',
+	'mpadded',
+	'mphantom',
+	'mroot',
+	'mrow',
+	'ms',
+	'mspace',
+	'msqrt',
+	'mstyle',
+	'msub',
+	'msup',
+	'msubsup',
+	'mtable',
+	'mtd',
+	'mtext',
+	'mtr',
+	'munder',
+	'munderover',
+	'mprescripts',
+
+	// svg tags
+	'svg',
+	'altglyph',
+	'altglyphdef',
+	'altglyphitem',
+	'circle',
+	'clippath',
+	'defs',
+	'desc',
+	'ellipse',
+	'filter',
+	'font',
+	'g',
+	'glyph',
+	'glyphref',
+	'hkern',
+	'line',
+	'lineargradient',
+	'marker',
+	'mask',
+	'metadata',
+	'mpath',
+	'path',
+	'pattern',
+	'polygon',
+	'polyline',
+	'radialgradient',
+	'rect',
+	'stop',
+	'style',
+	'switch',
+	'symbol',
+	'text',
+	'textpath',
+	'title',
+	'tref',
+	'tspan',
+	'view',
+	'vkern',
+]);
+

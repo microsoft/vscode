@@ -35,7 +35,7 @@ import { EnterOperation } from '../common/cursor/cursorTypeEditOperations.js';
 const CORE_WEIGHT = KeybindingWeight.EditorCore;
 
 export abstract class CoreEditorCommand<T> extends EditorCommand {
-	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args?: Partial<T> | null): void {
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args?: Partial<T> | null): void {
 		const viewModel = editor._getViewModel();
 		if (!viewModel) {
 			// the editor has no view => has no cursors
@@ -2095,7 +2095,7 @@ export namespace CoreEditingCommands {
 		public runDOMCommand(activeElement: Element): void {
 			activeElement.ownerDocument.execCommand('undo');
 		}
-		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: unknown): void | Promise<void> {
+		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): void | Promise<void> {
 			if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
 				return;
 			}
@@ -2110,7 +2110,7 @@ export namespace CoreEditingCommands {
 		public runDOMCommand(activeElement: Element): void {
 			activeElement.ownerDocument.execCommand('redo');
 		}
-		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: unknown): void | Promise<void> {
+		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): void | Promise<void> {
 			if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
 				return;
 			}

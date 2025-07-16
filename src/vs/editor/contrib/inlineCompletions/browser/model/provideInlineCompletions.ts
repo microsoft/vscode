@@ -267,6 +267,7 @@ export class InlineSuggestData {
 	private _viewData: InlineSuggestViewData;
 	private _didReportEndOfLife = false;
 	private _lastSetEndOfLifeReason: InlineCompletionEndOfLifeReason | undefined = undefined;
+	private _isPreceeded = false;
 	private _partiallyAcceptedCount = 0;
 
 	constructor(
@@ -347,6 +348,7 @@ export class InlineSuggestData {
 				shown: this._didShow,
 				shownDuration: this._shownDuration,
 				shownDurationUncollapsed: this._showUncollapsedDuration,
+				preceeded: this._isPreceeded,
 				timeUntilShown: this._timeUntilShown,
 				editorType: this._viewData.editorType,
 				languageId: this._requestInfo.languageId,
@@ -367,6 +369,10 @@ export class InlineSuggestData {
 		} else {
 			this._viewData.error = message;
 		}
+	}
+
+	public setIsPreceeded(): void {
+		this._isPreceeded = true;
 	}
 
 	/**

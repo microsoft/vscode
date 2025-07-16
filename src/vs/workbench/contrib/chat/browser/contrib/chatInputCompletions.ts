@@ -876,7 +876,7 @@ class BuiltinDynamicCompletions extends Disposable {
 			const labelDescription = description
 				? localize('fileEntryDescription', '{0} ({1})', uriLabel, description)
 				: uriLabel;
-			const sortText = description ? 'z' : '{'; // after `z`
+			const sortText = ' '; // keep files always at the top
 
 			return {
 				label: { label: basename, description: labelDescription },

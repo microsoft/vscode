@@ -332,7 +332,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			logLevel: this._logService.getLevel(),
 			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: this._extensionHostLogsLocation,
-			autoStart: (this.startup === ExtensionHostStartup.EagerAutoStart),
+			autoStart: (this.startup === ExtensionHostStartup.EagerAutoStart || this.startup === ExtensionHostStartup.LazyAutoStart),
 			remote: {
 				authority: this._environmentService.remoteAuthority,
 				connectionData: null,

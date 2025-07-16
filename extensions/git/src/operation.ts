@@ -22,6 +22,7 @@ export const enum OperationKind {
 	DeleteRef = 'DeleteRef',
 	DeleteRemoteRef = 'DeleteRemoteRef',
 	DeleteTag = 'DeleteTag',
+	DeleteWorktree = 'DeleteWorktree',
 	Diff = 'Diff',
 	Fetch = 'Fetch',
 	FindTrackingBranches = 'GetTracking',
@@ -31,6 +32,7 @@ export const enum OperationKind {
 	GetObjectDetails = 'GetObjectDetails',
 	GetObjectFiles = 'GetObjectFiles',
 	GetRefs = 'GetRefs',
+	GetWorktrees = 'GetWorktrees',
 	GetRemoteRefs = 'GetRemoteRefs',
 	HashObject = 'HashObject',
 	Ignore = 'Ignore',
@@ -66,8 +68,8 @@ export const enum OperationKind {
 
 export type Operation = AddOperation | ApplyOperation | BlameOperation | BranchOperation | CheckIgnoreOperation | CherryPickOperation |
 	CheckoutOperation | CheckoutTrackingOperation | CleanOperation | CommitOperation | ConfigOperation | DeleteBranchOperation |
-	DeleteRefOperation | DeleteRemoteRefOperation | DeleteTagOperation | DiffOperation | FetchOperation | FindTrackingBranchesOperation |
-	GetBranchOperation | GetBranchesOperation | GetCommitTemplateOperation | GetObjectDetailsOperation | GetObjectFilesOperation | GetRefsOperation |
+	DeleteRefOperation | DeleteRemoteRefOperation | DeleteTagOperation | DeleteWorktreeOperation | DiffOperation | FetchOperation | FindTrackingBranchesOperation |
+	GetBranchOperation | GetBranchesOperation | GetCommitTemplateOperation | GetObjectDetailsOperation | GetObjectFilesOperation | GetRefsOperation | GetWorktreesOperation |
 	GetRemoteRefsOperation | HashObjectOperation | IgnoreOperation | LogOperation | LogFileOperation | MergeOperation | MergeAbortOperation |
 	MergeBaseOperation | MoveOperation | PostCommitCommandOperation | PullOperation | PushOperation | RemoteOperation | RenameBranchOperation |
 	RemoveOperation | ResetOperation | RebaseOperation | RebaseAbortOperation | RebaseContinueOperation | RefreshOperation | RevertFilesOperation |
@@ -90,6 +92,7 @@ export type DeleteBranchOperation = BaseOperation & { kind: OperationKind.Delete
 export type DeleteRefOperation = BaseOperation & { kind: OperationKind.DeleteRef };
 export type DeleteRemoteRefOperation = BaseOperation & { kind: OperationKind.DeleteRemoteRef };
 export type DeleteTagOperation = BaseOperation & { kind: OperationKind.DeleteTag };
+export type DeleteWorktreeOperation = BaseOperation & { kind: OperationKind.DeleteWorktree };
 export type DiffOperation = BaseOperation & { kind: OperationKind.Diff };
 export type FetchOperation = BaseOperation & { kind: OperationKind.Fetch };
 export type FindTrackingBranchesOperation = BaseOperation & { kind: OperationKind.FindTrackingBranches };
@@ -99,6 +102,7 @@ export type GetCommitTemplateOperation = BaseOperation & { kind: OperationKind.G
 export type GetObjectDetailsOperation = BaseOperation & { kind: OperationKind.GetObjectDetails };
 export type GetObjectFilesOperation = BaseOperation & { kind: OperationKind.GetObjectFiles };
 export type GetRefsOperation = BaseOperation & { kind: OperationKind.GetRefs };
+export type GetWorktreesOperation = BaseOperation & { kind: OperationKind.GetWorktrees };
 export type GetRemoteRefsOperation = BaseOperation & { kind: OperationKind.GetRemoteRefs };
 export type HashObjectOperation = BaseOperation & { kind: OperationKind.HashObject };
 export type IgnoreOperation = BaseOperation & { kind: OperationKind.Ignore };
@@ -147,6 +151,7 @@ export const Operation = {
 	DeleteRef: { kind: OperationKind.DeleteRef, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteRefOperation,
 	DeleteRemoteRef: { kind: OperationKind.DeleteRemoteRef, blocking: false, readOnly: false, remote: true, retry: false, showProgress: true } as DeleteRemoteRefOperation,
 	DeleteTag: { kind: OperationKind.DeleteTag, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteTagOperation,
+	DeleteWorktree: { kind: OperationKind.DeleteWorktree, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteWorktreeOperation,
 	Diff: { kind: OperationKind.Diff, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as DiffOperation,
 	Fetch: (showProgress: boolean) => ({ kind: OperationKind.Fetch, blocking: false, readOnly: false, remote: true, retry: true, showProgress } as FetchOperation),
 	FindTrackingBranches: { kind: OperationKind.FindTrackingBranches, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as FindTrackingBranchesOperation,
@@ -156,6 +161,7 @@ export const Operation = {
 	GetObjectDetails: { kind: OperationKind.GetObjectDetails, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as GetObjectDetailsOperation,
 	GetObjectFiles: { kind: OperationKind.GetObjectFiles, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as GetObjectFilesOperation,
 	GetRefs: { kind: OperationKind.GetRefs, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as GetRefsOperation,
+	GetWorktrees: { kind: OperationKind.GetWorktrees, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as GetWorktreesOperation,
 	GetRemoteRefs: { kind: OperationKind.GetRemoteRefs, blocking: false, readOnly: true, remote: true, retry: false, showProgress: false } as GetRemoteRefsOperation,
 	HashObject: { kind: OperationKind.HashObject, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as HashObjectOperation,
 	Ignore: { kind: OperationKind.Ignore, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as IgnoreOperation,

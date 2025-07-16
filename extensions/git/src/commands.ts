@@ -9,7 +9,7 @@ import { Command, commands, Disposable, MessageOptions, Position, ProgressLocati
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
-import { Git, Stash } from './git';
+import { Git, Stash, Worktree } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
@@ -55,6 +55,19 @@ class RefItemSeparator implements QuickPickItem {
 	}
 
 	constructor(private readonly refType: RefType) { }
+}
+
+class WorktreeItem implements QuickPickItem {
+
+	get label(): string {
+		return `$(list-tree) ${this.worktree.name}`;
+	}
+
+	get description(): string {
+		return this.worktree.path;
+	}
+
+	constructor(readonly worktree: Worktree) { }
 }
 
 class RefItem implements QuickPickItem {
@@ -211,6 +224,14 @@ class RemoteTagDeleteItem extends RefItem {
 	async run(repository: Repository, remote: string): Promise<void> {
 		if (this.ref.name) {
 			await repository.deleteRemoteRef(remote, this.ref.name);
+		}
+	}
+}
+
+class WorktreeDeleteItem extends WorktreeItem {
+	async run(repository: Repository): Promise<void> {
+		if (this.worktree.path) {
+			await repository.deleteWorktree(this.worktree.path);
 		}
 	}
 }
@@ -3311,6 +3332,23 @@ export class CommandCenter {
 		const choice = await this.pickRef<TagDeleteItem | QuickPickItem>(tagPicks(), placeHolder);
 
 		if (choice instanceof TagDeleteItem) {
+			await choice.run(repository);
+		}
+	}
+
+	@command('git.deleteWorktree', { repository: true })
+	async deleteWorktree(repository: Repository): Promise<void> {
+		const worktreePicks = async (): Promise<WorktreeDeleteItem[] | QuickPickItem[]> => {
+			const worktrees = await repository.getWorktrees();
+			return worktrees.length === 0
+				? [{ label: l10n.t('$(info) This repository has no worktrees.') }]
+				: worktrees.map(worktree => new WorktreeDeleteItem(worktree));
+		};
+
+		const placeHolder = l10n.t('Select a worktree to delete');
+		const choice = await this.pickRef<WorktreeDeleteItem | QuickPickItem>(worktreePicks(), placeHolder);
+
+		if (choice instanceof WorktreeDeleteItem) {
 			await choice.run(repository);
 		}
 	}

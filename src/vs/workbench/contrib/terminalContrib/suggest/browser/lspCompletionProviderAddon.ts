@@ -67,6 +67,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 					label: e.insertText,
 					provider: `lsp:${this._provider._debugDisplayName}`,
 					detail: e.detail,
+					documentation: e.documentation,
 					kind: convertedKind,
 					replacementIndex: completionItemTemp.replacementIndex,
 					replacementLength: completionItemTemp.replacementLength,

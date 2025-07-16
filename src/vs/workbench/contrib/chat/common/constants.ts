@@ -10,6 +10,7 @@ export enum ChatConfiguration {
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
 	EditRequests = 'chat.editRequests',
 	EnableMath = 'chat.math.enabled',
+	CheckpointsEnabled = 'chat.checkpoints.enabled',
 }
 
 /**

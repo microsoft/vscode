@@ -774,6 +774,11 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	readonly xterm?: XtermTerminal;
 
 	/**
+	 * Resolves when the xterm.js instance for this terminal is ready.
+	 */
+	readonly xtermReadyPromise: Promise<XtermTerminal | undefined>;
+
+	/**
 	 * Returns an array of data events that have fired within the first 10 seconds. If this is
 	 * called 10 seconds after the terminal has existed the result will be undefined. This is useful
 	 * when objects that depend on the data events have delayed initialization, like extension

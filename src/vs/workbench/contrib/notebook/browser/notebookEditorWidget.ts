@@ -2368,7 +2368,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	//#endregion
 
 	async layoutNotebookCell(cell: ICellViewModel, height: number, context?: CellLayoutContext): Promise<void> {
-		return this._cellLayoutManager?.layoutNotebookCell(cell, height, context);
+		return this._cellLayoutManager?.layoutNotebookCell(cell, height);
 	}
 
 	getActiveCell() {

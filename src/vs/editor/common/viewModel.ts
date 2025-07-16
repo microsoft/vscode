@@ -13,7 +13,7 @@ import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData,
 import { CursorChangeReason } from './cursorEvents.js';
 import { INewScrollPosition, ScrollType } from './editorCommon.js';
 import { EditorTheme } from './editorTheme.js';
-import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel } from './model.js';
+import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel, TextDirection } from './model.js';
 import { ILineBreaksComputer, InjectedText } from './modelLineProjectionData.js';
 import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from './textModelGuides.js';
 import { IViewLineTokens } from './tokens/lineTokens.js';
@@ -49,6 +49,7 @@ export interface IViewModel extends ICursorSimpleModel {
 	getFontSizeAtPosition(position: IPosition): string | null;
 	getMinimapDecorationsInRange(range: Range): ViewModelDecoration[];
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
+	getTextDirection(lineNumber: number): TextDirection;
 	getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
 	getViewLineRenderingData(lineNumber: number): ViewLineRenderingData;
 	getViewLineData(lineNumber: number): ViewLineData;
@@ -331,6 +332,10 @@ export class ViewLineRenderingData {
 	 */
 	public readonly startVisibleColumn: number;
 	/**
+	 * The direction to use for rendering the line.
+	 */
+	public readonly textDirection: TextDirection;
+	/**
 	 * Whether the line has variable fonts
 	 */
 	public readonly hasVariableFonts: boolean;
@@ -346,6 +351,7 @@ export class ViewLineRenderingData {
 		inlineDecorations: InlineDecoration[],
 		tabSize: number,
 		startVisibleColumn: number,
+		textDirection: TextDirection,
 		hasVariableFonts: boolean
 	) {
 		this.minColumn = minColumn;
@@ -360,6 +366,7 @@ export class ViewLineRenderingData {
 		this.inlineDecorations = inlineDecorations;
 		this.tabSize = tabSize;
 		this.startVisibleColumn = startVisibleColumn;
+		this.textDirection = textDirection;
 		this.hasVariableFonts = hasVariableFonts;
 	}
 

@@ -658,6 +658,7 @@ class View extends Disposable {
 	private _getLineHtml(model: ITextModel, options: IComputedEditorOptions, tabSize: number, lineNumber: number, languageIdCodec: ILanguageIdCodec): string {
 		const lineContent = model.getLineContent(lineNumber);
 		const fontInfo = options.get(EditorOption.fontInfo);
+		const verticalScrollbarSize = options.get(EditorOption.scrollbar).verticalScrollbarSize;
 		const lineTokens = LineTokens.createEmpty(lineContent, languageIdCodec);
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, model.mightContainNonBasicASCII());
 		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, model.mightContainRTL());
@@ -680,7 +681,9 @@ class View extends Disposable {
 			options.get(EditorOption.renderWhitespace),
 			options.get(EditorOption.renderControlCharacters),
 			options.get(EditorOption.fontLigatures) !== EditorFontLigatures.OFF,
-			null
+			null,
+			null,
+			verticalScrollbarSize
 		));
 
 		return r.html;
