@@ -222,7 +222,7 @@ declare module 'vscode' {
 			language: string,
 			confirmationMessages?: LanguageModelToolConfirmationMessages,
 			presentation?: 'hidden',
-			renderStopButton?: { callback: () => void }
+			renderStopButton?: boolean
 		);
 	}
 
