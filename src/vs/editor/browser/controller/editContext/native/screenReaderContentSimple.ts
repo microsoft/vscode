@@ -36,6 +36,7 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super();
+		this.onConfigurationChanged(this._context.configuration.options);
 	}
 
 	public updateScreenReaderContent(primarySelection: Selection): void {
