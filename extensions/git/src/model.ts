@@ -808,6 +808,16 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		updateOperationInProgressContext();
 
 		const dispose = () => {
+			// Dispose submodules
+			for (const submodule of repository.submodules) {
+				this.getOpenRepository(path.join(repository.root, submodule.path))?.dispose();
+			}
+
+			// Dispose worktrees
+			for (const worktree of repository.worktrees) {
+				this.getOpenRepository(worktree.path)?.dispose();
+			}
+
 			disappearListener.dispose();
 			changeListener.dispose();
 			originalResourceChangeListener.dispose();
