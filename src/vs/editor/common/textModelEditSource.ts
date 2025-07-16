@@ -5,11 +5,11 @@
 
 import { ProviderId } from './languages.js';
 
-const privateSymbol = Symbol('TextModelEditReason');
+const privateSymbol = Symbol('TextModelEditSource');
 
-export class TextModelEditReason {
+export class TextModelEditSource {
 	constructor(
-		public readonly metadata: ITextModelEditReasonMetadata,
+		public readonly metadata: ITextModelEditSourceMetadata,
 		_privateCtorGuard: typeof privateSymbol,
 	) { }
 
@@ -35,7 +35,7 @@ export class TextModelEditReason {
 	 * Converts the metadata to a key string.
 	 * Only includes properties/values that have `level` many `$` prefixes or less.
 	*/
-	public toKey(level: number, filter: { [TKey in ITextModelEditReasonMetadataKeys]?: boolean } = {}): string {
+	public toKey(level: number, filter: { [TKey in ITextModelEditSourceMetadataKeys]?: boolean } = {}): string {
 		const metadata = this.metadata;
 		const keys = Object.entries(metadata).filter(([key, value]) => {
 			const filterVal = (filter as Record<string, boolean>)[key];
@@ -48,35 +48,44 @@ export class TextModelEditReason {
 		}).map(([key, value]) => `${key}:${value}`);
 		return keys.join('-');
 	}
+
+	public get props(): Record<ITextModelEditSourceMetadataKeys, string | undefined> {
+		return this.metadata as any;
+	}
 }
 
-type TextModelEditReasonT<T> = TextModelEditReason & {
+type TextModelEditSourceT<T> = TextModelEditSource & {
 	metadataT: T;
 };
 
-function createEditReason<T extends Record<string, any>>(metadata: T): TextModelEditReasonT<T> {
-	return new TextModelEditReason(metadata as any, privateSymbol) as any;
+function createEditSource<T extends Record<string, any>>(metadata: T): TextModelEditSourceT<T> {
+	return new TextModelEditSource(metadata as any, privateSymbol) as any;
 }
 
-export const EditReasons = {
+export const EditSources = {
 	unknown(data: { name?: string | null }) {
-		return createEditReason({
+		return createEditSource({
 			source: 'unknown',
 			name: data.name,
 		} as const);
 	},
 
-	rename: () => createEditReason({ source: 'rename' } as const),
+	rename: () => createEditSource({ source: 'rename' } as const),
 
-	chatApplyEdits(data: { modelId: string | undefined }) {
-		return createEditReason({
+	chatApplyEdits(data: { modelId: string | undefined; sessionId: string | undefined; requestId: string | undefined }) {
+		return createEditSource({
 			source: 'Chat.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
+			$$sessionId: data.sessionId,
+			$$requestId: data.requestId,
 		} as const);
 	},
 
+	chatUndoEdits: () => createEditSource({ source: 'Chat.undoEdits' } as const),
+	chatReset: () => createEditSource({ source: 'Chat.reset' } as const),
+
 	inlineCompletionAccept(data: { nes: boolean; requestUuid: string; providerId?: ProviderId }) {
-		return createEditReason({
+		return createEditSource({
 			source: 'inlineCompletionAccept',
 			$nes: data.nes,
 			...toProperties(data.providerId),
@@ -85,7 +94,7 @@ export const EditReasons = {
 	},
 
 	inlineCompletionPartialAccept(data: { nes: boolean; requestUuid: string; providerId?: ProviderId; type: 'word' | 'line' }) {
-		return createEditReason({
+		return createEditSource({
 			source: 'inlineCompletionPartialAccept',
 			type: data.type,
 			$nes: data.nes,
@@ -95,29 +104,29 @@ export const EditReasons = {
 	},
 
 	inlineChatApplyEdit(data: { modelId: string | undefined }) {
-		return createEditReason({
+		return createEditSource({
 			source: 'inlineChat.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
 		} as const);
 	},
 
-	reloadFromDisk: () => createEditReason({ source: 'reloadFromDisk' } as const),
+	reloadFromDisk: () => createEditSource({ source: 'reloadFromDisk' } as const),
 
 	cursor(data: { kind: 'compositionType' | 'compositionEnd' | 'type' | 'paste' | 'cut' | 'executeCommands' | 'executeCommand'; detailedSource?: string | null }) {
-		return createEditReason({
+		return createEditSource({
 			source: 'cursor',
 			kind: data.kind,
 			detailedSource: data.detailedSource,
 		} as const);
 	},
 
-	setValue: () => createEditReason({ source: 'setValue' } as const),
-	eolChange: () => createEditReason({ source: 'eolChange' } as const),
-	applyEdits: () => createEditReason({ source: 'applyEdits' } as const),
-	snippet: () => createEditReason({ source: 'snippet' } as const),
-	suggest: (data: { providerId: ProviderId | undefined }) => createEditReason({ source: 'suggest', ...toProperties(data.providerId) } as const),
+	setValue: () => createEditSource({ source: 'setValue' } as const),
+	eolChange: () => createEditSource({ source: 'eolChange' } as const),
+	applyEdits: () => createEditSource({ source: 'applyEdits' } as const),
+	snippet: () => createEditSource({ source: 'snippet' } as const),
+	suggest: (data: { providerId: ProviderId | undefined }) => createEditSource({ source: 'suggest', ...toProperties(data.providerId) } as const),
 
-	codeAction: (data: { kind: string | undefined; providerId: ProviderId | undefined }) => createEditReason({ source: 'codeAction', $kind: data.kind, ...toProperties(data.providerId) } as const)
+	codeAction: (data: { kind: string | undefined; providerId: ProviderId | undefined }) => createEditSource({ source: 'codeAction', $kind: data.kind, ...toProperties(data.providerId) } as const)
 };
 
 function toProperties(version: ProviderId | undefined) {
@@ -132,8 +141,8 @@ function toProperties(version: ProviderId | undefined) {
 }
 
 type Values<T> = T[keyof T];
-type ITextModelEditReasonMetadata = Values<{ [TKey in keyof typeof EditReasons]: ReturnType<typeof EditReasons[TKey]>['metadataT'] }>;
-type ITextModelEditReasonMetadataKeys = Values<{ [TKey in keyof typeof EditReasons]: keyof ReturnType<typeof EditReasons[TKey]>['metadataT'] }>;
+type ITextModelEditSourceMetadata = Values<{ [TKey in keyof typeof EditSources]: ReturnType<typeof EditSources[TKey]>['metadataT'] }>;
+type ITextModelEditSourceMetadataKeys = Values<{ [TKey in keyof typeof EditSources]: keyof ReturnType<typeof EditSources[TKey]>['metadataT'] }>;
 
 
 function avoidPathRedaction(str: string | undefined): string | undefined {

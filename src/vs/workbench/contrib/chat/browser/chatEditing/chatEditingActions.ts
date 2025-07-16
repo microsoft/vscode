@@ -429,8 +429,8 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.chat.restoreCheckpoint',
-			title: localize2('chat.restoreCheckpoint.label', "Restore Checkpoint"),
-			tooltip: localize2('chat.restoreCheckpoint.tooltip', "Restore Checkpoint"),
+			title: localize2('chat.restoreCheckpoint.label', "Restore checkpoint"),
+			tooltip: localize2('chat.restoreCheckpoint.tooltip', "Restores workspace and chat to this point"),
 			f1: false,
 			category: CHAT_CATEGORY,
 			keybinding: {
@@ -462,6 +462,11 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 
 		if (!item) {
 			return;
+		}
+
+		if (isRequestVM(item)) {
+			widget?.focusInput();
+			widget?.input.setValue(item.messageText, false);
 		}
 
 		widget?.viewModel?.model.setCheckpoint(item.id);

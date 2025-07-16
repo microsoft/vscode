@@ -8,6 +8,7 @@
  * into a typed and checked ILexer definition.
  */
 
+import { isString } from '../../../../base/common/types.js';
 import * as monarchCommon from './monarchCommon.js';
 import { IMonarchLanguage, IMonarchLanguageBracket } from './monarchTypes.js';
 
@@ -337,6 +338,7 @@ function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action:
 		// build an array of test cases
 		const cases: monarchCommon.IBranch[] = [];
 
+		let hasEmbeddedEndInCases = false;
 		// for each case, push a test function and result value
 		for (const tkey in action.cases) {
 			if (action.cases.hasOwnProperty(tkey)) {
@@ -352,12 +354,17 @@ function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action:
 				else {
 					cases.push(createGuard(lexer, ruleName, tkey, val));  // call separate function to avoid local variable capture
 				}
+
+				if (!hasEmbeddedEndInCases) {
+					hasEmbeddedEndInCases = !isString(val) && (val.hasEmbeddedEndInCases || ['@pop', '@popall'].includes(val.nextEmbedded || ''));
+				}
 			}
 		}
 
 		// create a matching function
 		const def = lexer.defaultToken;
 		return {
+			hasEmbeddedEndInCases,
 			test: function (id, matches, state, eos) {
 				for (const _case of cases) {
 					const didmatch = (!_case.test || _case.test(id, matches, state, eos));

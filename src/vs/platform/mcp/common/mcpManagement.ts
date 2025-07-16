@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { URI } from '../../../base/common/uri.js';
 import { SortBy, SortOrder } from '../../extensionManagement/common/extensionManagement.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -72,6 +73,7 @@ export const enum PackageType {
 	NODE = 'npm',
 	DOCKER = 'docker',
 	PYTHON = 'pypi',
+	NUGET = 'nuget',
 	REMOTE = 'remote',
 }
 
@@ -196,4 +198,13 @@ export interface IMcpManagementService {
 	uninstall(server: ILocalMcpServer, options?: UninstallOptions): Promise<void>;
 }
 
+export const IAllowedMcpServersService = createDecorator<IAllowedMcpServersService>('IAllowedMcpServersService');
+export interface IAllowedMcpServersService {
+	readonly _serviceBrand: undefined;
+
+	readonly onDidChangeAllowedMcpServers: Event<void>;
+	isAllowed(mcpServer: IGalleryMcpServer | ILocalMcpServer): true | IMarkdownString;
+}
+
+export const mcpEnabledConfig = 'chat.mcp.enabled';
 export const mcpGalleryServiceUrlConfig = 'chat.mcp.gallery.serviceUrl';
