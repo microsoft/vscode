@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { autorun } from '../../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, IChatProgressMessage } from '../../../common/chatService.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
@@ -25,10 +28,35 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 		private readonly context: IChatContentPartRenderContext,
 		private readonly renderer: MarkdownRenderer,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ICommandService commandService: ICommandService
 	) {
 		super(toolInvocation);
 
 		this.domNode = this.createProgressPart();
+		// Add stop button if stopAction is present
+		if (this.toolInvocation.renderStopButton) {
+			const stopButton = this._register(new Button(this.domNode, {
+				ariaLabel: 'Continue on',
+				title: 'Continue on',
+				supportIcons: true,
+			}));
+			stopButton.element.tabIndex = 0;
+			for (const className of ThemeIcon.asClassNameArray(Codicon.play)) {
+				stopButton.element.classList.add(className);
+			}
+			this._register(dom.addDisposableListener(stopButton.element, dom.EventType.CLICK, (e) => {
+				stopButton.element.remove();
+				commandService.executeCommand('workbench.action.chat.cancel');
+				this.toolInvocation.renderStopButton = undefined;
+			}));
+			this._register(dom.addDisposableListener(stopButton.element, dom.EventType.KEY_DOWN, (e) => {
+				if (e.key !== 'Enter' && e.key !== ' ') {
+					stopButton.element.remove();
+					commandService.executeCommand('workbench.action.chat.cancel');
+					this.toolInvocation.renderStopButton = undefined;
+				}
+			}));
+		}
 	}
 
 	private createProgressPart(): HTMLElement {

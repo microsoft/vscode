@@ -43,6 +43,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public pastTenseMessage: string | IMarkdownString | undefined;
 	private _confirmationMessages: IToolConfirmationMessages | undefined;
 	public readonly presentation: IPreparedToolInvocation['presentation'];
+	public readonly renderStopButton: IPreparedToolInvocation['renderStopButton'] | undefined;
 	public readonly toolId: string;
 
 	public readonly toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent;
@@ -57,6 +58,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		this.originMessage = preparedInvocation?.originMessage;
 		this._confirmationMessages = preparedInvocation?.confirmationMessages;
 		this.presentation = preparedInvocation?.presentation;
+		this.renderStopButton = preparedInvocation?.renderStopButton;
 		this.toolSpecificData = preparedInvocation?.toolSpecificData;
 		this.toolId = toolData.id;
 

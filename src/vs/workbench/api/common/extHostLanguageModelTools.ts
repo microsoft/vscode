@@ -248,7 +248,8 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 					language: result.language,
 					command: result.command,
 				},
-				presentation: result.presentation
+				presentation: result.presentation,
+				renderStopButton: result.renderStopButton
 			};
 		} else if (item.tool.prepareInvocation) {
 			const result = await item.tool.prepareInvocation(options, token);
@@ -256,7 +257,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				return undefined;
 			}
 
-			if (result.pastTenseMessage || result.presentation) {
+			if (result.pastTenseMessage || result.presentation || result.renderStopButton) {
 				checkProposedApiEnabled(item.extension, 'chatParticipantPrivate');
 			}
 
@@ -267,7 +268,8 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				} : undefined,
 				invocationMessage: typeConvert.MarkdownString.fromStrict(result.invocationMessage),
 				pastTenseMessage: typeConvert.MarkdownString.fromStrict(result.pastTenseMessage),
-				presentation: result.presentation
+				presentation: result.presentation,
+				renderStopButton: result.renderStopButton
 			};
 		}
 

@@ -203,6 +203,7 @@ declare module 'vscode' {
 	export interface PreparedToolInvocation {
 		pastTenseMessage?: string | MarkdownString;
 		presentation?: 'hidden' | undefined;
+		renderStopButton?: boolean;
 	}
 
 	export interface LanguageModelTool<T> {
@@ -214,12 +215,14 @@ declare module 'vscode' {
 		readonly language: string;
 		readonly confirmationMessages?: LanguageModelToolConfirmationMessages;
 		readonly presentation?: 'hidden' | undefined;
+		readonly renderStopButton?: boolean;
 
 		constructor(
 			command: string,
 			language: string,
 			confirmationMessages?: LanguageModelToolConfirmationMessages,
-			presentation?: 'hidden'
+			presentation?: 'hidden',
+			renderStopButton?: { callback: () => void }
 		);
 	}
 
