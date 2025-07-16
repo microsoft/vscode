@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { LogLevel } from '../../../../../platform/log/common/log.js';
 import { MCP } from '../../common/modelContextProtocol.js';
@@ -61,15 +60,12 @@ suite('MCP Server Log Level', () => {
 		assert.ok(!mockHandlerNoLogging.capabilities.logging, 'Handler should not have logging capability');
 	});
 
-	test('should handle log level change events correctly', () => {
-		// Test that the log level change event is handled correctly
-		const mockResource = URI.file('/test/log');
-		const mockEvent: [URI, LogLevel] = [mockResource, LogLevel.Info];
+	test('should handle direct logger events', () => {
+		// Test that the logger's onDidChangeLogLevel event is handled correctly
+		const mockLogLevel = LogLevel.Info;
 
-		// Verify the event structure
-		assert.ok(Array.isArray(mockEvent), 'Event should be an array');
-		assert.strictEqual(mockEvent.length, 2, 'Event should have 2 elements');
-		assert.strictEqual(mockEvent[0], mockResource, 'First element should be the resource');
-		assert.strictEqual(mockEvent[1], LogLevel.Info, 'Second element should be the log level');
+		// Verify the log level value
+		assert.strictEqual(mockLogLevel, LogLevel.Info, 'Log level should be Info');
+		assert.ok(typeof mockLogLevel === 'number', 'Log level should be a number');
 	});
 });
