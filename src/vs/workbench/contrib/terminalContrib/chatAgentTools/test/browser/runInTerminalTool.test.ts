@@ -376,7 +376,7 @@ suite('RunInTerminalTool', () => {
 				workspaceService.setWorkspace({
 					folders: [{ uri: { fsPath: workspaceDir } }]
 				} as any);
-				const instance = createInstanceWithCwd(URI.file(instanceDir));
+				const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
 
 				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
 
@@ -392,7 +392,7 @@ suite('RunInTerminalTool', () => {
 				workspaceService.setWorkspace({
 					folders: [{ uri: { fsPath: workspaceDir } }]
 				} as any);
-				const instance = createInstanceWithCwd(URI.file(instanceDir));
+				const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
 
 				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'pwsh');
 
@@ -409,7 +409,7 @@ suite('RunInTerminalTool', () => {
 				workspaceService.setWorkspace({
 					folders: [{ uri: { fsPath: workspaceDir } }]
 				} as any);
-				const instance = createInstanceWithCwd(URI.file(instanceDir));
+				const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
 
 				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
 
@@ -440,7 +440,7 @@ suite('RunInTerminalTool', () => {
 				workspaceService.setWorkspace({
 					folders: [{ uri: { fsPath: sharedDir } }]
 				} as any);
-				const instance = createInstanceWithCwd(URI.file(sharedDir));
+				const instance = createInstanceWithCwd({ fsPath: sharedDir } as any);
 
 				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
 
@@ -453,7 +453,7 @@ suite('RunInTerminalTool', () => {
 				const command = `cd ${cdDir} && npm test`;
 				const options = createRewriteOptions(command, 'session-1');
 
-				const instance = createInstanceWithCwd(URI.file(instanceDir));
+				const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
 
 				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
 
@@ -468,7 +468,7 @@ suite('RunInTerminalTool', () => {
 				workspaceService.setWorkspace({
 					folders: [{ uri: { fsPath: 'C:\\different\\workspace' } }]
 				} as any);
-				const instance = createInstanceWithCwd(URI.file(instanceDir));
+				const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
 
 				const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
 

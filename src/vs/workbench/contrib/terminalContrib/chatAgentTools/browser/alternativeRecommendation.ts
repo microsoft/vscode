@@ -27,7 +27,6 @@ const terminalCommands: { commands: RegExp[]; tags: string[] }[] = [
 ];
 
 export function getRecommendedToolsOverRunInTerminal(commandLine: string, languageModelToolsService: ILanguageModelToolsService): IToolResult | undefined {
-	// TODO: Is this the same as promptContext.tools.availableTools?
 	const tools = languageModelToolsService.getTools();
 	if (!tools || previouslyRecommededInSession) {
 		return;
