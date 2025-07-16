@@ -11,14 +11,7 @@ import { EditorOption, IComputedEditorOptions } from '../../../common/config/edi
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
 import * as nls from '../../../../nls.js';
-
-export interface ISimpleModel {
-	getLineCount(): number;
-	getLineMaxColumn(lineNumber: number): number;
-	getValueInRange(range: Range, eol: EndOfLinePreference): string;
-	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
-	modifyPosition(position: Position, offset: number): Position;
-}
+import { ISimpleModel } from '../../../common/viewModel/screenReaderSimpleModel.js';
 
 export interface IPagedScreenReaderStrategy<T> {
 	fromEditorSelection(model: ISimpleModel, selection: Selection, linesPerPage: number, trimLongText: boolean): T;
