@@ -51,8 +51,9 @@ export class DeleteOperations {
 		if (config.trimWhitespaceOnDelete && rightOfPosition.lineNumber !== position.lineNumber) {
 			// Smart line join (deleting leading whitespace) is on
 			// (and) Delete is happening at the end of a line
+			const currentLineHasContent = (model.getLineFirstNonWhitespaceColumn(position.lineNumber) > 0);
 			const firstNonWhitespaceColumn = model.getLineFirstNonWhitespaceColumn(rightOfPosition.lineNumber);
-			if (firstNonWhitespaceColumn > 0) {
+			if (currentLineHasContent && firstNonWhitespaceColumn > 0) {
 				// The next line has content
 				return new Range(
 					rightOfPosition.lineNumber,
