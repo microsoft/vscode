@@ -419,6 +419,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const checkpointRestoreContainer = dom.append(rowContainer, $('.checkpoint-restore-container'));
 		const codiconRestoreContainer = dom.append(checkpointRestoreContainer, $('.codicon-container'));
 		dom.append(codiconRestoreContainer, $('span.codicon.codicon-bookmark'));
+		const label = dom.append(checkpointRestoreContainer, $('span.checkpoint-label-text'));
+		label.textContent = localize('checkpointRestore', 'Checkpoint restored');
 		const checkpointRestoreToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, checkpointRestoreContainer, MenuId.ChatMessageRestoreCheckpoint, {
 			actionViewItemProvider: (action, options) => {
 				if (action instanceof MenuItemAction) {
@@ -610,15 +612,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (element.agentOrSlashCommandDetected) {
 			const msg = element.slashCommand ? localize('usedAgentSlashCommand', "used {0} [[(rerun without)]]", `${chatSubcommandLeader}${element.slashCommand.name}`) : localize('usedAgent', "[[(rerun without)]]");
 			dom.reset(templateData.detail, renderFormattedText(msg, {
-				className: 'agentOrSlashCommandDetected',
-				inline: true,
 				actionHandler: {
 					disposables: templateData.elementDisposables,
 					callback: (content) => {
 						this._onDidClickRerunWithAgentOrCommandDetection.fire(element);
 					},
 				}
-			}));
+			}, $('span.agentOrSlashCommandDetected')));
 
 		} else if (this.rendererOptions.renderStyle !== 'minimal' && !element.isComplete && !checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse)) {
 			if (element.model.isPaused.get()) {

@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../base/common/path.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -72,6 +73,7 @@ export interface ITerminalCompletionProvider {
 export interface ITerminalCompletionService {
 	_serviceBrand: undefined;
 	readonly providers: IterableIterator<ITerminalCompletionProvider>;
+	readonly onDidChangeProviders: Event<void>;
 	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider, ...triggerCharacters: string[]): IDisposable;
 	provideCompletions(promptValue: string, cursorPosition: number, allowFallbackCompletions: boolean, shellType: TerminalShellType | undefined, capabilities: ITerminalCapabilityStore, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean, explicitlyInvoked?: boolean): Promise<ITerminalCompletion[] | undefined>;
 }
@@ -79,6 +81,9 @@ export interface ITerminalCompletionService {
 export class TerminalCompletionService extends Disposable implements ITerminalCompletionService {
 	declare _serviceBrand: undefined;
 	private readonly _providers: Map</*ext id*/string, Map</*provider id*/string, ITerminalCompletionProvider>> = new Map();
+
+	private readonly _onDidChangeProviders = this._register(new Emitter<void>());
+	readonly onDidChangeProviders = this._onDidChangeProviders.event;
 
 	get providers(): IterableIterator<ITerminalCompletionProvider> {
 		return this._providersGenerator();
@@ -113,6 +118,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		provider.triggerCharacters = triggerCharacters;
 		provider.id = id;
 		extMap.set(id, provider);
+		this._onDidChangeProviders.fire();
 		return toDisposable(() => {
 			const extMap = this._providers.get(extensionIdentifier);
 			if (extMap) {
@@ -121,6 +127,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					this._providers.delete(extensionIdentifier);
 				}
 			}
+			this._onDidChangeProviders.fire();
 		});
 	}
 

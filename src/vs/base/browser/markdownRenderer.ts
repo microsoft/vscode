@@ -10,7 +10,7 @@ import { markdownEscapeEscapedIcons } from '../common/iconLabels.js';
 import { defaultGenerator } from '../common/idGenerator.js';
 import { KeyCode } from '../common/keyCodes.js';
 import { Lazy } from '../common/lazy.js';
-import { DisposableStore, IDisposable, toDisposable } from '../common/lifecycle.js';
+import { DisposableStore } from '../common/lifecycle.js';
 import * as marked from '../common/marked/marked.js';
 import { parse } from '../common/marshalling.js';
 import { FileAccess, Schemas } from '../common/network.js';
@@ -19,9 +19,9 @@ import { dirname, resolvePath } from '../common/resources.js';
 import { escape } from '../common/strings.js';
 import { URI } from '../common/uri.js';
 import * as DOM from './dom.js';
-import dompurify from './dompurify/dompurify.js';
+import * as domSanitize from './domSanitize.js';
 import { DomEmitter } from './event.js';
-import { createElement, FormattedTextRenderOptions } from './formattedTextRenderer.js';
+import { FormattedTextRenderOptions } from './formattedTextRenderer.js';
 import { StandardKeyboardEvent } from './keyboardEvent.js';
 import { StandardMouseEvent } from './mouseEvent.js';
 import { renderLabelWithIcons } from './ui/iconLabel/iconLabels.js';
@@ -36,14 +36,16 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	readonly asyncRenderCallback?: () => void;
 	readonly fillInIncompleteTokens?: boolean;
 	readonly remoteImageIsAllowed?: (uri: URI) => boolean;
+
 	readonly sanitizerOptions?: ISanitizerOptions;
+
+	readonly markedOptions?: MarkedOptions;
 }
 
 export interface ISanitizerOptions {
 	readonly replaceWithPlaintext?: boolean;
 	readonly allowedTags?: readonly string[];
 	readonly customAttrSanitizer?: (attrName: string, attrValue: string) => boolean | string;
-	readonly allowedSchemes?: readonly string[];
 	readonly allowedProductProtocols?: readonly string[];
 }
 
@@ -102,14 +104,12 @@ const defaultMarkedRenderers = Object.freeze({
  * **Note** that for most cases you should be using {@link import('../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js').MarkdownRenderer MarkdownRenderer}
  * which comes with support for pretty code block rendering and which uses the default way of handling links.
  */
-export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: MarkedOptions = {}): { element: HTMLElement; dispose: () => void } {
+export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, target?: HTMLElement): { element: HTMLElement; dispose: () => void } {
 	const disposables = new DisposableStore();
 	let isDisposed = false;
 
-	const element = createElement(options);
-
-	const markedInstance = new marked.Marked(...(markedOptions.markedExtensions ?? []));
-	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(markedInstance, options, markedOptions, markdown);
+	const markedInstance = new marked.Marked(...(options.markedOptions?.markedExtensions ?? []));
+	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(markedInstance, options, markdown);
 	const value = preprocessMarkdownString(markdown);
 
 	let renderedMarkdown: string;
@@ -117,14 +117,14 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		// The defaults are applied by parse but not lexer()/parser(), and they need to be present
 		const opts: MarkedOptions = {
 			...markedInstance.defaults,
-			...markedOptions,
+			...options.markedOptions,
 			renderer
 		};
 		const tokens = markedInstance.lexer(value, opts);
 		const newTokens = fillInIncompleteTokens(tokens);
 		renderedMarkdown = markedInstance.parser(newTokens, opts);
 	} else {
-		renderedMarkdown = markedInstance.parse(value, { ...markedOptions, renderer, async: false });
+		renderedMarkdown = markedInstance.parse(value, { ...options?.markedOptions, renderer, async: false });
 	}
 
 	// Rewrite theme icons
@@ -138,6 +138,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	rewriteRenderedLinks(markdown, options, markdownHtmlDoc.body);
 
+	const element = target ?? document.createElement('div');
 	element.innerHTML = sanitizeRenderedMarkdown({ isTrusted: markdown.isTrusted, ...options.sanitizerOptions }, markdownHtmlDoc.body.innerHTML) as unknown as string;
 
 	if (codeBlocks.length > 0) {
@@ -247,8 +248,8 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 	}
 }
 
-function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOptions, markedOptions: MarkedOptions, markdown: IMarkdownString): { renderer: marked.Renderer; codeBlocks: Promise<[string, HTMLElement]>[]; syncCodeBlocks: [string, HTMLElement][] } {
-	const renderer = new marked.Renderer(markedOptions);
+function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOptions, markdown: IMarkdownString): { renderer: marked.Renderer; codeBlocks: Promise<[string, HTMLElement]>[]; syncCodeBlocks: [string, HTMLElement][] } {
+	const renderer = new marked.Renderer(options.markedOptions);
 	renderer.image = defaultMarkedRenderers.image;
 	renderer.link = defaultMarkedRenderers.link;
 	renderer.paragraph = defaultMarkedRenderers.paragraph;
@@ -408,108 +409,11 @@ function sanitizeRenderedMarkdown(
 	options: IInternalSanitizerOptions,
 	renderedMarkdown: string,
 ): TrustedHTML {
-	const { config, allowedSchemes } = getSanitizerOptions(options);
-	const store = new DisposableStore();
-	store.add(addDompurifyHook('uponSanitizeAttribute', (element, e) => {
-		if (options.customAttrSanitizer) {
-			const result = options.customAttrSanitizer(e.attrName, e.attrValue);
-			if (typeof result === 'string') {
-				if (result) {
-					e.attrValue = result;
-					e.keepAttr = true;
-				} else {
-					e.keepAttr = false;
-				}
-			} else {
-				e.keepAttr = result;
-			}
-			return;
-		}
-
-		if (e.attrName === 'style' || e.attrName === 'class') {
-			if (element.tagName === 'SPAN') {
-				if (e.attrName === 'style') {
-					e.keepAttr = /^(color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(background-color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(border-radius:[0-9]+px;)?$/.test(e.attrValue);
-					return;
-				} else if (e.attrName === 'class') {
-					e.keepAttr = /^codicon codicon-[a-z\-]+( codicon-modifier-[a-z\-]+)?$/.test(e.attrValue);
-					return;
-				}
-			}
-
-			e.keepAttr = false;
-			return;
-		} else if (element.tagName === 'INPUT' && element.attributes.getNamedItem('type')?.value === 'checkbox') {
-			if ((e.attrName === 'type' && e.attrValue === 'checkbox') || e.attrName === 'disabled' || e.attrName === 'checked') {
-				e.keepAttr = true;
-				return;
-			}
-			e.keepAttr = false;
-		}
-	}));
-
-	store.add(addDompurifyHook('uponSanitizeElement', (element, e) => {
-		if (e.tagName === 'input') {
-			if (element.attributes.getNamedItem('type')?.value === 'checkbox') {
-				element.setAttribute('disabled', '');
-			} else if (!options.replaceWithPlaintext) {
-				element.remove();
-			}
-		}
-
-		if (options.replaceWithPlaintext && !e.allowedTags[e.tagName] && e.tagName !== 'body') {
-			if (element.parentElement) {
-				let startTagText: string;
-				let endTagText: string | undefined;
-				if (e.tagName === '#comment') {
-					startTagText = `<!--${element.textContent}-->`;
-				} else {
-					const isSelfClosing = selfClosingTags.includes(e.tagName);
-					const attrString = element.attributes.length ?
-						' ' + Array.from(element.attributes)
-							.map(attr => `${attr.name}="${attr.value}"`)
-							.join(' ')
-						: '';
-					startTagText = `<${e.tagName}${attrString}>`;
-					if (!isSelfClosing) {
-						endTagText = `</${e.tagName}>`;
-					}
-				}
-
-				const fragment = document.createDocumentFragment();
-				const textNode = element.parentElement.ownerDocument.createTextNode(startTagText);
-				fragment.appendChild(textNode);
-				const endTagTextNode = endTagText ? element.parentElement.ownerDocument.createTextNode(endTagText) : undefined;
-				while (element.firstChild) {
-					fragment.appendChild(element.firstChild);
-				}
-
-				if (endTagTextNode) {
-					fragment.appendChild(endTagTextNode);
-				}
-
-				if (element.nodeType === Node.COMMENT_NODE) {
-					// Workaround for https://github.com/cure53/DOMPurify/issues/1005
-					// The comment will be deleted in the next phase. However if we try to remove it now, it will cause
-					// an exception. Instead we insert the text node before the comment.
-					element.parentElement.insertBefore(fragment, element);
-				} else {
-					element.parentElement.replaceChild(fragment, element);
-				}
-			}
-		}
-	}));
-
-	store.add(DOM.hookDomPurifyHrefAndSrcSanitizer(allowedSchemes));
-
-	try {
-		return dompurify.sanitize(renderedMarkdown, { ...config, RETURN_TRUSTED_TYPE: true });
-	} finally {
-		store.dispose();
-	}
+	const sanitizerConfig = getSanitizerOptions(options);
+	return domSanitize.sanitizeHtml(renderedMarkdown, sanitizerConfig);
 }
 
-export const allowedMarkdownAttr = [
+export const allowedMarkdownHtmlAttributes = [
 	'align',
 	'autoplay',
 	'alt',
@@ -517,8 +421,6 @@ export const allowedMarkdownAttr = [
 	'class',
 	'colspan',
 	'controls',
-	'data-code',
-	'data-href',
 	'disabled',
 	'draggable',
 	'height',
@@ -529,20 +431,26 @@ export const allowedMarkdownAttr = [
 	'poster',
 	'rowspan',
 	'src',
-	'style',
 	'target',
 	'title',
 	'type',
 	'width',
 	'start',
+
+	// Custom markdown attributes
+	'data-code',
+	'data-href',
+
+	// These attributes are sanitized in the hooks
+	'style',
+	'class',
 ];
 
-function getSanitizerOptions(options: IInternalSanitizerOptions): { config: dompurify.Config; allowedSchemes: string[] } {
-	const allowedSchemes = [
+function getSanitizerOptions(options: IInternalSanitizerOptions): domSanitize.SanitizeOptions {
+	const allowedLinkSchemes = [
 		Schemas.http,
 		Schemas.https,
 		Schemas.mailto,
-		Schemas.data,
 		Schemas.file,
 		Schemas.vscodeFileResource,
 		Schemas.vscodeRemote,
@@ -551,24 +459,128 @@ function getSanitizerOptions(options: IInternalSanitizerOptions): { config: domp
 	];
 
 	if (options.isTrusted) {
-		allowedSchemes.push(Schemas.command);
+		allowedLinkSchemes.push(Schemas.command);
 	}
 
 	if (options.allowedProductProtocols) {
-		allowedSchemes.push(...options.allowedProductProtocols);
+		allowedLinkSchemes.push(...options.allowedProductProtocols);
 	}
 
 	return {
-		config: {
-			// allowedTags should included everything that markdown renders to.
-			// Since we have our own sanitize function for marked, it's possible we missed some tag so let dompurify make sure.
-			// HTML tags that can result from markdown are from reading https://spec.commonmark.org/0.29/
-			// HTML table tags that can result from markdown are from https://github.github.com/gfm/#tables-extension-
-			ALLOWED_TAGS: options.allowedTags ? [...options.allowedTags] : [...DOM.basicMarkupHtmlTags],
-			ALLOWED_ATTR: allowedMarkdownAttr,
-			ALLOW_UNKNOWN_PROTOCOLS: true,
+		// allowedTags should included everything that markdown renders to.
+		// Since we have our own sanitize function for marked, it's possible we missed some tag so let dompurify make sure.
+		// HTML tags that can result from markdown are from reading https://spec.commonmark.org/0.29/
+		// HTML table tags that can result from markdown are from https://github.github.com/gfm/#tables-extension-
+		allowedTags: {
+			override: options.allowedTags ?? domSanitize.basicMarkupHtmlTags
 		},
-		allowedSchemes
+		allowedAttributes: {
+			override: allowedMarkdownHtmlAttributes,
+		},
+		allowedLinkProtocols: {
+			override: allowedLinkSchemes,
+		},
+		allowedMediaProtocols: {
+			override: [
+				Schemas.http,
+				Schemas.https,
+				Schemas.data,
+				Schemas.file,
+				Schemas.vscodeFileResource,
+				Schemas.vscodeRemote,
+				Schemas.vscodeRemoteResource,
+			]
+		},
+		hooks: {
+			uponSanitizeAttribute: (element, e) => {
+				if (options.customAttrSanitizer) {
+					const result = options.customAttrSanitizer(e.attrName, e.attrValue);
+					if (typeof result === 'string') {
+						if (result) {
+							e.attrValue = result;
+							e.keepAttr = true;
+						} else {
+							e.keepAttr = false;
+						}
+					} else {
+						e.keepAttr = result;
+					}
+					return;
+				}
+
+				if (e.attrName === 'style' || e.attrName === 'class') {
+					if (element.tagName === 'SPAN') {
+						if (e.attrName === 'style') {
+							e.keepAttr = /^(color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(background-color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(border-radius:[0-9]+px;)?$/.test(e.attrValue);
+							return;
+						} else if (e.attrName === 'class') {
+							e.keepAttr = /^codicon codicon-[a-z\-]+( codicon-modifier-[a-z\-]+)?$/.test(e.attrValue);
+							return;
+						}
+					}
+
+					e.keepAttr = false;
+					return;
+				} else if (element.tagName === 'INPUT' && element.attributes.getNamedItem('type')?.value === 'checkbox') {
+					if ((e.attrName === 'type' && e.attrValue === 'checkbox') || e.attrName === 'disabled' || e.attrName === 'checked') {
+						e.keepAttr = true;
+						return;
+					}
+					e.keepAttr = false;
+				}
+			},
+			uponSanitizeElement: (element, e) => {
+				if (e.tagName === 'input') {
+					if (element.attributes.getNamedItem('type')?.value === 'checkbox') {
+						element.setAttribute('disabled', '');
+					} else if (!options.replaceWithPlaintext) {
+						element.remove();
+					}
+				}
+
+				if (options.replaceWithPlaintext && !e.allowedTags[e.tagName] && e.tagName !== 'body') {
+					if (element.parentElement) {
+						let startTagText: string;
+						let endTagText: string | undefined;
+						if (e.tagName === '#comment') {
+							startTagText = `<!--${element.textContent}-->`;
+						} else {
+							const isSelfClosing = selfClosingTags.includes(e.tagName);
+							const attrString = element.attributes.length ?
+								' ' + Array.from(element.attributes)
+									.map(attr => `${attr.name}="${attr.value}"`)
+									.join(' ')
+								: '';
+							startTagText = `<${e.tagName}${attrString}>`;
+							if (!isSelfClosing) {
+								endTagText = `</${e.tagName}>`;
+							}
+						}
+
+						const fragment = document.createDocumentFragment();
+						const textNode = element.parentElement.ownerDocument.createTextNode(startTagText);
+						fragment.appendChild(textNode);
+						const endTagTextNode = endTagText ? element.parentElement.ownerDocument.createTextNode(endTagText) : undefined;
+						while (element.firstChild) {
+							fragment.appendChild(element.firstChild);
+						}
+
+						if (endTagTextNode) {
+							fragment.appendChild(endTagTextNode);
+						}
+
+						if (element.nodeType === Node.COMMENT_NODE) {
+							// Workaround for https://github.com/cure53/DOMPurify/issues/1005
+							// The comment will be deleted in the next phase. However if we try to remove it now, it will cause
+							// an exception. Instead we insert the text node before the comment.
+							element.parentElement.insertBefore(fragment, element);
+						} else {
+							element.parentElement.replaceChild(fragment, element);
+						}
+					}
+				}
+			}
+		}
 	};
 }
 
@@ -996,15 +1008,3 @@ function completeTable(tokens: marked.Token[]): marked.Token[] | undefined {
 	return undefined;
 }
 
-function addDompurifyHook(
-	hook: 'uponSanitizeElement',
-	cb: (currentNode: Element, data: dompurify.SanitizeElementHookEvent, config: dompurify.Config) => void,
-): IDisposable;
-function addDompurifyHook(
-	hook: 'uponSanitizeAttribute',
-	cb: (currentNode: Element, data: dompurify.SanitizeAttributeHookEvent, config: dompurify.Config) => void,
-): IDisposable;
-function addDompurifyHook(hook: 'uponSanitizeElement' | 'uponSanitizeAttribute', cb: any): IDisposable {
-	dompurify.addHook(hook, cb);
-	return toDisposable(() => dompurify.removeHook(hook));
-}

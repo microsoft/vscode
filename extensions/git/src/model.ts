@@ -439,7 +439,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	@debounce(500)
 	private eventuallyScanPossibleGitRepositories(): void {
 		for (const path of this.possibleGitRepositoryPaths) {
-			this.openRepository(path);
+			this.openRepository(path, false, true);
 		}
 
 		this.possibleGitRepositoryPaths.clear();
@@ -548,7 +548,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	}
 
 	@sequentialize
-	async openRepository(repoPath: string, openIfClosed = false): Promise<void> {
+	async openRepository(repoPath: string, openIfClosed = false, openIfParent = false): Promise<void> {
 		this.logger.trace(`[Model][openRepository] Repository: ${repoPath}`);
 		const existingRepository = await this.getRepositoryExact(repoPath);
 		if (existingRepository) {
@@ -597,7 +597,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			const parentRepositoryConfig = config.get<'always' | 'never' | 'prompt'>('openRepositoryInParentFolders', 'prompt');
 			if (parentRepositoryConfig !== 'always' && this.globalState.get<boolean>(`parentRepository:${repositoryRoot}`) !== true) {
 				const isRepositoryOutsideWorkspace = await this.isRepositoryOutsideWorkspace(repositoryRoot);
-				if (isRepositoryOutsideWorkspace) {
+				if (!openIfParent && isRepositoryOutsideWorkspace) {
 					this.logger.trace(`[Model][openRepository] Repository in parent folder: ${repositoryRoot}`);
 
 					if (!this._parentRepositoriesManager.hasRepository(repositoryRoot)) {
