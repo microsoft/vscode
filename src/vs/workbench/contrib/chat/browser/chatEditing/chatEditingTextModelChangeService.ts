@@ -23,7 +23,7 @@ import { IModelDeltaDecoration, ITextModel, ITextSnapshot, MinimapPosition, Over
 import { ModelDecorationOptions } from '../../../../../editor/common/model/textModel.js';
 import { offsetEditFromContentChanges, offsetEditFromLineRangeMapping, offsetEditToEditOperations } from '../../../../../editor/common/model/textModelStringEdit.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
-import { TextModelEditReason, EditReasons } from '../../../../../editor/common/textModelEditReason.js';
+import { TextModelEditSource, EditSources } from '../../../../../editor/common/textModelEditSource.js';
 import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
@@ -139,7 +139,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 
 		const sessionId = responseModel.session.sessionId;
 		const request = responseModel.session.getRequests().at(-1);
-		const source = EditReasons.chatApplyEdits({ modelId: request?.modelId, requestId: request?.id, sessionId: sessionId });
+		const source = EditSources.chatApplyEdits({ modelId: request?.modelId, requestId: request?.id, sessionId: sessionId });
 
 		if (isAtomicEdits) {
 			// EDIT and DONE
@@ -212,7 +212,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		return { rewriteRatio, maxLineNumber };
 	}
 
-	private _applyEdits(edits: ISingleEditOperation[], source: TextModelEditReason) {
+	private _applyEdits(edits: ISingleEditOperation[], source: TextModelEditSource) {
 		try {
 			this._isEditFromUs = true;
 			// make the actual edit
@@ -243,7 +243,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	 */
 	public undo() {
 		this.modifiedModel.pushStackElement();
-		this._applyEdits([(EditOperation.replace(this.modifiedModel.getFullModelRange(), this.originalModel.getValue()))], EditReasons.chatUndoEdits());
+		this._applyEdits([(EditOperation.replace(this.modifiedModel.getFullModelRange(), this.originalModel.getValue()))], EditSources.chatUndoEdits());
 		this.modifiedModel.pushStackElement();
 		this._originalToModifiedEdit = StringEdit.empty;
 		this._diffInfo.set(nullDocumentDiff, undefined);
@@ -258,7 +258,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		if (newModified !== undefined && this.modifiedModel.getValue() !== newModified) {
 			// NOTE that this isn't done via `setValue` so that the undo stack is preserved
 			this.modifiedModel.pushStackElement();
-			this._applyEdits([(EditOperation.replace(this.modifiedModel.getFullModelRange(), newModified))], EditReasons.chatReset());
+			this._applyEdits([(EditOperation.replace(this.modifiedModel.getFullModelRange(), newModified))], EditSources.chatReset());
 			this.modifiedModel.pushStackElement();
 			didChange = true;
 		}
