@@ -177,6 +177,7 @@ export interface IChatErrorDetailsPart {
 
 export interface IChatChangesSummaryPart {
 	kind: 'changesSummary';
+	edits: IChatTextEditGroup[];
 }
 
 /**

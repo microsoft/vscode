@@ -863,6 +863,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderChatContentDiff(partsToRender: ReadonlyArray<IChatRendererContent | null>, contentForThisTurn: ReadonlyArray<IChatRendererContent>, element: IChatResponseViewModel, elementIndex: number, templateData: IChatListItemTemplate): void {
+		console.log('partsToRender', partsToRender);
 		const renderedParts = templateData.renderedParts ?? [];
 		templateData.renderedParts = renderedParts;
 		partsToRender.forEach((partToRender, contentIndex) => {
@@ -929,6 +930,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const renderImmediately = this.configService.getValue<boolean>('chat.experimental.renderMarkdownImmediately') === true;
 
 		const renderableResponse = annotateSpecialMarkdownContent(element.response.value);
+		// console.log('renderableResponse', renderableResponse);
+		// console.log('element : ', element);
+		// console.log('element.model : ', element.model);
+		// console.log('element.renderData : ', element.renderData);
+		// console.log('element.response : ', element.response);
+		// console.log('element.result : ', element.result);
+		// console.log('element.session : ', element.sessionId);
 
 		this.traceLayout('getNextProgressiveRenderContent', `Want to render ${data.numWordsToRender} at ${data.rate} words/s, counting...`);
 		let numNeededWords = data.numWordsToRender;
@@ -989,6 +997,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const isPaused = element.model.isPaused.get();
 			partsToRender.push({ kind: 'working', isPaused, setPaused: p => element.model.setPaused(p) });
 		}
+		const textEditResponse = element.model.response.value.filter(part => part.kind === 'textEditGroup');
+		partsToRender.push({ kind: 'changesSummary', edits: textEditResponse });
 
 		return { content: partsToRender, moreContentAvailable };
 	}
@@ -1046,6 +1056,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				// null -> no change
 				diff.push(null);
 			}
+			// console.log('diff : ', diff);
 		}
 
 		return diff;
@@ -1269,7 +1280,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderChangesSummary(content: IChatChangesSummaryPart, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
-		return this.instantiationService.createInstance(ChatChangesSummaryContentPart, context);
+		return this.instantiationService.createInstance(ChatChangesSummaryContentPart, content, context);
 	}
 
 	private renderAttachments(variables: IChatRequestVariableEntry[], contentReferences: ReadonlyArray<IChatContentReference> | undefined, templateData: IChatListItemTemplate) {

@@ -6,7 +6,7 @@
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import * as dom from '../../../../../base/browser/dom.js';
-import { IChatRendererContent } from '../../common/chatViewModel.js';
+import { IChatChangesSummaryPart, IChatRendererContent } from '../../common/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatCollapsibleListContentPart, CollapsibleListPool } from './chatReferencesContentPart.js';
@@ -16,6 +16,7 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 	public readonly domNode: HTMLElement;
 
 	constructor(
+		content: IChatChangesSummaryPart,
 		context: IChatContentPartRenderContext,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
@@ -33,6 +34,8 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+		console.log('hadSameContent', other.kind === 'changesSummary');
 		return false;
+		// should actually be something along the lines of other.kind === 'changesSummary';
 	}
 }
