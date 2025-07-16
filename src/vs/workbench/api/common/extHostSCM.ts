@@ -558,6 +558,24 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		return this._rootUri;
 	}
 
+	private _contextValue: string | undefined = undefined;
+
+	get contextValue(): string | undefined {
+		checkProposedApiEnabled(this._extension, 'scmProviderOptions');
+		return this._contextValue;
+	}
+
+	set contextValue(contextValue: string | undefined) {
+		checkProposedApiEnabled(this._extension, 'scmProviderOptions');
+
+		if (this._contextValue === contextValue) {
+			return;
+		}
+
+		this._contextValue = contextValue;
+		this.#proxy.$updateSourceControl(this.handle, { contextValue });
+	}
+
 	private _inputBox: ExtHostSCMInputBox;
 	get inputBox(): ExtHostSCMInputBox { return this._inputBox; }
 
@@ -740,7 +758,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	private readonly _onDidChangeSelection = new Emitter<boolean>();
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 
-	private handle: number = ExtHostSourceControl._handlePool++;
+	readonly handle: number = ExtHostSourceControl._handlePool++;
 
 	constructor(
 		private readonly _extension: IExtensionDescription,
@@ -852,8 +870,6 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 export class ExtHostSCM implements ExtHostSCMShape {
 
-	private static _handlePool: number = 0;
-
 	private _proxy: MainThreadSCMShape;
 	private readonly _telemetry: MainThreadTelemetryShape;
 	private _sourceControls: Map<ProviderHandle, ExtHostSourceControl> = new Map<ProviderHandle, ExtHostSourceControl>();
@@ -925,9 +941,8 @@ export class ExtHostSCM implements ExtHostSCMShape {
 			extensionId: extension.identifier.value,
 		});
 
-		const handle = ExtHostSCM._handlePool++;
 		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, id, label, rootUri);
-		this._sourceControls.set(handle, sourceControl);
+		this._sourceControls.set(sourceControl.handle, sourceControl);
 
 		const sourceControls = this._sourceControlsByExtension.get(extension.identifier) || [];
 		sourceControls.push(sourceControl);

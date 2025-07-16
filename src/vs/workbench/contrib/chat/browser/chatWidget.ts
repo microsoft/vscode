@@ -25,7 +25,7 @@ import { ICodeEditorService } from '../../../../editor/browser/services/codeEdit
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ITextResourceEditorInput } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -33,6 +33,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
@@ -119,6 +120,8 @@ export function isInlineChat(widget: IChatWidget): boolean {
 
 export class ChatWidget extends Disposable implements IChatWidget {
 	public static readonly CONTRIBS: { new(...args: [IChatWidget, ...any]): IChatWidgetContrib }[] = [];
+
+	private static readonly STORAGE_KEY_HAS_SENT_REQUEST = 'chat.hasSentRequest';
 
 	private readonly _onDidSubmitAgent = this._register(new Emitter<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>());
 	public readonly onDidSubmitAgent = this._onDidSubmitAgent.event;
@@ -292,7 +295,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 
@@ -309,6 +313,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		ChatContextKeys.inChatSession.bindTo(contextKeyService).set(true);
 		ChatContextKeys.location.bindTo(contextKeyService).set(this._location.location);
 		ChatContextKeys.inQuickChat.bindTo(contextKeyService).set(isQuickChat(this));
+		ChatContextKeys.chatPanelNeverUsed.bindTo(contextKeyService).set(!this.hasEverSentChatRequest());
 		this.agentInInput = ChatContextKeys.inputHasAgent.bindTo(contextKeyService);
 		this.requestInProgress = ChatContextKeys.requestInProgress.bindTo(contextKeyService);
 		this.isRequestPaused = ChatContextKeys.isRequestPaused.bindTo(contextKeyService);
@@ -361,7 +366,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('chat.renderRelatedFiles')) {
 				this.renderChatEditingSessionState();
-			} else if (e.affectsConfiguration(ChatConfiguration.EditRequests)) {
+			}
+
+			if (e.affectsConfiguration(ChatConfiguration.EditRequests) || e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)) {
 				this.settingChangeCounter++;
 				this.onDidChangeItems();
 			}
@@ -461,6 +468,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 
 		this._register(this.onDidChangeParsedInput(() => this.updateChatInputContext()));
+
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set([
+				ChatContextKeys.chatPanelNeverUsed.key
+			]))) {
+
+				if (this.contextKeyService.contextMatchesRules(ChatContextKeys.chatPanelNeverUsed.negate())
+					&& this.container.classList.contains('experimental-welcome-view')) {
+					this.container.classList.remove('experimental-welcome-view');
+					const renderFollowups = this.viewOptions.renderFollowups ?? false;
+					const renderStyle = this.viewOptions.renderStyle;
+					this.createInput(this.container, { renderFollowups, renderStyle });
+				}
+			}
+		}));
 	}
 
 	private _lastSelectedAgent: IChatAgentData | undefined;
@@ -512,6 +534,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		} else {
 			this.logService.debug('ChatWidget#waitForReady: no viewModel');
 		}
+	}
+
+	private hasEverSentChatRequest(): boolean {
+		return this.storageService.getBoolean(ChatWidget.STORAGE_KEY_HAS_SENT_REQUEST, StorageScope.APPLICATION, false);
+	}
+
+	private markChatRequestSent(): void {
+		this.storageService.store(ChatWidget.STORAGE_KEY_HAS_SENT_REQUEST, true, StorageScope.APPLICATION, StorageTarget.USER);
+		ChatContextKeys.chatPanelNeverUsed.bindTo(this.contextKeyService).set(false);
 	}
 
 	render(parent: HTMLElement): void {
@@ -704,6 +735,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							`_${element.shouldBeBlocked ? '1' : '0'}` +
 							// Re-render if we have an element currently being edited
 							`_${this.viewModel?.editing ? '1' : '0'}` +
+							// Re-render if we have an element currently being checkpointed
+							`_${this.viewModel?.model.checkpoint ? '1' : '0'}` +
 							// Re-render all if invoked by setting change
 							`_setting${this.settingChangeCounter || '0'}` +
 							// Rerender request if we got new content references in the response
@@ -736,22 +769,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const configuration = this.configurationService.inspect('workbench.secondarySideBar.defaultVisibility');
 			const expIsActive = configuration.defaultValue !== 'hidden';
 
-			const chatSetupTriggerContext = ContextKeyExpr.or(
-				ChatContextKeys.Setup.installed.negate(),
-				ChatContextKeys.Entitlement.canSignUp
-			);
+			const expEmptyState = this.configurationService.getValue<boolean>('chat.emptyChatState.enabled');
 
 			let welcomeContent: IChatViewWelcomeContent;
+			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
+			const additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
 			if ((startupExpValue === StartupExperimentGroup.MaximizedChat
 				|| startupExpValue === StartupExperimentGroup.SplitEmptyEditorChat
 				|| startupExpValue === StartupExperimentGroup.SplitWelcomeChat
-				|| expIsActive) && this.contextKeyService.contextMatchesRules(chatSetupTriggerContext)) {
+				|| expIsActive) && this.contextKeyService.contextMatchesRules(ChatContextKeys.chatPanelNeverUsed)) {
 				welcomeContent = this.getExpWelcomeViewContent();
 				this.container.classList.add('experimental-welcome-view');
 			}
+			else if (expEmptyState) {
+				welcomeContent = this.getWelcomeViewContent(additionalMessage, expEmptyState);
+			}
 			else {
-				const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
-				const additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
 				const tips = this.input.currentModeKind === ChatModeKind.Ask
 					? new MarkdownString(localize('chatWidget.tips', "{0} or type {1} to attach context\n\n{2} to chat with extensions\n\nType {3} to use commands", '$(attach)', '#', '$(mention)', '/'), { supportThemeIcons: true })
 					: new MarkdownString(localize('chatWidget.tips.withoutParticipants', "{0} or type {1} to attach context", '$(attach)', '#'), { supportThemeIcons: true });
@@ -775,27 +808,37 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined): IChatViewWelcomeContent {
-		const baseMessage = localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.");
+	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined, expEmptyState?: boolean): IChatViewWelcomeContent {
+		const disclaimerMessage = expEmptyState
+			? localize('chatDisclaimer', "AI responses may be inaccurate.")
+			: localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.");
+		const icon = expEmptyState ? Codicon.chatSparkle : Codicon.copilotLarge;
+
 		if (this.input.currentModeKind === ChatModeKind.Ask) {
 			return {
-				title: localize('chatDescription', "Ask Copilot"),
-				message: new MarkdownString(baseMessage),
-				icon: Codicon.copilotLarge,
+				title: localize('chatDescription', "Ask about your code."),
+				message: new MarkdownString(disclaimerMessage),
+				icon,
 				additionalMessage,
 			};
 		} else if (this.input.currentModeKind === ChatModeKind.Edit) {
+			const editsHelpMessage = localize('editsHelp', "Start your editing session by defining a set of files that you want to work with. Then ask Copilot for the changes you want to make.");
+			const message = expEmptyState ? disclaimerMessage : `${editsHelpMessage}\n\n${disclaimerMessage}`;
+
 			return {
-				title: localize('editsTitle', "Edit with Copilot"),
-				message: new MarkdownString(localize('editsMessage', "Start your editing session by defining a set of files that you want to work with. Then ask Copilot for the changes you want to make.") + `\n\n${baseMessage}`),
-				icon: Codicon.copilotLarge,
+				title: localize('editsTitle', "Edit in context."),
+				message: new MarkdownString(message),
+				icon,
 				additionalMessage
 			};
 		} else {
+			const agentHelpMessage = localize('agentMessage', "Ask Copilot to edit your files in [agent mode]({0}). Copilot will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.", 'https://aka.ms/vscode-copilot-agent');
+			const message = expEmptyState ? disclaimerMessage : `${agentHelpMessage}\n\n${disclaimerMessage}`;
+
 			return {
-				title: localize('editsTitle', "Edit with Copilot"),
-				message: new MarkdownString(localize('agentMessage', "Ask Copilot to edit your files in [agent mode]({0}). Copilot will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.", 'https://aka.ms/vscode-copilot-agent') + `\n\n${baseMessage}`),
-				icon: Codicon.copilotLarge,
+				title: localize('agentTitle', "Build with agent mode."),
+				message: new MarkdownString(message),
+				icon,
 				additionalMessage
 			};
 		}
@@ -1115,15 +1158,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			ChatContextKeys.currentlyEditing.bindTo(editedRequest.contextKeyService).set(false);
 		}
 
-		this.inputPart.setChatMode(this.inlineInputPart.currentModeKind);
-		const currentModelName = this.inlineInputPart.selectedLanguageModel?.metadata.name;
-		if (currentModelName) {
-			this.inputPart.switchModelByName(currentModelName);
-		}
-
 		const isInput = this.configurationService.getValue<string>('chat.editRequests') === 'input';
 
 		if (!isInput) {
+			this.inputPart.setChatMode(this.input.currentModeKind);
+			const currentModel = this.input.selectedLanguageModel;
+			if (currentModel) {
+				this.inputPart.switchModel(currentModel.metadata);
+			}
+
 			this.inputPart?.toggleChatInputOverlay(false);
 			try {
 				if (editedRequest?.rowContainer && editedRequest.rowContainer.contains(this.inputContainer)) {
@@ -1676,6 +1719,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}
 
+			if (this.location === ChatAgentLocation.Panel && !this.hasEverSentChatRequest()) {
+				this.markChatRequestSent();
+			}
+
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, requestInputs.input, {
 				userSelectedModelId: this.input.currentLanguageModel,
 				location: this.location,
@@ -1952,7 +1999,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		if (model !== undefined) {
-			this.input.switchModelByName(model);
+			this.input.switchModelByQualifiedName(model);
 		}
 	}
 

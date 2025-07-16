@@ -126,13 +126,13 @@ export async function getCodeActions(
 		const handle = setTimeout(() => progress.report(provider), 1250);
 		try {
 			const providedCodeActions = await provider.provideCodeActions(model, rangeOrSelection, codeActionContext, cts.token);
+			if (cts.token.isCancellationRequested) {
+				providedCodeActions?.dispose();
+				return emptyCodeActionsResponse;
+			}
 
 			if (providedCodeActions) {
 				disposables.add(providedCodeActions);
-			}
-
-			if (cts.token.isCancellationRequested) {
-				return emptyCodeActionsResponse;
 			}
 
 			const filteredActions = (providedCodeActions?.actions || []).filter(action => action && filtersAction(filter, action));
@@ -310,7 +310,7 @@ export async function applyCodeAction(
 			code: 'undoredo.codeAction',
 			respectAutoSaveConfig: codeActionReason !== ApplyCodeActionReason.OnSave,
 			showPreview: options?.preview,
-			reason: EditReasons.codeAction({ kind: item.action.kind, extensionId: item.provider?.extensionId }),
+			reason: EditReasons.codeAction({ kind: item.action.kind, providerId: languages.ProviderId.fromExtensionId(item.provider?.extensionId) }),
 		});
 
 		if (!result.isApplied) {

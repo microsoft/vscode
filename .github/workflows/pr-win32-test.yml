@@ -44,7 +44,7 @@ jobs:
         id: node-modules-cache
         with:
           path: .build/node_modules_cache
-          key: "node_modules-${{ hashFiles('.build/packagelockhash') }}"
+          key: "node_modules-windows-${{ hashFiles('.build/packagelockhash') }}"
 
       - name: Extract node_modules cache
         if: steps.node-modules-cache.outputs.cache-hit == 'true'
@@ -102,6 +102,7 @@ jobs:
         id: cache-builtin-extensions
         uses: actions/cache/restore@v4
         with:
+          enableCrossOsArchive: true
           path: .build/builtInExtensions
           key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
 
