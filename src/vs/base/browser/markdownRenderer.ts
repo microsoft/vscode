@@ -101,11 +101,11 @@ const defaultMarkedRenderers = Object.freeze({
  * **Note** that for most cases you should be using {@link import('../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js').MarkdownRenderer MarkdownRenderer}
  * which comes with support for pretty code block rendering and which uses the default way of handling links.
  */
-export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: MarkedOptions = {}): { element: HTMLElement; dispose: () => void } {
+export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: MarkedOptions = {}, outElement?: HTMLElement): { element: HTMLElement; dispose: () => void } {
 	const disposables = new DisposableStore();
 	let isDisposed = false;
 
-	const element = createElement(options);
+	const element = outElement ?? createElement(options);
 
 	const markedInstance = new marked.Marked(...(markedOptions.markedExtensions ?? []));
 	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(markedInstance, options, markedOptions, markdown);
