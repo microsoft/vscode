@@ -234,7 +234,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					}
 				},
 				asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-			}, markedOpts, this.domNode));
+				markedOptions: markedOpts,
+			}, this.domNode));
 
 			const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 			this._register(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(markdown, result.element));

@@ -612,15 +612,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (element.agentOrSlashCommandDetected) {
 			const msg = element.slashCommand ? localize('usedAgentSlashCommand', "used {0} [[(rerun without)]]", `${chatSubcommandLeader}${element.slashCommand.name}`) : localize('usedAgent', "[[(rerun without)]]");
 			dom.reset(templateData.detail, renderFormattedText(msg, {
-				className: 'agentOrSlashCommandDetected',
-				inline: true,
 				actionHandler: {
 					disposables: templateData.elementDisposables,
 					callback: (content) => {
 						this._onDidClickRerunWithAgentOrCommandDetection.fire(element);
 					},
 				}
-			}));
+			}, $('span.agentOrSlashCommandDetected')));
 
 		} else if (this.rendererOptions.renderStyle !== 'minimal' && !element.isComplete && !checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse)) {
 			if (element.model.isPaused.get()) {
