@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -34,7 +34,7 @@ export class ScreenReaderSupport extends Disposable {
 
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 	private _primaryCursorVisibleRange: HorizontalPosition | null = null;
-	private _state!: IScreenReaderContent;
+	private readonly _state: MutableDisposable<IScreenReaderContent>;
 
 	constructor(
 		private readonly _domNode: FastDomNode<HTMLElement>,
@@ -44,21 +44,22 @@ export class ScreenReaderSupport extends Disposable {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super();
+		this._state = this._register(new MutableDisposable<IScreenReaderContent>());
 		this._instantiateScreenReaderContent();
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
 	}
 
 	public onWillPaste(): void {
-		this._state.onWillPaste();
+		this._state.value?.onWillPaste();
 	}
 
 	public onWillCut(): void {
-		this._state.onWillCut();
+		this._state.value?.onWillCut();
 	}
 
 	public handleFocusChange(newFocusValue: boolean): void {
-		this._state.onFocusChange(newFocusValue);
+		this._state.value?.onFocusChange(newFocusValue);
 	}
 
 	public onConfigurationChanged(e: ViewConfigurationChangedEvent): void {
@@ -74,11 +75,15 @@ export class ScreenReaderSupport extends Disposable {
 		const renderRichContent = this._context.configuration.options.get(EditorOption.renderRichScreenReaderContent);
 		if (this._renderRichContent !== renderRichContent) {
 			this._renderRichContent = renderRichContent;
-			if (renderRichContent) {
-				this._state = new RichScreenReaderContent(this._domNode, this._context, this._viewController, this._accessibilityService);
-			} else {
-				this._state = new SimpleScreenReaderContent(this._domNode, this._context, this._viewController, this._accessibilityService);
-			}
+			this._state.value = this._createScreenReaderContent(renderRichContent);
+		}
+	}
+
+	private _createScreenReaderContent(renderRichContent: boolean): IScreenReaderContent {
+		if (renderRichContent) {
+			return new RichScreenReaderContent(this._domNode, this._context, this._viewController, this._accessibilityService);
+		} else {
+			return new SimpleScreenReaderContent(this._domNode, this._context, this._viewController, this._accessibilityService);
 		}
 	}
 
@@ -91,7 +96,7 @@ export class ScreenReaderSupport extends Disposable {
 		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
 		this._divWidth = Math.round(wrappingColumn * this._fontInfo.typicalHalfwidthCharacterWidth);
-		this._state.onConfigurationChanged(options);
+		this._state.value?.onConfigurationChanged(options);
 	}
 
 	private _updateDomAttributes(): void {
@@ -149,7 +154,7 @@ export class ScreenReaderSupport extends Disposable {
 		// line height for all lines.
 		const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(positionLineNumber);
 		this._doRender(top, this._contentLeft, this._divWidth, lineHeight);
-		this._state.updateScrollTop(this._primarySelection);
+		this._state.value?.updateScrollTop(this._primarySelection);
 	}
 
 	private _renderAtTopLeft(): void {
@@ -183,6 +188,6 @@ export class ScreenReaderSupport extends Disposable {
 	}
 
 	public writeScreenReaderContent(): void {
-		this._state.updateScreenReaderContent(this._primarySelection);
+		this._state.value?.updateScreenReaderContent(this._primarySelection);
 	}
 }

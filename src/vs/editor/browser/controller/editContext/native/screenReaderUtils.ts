@@ -8,6 +8,8 @@ import { Selection } from '../../../../common/core/selection.js';
 
 export interface IScreenReaderContent {
 
+	dispose(): void;
+
 	/**
 	 * Handle screen reader content before cutting the content
 	 */
