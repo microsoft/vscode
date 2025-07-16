@@ -10,7 +10,7 @@ import { mapObservableArrayCached, derived, IReader, IObservable, observableSign
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { TextModelEditReason } from '../../../../editor/common/textModelEditReason.js';
+import { TextModelEditSource } from '../../../../editor/common/textModelEditSource.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ISCMRepository, ISCMService } from '../../scm/common/scm.js';
@@ -156,7 +156,7 @@ class TrackedDocumentInfo extends Disposable {
 
 		const statsUuid = generateUuid();
 
-		const sourceKeyToRepresentative = new Map<string, TextModelEditReason>();
+		const sourceKeyToRepresentative = new Map<string, TextModelEditSource>();
 		for (const r of ranges) {
 			sourceKeyToRepresentative.set(r.sourceKey, r.sourceRepresentative);
 		}
