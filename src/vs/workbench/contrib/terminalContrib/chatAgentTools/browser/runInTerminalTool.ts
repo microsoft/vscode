@@ -50,7 +50,33 @@ export const RunInTerminalToolData: IToolData = {
 	toolReferenceName: 'runInTerminal2',
 	canBeReferencedInPrompt: true,
 	displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
-	modelDescription: localize('runInTerminalTool.modelDescription', "This is a tool for running commands in the terminal. You should provide the command to run."),
+	modelDescription: [
+		'This tool allows you to execute shell commands in a persistent terminal session, preserving environment variables, working directory, and other context across multiple commands.',
+		'',
+		'Command Execution:',
+		'- Supports multi-line commands',
+		'',
+		'Directory Management:',
+		'- Must use absolute paths to avoid navigation issues.',
+		'',
+		'Program Execution:',
+		'- Supports Python, Node.js, and other executables.',
+		'- Install dependencies via pip, npm, etc.',
+		'',
+		'Background Processes:',
+		'- For long-running tasks (e.g., servers), set isBackground=true.',
+		'- Returns a terminal ID for checking status and runtime later.',
+		'',
+		'Output Management:',
+		'- Output is automatically truncated if longer than 60KB to prevent context overflow',
+		'- Use filters like \'head\', \'tail\', \'grep\' to limit output size',
+		'- For pager commands, disable paging: use \'git --no-pager\' or add \'| cat\'',
+		'',
+		'Best Practices:',
+		'- Be specific with commands to avoid excessive output',
+		'- Use targeted queries instead of broad scans',
+		'- Consider using \'wc -l\' to count before listing many items'
+	].join('\n'),
 	userDescription: localize('runInTerminalTool.userDescription', 'Tool for running commands in the terminal'),
 	source: ToolDataSource.Internal,
 	inputSchema: {
@@ -66,7 +92,7 @@ export const RunInTerminalToolData: IToolData = {
 			},
 			isBackground: {
 				type: 'boolean',
-				description: 'Whether the command starts a background process. If true, the command will run in the background and you will not see the output. If false, the tool call will block on the command finishing, and then you will get the output. Examples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using copilot_getTerminalOutput.'
+				description: 'Whether the command starts a background process. If true, the command will run in the background and you will not see the output. If false, the tool call will block on the command finishing, and then you will get the output. Examples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using getTerminalOutput.'
 			},
 		},
 		required: [

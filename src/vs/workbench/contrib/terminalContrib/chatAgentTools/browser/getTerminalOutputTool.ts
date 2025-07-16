@@ -13,7 +13,7 @@ export const GetTerminalOutputToolData: IToolData = {
 	id: 'vscode_getTerminalOutput',
 	toolReferenceName: 'getTerminalOutput2',
 	displayName: localize('getTerminalOutputTool.displayName', 'Get Terminal Output'),
-	modelDescription: localize('getTerminalOutputTool.modelDescription', "Get the output of a terminal command previously started with runInTerminal."),
+	modelDescription: 'Get the output of a terminal command previously started with runInTerminal',
 	source: ToolDataSource.Internal,
 	inputSchema: {
 		type: 'object',
