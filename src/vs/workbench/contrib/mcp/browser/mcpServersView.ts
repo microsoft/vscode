@@ -21,7 +21,7 @@ import { WorkbenchPagedList } from '../../../../platform/list/browser/listServic
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { getLocationBasedViewColors, ViewPane } from '../../../browser/parts/views/viewPane.js';
+import { getLocationBasedViewColors } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IViewDescriptorService, IViewsRegistry, Extensions as ViewExtensions } from '../../../common/views.js';
 import { HasInstalledMcpServersContext, IMcpWorkbenchService, InstalledMcpServersViewId, IWorkbenchMcpServer, McpServerContainers, mcpServerIcon, McpServerInstallState } from '../common/mcpTypes.js';
@@ -43,6 +43,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { AbstractExtensionsListView } from '../../extensions/browser/extensionsViews.js';
 
 export interface McpServerListViewOptions {
 	showWelcomeOnEmpty?: boolean;
@@ -55,7 +56,7 @@ interface IQueryResult {
 	onDidChangeModel?: Event<IPagedModel<IWorkbenchMcpServer>>;
 }
 
-export class McpServersListView extends ViewPane {
+export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcpServer> {
 
 	private list: WorkbenchPagedList<IWorkbenchMcpServer> | null = null;
 	private listContainer: HTMLElement | null = null;
