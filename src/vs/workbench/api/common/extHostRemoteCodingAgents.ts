@@ -6,9 +6,10 @@
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
-import { ExtHostRemoteCodingAgentsShape, MainContext } from './extHost.protocol.js';
+import { ExtHostRemoteCodingAgentsShape, MainContext, MainThreadRemoteCodingAgentsShape } from './extHost.protocol.js';
 import type * as vscode from 'vscode';
 import { ILogService } from '../../../platform/log/common/log.js';
+import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 
 export interface IExtHostRemoteCodingAgents extends ExtHostRemoteCodingAgentsShape {
 	registerCodingAgentInformationProvider(provider: vscode.RemoteCodingAgentInformationProvider): vscode.Disposable;
@@ -18,7 +19,7 @@ export const IExtHostRemoteCodingAgents = createDecorator<IExtHostRemoteCodingAg
 export class ExtHostRemoteCodingAgents extends Disposable implements IExtHostRemoteCodingAgents {
 	declare _serviceBrand: undefined;
 
-	private readonly _proxy = this._extHostRpc.getProxy(MainContext.MainThreadRemoteCodingAgents);
+	private readonly _proxy: Proxied<MainThreadRemoteCodingAgentsShape>;
 	private readonly _statusProviders = new Map<number, { provider: vscode.RemoteCodingAgentInformationProvider; disposable: DisposableStore }>();
 	private _nextHandle = 0;
 
@@ -27,6 +28,7 @@ export class ExtHostRemoteCodingAgents extends Disposable implements IExtHostRem
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		this._proxy = this._extHostRpc.getProxy(MainContext.MainThreadRemoteCodingAgents);
 	}
 
 	registerCodingAgentInformationProvider(provider: vscode.RemoteCodingAgentInformationProvider): vscode.Disposable {
