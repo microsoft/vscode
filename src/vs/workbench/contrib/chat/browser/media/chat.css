@@ -1878,6 +1878,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.interactive-item-container.interactive-request.confirmation-message {
 		align-items: flex-start;
+
+		.checkpoint-container {
+			display: none;
+		}
 	}
 
 	.interactive-item-container.interactive-request .value .rendered-markdown {
@@ -2068,6 +2072,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 		.request-hover.checkpoints-enabled {
 			top: 30px;
+		}
+
+		.checkpoint-container {
+			display: none;
 		}
 	}
 

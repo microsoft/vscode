@@ -1170,6 +1170,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			this.inputContainer = dom.$('.empty-chat-state');
 		}
+
+		this.input.dispose();
+
 		if (isInput) {
 			this.inputPart.element.classList.remove('editing');
 		}
@@ -1653,7 +1656,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const isUserQuery = !query;
 
 			const instructionsEnabled = PromptsConfig.enabled(this.configurationService);
-			if (instructionsEnabled) {
+			if (instructionsEnabled && !this.viewModel.editing) {
 				// process the prompt command
 				await this._applyPromptFileIfSet(requestInputs);
 				await this._autoAttachInstructions(requestInputs);
