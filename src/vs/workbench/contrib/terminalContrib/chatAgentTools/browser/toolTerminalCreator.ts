@@ -84,92 +84,61 @@ export class ToolTerminalCreator {
 		instance: ITerminalInstance,
 		timeoutMs: number
 	): Promise<ShellIntegrationQuality> {
-		let shellIntegrationQuality: ShellIntegrationQuality.Basic | ShellIntegrationQuality.Rich = ShellIntegrationQuality.Basic;
-
-		// TODO: This could be done much nicer in core - listen to CommandDetectionCapability.onSetRichCommandDetection
 		const dataFinished = new DeferredPromise<void>();
-		const dataListener = instance.onData(e => {
-			if (e.match(oscRegex('633;P;HasRichCommandDetection=True'))) {
-				shellIntegrationQuality = ShellIntegrationQuality.Rich;
-				dataFinished.complete();
-			}
-		});
 
 		const deferred = new DeferredPromise<ShellIntegrationQuality>();
 		const timer = disposableTimeout(() => deferred.complete(ShellIntegrationQuality.None), timeoutMs);
 
 		if (instance.capabilities.get(TerminalCapability.CommandDetection)?.hasRichCommandDetection) {
 			timer.dispose();
-			deferred.complete(shellIntegrationQuality);
+			deferred.complete(ShellIntegrationQuality.Rich);
 		} else {
 			const onSetRichCommandDetection = this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onSetRichCommandDetection);
 
-			const siListener = onSetRichCommandDetection.event((e) => {
+			const richCommandDetectionListener = onSetRichCommandDetection.event((e) => {
 				if (e.instance !== instance) {
 					return;
 				}
-				timer.dispose();
-				// TODO: This could be simplified, this event will only ever fire when it's rich
-				if (shellIntegrationQuality === ShellIntegrationQuality.Rich) {
-					deferred.complete(shellIntegrationQuality);
-				}
+				deferred.complete(ShellIntegrationQuality.Rich);
 			});
 
 			const store = new DisposableStore();
 
 			const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
 			if (commandDetection) {
+				timer.dispose();
 				// When command detection lights up, allow up to 200ms for the rich command
 				// detection sequence to come in before declaring it as basic shell integration.
 				// up.
 				Promise.race([
 					dataFinished.p,
 					timeout(200)
-				]).then(() => deferred.complete(shellIntegrationQuality));
+				]).then(() => {
+					if (!deferred.isResolved) {
+						deferred.complete(ShellIntegrationQuality.Basic);
+					}
+				});
 			} else {
 				store.add(instance.capabilities.onDidAddCapabilityType(e => {
 					if (e === TerminalCapability.CommandDetection) {
+						timer.dispose();
 						// When command detection lights up, allow up to 200ms for the rich command
 						// detection sequence to come in before declaring it as basic shell integration.
 						// up.
 						Promise.race([
 							dataFinished.p,
 							timeout(200)
-						]).then(() => deferred.complete(shellIntegrationQuality));
+						]).then(() => deferred.complete(ShellIntegrationQuality.Basic));
 					}
 				}));
 			}
-			// TODO: Listen for basic shell integration
-			// else {
-			// 		// While the rich command detection data should come in before
-			// 		// `onDidChangeTerminalShellIntegration` fires, the data write event is
-			// 		// debounced/buffered, so allow for up to 200ms for the data event to come
-			// 		// up.
-			// 		Promise.race([
-			// 			dataFinished.p,
-			// 			timeout(200)
-			// 		]).then(() => deferred.complete(shellIntegrationQuality));
-			// 	}
-			// }
 
 			deferred.p.finally(() => {
 				store.dispose();
-				siListener.dispose();
-				dataListener.dispose();
+				richCommandDetectionListener.dispose();
 			});
 		}
 
 		return deferred.p;
 	}
-}
-
-/**
- * Gets a regex that matches an OSC sequence with the given params.
- * @param params The body of the OSC sequence, such as `633;A`. This is passed in to the RegExp
- * constructor so it should follow those escape rules and you can match on things like `[16]33;A`.
- */
-function oscRegex(params: string): RegExp {
-	// This includes all the possible OSC encodings. The most common prefix is `\x1b]` and the most
-	// command suffixes are `\x07` and `\x1b\\`.
-	return new RegExp(`(?:\x1b\\]|\x9d)${params}(?:\x1b\\\\|\x07|\x9c)`);
 }
