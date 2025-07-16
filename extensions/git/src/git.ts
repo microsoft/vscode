@@ -2798,7 +2798,7 @@ export class Repository {
 			return result;
 		}
 		catch (err) {
-			if (/ENOTDIR/.test(err.message)) {
+			if (/ENOENT/.test(err.message) || /ENOTDIR/.test(err.message)) {
 				return [];
 			}
 
