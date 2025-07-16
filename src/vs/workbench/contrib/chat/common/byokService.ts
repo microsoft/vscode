@@ -5,6 +5,7 @@
 
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -25,7 +26,6 @@ interface IVendorQuickPickItem extends IQuickPickItem {
 interface IModelQuickPickItem extends IQuickPickItem {
 	modelId: string;
 	vendor: string;
-	picked?: boolean;
 }
 
 
@@ -42,6 +42,7 @@ export class BYOKService implements IBYOKService {
 
 	async showBYOKQuickPick(): Promise<void> {
 		const vendors = this.languageModelsService.getVendors();
+		const store = new DisposableStore();
 
 		const quickPickItems: IVendorQuickPickItem[] = vendors.map(vendor => ({
 			label: vendor.displayName,
@@ -53,14 +54,14 @@ export class BYOKService implements IBYOKService {
 			}] : undefined
 		}));
 
-		const quickPick = this.quickInputService.createQuickPick<IQuickPickItem>();
+		const quickPick = store.add(this.quickInputService.createQuickPick<IQuickPickItem>());
 		quickPick.title = 'Manage Language Models';
 		quickPick.placeholder = 'Select a provider...';
 		quickPick.items = quickPickItems;
 		quickPick.show();
 
-		// Handle selection
-		quickPick.onDidAccept(async () => {
+		store.add(quickPick.onDidAccept(async () => {
+			quickPick.hide();
 			const selectedItem: IVendorQuickPickItem = quickPick.selectedItems[0] as IVendorQuickPickItem;
 			if (selectedItem) {
 				const models: ILanguageModelChatMetadataAndIdentifier[] = coalesce((await this.languageModelsService.selectLanguageModels({ vendor: selectedItem.vendor })).map(modelIdentifier => {
@@ -75,22 +76,22 @@ export class BYOKService implements IBYOKService {
 				}));
 				await this._showModelSelectorQuickpick(models);
 			}
-			quickPick.dispose();
-		});
+		}));
 
-		quickPick.onDidTriggerItemButton(async (event) => {
+		store.add(quickPick.onDidTriggerItemButton(async (event) => {
 			const managementCommand = (event.item as IVendorQuickPickItem).managementCommand;
 			if (managementCommand) {
 				this.commandService.executeCommand(managementCommand);
 			}
-		});
+		}));
 
-		quickPick.onDidHide(() => {
-			quickPick.dispose();
-		});
+		store.add(quickPick.onDidHide(() => {
+			store.dispose();
+		}));
 	}
 
 	private async _showModelSelectorQuickpick(modelsAndIdentifiers: ILanguageModelChatMetadataAndIdentifier[]): Promise<void> {
+		const store = new DisposableStore();
 		const modelItems: IModelQuickPickItem[] = modelsAndIdentifiers.map(model => ({
 			label: model.metadata.name,
 			detail: model.metadata.id,
@@ -100,23 +101,24 @@ export class BYOKService implements IBYOKService {
 		}));
 
 		const quickPick = this.quickInputService.createQuickPick<IModelQuickPickItem>();
+		quickPick.items = modelItems;
 		quickPick.title = 'Manage Language Models';
 		quickPick.placeholder = 'Select language models...';
+		quickPick.selectedItems = modelItems.filter(item => item.picked);
 		quickPick.canSelectMany = true;
-		quickPick.items = modelItems;
 		quickPick.show();
 
 		// Handle selection
-		quickPick.onDidAccept(async () => {
+		store.add(quickPick.onDidAccept(async () => {
+			quickPick.hide();
 			const items: IModelQuickPickItem[] = quickPick.items as IModelQuickPickItem[];
 			items.forEach(item => {
-				this.languageModelsService.updateModelPickerPreference(item.modelId, item.picked ?? false);
+				this.languageModelsService.updateModelPickerPreference(item.modelId, quickPick.selectedItems.includes(item));
 			});
-			quickPick.dispose();
-		});
+		}));
 
-		quickPick.onDidHide(() => {
-			quickPick.dispose();
-		});
+		store.add(quickPick.onDidHide(() => {
+			store.dispose();
+		}));
 	}
 }

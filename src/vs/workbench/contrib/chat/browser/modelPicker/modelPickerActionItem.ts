@@ -86,7 +86,7 @@ function getModelPickerActionBarActions(menuService: IMenuService, contextKeySer
 export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 	constructor(
 		action: IAction,
-		private currentModel: ILanguageModelChatMetadataAndIdentifier,
+		private currentModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 		delegate: IModelPickerDelegate,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IMenuService menuService: IMenuService,
@@ -98,7 +98,7 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		// Modify the original action with a different label and make it show the current model
 		const actionWithLabel: IAction = {
 			...action,
-			label: currentModel.metadata.name,
+			label: currentModel?.metadata.name ?? localize('chat.modelPicker.label', "Pick Model"),
 			tooltip: localize('chat.modelPicker.label', "Pick Model"),
 			run: () => { }
 		};
@@ -120,7 +120,7 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		dom.reset(element, dom.$('span.chat-model-label', undefined, this.currentModel.metadata.name), ...renderLabelWithIcons(`$(chevron-down)`));
+		dom.reset(element, dom.$('span.chat-model-label', undefined, this.currentModel?.metadata.name ?? localize('chat.modelPicker.label', "Pick Model")), ...renderLabelWithIcons(`$(chevron-down)`));
 		this.setAriaLabelAttributes(element);
 		return null;
 	}

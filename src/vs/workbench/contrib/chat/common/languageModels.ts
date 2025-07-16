@@ -192,16 +192,12 @@ export interface ILanguageModelChatMetadataAndIdentifier {
 	identifier: string;
 }
 
-export interface ILanguageModelsChangeEvent {
-	added?: ILanguageModelChatMetadataAndIdentifier[];
-	removed?: string[];
-}
-
 export interface ILanguageModelsService {
 
 	readonly _serviceBrand: undefined;
 
-	onDidChangeLanguageModels: Event<ILanguageModelsChangeEvent>;
+	// TODO @lramos15 - Make this a richer event in the future. Right now it just indicates some change happened, but not what
+	onDidChangeLanguageModels: Event<void>;
 
 	updateModelPickerPreference(modelIdentifier: string, showInModelPicker: boolean): void;
 
@@ -274,8 +270,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _vendors = new Map<string, IUserFriendlyLanguageModel>();
 	private readonly _modelPickerUserPreferences: Record<string, boolean> = {}; // We use a record instead of a map for better serialization when storing
 
-	private readonly _onDidChangeProviders = this._store.add(new Emitter<ILanguageModelsChangeEvent>());
-	readonly onDidChangeLanguageModels: Event<ILanguageModelsChangeEvent> = this._onDidChangeProviders.event;
+	private readonly _onLanguageModelChange = this._store.add(new Emitter<void>());
+	readonly onDidChangeLanguageModels: Event<void> = this._onLanguageModelChange.event;
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -312,22 +308,15 @@ export class LanguageModelsService implements ILanguageModelsService {
 					this._vendors.set(item.vendor, item);
 				}
 			}
-
-			const removed: string[] = [];
 			for (const [vendor, _] of this._providers) {
 				if (!this._vendors.has(vendor)) {
 					this._providers.delete(vendor);
-					removed.push(vendor);
 				}
-			}
-			if (removed.length > 0) {
-				this._onDidChangeProviders.fire({ removed });
 			}
 		}));
 	}
 
 	dispose() {
-		this._storageService.store('chatModelPickerPreferences', this._modelPickerUserPreferences, StorageScope.PROFILE, StorageTarget.USER);
 		this._store.dispose();
 		this._providers.clear();
 	}
@@ -338,9 +327,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 			this._logService.warn(`[LM] Cannot update model picker preference for unknown model ${modelIdentifier}`);
 			return;
 		}
-		// Only store if the preference is different from the current one
-		if (this._modelPickerUserPreferences[modelIdentifier] !== showInModelPicker) {
+		delete this._modelPickerUserPreferences[modelIdentifier];
+		if (model.isUserSelectable !== showInModelPicker) {
 			this._modelPickerUserPreferences[modelIdentifier] = showInModelPicker;
+			this._storageService.store('chatModelPickerPreferences', this._modelPickerUserPreferences, StorageScope.PROFILE, StorageTarget.USER);
+			this._onLanguageModelChange.fire();
 			this._logService.trace(`[LM] Updated model picker preference for ${modelIdentifier} to ${showInModelPicker}`);
 		}
 	}
@@ -399,6 +390,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				this._logService.error(`[LM] Error resolving language models for vendor ${vendor}:`, error);
 			}
 		}
+		this._onLanguageModelChange.fire();
 	}
 
 	async selectLanguageModels(selector: ILanguageModelChatSelector): Promise<string[]> {
@@ -442,6 +434,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 
 		this._providers.set(vendor, provider);
+
+		// TODO @lramos15 - Smarter restore logic. Don't activate all providers, but only those which were known to need restoring
+		this.resolveLanguageModels(vendor, true).then(() => {
+			this._onLanguageModelChange.fire();
+		});
 
 		return toDisposable(() => {
 			this._logService.trace('[LM] UNregistered language model provider', vendor);
