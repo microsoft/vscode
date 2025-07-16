@@ -234,14 +234,12 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					}
 				},
 				asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-			}, markedOpts));
+			}, markedOpts, this.domNode));
 
 			const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 			this._register(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(markdown, result.element));
 
 			orderedDisposablesList.reverse().forEach(d => this._register(d));
-
-			this.domNode.replaceChildren(result.element);
 		};
 
 		if (enableMath && !MarkedKatexSupport.getExtension(dom.getWindow(context.container))) {

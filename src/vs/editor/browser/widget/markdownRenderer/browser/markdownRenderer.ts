@@ -45,14 +45,14 @@ export class MarkdownRenderer {
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
 
-	render(markdown: IMarkdownString | undefined, options?: MarkdownRenderOptions, markedOptions?: MarkedOptions): IMarkdownRenderResult {
+	render(markdown: IMarkdownString | undefined, options?: MarkdownRenderOptions, markedOptions?: MarkedOptions, outElement?: HTMLElement): IMarkdownRenderResult {
 		if (!markdown) {
-			const element = document.createElement('span');
+			const element = outElement ?? document.createElement('span');
 			return { element, dispose: () => { } };
 		}
 
 		const disposables = new DisposableStore();
-		const rendered = disposables.add(renderMarkdown(markdown, { ...this._getRenderOptions(markdown, disposables), ...options }, markedOptions));
+		const rendered = disposables.add(renderMarkdown(markdown, { ...this._getRenderOptions(markdown, disposables), ...options }, markedOptions, outElement));
 		rendered.element.classList.add('rendered-markdown');
 		return {
 			element: rendered.element,
