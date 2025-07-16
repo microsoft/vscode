@@ -13,13 +13,13 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
-import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { getFlatActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPickerWidget.js';
+import { ManageModelsAction } from '../actions/manageModelsActions.js';
 
 export interface IModelPickerDelegate {
 	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
@@ -51,16 +51,19 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate): I
 }
 
 function getModelPickerActionBarActions(menuService: IMenuService, contextKeyService: IContextKeyService, commandService: ICommandService, chatEntitlementService: IChatEntitlementService): IAction[] {
-	const menuActions = menuService.createMenu(MenuId.ChatModelPicker, contextKeyService);
-	const menuContributions = getFlatActionBarActions(menuActions.getActions());
-	menuActions.dispose();
-
 	const additionalActions: IAction[] = [];
 
-	// Add menu contributions from extensions
-	if (menuContributions.length > 0) {
-		additionalActions.push(...menuContributions);
-	}
+	additionalActions.push({
+		id: 'manageModels',
+		label: localize('chat.manageModels', "Manage Models..."),
+		enabled: true,
+		tooltip: localize('chat.manageModels.tooltip', "Manage language models"),
+		class: undefined,
+		run: () => {
+			const commandId = ManageModelsAction.ID;
+			commandService.executeCommand(commandId);
+		}
+	});
 
 	// Add upgrade option if entitlement is free
 	if (chatEntitlementService.entitlement === ChatEntitlement.Free) {

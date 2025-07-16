@@ -114,7 +114,6 @@ import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './chatAttachmentResolveService.js';
 import { registerLanguageModelActions } from './actions/chatLanguageModelActions.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
-import { BYOKService, IBYOKService } from '../common/byokService.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -759,7 +758,6 @@ registerSingleton(IQuickChatService, QuickChatService, InstantiationType.Delayed
 registerSingleton(IChatAccessibilityService, ChatAccessibilityService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetHistoryService, ChatWidgetHistoryService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelsService, LanguageModelsService, InstantiationType.Delayed);
-registerSingleton(IBYOKService, BYOKService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelStatsService, LanguageModelStatsService, InstantiationType.Delayed);
 registerSingleton(IChatSlashCommandService, ChatSlashCommandService, InstantiationType.Delayed);
 registerSingleton(IChatAgentService, ChatAgentService, InstantiationType.Delayed);
