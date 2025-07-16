@@ -18,6 +18,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import { isWindows } from '../../../../../../base/common/platform.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	get commandLineAutoApprover(): CommandLineAutoApprover { return this._commandLineAutoApprover; }
@@ -447,7 +448,7 @@ suite('RunInTerminalTool', () => {
 				strictEqual(result, 'npm build');
 			});
 
-			test('should handle case-insensitive comparison on Windows with instance', async () => {
+			(isWindows ? test : test.skip)('should handle case-insensitive comparison on Windows with instance', async () => {
 				const instanceDir = 'C:\\Instance\\Workspace';
 				const cdDir = 'c:\\instance\\workspace'; // Different case
 				const command = `cd ${cdDir} && npm test`;
