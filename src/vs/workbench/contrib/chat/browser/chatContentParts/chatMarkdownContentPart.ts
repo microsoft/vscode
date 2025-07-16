@@ -100,8 +100,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		let globalCodeBlockIndexStart = codeBlockStartIndex;
 		let thisPartCodeBlockIndexStart = 0;
 
-		this.domNode = document.createElement('div');
-		this.domNode.classList.add('chat-markdown-part', 'rendered-markdown');
+		this.domNode = $('div.chat-markdown-part');
 
 		const enableMath = configurationService.getValue<boolean>(ChatConfiguration.EnableMath);
 
@@ -242,7 +241,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 			orderedDisposablesList.reverse().forEach(d => this._register(d));
 
-			this.domNode.replaceChildren(...result.element.children);
+			this.domNode.replaceChildren(result.element);
 		};
 
 		if (enableMath && !MarkedKatexSupport.getExtension(dom.getWindow(context.container))) {
