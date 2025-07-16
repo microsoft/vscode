@@ -21,7 +21,7 @@ import { InstallLocalExtensionsInRemoteAction, InstallRemoteExtensionsInLocalAct
 import { IExtensionManagementService, ILocalExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, IExtensionManagementServerService, IExtensionManagementServer } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { ExtensionsInput } from '../common/extensionsInput.js';
-import { ExtensionsListView, EnabledExtensionsView, DisabledExtensionsView, RecommendedExtensionsView, WorkspaceRecommendedExtensionsView, ServerInstalledExtensionsView, DefaultRecommendedExtensionsView, UntrustedWorkspaceUnsupportedExtensionsView, UntrustedWorkspacePartiallySupportedExtensionsView, VirtualWorkspaceUnsupportedExtensionsView, VirtualWorkspacePartiallySupportedExtensionsView, DefaultPopularExtensionsView, DeprecatedExtensionsView, SearchMarketplaceExtensionsView, RecentlyUpdatedExtensionsView, OutdatedExtensionsView, StaticQueryExtensionsView, NONE_CATEGORY } from './extensionsViews.js';
+import { ExtensionsListView, EnabledExtensionsView, DisabledExtensionsView, RecommendedExtensionsView, WorkspaceRecommendedExtensionsView, ServerInstalledExtensionsView, DefaultRecommendedExtensionsView, UntrustedWorkspaceUnsupportedExtensionsView, UntrustedWorkspacePartiallySupportedExtensionsView, VirtualWorkspaceUnsupportedExtensionsView, VirtualWorkspacePartiallySupportedExtensionsView, DefaultPopularExtensionsView, DeprecatedExtensionsView, SearchMarketplaceExtensionsView, RecentlyUpdatedExtensionsView, OutdatedExtensionsView, StaticQueryExtensionsView, NONE_CATEGORY, AbstractExtensionsListView } from './extensionsViews.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import Severity from '../../../../base/common/severity.js';
@@ -858,23 +858,22 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 
 		this.renderNotificaiton();
 
-		return this.progress(Promise.all(this.panes.map(async view => {
-			if (view instanceof ExtensionsListView) {
-				const model = await view.show(this.normalizedQuery());
-				this.alertSearchResult(model.length, view.id);
-			}
-		}))).then(() => undefined);
+		return this.showExtensionsViews(this.panes);
 	}
 
 	protected override onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
 		const addedViews = super.onDidAddViewDescriptors(added);
-		this.progress(Promise.all(addedViews.map(async addedView => {
-			if (addedView instanceof ExtensionsListView) {
-				const model = await addedView.show(this.normalizedQuery());
-				this.alertSearchResult(model.length, addedView.id);
+		this.showExtensionsViews(addedViews);
+		return addedViews;
+	}
+
+	private async showExtensionsViews(views: ViewPane[]): Promise<void> {
+		await this.progress(Promise.all(views.map(async view => {
+			if (view instanceof AbstractExtensionsListView) {
+				const model = await view.show(this.normalizedQuery());
+				this.alertSearchResult(model.length, view.id);
 			}
 		})));
-		return addedViews;
 	}
 
 	private alertSearchResult(count: number, viewId: string): void {
