@@ -21,7 +21,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { RepositoryActionRunner, RepositoryRenderer } from './scmRepositoryRenderer.js';
-import { collectContextMenuActions, getActionViewItemProvider } from './util.js';
+import { collectContextMenuActions, getActionViewItemProvider, isSCMRepository } from './util.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
@@ -42,15 +42,44 @@ class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 }
 
 class RepositoryTreeDataSource extends Disposable implements IAsyncDataSource<SCMRepositoriesViewModel, ISCMRepository> {
-	async getChildren(inputOrElement: SCMRepositoriesViewModel | ISCMRepository): Promise<Iterable<ISCMRepository>> {
-		if (inputOrElement instanceof SCMRepositoriesViewModel) {
-			return inputOrElement.repositories;
+	constructor(@ISCMViewService private readonly scmViewService: ISCMViewService) {
+		super();
+	}
+
+	getChildren(inputOrElement: SCMRepositoriesViewModel | ISCMRepository): Iterable<ISCMRepository> {
+		const parentId = isSCMRepository(inputOrElement)
+			? inputOrElement.provider.id
+			: undefined;
+
+		const repositories = this.scmViewService.repositories
+			.filter(r => r.provider.parentId === parentId);
+
+		return repositories;
+	}
+
+	getParent(element: SCMRepositoriesViewModel | ISCMRepository): SCMRepositoriesViewModel | ISCMRepository {
+		if (!isSCMRepository(element)) {
+			throw new Error('Unexpected call to getParent');
 		}
-		return [];
+
+		const repository = this.scmViewService.repositories
+			.find(r => r.provider.id === element.provider.parentId);
+		if (!repository) {
+			throw new Error('Invalid element passed to getParent');
+		}
+
+		return repository;
 	}
 
 	hasChildren(inputOrElement: SCMRepositoriesViewModel | ISCMRepository): boolean {
-		return inputOrElement instanceof SCMRepositoriesViewModel;
+		const parentId = isSCMRepository(inputOrElement)
+			? inputOrElement.provider.id
+			: undefined;
+
+		const repositories = this.scmViewService.repositories
+			.filter(r => r.provider.parentId === parentId);
+
+		return repositories.length > 0;
 	}
 }
 
@@ -89,10 +118,6 @@ class SCMRepositoriesViewModel extends Disposable {
 		this._store.add(runOnChange(repository.provider.contextValue, () => {
 			this.onDidChangeRepositoryContextValueSignal.trigger(undefined);
 		}));
-	}
-
-	get repositories(): ISCMRepository[] {
-		return this.scmViewService.repositories;
 	}
 }
 
@@ -174,7 +199,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 				this.visibilityDisposables.add(autorun(async reader => {
 					this.treeViewModel.onDidChangeVisibleRepositoriesSignal.read(reader);
 
-					await this.treeOperationSequencer.queue(async () => this.updateTreeSelection());
+					await this.treeOperationSequencer.queue(() => this.updateTreeSelection());
 				}));
 			});
 		}, this, this._store);
@@ -214,6 +239,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 				horizontalScrolling: false,
 				compressionEnabled: compressionEnabled.get(),
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
+				expandOnlyOnTwistieClick: true,
 				accessibilityProvider: {
 					getAriaLabel(r: ISCMRepository) {
 						return r.provider.label;
@@ -229,6 +255,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		this._register(this.tree.onDidChangeSelection(this.onTreeSelectionChange, this));
 		this._register(this.tree.onDidChangeFocus(this.onTreeDidChangeFocus, this));
 		this._register(this.tree.onContextMenu(this.onTreeContextMenu, this));
+		this._register(this.tree.onDidChangeContentHeight(this.onTreeContentHeightChange, this));
 	}
 
 	private onTreeContextMenu(e: ITreeContextMenuEvent<ISCMRepository>): void {
@@ -271,6 +298,10 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		}
 	}
 
+	private onTreeContentHeightChange(height: number): void {
+		this.updateBodySize(height / 22);
+	}
+
 	private async updateChildren(): Promise<void> {
 		await this.tree.updateChildren(this.treeViewModel);
 		this.updateBodySize(this.visibleCountObs.get());
@@ -288,7 +319,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		this.maximumBodySize = visibleCount === 0 ? Number.POSITIVE_INFINITY : empty ? Number.POSITIVE_INFINITY : size;
 	}
 
-	private updateTreeSelection(): void {
+	private async updateTreeSelection(): Promise<void> {
 		const oldSelection = this.tree.getSelection();
 		const oldSet = new Set(oldSelection);
 
@@ -308,6 +339,10 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			}
 		}
 
+		// Expand all selected items
+		for (const item of selection) {
+			await this.tree.expandTo(item);
+		}
 		this.tree.setSelection(selection);
 
 		if (selection.length > 0 && !this.tree.getFocus().includes(selection[0])) {
