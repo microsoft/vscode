@@ -17,7 +17,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js';
+import { ILogger, ILoggerService, LogLevel } from '../../../../platform/log/common/log.js';
 import { INotificationService, IPromptChoice, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
@@ -404,6 +404,67 @@ export class McpServer extends Disposable implements IMcpServer {
 		);
 
 		this._capabilities.set(this._primitiveCache.get(this.definition.id)?.capabilities, undefined);
+
+		// 5. Listen for log level changes and forward them to the MCP server
+		this._register(this._loggerService.onDidChangeLogLevel((event) => {
+			// Check if the log level change is for this server's logger
+			if (Array.isArray(event)) {
+				const [resource, logLevel] = event;
+				// Find the logger resource for this server
+				const loggerResource = [...this._loggerService.getRegisteredLoggers()].find(logger => logger.id === this._loggerId);
+				if (loggerResource && loggerResource.resource.toString() === resource.toString()) {
+					this.sendLogLevelToServer(logLevel);
+				}
+			}
+		}));
+	}
+
+	/**
+	 * Converts VSCode LogLevel to MCP LoggingLevel and sends it to the server
+	 */
+	private async sendLogLevelToServer(logLevel: LogLevel): Promise<void> {
+		try {
+			await McpServer.callOn(this, async (handler) => {
+				// Only send if the server supports logging capabilities
+				if (!handler.capabilities.logging) {
+					return;
+				}
+
+				const mcpLogLevel = this.mapLogLevelToMcp(logLevel);
+				if (!mcpLogLevel) {
+					return;
+				}
+
+				try {
+					await handler.setLevel({ level: mcpLogLevel });
+				} catch (error) {
+					this._logger.error(`Failed to set MCP server log level: ${error}`);
+				}
+			});
+		} catch (error) {
+			// If the server is not available, just ignore the log level change
+			// This is expected if the server is not running
+		}
+	}
+
+	/**
+	 * Maps VSCode LogLevel to MCP LoggingLevel
+	 */
+	private mapLogLevelToMcp(logLevel: LogLevel): MCP.LoggingLevel | undefined {
+		switch (logLevel) {
+			case LogLevel.Trace:
+				return 'debug'; // MCP doesn't have trace, use debug
+			case LogLevel.Debug:
+				return 'debug';
+			case LogLevel.Info:
+				return 'info';
+			case LogLevel.Warning:
+				return 'warning';
+			case LogLevel.Error:
+				return 'error';
+			default:
+				return undefined; // Off and other levels are not supported
+		}
 	}
 
 	public readDefinitions(): IObservable<{ server: McpServerDefinition | undefined; collection: McpCollectionDefinition | undefined }> {
