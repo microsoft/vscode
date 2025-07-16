@@ -352,21 +352,21 @@ class RichPagedScreenReaderStrategy implements IPagedScreenReaderStrategy<RichSc
 		return Math.floor((lineNumber - 1) / linesPerPage);
 	}
 
-	private _getRangeForPage(page: number, linesPerPage: number): Range {
+	private _getRangeForPage(context: ISimpleModel, page: number, linesPerPage: number): LineInterval {
 		const offset = page * linesPerPage;
 		const startLineNumber = offset + 1;
-		const endLineNumber = offset + linesPerPage;
-		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
+		const endLineNumber = Math.min(offset + linesPerPage, context.getLineCount());
+		return new LineInterval(startLineNumber, endLineNumber);
 	}
 
 	public fromEditorSelection(context: ISimpleModel, viewSelection: Selection, linesPerPage: number): RichScreenReaderState {
 		const selectionStartPage = this._getPageOfLine(viewSelection.startLineNumber, linesPerPage);
-		const selectionStartPageRange = this._getRangeForPage(selectionStartPage, linesPerPage);
+		const selectionStartPageRange = this._getRangeForPage(context, selectionStartPage, linesPerPage);
 		const selectionEndPage = this._getPageOfLine(viewSelection.endLineNumber, linesPerPage);
-		const selectionEndPageRange = this._getRangeForPage(selectionEndPage, linesPerPage);
-		const lineIntervals: LineInterval[] = [{ startLine: selectionStartPageRange.startLineNumber, endLine: selectionStartPageRange.endLineNumber }];
+		const selectionEndPageRange = this._getRangeForPage(context, selectionEndPage, linesPerPage);
+		const lineIntervals: LineInterval[] = [{ startLine: selectionStartPageRange.startLine, endLine: selectionStartPageRange.endLine }];
 		if (selectionStartPage + 1 < selectionEndPage) {
-			lineIntervals.push({ startLine: selectionEndPageRange.startLineNumber, endLine: selectionEndPageRange.endLineNumber });
+			lineIntervals.push({ startLine: selectionEndPageRange.startLine, endLine: selectionEndPageRange.endLine });
 		}
 		return new RichScreenReaderState(lineIntervals);
 	}
