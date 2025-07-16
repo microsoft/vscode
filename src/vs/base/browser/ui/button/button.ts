@@ -237,7 +237,7 @@ export class Button extends Disposable implements IButton {
 		const labelElement = this.options.supportShortLabel ? this._labelElement! : this._element;
 
 		if (isMarkdownString(value)) {
-			const rendered = renderMarkdown(value, { inline: true });
+			const rendered = renderMarkdown(value, undefined, document.createElement('span'));
 			rendered.dispose();
 
 			// Don't include outer `<p>`
@@ -641,7 +641,7 @@ export class ButtonWithIcon extends Button {
 
 		this._element.classList.add('monaco-text-button');
 		if (isMarkdownString(value)) {
-			const rendered = renderMarkdown(value, { inline: true });
+			const rendered = renderMarkdown(value, undefined, document.createElement('span'));
 			rendered.dispose();
 
 			const root = rendered.element.querySelector('p')?.innerHTML;
