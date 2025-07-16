@@ -9,8 +9,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { ILanguageModelChatMetadata, ILanguageModelsService } from './languageModels.js';
+import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from './languageModels.js';
 
 export interface IBYOKService {
 	_serviceBrand: undefined;
@@ -34,12 +33,8 @@ export class BYOKService implements IBYOKService {
 	readonly _serviceBrand: undefined;
 
 	constructor(
-		// @ts-ignore
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
-		// @ts-ignore
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		// @ts-ignore
-		@IStorageService private readonly storageService: IStorageService,
 		@ICommandService private readonly commandService: ICommandService
 	) {
 		console.log('BYOKService initialized');
@@ -68,8 +63,16 @@ export class BYOKService implements IBYOKService {
 		quickPick.onDidAccept(async () => {
 			const selectedItem: IVendorQuickPickItem = quickPick.selectedItems[0] as IVendorQuickPickItem;
 			if (selectedItem) {
-				console.log('Selected vendor:', selectedItem.vendor);
-				const models = coalesce((await this.languageModelsService.selectLanguageModels({ vendor: selectedItem.vendor })).map(m => this.languageModelsService.lookupLanguageModel(m)));
+				const models: ILanguageModelChatMetadataAndIdentifier[] = coalesce((await this.languageModelsService.selectLanguageModels({ vendor: selectedItem.vendor })).map(modelIdentifier => {
+					const modelMetadata = this.languageModelsService.lookupLanguageModel(modelIdentifier);
+					if (!modelMetadata) {
+						return undefined;
+					}
+					return {
+						metadata: modelMetadata,
+						identifier: modelIdentifier,
+					};
+				}));
 				await this._showModelSelectorQuickpick(models);
 			}
 			quickPick.dispose();
@@ -87,13 +90,13 @@ export class BYOKService implements IBYOKService {
 		});
 	}
 
-	private async _showModelSelectorQuickpick(models: ILanguageModelChatMetadata[]): Promise<void> {
-		const modelItems: IModelQuickPickItem[] = models.map(model => ({
-			label: model.name,
-			detail: model.id,
-			modelId: model.id,
-			vendor: model.vendor,
-			picked: model.isUserSelectable // You can set this to true to pre-select items
+	private async _showModelSelectorQuickpick(modelsAndIdentifiers: ILanguageModelChatMetadataAndIdentifier[]): Promise<void> {
+		const modelItems: IModelQuickPickItem[] = modelsAndIdentifiers.map(model => ({
+			label: model.metadata.name,
+			detail: model.metadata.id,
+			modelId: model.identifier,
+			vendor: model.metadata.vendor,
+			picked: model.metadata.isUserSelectable
 		}));
 
 		const quickPick = this.quickInputService.createQuickPick<IModelQuickPickItem>();
@@ -105,12 +108,10 @@ export class BYOKService implements IBYOKService {
 
 		// Handle selection
 		quickPick.onDidAccept(async () => {
-			const selectedModels: IModelQuickPickItem[] = quickPick.selectedItems as IModelQuickPickItem[];
-			if (selectedModels.length > 0) {
-				console.log('Selected models:', selectedModels.map(m => ({ id: m.modelId, vendor: m.vendor })));
-				// Here you can implement logic to handle the selected models
-				// For example, save them to storage or update some configuration
-			}
+			const items: IModelQuickPickItem[] = quickPick.items as IModelQuickPickItem[];
+			items.forEach(item => {
+				this.languageModelsService.updateModelPickerPreference(item.modelId, item.picked ?? false);
+			});
 			quickPick.dispose();
 		});
 

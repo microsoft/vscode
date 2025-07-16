@@ -15,6 +15,7 @@ import { IExtensionService, nullExtensionDescription } from '../../../../service
 import { ExtensionsRegistry } from '../../../../services/extensions/common/extensionsRegistry.js';
 import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPickerWidget.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('LanguageModels', function () {
 
@@ -32,7 +33,8 @@ suite('LanguageModels', function () {
 					return Promise.resolve();
 				}
 			},
-			new NullLogService()
+			new NullLogService(),
+			new TestStorageService()
 		);
 
 		const ext = ExtensionsRegistry.getExtensionPoints().find(e => e.name === languageModelExtensionPoint.name)!;

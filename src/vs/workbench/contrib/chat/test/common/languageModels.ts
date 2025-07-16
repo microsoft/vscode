@@ -18,6 +18,10 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 
 	onDidChangeLanguageModels = Event.None;
 
+	updateModelPickerPreference(modelIdentifier: string, showInModelPicker: boolean): void {
+		return;
+	}
+
 	getVendors(): IUserFriendlyLanguageModel[] {
 		return [];
 	}

@@ -14,6 +14,7 @@ import { localize } from '../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
 
@@ -202,6 +203,8 @@ export interface ILanguageModelsService {
 
 	onDidChangeLanguageModels: Event<ILanguageModelsChangeEvent>;
 
+	updateModelPickerPreference(modelIdentifier: string, showInModelPicker: boolean): void;
+
 	getLanguageModelIds(): string[];
 
 	getVendors(): IUserFriendlyLanguageModel[];
@@ -269,6 +272,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _providers = new Map<string, ILanguageModelChatProvider>();
 	private readonly _modelCache = new Map<string, ILanguageModelChatMetadata>();
 	private readonly _vendors = new Map<string, IUserFriendlyLanguageModel>();
+	private readonly _modelPickerUserPreferences: Record<string, boolean> = {}; // We use a record instead of a map for better serialization when storing
 
 	private readonly _onDidChangeProviders = this._store.add(new Emitter<ILanguageModelsChangeEvent>());
 	readonly onDidChangeLanguageModels: Event<ILanguageModelsChangeEvent> = this._onDidChangeProviders.event;
@@ -276,7 +280,10 @@ export class LanguageModelsService implements ILanguageModelsService {
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ILogService private readonly _logService: ILogService,
+		@IStorageService private readonly _storageService: IStorageService
 	) {
+
+		this._modelPickerUserPreferences = this._storageService.getObject<Record<string, boolean>>('chatModelPickerPreferences', StorageScope.PROFILE, this._modelPickerUserPreferences);
 
 		this._store.add(languageModelExtensionPoint.setHandler((extensions) => {
 
@@ -320,8 +327,22 @@ export class LanguageModelsService implements ILanguageModelsService {
 	}
 
 	dispose() {
+		this._storageService.store('chatModelPickerPreferences', this._modelPickerUserPreferences, StorageScope.PROFILE, StorageTarget.USER);
 		this._store.dispose();
 		this._providers.clear();
+	}
+
+	updateModelPickerPreference(modelIdentifier: string, showInModelPicker: boolean): void {
+		const model = this._modelCache.get(modelIdentifier);
+		if (!model) {
+			this._logService.warn(`[LM] Cannot update model picker preference for unknown model ${modelIdentifier}`);
+			return;
+		}
+		// Only store if the preference is different from the current one
+		if (this._modelPickerUserPreferences[modelIdentifier] !== showInModelPicker) {
+			this._modelPickerUserPreferences[modelIdentifier] = showInModelPicker;
+			this._logService.trace(`[LM] Updated model picker preference for ${modelIdentifier} to ${showInModelPicker}`);
+		}
 	}
 
 	getVendors(): IUserFriendlyLanguageModel[] {
@@ -333,7 +354,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 	}
 
 	lookupLanguageModel(modelIdentifier: string): ILanguageModelChatMetadata | undefined {
-		return this._modelCache.get(modelIdentifier);
+		const model = this._modelCache.get(modelIdentifier);
+		if (model && this._modelPickerUserPreferences[modelIdentifier] !== undefined) {
+			return { ...model, isUserSelectable: this._modelPickerUserPreferences[modelIdentifier] };
+		}
+		return model;
 	}
 
 	private _clearModelCache(vendors: string | string[]): void {
