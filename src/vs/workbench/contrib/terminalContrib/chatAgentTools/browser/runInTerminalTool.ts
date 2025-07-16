@@ -21,7 +21,7 @@ import { TerminalCapability } from '../../../../../platform/terminal/common/capa
 import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
-import type { IChatTerminalToolInvocationData } from '../../../chat/common/chatService.js';
+import type { IChatTerminalToolInvocationData, IChatTerminalToolInvocationData2 } from '../../../chat/common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../terminal/browser/xterm/xtermTerminal.js';
@@ -186,20 +186,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
-		const rewrittenCommand = await this._rewriteCommandIfNeeded(context, args, instance, shell);
-		if (rewrittenCommand && rewrittenCommand !== args.command) {
-			this._rewrittenCommand = rewrittenCommand;
-		} else {
-			this._rewrittenCommand = undefined;
+		let toolEditedCommand: string | undefined = await this._rewriteCommandIfNeeded(context, args, instance, shell);
+		if (toolEditedCommand === args.command) {
+			toolEditedCommand = undefined;
 		}
 
 		return {
 			confirmationMessages,
 			presentation,
 			toolSpecificData: {
-				kind: 'terminal',
-				// TODO: Ideally this would be named something like editedCommand for clarity https://github.com/microsoft/vscode/issues/256227
-				command: this._rewrittenCommand ?? args.command,
+				kind: 'terminal2',
+				commandLine: {
+					original: args.command,
+					toolEdited: this._rewrittenCommand
+				},
 				language,
 			}
 		};
@@ -211,7 +211,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		const args = invocation.parameters as IRunInTerminalInputParams;
-		const toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined; // undefined when auto-approved
+		const toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | IChatTerminalToolInvocationData2 | undefined;
+		if (toolSpecificData === undefined) {
+			throw new Error('Tool specific data must be provided');
+		}
 
 		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
 
@@ -220,9 +223,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			throw new Error('A chat session ID is required for this tool');
 		}
 
-		const command = toolSpecificData?.command ?? this._rewrittenCommand ?? args.command;
-		const didUserEditCommand = typeof toolSpecificData?.command === 'string' && toolSpecificData.command !== args.command;
-		const didToolEditCommand = !didUserEditCommand && this._rewrittenCommand !== undefined;
+		let command: string | undefined;
+		let didUserEditCommand: boolean;
+		let didToolEditCommand: boolean;
+		if (toolSpecificData.kind === 'terminal') {
+			command = toolSpecificData.command ?? this._rewrittenCommand ?? args.command;
+			didUserEditCommand = typeof toolSpecificData?.command === 'string' && toolSpecificData.command !== args.command;
+			didToolEditCommand = !didUserEditCommand && this._rewrittenCommand !== undefined;
+		} else {
+			command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
+			didUserEditCommand = toolSpecificData.commandLine.userEdited !== toolSpecificData.commandLine.original;
+			didToolEditCommand = !didUserEditCommand && toolSpecificData.commandLine.toolEdited !== toolSpecificData.commandLine.original;
+		}
 
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
