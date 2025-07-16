@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from '../../../../base/common/arrays.js';
+import { assertNever } from '../../../../base/common/assert.js';
 import { DeferredPromise, IntervalTimer } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
@@ -122,6 +123,7 @@ export class McpServerRequestHandler extends Disposable {
 				}, token);
 
 				mcp._serverInit = initialized;
+				mcp._sendLogLevelToServer(opts.logger.getLevel());
 
 				mcp.sendNotification<MCP.InitializedNotification>({
 					method: 'notifications/initialized'
@@ -169,7 +171,7 @@ export class McpServerRequestHandler extends Disposable {
 
 		// Listen for log level changes and forward them to the MCP server
 		this._register(logger.onDidChangeLogLevel((logLevel) => {
-			this.sendLogLevelToServer(logLevel);
+			this._sendLogLevelToServer(logLevel);
 		}));
 	}
 
@@ -448,41 +450,16 @@ export class McpServerRequestHandler extends Disposable {
 	/**
 	 * Forwards log level changes to the MCP server if it supports logging
 	 */
-	private async sendLogLevelToServer(logLevel: LogLevel): Promise<void> {
+	private async _sendLogLevelToServer(logLevel: LogLevel): Promise<void> {
 		try {
 			// Only send if the server supports logging capabilities
 			if (!this.capabilities.logging) {
 				return;
 			}
 
-			const mcpLogLevel = this.mapLogLevelToMcp(logLevel);
-			if (!mcpLogLevel) {
-				return;
-			}
-
-			await this.setLevel({ level: mcpLogLevel });
+			await this.setLevel({ level: mapLogLevelToMcp(logLevel) });
 		} catch (error) {
 			this.logger.error(`Failed to set MCP server log level: ${error}`);
-		}
-	}
-
-	/**
-	 * Maps VSCode LogLevel to MCP LoggingLevel
-	 */
-	private mapLogLevelToMcp(logLevel: LogLevel): MCP.LoggingLevel | undefined {
-		switch (logLevel) {
-			case LogLevel.Trace:
-				return 'debug'; // MCP doesn't have trace, use debug
-			case LogLevel.Debug:
-				return 'debug';
-			case LogLevel.Info:
-				return 'info';
-			case LogLevel.Warning:
-				return 'warning';
-			case LogLevel.Error:
-				return 'error';
-			default:
-				return undefined; // Off and other levels are not supported
 		}
 	}
 
@@ -575,5 +552,28 @@ export class McpServerRequestHandler extends Disposable {
 	 */
 	complete(params: MCP.CompleteRequest['params'], token?: CancellationToken): Promise<MCP.CompleteResult> {
 		return this.sendRequest<MCP.CompleteRequest, MCP.CompleteResult>({ method: 'completion/complete', params }, token);
+	}
+}
+
+
+/**
+ * Maps VSCode LogLevel to MCP LoggingLevel
+ */
+function mapLogLevelToMcp(logLevel: LogLevel): MCP.LoggingLevel {
+	switch (logLevel) {
+		case LogLevel.Trace:
+			return 'debug'; // MCP doesn't have trace, use debug
+		case LogLevel.Debug:
+			return 'debug';
+		case LogLevel.Info:
+			return 'info';
+		case LogLevel.Warning:
+			return 'warning';
+		case LogLevel.Error:
+			return 'error';
+		case LogLevel.Off:
+			return 'emergency'; // MCP doesn't have off, use emergency
+		default:
+			return assertNever(logLevel); // Off and other levels are not supported
 	}
 }
