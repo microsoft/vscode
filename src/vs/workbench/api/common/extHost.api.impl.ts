@@ -1551,6 +1551,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerMcpServerDefinitionProvider(id, provider) {
 				return extHostMcp.registerMcpConfigurationProvider(extension, id, provider);
+			},
+			onDidChangeChatRequestTools(...args) {
+				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
+				return _asExtensionEvent(extHostChatAgents2.onDidChangeChatRequestTools)(...args);
 			}
 		};
 

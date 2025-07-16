@@ -174,6 +174,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					this._pendingProgress.delete(request.requestId);
 				}
 			},
+			setRequestTools: (requestId, tools) => {
+				this._proxy.$setRequestTools(requestId, tools);
+			},
 			setRequestPaused: (requestId, isPaused) => {
 				this._proxy.$setRequestPaused(handle, requestId, isPaused);
 			},
