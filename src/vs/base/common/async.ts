@@ -2005,14 +2005,14 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 	public static EMPTY = AsyncIterableObject.fromArray<any>([]);
 
 	private _state: AsyncIterableSourceState;
-	private _results: T[];
+	private _buffer: T[];
 	private _error: Error | null;
 	private readonly _onReturn?: () => void | Promise<void>;
 	private readonly _onStateChanged: Emitter<void>;
 
 	constructor(executor: AsyncIterableExecutor<T>, onReturn?: () => void | Promise<void>) {
 		this._state = AsyncIterableSourceState.Initial;
-		this._results = [];
+		this._buffer = [];
 		this._error = null;
 		this._onReturn = onReturn;
 		this._onStateChanged = new Emitter<void>();
@@ -2037,15 +2037,14 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 	}
 
 	[Symbol.asyncIterator](): AsyncIterator<T, undefined, undefined> {
-		let i = 0;
 		return {
 			next: async () => {
 				do {
 					if (this._state === AsyncIterableSourceState.DoneError) {
 						throw this._error;
 					}
-					if (i < this._results.length) {
-						return { done: false, value: this._results[i++] };
+					if (this._buffer.length > 0) {
+						return { done: false, value: this._buffer.shift()! };
 					}
 					if (this._state === AsyncIterableSourceState.DoneOK) {
 						return { done: true, value: undefined };
@@ -2119,7 +2118,7 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 		}
 		// it is important to add new values at the end,
 		// as we may have iterators already running on the array
-		this._results.push(value);
+		this._buffer.push(value);
 		this._onStateChanged.fire();
 	}
 
@@ -2134,7 +2133,7 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 		}
 		// it is important to add new values at the end,
 		// as we may have iterators already running on the array
-		this._results = this._results.concat(values);
+		this._buffer = this._buffer.concat(values);
 		this._onStateChanged.fire();
 	}
 
