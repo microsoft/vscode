@@ -3367,6 +3367,7 @@ export class CommandCenter {
 
 		const disposables: Disposable[] = [];
 		const inputBox = window.createInputBox();
+		inputBox.placeholder = l10n.t('Worktree name');
 		inputBox.prompt = l10n.t('Please provide a worktree name');
 		inputBox.value = name || '';
 		inputBox.show();
