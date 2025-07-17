@@ -398,7 +398,7 @@ configurationRegistry.registerConfiguration({
 				minimumVersion: '1.99',
 				description: nls.localize('chat.promptFiles.policy', "Enables reusable prompt and instruction files in Chat sessions."),
 				defaultValue: false,
-				tags: [PolicyTag.Account, PolicyTag.Preview]
+				tags: [PolicyTag.Account]
 			}
 		},
 		[PromptsConfig.INSTRUCTIONS_LOCATION_KEY]: {
