@@ -243,7 +243,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			const [progress, responsePartHandle] = Array.isArray(item) ? item : [item];
 
 			const revivedProgress = progress.kind === 'notebookEdit'
-				? ChatNotebookEdit.fromChatEdit(revive(progress))
+				? ChatNotebookEdit.fromChatEdit(progress)
 				: revive(progress) as IChatProgress;
 
 			if (revivedProgress.kind === 'notebookEdit'
@@ -424,7 +424,7 @@ namespace ChatNotebookEdit {
 	export function fromChatEdit(part: IChatNotebookEditDto): IChatNotebookEdit {
 		return {
 			kind: 'notebookEdit',
-			uri: part.uri,
+			uri: URI.revive(part.uri),
 			done: part.done,
 			edits: part.edits.map(NotebookDto.fromCellEditOperationDto)
 		};
