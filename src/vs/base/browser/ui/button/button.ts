@@ -24,7 +24,7 @@ import { localize } from '../../../../nls.js';
 import type { IManagedHover } from '../hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 import { IActionProvider } from '../dropdown/dropdown.js';
-import { safeInnerHtml, SanitizeOptions } from '../../domSanitize.js';
+import { safeSetInnerHtml, SanitizeOptions } from '../../domSanitize.js';
 
 export interface IButtonOptions extends Partial<IButtonStyles> {
 	readonly title?: boolean | string;
@@ -253,7 +253,7 @@ export class Button extends Disposable implements IButton {
 			// Don't include outer `<p>`
 			const root = rendered.element.querySelector('p')?.innerHTML;
 			if (root) {
-				safeInnerHtml(labelElement, root, buttonSanitizerOptions);
+				safeSetInnerHtml(labelElement, root, buttonSanitizerOptions);
 			} else {
 				reset(labelElement);
 			}
@@ -654,7 +654,7 @@ export class ButtonWithIcon extends Button {
 
 			const root = rendered.element.querySelector('p')?.innerHTML;
 			if (root) {
-				safeInnerHtml(this._mdlabelElement, root, buttonSanitizerOptions);
+				safeSetInnerHtml(this._mdlabelElement, root, buttonSanitizerOptions);
 			} else {
 				reset(this._mdlabelElement);
 			}
