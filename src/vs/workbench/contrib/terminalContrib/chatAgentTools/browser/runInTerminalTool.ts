@@ -256,7 +256,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 				// Poll for output until the terminal is idle or 20 seconds have passed
-				outputAndIdle = await this._pollForOutput(execution);
+				outputAndIdle = await this._pollForOutputAndIdle(execution);
 				if (!outputAndIdle.idle) {
 					// const shouldContinue = await this._languageModelToolsService.invokeTool(AskUserToContinuePollingToolData, _countTokens, token);
 					// if (shouldContinue.content?.[0].value === 'true') {
@@ -390,24 +390,42 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	private async _pollForOutput(execution: BackgroundTerminalExecution, extendedPolling?: boolean): Promise<{ idle: boolean; output: string; pollDurationMs?: number }> {
-		// Poll for up to 20 seconds or 2 minutes if extendedPolling is true
+	private async _pollForOutputAndIdle(
+		execution: BackgroundTerminalExecution,
+		extendedPolling?: boolean
+	): Promise<{ idle: boolean; output: string; pollDurationMs?: number }> {
 		const maxWaitMs = extendedPolling ? 120000 : 20000;
 		const maxInterval = 2000;
-		let currentInterval = 1000;
-		const endTime = Date.now() + maxWaitMs;
+		let currentInterval = 500;
+		const pollStartTime = Date.now();
 
-		let pollEndTime: number | undefined;
-		let pollDurationMs: number | undefined;
 		let lastBufferLength = 0;
 		let idleCount = 0;
-		const pollStartTime = Date.now();
-		let buffer: string = '';
-		while (Date.now() < endTime) {
-			await timeout(currentInterval);
+		let buffer = '';
+
+		while (true) {
+			const now = Date.now();
+			const elapsed = now - pollStartTime;
+			const timeLeft = maxWaitMs - elapsed;
+
+			if (timeLeft <= 0) {
+				break;
+			}
+
+			// Cap the wait so we never overshoot timeLeft
+			const waitTime = Math.min(currentInterval, timeLeft);
+			await timeout(waitTime);
+
+			// Check again immediately after waking
+			if (Date.now() - pollStartTime >= maxWaitMs) {
+				break;
+			}
+
 			currentInterval = Math.min(currentInterval * 2, maxInterval);
+
 			buffer = execution.getOutput();
 			const currentBufferLength = buffer.length;
+
 			if (currentBufferLength === lastBufferLength) {
 				idleCount++;
 			} else {
@@ -415,13 +433,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				lastBufferLength = currentBufferLength;
 			}
 			if (idleCount >= 2) {
-				pollEndTime = Date.now();
-				pollDurationMs = pollEndTime - (pollStartTime ?? pollEndTime);
-				return { idle: true, output: buffer, pollDurationMs };
+				return { idle: true, output: buffer, pollDurationMs: Date.now() - pollStartTime };
 			}
 		}
-		return { idle: false, output: `Terminal is still running, with buffer: ${buffer}\n`, pollDurationMs };
+		return { idle: idleCount >= 2, output: buffer, pollDurationMs: Date.now() - pollStartTime };
 	}
+
 
 	protected async _rewriteCommandIfNeeded(context: IToolInvocationPreparationContext, args: IRunInTerminalInputParams, instance: Pick<ITerminalInstance, 'getCwdResource'> | undefined, shell: string): Promise<string> {
 		const commandLine = args.command;
