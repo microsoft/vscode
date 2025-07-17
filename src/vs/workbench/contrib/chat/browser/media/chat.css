@@ -2074,10 +2074,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			top: 0px;
 		}
 
-		.request-hover.checkpoints-enabled {
-			top: 30px;
-		}
-
 		.checkpoint-container {
 			display: none;
 		}
