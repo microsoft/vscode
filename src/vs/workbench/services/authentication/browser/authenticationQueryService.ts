@@ -16,6 +16,7 @@ import {
 	IAccountMcpServerQuery,
 	IAccountExtensionsQuery,
 	IAccountMcpServersQuery,
+	IAccountEntitiesQuery,
 	IProviderExtensionQuery,
 	IProviderMcpServerQuery,
 	IExtensionQuery,
@@ -29,6 +30,7 @@ import { IAuthenticationMcpUsageService } from './authenticationMcpUsageService.
 import { IAuthenticationAccessService } from './authenticationAccessService.js';
 import { IAuthenticationMcpAccessService } from './authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from './authenticationMcpService.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 
 /**
  * Base implementation for query interfaces
@@ -83,7 +85,7 @@ class AccountExtensionQuery extends BaseQuery implements IAccountExtensionQuery 
 	}[] {
 		const allUsages = this.queryService.authenticationUsageService.readAccountUsages(this.providerId, this.accountName);
 		return allUsages
-			.filter(usage => usage.extensionId === this.extensionId)
+			.filter(usage => usage.extensionId === ExtensionIdentifier.toKey(this.extensionId))
 			.map(usage => ({
 				extensionId: usage.extensionId,
 				extensionName: usage.extensionName,
@@ -121,6 +123,12 @@ class AccountExtensionQuery extends BaseQuery implements IAccountExtensionQuery 
 	isPreferred(): boolean {
 		const preferredAccount = this.queryService.authenticationExtensionsService.getAccountPreference(this.extensionId, this.providerId);
 		return preferredAccount === this.accountName;
+	}
+
+	isTrusted(): boolean {
+		const allowedExtensions = this.queryService.authenticationAccessService.readAllowedExtensions(this.providerId, this.accountName);
+		const extension = allowedExtensions.find(ext => ext.id === this.extensionId);
+		return extension?.trusted === true;
 	}
 }
 
@@ -226,9 +234,29 @@ class AccountExtensionsQuery extends BaseQuery implements IAccountExtensionsQuer
 		super(providerId, queryService);
 	}
 
-	getAllowedExtensionIds(): string[] {
+	getAllowedExtensions(): { id: string; name: string; allowed?: boolean; lastUsed?: number; trusted?: boolean }[] {
 		const allowedExtensions = this.queryService.authenticationAccessService.readAllowedExtensions(this.providerId, this.accountName);
-		return allowedExtensions.filter(ext => ext.allowed !== false).map(ext => ext.id);
+		const usages = this.queryService.authenticationUsageService.readAccountUsages(this.providerId, this.accountName);
+
+		return allowedExtensions
+			.filter(ext => ext.allowed !== false)
+			.map(ext => {
+				// Find the most recent usage for this extension
+				const extensionUsages = usages.filter(usage => usage.extensionId === ext.id);
+				const lastUsed = extensionUsages.length > 0 ? Math.max(...extensionUsages.map(u => u.lastUsed)) : undefined;
+
+				// Check if trusted through the extension query
+				const extensionQuery = new AccountExtensionQuery(this.providerId, this.accountName, ext.id, this.queryService);
+				const trusted = extensionQuery.isTrusted();
+
+				return {
+					id: ext.id,
+					name: ext.name,
+					allowed: ext.allowed,
+					lastUsed,
+					trusted
+				};
+			});
 	}
 
 	allowAccess(extensionIds: string[]): void {
@@ -301,6 +329,103 @@ class AccountMcpServersQuery extends BaseQuery implements IAccountMcpServersQuer
 }
 
 /**
+ * Implementation of account-entities query operations for type-agnostic operations
+ */
+class AccountEntitiesQuery extends BaseQuery implements IAccountEntitiesQuery {
+	constructor(
+		providerId: string,
+		public readonly accountName: string,
+		queryService: AuthenticationQueryService
+	) {
+		super(providerId, queryService);
+	}
+
+	hasAnyUsage(): boolean {
+		// Check extension usage
+		const extensionUsages = this.queryService.authenticationUsageService.readAccountUsages(this.providerId, this.accountName);
+		if (extensionUsages.length > 0) {
+			return true;
+		}
+
+		// Check MCP server usage
+		const mcpUsages = this.queryService.authenticationMcpUsageService.readAccountUsages(this.providerId, this.accountName);
+		if (mcpUsages.length > 0) {
+			return true;
+		}
+
+		// Check extension access
+		const allowedExtensions = this.queryService.authenticationAccessService.readAllowedExtensions(this.providerId, this.accountName);
+		if (allowedExtensions.some(ext => ext.allowed !== false)) {
+			return true;
+		}
+
+		// Check MCP server access
+		const allowedMcpServers = this.queryService.authenticationMcpAccessService.readAllowedMcpServers(this.providerId, this.accountName);
+		if (allowedMcpServers.some(server => server.allowed !== false)) {
+			return true;
+		}
+
+		return false;
+	}
+
+	getEntityCount(): { extensions: number; mcpServers: number; total: number } {
+		// Use the same logic as getAllEntities to count all entities with usage or access
+		const extensionUsages = this.queryService.authenticationUsageService.readAccountUsages(this.providerId, this.accountName);
+		const allowedExtensions = this.queryService.authenticationAccessService.readAllowedExtensions(this.providerId, this.accountName).filter(ext => ext.allowed);
+		const extensionIds = new Set<string>();
+		extensionUsages.forEach(usage => extensionIds.add(usage.extensionId));
+		allowedExtensions.forEach(ext => extensionIds.add(ext.id));
+
+		const mcpUsages = this.queryService.authenticationMcpUsageService.readAccountUsages(this.providerId, this.accountName);
+		const allowedMcpServers = this.queryService.authenticationMcpAccessService.readAllowedMcpServers(this.providerId, this.accountName).filter(server => server.allowed);
+		const mcpServerIds = new Set<string>();
+		mcpUsages.forEach(usage => mcpServerIds.add(usage.mcpServerId));
+		allowedMcpServers.forEach(server => mcpServerIds.add(server.id));
+
+		const extensionCount = extensionIds.size;
+		const mcpServerCount = mcpServerIds.size;
+
+		return {
+			extensions: extensionCount,
+			mcpServers: mcpServerCount,
+			total: extensionCount + mcpServerCount
+		};
+	}
+
+	removeAllAccess(): void {
+		// Remove all extension access
+		const extensionsQuery = new AccountExtensionsQuery(this.providerId, this.accountName, this.queryService);
+		const extensions = extensionsQuery.getAllowedExtensions();
+		const extensionIds = extensions.map(ext => ext.id);
+		if (extensionIds.length > 0) {
+			extensionsQuery.removeAccess(extensionIds);
+		}
+
+		// Remove all MCP server access
+		const mcpServersQuery = new AccountMcpServersQuery(this.providerId, this.accountName, this.queryService);
+		const mcpServers = mcpServersQuery.getAllowedMcpServers();
+		const mcpServerIds = mcpServers.map(server => server.id);
+		if (mcpServerIds.length > 0) {
+			mcpServersQuery.removeAccess(mcpServerIds);
+		}
+	}
+
+	forEach(callback: (entityId: string, entityType: 'extension' | 'mcpServer') => void): void {
+		// Iterate over extensions
+		const extensionsQuery = new AccountExtensionsQuery(this.providerId, this.accountName, this.queryService);
+		extensionsQuery.forEach(extensionQuery => {
+			callback(extensionQuery.extensionId, 'extension');
+		});
+
+		// Iterate over MCP servers
+		const mcpServersQuery = new AccountMcpServersQuery(this.providerId, this.accountName, this.queryService);
+		mcpServersQuery.forEach(mcpServerQuery => {
+			callback(mcpServerQuery.mcpServerId, 'mcpServer');
+		});
+	}
+}
+
+/**
  * Implementation of account query operations
  */
 class AccountQuery extends BaseQuery implements IAccountQuery {
@@ -328,6 +453,10 @@ class AccountQuery extends BaseQuery implements IAccountQuery {
 		return new AccountMcpServersQuery(this.providerId, this.accountName, this.queryService);
 	}
 
+	entities(): IAccountEntitiesQuery {
+		return new AccountEntitiesQuery(this.providerId, this.accountName, this.queryService);
+	}
+
 	remove(): void {
 		// Remove all extension access and usage data
 		this.queryService.authenticationAccessService.removeAllowedExtensions(this.providerId, this.accountName);
@@ -351,30 +480,6 @@ class ProviderExtensionQuery extends BaseQuery implements IProviderExtensionQuer
 		super(providerId, queryService);
 	}
 
-	async getLastUsedAccount(): Promise<string | undefined> {
-		try {
-			const accounts = await this.queryService.authenticationService.getAccounts(this.providerId);
-			let lastUsedAccount: string | undefined;
-			let lastUsedTime = 0;
-
-			for (const account of accounts) {
-				const usages = this.queryService.authenticationUsageService.readAccountUsages(this.providerId, account.label);
-				const extensionUsages = usages.filter(usage => usage.extensionId === this.extensionId);
-
-				for (const usage of extensionUsages) {
-					if (usage.lastUsed > lastUsedTime) {
-						lastUsedTime = usage.lastUsed;
-						lastUsedAccount = account.label;
-					}
-				}
-			}
-
-			return lastUsedAccount;
-		} catch {
-			return undefined;
-		}
-	}
-
 	getPreferredAccount(): string | undefined {
 		return this.queryService.authenticationExtensionsService.getAccountPreference(this.extensionId, this.providerId);
 	}
@@ -385,24 +490,6 @@ class ProviderExtensionQuery extends BaseQuery implements IProviderExtensionQuer
 
 	removeAccountPreference(): void {
 		this.queryService.authenticationExtensionsService.removeAccountPreference(this.extensionId, this.providerId);
-	}
-
-	async getUsedAccounts(): Promise<string[]> {
-		try {
-			const accounts = await this.queryService.authenticationService.getAccounts(this.providerId);
-			const usedAccounts: string[] = [];
-
-			for (const account of accounts) {
-				const usages = this.queryService.authenticationUsageService.readAccountUsages(this.providerId, account.label);
-				if (usages.some(usage => usage.extensionId === this.extensionId)) {
-					usedAccounts.push(account.label);
-				}
-			}
-
-			return usedAccounts;
-		} catch {
-			return [];
-		}
 	}
 }
 

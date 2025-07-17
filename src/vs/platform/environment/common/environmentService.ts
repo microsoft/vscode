@@ -231,6 +231,9 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get disableTelemetry(): boolean { return !!this.args['disable-telemetry']; }
 
 	@memoize
+	get disableExperiments(): boolean { return !!this.args['disable-experiments']; }
+
+	@memoize
 	get disableWorkspaceTrust(): boolean { return !!this.args['disable-workspace-trust']; }
 
 	@memoize

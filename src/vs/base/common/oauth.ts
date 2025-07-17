@@ -258,12 +258,6 @@ export interface IAuthorizationServerMetadata {
 	code_challenge_methods_supported?: string[];
 }
 
-export interface IRequiredAuthorizationServerMetadata extends IAuthorizationServerMetadata {
-	authorization_endpoint: string;
-	token_endpoint: string;
-	registration_endpoint: string;
-}
-
 /**
  * Response from the dynamic client registration endpoint.
  */
@@ -697,7 +691,7 @@ export function isAuthorizationRegistrationErrorResponse(obj: unknown): obj is I
 
 //#endregion
 
-export function getDefaultMetadataForUrl(authorizationServer: URL): IRequiredAuthorizationServerMetadata & IRequiredAuthorizationServerMetadata {
+export function getDefaultMetadataForUrl(authorizationServer: URL): IAuthorizationServerMetadata {
 	return {
 		issuer: authorizationServer.toString(),
 		authorization_endpoint: new URL('/authorize', authorizationServer).toString(),
@@ -706,16 +700,6 @@ export function getDefaultMetadataForUrl(authorizationServer: URL): IRequiredAut
 		// Default values for Dynamic OpenID Providers
 		// https://openid.net/specs/openid-connect-discovery-1_0.html
 		response_types_supported: ['code', 'id_token', 'id_token token'],
-	};
-}
-
-export function getMetadataWithDefaultValues(metadata: IAuthorizationServerMetadata): IAuthorizationServerMetadata & IRequiredAuthorizationServerMetadata {
-	const issuer = new URL(metadata.issuer);
-	return {
-		...metadata,
-		authorization_endpoint: metadata.authorization_endpoint ?? new URL('/authorize', issuer).toString(),
-		token_endpoint: metadata.token_endpoint ?? new URL('/token', issuer).toString(),
-		registration_endpoint: metadata.registration_endpoint ?? new URL('/register', issuer).toString(),
 	};
 }
 
@@ -751,14 +735,14 @@ export async function fetchDynamicRegistration(serverMetadata: IAuthorizationSer
 			redirect_uris: [
 				'https://insiders.vscode.dev/redirect',
 				'https://vscode.dev/redirect',
-				'http://localhost/',
-				'http://127.0.0.1/',
+				'http://localhost',
+				'http://127.0.0.1',
 				// Added these for any server that might do
 				// only exact match on the redirect URI even
 				// though the spec says it should not care
 				// about the port.
-				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}/`,
-				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}/`
+				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}`,
+				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}`
 			],
 			scope: scopes?.join(AUTH_SCOPE_SEPARATOR),
 			token_endpoint_auth_method: 'none',

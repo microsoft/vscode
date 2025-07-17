@@ -18,7 +18,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -37,15 +37,17 @@ const enum AddConfigurationType {
 
 	NpmPackage,
 	PipPackage,
+	NuGetPackage,
 	DockerImage,
 }
 
-type AssistedConfigurationType = AddConfigurationType.NpmPackage | AddConfigurationType.PipPackage | AddConfigurationType.DockerImage;
+type AssistedConfigurationType = AddConfigurationType.NpmPackage | AddConfigurationType.PipPackage | AddConfigurationType.NuGetPackage | AddConfigurationType.DockerImage;
 
 const assistedTypes = {
 	[AddConfigurationType.NpmPackage]: {
 		title: localize('mcp.npm.title', "Enter NPM Package Name"),
-		placeholder: localize('mcp.npm.placeholder', "Package name (e.g., @org/package)"), pickLabel: localize('mcp.serverType.npm', "NPM Package"),
+		placeholder: localize('mcp.npm.placeholder', "Package name (e.g., @org/package)"),
+		pickLabel: localize('mcp.serverType.npm', "NPM Package"),
 		pickDescription: localize('mcp.serverType.npm.description', "Install from an NPM package name")
 	},
 	[AddConfigurationType.PipPackage]: {
@@ -53,6 +55,12 @@ const assistedTypes = {
 		placeholder: localize('mcp.pip.placeholder', "Package name (e.g., package-name)"),
 		pickLabel: localize('mcp.serverType.pip', "Pip Package"),
 		pickDescription: localize('mcp.serverType.pip.description', "Install from a Pip package name")
+	},
+	[AddConfigurationType.NuGetPackage]: {
+		title: localize('mcp.nuget.title', "Enter NuGet Package Name"),
+		placeholder: localize('mcp.nuget.placeholder', "Package name (e.g., Package.Name)"),
+		pickLabel: localize('mcp.serverType.nuget', "NuGet Package"),
+		pickDescription: localize('mcp.serverType.nuget.description', "Install from a NuGet package name")
 	},
 	[AddConfigurationType.DockerImage]: {
 		title: localize('mcp.docker.title', "Enter Docker Image Name"),
@@ -177,7 +185,7 @@ export class McpAddConfigurationCommand {
 		// Split command into command and args, handling quotes
 		const parts = command.match(/(?:[^\s"]+|"[^"]*")+/g)!;
 		return {
-			type: 'stdio',
+			type: McpServerType.LOCAL,
 			command: parts[0].replace(/"/g, ''),
 
 			args: parts.slice(1).map(arg => arg.replace(/"/g, ''))
@@ -199,7 +207,7 @@ export class McpAddConfigurationCommand {
 			packageType: 'sse'
 		});
 
-		return { url, type: 'http' };
+		return { url, type: McpServerType.REMOTE };
 	}
 
 	private async getServerId(suggestion = `my-mcp-server-${generateUuid().split('-')[0]}`): Promise<string | undefined> {
@@ -387,9 +395,10 @@ export class McpAddConfigurationCommand {
 				break;
 			case AddConfigurationType.NpmPackage:
 			case AddConfigurationType.PipPackage:
+			case AddConfigurationType.NuGetPackage:
 			case AddConfigurationType.DockerImage: {
 				const r = await this.getAssistedConfig(serverType);
-				config = r?.server ? { ...r.server, type: 'stdio' } : undefined;
+				config = r?.server ? { ...r.server, type: McpServerType.LOCAL } : undefined;
 				suggestedName = r?.name;
 				inputs = r?.inputs;
 				inputValues = r?.inputValues;
@@ -491,6 +500,8 @@ export class McpAddConfigurationCommand {
 				return 'npm';
 			case AddConfigurationType.PipPackage:
 				return 'pip';
+			case AddConfigurationType.NuGetPackage:
+				return 'nuget';
 			case AddConfigurationType.DockerImage:
 				return 'docker';
 			case AddConfigurationType.Stdio:

@@ -85,9 +85,10 @@ import { IPreferencesService } from '../../../services/preferences/common/prefer
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { IChatService } from '../../chat/common/chatService.js';
-import { ChatAgentLocation, ChatMode } from '../../chat/common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
 import { CHAT_OPEN_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
 import { IChatAgentService } from '../../chat/common/chatAgents.js';
+import { getActiveElement } from '../../../../base/browser/dom.js';
 
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
@@ -718,7 +719,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								label: nls.localize('troubleshootWithChat', "Fix with {0}", providerName),
 								run: async () => {
 									this._commandService.executeCommand(CHAT_OPEN_ACTION_ID, {
-										mode: ChatMode.Agent,
+										mode: ChatModeKind.Agent,
 										query: `Fix this task configuration error: ${customMessage}`
 									});
 								}
@@ -2933,7 +2934,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _trust(): Promise<boolean> {
-		if (ServerlessWebContext && !TaskExecutionSupportedContext) {
+		const context = this._contextKeyService.getContext(getActiveElement());
+		if (ServerlessWebContext.getValue(this._contextKeyService) && !TaskExecutionSupportedContext?.evaluate(context)) {
 			return false;
 		}
 		await this._workspaceTrustManagementService.workspaceTrustInitialized;

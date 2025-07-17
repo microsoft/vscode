@@ -35,7 +35,9 @@ export class Editor {
 		await this.code.waitForActiveElement(RENAME_INPUT);
 		await this.code.waitForSetValue(RENAME_INPUT, to);
 
-		await this.code.sendKeybinding('enter');
+		await this.code.dispatchKeybinding('enter', async () => {
+			// TODO: Add an accept callback to verify the keybinding was successful
+		});
 	}
 
 	async gotoDefinition(filename: string, term: string, line: number): Promise<void> {

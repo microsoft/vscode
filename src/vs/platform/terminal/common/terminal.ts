@@ -154,7 +154,7 @@ export const enum GeneralShellType {
 	NuShell = 'nu',
 	Node = 'node',
 }
-export type TerminalShellType = PosixShellType | WindowsShellType | GeneralShellType;
+export type TerminalShellType = PosixShellType | WindowsShellType | GeneralShellType | undefined;
 
 export interface IRawTerminalInstanceLayoutInfo<T> {
 	relativeSize: number;

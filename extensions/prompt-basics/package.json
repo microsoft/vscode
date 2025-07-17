@@ -112,21 +112,7 @@
           "other": "off"
         }
       }
-    },
-    "snippets": [
-      {
-        "language": "prompt",
-        "path": "./snippets/prompt.code-snippets"
-      },
-      {
-        "language": "instructions",
-        "path": "./snippets/instructions.code-snippets"
-      },
-      {
-        "language": "chatmode",
-        "path": "./snippets/chatmode.code-snippets"
-      }
-    ]
+    }
   },
   "scripts": {},
   "repository": {

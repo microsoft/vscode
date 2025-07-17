@@ -58,7 +58,7 @@ export const chatRequestCodeBorder = registerColor('chat.requestCodeBorder', { d
 
 export const chatRequestBubbleBackground = registerColor('chat.requestBubbleBackground', { light: transparent(editorSelectionBackground, 0.3), dark: transparent(editorSelectionBackground, 0.3), hcDark: null, hcLight: null }, localize('chat.requestBubbleBackground', "Background color of the chat request bubble."), true);
 
-export const chatRequestBubbleHoverBackground = registerColor('chat.requestBubbleHoverBackground', { dark: '#004972B8', light: '#0e639c40', hcDark: null, hcLight: null }, localize('chat.requestBubbleHoverBackground', 'Background color of the chat request bubble on hover.'), true);
+export const chatRequestBubbleHoverBackground = registerColor('chat.requestBubbleHoverBackground', { dark: editorSelectionBackground, light: editorSelectionBackground, hcDark: null, hcLight: null }, localize('chat.requestBubbleHoverBackground', 'Background color of the chat request bubble on hover.'), true);
 
 export const chatLinesAddedForeground = registerColor(
 	'chat.linesAddedForeground',

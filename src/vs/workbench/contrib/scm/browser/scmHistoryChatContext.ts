@@ -165,11 +165,13 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.scm.action.graph.addHistoryItemToChat',
-			title: localize('chat.action.scmHistoryItemContext', 'Add History Item to Chat'),
+			title: localize('chat.action.scmHistoryItemContext', 'Add to Chat'),
 			f1: false,
 			menu: {
-				id: MenuId.SCMHistoryItemChatContext,
-				when: ChatContextKeys.Setup.installed
+				id: MenuId.SCMHistoryItemContext,
+				group: 'z_chat',
+				order: 1,
+				when: ChatContextKeys.enabled
 			}
 		});
 	}
@@ -189,11 +191,13 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.scm.action.graph.summarizeHistoryItem',
-			title: localize('chat.action.scmHistoryItemSummarize', 'Summarize History Item'),
+			title: localize('chat.action.scmHistoryItemSummarize', 'Explain Changes'),
 			f1: false,
 			menu: {
-				id: MenuId.SCMHistoryItemChatContext,
-				when: ChatContextKeys.Setup.installed
+				id: MenuId.SCMHistoryItemContext,
+				group: 'z_chat',
+				order: 2,
+				when: ChatContextKeys.enabled
 			}
 		});
 	}

@@ -53,7 +53,7 @@ import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatC
 import { IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
-import { ChatAgentLocation, ChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { MarkUnhelpfulActionId } from './actions/chatTitleActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from './chat.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
@@ -82,6 +82,7 @@ import { canceledName } from '../../../../base/common/errors.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatElicitationContentPart } from './chatContentParts/chatElicitationContentPart.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
+import { CodiconActionViewItem } from '../../notebook/browser/view/cellParts/cellActionView.js';
 
 const $ = dom.$;
 
@@ -109,6 +110,10 @@ export interface IChatListItemTemplate {
 	readonly agentHover: ChatAgentHover;
 	readonly requestHover: HTMLElement;
 	readonly disabledOverlay: HTMLElement;
+	readonly checkpointToolbar: MenuWorkbenchToolBar;
+	readonly checkpointRestoreToolbar: MenuWorkbenchToolBar;
+	readonly checkpointContainer: HTMLElement;
+	readonly checkpointRestoreContainer: HTMLElement;
 }
 
 interface IItemHeightChangeParams {
@@ -123,7 +128,7 @@ const forceVerboseLayoutTracing = false
 export interface IChatRendererDelegate {
 	container: HTMLElement;
 	getListLength(): number;
-	currentChatMode(): ChatMode;
+	currentChatMode(): ChatModeKind;
 
 	readonly onDidScroll?: Event<void>;
 }
@@ -138,6 +143,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private readonly fileTreesByResponseId = new Map<string, IChatFileTreeInfo[]>();
 	private readonly focusedFileTreesByResponseId = new Map<string, number>();
+
+	private readonly templateDataByRequestId = new Map<string, IChatListItemTemplate>();
 
 	private readonly renderer: MarkdownRenderer;
 	private readonly markdownDecorationsRenderer: ChatMarkdownDecorationsRenderer;
@@ -201,9 +208,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		this.renderer = this.instantiationService.createInstance(ChatMarkdownRenderer, undefined);
 		this.markdownDecorationsRenderer = this.instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
-		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, editorOptions, delegate, overflowWidgetsDomNode));
-		this._toolEditorPool = this._register(this.instantiationService.createInstance(EditorPool, editorOptions, delegate, overflowWidgetsDomNode));
-		this._diffEditorPool = this._register(this.instantiationService.createInstance(DiffEditorPool, editorOptions, delegate, overflowWidgetsDomNode));
+		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, editorOptions, delegate, overflowWidgetsDomNode, false));
+		this._toolEditorPool = this._register(this.instantiationService.createInstance(EditorPool, editorOptions, delegate, overflowWidgetsDomNode, true));
+		this._diffEditorPool = this._register(this.instantiationService.createInstance(DiffEditorPool, editorOptions, delegate, overflowWidgetsDomNode, false));
 		this._treePool = this._register(this.instantiationService.createInstance(TreePool, this._onDidChangeVisibility.event));
 		this._contentReferencesListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, undefined, undefined));
 
@@ -281,6 +288,20 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return undefined;
 	}
 
+	getTemplateDataForRequestId(requestId?: string): IChatListItemTemplate | undefined {
+		if (!requestId) {
+			return undefined;
+		}
+		const templateData = this.templateDataByRequestId.get(requestId);
+		if (templateData && templateData.currentElement?.id === requestId) {
+			return templateData;
+		}
+		if (templateData) {
+			this.templateDataByRequestId.delete(requestId);
+		}
+		return undefined;
+	}
+
 	setVisible(visible: boolean): void {
 		this._isVisible = visible;
 		this._onDidChangeVisibility.fire(visible);
@@ -349,6 +370,29 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}));
 		}
 		this.hoverHidden(requestHover);
+
+		const checkpointContainer = dom.append(rowContainer, $('.checkpoint-container'));
+		const codiconContainer = dom.append(checkpointContainer, $('.codicon-container'));
+		dom.append(codiconContainer, $('span.codicon.codicon-bookmark'));
+
+		const checkpointToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, checkpointContainer, MenuId.ChatMessageCheckpoint, {
+			actionViewItemProvider: (action, options) => {
+				if (action instanceof MenuItemAction) {
+					return this.instantiationService.createInstance(CodiconActionViewItem, action, { hoverDelegate: options.hoverDelegate });
+				}
+				return undefined;
+			},
+			renderDropdownAsChildElement: true,
+			menuOptions: {
+				shouldForwardArgs: true
+			},
+			toolbarOptions: {
+				shouldInlineSubmenu: submenu => submenu.actions.length <= 1
+			},
+		}));
+
+		dom.append(checkpointContainer, $('.checkpoint-divider'));
+
 		const user = dom.append(header, $('.user'));
 		const avatarContainer = dom.append(user, $('.avatar-container'));
 		const username = dom.append(user, $('h3.username'));
@@ -372,6 +416,30 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}));
 
+		const checkpointRestoreContainer = dom.append(rowContainer, $('.checkpoint-restore-container'));
+		const codiconRestoreContainer = dom.append(checkpointRestoreContainer, $('.codicon-container'));
+		dom.append(codiconRestoreContainer, $('span.codicon.codicon-bookmark'));
+		const label = dom.append(checkpointRestoreContainer, $('span.checkpoint-label-text'));
+		label.textContent = localize('checkpointRestore', 'Checkpoint restored');
+		const checkpointRestoreToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, checkpointRestoreContainer, MenuId.ChatMessageRestoreCheckpoint, {
+			actionViewItemProvider: (action, options) => {
+				if (action instanceof MenuItemAction) {
+					return this.instantiationService.createInstance(CodiconActionViewItem, action, { hoverDelegate: options.hoverDelegate });
+				}
+				return undefined;
+			},
+			renderDropdownAsChildElement: true,
+			menuOptions: {
+				shouldForwardArgs: true
+			},
+			toolbarOptions: {
+				shouldInlineSubmenu: submenu => submenu.actions.length <= 1
+			},
+		}));
+
+		dom.append(checkpointRestoreContainer, $('.checkpoint-divider'));
+
+
 		const agentHover = templateDisposables.add(this.instantiationService.createInstance(ChatAgentHover));
 		const hoverContent = () => {
 			if (isResponseVM(template.currentElement) && template.currentElement.agent && !template.currentElement.agent.isDefault) {
@@ -394,7 +462,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.hoverService.hideHover();
 			}
 		}));
-		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, disabledOverlay };
+		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer };
 		return template;
 	}
 
@@ -414,9 +482,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (templateData.currentElement && templateData.currentElement.id !== element.id) {
 			this.traceLayout('renderChatTreeItem', `Rendering a different element into the template, index=${index}`);
 			this.clearRenderedParts(templateData);
+
+			const mappedTemplateData = this.templateDataByRequestId.get(templateData.currentElement.id);
+			if (mappedTemplateData && (mappedTemplateData.currentElement?.id !== templateData.currentElement.id)) {
+				this.templateDataByRequestId.delete(templateData.currentElement.id);
+			}
 		}
 
 		templateData.currentElement = element;
+		this.templateDataByRequestId.set(element.id, templateData);
 		const kind = isRequestVM(element) ? 'request' :
 			isResponseVM(element) ? 'response' :
 				'welcome';
@@ -462,10 +536,28 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.renderDetail(element, templateData);
 		}
 
-		templateData.disabledOverlay.classList.toggle('disabled', element.shouldBeBlocked);
-		templateData.rowContainer.classList.toggle('editing', element.id === this.viewModel?.editing?.id);
-		templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.CLICK, () => {
-			if (this.viewModel?.editing && element.id !== this.viewModel.editing.id) {
+		templateData.checkpointToolbar.context = element;
+		templateData.checkpointContainer.classList.toggle('hidden', isResponseVM(element) || !this.configService.getValue<boolean>(ChatConfiguration.CheckpointsEnabled));
+
+		// Only show restore container when we have a checkpoint and not editing
+		const shouldShowRestore = this.viewModel?.model.checkpoint && !this.viewModel?.editing && (index === this.delegate.getListLength() - 1);
+		templateData.checkpointRestoreContainer.classList.toggle('hidden', !shouldShowRestore || !this.configService.getValue<boolean>(ChatConfiguration.CheckpointsEnabled));
+
+		const editing = element.id === this.viewModel?.editing?.id;
+		const isInput = this.configService.getValue<string>('chat.editRequests') === 'input';
+
+		templateData.disabledOverlay.classList.toggle('disabled', element.shouldBeBlocked && !editing && this.viewModel?.editing !== undefined);
+		templateData.rowContainer.classList.toggle('editing', editing && !isInput);
+		templateData.rowContainer.classList.toggle('editing-input', editing && isInput);
+		templateData.requestHover.classList.toggle('editing', editing && isInput);
+		templateData.requestHover.classList.toggle('hidden', (!!this.viewModel?.editing && !editing) || isResponseVM(element));
+		templateData.requestHover.classList.toggle('expanded', this.configService.getValue<string>('chat.editRequests') === 'hover');
+		templateData.requestHover.classList.toggle('checkpoints-enabled', this.configService.getValue<boolean>(ChatConfiguration.CheckpointsEnabled));
+		templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.CLICK, (e) => {
+			const current = templateData.currentElement;
+			if (current && this.viewModel?.editing && current.id !== this.viewModel.editing.id) {
+				e.stopPropagation();
+				e.preventDefault();
 				this._onDidFocusOutside.fire();
 			}
 		}));
@@ -520,15 +612,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (element.agentOrSlashCommandDetected) {
 			const msg = element.slashCommand ? localize('usedAgentSlashCommand', "used {0} [[(rerun without)]]", `${chatSubcommandLeader}${element.slashCommand.name}`) : localize('usedAgent', "[[(rerun without)]]");
 			dom.reset(templateData.detail, renderFormattedText(msg, {
-				className: 'agentOrSlashCommandDetected',
-				inline: true,
 				actionHandler: {
 					disposables: templateData.elementDisposables,
 					callback: (content) => {
 						this._onDidClickRerunWithAgentOrCommandDetection.fire(element);
 					},
 				}
-			}));
+			}, $('span.agentOrSlashCommandDetected')));
 
 		} else if (this.rendererOptions.renderStyle !== 'minimal' && !element.isComplete && !checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse)) {
 			if (element.model.isPaused.get()) {
@@ -588,7 +678,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
-		if (element.errorDetails?.message && element.errorDetails.message !== canceledName) {
+		if (element.model.response === element.model.entireResponse && element.errorDetails?.message && element.errorDetails.message !== canceledName) {
 			content.push({ kind: 'errorDetails', errorDetails: element.errorDetails, isLast: index === this.delegate.getListLength() - 1 });
 		}
 
@@ -604,11 +694,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this._onDidRerender.fire(templateData);
 		}
 
-		if (this.configService.getValue<boolean>('chat.editRequests') && !this.disableEdits) {
+		if (this.configService.getValue<string>('chat.editRequests') !== 'none' && !this.disableEdits) {
 			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.KEY_DOWN, e => {
 				const ev = new StandardKeyboardEvent(e);
 				if (ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) {
-					if (this.viewModel?.editing?.id !== element.id && !this.viewModel?.requestInProgress) {
+					if (this.viewModel?.editing?.id !== element.id) {
+						ev.preventDefault();
+						ev.stopPropagation();
 						this._onDidClickRequest.fire(templateData);
 					}
 				}
@@ -1194,14 +1286,26 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.renderer, this._currentLayoutWidth, this.codeBlockModelCollection, {});
 		if (isRequestVM(element)) {
 			markdownPart.domNode.tabIndex = 0;
-			if (this.configService.getValue<boolean>('chat.editRequests') && !this.disableEdits) {
+			if (this.configService.getValue<string>('chat.editRequests') === 'inline' && !this.disableEdits) {
 				markdownPart.domNode.classList.add('clickable');
 				markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.CLICK, (e: MouseEvent) => {
-					if (this.viewModel?.editing?.id !== element.id && !this.viewModel?.requestInProgress) {
+					if (this.viewModel?.editing?.id !== element.id) {
+						const selection = dom.getWindow(templateData.rowContainer).getSelection();
+						if (selection && !selection.isCollapsed && selection.toString().length > 0) {
+							return;
+						}
+
+						const clickedElement = e.target as HTMLElement;
+						if (clickedElement.tagName === 'A') {
+							return;
+						}
+
+						e.preventDefault();
+						e.stopPropagation();
 						this._onDidClickRequest.fire(templateData);
 					}
 				}));
-				this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), markdownPart.domNode, localize('requestMarkdownPartTitle', "Click to edit"), { trapFocus: true }));
+				this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), markdownPart.domNode, localize('requestMarkdownPartTitle', "Click to Edit"), { trapFocus: true }));
 			}
 			markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.FOCUS, () => {
 				this.hoverVisible(templateData.requestHover);
@@ -1224,6 +1328,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, details?: IListElementRenderDetails): void {
 		this.traceLayout('disposeElement', `Disposing element, index=${index}`);
 		templateData.elementDisposables.clear();
+
+		if (templateData.currentElement && !this.viewModel?.editing) {
+			this.templateDataByRequestId.delete(templateData.currentElement.id);
+		}
 
 		if (isRequestVM(node.element) && node.element.id === this.viewModel?.editing?.id && details?.onScroll) {
 			this._onDidDispose.fire(templateData);

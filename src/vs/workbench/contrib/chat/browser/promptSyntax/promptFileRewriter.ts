@@ -9,7 +9,7 @@ import { ICodeEditorService } from '../../../../../editor/browser/services/codeE
 import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
-import { IToolAndToolSetEnablementMap, ToolSet } from '../../common/languageModelToolsService.js';
+import { IToolAndToolSetEnablementMap, IToolData, ToolSet } from '../../common/languageModelToolsService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 
 export class PromptFileRewriter {
@@ -27,10 +27,15 @@ export class PromptFileRewriter {
 		const model = editor.getModel();
 
 		const parser = this._promptsService.getSyntaxParserFor(model);
-		const { header } = await parser.start(token).settled();
-
-		if ((header === undefined) || token.isCancellationRequested) {
+		await parser.start(token).settled();
+		const { header } = parser;
+		if (header === undefined) {
 			return undefined;
+		}
+
+		const completed = await header.settled;
+		if (!completed || token.isCancellationRequested) {
+			return;
 		}
 
 		if (('tools' in header.metadataUtility) === false) {
@@ -54,11 +59,19 @@ export class PromptFileRewriter {
 			model.pushStackElement();
 			return;
 		}
+		const toolsCoveredBySets = new Set<IToolData>();
+		for (const [item, picked] of newTools) {
+			if (picked && item instanceof ToolSet) {
+				for (const tool of item.getTools()) {
+					toolsCoveredBySets.add(tool);
+				}
+			}
+		}
 		for (const [item, picked] of newTools) {
 			if (picked) {
 				if (item instanceof ToolSet) {
 					newToolNames.push(item.referenceName);
-				} else {
+				} else if (!toolsCoveredBySets.has(item)) {
 					newToolNames.push(item.toolReferenceName ?? item.displayName);
 				}
 			}

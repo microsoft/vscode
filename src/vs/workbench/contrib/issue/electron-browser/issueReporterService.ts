@@ -228,7 +228,7 @@ export class IssueReporter extends BaseIssueReporterService {
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value, issueUrl);
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
-		url += this.addTemplateToUrl(gitHubDetails?.owner, gitHubDetails?.repositoryName);
+		url = this.addTemplateToUrl(url, gitHubDetails?.owner, gitHubDetails?.repositoryName);
 
 		if (this.data.githubAccessToken && gitHubDetails) {
 			if (await this.submitToGitHub(issueTitle, issueBody, gitHubDetails)) {
@@ -238,7 +238,8 @@ export class IssueReporter extends BaseIssueReporterService {
 
 		try {
 			if (url.length > MAX_URL_LENGTH || issueBody.length > MAX_GITHUB_API_LENGTH) {
-				url = await this.writeToClipboard(baseUrl, issueBody) + this.addTemplateToUrl(gitHubDetails?.owner, gitHubDetails?.repositoryName);
+				url = await this.writeToClipboard(baseUrl, issueBody);
+				url = this.addTemplateToUrl(url, gitHubDetails?.owner, gitHubDetails?.repositoryName);
 			}
 		} catch (_) {
 			console.error('Writing to clipboard failed');

@@ -56,7 +56,6 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 			new vscode.VerboseHover(
 				contents,
 				range,
-				// @ts-expect-error
 				/*canIncreaseVerbosity*/ response.body.canIncreaseVerbosityLevel,
 				/*canDecreaseVerbosity*/ verbosityLevel !== 0
 			) : new vscode.Hover(

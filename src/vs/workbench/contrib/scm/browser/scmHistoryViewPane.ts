@@ -578,6 +578,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 	}
 
 	disposeTemplate(templateData: HistoryItemTemplate): void {
+		templateData.elementDisposables.dispose();
 		templateData.disposables.dispose();
 	}
 }
@@ -747,6 +748,7 @@ class HistoryItemLoadMoreRenderer implements ICompressibleTreeRenderer<SCMHistor
 	}
 
 	disposeTemplate(templateData: LoadMoreTemplate): void {
+		templateData.elementDisposables.dispose();
 		templateData.disposables.dispose();
 	}
 }
@@ -759,7 +761,9 @@ class HistoryItemHoverDelegate extends WorkbenchHoverDelegate {
 		@IHoverService hoverService: IHoverService,
 
 	) {
-		super('element', { instantHover: true }, () => this.getHoverOptions(), configurationService, hoverService);
+		super(_viewContainerLocation === ViewContainerLocation.Panel ? 'mouse' : 'element', {
+			instantHover: _viewContainerLocation !== ViewContainerLocation.Panel
+		}, () => this.getHoverOptions(), configurationService, hoverService);
 	}
 
 	private getHoverOptions(): Partial<IHoverOptions> {
@@ -1614,7 +1618,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				}));
 
 				// Update context
-				this._scmProviderCtx.set(repository.provider.contextValue);
+				this._scmProviderCtx.set(repository.provider.providerId);
 				this._scmCurrentHistoryItemRefInFilter.set(this._isCurrentHistoryItemInFilter(historyItemRefId.get()));
 
 				// We skip refreshing the graph on the first execution of the autorun
