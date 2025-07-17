@@ -12,7 +12,7 @@ import { URI } from '../../../base/common/uri.js';
 import { getSystemShell } from '../../../base/node/shell.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
 import { RequestStore } from '../common/requestStore.js';
-import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions, IPtyHostLatencyMeasurement, type IPtyServiceContribution } from '../common/terminal.js';
+import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions, IPtyHostLatencyMeasurement, type IPtyServiceContribution, PosixShellType, ITerminalLaunchResult } from '../common/terminal.js';
 import { TerminalDataBufferer } from '../common/terminalDataBuffering.js';
 import { escapeNonWindowsPath } from '../common/terminalEnvironment.js';
 import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from '@xterm/addon-serialize';
@@ -401,7 +401,7 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	@traceRpc
-	async start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
+	async start(id: number): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
 		const pty = this._ptys.get(id);
 		return pty ? pty.start() : { message: `Could not find pty with id "${id}"` };
 	}
@@ -489,7 +489,7 @@ export class PtyService extends Disposable implements IPtyService {
 			}
 			return new Promise<string>(c => {
 				const proc = execFile(wslExecutable, ['-e', 'wslpath', original], {}, (error, stdout, stderr) => {
-					c(error ? original : escapeNonWindowsPath(stdout.trim()));
+					c(error ? original : escapeNonWindowsPath(stdout.trim(), PosixShellType.Bash));
 				});
 				proc.stdin!.end();
 			});
@@ -821,7 +821,7 @@ class PersistentTerminalProcess extends Disposable {
 		}
 	}
 
-	async start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
+	async start(): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
 		if (!this._isStarted) {
 			const result = await this._terminalProcess.start();
 			if (result && 'message' in result) {

@@ -171,22 +171,18 @@ class TrackedDocumentInfo extends Disposable {
 				continue;
 			}
 
-
-			const repr = sourceKeyToRepresentative.get(key);
-			const cleanedKey = repr?.toKey(1, { $extensionId: false, $extensionVersion: false });
-
-			const metadata = repr?.metadata;
-			const extensionId = metadata && '$extensionId' in metadata ? metadata.$extensionId : undefined;
-			const extensionVersion = metadata && '$extensionVersion' in metadata ? metadata.$extensionVersion : undefined;
-
+			const repr = sourceKeyToRepresentative.get(key)!;
 			const m = t.getChangedCharactersCount(key);
 
 			this._telemetryService.publicLog2<{
 				mode: string;
 				sourceKey: string;
-				extensionId: string;
-				extensionVersion: string;
-				sourceKeyWithoutExtId: string;
+
+				sourceKeyCleaned: string;
+				extensionId: string | undefined;
+				extensionVersion: string | undefined;
+				modelId: string | undefined;
+
 				trigger: string;
 				languageId: string;
 				statsUuid: string;
@@ -197,13 +193,17 @@ class TrackedDocumentInfo extends Disposable {
 				owner: 'hediet';
 				comment: 'Reports distribution of various edit kinds.';
 
-				sourceKey: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the edit.' };
 				mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'longterm or 5minWindow' };
-				languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
-				statsUuid: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The unique identifier for the telemetry event.' };
+				sourceKey: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the edit.' };
+
+				sourceKeyCleaned: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the edit.' };
 				extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension id which provided this inline completion.' };
 				extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension.' };
-				sourceKeyWithoutExtId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the edit.' };
+				modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model id.' };
+
+				languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
+				statsUuid: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The unique identifier for the telemetry event.' };
+
 				trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The trigger for the telemetry event.' };
 
 				modifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Fraction of nes modified characters'; isMeasurement: true };
@@ -213,9 +213,12 @@ class TrackedDocumentInfo extends Disposable {
 			}>('editTelemetry.editSources.details', {
 				mode,
 				sourceKey: key,
-				extensionId: extensionId ?? '',
-				extensionVersion: extensionVersion ?? '',
-				sourceKeyWithoutExtId: cleanedKey ?? '',
+
+				sourceKeyCleaned: repr.toKey(1, { $extensionId: false, $extensionVersion: false, $modelId: false }),
+				extensionId: repr.props.$extensionId,
+				extensionVersion: repr.props.$extensionVersion,
+				modelId: repr.props.$modelId,
+
 				trigger,
 				languageId: this._doc.languageId.get(),
 				statsUuid: statsUuid,

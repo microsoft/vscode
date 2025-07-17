@@ -5,7 +5,6 @@
 
 import { IContextMenuProvider } from '../../contextmenu.js';
 import { addDisposableListener, EventHelper, EventType, IFocusTracker, isActiveElement, reset, trackFocus, $ } from '../../dom.js';
-import dompurify from '../../dompurify/dompurify.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { renderMarkdown, renderStringAsPlaintext } from '../../markdownRenderer.js';
 import { Gesture, EventType as TouchEventType } from '../../touch.js';
@@ -25,6 +24,7 @@ import { localize } from '../../../../nls.js';
 import type { IManagedHover } from '../hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 import { IActionProvider } from '../dropdown/dropdown.js';
+import { safeInnerHtml, SanitizeOptions } from '../../domSanitize.js';
 
 export interface IButtonOptions extends Partial<IButtonStyles> {
 	readonly title?: boolean | string;
@@ -77,6 +77,16 @@ export interface IButton extends IDisposable {
 export interface IButtonWithDescription extends IButton {
 	description: string;
 }
+
+// Only allow a very limited set of inline html tags
+const buttonSanitizerOptions = Object.freeze<SanitizeOptions>({
+	allowedTags: {
+		override: ['b', 'i', 'u', 'code', 'span'],
+	},
+	allowedAttributes: {
+		override: ['class'],
+	},
+});
 
 export class Button extends Disposable implements IButton {
 
@@ -243,9 +253,7 @@ export class Button extends Disposable implements IButton {
 			// Don't include outer `<p>`
 			const root = rendered.element.querySelector('p')?.innerHTML;
 			if (root) {
-				// Only allow a very limited set of inline html tags
-				const sanitized = dompurify.sanitize(root, { ADD_TAGS: ['b', 'i', 'u', 'code', 'span'], ALLOWED_ATTR: ['class'], RETURN_TRUSTED_TYPE: true });
-				labelElement.innerHTML = sanitized as unknown as string;
+				safeInnerHtml(labelElement, root, buttonSanitizerOptions);
 			} else {
 				reset(labelElement);
 			}
@@ -646,9 +654,7 @@ export class ButtonWithIcon extends Button {
 
 			const root = rendered.element.querySelector('p')?.innerHTML;
 			if (root) {
-				// Only allow a very limited set of inline html tags
-				const sanitized = dompurify.sanitize(root, { ADD_TAGS: ['b', 'i', 'u', 'code', 'span'], ALLOWED_ATTR: ['class'], RETURN_TRUSTED_TYPE: true });
-				this._mdlabelElement.innerHTML = sanitized as unknown as string;
+				safeInnerHtml(this._mdlabelElement, root, buttonSanitizerOptions);
 			} else {
 				reset(this._mdlabelElement);
 			}

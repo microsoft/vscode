@@ -7471,6 +7471,7 @@ declare namespace monaco.languages {
 		readonly selectedSuggestionInfo: SelectedSuggestionInfo | undefined;
 		readonly includeInlineEdits: boolean;
 		readonly includeInlineCompletions: boolean;
+		readonly requestIssuedDateTime: number;
 	}
 
 	export class SelectedSuggestionInfo {

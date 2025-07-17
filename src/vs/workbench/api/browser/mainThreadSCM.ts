@@ -241,9 +241,12 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 
 class MainThreadSCMProvider implements ISCMProvider {
 
-	private static ID_HANDLE = 0;
-	private _id = `scm${MainThreadSCMProvider.ID_HANDLE++}`;
-	get id(): string { return this._id; }
+	get id(): string { return `scm${this._handle}`; }
+	get parentId(): string | undefined {
+		return this._parentHandle !== undefined
+			? `scm${this._parentHandle}`
+			: undefined;
+	}
 	get providerId(): string { return this._providerId; }
 
 	readonly groups: MainThreadSCMResourceGroup[] = [];
@@ -302,6 +305,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 	constructor(
 		private readonly proxy: ExtHostSCMShape,
 		private readonly _handle: number,
+		private readonly _parentHandle: number | undefined,
 		private readonly _providerId: string,
 		private readonly _label: string,
 		private readonly _rootUri: URI | undefined,
@@ -567,11 +571,11 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._disposables.dispose();
 	}
 
-	async $registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined, inputBoxDocumentUri: UriComponents): Promise<void> {
+	async $registerSourceControl(handle: number, parentHandle: number | undefined, id: string, label: string, rootUri: UriComponents | undefined, inputBoxDocumentUri: UriComponents): Promise<void> {
 		this._repositoryBarriers.set(handle, new Barrier());
 
 		const inputBoxTextModelRef = await this.textModelService.createModelReference(URI.revive(inputBoxDocumentUri));
-		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, inputBoxTextModelRef.object.textEditorModel, this.quickDiffService, this._uriIdentService, this.workspaceContextService);
+		const provider = new MainThreadSCMProvider(this._proxy, handle, parentHandle, id, label, rootUri ? URI.revive(rootUri) : undefined, inputBoxTextModelRef.object.textEditorModel, this.quickDiffService, this._uriIdentService, this.workspaceContextService);
 		const repository = this.scmService.registerSCMProvider(provider);
 		this._repositories.set(handle, repository);
 

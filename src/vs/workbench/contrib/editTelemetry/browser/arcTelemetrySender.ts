@@ -117,12 +117,14 @@ export class ChatArcTelemetrySender extends Disposable {
 			const docWithJustReason = createDocWithJustReason(docWithAnnotatedEdits, this._store);
 			const reporter = this._instantiationService.createInstance(ArcTelemetryReporter, [0, 60, 300].map(s => s * 1000), _prev, docWithJustReason, scmRepoBridge, edit, res => {
 				res.telemetryService.publicLog2<{
+					sourceKeyCleaned: string;
 					extensionId: string | undefined;
 					extensionVersion: string | undefined;
 					opportunityId: string | undefined;
 					sessionId: string | undefined;
 					requestId: string | undefined;
-					editSourceKey: string;
+					modelId: string | undefined;
+
 					didBranchChange: number;
 					timeDelayMs: number;
 					arc: number;
@@ -135,12 +137,13 @@ export class ChatArcTelemetrySender extends Disposable {
 					owner: 'hediet';
 					comment: 'Reports the accepted and retained character count for an inline completion/edit.';
 
+					sourceKeyCleaned: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The key of the edit source.' };
 					extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension id (copilot or copilot-chat); which provided this inline completion.' };
 					extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension.' };
 					opportunityId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for an opportunity to show an inline completion or NES.' };
 					sessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session id.' };
 					requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The request id.' };
-					editSourceKey: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The key of the edit source.' };
+					modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model id.' };
 
 					didBranchChange: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates if the branch changed in the meantime. If the branch changed (value is 1); this event should probably be ignored.' };
 					timeDelayMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The time delay between the user accepting the edit and measuring the survival rate.' };
@@ -150,24 +153,25 @@ export class ChatArcTelemetrySender extends Disposable {
 					currentLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The current line count after edits.' };
 					originalDeletedLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The original deleted line count before any edits.' };
 				}>('editTelemetry.reportEditArc', {
-					extensionId: data.props.$extensionId,
-					extensionVersion: data.props.$extensionVersion,
-					opportunityId: data.props.$$requestUuid,
-					sessionId: data.props.$$sessionId,
-					requestId: data.props.$$requestId,
-
-					didBranchChange: res.didBranchChange ? 1 : 0,
-					timeDelayMs: res.timeDelayMs,
-					arc: res.arc,
-					originalCharCount: res.originalCharCount,
-
-					editSourceKey: data.toKey(Number.MAX_SAFE_INTEGER, {
+					sourceKeyCleaned: data.toKey(Number.MAX_SAFE_INTEGER, {
 						$extensionId: false,
 						$extensionVersion: false,
 						$$requestUuid: false,
 						$$sessionId: false,
 						$$requestId: false,
+						$modelId: false,
 					}),
+					extensionId: data.props.$extensionId,
+					extensionVersion: data.props.$extensionVersion,
+					opportunityId: data.props.$$requestUuid,
+					sessionId: data.props.$$sessionId,
+					requestId: data.props.$$requestId,
+					modelId: data.props.$modelId,
+
+					didBranchChange: res.didBranchChange ? 1 : 0,
+					timeDelayMs: res.timeDelayMs,
+					arc: res.arc,
+					originalCharCount: res.originalCharCount,
 
 					originalLineCount: res.originalLineCount,
 					currentLineCount: res.currentLineCount,

@@ -70,6 +70,7 @@ export interface ISCMResourceGroup {
 
 export interface ISCMProvider extends IDisposable {
 	readonly id: string;
+	readonly parentId?: string;
 	readonly providerId: string;
 	readonly label: string;
 	readonly name: string;

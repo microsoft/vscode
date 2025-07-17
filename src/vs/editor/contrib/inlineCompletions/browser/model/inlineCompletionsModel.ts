@@ -381,6 +381,7 @@ export class InlineCompletionsModel extends Disposable {
 			selectedSuggestionInfo: suggestItem?.toSelectedSuggestionInfo(),
 			includeInlineCompletions: !changeSummary.onlyRequestInlineEdits,
 			includeInlineEdits: this._inlineEditsEnabled.read(reader),
+			requestIssuedDateTime: requestInfo.startTime,
 		};
 
 		if (context.triggerKind === InlineCompletionTriggerKind.Automatic && changeSummary.textChange) {

@@ -2305,4 +2305,121 @@ export function cancellableIterable<T>(iterableOrIterator: AsyncIterator<T> | As
 	};
 }
 
+type ProducerConsumerValue<T> = {
+	ok: true;
+	value: T;
+} | {
+	ok: false;
+	error: Error;
+};
+
+class ProducerConsumer<T> {
+	private readonly _unsatisfiedConsumers: DeferredPromise<T>[] = [];
+	private readonly _unconsumedValues: ProducerConsumerValue<T>[] = [];
+	private _finalValue: ProducerConsumerValue<T> | undefined;
+
+	public get hasFinalValue(): boolean {
+		return !!this._finalValue;
+	}
+
+	produce(value: ProducerConsumerValue<T>): void {
+		this._ensureNoFinalValue();
+		if (this._unsatisfiedConsumers.length > 0) {
+			const deferred = this._unsatisfiedConsumers.shift()!;
+			this._resolveOrRejectDeferred(deferred, value);
+		} else {
+			this._unconsumedValues.push(value);
+		}
+	}
+
+	produceFinal(value: ProducerConsumerValue<T>): void {
+		this._ensureNoFinalValue();
+		this._finalValue = value;
+		for (const deferred of this._unsatisfiedConsumers) {
+			this._resolveOrRejectDeferred(deferred, value);
+		}
+		this._unsatisfiedConsumers.length = 0;
+	}
+
+	private _ensureNoFinalValue(): void {
+		if (this._finalValue) {
+			throw new BugIndicatingError('ProducerConsumer: cannot produce after final value has been set');
+		}
+	}
+
+	private _resolveOrRejectDeferred(deferred: DeferredPromise<T>, value: ProducerConsumerValue<T>): void {
+		if (value.ok) {
+			deferred.complete(value.value);
+		} else {
+			deferred.error(value.error);
+		}
+	}
+
+	consume(): Promise<T> {
+		if (this._unconsumedValues.length > 0 || this._finalValue) {
+			const value = this._unconsumedValues.length > 0 ? this._unconsumedValues.shift()! : this._finalValue!;
+			if (value.ok) {
+				return Promise.resolve(value.value);
+			} else {
+				return Promise.reject(value.error);
+			}
+		} else {
+			const deferred = new DeferredPromise<T>();
+			this._unsatisfiedConsumers.push(deferred);
+			return deferred.p;
+		}
+	}
+}
+
+/**
+ * Important difference to AsyncIterableObject:
+ * If it is iterated two times, the second iterator will not see the values emitted by the first iterator.
+ */
+export class AsyncIterableProducer<T> implements AsyncIterable<T> {
+	private readonly _producerConsumer = new ProducerConsumer<IteratorResult<T>>();
+
+	constructor(executor: AsyncIterableExecutor<T>) {
+		queueMicrotask(async () => {
+			const p = executor({
+				emitOne: value => this._producerConsumer.produce({ ok: true, value: { done: false, value: value } }),
+				emitMany: values => {
+					for (const value of values) {
+						this._producerConsumer.produce({ ok: true, value: { done: false, value: value } });
+					}
+				},
+				reject: error => this._finishError(error),
+			});
+
+			if (!this._producerConsumer.hasFinalValue) {
+				try {
+					await p;
+					this._finishOk();
+				} catch (error) {
+					this._finishError(error);
+				}
+			}
+		});
+	}
+
+	private _finishOk(): void {
+		this._producerConsumer.produceFinal({ ok: true, value: { done: true, value: undefined } });
+	}
+
+	private _finishError(error: Error): void {
+		this._producerConsumer.produceFinal({ ok: false, error: error });
+	}
+
+	private readonly _iterator: AsyncIterator<T, void, void> = {
+		next: () => this._producerConsumer.consume(),
+		throw: async (e) => {
+			this._finishError(e);
+			return { done: true, value: undefined };
+		},
+	};
+
+	[Symbol.asyncIterator](): AsyncIterator<T, void, void> {
+		return this._iterator;
+	}
+}
+
 //#endregion

@@ -46,7 +46,7 @@ const enum RequestCompletionsSequence {
 
 export class PwshCompletionProviderAddon extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
 
-	static readonly ID = 'pwsh-shell-integration';
+	static readonly ID = 'core:pwsh-shell-integration';
 
 	id: string = PwshCompletionProviderAddon.ID;
 	triggerCharacters?: string[] | undefined;

@@ -26,7 +26,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		tags: [
 			'experimental'
 		],
-		default: false,
+		default: true,
 	},
 	[TerminalChatAgentToolsSettingId.AllowList]: {
 		markdownDescription: localize('allowList', "A list of commands or regular expressions that allow the run in terminal tool commands to run without explicit approval. These will be matched against the start of a command. A regular expression can be provided by wrapping the string in `/` characters.\n\nExamples:\n- `\"mkdir\"` Will allow all command lines starting with `mkdir`\n- `\"npm run build\"` Will allow all command lines starting with `npm run build`\n- `\"/^git (status|show\\b.*)$/\"` will allow `git status` and all command lines starting with `git show`\n- `\"/.*/\"` will allow all command lines\n\nThis will be overridden by anything that matches an entry in `#chat.agent.terminal.denyList#`."),

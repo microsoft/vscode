@@ -8,6 +8,7 @@ import { decodeBase64 } from './buffer.js';
 const WELL_KNOWN_ROUTE = '/.well-known';
 export const AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH = `${WELL_KNOWN_ROUTE}/oauth-protected-resource`;
 export const AUTH_SERVER_METADATA_DISCOVERY_PATH = `${WELL_KNOWN_ROUTE}/oauth-authorization-server`;
+export const OPENID_CONNECT_DISCOVERY_PATH = `${WELL_KNOWN_ROUTE}/openid-configuration`;
 export const AUTH_SCOPE_SEPARATOR = ' ';
 
 //#region types
