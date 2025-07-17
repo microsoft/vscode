@@ -683,11 +683,25 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			content.push({ kind: 'errorDetails', errorDetails: element.errorDetails, isLast: index === this.delegate.getListLength() - 1 });
 		}
 
-		content.push({ kind: 'changesSummary', changes: [] });
+		if (element.isComplete) {
+			const changes: IChatChangesSummary[] = [];
+			element.model.entireResponse.value.forEach(part => {
+				if (part.kind === 'textEditGroup') {
+					changes.push({
+						kind: 'changesSummary',
+						reference: part.uri,
+						edits: part.edits,
+						done: part.done
+					});
+				}
+			});
+			content.push({ kind: 'changesSummary', changes });
+		}
 
 		console.log('renderChatResponseBasic');
 		console.log('templateData.renderedParts', templateData.renderedParts);
 		console.log('content', content);
+
 		const diff = this.diff(templateData.renderedParts ?? [], content, element);
 		this.renderChatContentDiff(diff, content, element, index, templateData);
 
@@ -939,13 +953,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const renderImmediately = this.configService.getValue<boolean>('chat.experimental.renderMarkdownImmediately') === true;
 
 		const renderableResponse = annotateSpecialMarkdownContent(element.response.value);
-		// console.log('renderableResponse', renderableResponse);
-		// console.log('element : ', element);
-		// console.log('element.model : ', element.model);
-		// console.log('element.renderData : ', element.renderData);
-		// console.log('element.response : ', element.response);
-		// console.log('element.result : ', element.result);
-		// console.log('element.session : ', element.sessionId);
 
 		this.traceLayout('getNextProgressiveRenderContent', `Want to render ${data.numWordsToRender} at ${data.rate} words/s, counting...`);
 		let numNeededWords = data.numWordsToRender;
@@ -1006,16 +1013,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const isPaused = element.model.isPaused.get();
 			partsToRender.push({ kind: 'working', isPaused, setPaused: p => element.model.setPaused(p) });
 		}
-		const changes: IChatChangesSummary[] = element.model.response.value.filter(part => part.kind === 'textEditGroup').map(part => {
-			return {
-				kind: 'changesSummary',
-				reference: part.uri,
-				edits: part.edits,
-				done: part.done,
-				state: part.state
-			};
-		});
-		partsToRender.push({ kind: 'changesSummary', changes });
+		if (element.isComplete) {
+			const changes: IChatChangesSummary[] = [];
+			element.model.entireResponse.value.forEach(part => {
+				if (part.kind === 'textEditGroup') {
+					changes.push({
+						kind: 'changesSummary',
+						reference: part.uri,
+						edits: part.edits,
+						done: part.done
+					});
+				}
+			});
+			console.log('changes', changes);
+			partsToRender.push({ kind: 'changesSummary', changes });
+		}
 
 		return { content: partsToRender, moreContentAvailable };
 	}

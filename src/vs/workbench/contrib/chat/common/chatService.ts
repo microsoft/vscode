@@ -110,7 +110,7 @@ export interface IChatContentReference {
 }
 
 export interface IChatChangesSummary {
-	reference: URI | Location | string;
+	reference: URI;
 	edits: TextEdit[][];
 	done?: boolean;
 	editState?: IChatTextEditGroupState;

@@ -11,6 +11,7 @@ import { ChatTreeItem } from '../chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { CollapsibleListPool } from './chatReferencesContentPart.js';
 import { IChatChangesSummary } from '../../common/chatService.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 
 export class ChatChangesSummaryContentPart extends Disposable implements IChatContentPart {
 
@@ -22,9 +23,13 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 	constructor(
 		content: IChatChangesSummaryPart,
 		context: IChatContentPartRenderContext,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		console.log('ChatChangesSummaryContentPart constructor');
+		console.log('this.changes', content.changes);
+		console.log('this.changes.length', content.changes.length);
 		this.changes = content.changes;
 		this.listPool = this._register(instantiationService.createInstance(CollapsibleListPool, () => Disposable.None, undefined, undefined));
 	}
@@ -51,6 +56,10 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 		const list = ref.object;
 		this._register(list.onDidOpen((e) => {
 			console.log('Open event:', e);
+			if (e.element?.kind !== 'changesSummary') {
+				return;
+			}
+			this.openerService.open(e.element.reference);
 		}));
 		this._register(list.onContextMenu(e => {
 			console.log('Context menu event:', e);
