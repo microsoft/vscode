@@ -8,7 +8,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
-import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
+import { TerminalChatAgentToolsSettingId } from '../../../terminal/common/terminalConfiguration.js';
 import { GetTerminalOutputTool, GetTerminalOutputToolData } from './getTerminalOutputTool.js';
 import { RunInTerminalTool, RunInTerminalToolData } from './runInTerminalTool.js';
 

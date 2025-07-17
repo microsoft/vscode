@@ -6,7 +6,7 @@
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import type { OperatingSystem } from '../../../../../base/common/platform.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
+import { TerminalChatAgentToolsSettingId } from '../../../terminal/common/terminalConfiguration.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 
 export class CommandLineAutoApprover extends Disposable {

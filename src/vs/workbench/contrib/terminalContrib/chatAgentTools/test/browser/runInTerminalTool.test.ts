@@ -13,12 +13,12 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { IToolInvocationPreparationContext, IPreparedToolInvocation, ILanguageModelToolsService } from '../../../../chat/common/languageModelToolsService.js';
 import { CommandLineAutoApprover } from '../../browser/commandLineAutoApprover.js';
 import { RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/runInTerminalTool.js';
-import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { TerminalChatAgentToolsSettingId } from '../../../../terminal/common/terminalConfiguration.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);

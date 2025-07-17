@@ -8,10 +8,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import type { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { CommandLineAutoApprover } from '../../browser/commandLineAutoApprover.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { ok } from 'assert';
+import { TerminalChatAgentToolsSettingId } from '../../../../terminal/common/terminalConfiguration.js';
 
 suite('CommandLineAutoApprover', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
