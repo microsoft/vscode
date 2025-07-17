@@ -778,6 +778,7 @@ export function registerChatActions() {
 			const dialogService = accessor.get(IDialogService);
 			const commandService = accessor.get(ICommandService);
 			const chatSessionsService = accessor.get(IChatSessionsService);
+			const configurationService = accessor.get(IConfigurationService);
 
 			const view = await viewsService.openView<ChatViewPane>(ChatViewId);
 			if (!view) {
@@ -797,7 +798,8 @@ export function registerChatActions() {
 				}
 			}
 
-			if (chatSessionsService.hasChatSessionsProviders) {
+			const showAgentSessionsMenuConfig = configurationService.getValue<string>(ChatConfiguration.AgentSessionsViewLocation);
+			if (showAgentSessionsMenuConfig === 'showChatsMenu' && chatSessionsService.hasChatSessionsProviders) {
 				await this.showIntegratedPicker(chatService, quickInputService, commandService, editorService, view, chatSessionsService);
 			} else {
 				await this.showLegacyPicker(chatService, quickInputService, commandService, editorService, view);
