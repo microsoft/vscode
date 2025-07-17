@@ -11,7 +11,6 @@ import { isNumber } from '../../../../../../base/common/types.js';
 import type { ICommandDetectionCapability, ITerminalCommand } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { sanitizeTerminalOutput } from '../runInTerminalHelpers.js';
 import { trackIdleOnPrompt, type ITerminalExecuteStrategy } from './executeStrategy.js';
 
 /**
@@ -34,6 +33,13 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 	async execute(commandLine: string, token: CancellationToken): Promise<{ result: string; exitCode?: number; error?: string }> {
 		const store = new DisposableStore();
 		try {
+			// Ensure xterm is available
+			this._logService.debug('RunInTerminalTool#None: Waiting for xterm');
+			const xterm = await this._instance.xtermReadyPromise;
+			if (!xterm) {
+				throw new Error('Xterm is not available');
+			}
+
 			const onDone: Promise<ITerminalCommand | void> = Promise.race([
 				Event.toPromise(this._commandDetection.onCommandFinished, store).then(e => {
 					this._logService.debug('RunInTerminalTool#Rich: onDone via end event');
@@ -47,22 +53,17 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 				}),
 			]);
 
+			// Execute the command
 			this._logService.debug(`RunInTerminalTool#Rich: Executing command line \`${commandLine}\``);
-			// IMPORTANT: This must not be awaited, otherwise data events could be missed
+			const startMarker = store.add(xterm.raw.registerMarker());
 			this._instance.runCommand(commandLine, true);
-
-			this._logService.debug(`RunInTerminalTool#Rich: Reading data stream`);
-
-			const dataEvents: string[] = [];
-
-			this._instance.onData(e => dataEvents.push(e));
 
 			this._logService.debug(`RunInTerminalTool#Rich: Waiting for done event`);
 			const finishedCommand = await onDone;
-
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
+			const endMarker = store.add(xterm.raw.registerMarker());
 
 			let result: string | undefined;
 			if (finishedCommand) {
@@ -73,8 +74,8 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 				}
 			}
 			if (result === undefined) {
-				this._logService.debug('RunInTerminalTool#Rich: Fetched output via data events');
-				result = sanitizeTerminalOutput(dataEvents.join(''));
+				this._logService.debug('RunInTerminalTool#Rich: Fetched output via markers');
+				result = xterm.getContentsAsText(startMarker, endMarker);
 			}
 
 			if (result.trim().length === 0) {
