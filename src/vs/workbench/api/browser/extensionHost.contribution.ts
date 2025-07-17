@@ -92,6 +92,7 @@ import './mainThreadAiSettingsSearch.js';
 import './mainThreadMcp.js';
 import './mainThreadChatStatus.js';
 import './mainThreadDataChannels.js';
+import './mainThreadChatSessionContentProviders.js';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 

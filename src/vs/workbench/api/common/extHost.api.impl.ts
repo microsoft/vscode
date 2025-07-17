@@ -112,6 +112,7 @@ import { ExtHostWebviewViews } from './extHostWebviewView.js';
 import { IExtHostWindow } from './extHostWindow.js';
 import { IExtHostWorkspace } from './extHostWorkspace.js';
 import { ExtHostAiSettingsSearch } from './extHostAiSettingsSearch.js';
+import { ExtHostChatSessionContentProviders } from './extHostChatSessionContentProviders.js';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -229,6 +230,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostSpeech = rpcProtocol.set(ExtHostContext.ExtHostSpeech, new ExtHostSpeech(rpcProtocol));
 	const extHostEmbeddings = rpcProtocol.set(ExtHostContext.ExtHostEmbeddings, new ExtHostEmbeddings(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostMcp, accessor.get(IExtHostMpcService));
+	const extHostChatSessionContentProviders = rpcProtocol.set(ExtHostContext.ExtHostChatSessionContentProviders, new ExtHostChatSessionContentProviders(rpcProtocol, extHostCommands.converter));
 
 	// Check that no named customers are missing
 	const expected = Object.values<ProxyIdentifier<any>>(ExtHostContext);
@@ -949,6 +951,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatStatusItem');
 				return extHostChatStatus.createChatStatusItem(extension, id);
 			},
+			openChatSession: (sessionType: string, id: string) => {
+				checkProposedApiEnabled(extension, 'chatSessionProvider');
+				return extHostWindow.openChatSession(sessionType, id);
+			},
 		};
 
 		// namespace: workspace
@@ -1498,6 +1504,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidDisposeChatSession: (listeners, thisArgs?, disposables?) => {
 				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 				return _asExtensionEvent(extHostChatAgents2.onDidDisposeChatSession)(listeners, thisArgs, disposables);
+			},
+			registerChatSessionContentProvider(id: string, provider: vscode.ChatSessionContentProvider) {
+				checkProposedApiEnabled(extension, 'chatSessionProvider');
+				return extHostChatSessionContentProviders.registerChatSessionContentProvider(id, provider);
 			}
 		};
 

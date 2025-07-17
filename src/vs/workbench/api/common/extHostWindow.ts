@@ -110,6 +110,10 @@ export class ExtHostWindow implements ExtHostWindowShape {
 		const result = await this._proxy.$asExternalUri(uri, options);
 		return URI.from(result);
 	}
+
+	async openChatSession(sessionType: string, id: string): Promise<void> {
+		return this._proxy.$openChatSession(sessionType, id);
+	}
 }
 
 export const IExtHostWindow = createDecorator<IExtHostWindow>('IExtHostWindow');

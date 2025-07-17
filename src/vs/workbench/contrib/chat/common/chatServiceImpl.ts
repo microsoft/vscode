@@ -32,6 +32,7 @@ import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, 
 import { ChatRequestParser } from './chatRequestParser.js';
 import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
 import { ChatServiceTelemetry } from './chatServiceTelemetry.js';
+import { IChatSessionContentProviderService } from './chatSessionContentProviderService.js';
 import { ChatSessionStore, IChatTransfer2 } from './chatSessionStore.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatTransferService } from './chatTransferService.js';
@@ -162,6 +163,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatTransferService private readonly chatTransferService: IChatTransferService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@IChatSessionContentProviderService private readonly chatSessionContentProviderService: IChatSessionContentProviderService,
 	) {
 		super();
 
@@ -528,6 +530,8 @@ export class ChatService extends Disposable implements IChatService {
 			return model;
 		}
 
+		return undefined;
+
 		let sessionData: ISerializableChatData | undefined;
 		if (!this.useFileStorage || this.transferredSessionData?.sessionId === sessionId) {
 			sessionData = revive(this._persistedSessions[sessionId]);
@@ -565,6 +569,10 @@ export class ChatService extends Disposable implements IChatService {
 
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined {
 		return this._startSession(data, data.initialLocation ?? ChatAgentLocation.Panel, true, CancellationToken.None);
+	}
+
+	loadSessionForProvider(chatSessionProviderId: string, id: string): Promise<IChatModel> {
+		return this.chatSessionContentProviderService.getChatSession(chatSessionProviderId, id, CancellationToken.None);
 	}
 
 	async resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void> {

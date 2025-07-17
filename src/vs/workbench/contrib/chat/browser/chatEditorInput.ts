@@ -58,10 +58,11 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	) {
 		super();
 
-		const parsed = ChatUri.parse(resource);
-		if (typeof parsed?.handle !== 'number') {
-			throw new Error('Invalid chat URI');
-		}
+		// TODO: temp
+		// const parsed = ChatUri.parse(resource);
+		// if (typeof parsed?.handle !== 'number') {
+		// 	throw new Error('Invalid chat URI');
+		// }
 
 		this.sessionId = (options.target && 'sessionId' in options.target) ?
 			options.target.sessionId :
@@ -113,18 +114,20 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {
-		if (typeof this.sessionId === 'string') {
+		if (this.options.target && 'chatSessionProviderId' in this.options.target) {
+			this.model = await this.chatService.loadSessionForProvider(this.options.target.chatSessionProviderId, this.options.target.sessionId);
+		} else if (typeof this.sessionId === 'string') {
 			this.model = await this.chatService.getOrRestoreSession(this.sessionId)
 				?? this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
 		} else if (!this.options.target) {
 			this.model = this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
 		} else if ('data' in this.options.target) {
 			this.model = this.chatService.loadSessionFromContent(this.options.target.data);
-		}
+		} else
 
-		if (!this.model) {
-			return null;
-		}
+			if (!this.model) {
+				return null;
+			}
 
 		this.sessionId = this.model.sessionId;
 		this._register(this.model.onDidChange(() => this._onDidChangeLabel.fire()));
@@ -171,7 +174,7 @@ export class ChatEditorModel extends Disposable {
 
 export namespace ChatUri {
 
-	export const scheme = Schemas.vscodeChatSesssion;
+	export const scheme = Schemas.vscodeChatEditor;
 
 
 	export function generate(handle: number): URI {

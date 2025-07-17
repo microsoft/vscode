@@ -27,7 +27,11 @@ import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
-	target?: { sessionId: string } | { data: IExportableChatData | ISerializableChatData };
+	target?:
+	| { sessionId: string }
+	| { data: IExportableChatData | ISerializableChatData }
+	| { chatSessionProviderId: string; sessionId: string }
+	;
 }
 
 export class ChatEditor extends EditorPane {

@@ -15,6 +15,9 @@
   "categories": [
     "Programming Languages"
   ],
+  "enabledApiProposals": [
+    "chatSessionProvider"
+  ],
   "activationEvents": [
     "onLanguage:markdown",
     "onLanguage:prompt",
@@ -22,7 +25,10 @@
     "onLanguage:chatmode",
     "onCommand:markdown.api.render",
     "onCommand:markdown.api.reloadPlugins",
-    "onWebviewPanel:markdown.preview"
+    "onCommand:markdown.openChatSession",
+    "onWebviewPanel:markdown.preview",
+    "onChatSessionContentProvider:markdown",
+    "onChatSessionContentProvider:markdown"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -120,6 +126,11 @@
       }
     ],
     "commands": [
+      {
+        "command": "markdown.openChatSession",
+        "title": "Open test Chat Session",
+        "category": "Markdown"
+      },
       {
         "command": "_markdown.copyImage",
         "title": "%markdown.copyImage.title%",

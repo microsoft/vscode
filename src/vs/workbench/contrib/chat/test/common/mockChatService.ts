@@ -46,6 +46,9 @@ export class MockChatService implements IChatService {
 	loadSessionFromContent(data: ISerializableChatData): IChatModel | undefined {
 		throw new Error('Method not implemented.');
 	}
+	loadSessionForProvider(chatSessionProviderId: string, sessionId: string): Promise<IChatModel | undefined> {
+		throw new Error('Method not implemented.');
+	}
 	/**
 	 * Returns whether the request was accepted.
 	 */

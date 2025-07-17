@@ -546,6 +546,7 @@ export interface IChatService {
 	getOrRestoreSession(sessionId: string): Promise<IChatModel | undefined>;
 	isPersistedSessionEmpty(sessionId: string): boolean;
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined;
+	loadSessionForProvider(chatSessionProviderId: string, sessionId: string): Promise<IChatModel | undefined>;
 
 	/**
 	 * Returns whether the request was accepted.
