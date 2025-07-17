@@ -1572,8 +1572,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		// namespace: chatSession
 		const chatSession = {
 			registerChatSessionInformationProvider(provider: vscode.ChatSessionInformationProvider) {
-				// TODO: Check enabled proposed API
-				// checkProposedApiEnabled(extension, 'chatSession');
+				checkProposedApiEnabled(extension, 'chatSessionInformation');
 				return extHostChatSession.registerChatSessionInformationProvider(provider);
 			},
 		};
