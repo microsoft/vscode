@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { ILocalMcpServer, IMcpManagementService, IGalleryMcpServer, InstallOptions, InstallMcpServerEvent, UninstallMcpServerEvent, DidUninstallMcpServerEvent, InstallMcpServerResult, IInstallableMcpServer, IMcpGalleryService, UninstallOptions } from '../../../../platform/mcp/common/mcpManagement.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ILocalMcpServer, IMcpManagementService, IGalleryMcpServer, InstallOptions, InstallMcpServerEvent, UninstallMcpServerEvent, DidUninstallMcpServerEvent, InstallMcpServerResult, IInstallableMcpServer, IMcpGalleryService, UninstallOptions, IAllowedMcpServersService } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IInstantiationService, refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -20,7 +20,7 @@ import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { McpManagementChannelClient } from '../../../../platform/mcp/common/mcpManagementIpc.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IRemoteUserDataProfilesService } from '../../userDataProfile/common/remoteUserDataProfiles.js';
-import { AbstractMcpResourceManagementService, ILocalMcpServerInfo } from '../../../../platform/mcp/common/mcpManagementService.js';
+import { AbstractMcpManagementService, AbstractMcpResourceManagementService, ILocalMcpServerInfo } from '../../../../platform/mcp/common/mcpManagementService.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 
@@ -59,9 +59,7 @@ export interface IWorkbenchMcpManagementService extends IMcpManagementService {
 	install(server: IInstallableMcpServer | URI, options?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchLocalMcpServer>;
 }
 
-export class WorkbenchMcpManagementService extends Disposable implements IWorkbenchMcpManagementService {
-
-	readonly _serviceBrand: undefined;
+export class WorkbenchMcpManagementService extends AbstractMcpManagementService implements IWorkbenchMcpManagementService {
 
 	private _onInstallMcpServer = this._register(new Emitter<InstallMcpServerEvent>());
 	readonly onInstallMcpServer = this._onInstallMcpServer.event;
@@ -101,6 +99,7 @@ export class WorkbenchMcpManagementService extends Disposable implements IWorkbe
 
 	constructor(
 		private readonly mcpManagementService: IMcpManagementService,
+		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -109,12 +108,12 @@ export class WorkbenchMcpManagementService extends Disposable implements IWorkbe
 		@IRemoteUserDataProfilesService private readonly remoteUserDataProfilesService: IRemoteUserDataProfilesService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super();
+		super(allowedMcpServersService);
 
 		this.workspaceMcpManagementService = this._register(instantiationService.createInstance(WorkspaceMcpManagementService));
 		const remoteAgentConnection = remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
-			this.remoteMcpManagementService = this._register(new McpManagementChannelClient(remoteAgentConnection.getChannel<IChannel>('mcpManagement')));
+			this.remoteMcpManagementService = this._register(instantiationService.createInstance(McpManagementChannelClient, remoteAgentConnection.getChannel<IChannel>('mcpManagement')));
 		}
 
 		this._register(this.mcpManagementService.onInstallMcpServer(e => {
@@ -392,9 +391,7 @@ class WorkspaceMcpResourceManagementService extends AbstractMcpResourceManagemen
 	}
 }
 
-class WorkspaceMcpManagementService extends Disposable implements IMcpManagementService {
-
-	readonly _serviceBrand: undefined;
+class WorkspaceMcpManagementService extends AbstractMcpManagementService implements IMcpManagementService {
 
 	private readonly _onInstallMcpServer = this._register(new Emitter<InstallMcpServerEvent>());
 	readonly onInstallMcpServer = this._onInstallMcpServer.event;
@@ -414,15 +411,16 @@ class WorkspaceMcpManagementService extends Disposable implements IMcpManagement
 	private allMcpServers: ILocalMcpServer[] = [];
 
 	private workspaceConfiguration?: URI | null;
-	private readonly workspaceMcpManagementServices = new ResourceMap<{ service: IMcpManagementService } & IDisposable>();
+	private readonly workspaceMcpManagementServices = new ResourceMap<{ service: WorkspaceMcpResourceManagementService } & IDisposable>();
 
 	constructor(
+		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super();
+		super(allowedMcpServersService);
 		this.initialize();
 	}
 

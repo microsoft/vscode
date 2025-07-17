@@ -2033,6 +2033,11 @@ export class Repository {
 		await this.exec(args);
 	}
 
+	async worktree(options: { path: string; name: string }): Promise<void> {
+		const args = ['worktree', 'add', options.path, options.name];
+		await this.exec(args);
+	}
+
 	async deleteWorktree(path: string): Promise<void> {
 		const args = ['worktree', 'remove', path];
 		await this.exec(args);
@@ -2798,7 +2803,7 @@ export class Repository {
 			return result;
 		}
 		catch (err) {
-			if (/ENOTDIR/.test(err.message)) {
+			if (/ENOENT/.test(err.message) || /ENOTDIR/.test(err.message)) {
 				return [];
 			}
 

@@ -46,7 +46,7 @@ import { basename, extname } from '../../../../base/common/resources.js';
 import { hash } from '../../../../base/common/hash.js';
 import { WindowIdleValue, getWindow } from '../../../../base/browser/dom.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
-import { EditReasons } from '../../../common/textModelEditReason.js';
+import { EditSources } from '../../../common/textModelEditSource.js';
 
 // sticky suggest widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -459,7 +459,7 @@ export class SuggestController implements IEditorContribution {
 			adjustWhitespace: !(item.completion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace),
 			clipboardText: event.model.clipboardText,
 			overtypingCapturer: this._overtypingCapturer.value,
-			reason: EditReasons.suggest({ providerId: ProviderId.fromExtensionId(item.extensionId?.value) }),
+			reason: EditSources.suggest({ providerId: ProviderId.fromExtensionId(item.extensionId?.value) }),
 		});
 
 		if (!(flags & InsertFlags.NoAfterUndoStop)) {

@@ -83,7 +83,7 @@ export class DataChannelForwardingTelemetryService extends InterceptingTelemetry
 		@IDataChannelService dataChannelService: IDataChannelService,
 	) {
 		super(telemetryService, (eventName, data) => {
-			dataChannelService.getDataChannel<ITelemetryData>('editTelemetry').sendData({ eventName, data });
+			dataChannelService.getDataChannel<IEditTelemetryData>('editTelemetry').sendData({ eventName, data: data as any });
 		});
 	}
 }

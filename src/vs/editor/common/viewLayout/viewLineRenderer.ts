@@ -50,6 +50,10 @@ export class RenderLineInput {
 	 * and ordered by position within the line.
 	 */
 	public readonly selectionsOnLine: OffsetRange[] | null;
+	/**
+	 * When rendering an empty line, whether to render a new line instead
+	 */
+	public readonly renderNewLineWhenEmpty: boolean;
 
 	public get isLTR(): boolean {
 		return !this.containsRTL && this.textDirection !== TextDirection.RTL;
@@ -76,7 +80,8 @@ export class RenderLineInput {
 		fontLigatures: boolean,
 		selectionsOnLine: OffsetRange[] | null,
 		textDirection: TextDirection | null,
-		verticalScrollbarSize: number
+		verticalScrollbarSize: number,
+		renderNewLineWhenEmpty: boolean = false,
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.canUseHalfwidthRightwardsArrow = canUseHalfwidthRightwardsArrow;
@@ -105,6 +110,7 @@ export class RenderLineInput {
 		this.renderControlCharacters = renderControlCharacters;
 		this.fontLigatures = fontLigatures;
 		this.selectionsOnLine = selectionsOnLine && selectionsOnLine.sort((a, b) => a.start < b.start ? -1 : 1);
+		this.renderNewLineWhenEmpty = renderNewLineWhenEmpty;
 		this.textDirection = textDirection;
 		this.verticalScrollbarSize = verticalScrollbarSize;
 
@@ -164,6 +170,7 @@ export class RenderLineInput {
 			&& this.sameSelection(other.selectionsOnLine)
 			&& this.textDirection === other.textDirection
 			&& this.verticalScrollbarSize === other.verticalScrollbarSize
+			&& this.renderNewLineWhenEmpty === other.renderNewLineWhenEmpty
 		);
 	}
 }
@@ -378,7 +385,11 @@ export function renderViewLine(input: RenderLineInput, sb: StringBuilder): Rende
 		}
 
 		// completely empty line
-		sb.appendString('<span><span></span></span>');
+		if (input.renderNewLineWhenEmpty) {
+			sb.appendString('<span><span>\n</span></span>');
+		} else {
+			sb.appendString('<span><span></span></span>');
+		}
 		return new RenderLineOutput(
 			new CharacterMapping(0, 0),
 			ForeignElementType.None

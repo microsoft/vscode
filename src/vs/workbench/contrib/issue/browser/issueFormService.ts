@@ -100,6 +100,7 @@ export class IssueFormService implements IIssueFormService {
 						'input',
 						'select',
 						'checkbox',
+						'textarea',
 					]
 				},
 				allowedAttributes: {
@@ -107,6 +108,7 @@ export class IssueFormService implements IIssueFormService {
 						'id',
 						'class',
 						'style',
+						'textarea',
 					]
 				}
 			});

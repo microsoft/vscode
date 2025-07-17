@@ -23,7 +23,7 @@ import { IModelDeltaDecoration, ITextModel, ITextSnapshot, MinimapPosition, Over
 import { ModelDecorationOptions } from '../../../../../editor/common/model/textModel.js';
 import { offsetEditFromContentChanges, offsetEditFromLineRangeMapping, offsetEditToEditOperations } from '../../../../../editor/common/model/textModelStringEdit.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
-import { TextModelEditReason, EditReasons } from '../../../../../editor/common/textModelEditReason.js';
+import { TextModelEditSource, EditSources } from '../../../../../editor/common/textModelEditSource.js';
 import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
@@ -137,14 +137,15 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		let maxLineNumber = 0;
 		let rewriteRatio = 0;
 
-		const modelId = responseModel.session.getRequests().at(-1)?.modelId;
-		const reason = EditReasons.chatApplyEdits({ modelId: modelId });
+		const sessionId = responseModel.session.sessionId;
+		const request = responseModel.session.getRequests().at(-1);
+		const source = EditSources.chatApplyEdits({ modelId: request?.modelId, requestId: request?.id, sessionId: sessionId });
 
 		if (isAtomicEdits) {
 			// EDIT and DONE
 			const minimalEdits = await this._editorWorkerService.computeMoreMinimalEdits(this.modifiedModel.uri, textEdits) ?? textEdits;
 			const ops = minimalEdits.map(TextEdit.asEditOperation);
-			const undoEdits = this._applyEdits(ops, reason);
+			const undoEdits = this._applyEdits(ops, source);
 
 			if (undoEdits.length > 0) {
 				let range: Range | undefined;
@@ -180,7 +181,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		} else {
 			// EDIT a bit, then DONE
 			const ops = textEdits.map(TextEdit.asEditOperation);
-			const undoEdits = this._applyEdits(ops, reason);
+			const undoEdits = this._applyEdits(ops, source);
 			maxLineNumber = undoEdits.reduce((max, op) => Math.max(max, op.range.startLineNumber), 0);
 			rewriteRatio = Math.min(1, maxLineNumber / this.modifiedModel.getLineCount());
 
@@ -211,10 +212,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		return { rewriteRatio, maxLineNumber };
 	}
 
-	private _applyEdits(edits: ISingleEditOperation[], reason?: TextModelEditReason) {
-		if (!reason) {
-			reason = EditReasons.chatApplyEdits({ modelId: undefined });
-		}
+	private _applyEdits(edits: ISingleEditOperation[], source: TextModelEditSource) {
 		try {
 			this._isEditFromUs = true;
 			// make the actual edit
@@ -223,7 +221,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			this.modifiedModel.pushEditOperations(null, edits, (undoEdits) => {
 				result = undoEdits;
 				return null;
-			}, undefined, reason);
+			}, undefined, source);
 
 			return result;
 		} finally {
@@ -245,7 +243,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	 */
 	public undo() {
 		this.modifiedModel.pushStackElement();
-		this._applyEdits([(EditOperation.replace(this.modifiedModel.getFullModelRange(), this.originalModel.getValue()))]);
+		this._applyEdits([(EditOperation.replace(this.modifiedModel.getFullModelRange(), this.originalModel.getValue()))], EditSources.chatUndoEdits());
 		this.modifiedModel.pushStackElement();
 		this._originalToModifiedEdit = StringEdit.empty;
 		this._diffInfo.set(nullDocumentDiff, undefined);
@@ -260,7 +258,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		if (newModified !== undefined && this.modifiedModel.getValue() !== newModified) {
 			// NOTE that this isn't done via `setValue` so that the undo stack is preserved
 			this.modifiedModel.pushStackElement();
-			this._applyEdits([(EditOperation.replace(this.modifiedModel.getFullModelRange(), newModified))]);
+			this._applyEdits([(EditOperation.replace(this.modifiedModel.getFullModelRange(), newModified))], EditSources.chatReset());
 			this.modifiedModel.pushStackElement();
 			didChange = true;
 		}
