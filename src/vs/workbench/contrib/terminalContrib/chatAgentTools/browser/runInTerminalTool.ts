@@ -259,7 +259,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				// Poll for output until the terminal is idle or 20 seconds have passed
 				outputAndIdle = await this._pollForOutputAndIdle(execution);
 				if (!outputAndIdle.idle) {
-					const shouldContinue = await this._languageModelToolsService.invokeTool({ toolId: AskUserToContinuePollingToolData.id, callId: invocation.callId, parameters: { requestId: invocation.chatRequestId }, context: { sessionId: chatSessionId } }, _countTokens, token);
+					const shouldContinue = await this._languageModelToolsService.invokeTool({ toolId: AskUserToContinuePollingToolData.id, callId: invocation.callId, parameters: {}, context: { sessionId: chatSessionId } }, _countTokens, token);
 					if (shouldContinue.content?.[0].value === 'true') {
 						outputAndIdle = await this._pollForOutputAndIdle(execution, true);
 					}
