@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TTree } from '../utils/treeUtils.js';
-import { ChatMode } from '../../constants.js';
+import { ChatModeKind } from '../../constants.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { TMetadata } from '../parsers/promptHeader/headerBase.js';
@@ -71,7 +70,7 @@ export interface IMetadata {
 	/**
 	 * List of metadata for each valid child prompt reference.
 	 */
-	readonly children?: readonly TTree<IMetadata | null>[];
+	readonly children?: readonly IMetadata[];
 }
 
 export interface ICustomChatMode {
@@ -96,6 +95,11 @@ export interface ICustomChatMode {
 	readonly tools?: readonly string[];
 
 	/**
+	 * Model metadata in the prompt header.
+	 */
+	readonly model?: string;
+
+	/**
 	 * Contents of the custom chat mode file body.
 	 */
 	readonly body: string;
@@ -116,7 +120,7 @@ interface ICombinedAgentToolsMetadata {
 	 * Resulting chat mode of a prompt, based on modes
 	 * used in the entire tree of prompt references.
 	 */
-	readonly mode: ChatMode.Agent;
+	readonly mode: ChatModeKind.Agent;
 }
 
 /**
@@ -134,7 +138,7 @@ interface ICombinedNonAgentToolsMetadata {
 	 * Resulting chat mode of a prompt, based on modes
 	 * used in the entire tree of prompt references.
 	 */
-	readonly mode?: ChatMode.Ask | ChatMode.Edit;
+	readonly mode?: ChatModeKind.Ask | ChatModeKind.Edit;
 }
 
 /**
@@ -173,18 +177,12 @@ export interface IPromptsService extends IDisposable {
 	/**
 	 * Gets the prompt file for a slash command.
 	 */
-	resolvePromptSlashCommand(data: IChatPromptSlashCommand): Promise<IMetadata | undefined>;
+	resolvePromptSlashCommand(data: IChatPromptSlashCommand, _token: CancellationToken): Promise<IPromptParserResult | undefined>;
 
 	/**
 	 * Returns a prompt command if the command name is valid.
 	 */
 	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]>;
-
-	/**
-	 * Find all instruction files which have a glob pattern in their
-	 * 'applyTo' metadata record that match the provided list of files.
-	 */
-	findInstructionFilesFor(fileUris: readonly URI[]): Promise<readonly URI[]>;
 
 	/**
 	 * Event that is triggered when the list of custom chat modes changes.
@@ -197,25 +195,16 @@ export interface IPromptsService extends IDisposable {
 	getCustomChatModes(token: CancellationToken): Promise<readonly ICustomChatMode[]>;
 
 	/**
-	 * Gets the metadata for the given prompt file uri.
-	 */
-	getMetadata(promptFileUri: URI): Promise<IMetadata>;
-
-	/**
-	 * Get all metadata for entire prompt references tree
-	 * that spans out of each of the provided files.
-	 *
-	 * In other words, the metadata tree is built starting from
-	 * each of the provided files, therefore the result is a number
-	 * of metadata trees, one for each file.
-	 */
-	getAllMetadata(promptUris: readonly URI[]): Promise<readonly IMetadata[]>;
-
-	/**
 	 * Parses the provided URI
 	 * @param uris
 	 */
-	parse(uri: URI, token: CancellationToken): Promise<IPromptParserResult>;
+	parse(uri: URI, type: PromptsType, token: CancellationToken): Promise<IPromptParserResult>;
+
+	/**
+	 * Returns the prompt file type for the given URI.
+	 * @param resource the URI of the resource
+	 */
+	getPromptFileType(resource: URI): PromptsType | undefined;
 }
 
 export interface IChatPromptSlashCommand {
@@ -229,5 +218,5 @@ export interface IPromptParserResult {
 	readonly uri: URI;
 	readonly metadata: TMetadata | null;
 	readonly topError: ITopError | undefined;
-	readonly allValidReferences: readonly URI[];
+	readonly references: readonly URI[];
 }

@@ -8,6 +8,7 @@ import { decodeBase64 } from './buffer.js';
 const WELL_KNOWN_ROUTE = '/.well-known';
 export const AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH = `${WELL_KNOWN_ROUTE}/oauth-protected-resource`;
 export const AUTH_SERVER_METADATA_DISCOVERY_PATH = `${WELL_KNOWN_ROUTE}/oauth-authorization-server`;
+export const OPENID_CONNECT_DISCOVERY_PATH = `${WELL_KNOWN_ROUTE}/openid-configuration`;
 export const AUTH_SCOPE_SEPARATOR = ' ';
 
 //#region types
@@ -44,6 +45,28 @@ export const enum AuthorizationDeviceCodeErrorType {
 	 * The "device_code" has expired and the device authorization session has concluded.
 	 */
 	ExpiredToken = 'expired_token'
+}
+
+/**
+ * Dynamic client registration specific error codes as specified in RFC 7591.
+ */
+export const enum AuthorizationRegistrationErrorType {
+	/**
+	 * The value of one or more redirection URIs is invalid.
+	 */
+	InvalidRedirectUri = 'invalid_redirect_uri',
+	/**
+	 * The value of one of the client metadata fields is invalid and the server has rejected this request.
+	 */
+	InvalidClientMetadata = 'invalid_client_metadata',
+	/**
+	 * The software statement presented is invalid.
+	 */
+	InvalidSoftwareStatement = 'invalid_software_statement',
+	/**
+	 * The software statement presented is not approved for use by this authorization server.
+	 */
+	UnapprovedSoftwareStatement = 'unapproved_software_statement'
 }
 
 /**
@@ -234,12 +257,6 @@ export interface IAuthorizationServerMetadata {
 	 * OPTIONAL. JSON array containing a list of PKCE code challenge methods supported.
 	 */
 	code_challenge_methods_supported?: string[];
-}
-
-export interface IRequiredAuthorizationServerMetadata extends IAuthorizationServerMetadata {
-	authorization_endpoint: string;
-	token_endpoint: string;
-	registration_endpoint: string;
 }
 
 /**
@@ -458,6 +475,18 @@ export interface IAuthorizationDeviceTokenErrorResponse extends IAuthorizationEr
 	error: AuthorizationErrorType | AuthorizationDeviceCodeErrorType | string;
 }
 
+export interface IAuthorizationRegistrationErrorResponse {
+	/**
+	 * REQUIRED. Error code as specified in OAuth 2.0 or Dynamic Client Registration.
+	 */
+	error: AuthorizationRegistrationErrorType | string;
+
+	/**
+	 * OPTIONAL. Human-readable description of the error.
+	 */
+	error_description?: string;
+}
+
 export interface IAuthorizationJWTClaims {
 	/**
 	 * REQUIRED. JWT ID. Unique identifier for the token.
@@ -653,9 +682,17 @@ export function isAuthorizationErrorResponse(obj: unknown): obj is IAuthorizatio
 	return response.error !== undefined;
 }
 
+export function isAuthorizationRegistrationErrorResponse(obj: unknown): obj is IAuthorizationRegistrationErrorResponse {
+	if (typeof obj !== 'object' || obj === null) {
+		return false;
+	}
+	const response = obj as IAuthorizationRegistrationErrorResponse;
+	return response.error !== undefined;
+}
+
 //#endregion
 
-export function getDefaultMetadataForUrl(authorizationServer: URL): IRequiredAuthorizationServerMetadata & IRequiredAuthorizationServerMetadata {
+export function getDefaultMetadataForUrl(authorizationServer: URL): IAuthorizationServerMetadata {
 	return {
 		issuer: authorizationServer.toString(),
 		authorization_endpoint: new URL('/authorize', authorizationServer).toString(),
@@ -667,15 +704,10 @@ export function getDefaultMetadataForUrl(authorizationServer: URL): IRequiredAut
 	};
 }
 
-export function getMetadataWithDefaultValues(metadata: IAuthorizationServerMetadata): IAuthorizationServerMetadata & IRequiredAuthorizationServerMetadata {
-	const issuer = new URL(metadata.issuer);
-	return {
-		...metadata,
-		authorization_endpoint: metadata.authorization_endpoint ?? new URL('/authorize', issuer).toString(),
-		token_endpoint: metadata.token_endpoint ?? new URL('/token', issuer).toString(),
-		registration_endpoint: metadata.registration_endpoint ?? new URL('/register', issuer).toString(),
-	};
-}
+/**
+ * The grant types that we support
+ */
+const grantTypesSupported = ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code'];
 
 /**
  * Default port for the authorization flow. We try to use this port so that
@@ -685,8 +717,11 @@ export function getMetadataWithDefaultValues(metadata: IAuthorizationServerMetad
  * the spec and require an exact match.
  */
 export const DEFAULT_AUTH_FLOW_PORT = 33418;
-export async function fetchDynamicRegistration(registrationEndpoint: string, clientName: string, scopes?: string[]): Promise<IAuthorizationDynamicClientRegistrationResponse> {
-	const response = await fetch(registrationEndpoint, {
+export async function fetchDynamicRegistration(serverMetadata: IAuthorizationServerMetadata, clientName: string, scopes?: string[]): Promise<IAuthorizationDynamicClientRegistrationResponse> {
+	if (!serverMetadata.registration_endpoint) {
+		throw new Error('Server does not support dynamic registration');
+	}
+	const response = await fetch(serverMetadata.registration_endpoint, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json'
@@ -694,27 +729,43 @@ export async function fetchDynamicRegistration(registrationEndpoint: string, cli
 		body: JSON.stringify({
 			client_name: clientName,
 			client_uri: 'https://code.visualstudio.com',
-			grant_types: ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code'],
+			grant_types: serverMetadata.grant_types_supported
+				? serverMetadata.grant_types_supported.filter(gt => grantTypesSupported.includes(gt))
+				: grantTypesSupported,
 			response_types: ['code'],
 			redirect_uris: [
 				'https://insiders.vscode.dev/redirect',
 				'https://vscode.dev/redirect',
-				'http://localhost/',
-				'http://127.0.0.1/',
+				'http://localhost',
+				'http://127.0.0.1',
 				// Added these for any server that might do
 				// only exact match on the redirect URI even
 				// though the spec says it should not care
 				// about the port.
-				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}/`,
-				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}/`
+				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}`,
+				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}`
 			],
 			scope: scopes?.join(AUTH_SCOPE_SEPARATOR),
-			token_endpoint_auth_method: 'none'
+			token_endpoint_auth_method: 'none',
+			// https://openid.net/specs/openid-connect-registration-1_0.html
+			application_type: 'native'
 		})
 	});
 
 	if (!response.ok) {
-		throw new Error(`Registration failed: ${response.statusText}`);
+		const result = await response.text();
+		let errorDetails: string = result;
+
+		try {
+			const errorResponse = JSON.parse(result);
+			if (isAuthorizationRegistrationErrorResponse(errorResponse)) {
+				errorDetails = `${errorResponse.error}${errorResponse.error_description ? `: ${errorResponse.error_description}` : ''}`;
+			}
+		} catch {
+			// JSON parsing failed, use raw text
+		}
+
+		throw new Error(`Registration to ${serverMetadata.registration_endpoint} failed: ${errorDetails}`);
 	}
 
 	const registration = await response.json();
@@ -767,4 +818,36 @@ export function getClaimsFromJWT(token: string): IAuthorizationJWTClaims {
 		}
 		throw new Error('Failed to parse JWT token');
 	}
+}
+
+/**
+ * Extracts the resource server base URL from an OAuth protected resource metadata discovery endpoint URL.
+ *
+ * @param discoveryUrl The full URL to the OAuth protected resource metadata discovery endpoint
+ * @returns The base URL of the resource server
+ *
+ * @example
+ * ```typescript
+ * getResourceServerBaseUrlFromDiscoveryUrl('https://mcp.example.com/.well-known/oauth-protected-resource')
+ * // Returns: 'https://mcp.example.com/'
+ *
+ * getResourceServerBaseUrlFromDiscoveryUrl('https://mcp.example.com/.well-known/oauth-protected-resource/mcp')
+ * // Returns: 'https://mcp.example.com/mcp'
+ * ```
+ */
+export function getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl: string): string {
+	const url = new URL(discoveryUrl);
+
+	// Remove the well-known discovery path only if it appears at the beginning
+	if (!url.pathname.startsWith(AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH)) {
+		throw new Error(`Invalid discovery URL: expected path to start with ${AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH}`);
+	}
+
+	const pathWithoutDiscovery = url.pathname.substring(AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH.length);
+
+	// Construct the base URL
+	const baseUrl = new URL(url.origin);
+	baseUrl.pathname = pathWithoutDiscovery || '/';
+
+	return baseUrl.toString();
 }

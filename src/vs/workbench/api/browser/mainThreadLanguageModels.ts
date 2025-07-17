@@ -258,6 +258,10 @@ class LanguageModelAccessAuthProvider implements IAuthenticationProvider {
 		return Promise.resolve();
 	}
 
+	confirmation(extensionName: string, _recreatingSession: boolean): string {
+		return localize('confirmLanguageModelAccess', "The extension '{0}' wants to access the language models provided by {1}.", extensionName, this.label);
+	}
+
 	private _createFakeSession(scopes: string[]): AuthenticationSession {
 		return {
 			id: 'fake-session',

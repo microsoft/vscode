@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html>
 
 <head>
@@ -86,7 +87,7 @@
 
 		for (const name of new Set([].concat(builtin, dependencies, optionalDependencies, dependenciesRemote))) {
 			const url = asRequireBlobUri(name);
-			if(!url) {
+			if (!url) {
 				continue;
 			}
 

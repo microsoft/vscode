@@ -40,6 +40,7 @@ export interface ICheckboxStyles {
 	readonly checkboxDisabledBackground: string | undefined;
 	readonly checkboxDisabledForeground: string | undefined;
 	readonly size?: number;
+	readonly hoverDelegate?: IHoverDelegate;
 }
 
 export const unthemedToggleStyles = {
@@ -272,7 +273,7 @@ export class Checkbox extends Widget {
 	constructor(private title: string, private isChecked: boolean, styles: ICheckboxStyles) {
 		super();
 
-		this.checkbox = this._register(new Toggle({ title: this.title, isChecked: this.isChecked, icon: Codicon.check, actionClassName: Checkbox.CLASS_NAME, ...unthemedToggleStyles }));
+		this.checkbox = this._register(new Toggle({ title: this.title, isChecked: this.isChecked, icon: Codicon.check, actionClassName: Checkbox.CLASS_NAME, hoverDelegate: styles.hoverDelegate, ...unthemedToggleStyles }));
 
 		this.domNode = this.checkbox.domNode;
 

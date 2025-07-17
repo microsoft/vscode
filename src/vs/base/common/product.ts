@@ -97,6 +97,7 @@ export interface IProductConfiguration {
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
 		readonly controlUrl: string;
+		readonly mcpUrl: string;
 		readonly extensionUrlTemplate: string;
 		readonly resourceUrlTemplate: string;
 		readonly nlsBaseUrl: string;
@@ -336,12 +337,13 @@ export interface IDefaultChatAgent {
 	readonly upgradePlanUrl: string;
 	readonly signUpUrl: string;
 
-	readonly providerId: string;
-	readonly providerName: string;
-	readonly enterpriseProviderId: string;
-	readonly enterpriseProviderName: string;
-	readonly alternativeProviderId: string;
-	readonly alternativeProviderName: string;
+	readonly provider: {
+		default: { id: string; name: string };
+		enterprise: { id: string; name: string };
+		google: { id: string; name: string };
+		apple: { id: string; name: string };
+	};
+
 	readonly providerUriSetting: string;
 	readonly providerScopes: string[][];
 

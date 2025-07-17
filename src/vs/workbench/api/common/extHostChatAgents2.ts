@@ -342,6 +342,7 @@ class ChatAgentResponseStream {
 interface InFlightChatRequest {
 	requestId: string;
 	extRequest: vscode.ChatRequest;
+	extension: IRelaxedExtensionDescription;
 }
 
 export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsShape2 {
@@ -361,6 +362,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	private readonly _completionDisposables: DisposableMap<number, DisposableStore> = this._register(new DisposableMap());
 
 	private readonly _inFlightRequests = new Set<InFlightChatRequest>();
+
+	private readonly _onDidChangeChatRequestTools = this._register(new Emitter<vscode.ChatRequest>());
+	readonly onDidChangeChatRequestTools = this._onDidChangeChatRequestTools.event;
 
 	private readonly _onDidDisposeChatSession = this._register(new Emitter<string>());
 	readonly onDidDisposeChatSession = this._onDidDisposeChatSession.event;
@@ -519,6 +523,19 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		agent.setChatRequestPauseState({ request: inFlight.extRequest, isPaused });
 	}
 
+	async $setRequestTools(requestId: string, tools: Pick<IChatAgentRequest, 'userSelectedTools'>) {
+		const request = [...this._inFlightRequests].find(r => r.requestId === requestId);
+		if (!request) {
+			return;
+		}
+
+		request.extRequest.tools.clear();
+		for (const [k, v] of this.getToolsForRequest(request.extension, tools)) {
+			request.extRequest.tools.set(k, v);
+		}
+		this._onDidChangeChatRequestTools.fire(request.extRequest);
+	}
+
 	async $invokeAgent(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
@@ -550,7 +567,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				agent.extension,
 				this._logService
 			);
-			inFlightRequest = { requestId: requestDto.requestId, extRequest };
+			inFlightRequest = { requestId: requestDto.requestId, extRequest, extension: agent.extension };
 			this._inFlightRequests.add(inFlightRequest);
 
 			const task = agent.invoke(
@@ -608,7 +625,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return this._diagnostics.getDiagnostics();
 	}
 
-	private getToolsForRequest(extension: IExtensionDescription, request: Dto<IChatAgentRequest>): Map<string, boolean> {
+	private getToolsForRequest(extension: IExtensionDescription, request: Pick<IChatAgentRequest, 'userSelectedTools'>): Map<string, boolean> {
 		if (!request.userSelectedTools) {
 			return new Map();
 		}
@@ -757,6 +774,16 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		const history = await this.prepareHistoryTurns(agent.extension, agent.id, { history: context });
 		return await agent.provideTitle({ history }, token);
 	}
+
+	async $provideChatSummary(handle: number, context: IChatAgentHistoryEntryDto[], token: CancellationToken): Promise<string | undefined> {
+		const agent = this._agents.get(handle);
+		if (!agent) {
+			return;
+		}
+
+		const history = await this.prepareHistoryTurns(agent.extension, agent.id, { history: context });
+		return await agent.provideSummary({ history }, token);
+	}
 }
 
 class ExtHostParticipantDetector {
@@ -786,6 +813,7 @@ class ExtHostChatAgent {
 	private _agentVariableProvider?: { provider: vscode.ChatParticipantCompletionItemProvider; triggerCharacters: string[] };
 	private _additionalWelcomeMessage?: string | vscode.MarkdownString | undefined;
 	private _titleProvider?: vscode.ChatTitleProvider | undefined;
+	private _summarizer?: vscode.ChatSummarizer | undefined;
 	private _requester: vscode.ChatRequesterInformation | undefined;
 	private _pauseStateEmitter = new Emitter<vscode.ChatParticipantPauseStateEvent>();
 
@@ -839,6 +867,14 @@ class ExtHostChatAgent {
 		}
 
 		return await this._titleProvider.provideChatTitle(context, token) ?? undefined;
+	}
+
+	async provideSummary(context: vscode.ChatContext, token: CancellationToken): Promise<string | undefined> {
+		if (!this._summarizer) {
+			return;
+		}
+
+		return await this._summarizer.provideChatSummary(context, token) ?? undefined;
 	}
 
 	get apiAgent(): vscode.ChatParticipant {
@@ -973,6 +1009,14 @@ class ExtHostChatAgent {
 			get titleProvider() {
 				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				return that._titleProvider;
+			},
+			set summarizer(v) {
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
+				that._summarizer = v;
+			},
+			get summarizer() {
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
+				return that._summarizer;
 			},
 			get onDidChangePauseState() {
 				checkProposedApiEnabled(that.extension, 'chatParticipantAdditions');

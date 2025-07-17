@@ -22,7 +22,7 @@ import { asText, IRequestService } from '../../../../platform/request/common/req
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
 import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationExtensionsService, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
-import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { ChatContextKeys } from './chatContextKeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -80,6 +80,15 @@ export interface IChatSentiment {
 	disabled?: boolean;
 
 	/**
+	 * Chat is disabled due to missing workspace trust.
+	 *
+	 * Note: even though this disables Chat, we want to treat it
+	 * different from the `disabled` state that is by explicit
+	 * user choice.
+	 */
+	untrusted?: boolean;
+
+	/**
 	 * User signals intent to use Chat later.
 	 */
 	later?: boolean;
@@ -125,8 +134,7 @@ const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
-	providerId: product.defaultChatAgent?.providerId ?? '',
-	enterpriseProviderId: product.defaultChatAgent?.enterpriseProviderId ?? '',
+	provider: product.defaultChatAgent?.provider ?? { default: { id: '' }, enterprise: { id: '' } },
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
 	entitlementUrl: product.defaultChatAgent?.entitlementUrl ?? '',
 	entitlementSignupLimitedUrl: product.defaultChatAgent?.entitlementSignupLimitedUrl ?? '',
@@ -178,6 +186,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 				this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([
 					ChatContextKeys.Setup.hidden.key,
 					ChatContextKeys.Setup.disabled.key,
+					ChatContextKeys.Setup.untrusted.key,
 					ChatContextKeys.Setup.installed.key,
 					ChatContextKeys.Setup.later.key
 				])), this._store
@@ -313,6 +322,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			installed: this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.installed.key) === true,
 			hidden: this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.hidden.key) === true,
 			disabled: this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.disabled.key) === true,
+			untrusted: this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.untrusted.key) === true,
 			later: this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.later.key) === true
 		};
 	}
@@ -409,11 +419,11 @@ interface IQuotas {
 export class ChatEntitlementRequests extends Disposable {
 
 	static providerId(configurationService: IConfigurationService): string {
-		if (configurationService.getValue<string | undefined>(`${defaultChat.completionsAdvancedSetting}.authProvider`) === defaultChat.enterpriseProviderId) {
-			return defaultChat.enterpriseProviderId;
+		if (configurationService.getValue<string | undefined>(`${defaultChat.completionsAdvancedSetting}.authProvider`) === defaultChat.provider.enterprise.id) {
+			return defaultChat.provider.enterprise.id;
 		}
 
-		return defaultChat.providerId;
+		return defaultChat.provider.default.id;
 	}
 
 	private state: IEntitlements;
@@ -556,7 +566,7 @@ export class ChatEntitlementRequests extends Disposable {
 	}
 
 	private async doResolveEntitlement(session: AuthenticationSession, token: CancellationToken): Promise<IEntitlements | undefined> {
-		if (ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId) {
+		if (ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.provider.enterprise.id) {
 			this.logService.trace('[chat entitlement]: enterprise provider, assuming Enterprise plan');
 			return { entitlement: ChatEntitlement.Enterprise };
 		}
@@ -845,9 +855,9 @@ export class ChatEntitlementRequests extends Disposable {
 		}
 	}
 
-	async signIn() {
+	async signIn(options?: { useSocialProvider?: string }) {
 		const providerId = ChatEntitlementRequests.providerId(this.configurationService);
-		const session = await this.authenticationService.createSession(providerId, defaultChat.providerScopes[0]);
+		const session = await this.authenticationService.createSession(providerId, defaultChat.providerScopes[0], options?.useSocialProvider ? { provider: options.useSocialProvider } : undefined);
 
 		this.authenticationExtensionsService.updateAccountPreference(defaultChat.extensionId, providerId, session.account);
 		this.authenticationExtensionsService.updateAccountPreference(defaultChat.chatExtensionId, providerId, session.account);
@@ -898,6 +908,7 @@ export class ChatEntitlementContext extends Disposable {
 	private readonly laterContext: IContextKey<boolean>;
 	private readonly installedContext: IContextKey<boolean>;
 	private readonly disabledContext: IContextKey<boolean>;
+	private readonly untrustedContext: IContextKey<boolean>;
 
 	private _state: IChatEntitlementContextState;
 	private suspendedState: IChatEntitlementContextState | undefined = undefined;
@@ -928,6 +939,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.laterContext = ChatContextKeys.Setup.later.bindTo(contextKeyService);
 		this.installedContext = ChatContextKeys.Setup.installed.bindTo(contextKeyService);
 		this.disabledContext = ChatContextKeys.Setup.disabled.bindTo(contextKeyService);
+		this.untrustedContext = ChatContextKeys.Setup.untrusted.bindTo(contextKeyService);
 
 		this._state = this.storageService.getObject<IChatEntitlementContextState>(ChatEntitlementContext.CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY, StorageScope.PROFILE) ?? { entitlement: ChatEntitlement.Unknown };
 
@@ -940,7 +952,7 @@ export class ChatEntitlementContext extends Disposable {
 		// Await extensions to be ready to be queried
 		await this.extensionsWorkbenchService.queryLocal();
 
-		// Listen to change and process extensions once
+		// Listen to extensions change and process extensions once
 		this._register(Event.runAndSubscribe<IExtension | undefined>(this.extensionsWorkbenchService.onChange, e => {
 			if (e && !ExtensionIdentifier.equals(e.identifier.id, defaultChat.extensionId)) {
 				return; // unrelated event
@@ -948,22 +960,37 @@ export class ChatEntitlementContext extends Disposable {
 
 			const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
 			const installed = !!defaultChatExtension?.local;
-			const disabled = installed && !this.extensionEnablementService.isEnabled(defaultChatExtension.local);
 
-			this.update({ installed, disabled });
+			let disabled: boolean;
+			let untrusted = false;
+			if (installed) {
+				disabled = !this.extensionEnablementService.isEnabled(defaultChatExtension.local);
+				if (disabled) {
+					const state = this.extensionEnablementService.getEnablementState(defaultChatExtension.local);
+					if (state === EnablementState.DisabledByTrustRequirement) {
+						disabled = false; // not disabled by user choice but
+						untrusted = true; // by missing workspace trust
+					}
+				}
+			} else {
+				disabled = false;
+			}
+
+			this.update({ installed, disabled, untrusted });
 		}));
 	}
 
-	update(context: { installed: boolean; disabled: boolean }): Promise<void>;
+	update(context: { installed: boolean; disabled: boolean; untrusted: boolean }): Promise<void>;
 	update(context: { hidden: boolean }): Promise<void>;
 	update(context: { later: boolean }): Promise<void>;
 	update(context: { entitlement: ChatEntitlement }): Promise<void>;
-	update(context: { installed?: boolean; disabled?: boolean; hidden?: boolean; later?: boolean; entitlement?: ChatEntitlement }): Promise<void> {
+	update(context: { installed?: boolean; disabled?: boolean; untrusted?: boolean; hidden?: boolean; later?: boolean; entitlement?: ChatEntitlement }): Promise<void> {
 		this.logService.trace(`[chat entitlement context] update(): ${JSON.stringify(context)}`);
 
-		if (typeof context.installed === 'boolean' && typeof context.disabled === 'boolean') {
+		if (typeof context.installed === 'boolean' && typeof context.disabled === 'boolean' && typeof context.untrusted === 'boolean') {
 			this._state.installed = context.installed;
 			this._state.disabled = context.disabled;
+			this._state.untrusted = context.untrusted;
 
 			if (context.installed && !context.disabled) {
 				context.hidden = false; // treat this as a sign to make Chat visible again in case it is hidden
@@ -1016,6 +1043,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.laterContext.set(!!this._state.later);
 		this.installedContext.set(!!this._state.installed);
 		this.disabledContext.set(!!this._state.disabled);
+		this.untrustedContext.set(!!this._state.untrusted);
 
 		this._onDidChange.fire();
 	}

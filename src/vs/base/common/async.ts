@@ -2082,6 +2082,8 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 		});
 	}
 
+	public filter<T2 extends T>(filterFn: (item: T) => item is T2): AsyncIterableObject<T2>;
+	public filter(filterFn: (item: T) => boolean): AsyncIterableObject<T>;
 	public filter(filterFn: (item: T) => boolean): AsyncIterableObject<T> {
 		return AsyncIterableObject.filter(this, filterFn);
 	}

@@ -258,6 +258,13 @@ declare module 'vscode' {
 		readonly tools: Map<string, boolean>;
 	}
 
+	export namespace lm {
+		/**
+		 * Fired when the set of tools on a chat request changes.
+		 */
+		export const onDidChangeChatRequestTools: Event<ChatRequest>;
+	}
+
 	// TODO@API fit this into the stream
 	export interface ChatUsedContext {
 		documents: ChatDocumentContext[];
@@ -334,6 +341,10 @@ declare module 'vscode' {
 		copiedCharacters: number;
 		totalCharacters: number;
 		copiedText: string;
+		totalLines: number;
+		copiedLines: number;
+		modelId: string;
+		languageId?: string;
 	}
 
 	export interface ChatInsertAction {
@@ -341,6 +352,9 @@ declare module 'vscode' {
 		kind: 'insert';
 		codeBlockIndex: number;
 		totalCharacters: number;
+		totalLines: number;
+		languageId?: string;
+		modelId: string;
 		newFile?: boolean;
 	}
 
@@ -349,6 +363,9 @@ declare module 'vscode' {
 		kind: 'apply';
 		codeBlockIndex: number;
 		totalCharacters: number;
+		totalLines: number;
+		languageId?: string;
+		modelId: string;
 		newFile?: boolean;
 		codeMapper?: string;
 	}

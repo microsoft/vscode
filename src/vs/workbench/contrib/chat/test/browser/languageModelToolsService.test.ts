@@ -232,4 +232,136 @@ suite('LanguageModelToolsService', () => {
 			return isCancellationError(err);
 		}, 'Expected tool call to be cancelled');
 	});
+
+	test('toToolEnablementMap', () => {
+		const toolData1: IToolData = {
+			id: 'tool1',
+			toolReferenceName: 'refTool1',
+			modelDescription: 'Test Tool 1',
+			displayName: 'Test Tool 1',
+			source: ToolDataSource.Internal,
+		};
+
+		const toolData2: IToolData = {
+			id: 'tool2',
+			toolReferenceName: 'refTool2',
+			modelDescription: 'Test Tool 2',
+			displayName: 'Test Tool 2',
+			source: ToolDataSource.Internal,
+		};
+
+		const toolData3: IToolData = {
+			id: 'tool3',
+			// No toolReferenceName
+			modelDescription: 'Test Tool 3',
+			displayName: 'Test Tool 3',
+			source: ToolDataSource.Internal,
+		};
+
+		store.add(service.registerToolData(toolData1));
+		store.add(service.registerToolData(toolData2));
+		store.add(service.registerToolData(toolData3));
+
+		// Test with enabled tools
+		const enabledToolNames = new Set(['refTool1']);
+		const result1 = service.toToolEnablementMap(enabledToolNames);
+
+		assert.strictEqual(result1['tool1'], true, 'tool1 should be enabled');
+		assert.strictEqual(result1['tool2'], false, 'tool2 should be disabled');
+		assert.strictEqual(result1['tool3'], false, 'tool3 should be disabled (no reference name)');
+
+		// Test with multiple enabled tools
+		const multipleEnabledToolNames = new Set(['refTool1', 'refTool2']);
+		const result2 = service.toToolEnablementMap(multipleEnabledToolNames);
+
+		assert.strictEqual(result2['tool1'], true, 'tool1 should be enabled');
+		assert.strictEqual(result2['tool2'], true, 'tool2 should be enabled');
+		assert.strictEqual(result2['tool3'], false, 'tool3 should be disabled');
+
+		// Test with no enabled tools
+		const noEnabledToolNames = new Set<string>();
+		const result3 = service.toToolEnablementMap(noEnabledToolNames);
+
+		assert.strictEqual(result3['tool1'], false, 'tool1 should be disabled');
+		assert.strictEqual(result3['tool2'], false, 'tool2 should be disabled');
+		assert.strictEqual(result3['tool3'], false, 'tool3 should be disabled');
+	});
+
+	test('toToolEnablementMap with tool sets', () => {
+		// Register individual tools
+		const toolData1: IToolData = {
+			id: 'tool1',
+			toolReferenceName: 'refTool1',
+			modelDescription: 'Test Tool 1',
+			displayName: 'Test Tool 1',
+			source: ToolDataSource.Internal,
+		};
+
+		const toolData2: IToolData = {
+			id: 'tool2',
+			modelDescription: 'Test Tool 2',
+			displayName: 'Test Tool 2',
+			source: ToolDataSource.Internal,
+		};
+
+		store.add(service.registerToolData(toolData1));
+		store.add(service.registerToolData(toolData2));
+
+		// Create a tool set
+		const toolSet = store.add(service.createToolSet(
+			ToolDataSource.Internal,
+			'testToolSet',
+			'refToolSet',
+			{ description: 'Test Tool Set' }
+		));
+
+		// Add tools to the tool set
+		const toolSetTool1: IToolData = {
+			id: 'toolSetTool1',
+			modelDescription: 'Tool Set Tool 1',
+			displayName: 'Tool Set Tool 1',
+			source: ToolDataSource.Internal,
+		};
+
+		const toolSetTool2: IToolData = {
+			id: 'toolSetTool2',
+			modelDescription: 'Tool Set Tool 2',
+			displayName: 'Tool Set Tool 2',
+			source: ToolDataSource.Internal,
+		};
+
+		store.add(service.registerToolData(toolSetTool1));
+		store.add(service.registerToolData(toolSetTool2));
+		store.add(toolSet.addTool(toolSetTool1));
+		store.add(toolSet.addTool(toolSetTool2));
+
+		// Test enabling the tool set
+		const enabledNames = new Set(['refToolSet', 'refTool1']);
+		const result = service.toToolEnablementMap(enabledNames);
+
+		assert.strictEqual(result['tool1'], true, 'individual tool should be enabled');
+		assert.strictEqual(result['tool2'], false);
+		assert.strictEqual(result['toolSetTool1'], true, 'tool set tool 1 should be enabled');
+		assert.strictEqual(result['toolSetTool2'], true, 'tool set tool 2 should be enabled');
+	});
+
+	test('toToolEnablementMap with non-existent tool names', () => {
+		const toolData: IToolData = {
+			id: 'tool1',
+			toolReferenceName: 'refTool1',
+			modelDescription: 'Test Tool 1',
+			displayName: 'Test Tool 1',
+			source: ToolDataSource.Internal,
+		};
+
+		store.add(service.registerToolData(toolData));
+
+		// Test with non-existent tool names
+		const enabledNames = new Set(['nonExistentTool', 'refTool1']);
+		const result = service.toToolEnablementMap(enabledNames);
+
+		assert.strictEqual(result['tool1'], true, 'existing tool should be enabled');
+		// Non-existent tools should not appear in the result map
+		assert.strictEqual(result['nonExistentTool'], undefined, 'non-existent tool should not be in result');
+	});
 });

@@ -88,8 +88,10 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 
 	let cm: Arc<ConnectionManager> = ConnectionManager::new(&ctx, platform, args.clone());
 	let update_check_interval = 3600;
-	cm.clone()
-		.start_update_checker(Duration::from_secs(update_check_interval));
+	if args.commit_id.is_none() {
+		cm.clone()
+			.start_update_checker(Duration::from_secs(update_check_interval));
+	}
 
 	let key = get_server_key_half(&ctx.paths);
 	let make_svc = move || {
@@ -628,6 +630,22 @@ impl ConnectionManager {
 			.and_then(|q| {
 				Quality::try_from(q).map_err(|_| CodeError::UpdatesNotConfigured("unknown quality"))
 			})?;
+
+		if let Some(commit) = &self.args.commit_id {
+			let release = Release {
+				name: commit.to_string(),
+				commit: commit.to_string(),
+				platform: self.platform,
+				target: target_kind,
+				quality,
+			};
+			debug!(
+				self.log,
+				"using provided commit instead of latest release: {}", release
+			);
+			*latest = Some((now, release.clone()));
+			return Ok(release);
+		}
 
 		let release = self
 			.update_service

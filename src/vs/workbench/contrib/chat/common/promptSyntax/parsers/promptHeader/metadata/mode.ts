@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChatMode } from '../../../../constants.js';
+import { ChatModeKind } from '../../../../constants.js';
 import { PromptEnumMetadata } from './base/enum.js';
 import { FrontMatterRecord, FrontMatterToken } from '../../../codecs/base/frontMatterCodec/tokens/index.js';
 
@@ -15,13 +15,13 @@ const RECORD_NAME = 'mode';
 /**
  * Prompt `mode` metadata record inside the prompt header.
  */
-export class PromptModeMetadata extends PromptEnumMetadata<ChatMode> {
+export class PromptModeMetadata extends PromptEnumMetadata<ChatModeKind> {
 	constructor(
 		recordToken: FrontMatterRecord,
 		languageId: string,
 	) {
 		super(
-			[ChatMode.Ask, ChatMode.Edit, ChatMode.Agent],
+			[ChatModeKind.Ask, ChatModeKind.Edit, ChatModeKind.Agent],
 			RECORD_NAME,
 			recordToken,
 			languageId,

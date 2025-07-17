@@ -169,6 +169,7 @@ export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	getAccessibleContent(hoverPart: T): string;
 	handleResize?(): void;
 	handleHide?(): void;
+	handleContentsChanged?(): void;
 	handleScroll?(e: ScrollEvent): void;
 }
 

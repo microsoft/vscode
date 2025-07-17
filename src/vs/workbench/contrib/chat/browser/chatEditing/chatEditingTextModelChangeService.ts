@@ -23,12 +23,13 @@ import { IModelDeltaDecoration, ITextModel, ITextSnapshot, MinimapPosition, Over
 import { ModelDecorationOptions } from '../../../../../editor/common/model/textModel.js';
 import { offsetEditFromContentChanges, offsetEditFromLineRangeMapping, offsetEditToEditOperations } from '../../../../../editor/common/model/textModelStringEdit.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
-import { TextModelEditReason } from '../../../../../editor/common/textModelEditReason.js';
+import { TextModelEditSource, EditSources } from '../../../../../editor/common/textModelEditSource.js';
 import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { IChatResponseModel } from '../../common/chatModel.js';
 import { IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
 import { pendingRewriteMinimap } from './chatEditingModifiedFileEntry.js';
 
@@ -127,7 +128,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		return diff ? diff.identical : false;
 	}
 
-	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean): Promise<{ rewriteRatio: number; maxLineNumber: number }> {
+	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<{ rewriteRatio: number; maxLineNumber: number }> {
 
 		assertType(textEdits.every(TextEdit.isTextEdit), 'INVALID args, can only handle text edits');
 		assert(isEqual(resource, this.modifiedModel.uri), ' INVALID args, can only edit THIS document');
@@ -136,11 +137,15 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		let maxLineNumber = 0;
 		let rewriteRatio = 0;
 
+		const sessionId = responseModel.session.sessionId;
+		const request = responseModel.session.getRequests().at(-1);
+		const source = EditSources.chatApplyEdits({ modelId: request?.modelId, requestId: request?.id, sessionId: sessionId });
+
 		if (isAtomicEdits) {
 			// EDIT and DONE
 			const minimalEdits = await this._editorWorkerService.computeMoreMinimalEdits(this.modifiedModel.uri, textEdits) ?? textEdits;
 			const ops = minimalEdits.map(TextEdit.asEditOperation);
-			const undoEdits = this._applyEdits(ops);
+			const undoEdits = this._applyEdits(ops, source);
 
 			if (undoEdits.length > 0) {
 				let range: Range | undefined;
@@ -176,7 +181,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		} else {
 			// EDIT a bit, then DONE
 			const ops = textEdits.map(TextEdit.asEditOperation);
-			const undoEdits = this._applyEdits(ops);
+			const undoEdits = this._applyEdits(ops, source);
 			maxLineNumber = undoEdits.reduce((max, op) => Math.max(max, op.range.startLineNumber), 0);
 			rewriteRatio = Math.min(1, maxLineNumber / this.modifiedModel.getLineCount());
 
@@ -207,17 +212,17 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		return { rewriteRatio, maxLineNumber };
 	}
 
-	private _applyEdits(edits: ISingleEditOperation[]) {
+	private _applyEdits(edits: ISingleEditOperation[], source: TextModelEditSource) {
 		try {
 			this._isEditFromUs = true;
 			// make the actual edit
 			let result: ISingleEditOperation[] = [];
-			TextModelEditReason.editWithReason(new TextModelEditReason({ source: 'Chat.applyEdits' }), () => {
-				this.modifiedModel.pushEditOperations(null, edits, (undoEdits) => {
-					result = undoEdits;
-					return null;
-				});
-			});
+
+			this.modifiedModel.pushEditOperations(null, edits, (undoEdits) => {
+				result = undoEdits;
+				return null;
+			}, undefined, source);
+
 			return result;
 		} finally {
 			this._isEditFromUs = false;
@@ -238,7 +243,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	 */
 	public undo() {
 		this.modifiedModel.pushStackElement();
-		this._applyEdits([(EditOperation.replace(this.modifiedModel.getFullModelRange(), this.originalModel.getValue()))]);
+		this._applyEdits([(EditOperation.replace(this.modifiedModel.getFullModelRange(), this.originalModel.getValue()))], EditSources.chatUndoEdits());
 		this.modifiedModel.pushStackElement();
 		this._originalToModifiedEdit = StringEdit.empty;
 		this._diffInfo.set(nullDocumentDiff, undefined);
@@ -253,7 +258,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		if (newModified !== undefined && this.modifiedModel.getValue() !== newModified) {
 			// NOTE that this isn't done via `setValue` so that the undo stack is preserved
 			this.modifiedModel.pushStackElement();
-			this._applyEdits([(EditOperation.replace(this.modifiedModel.getFullModelRange(), newModified))]);
+			this._applyEdits([(EditOperation.replace(this.modifiedModel.getFullModelRange(), newModified))], EditSources.chatReset());
 			this.modifiedModel.pushStackElement();
 			didChange = true;
 		}
@@ -289,7 +294,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			const e_ai = this._originalToModifiedEdit;
 			const e_user = edit;
 
-			const e_user_r = e_user.tryRebase(e_ai.inverse(this.originalModel.getValue()), true);
+			const e_user_r = e_user.tryRebase(e_ai.inverse(this.originalModel.getValue()));
 
 			if (e_user_r === undefined) {
 				// user edits overlaps/conflicts with AI edits
@@ -297,7 +302,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			} else {
 				const edits = offsetEditToEditOperations(e_user_r, this.originalModel);
 				this.originalModel.applyEdits(edits);
-				this._originalToModifiedEdit = e_ai.tryRebase(e_user_r);
+				this._originalToModifiedEdit = e_ai.rebaseSkipConflicting(e_user_r);
 			}
 
 			this._allEditsAreFromUs = false;

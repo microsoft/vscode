@@ -10,15 +10,17 @@ import { ITreeNode, ITreeRenderer } from '../../../../../../base/browser/ui/tree
 import { FuzzyScore } from '../../../../../../base/common/filters.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
-import { localize } from '../../../../../../nls.js';
+import { ILocalizedString, localize, localize2 } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchObjectTree } from '../../../../../../platform/list/browser/listService.js';
 import { DebugExpressionRenderer } from '../../../../debug/browser/debugExpressionRenderer.js';
 import { INotebookVariableElement } from './notebookVariablesDataSource.js';
-import { NotebookVariablesView } from './notebookVariablesView.js';
 
 const $ = dom.$;
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
+
+export const NOTEBOOK_TITLE: ILocalizedString = localize2('notebook.notebookVariables', "Notebook Variables");
+export const REPL_TITLE: ILocalizedString = localize2('notebook.ReplVariables', "REPL Variables");
 
 export class NotebookVariablesTree extends WorkbenchObjectTree<INotebookVariableElement> { }
 
@@ -32,6 +34,7 @@ export class NotebookVariablesDelegate implements IListVirtualDelegate<INotebook
 		return NotebookVariableRenderer.ID;
 	}
 }
+
 
 export interface IVariableTemplateData {
 	expression: HTMLElement;
@@ -88,7 +91,7 @@ export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariable
 
 export class NotebookVariableAccessibilityProvider implements IListAccessibilityProvider<INotebookVariableElement> {
 
-	private _widgetAriaLabel = observableValue('widgetAriaLabel', NotebookVariablesView.NOTEBOOK_TITLE.value);
+	private _widgetAriaLabel = observableValue('widgetAriaLabel', NOTEBOOK_TITLE.value);
 
 	getWidgetAriaLabel() {
 		return this._widgetAriaLabel;

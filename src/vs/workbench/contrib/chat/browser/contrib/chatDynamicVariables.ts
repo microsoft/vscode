@@ -17,7 +17,6 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IChatRequestVariableValue, IDynamicVariable } from '../../common/chatVariables.js';
 import { IChatWidget } from '../chat.js';
 import { IChatWidgetContrib } from '../chatWidget.js';
-import { ChatFileReference } from './chatDynamicVariables/chatFileReference.js';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
 
@@ -87,12 +86,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 				didChange = true;
 
-				if (ref instanceof ChatFileReference) {
-					ref.range = newRange;
-					return ref;
-				} else {
-					return { ...ref, range: newRange };
-				}
+				return { ...ref, range: newRange };
 			}));
 
 			// cleanup disposable variables
@@ -107,15 +101,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	}
 
 	getInputState(): any {
-		return this.variables
-			.map((variable: IDynamicVariable) => {
-				// return underlying `IDynamicVariable` object for file references
-				if (variable instanceof ChatFileReference) {
-					return variable.reference;
-				}
-
-				return variable;
-			});
+		return this.variables;
 	}
 
 	setInputState(s: any): void {

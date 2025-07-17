@@ -22,7 +22,8 @@ import { classNames } from '../utils/utils.js';
 export interface IOriginalEditorInlineDiffViewState {
 	diff: DetailedLineRangeMapping[];
 	modifiedText: AbstractText;
-	mode: 'insertionInline' | 'sideBySide' | 'deletion';
+	mode: 'insertionInline' | 'sideBySide' | 'deletion' | 'lineReplacement';
+	isInDiffEditor: boolean;
 
 	modifiedCodeEditor: ICodeEditor;
 }
@@ -85,6 +86,7 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 				className: 'inlineCompletions-char-delete',
 				description: 'char-delete',
 				isWholeLine: false,
+				zIndex: 1, // be on top of diff background decoration
 			});
 
 			const diffWholeLineAddDecoration = ModelDecorationOptions.register({
@@ -104,8 +106,16 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 				description: 'char-insert diff-range-empty',
 			});
 
+			const NESOriginalBackground = ModelDecorationOptions.register({
+				className: 'inlineCompletions-original-lines',
+				description: 'inlineCompletions-original-lines',
+				isWholeLine: false,
+				shouldFillLineOnLineBreak: true,
+			});
+
+			const showFullLineDecorations = diff.mode !== 'sideBySide' && diff.mode !== 'deletion' && diff.mode !== 'insertionInline' && diff.mode !== 'lineReplacement';
+			const hideEmptyInnerDecorations = diff.mode === 'lineReplacement';
 			for (const m of diff.diff) {
-				const showFullLineDecorations = diff.mode !== 'sideBySide' && diff.mode !== 'deletion' && diff.mode !== 'insertionInline';
 				if (showFullLineDecorations) {
 					if (!m.original.isEmpty) {
 						originalDecorations.push({
@@ -132,7 +142,7 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 					const useInlineDiff = showInline && allowsTrueInlineDiffRendering(m);
 					for (const i of m.innerChanges || []) {
 						// Don't show empty markers outside the line range
-						if (m.original.contains(i.originalRange.startLineNumber)) {
+						if (m.original.contains(i.originalRange.startLineNumber) && !(hideEmptyInnerDecorations && i.originalRange.isEmpty())) {
 							const replacedText = this._originalEditor.getModel()?.getValueInRange(i.originalRange, EndOfLinePreference.LF);
 							originalDecorations.push({
 								range: i.originalRange,
@@ -198,6 +208,17 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 								});
 							}
 						}
+					}
+				}
+			}
+
+			if (diff.isInDiffEditor) {
+				for (const m of diff.diff) {
+					if (!m.original.isEmpty) {
+						originalDecorations.push({
+							range: m.original.toExclusiveRange()!,
+							options: NESOriginalBackground,
+						});
 					}
 				}
 			}

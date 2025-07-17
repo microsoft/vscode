@@ -26,7 +26,7 @@ import { TestActivityService, TestExtensionService, TestProductService, TestStor
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { AuthenticationAccessService, IAuthenticationAccessService } from '../../../services/authentication/browser/authenticationAccessService.js';
-import { AuthenticationUsageService, IAuthenticationUsageService } from '../../../services/authentication/browser/authenticationUsageService.js';
+import { IAccountUsage, IAuthenticationUsageService } from '../../../services/authentication/browser/authenticationUsageService.js';
 import { AuthenticationExtensionsService } from '../../../services/authentication/browser/authenticationExtensionsService.js';
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -39,6 +39,15 @@ import { DynamicAuthenticationProviderStorageService } from '../../../services/a
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+
+class TestAuthUsageService implements IAuthenticationUsageService {
+	_serviceBrand: undefined;
+	initializeExtensionUsageCache(): Promise<void> { return Promise.resolve(); }
+	extensionUsesAuth(extensionId: string): Promise<boolean> { return Promise.resolve(false); }
+	readAccountUsages(providerId: string, accountName: string): IAccountUsage[] { return []; }
+	removeAccountUsage(providerId: string, accountName: string): void { }
+	addAccountUsage(providerId: string, accountName: string, scopes: ReadonlyArray<string>, extensionId: string, extensionName: string): void { }
+}
 
 suite('MainThreadAuthentication', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -64,7 +73,7 @@ suite('MainThreadAuthentication', () => {
 		services.set(IUserActivityService, new SyncDescriptor(UserActivityService));
 		services.set(IAuthenticationAccessService, new SyncDescriptor(AuthenticationAccessService));
 		services.set(IAuthenticationService, new SyncDescriptor(AuthenticationService));
-		services.set(IAuthenticationUsageService, new SyncDescriptor(AuthenticationUsageService));
+		services.set(IAuthenticationUsageService, new SyncDescriptor(TestAuthUsageService));
 		services.set(IAuthenticationExtensionsService, new SyncDescriptor(AuthenticationExtensionsService));
 		instantiationService = disposables.add(new TestInstantiationService(services, undefined, undefined, true));
 
