@@ -434,7 +434,7 @@ class McpHTTPHandle extends Disposable {
 				// path, we _ADD_ the well known path after the existing path.
 				// https://datatracker.ietf.org/doc/html/rfc8414#section-3
 				authServerMetadataResponse = await this._fetch(
-					URI.joinPath(URI.parse(authorizationServer), '.well-known', 'openid-configuration').toString(true),
+					URI.joinPath(URI.parse(authorizationServer), ...OPENID_CONNECT_DISCOVERY_PATH.substring(1).split('/')).toString(true),
 					{
 						method: 'GET',
 						headers: {
