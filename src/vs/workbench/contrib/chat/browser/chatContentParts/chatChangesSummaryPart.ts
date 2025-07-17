@@ -15,13 +15,17 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
+import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 
 export class ChatChangesSummaryContentPart extends Disposable implements IChatContentPart {
 
-	public readonly domNode: HTMLElement | undefined;
+	public readonly domNode: HTMLElement;
 
 	private readonly listPool: CollapsibleListPool;
 	private readonly changes: ReadonlyArray<IChatChangesSummary>;
+
+	private _isExpanded: boolean = false;
 
 	constructor(
 		content: IChatChangesSummaryPart,
@@ -36,13 +40,25 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 		console.log('this.changes', content.changes);
 		console.log('this.changes.length', content.changes.length);
 
+		const buttonElement = $('.chat-used-context-label', undefined);
+		const collapseButton = this._register(new ButtonWithIcon(buttonElement, {
+			buttonBackground: undefined,
+			buttonBorder: undefined,
+			buttonForeground: undefined,
+			buttonHoverBackground: undefined,
+			buttonSecondaryBackground: undefined,
+			buttonSecondaryForeground: undefined,
+			buttonSecondaryHoverBackground: undefined,
+			buttonSeparator: undefined
+		}));
+
 		this.changes = content.changes;
 		this.listPool = this._register(instantiationService.createInstance(CollapsibleListPool, () => Disposable.None, undefined, undefined));
 		const list = this.listPool.get().object;
 		list.splice(0, list.length, this.changes);
 
-		const buttonElement = $('.chat-used-context-label', undefined);
-		this.domNode = $('.chat-used-context', undefined, buttonElement);
+		this.domNode = $('.chat-file-changes-summary', undefined, buttonElement);
+		collapseButton.label = 'File Changes';
 
 		const maxItemsShown = 6;
 		const itemsShown = Math.min(this.changes.length, maxItemsShown);
@@ -54,10 +70,23 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 		const innerDomNode = listElement.parentElement!;
 		this.domNode.appendChild(innerDomNode);
 
-		this.registerListeners(list);
+		this.registerCollapseButtonListeners(collapseButton);
+		this.registerListListeners(list);
 	}
 
-	private registerListeners(list: WorkbenchList<IChatCollapsibleListItem>): void {
+	private registerCollapseButtonListeners(collapseButton: ButtonWithIcon): void {
+		const definingIcon = () => {
+			this._isExpanded = !this._isExpanded;
+			collapseButton.icon = this._isExpanded ? Codicon.chevronDown : Codicon.chevronRight;
+			this.domNode.classList.toggle('chat-used-context-collapsed', !this._isExpanded);
+		};
+		this._register(collapseButton.onDidClick(() => {
+			definingIcon();
+		}));
+		definingIcon();
+	}
+
+	private registerListListeners(list: WorkbenchList<IChatCollapsibleListItem>): void {
 		this._register(list.onDidOpen((e) => {
 			if (e.element?.kind !== 'changesSummary') {
 				return;

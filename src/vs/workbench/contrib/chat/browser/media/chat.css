@@ -1539,10 +1539,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: none;
 }
 
+.interactive-session .chat-file-changes-summary.chat-used-context-collapsed .chat-used-context-list,
 .interactive-session .chat-used-context.chat-used-context-collapsed .chat-used-context-list {
 	display: none;
 }
 
+.interactive-session .chat-file-changes-summary,
 .interactive-session .chat-used-context {
 	display: flex;
 	flex-direction: column;
