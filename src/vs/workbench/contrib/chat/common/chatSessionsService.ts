@@ -9,10 +9,10 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IconPath } from '../../../../editor/common/languages.js';
-import { UriComponents } from '../../../../base/common/uri.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export interface IChatSessionContent {
-	uri: UriComponents;
+	uri: URI;
 	label: string;
 	iconPath?: IconPath;
 }
