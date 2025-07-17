@@ -9,7 +9,7 @@ import * as nls from '../../../nls.js';
 import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { Emitter } from '../../../base/common/event.js';
-import { IAllowedMcpServersService, IGalleryMcpServer, ILocalMcpServer, mcpEnabledConfig } from './mcpManagement.js';
+import { IAllowedMcpServersService, IGalleryMcpServer, IInstallableMcpServer, ILocalMcpServer, mcpEnabledConfig } from './mcpManagement.js';
 
 export class AllowedMcpServersService extends Disposable implements IAllowedMcpServersService {
 
@@ -29,7 +29,7 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 		}));
 	}
 
-	isAllowed(mcpServer: IGalleryMcpServer | ILocalMcpServer): true | IMarkdownString {
+	isAllowed(mcpServer: IGalleryMcpServer | ILocalMcpServer | IInstallableMcpServer): true | IMarkdownString {
 		const isEnabled = this.configurationService.getValue(mcpEnabledConfig) === true;
 		if (isEnabled) {
 			return true;
