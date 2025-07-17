@@ -207,6 +207,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private readonly viewModelDisposables = this._register(new DisposableStore());
 	private _viewModel: ChatViewModel | undefined;
+
+	// Coding agent locking state
+	private _lockedToCodingAgent: IChatAgentData | undefined;
+	private _lockedToCodingAgentContextKey!: IContextKey<boolean>;
+	private _codingAgentPrefix: string | undefined;
+	private _prefixLockEnabled = false;
+
 	private set viewModel(viewModel: ChatViewModel | undefined) {
 		if (this._viewModel === viewModel) {
 			return;
@@ -295,6 +302,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super();
+		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
 
 		this.viewContext = _viewContext ?? {};
 
@@ -675,6 +683,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this._dynamicMessageLayoutData) {
 			this._dynamicMessageLayoutData.enabled = true;
 		}
+		// Unlock coding agent when clearing
+		this.unlockFromCodingAgent();
 		this._onDidClear.fire();
 	}
 
@@ -1484,6 +1494,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (e.kind === 'setAgent') {
 				this._onDidChangeAgent.fire({ agent: e.agent, slashCommand: e.command });
 			}
+			// Handle coding agent locking on session begin
+			if (e.kind === 'addRequest' && e.request.response) {
+				this.viewModelDisposables.add(e.request.response.onDidChange(() => {
+					if (e.request.response) {
+						this.checkForCodingAgentLocking(e.request.response);
+					}
+				}));
+			}
 		}));
 
 		if (this.tree && this.visible) {
@@ -1533,6 +1551,65 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	getInput(): string {
 		return this.input.inputEditor.getValue();
+	}
+
+	// Coding agent locking methods
+	public lockToCodingAgent(agent: IChatAgentData): void {
+		this._lockedToCodingAgent = agent;
+		this._codingAgentPrefix = `@${agent.name} `;
+		this._prefixLockEnabled = true;
+		this.updateCodingAgentVisualState();
+		this.registerPrefixLockKeydownHandler();
+		this._lockedToCodingAgentContextKey.set(true);
+	}
+
+	public unlockFromCodingAgent(): void {
+		this._lockedToCodingAgent = undefined;
+		this._codingAgentPrefix = undefined;
+		this._prefixLockEnabled = false;
+		this.updateCodingAgentVisualState();
+		this.unregisterPrefixLockKeydownHandler();
+		this._lockedToCodingAgentContextKey.set(false);
+	}
+	private _prefixLockKeydownDisposable: IDisposable | undefined;
+
+	private registerPrefixLockKeydownHandler(): void {
+		this.unregisterPrefixLockKeydownHandler();
+		const editorDomNode = this.input.inputEditor.getDomNode();
+		if (!editorDomNode) {
+			return;
+		}
+		this._prefixLockKeydownDisposable = dom.addDisposableListener(editorDomNode, 'keydown', (e: KeyboardEvent) => {
+			if (!this._lockedToCodingAgent || !this._codingAgentPrefix) {
+				return;
+			}
+			if (e.key === 'Backspace') {
+				const selection = this.input.inputEditor.getSelection();
+				const model = this.input.inputEditor.getModel();
+				if (!selection || !model) {
+					return;
+				}
+				const prefixLength = this._codingAgentPrefix.length;
+				// Only block if at start or selection includes prefix
+				if (
+					(selection.startLineNumber === 1 && selection.startColumn <= prefixLength + 1) && selection.isEmpty()
+				) {
+					e.preventDefault();
+					e.stopPropagation();
+				}
+			}
+		});
+	}
+
+	private unregisterPrefixLockKeydownHandler(): void {
+		if (this._prefixLockKeydownDisposable) {
+			this._prefixLockKeydownDisposable.dispose();
+			this._prefixLockKeydownDisposable = undefined;
+		}
+	}
+
+	public get isLockedToCodingAgent(): boolean {
+		return !!this._lockedToCodingAgent;
 	}
 
 	logInputHistory(): void {
@@ -1627,6 +1704,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private async _acceptInput(query: { query: string } | undefined, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
 		if (this.viewModel?.requestInProgress && this.viewModel.requestPausibility !== ChatPauseState.Paused) {
 			return;
+		}
+
+		// Handle coding agent prefix enforcement
+		if (this._lockedToCodingAgent && this._codingAgentPrefix) {
+			if (query) {
+				// For programmatic input, ensure the prefix is added
+				if (!query.query.startsWith(this._codingAgentPrefix)) {
+					query.query = this._codingAgentPrefix + this.removeExistingAgentPrefix(query.query);
+				}
+			} else {
+				// For user input, update the editor value if needed
+				const currentValue = this.getInput();
+				if (!currentValue.startsWith(this._codingAgentPrefix)) {
+					const newValue = this._codingAgentPrefix + this.removeExistingAgentPrefix(currentValue);
+					this.input.inputEditor.setValue(newValue);
+				}
+			}
 		}
 
 		if (!query && this.input.generating) {
@@ -2007,6 +2101,45 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// add to attached list to make the instructions sticky
 		//this.inputPart.attachmentModel.addContext(...computer.autoAddedInstructions);
+	}
+
+	private updateCodingAgentVisualState(): void {
+		if (this._lockedToCodingAgent && this._prefixLockEnabled) {
+			this.container.classList.add('locked-to-coding-agent');
+			// Update placeholder text to indicate locked state
+			this.input.inputEditor.updateOptions({
+				placeholder: `Locked to ${this._lockedToCodingAgent.fullName || this._lockedToCodingAgent.name}. Type your message...`
+			});
+		} else {
+			this.container.classList.remove('locked-to-coding-agent');
+			// Reset placeholder
+			this.input.inputEditor.updateOptions({ placeholder: '' });
+		}
+	}
+
+	private removeExistingAgentPrefix(text: string): string {
+		// Remove any existing agent prefix (e.g., @agent) from the beginning
+		return text.replace(/^@\w+\s*/, '');
+	}
+
+	private checkForCodingAgentLocking(response: IChatResponseModel): void {
+		if (this.isLockedToCodingAgent) {
+			return; // Already locked
+		}
+
+		// Check for ICodingAgentHasBegun progress
+		const progressItems = response.response.value;
+		for (const item of progressItems) {
+			if (item.kind === 'codingAgentSessionBegin') {
+				// Auto-lock to the coding agent
+				const agents = this.chatAgentService.getAgents();
+				const agent = agents.find(agent => agent.id === item.agentId || agent.name === item.agentId);
+				if (agent && agent.isCodingAgent) {
+					this.lockToCodingAgent(agent);
+					break;
+				}
+			}
+		}
 	}
 }
 

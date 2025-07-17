@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { Event } from '../../../../base/common/event.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -24,6 +24,7 @@ export interface IRemoteCodingAgentsService {
 	getRegisteredAgents(): IRemoteCodingAgent[];
 	getAvailableAgents(): IRemoteCodingAgent[];
 	registerAgent(agent: IRemoteCodingAgent): void;
+	onDidRegisterAgent: Event<IRemoteCodingAgent>;
 }
 
 export const IRemoteCodingAgentsService = createDecorator<IRemoteCodingAgentsService>('remoteCodingAgentsService');
@@ -33,6 +34,8 @@ export class RemoteCodingAgentsService extends Disposable implements IRemoteCodi
 	private readonly _ctxHasRemoteCodingAgent: IContextKey<boolean>;
 	private readonly agents: IRemoteCodingAgent[] = [];
 	private readonly contextKeys = new Set<string>();
+	private readonly _onDidRegisterAgent = this._register(new Emitter<IRemoteCodingAgent>());
+	readonly onDidRegisterAgent = this._onDidRegisterAgent.event;
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
@@ -44,6 +47,15 @@ export class RemoteCodingAgentsService extends Disposable implements IRemoteCodi
 		this._register(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(this.contextKeys))(() => {
 			this.updateContextKeys();
 		}));
+
+		// TODO: Register demo agent
+		this.registerAgent(
+			{
+				id: 'joshbot',
+				displayName: 'JoshBot',
+				command: 'joshbot.command'
+			}
+		);
 	}
 
 	getRegisteredAgents(): IRemoteCodingAgent[] {
@@ -57,6 +69,8 @@ export class RemoteCodingAgentsService extends Disposable implements IRemoteCodi
 	registerAgent(agent: IRemoteCodingAgent): void {
 		// Check if agent already exists
 		const existingIndex = this.agents.findIndex(a => a.id === agent.id);
+		const isNew = existingIndex < 0;
+
 		if (existingIndex >= 0) {
 			// Update existing agent
 			this.agents[existingIndex] = agent;
@@ -76,6 +90,11 @@ export class RemoteCodingAgentsService extends Disposable implements IRemoteCodi
 		}
 
 		this.updateContextKeys();
+
+		// Fire event for new agent registrations
+		if (isNew) {
+			this._onDidRegisterAgent.fire(agent);
+		}
 	}
 
 	private isAgentAvailable(agent: IRemoteCodingAgent): boolean {

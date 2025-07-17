@@ -13,6 +13,9 @@ import { isProposedApiEnabled } from '../../../services/extensions/common/extens
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IRemoteCodingAgent, IRemoteCodingAgentsService } from '../common/remoteCodingAgentsService.js';
+import { RemoteCodingAgentsDynamicChatHandler } from './remoteCodingAgentsChatProvider.js';
+import { IChatAgentService } from '../../chat/common/chatAgents.js';
+
 
 interface IRemoteCodingAgentExtensionPoint {
 	id: string;
@@ -62,11 +65,23 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IRemoteCodingAg
 });
 
 export class RemoteCodingAgentsContribution extends Disposable implements IWorkbenchContribution {
+
+	private chatProvider: RemoteCodingAgentsDynamicChatHandler;
+
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IRemoteCodingAgentsService private readonly remoteCodingAgentsService: IRemoteCodingAgentsService
+		@IRemoteCodingAgentsService private readonly remoteCodingAgentsService: IRemoteCodingAgentsService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService
 	) {
 		super();
+
+		// Initialize the chat provider
+		this.chatProvider = new RemoteCodingAgentsDynamicChatHandler(
+			this.remoteCodingAgentsService,
+			this.chatAgentService
+		);
+		this._register(this.chatProvider);
+
 		extensionPoint.setHandler(extensions => {
 			for (const ext of extensions) {
 				if (!isProposedApiEnabled(ext.description, 'remoteCodingAgents')) {

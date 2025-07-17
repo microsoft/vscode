@@ -1,0 +1,82 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-coding-agent-session {
+	margin: 8px 0;
+	padding: 12px;
+	border-left: 3px solid var(--vscode-charts-blue);
+	background-color: var(--vscode-editorWidget-background);
+	border-radius: 4px;
+	position: relative;
+}
+
+.coding-agent-title {
+	display: flex;
+	align-items: center;
+	margin-bottom: 8px;
+	font-weight: bold;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.coding-agent-title .title-text {
+	flex: 1;
+}
+
+.coding-agent-open-btn {
+	background: var(--vscode-button-secondaryBackground);
+	border: 1px solid var(--vscode-button-border);
+	cursor: pointer;
+	padding: 4px 8px;
+	border-radius: 3px;
+	color: var(--vscode-button-secondaryForeground);
+	font-size: 12px;
+	transition: all 0.2s;
+	display: flex;
+	align-items: center;
+	margin-left: auto;
+}
+
+.coding-agent-open-btn:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+	color: var(--vscode-button-foreground);
+}
+
+.coding-agent-open-btn:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.coding-agent-title .codicon-robot {
+	margin-right: 8px;
+	color: var(--vscode-charts-blue);
+}
+
+.coding-agent-content {
+	margin-left: 24px; /* Align with text after icon */
+}
+
+.chat-coding-agent-status {
+	display: flex;
+	align-items: center;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	margin: 4px 0;
+	padding: 4px 8px;
+	line-height: 1.4em;
+	background-color: var(--vscode-panel-background);
+	border-radius: 2px;
+}
+
+.chat-coding-agent-status .codicon-sync.codicon-modifier-spin {
+	animation-duration: 2s;
+	margin-right: 6px;
+	color: var(--vscode-progressBar-background);
+}
+
+.chat-coding-agent-status .file-count {
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+}

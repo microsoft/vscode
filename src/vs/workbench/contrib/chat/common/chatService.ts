@@ -298,6 +298,46 @@ export interface IChatPrepareToolInvocationPart {
 	readonly toolName: string;
 }
 
+export interface ICodingAgentHasBegun {
+	readonly kind: 'codingAgentSessionBegin';
+	readonly agentDisplayName: string;
+	readonly agentId: string;
+	readonly jobId: string;
+	readonly title: string;
+	readonly description: string;
+	readonly command?: string;
+}
+
+export interface ICodingAgentStatusUpdate {
+	readonly kind: 'codingAgentStatusUpdate';
+	readonly agentId: string;
+	readonly jobId: string;
+	readonly timestamp: number;
+	readonly data: {
+		readonly filesChanged?: {
+			readonly uri: URI;
+			readonly type: 'created' | 'modified' | 'deleted';
+			readonly preview?: string;
+		}[];
+		readonly messages?: {
+			readonly type: 'request' | 'response';
+			readonly content: string;
+			readonly timestamp: number;
+		}[];
+		readonly logs?: {
+			readonly level: 'info' | 'warn' | 'error';
+			readonly message: string;
+			readonly timestamp: number;
+		}[];
+		readonly links?: {
+			readonly uri: URI;
+			readonly label: string;
+			readonly tooltip?: string;
+		}[];
+		readonly icon?: ThemeIcon;
+	};
+}
+
 export type IChatProgress =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
@@ -322,7 +362,9 @@ export type IChatProgress =
 	| IChatUndoStop
 	| IChatPrepareToolInvocationPart
 	| IChatTaskSerialized
-	| IChatElicitationRequest;
+	| IChatElicitationRequest
+	| ICodingAgentHasBegun
+	| ICodingAgentStatusUpdate;
 
 export interface IChatFollowup {
 	kind: 'reply';
