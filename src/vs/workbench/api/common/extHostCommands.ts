@@ -398,8 +398,10 @@ export class CommandsConverter implements extHostTypeConverter.Command.ICommands
 			const id = `${command.command} /${++this._cachIdPool}`;
 			this._cache.set(id, command);
 			disposables.add(toDisposable(() => {
-				this._cache.delete(id);
-				this._logService.trace('CommandsConverter#DISPOSE', id);
+				setTimeout(() => {
+					this._cache.delete(id);
+					this._logService.trace('CommandsConverter#DISPOSE', id);
+				}, 5000);
 			}));
 			result.$ident = id;
 
