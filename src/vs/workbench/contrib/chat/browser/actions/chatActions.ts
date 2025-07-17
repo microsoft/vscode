@@ -501,7 +501,7 @@ export function registerChatActions() {
 			}
 
 			interface ICodingAgentPickerItem extends IChatPickerItem {
-				handle: number;
+				uri?: URI;
 			}
 
 			const getPicks = async (showAllChats: boolean = false, showAllAgents: boolean = false) => {
@@ -574,11 +574,11 @@ export function registerChatActions() {
 										lastMessageDate: 0,
 									},
 									buttons: [],
-									handle: 0 // Default handle
+									uri: sessionContent.uri
 								};
 
 								// Check if this agent already exists (update existing or add new)
-								const existingIndex = agentPicks.findIndex(pick => pick.chat.sessionId === sessionContent.uri.toString());
+								const existingIndex = agentPicks.findIndex(pick => pick.chat.sessionId === sessionContent.uri.path);
 								if (existingIndex >= 0) {
 									agentPicks[existingIndex] = agentPick;
 								} else {
@@ -613,7 +613,7 @@ export function registerChatActions() {
 											lastMessageDate: 0,
 										},
 										buttons: [],
-										handle: -1 // Special handle for "show more" option
+										uri: undefined,
 									});
 								}
 							}
@@ -755,7 +755,7 @@ export function registerChatActions() {
 							true
 						);
 						return;
-					} else if ((item as ICodingAgentPickerItem).handle !== undefined) {
+					} else if ((item as ICodingAgentPickerItem).uri !== undefined) {
 						// TODO: handle click
 						return;
 					}
