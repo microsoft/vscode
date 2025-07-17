@@ -9,6 +9,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
+import { AskUserToContinuePollingTool, AskUserToContinuePollingToolData } from './askUserToContinuePollingTool.js';
 import { GetTerminalOutputTool, GetTerminalOutputToolData } from './getTerminalOutputTool.js';
 import { RunInTerminalTool, RunInTerminalToolData } from './runInTerminalTool.js';
 
@@ -33,6 +34,11 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 			const getTerminalOutputTool = instantiationService.createInstance(GetTerminalOutputTool);
 			this._register(toolsService.registerToolData(GetTerminalOutputToolData));
 			this._register(toolsService.registerToolImplementation(GetTerminalOutputToolData.id, getTerminalOutputTool));
+
+
+			const askUserToContinuePollingTool = instantiationService.createInstance(AskUserToContinuePollingTool);
+			this._register(toolsService.registerToolData(AskUserToContinuePollingToolData));
+			this._register(toolsService.registerToolImplementation(AskUserToContinuePollingToolData.id, askUserToContinuePollingTool));
 		}
 	}
 }

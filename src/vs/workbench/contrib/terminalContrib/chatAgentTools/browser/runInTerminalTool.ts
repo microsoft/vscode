@@ -35,6 +35,7 @@ import { RichExecuteStrategy } from './executeStrategy/richExecuteStrategy.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from './subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from './toolTerminalCreator.js';
+import { AskUserToContinuePollingToolData } from './askUserToContinuePollingTool.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -258,10 +259,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				// Poll for output until the terminal is idle or 20 seconds have passed
 				outputAndIdle = await this._pollForOutputAndIdle(execution);
 				if (!outputAndIdle.idle) {
-					// const shouldContinue = await this._languageModelToolsService.invokeTool(AskUserToContinuePollingToolData, _countTokens, token);
-					// if (shouldContinue.content?.[0].value === 'true') {
-					// outputAndIdle = await this._pollForOutput(execution, true);
-					// }
+					const shouldContinue = await this._languageModelToolsService.invokeTool({ toolId: AskUserToContinuePollingToolData.id, callId: invocation.callId, parameters: { requestId: invocation.chatRequestId }, context: { sessionId: chatSessionId } }, _countTokens, token);
+					if (shouldContinue.content?.[0].value === 'true') {
+						outputAndIdle = await this._pollForOutputAndIdle(execution, true);
+					}
 				}
 				let resultText = (
 					didUserEditCommand
