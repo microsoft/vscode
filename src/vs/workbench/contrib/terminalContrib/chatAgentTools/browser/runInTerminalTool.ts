@@ -21,7 +21,7 @@ import { TerminalCapability } from '../../../../../platform/terminal/common/capa
 import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
-import type { IChatTerminalToolInvocationData } from '../../../chat/common/chatService.js';
+import { IChatService, type IChatTerminalToolInvocationData } from '../../../chat/common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../terminal/browser/xterm/xtermTerminal.js';
@@ -35,7 +35,8 @@ import { RichExecuteStrategy } from './executeStrategy/richExecuteStrategy.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from './subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from './toolTerminalCreator.js';
-import { AskUserToContinuePollingToolData } from './askUserToContinuePollingTool.js';
+import { ChatModel } from '../../../chat/common/chatModel.js';
+import { ChatElicitationRequestPart } from '../../../chat/browser/chatElicitationRequestPart.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -141,6 +142,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@IChatService private readonly _chatService: IChatService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
@@ -259,9 +261,23 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				// Poll for output until the terminal is idle or 20 seconds have passed
 				outputAndIdle = await this._pollForOutputAndIdle(execution);
 				if (!outputAndIdle.idle) {
-					const shouldContinue = await this._languageModelToolsService.invokeTool({ toolId: AskUserToContinuePollingToolData.id, callId: invocation.callId, parameters: {}, context: { sessionId: chatSessionId } }, _countTokens, token);
-					if (shouldContinue.content?.[0].value === 'true') {
-						outputAndIdle = await this._pollForOutputAndIdle(execution, true);
+					const chatModel = invocation.context?.sessionId && this._chatService.getSession(invocation.context?.sessionId);
+					if (chatModel instanceof ChatModel) {
+						const request = chatModel.getRequests().at(-1);
+						if (request) {
+							const part = new ChatElicitationRequestPart(
+								localize('poll.terminal.title', 'Continue waiting for task'),
+								'Continue waiting for the task to finish up to 2 minutes',
+								'Continue waiting for the task to finish up to 2 minutes',
+								async () => {
+									outputAndIdle = await this._pollForOutputAndIdle(execution, true);
+								},
+								() => {
+									return Promise.resolve();
+								}
+							);
+							chatModel.acceptResponseProgress(request, part);
+						}
 					}
 				}
 				let resultText = (
