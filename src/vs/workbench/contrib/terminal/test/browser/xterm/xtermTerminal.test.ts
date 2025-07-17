@@ -135,16 +135,6 @@ suite('XtermTerminal', () => {
 	suite('getContentsAsText', () => {
 		let testXterm: XtermTerminal;
 
-		function createMockMarker(line: number): any {
-			return {
-				id: Math.random(),
-				line,
-				isDisposed: line === -1,
-				onDispose: new Emitter<void>().event,
-				dispose: () => { }
-			};
-		}
-
 		function write(xterm: XtermTerminal, data: string): Promise<void> {
 			return new Promise<void>((resolve) => {
 				xterm.write(data, resolve);
@@ -174,35 +164,41 @@ suite('XtermTerminal', () => {
 		});
 
 		test('should return contents from start marker to end', async () => {
-			await write(testXterm, 'line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5');
+			await write(testXterm, 'line 1\r\n');
+			const startMarker = testXterm.raw.registerMarker(0)!;
+			await write(testXterm, 'line 2\r\nline 3\r\nline 4\r\nline 5');
 
-			const startMarker = createMockMarker(1);
 			const result = testXterm.getContentsAsText(startMarker);
 			strictEqual(result.startsWith('line 2\nline 3\nline 4\nline 5'), true, 'Should start with line 2 and include empty lines');
 		});
 
 		test('should return contents from start to end marker', async () => {
-			await write(testXterm, 'line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5');
+			await write(testXterm, 'line 1\r\n');
+			const startMarker = testXterm.raw.registerMarker(0)!;
+			await write(testXterm, 'line 2\r\nline 3\r\n');
+			const endMarker = testXterm.raw.registerMarker(0)!;
+			await write(testXterm, 'line 4\r\nline 5');
 
-			const startMarker = createMockMarker(1);
-			const endMarker = createMockMarker(3);
 			const result = testXterm.getContentsAsText(startMarker, endMarker);
 			strictEqual(result, 'line 2\nline 3\nline 4');
 		});
 
 		test('should return single line when start and end markers are the same', async () => {
-			await write(testXterm, 'line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5');
+			await write(testXterm, 'line 1\r\nline 2\r\n');
+			const marker = testXterm.raw.registerMarker(0)!;
+			await write(testXterm, 'line 3\r\nline 4\r\nline 5');
 
-			const marker = createMockMarker(2);
 			const result = testXterm.getContentsAsText(marker, marker);
 			strictEqual(result, 'line 3');
 		});
 
 		test('should return empty string when start marker is beyond end marker', async () => {
-			await write(testXterm, 'line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5');
+			await write(testXterm, 'line 1\r\n');
+			const endMarker = testXterm.raw.registerMarker(0)!;
+			await write(testXterm, 'line 2\r\nline 3\r\n');
+			const startMarker = testXterm.raw.registerMarker(0)!;
+			await write(testXterm, 'line 4\r\nline 5');
 
-			const startMarker = createMockMarker(3);
-			const endMarker = createMockMarker(1);
 			const result = testXterm.getContentsAsText(startMarker, endMarker);
 			strictEqual(result, '');
 		});
@@ -222,7 +218,13 @@ suite('XtermTerminal', () => {
 		});
 
 		test('should throw error when startMarker is disposed (line === -1)', async () => {
-			const disposedMarker = createMockMarker(-1);
+			await write(testXterm, 'line 1\r\n');
+			const disposedMarker = testXterm.raw.registerMarker(0)!;
+			await write(testXterm, 'line 2\r\nline 3\r\nline 4\r\nline 5');
+
+			// Dispose the marker
+			disposedMarker.dispose();
+
 			try {
 				testXterm.getContentsAsText(disposedMarker);
 				throw new Error('Expected error was not thrown');
@@ -232,8 +234,15 @@ suite('XtermTerminal', () => {
 		});
 
 		test('should throw error when endMarker is disposed (line === -1)', async () => {
-			const startMarker = createMockMarker(0);
-			const disposedEndMarker = createMockMarker(-1);
+			await write(testXterm, 'line 1\r\n');
+			const startMarker = testXterm.raw.registerMarker(0)!;
+			await write(testXterm, 'line 2\r\n');
+			const disposedEndMarker = testXterm.raw.registerMarker(0)!;
+			await write(testXterm, 'line 3\r\nline 4\r\nline 5');
+
+			// Dispose the end marker
+			disposedEndMarker.dispose();
+
 			try {
 				testXterm.getContentsAsText(startMarker, disposedEndMarker);
 				throw new Error('Expected error was not thrown');
@@ -243,10 +252,11 @@ suite('XtermTerminal', () => {
 		});
 
 		test('should handle markers at buffer boundaries', async () => {
-			await write(testXterm, 'line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5');
+			const startMarker = testXterm.raw.registerMarker(0)!;
+			await write(testXterm, 'line 1\r\nline 2\r\nline 3\r\nline 4\r\n');
+			const endMarker = testXterm.raw.registerMarker(0)!;
+			await write(testXterm, 'line 5');
 
-			const startMarker = createMockMarker(0);
-			const endMarker = createMockMarker(4);
 			const result = testXterm.getContentsAsText(startMarker, endMarker);
 			strictEqual(result, 'line 1\nline 2\nline 3\nline 4\nline 5', 'Should handle markers at buffer boundaries correctly');
 		});
