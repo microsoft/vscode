@@ -192,6 +192,7 @@ export interface IMcpManagementService {
 	readonly onUninstallMcpServer: Event<UninstallMcpServerEvent>;
 	readonly onDidUninstallMcpServer: Event<DidUninstallMcpServerEvent>;
 	getInstalled(mcpResource?: URI): Promise<ILocalMcpServer[]>;
+	canInstall(server: IGalleryMcpServer | IInstallableMcpServer): true | IMarkdownString;
 	install(server: IInstallableMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
 	installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
 	updateMetadata(local: ILocalMcpServer, server: IGalleryMcpServer, profileLocation?: URI): Promise<ILocalMcpServer>;
@@ -203,7 +204,7 @@ export interface IAllowedMcpServersService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeAllowedMcpServers: Event<void>;
-	isAllowed(mcpServer: IGalleryMcpServer | ILocalMcpServer): true | IMarkdownString;
+	isAllowed(mcpServer: IGalleryMcpServer | ILocalMcpServer | IInstallableMcpServer): true | IMarkdownString;
 }
 
 export const mcpEnabledConfig = 'chat.mcp.enabled';

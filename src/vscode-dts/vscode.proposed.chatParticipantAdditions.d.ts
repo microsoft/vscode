@@ -258,6 +258,13 @@ declare module 'vscode' {
 		readonly tools: Map<string, boolean>;
 	}
 
+	export namespace lm {
+		/**
+		 * Fired when the set of tools on a chat request changes.
+		 */
+		export const onDidChangeChatRequestTools: Event<ChatRequest>;
+	}
+
 	// TODO@API fit this into the stream
 	export interface ChatUsedContext {
 		documents: ChatDocumentContext[];

@@ -21,7 +21,7 @@ import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
-	override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
+	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
 
 	get commandLineAutoApprover(): CommandLineAutoApprover { return this._commandLineAutoApprover; }
 

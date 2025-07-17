@@ -826,6 +826,11 @@ export interface IEditorOptions {
 	editContext?: boolean;
 
 	/**
+	 * Controls whether to render rich HTML screen reader content when the EditContext is enabled
+	 */
+	renderRichScreenReaderContent?: boolean;
+
+	/**
 	 * Controls support for changing how content is pasted into the editor.
 	 */
 	pasteAs?: IPasteAsOptions;
@@ -5693,6 +5698,7 @@ export const enum EditorOption {
 	readOnly,
 	readOnlyMessage,
 	renameOnType,
+	renderRichScreenReaderContent,
 	renderControlCharacters,
 	renderFinalNewline,
 	renderLineHighlight,
@@ -6062,6 +6068,12 @@ export const EditorOptions = {
 		{
 			description: nls.localize('editContext', "Sets whether the EditContext API should be used instead of the text area to power input in the editor."),
 			included: platform.isChrome || platform.isEdge || platform.isNative
+		}
+	)),
+	renderRichScreenReaderContent: register(new EditorBooleanOption(
+		EditorOption.renderRichScreenReaderContent, 'renderRichScreenReaderContent', false,
+		{
+			description: nls.localize('renderRichScreenReaderContent', "Whether to render rich screen reader content when the `editor.experimentalEditContext` is enabled."),
 		}
 	)),
 	stickyScroll: register(new EditorStickyScroll()),

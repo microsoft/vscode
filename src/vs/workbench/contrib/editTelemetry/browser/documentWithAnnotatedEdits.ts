@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncIterableObject, raceTimeout } from '../../../../base/common/async.js';
+import { AsyncIterableProducer } from '../../../../base/common/async.js';
 import { CachedFunction } from '../../../../base/common/cache.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservableWithChange, ISettableObservable, observableValue, RemoveUndefined, runOnChange } from '../../../../base/common/observable.js';
 import { AnnotatedStringEdit, IEditData } from '../../../../editor/common/core/edits/stringEdit.js';
 import { StringText } from '../../../../editor/common/core/text/abstractText.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
-import { TextModelEditReason } from '../../../../editor/common/textModelEditReason.js';
+import { TextModelEditSource } from '../../../../editor/common/textModelEditSource.js';
 import { IObservableDocument } from './observableWorkspace.js';
+import { AsyncReader, AsyncReaderEndOfStream, mapObservableDelta } from './utils.js';
 
 export interface IDocumentWithAnnotatedEdits<TEditData extends IEditData<TEditData> = EditKeySourceData> {
 	readonly value: IObservableWithChange<StringText, { edit: AnnotatedStringEdit<TEditData> }>;
@@ -53,7 +54,7 @@ export class EditSourceData implements IEditData<EditSourceData> {
 	public readonly key;
 
 	constructor(
-		public readonly editReason: TextModelEditReason
+		public readonly editReason: TextModelEditSource
 	) {
 		this.key = this.editReason.toKey(1);
 		this.source = EditSourceBase.create(this.editReason);
@@ -75,7 +76,7 @@ export class EditKeySourceData implements IEditData<EditKeySourceData> {
 	constructor(
 		public readonly key: string,
 		public readonly source: EditSource,
-		public readonly representative: TextModelEditReason,
+		public readonly representative: TextModelEditSource,
 	) { }
 
 	join(data: EditKeySourceData): EditKeySourceData | undefined {
@@ -93,7 +94,7 @@ export class EditKeySourceData implements IEditData<EditKeySourceData> {
 export abstract class EditSourceBase {
 	private static _cache = new CachedFunction({ getCacheKey: v => v.toString() }, (arg: EditSource) => arg);
 
-	public static create(reason: TextModelEditReason): EditSource {
+	public static create(reason: TextModelEditSource): EditSource {
 		const data = reason.metadata;
 		switch (data.source) {
 			case 'reloadFromDisk':
@@ -277,7 +278,7 @@ function isChatEdit(next: { value: StringText; change: { edit: AnnotatedStringEd
 }
 
 function iterateChangesFromObservable<T, TChange>(obs: IObservableWithChange<T, TChange>, store: DisposableStore): AsyncIterable<{ value: T; prevValue: T; change: RemoveUndefined<TChange>[] }> {
-	return new AsyncIterableObject<{ value: T; prevValue: T; change: RemoveUndefined<TChange>[] }>((e) => {
+	return new AsyncIterableProducer<{ value: T; prevValue: T; change: RemoveUndefined<TChange>[] }>((e) => {
 		store.add(runOnChange(obs, (value, prevValue, change) => {
 			e.emitOne({ value, prevValue, change: change });
 		}));
@@ -316,111 +317,14 @@ export class MinimizeEditsProcessor<TEditData extends IEditData<TEditData>> exte
 	}
 }
 
-export const AsyncReaderEndOfStream = Symbol('AsyncReaderEndOfStream');
-
-export class AsyncReader<T> {
-	private _buffer: T[] = [];
-	private _atEnd = false;
-
-	public get endOfStream(): boolean { return this._buffer.length === 0 && this._atEnd; }
-
-	constructor(
-		private readonly _source: AsyncIterator<T>
-	) {
-	}
-
-	private async _extendBuffer(): Promise<void> {
-		if (this._atEnd) {
-			return;
-		}
-		const { value, done } = await this._source.next();
-		if (done) {
-			this._atEnd = true;
-		} else {
-			this._buffer.push(value);
-		}
-	}
-
-	public async peek(): Promise<T | typeof AsyncReaderEndOfStream> {
-		if (this._buffer.length === 0 && !this._atEnd) {
-			await this._extendBuffer();
-		}
-		if (this._buffer.length === 0) {
-			return AsyncReaderEndOfStream;
-		}
-		return this._buffer[0];
-	}
-
-	public peekSyncOrThrow(): T | typeof AsyncReaderEndOfStream {
-		if (this._buffer.length === 0) {
-			if (this._atEnd) {
-				return AsyncReaderEndOfStream;
-			}
-			throw new Error('No more elements');
-		}
-
-		return this._buffer[0];
-	}
-
-	public readSyncOrThrow(): T | typeof AsyncReaderEndOfStream {
-		if (this._buffer.length === 0) {
-			if (this._atEnd) {
-				return AsyncReaderEndOfStream;
-			}
-			throw new Error('No more elements');
-		}
-
-		return this._buffer.shift()!;
-	}
-
-	public async peekNextTimeout(timeoutMs: number): Promise<T | typeof AsyncReaderEndOfStream | undefined> {
-		if (this._buffer.length === 0 && !this._atEnd) {
-			await raceTimeout(this._extendBuffer(), timeoutMs);
-		}
-		if (this._atEnd) {
-			return AsyncReaderEndOfStream;
-		}
-		if (this._buffer.length === 0) {
-			return undefined;
-		}
-		return this._buffer[0];
-	}
-
-	public async waitForBufferTimeout(timeoutMs: number): Promise<boolean> {
-		if (this._buffer.length > 0 || this._atEnd) {
-			return true;
-		}
-		const result = await raceTimeout(this._extendBuffer().then(() => true), timeoutMs);
-		return result !== undefined;
-	}
-
-	public async read(): Promise<T | typeof AsyncReaderEndOfStream> {
-		if (this._buffer.length === 0 && !this._atEnd) {
-			await this._extendBuffer();
-		}
-		if (this._buffer.length === 0) {
-			return AsyncReaderEndOfStream;
-		}
-		return this._buffer.shift()!;
-	}
-
-	public async readWhile(predicate: (value: T) => boolean, callback: (element: T) => unknown): Promise<void> {
-		do {
-			const piece = await this.peek();
-			if (piece === AsyncReaderEndOfStream) {
-				break;
-			}
-			if (!predicate(piece)) {
-				break;
-			}
-			await this.read(); // consume
-			await callback(piece);
-		} while (true);
-	}
-
-	public async consumeToEnd(): Promise<void> {
-		while (!this.endOfStream) {
-			await this.read();
-		}
-	}
+/**
+ * Removing the metadata allows touching edits from the same source to merged, even if they were caused by different actions (e.g. two user edits).
+ */
+export function createDocWithJustReason(docWithAnnotatedEdits: IDocumentWithAnnotatedEdits<EditSourceData>, store: DisposableStore): IDocumentWithAnnotatedEdits<EditKeySourceData> {
+	const docWithJustReason: IDocumentWithAnnotatedEdits<EditKeySourceData> = {
+		value: mapObservableDelta(docWithAnnotatedEdits.value, edit => ({ edit: edit.edit.mapData(d => d.data.toEditSourceData()) }), store),
+		waitForQueue: () => docWithAnnotatedEdits.waitForQueue(),
+	};
+	return docWithJustReason;
 }
+

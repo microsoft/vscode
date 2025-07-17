@@ -46,7 +46,7 @@ interface IStoredTerminalAssociation {
 }
 
 export const RunInTerminalToolData: IToolData = {
-	id: 'vscode_runInTerminal',
+	id: 'run_in_terminal2',
 	toolReferenceName: 'runInTerminal2',
 	canBeReferencedInPrompt: true,
 	displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
@@ -92,7 +92,7 @@ export const RunInTerminalToolData: IToolData = {
 			},
 			isBackground: {
 				type: 'boolean',
-				description: 'Whether the command starts a background process. If true, the command will run in the background and you will not see the output. If false, the tool call will block on the command finishing, and then you will get the output. Examples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using getTerminalOutput.'
+				description: 'Whether the command starts a background process. If true, the command will run in the background and you will not see the output. If false, the tool call will block on the command finishing, and then you will get the output. Examples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using get_terminal_output2.'
 			},
 		},
 		required: [
@@ -276,7 +276,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				throw e;
 			} finally {
 				const timingExecuteMs = Date.now() - timingStart;
-				this._sendTelemetry({
+				this._sendTelemetry(toolTerminal.instance, {
 					didUserEditCommand,
 					didToolEditCommand,
 					shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
@@ -347,7 +347,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				throw e;
 			} finally {
 				const timingExecuteMs = Date.now() - timingStart;
-				this._sendTelemetry({
+				this._sendTelemetry(toolTerminal.instance, {
 					didUserEditCommand,
 					didToolEditCommand,
 					isBackground: false,
@@ -515,7 +515,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	private _sendTelemetry(state: {
+	private _sendTelemetry(instance: ITerminalInstance, state: {
 		didUserEditCommand: boolean;
 		didToolEditCommand: boolean;
 		error: string | undefined;
@@ -528,6 +528,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		exitCode: number | undefined;
 	}) {
 		type TelemetryEvent = {
+			terminalSessionId: string;
+
 			result: string;
 			strategy: 0 | 1 | 2;
 			userEditedCommand: 0 | 1;
@@ -543,6 +545,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			owner: 'tyriar';
 			comment: 'Understanding the usage of the runInTerminal tool';
 
+			terminalSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID of the terminal instance.' };
+
 			result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the tool ran successfully, or the type of error' };
 			strategy: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'What strategy was used to execute the command (0=none, 1=basic, 2=rich)' };
 			userEditedCommand: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user edited the command' };
@@ -555,6 +559,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			timingExecuteMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the command took to execute' };
 		};
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal', {
+			terminalSessionId: instance.sessionId,
 			result: state.error ?? 'success',
 			strategy: state.shellIntegrationQuality === ShellIntegrationQuality.Rich ? 2 : state.shellIntegrationQuality === ShellIntegrationQuality.Basic ? 1 : 0,
 			userEditedCommand: state.didUserEditCommand ? 1 : 0,

@@ -891,8 +891,16 @@ export class Repository implements Disposable {
 
 		this.disposables.push(new FileEventLogger(onRepositoryWorkingTreeFileChange, onRepositoryDotGitFileChange, logger));
 
+		// Parent source control
+		const parentRoot = repository.kind === 'submodule'
+			? repository.dotGit.superProjectPath
+			: repository.kind === 'worktree' && repository.dotGit.commonPath
+				? path.dirname(repository.dotGit.commonPath)
+				: undefined;
+		const parent = this.repositoryResolver.getRepository(parentRoot)?.sourceControl;
+
 		const root = Uri.file(repository.root);
-		this._sourceControl = scm.createSourceControl('git', 'Git', root);
+		this._sourceControl = scm.createSourceControl('git', 'Git', root, parent);
 		this._sourceControl.contextValue = repository.kind;
 
 		this._sourceControl.quickDiffProvider = this;
@@ -1707,6 +1715,10 @@ export class Repository implements Disposable {
 
 	async deleteTag(name: string): Promise<void> {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
+	}
+
+	async worktree(options: { path: string; name: string }): Promise<void> {
+		await this.run(Operation.Worktree, () => this.repository.worktree(options));
 	}
 
 	async deleteWorktree(path: string): Promise<void> {
