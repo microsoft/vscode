@@ -207,7 +207,12 @@ export interface ILanguageModelsService {
 
 	lookupLanguageModel(modelId: string): ILanguageModelChatMetadata | undefined;
 
-	selectLanguageModels(selector: ILanguageModelChatSelector): Promise<string[]>;
+	/**
+	 * Given a selector, returns a list of model identifiers
+	 * @param selector The selector to lookup for language models. If the selector is empty, all language models are returned.
+	 * @param allowPromptingUser If true the user may be prompted for things like API keys for us to select the model.
+	 */
+	selectLanguageModels(selector: ILanguageModelChatSelector, allowPromptingUser?: boolean): Promise<string[]>;
 
 	registerLanguageModelProvider(vendor: string, provider: ILanguageModelChatProvider): IDisposable;
 
@@ -393,18 +398,18 @@ export class LanguageModelsService implements ILanguageModelsService {
 		this._onLanguageModelChange.fire();
 	}
 
-	async selectLanguageModels(selector: ILanguageModelChatSelector): Promise<string[]> {
+	async selectLanguageModels(selector: ILanguageModelChatSelector, allowPromptingUser?: boolean): Promise<string[]> {
 
 		if (selector.vendor) {
 			// selective activation
 			await this._extensionService.activateByEvent(`onLanguageModelChat:${selector.vendor}}`);
-			await this.resolveLanguageModels([selector.vendor], true);
+			await this.resolveLanguageModels([selector.vendor], !allowPromptingUser);
 		} else {
 			// activate all extensions that do language models
 			const allVendors = Array.from(this._vendors.keys());
 			const all = allVendors.map(vendor => this._extensionService.activateByEvent(`onLanguageModelChat:${vendor}`));
 			await Promise.all(all);
-			await this.resolveLanguageModels(allVendors, true);
+			await this.resolveLanguageModels(allVendors, !allowPromptingUser);
 		}
 
 		const result: string[] = [];
