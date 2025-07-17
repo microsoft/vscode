@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/resources.js';
@@ -306,6 +307,33 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		});
 		this._onChange.fire(undefined);
 		return [...this.local];
+	}
+
+	canInstall(mcpServer: IWorkbenchMcpServer): true | IMarkdownString {
+		if (!(mcpServer instanceof McpWorkbenchServer)) {
+			return new MarkdownString().appendText(localize('not an extension', "The provided object is not an mcp server."));
+		}
+
+		if (mcpServer.gallery) {
+			const result = this.mcpManagementService.canInstall(mcpServer.gallery);
+			if (result === true) {
+				return true;
+			}
+
+			return result;
+		}
+
+		if (mcpServer.installable) {
+			const result = this.mcpManagementService.canInstall(mcpServer.installable);
+			if (result === true) {
+				return true;
+			}
+
+			return result;
+		}
+
+
+		return new MarkdownString().appendText(localize('cannot be installed', "Cannot install the '{0}' MCP Server because it is not available in this setup.", mcpServer.label));
 	}
 
 	async install(server: IWorkbenchMcpServer): Promise<IWorkbenchMcpServer> {
