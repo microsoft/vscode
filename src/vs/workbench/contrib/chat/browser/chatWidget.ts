@@ -1565,6 +1565,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private async _applyPromptFileIfSet(requestInput: IChatRequestInputOptions): Promise<IPromptParserResult | undefined> {
+		if (!PromptsConfig.enabled(this.configurationService)) {
+			// if prompts are not enabled, we don't need to do anything
+			return undefined;
+		}
+
 
 		let parseResult: IPromptParserResult | undefined;
 
@@ -1635,12 +1640,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			const isUserQuery = !query;
 
-			const instructionsEnabled = PromptsConfig.enabled(this.configurationService);
-			if (instructionsEnabled) {
-				// process the prompt command
-				await this._applyPromptFileIfSet(requestInputs);
-				await this._autoAttachInstructions(requestInputs);
-			}
+			// process the prompt command and instruction files
+			await this._applyPromptFileIfSet(requestInputs);
+			await this._autoAttachInstructions(requestInputs);
 
 			if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentModeKind === ChatModeKind.Edit && !this.chatService.edits2Enabled) {
 				const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
@@ -1980,13 +1982,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * - instructions referenced in an already included instruction file
 	 */
 	private async _autoAttachInstructions({ attachedContext }: IChatRequestInputOptions): Promise<void> {
-		let readFileTool = this.toolsService.getToolByName('readFile');
-		if (readFileTool && this.getUserSelectedTools()?.[readFileTool.id] === false) {
-			readFileTool = undefined;
-		}
+		const promptsConfigEnabled = PromptsConfig.enabled(this.configurationService);
+		this.logService.debug(`ChatWidget#_autoAttachInstructions: ${PromptsConfig.KEY}: ${promptsConfigEnabled}`);
 
-		const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, readFileTool);
-		await computer.collect(attachedContext, CancellationToken.None);
+		if (promptsConfigEnabled) {
+			let readFileTool = this.toolsService.getToolByName('readFile');
+			if (readFileTool && this.getUserSelectedTools()?.[readFileTool.id] === false) {
+				readFileTool = undefined;
+			}
+
+			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, readFileTool);
+			await computer.collect(attachedContext, CancellationToken.None);
+		} else {
+			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, undefined);
+			await computer.collectCopilotInstructionsOnly(attachedContext, CancellationToken.None);
+		}
 
 		// add to attached list to make the instructions sticky
 		//this.inputPart.attachmentModel.addContext(...computer.autoAddedInstructions);
