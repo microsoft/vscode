@@ -543,6 +543,12 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 	private static _handlePool: number = 0;
 
+	readonly onDidDisposeParent: Event<void>;
+
+	private readonly _onDidDispose = new Emitter<void>();
+	readonly onDidDispose = this._onDidDispose.event;
+
+
 	#proxy: MainThreadSCMShape;
 
 	private _groups: Map<GroupHandle, ExtHostSourceControlResourceGroup> = new Map<GroupHandle, ExtHostSourceControlResourceGroup>();
@@ -781,6 +787,8 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 		this._inputBox = new ExtHostSCMInputBox(_extension, _extHostDocuments, this.#proxy, this.handle, inputBoxDocumentUri);
 		this.#proxy.$registerSourceControl(this.handle, _parent?.handle, _id, _label, _rootUri, inputBoxDocumentUri);
+
+		this.onDidDisposeParent = _parent ? _parent.onDidDispose : Event.None;
 	}
 
 	private createdResourceGroups = new Map<ExtHostSourceControlResourceGroup, IDisposable>();
@@ -867,6 +875,9 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 		this._groups.forEach(group => group.dispose());
 		this.#proxy.$unregisterSourceControl(this.handle);
+
+		this._onDidDispose.fire();
+		this._onDidDispose.dispose();
 	}
 }
 

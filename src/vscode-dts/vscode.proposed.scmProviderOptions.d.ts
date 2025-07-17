@@ -26,6 +26,11 @@ declare module 'vscode' {
 		 * This will show action `extension.gitAction` only for source controls with `contextValue` equal to `repository`.
 		 */
 		contextValue?: string;
+
+		/**
+		 * Fired when the parent source control is disposed.
+		 */
+		readonly onDidDisposeParent: Event<void>;
 	}
 
 	export namespace scm {
