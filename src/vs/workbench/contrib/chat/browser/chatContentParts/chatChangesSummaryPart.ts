@@ -10,8 +10,10 @@ import { IChatChangesSummaryPart, IChatRendererContent } from '../../common/chat
 import { ChatTreeItem } from '../chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { CollapsibleListPool } from './chatReferencesContentPart.js';
-import { IChatChangesSummary } from '../../common/chatService.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IChatChangesSummary, IChatService, IChatUndoStop } from '../../common/chatService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
+import { findLast } from '../../../../../base/common/arraysFind.js';
 
 export class ChatChangesSummaryContentPart extends Disposable implements IChatContentPart {
 
@@ -22,8 +24,9 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 
 	constructor(
 		content: IChatChangesSummaryPart,
-		context: IChatContentPartRenderContext,
-		@IOpenerService private readonly openerService: IOpenerService,
+		private readonly context: IChatContentPartRenderContext,
+		@IChatService private readonly chatService: IChatService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -32,6 +35,8 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 		console.log('this.changes.length', content.changes.length);
 		this.changes = content.changes;
 		this.listPool = this._register(instantiationService.createInstance(CollapsibleListPool, () => Disposable.None, undefined, undefined));
+		const list = this.listPool.get().object;
+		list.splice(0, list.length, this.changes);
 	}
 
 	get domNode(): HTMLElement {
@@ -59,7 +64,37 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 			if (e.element?.kind !== 'changesSummary') {
 				return;
 			}
-			this.openerService.open(e.element.reference);
+			const sessionId = e.element.sessionId;
+			if (!sessionId) {
+				return;
+			}
+			const session = this.chatService.getSession(sessionId);
+			if (!session || !session.editingSessionObs) {
+				return;
+			}
+			const editSession = session.editingSessionObs.promiseResult.get()?.data;
+			if (!editSession) {
+				return;
+			}
+			const uri = e.element.reference;
+			const modifiedEntry = editSession.getEntry(uri);
+			if (!modifiedEntry) {
+				return;
+			}
+			const requestId = e.element.requestId;
+			if (!requestId) {
+				return;
+			}
+			const inUndoStop = (findLast(this.context.content, e => e.kind === 'undoStop', this.context.contentIndex) as IChatUndoStop | undefined)?.id;
+			const diffBetweenStops: IEditSessionEntryDiff | undefined = editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, requestId, inUndoStop)?.get();
+			if (!diffBetweenStops) {
+				return;
+			}
+			this.editorService.openEditor({
+				original: { resource: diffBetweenStops.originalURI },
+				modified: { resource: diffBetweenStops.modifiedURI },
+				options: { transient: true },
+			});
 		}));
 		this._register(list.onContextMenu(e => {
 			console.log('Context menu event:', e);

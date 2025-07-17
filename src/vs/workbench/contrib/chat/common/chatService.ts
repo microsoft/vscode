@@ -116,6 +116,8 @@ export interface IChatChangesSummary {
 	editState?: IChatTextEditGroupState;
 	iconPath?: ThemeIcon | { light: URI; dark?: URI };
 	options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } };
+	sessionId?: string;
+	requestId?: string;
 	kind: 'changesSummary';
 }
 

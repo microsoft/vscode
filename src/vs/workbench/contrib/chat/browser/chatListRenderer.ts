@@ -691,7 +691,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						kind: 'changesSummary',
 						reference: part.uri,
 						edits: part.edits,
-						done: part.done
+						done: part.done,
+						sessionId: element.sessionId,
+						requestId: element.requestId,
 					});
 				}
 			});
@@ -1021,7 +1023,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						kind: 'changesSummary',
 						reference: part.uri,
 						edits: part.edits,
-						done: part.done
+						done: part.done,
+						sessionId: element.sessionId,
+						requestId: element.requestId,
 					});
 				}
 			});
