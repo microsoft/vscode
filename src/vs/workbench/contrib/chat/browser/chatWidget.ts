@@ -1169,9 +1169,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.logService.error('Error occurred while finishing editing:', e);
 			}
 			this.inputContainer = dom.$('.empty-chat-state');
-		}
 
-		this.input.dispose();
+			// only dispose if we know the input is not the bottom input object.
+			this.input.dispose();
+		}
 
 		if (isInput) {
 			this.inputPart.element.classList.remove('editing');
