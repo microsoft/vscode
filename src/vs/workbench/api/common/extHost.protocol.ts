@@ -3119,7 +3119,6 @@ export interface MainThreadChatStatusShape {
 export interface MainThreadChatSessionsShape extends IDisposable {
 	$registerChatSessionsProvider(handle: number): void;
 	$unregisterChatSessionsProvider(handle: number): void;
-	$onDidChangeChatSessionContent(handle: number): void;
 }
 
 export interface ExtHostChatSessionsShape {

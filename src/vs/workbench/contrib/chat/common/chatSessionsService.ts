@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -23,26 +22,21 @@ export interface IChatSessionsProvider {
 }
 
 export interface IChatSessionsService {
-	onDidChangeChatSessionContent: Event<void>;
+	readonly _serviceBrand: undefined;
 	registerChatSessionsProvider(handle: number, provider: IChatSessionsProvider): IDisposable;
 	hasChatSessionsProviders: boolean;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
+
 export class ChatSessionsService extends Disposable implements IChatSessionsService {
+	readonly _serviceBrand: undefined;
 	private _providers: Map<number, IChatSessionsProvider> = new Map();
-	// event to signal updates
-	private readonly _onDidChangeChatSessionContent = new Emitter<void>();
-	readonly onDidChangeChatSessionContent: Event<void> = this._onDidChangeChatSessionContent.event;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-	}
-
-	public updateChatSessionContent(handle: number, content: IChatSessionContent): void {
-		this._onDidChangeChatSessionContent.fire();
 	}
 
 	public async provideChatSessions(token: CancellationToken): Promise<IChatSessionContent[]> {
