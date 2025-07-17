@@ -31,6 +31,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	private readonly _proxy: ExtHostLanguageModelsShape;
 	private readonly _store = new DisposableStore();
 	private readonly _providerRegistrations = new DisposableMap<string>();
+	private readonly _lmProviderChange = new Emitter<{ vendor: string }>();
 	private readonly _pendingProgress = new Map<number, { defer: DeferredPromise<any>; stream: AsyncIterableSource<IChatResponseFragment | IChatResponseFragment[]> }>();
 	private readonly _ignoredFileProviderRegistrations = new DisposableMap<number>();
 
@@ -47,6 +48,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	}
 
 	dispose(): void {
+		this._lmProviderChange.dispose();
 		this._providerRegistrations.dispose();
 		this._ignoredFileProviderRegistrations.dispose();
 		this._store.dispose();
@@ -55,6 +57,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	$registerLanguageModelProvider(vendor: string): void {
 		const dipsosables = new DisposableStore();
 		dipsosables.add(this._chatProviderService.registerLanguageModelProvider(vendor, {
+			onDidChange: Event.filter(this._lmProviderChange.event, e => e.vendor === vendor, dipsosables) as unknown as Event<void>,
 			prepareLanguageModelChat: async (options, token) => {
 				const modelsAndIdentifiers = await this._proxy.$prepareLanguageModelProvider(vendor, options, token);
 				modelsAndIdentifiers.forEach(m => {
@@ -94,6 +97,10 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 			},
 		}));
 		this._providerRegistrations.set(vendor, dipsosables);
+	}
+
+	$onLMProviderChange(vendor: string): void {
+		this._lmProviderChange.fire({ vendor });
 	}
 
 	async $reportResponsePart(requestId: number, chunk: IChatResponseFragment | IChatResponseFragment[]): Promise<void> {

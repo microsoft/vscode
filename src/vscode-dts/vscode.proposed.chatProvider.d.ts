@@ -47,9 +47,6 @@ declare module 'vscode' {
 	// TODO@API names: LanguageModelChatMetadata, LanguageModelChatItem
 	export interface LanguageModelChatInformation {
 
-		// TODO@API IMPLICT from package-json registration
-		// readonly vendor: string;
-
 		readonly id: string;
 
 		/**

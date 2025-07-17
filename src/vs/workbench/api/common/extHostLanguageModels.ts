@@ -179,9 +179,18 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		this._languageModelProviders.set(vendor, { extension: extension.identifier, extensionName: extension.displayName || extension.name, provider });
 		this._proxy.$registerLanguageModelProvider(vendor);
+
+		let providerChangeEventDisposable: IDisposable | undefined;
+		if (provider.onDidChange) {
+			providerChangeEventDisposable = provider.onDidChange(() => {
+				this._proxy.$onLMProviderChange(vendor);
+			});
+		}
+
 		return toDisposable(() => {
 			this._languageModelProviders.delete(vendor);
 			this._clearModelCache(vendor);
+			providerChangeEventDisposable?.dispose();
 			this._proxy.$unregisterProvider(vendor);
 		});
 	}

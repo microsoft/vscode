@@ -16,6 +16,7 @@ import { ExtensionsRegistry } from '../../../../services/extensions/common/exten
 import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPickerWidget.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { Event } from '../../../../../base/common/event.js';
 
 suite('LanguageModels', function () {
 
@@ -50,6 +51,7 @@ suite('LanguageModels', function () {
 		}]);
 
 		store.add(languageModels.registerLanguageModelProvider('test-vendor', {
+			onDidChange: Event.None,
 			prepareLanguageModelChat: async () => {
 				const modelMetadata = [
 					{
@@ -123,6 +125,7 @@ suite('LanguageModels', function () {
 	test('sendChatRequest returns a response-stream', async function () {
 
 		store.add(languageModels.registerLanguageModelProvider('actual-vendor', {
+			onDidChange: Event.None,
 			prepareLanguageModelChat: async () => {
 				const modelMetadata = [
 					{
