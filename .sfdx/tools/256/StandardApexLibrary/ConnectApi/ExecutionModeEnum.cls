@@ -1,0 +1,4 @@
+global enum ExecutionModeEnum {
+FIELDCONFIGURATIONLEVELDATA,
+GRIDLEVELDATA
+}

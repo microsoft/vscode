@@ -111,6 +111,7 @@
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "9.2.0",
+    "ws": "^8.18.3",
     "yauzl": "^3.0.0",
     "yazl": "^2.4.3"
   },
@@ -134,6 +135,7 @@
     "@types/wicg-file-system-access": "^2020.9.6",
     "@types/windows-foreground-love": "^0.3.0",
     "@types/winreg": "^1.2.30",
+    "@types/ws": "^8.18.1",
     "@types/yauzl": "^2.10.0",
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/utils": "^8.8.0",

@@ -42,6 +42,7 @@ import { getFlatContextMenuActions } from '../../../../platform/actions/browser/
 import { defaultMenuStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ActivityBarPosition } from '../../../services/layout/browser/layoutService.js';
+import { log } from 'console';
 
 export type IOpenRecentAction = IAction & { uri: URI; remoteAuthority?: string };
 
@@ -55,45 +56,45 @@ MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 	order: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarEditMenu,
-	title: {
-		value: 'Edit',
-		original: 'Edit',
-		mnemonicTitle: localize({ key: 'mEdit', comment: ['&& denotes a mnemonic'] }, "&&Edit")
-	},
-	order: 2
-});
+// MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+// 	submenu: MenuId.MenubarEditMenu,
+// 	title: {
+// 		value: 'Edit',
+// 		original: 'Edit',
+// 		mnemonicTitle: localize({ key: 'mEdit', comment: ['&& denotes a mnemonic'] }, "&&Edit")
+// 	},
+// 	order: 2
+// });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarSelectionMenu,
-	title: {
-		value: 'Selection',
-		original: 'Selection',
-		mnemonicTitle: localize({ key: 'mSelection', comment: ['&& denotes a mnemonic'] }, "&&Selection")
-	},
-	order: 3
-});
+// MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+// 	submenu: MenuId.MenubarSelectionMenu,
+// 	title: {
+// 		value: 'Selection',
+// 		original: 'Selection',
+// 		mnemonicTitle: localize({ key: 'mSelection', comment: ['&& denotes a mnemonic'] }, "&&Selection")
+// 	},
+// 	order: 3
+// });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarViewMenu,
-	title: {
-		value: 'View',
-		original: 'View',
-		mnemonicTitle: localize({ key: 'mView', comment: ['&& denotes a mnemonic'] }, "&&View")
-	},
-	order: 4
-});
+// MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+// 	submenu: MenuId.MenubarViewMenu,
+// 	title: {
+// 		value: 'View',
+// 		original: 'View',
+// 		mnemonicTitle: localize({ key: 'mView', comment: ['&& denotes a mnemonic'] }, "&&View")
+// 	},
+// 	order: 4
+// });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarGoMenu,
-	title: {
-		value: 'Go',
-		original: 'Go',
-		mnemonicTitle: localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "&&Go")
-	},
-	order: 5
-});
+// MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+// 	submenu: MenuId.MenubarGoMenu,
+// 	title: {
+// 		value: 'Go',
+// 		original: 'Go',
+// 		mnemonicTitle: localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "&&Go")
+// 	},
+// 	order: 5
+// });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 	submenu: MenuId.MenubarTerminalMenu,
@@ -105,15 +106,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 	order: 7
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarHelpMenu,
-	title: {
-		value: 'Help',
-		original: 'Help',
-		mnemonicTitle: localize({ key: 'mHelp', comment: ['&& denotes a mnemonic'] }, "&&Help")
-	},
-	order: 8
-});
+// MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+// 	submenu: MenuId.MenubarHelpMenu,
+// 	title: {
+// 		value: 'Help',
+// 		original: 'Help',
+// 		mnemonicTitle: localize({ key: 'mHelp', comment: ['&& denotes a mnemonic'] }, "&&Help")
+// 	},
+// 	order: 8
+// });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 	submenu: MenuId.MenubarPreferencesMenu,
@@ -211,6 +212,7 @@ export abstract class MenubarControl extends Disposable {
 		this.topLevelTitles = {};
 
 		const [, mainMenuActions] = this.mainMenu.getActions()[0];
+		console.log('Main menu actions:', mainMenuActions);
 		for (const mainMenuAction of mainMenuActions) {
 			if (mainMenuAction instanceof SubmenuItemAction && typeof mainMenuAction.item.title !== 'string') {
 				this.menus[mainMenuAction.item.title.original] = this.mainMenuDisposables.add(this.menuService.createMenu(mainMenuAction.item.submenu, this.contextKeyService, { emitEventsForSubmenuChanges: true }));
@@ -567,13 +569,11 @@ export class CustomMenubarControl extends MenubarControl {
 	private readonly reinstallDisposables = this._register(new DisposableStore());
 	private readonly updateActionsDisposables = this._register(new DisposableStore());
 	private setupCustomMenubar(firstTime: boolean): void {
-		// If there is no container, we cannot setup the menubar
 		if (!this.container) {
 			return;
 		}
 
 		if (firstTime) {
-			// Reset and create new menubar
 			if (this.menubar) {
 				this.reinstallDisposables.clear();
 			}
@@ -588,7 +588,6 @@ export class CustomMenubarControl extends MenubarControl {
 			this.reinstallDisposables.add(this.menubar.onFocusStateChange(focused => {
 				this._onFocusStateChange.fire(focused);
 
-				// When the menubar loses focus, update it to clear any pending updates
 				if (!focused) {
 					if (this.pendingFirstTimeUpdate) {
 						this.setupCustomMenubar(true);
@@ -596,14 +595,12 @@ export class CustomMenubarControl extends MenubarControl {
 					} else {
 						this.updateMenubar();
 					}
-
 					this.focusInsideMenubar = false;
 				}
 			}));
 
 			this.reinstallDisposables.add(this.menubar.onVisibilityChange(e => this.onDidVisibilityChange(e)));
 
-			// Before we focus the menubar, stop updates to it so that focus-related context keys will work
 			this.reinstallDisposables.add(addDisposableListener(this.container, EventType.FOCUS_IN, () => {
 				this.focusInsideMenubar = true;
 			}));
@@ -612,25 +609,19 @@ export class CustomMenubarControl extends MenubarControl {
 				this.focusInsideMenubar = false;
 			}));
 
-			// Fire visibility change for the first install if menu is shown
 			if (this.menubar.isVisible) {
 				this.onDidVisibilityChange(true);
 			}
-		} else {
-			this.menubar?.update(this.getMenuBarOptions());
 		}
 
-		// Update the menu actions
 		const updateActions = (menuActions: readonly IAction[], target: IAction[], topLevelTitle: string, store: DisposableStore) => {
 			target.splice(0);
-
 			for (const menuItem of menuActions) {
 				this.insertActionsBefore(menuItem, target);
 
 				if (menuItem instanceof Separator) {
 					target.push(menuItem);
 				} else if (menuItem instanceof SubmenuItemAction || menuItem instanceof MenuItemAction) {
-					// use mnemonicTitle whenever possible
 					let title = typeof menuItem.item.title === 'string'
 						? menuItem.item.title
 						: menuItem.item.title.mnemonicTitle ?? menuItem.item.title.value;
@@ -638,7 +629,6 @@ export class CustomMenubarControl extends MenubarControl {
 					if (menuItem instanceof SubmenuItemAction) {
 						const submenuActions: SubmenuAction[] = [];
 						updateActions(menuItem.actions, submenuActions, topLevelTitle, store);
-
 						if (submenuActions.length > 0) {
 							target.push(new SubmenuAction(menuItem.id, mnemonicMenuLabel(title), submenuActions));
 						}
@@ -646,17 +636,14 @@ export class CustomMenubarControl extends MenubarControl {
 						if (isICommandActionToggleInfo(menuItem.item.toggled)) {
 							title = menuItem.item.toggled.mnemonicTitle ?? menuItem.item.toggled.title ?? title;
 						}
-
 						const newAction = store.add(new Action(menuItem.id, mnemonicMenuLabel(title), menuItem.class, menuItem.enabled, () => this.commandService.executeCommand(menuItem.id)));
 						newAction.tooltip = menuItem.tooltip;
 						newAction.checked = menuItem.checked;
 						target.push(newAction);
 					}
 				}
-
 			}
 
-			// Append web navigation menu items to the file menu when not compact
 			if (topLevelTitle === 'File' && this.currentCompactMenuMode === undefined) {
 				const webActions = this.getWebNavigationActions();
 				if (webActions.length) {
@@ -665,48 +652,62 @@ export class CustomMenubarControl extends MenubarControl {
 			}
 		};
 
+		// Icon map
+		const iconMap: Record<string, string> = {
+			'File': '📁',
+			'Edit': '✏️',
+			'View': '👁️',
+			'Run': '▶️',
+			'Terminal': '💻'
+		};
+
+
 		for (const title of Object.keys(this.topLevelTitles)) {
 			const menu = this.menus[title];
-			if (firstTime && menu) {
-				const menuChangedDisposable = this.reinstallDisposables.add(new DisposableStore());
-				this.reinstallDisposables.add(menu.onDidChange(() => {
-					if (!this.focusInsideMenubar) {
-						const actions: IAction[] = [];
-						menuChangedDisposable.clear();
-						updateActions(this.toActionsArray(menu), actions, title, menuChangedDisposable);
-						this.menubar?.updateMenu({ actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
-					}
-				}));
-
-				// For the file menu, we need to update if the web nav menu updates as well
-				if (menu === this.menus.File) {
-					const webMenuChangedDisposable = this.reinstallDisposables.add(new DisposableStore());
-					this.reinstallDisposables.add(this.webNavigationMenu.onDidChange(() => {
-						if (!this.focusInsideMenubar) {
-							const actions: IAction[] = [];
-							webMenuChangedDisposable.clear();
-							updateActions(this.toActionsArray(menu), actions, title, webMenuChangedDisposable);
-							this.menubar?.updateMenu({ actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
-						}
-					}));
-				}
-			}
+			const rawLabel = this.topLevelTitles[title];
+			const icon = iconMap[title] ?? '';
+			const iconLabel = `${icon} ${mnemonicMenuLabel(rawLabel)}`;
 
 			const actions: IAction[] = [];
+
 			if (menu) {
-				this.updateActionsDisposables.clear();
-				updateActions(this.toActionsArray(menu), actions, title, this.updateActionsDisposables);
+				const store = firstTime ? this.reinstallDisposables.add(new DisposableStore()) : this.updateActionsDisposables;
+				if (firstTime) {
+					this.reinstallDisposables.add(menu.onDidChange(() => {
+						if (!this.focusInsideMenubar) {
+							const updatedActions: IAction[] = [];
+							store.clear();
+							updateActions(this.toActionsArray(menu), updatedActions, title, store);
+							this.menubar?.updateMenu({ actions: updatedActions, label: iconLabel });
+						}
+					}));
+
+					if (title === 'File') {
+						this.reinstallDisposables.add(this.webNavigationMenu.onDidChange(() => {
+							if (!this.focusInsideMenubar) {
+								const updatedActions: IAction[] = [];
+								store.clear();
+								updateActions(this.toActionsArray(menu), updatedActions, title, store);
+								this.menubar?.updateMenu({ actions: updatedActions, label: iconLabel });
+							}
+						}));
+					}
+				}
+
+				store.clear();
+				updateActions(this.toActionsArray(menu), actions, title, store);
 			}
 
 			if (this.menubar) {
-				if (!firstTime) {
-					this.menubar.updateMenu({ actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
+				if (firstTime) {
+					this.menubar.push({ actions, label: iconLabel });
 				} else {
-					this.menubar.push({ actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
+					this.menubar.updateMenu({ actions, label: iconLabel });
 				}
 			}
 		}
 	}
+
 
 	private getWebNavigationActions(): IAction[] {
 		if (!isWeb) {

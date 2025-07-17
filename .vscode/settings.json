@@ -185,5 +185,5 @@
 	"chat.instructionsFilesLocations": {
 		".github/instructions": true,
 		".vscode": true
-	}
+	},
 }

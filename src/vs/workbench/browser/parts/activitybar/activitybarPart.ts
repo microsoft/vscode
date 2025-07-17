@@ -561,7 +561,6 @@ registerThemingParticipant((theme, collector) => {
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:focus::before {
 				visibility: hidden;
 			}
-
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:focus .active-item-indicator:before {
 				visibility: visible;
 				border-left-color: ${activityBarActiveFocusBorderColor};

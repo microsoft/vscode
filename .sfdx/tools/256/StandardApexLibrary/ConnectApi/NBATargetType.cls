@@ -1,0 +1,3 @@
+global enum NBATargetType {
+RECOMMENDATION
+}

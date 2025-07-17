@@ -1,0 +1,4 @@
+global enum BundleType {
+GENERICBUNDLE,
+TRACKEDCHANGES
+}

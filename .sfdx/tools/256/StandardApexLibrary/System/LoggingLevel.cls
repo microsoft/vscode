@@ -1,0 +1,11 @@
+global enum LoggingLevel {
+DEBUG,
+ERROR,
+FINE,
+FINER,
+FINEST,
+INFO,
+INTERNAL,
+NONE,
+WARN
+}

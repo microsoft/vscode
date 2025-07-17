@@ -1,0 +1,12 @@
+global enum FormulaReturnType {
+BOOLEAN,
+DATE,
+DATETIME,
+DECIMAL,
+DOUBLE,
+ID,
+INTEGER,
+LONG,
+STRING,
+TIME
+}

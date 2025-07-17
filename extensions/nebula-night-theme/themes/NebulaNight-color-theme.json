@@ -1,0 +1,46 @@
+{
+  "name": "Nebula Night",
+  "type": "dark",
+  "colors": {
+    "editor.background": "#000000",                // Pure black background
+    "editor.foreground": "#D8DEE9",                // Softer white for text
+    "statusBar.background": "#000000",
+    "statusBar.foreground": "#D8DEE9",
+    "statusBar.noFolderBackground": "#000000",
+    "statusBar.debuggingBackground": "#5A3D5C",    // Dark purple for debugging
+    "statusBarItem.remoteBackground": "#2E3440"    // Dark muted blue
+  },
+  "tokenColors": [
+    {
+      "scope": ["keyword"],
+      "settings": {
+        "foreground": "#81A1C1"                    // Blue for keywords
+      }
+    },
+    {
+      "scope": ["string"],
+      "settings": {
+        "foreground": "#A3BE8C"                    // Green for strings
+      }
+    },
+    {
+      "scope": ["comment"],
+      "settings": {
+        "foreground": "#4C566A",                   // Gray for comments
+        "fontStyle": "italic"
+      }
+    },
+    {
+      "scope": ["variable"],
+      "settings": {
+        "foreground": "#D08770"                    // Warm color for variables
+      }
+    },
+    {
+      "scope": ["function"],
+      "settings": {
+        "foreground": "#B48EAD"                    // Purple for functions
+      }
+    }
+  ]
+}

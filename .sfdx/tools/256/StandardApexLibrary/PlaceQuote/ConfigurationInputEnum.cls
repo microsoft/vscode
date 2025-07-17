@@ -1,0 +1,5 @@
+global enum ConfigurationInputEnum {
+RUNANDALLOWERRORS,
+RUNANDBLOCKERRORS,
+SKIP
+}

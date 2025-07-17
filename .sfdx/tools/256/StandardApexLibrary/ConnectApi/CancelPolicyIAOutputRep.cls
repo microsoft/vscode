@@ -1,0 +1,11 @@
+global class CancelPolicyIAOutputRep {
+	global List<String> impactedPolicyVersions;
+	global ConnectApi.RefundIAOutputRep refund;
+	global CancelPolicyIAOutputRep() { }
+	global Object clone() { }
+	global Boolean equals(Object obj) { }
+	global Double getBuildVersion() { }
+	global Integer hashCode() { }
+	global String toString() { }
+
+}

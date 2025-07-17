@@ -1,0 +1,4 @@
+global enum LayoutHeader {
+PERSONALTAGGING,
+PUBLICTAGGING
+}

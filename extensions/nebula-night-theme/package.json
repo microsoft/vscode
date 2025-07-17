@@ -1,0 +1,34 @@
+{
+  "name": "nebula-night-theme",
+  "displayName": "Nebula Night",
+  "description": "A professional and soothing dark theme for developers.",
+  "version": "1.0.0",
+  "publisher": "your-name",
+  "engines": {
+    "vscode": "^1.50.0"
+  },
+  "categories": [
+    "Themes"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "*"
+  ],
+  "contributes": {
+    "themes": [
+      {
+        "label": "Nebula Night",
+        "uiTheme": "vs-dark",
+        "path": "./themes/NebulaNight-color-theme.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "nebulaNightTheme.setTheme",
+        "title": "Set Nebula Night Theme as Default"
+      }
+    ]
+  },
+  "scripts": {},
+  "devDependencies": {}
+}

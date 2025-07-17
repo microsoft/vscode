@@ -1,0 +1,7 @@
+global enum FileSharingType {
+ADMIN,
+COLLABORATOR,
+OWNER,
+VIEWER,
+WORKSPACEMANAGED
+}

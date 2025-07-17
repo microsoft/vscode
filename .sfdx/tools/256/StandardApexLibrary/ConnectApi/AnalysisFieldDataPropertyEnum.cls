@@ -1,0 +1,13 @@
+global enum AnalysisFieldDataPropertyEnum {
+DAY,
+DAYOFWEEK,
+FIELD,
+MONTH,
+MONTHOFYEAR,
+PAIR,
+QUARTER,
+QUARTEROFYEAR,
+RANGE,
+STRING,
+YEAR
+}

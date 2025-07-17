@@ -18,7 +18,7 @@ import { IQuickInputService, ItemActivation } from '../../../../platform/quickin
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from './fileConstants.js';
+import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, CREATE_APEX_CLASS_COMMAND_ID, CREATE_LWC_COMPONENT_COMMAND_ID } from './fileConstants.js';
 import { ITextModelService, ITextModelContentProvider } from '../../../../editor/common/services/resolverService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
@@ -929,7 +929,7 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 			throw new Error('Open a folder or workspace first.');
 		}
 
-		return commandService.executeCommand(NEW_UNTITLED_FILE_COMMAND_ID);
+		return commandService.executeCommand(CREATE_APEX_CLASS_COMMAND_ID);
 	}
 
 	const stats = explorerService.getContext(false);

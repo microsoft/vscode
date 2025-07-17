@@ -10,7 +10,7 @@ import { MenuId, MenuRegistry, registerAction2 } from '../../../../platform/acti
 import { ICommandAction } from '../../../../platform/action/common/action.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { openWindowCommand, newWindowCommand } from './fileCommands.js';
-import { COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, OpenEditorsGroupContext, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, OpenEditorsDirtyEditorContext, COMPARE_SELECTED_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, REMOVE_ROOT_FOLDER_LABEL, SAVE_FILES_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_LABEL, OpenEditorsReadonlyEditorContext, OPEN_WITH_EXPLORER_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID, NEW_UNTITLED_FILE_LABEL, SAVE_ALL_COMMAND_ID, OpenEditorsSelectedFileOrUntitledContext } from './fileConstants.js';
+import { COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, OpenEditorsGroupContext, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, OpenEditorsDirtyEditorContext, COMPARE_SELECTED_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, REMOVE_ROOT_FOLDER_LABEL, SAVE_FILES_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_LABEL, OpenEditorsReadonlyEditorContext, OPEN_WITH_EXPLORER_COMMAND_ID, CREATE_APEX_CLASS_COMMAND_ID, CREATE_LWC_COMPONENT_COMMAND_ID, NEW_UNTITLED_FILE_LABEL, SAVE_ALL_COMMAND_ID, OpenEditorsSelectedFileOrUntitledContext } from './fileConstants.js';
 import { CommandsRegistry, ICommandHandler } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -27,6 +27,10 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IExplorerService } from './files.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import '../../../../workbench/contrib/salesforce/browser/apexcommands.js';
+import '../../../../workbench/contrib/salesforce/browser/LWC.js';
+import '../../../../workbench/contrib/salesforce/browser/deployFileCommand.js';
+
 
 // Contribute Global Actions
 
@@ -205,6 +209,7 @@ export function appendToCommandPalette({ id, title, category, metadata }: IComma
 			metadata
 		},
 		when
+
 	});
 }
 
@@ -278,7 +283,12 @@ appendToCommandPalette({
 }, WorkspaceFolderCountContext.notEqualsTo('0'));
 
 appendToCommandPalette({
-	id: NEW_UNTITLED_FILE_COMMAND_ID,
+	id: CREATE_APEX_CLASS_COMMAND_ID,
+	title: NEW_UNTITLED_FILE_LABEL,
+	category: Categories.File
+});
+appendToCommandPalette({
+	id: CREATE_LWC_COMPONENT_COMMAND_ID,
 	title: NEW_UNTITLED_FILE_LABEL,
 	category: Categories.File
 });
@@ -669,19 +679,26 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 
 // Empty Editor Group / Editor Tabs Container Context Menu
 for (const menuId of [MenuId.EmptyEditorGroupContext, MenuId.EditorTabsBarContext]) {
-	MenuRegistry.appendMenuItem(menuId, { command: { id: NEW_UNTITLED_FILE_COMMAND_ID, title: nls.localize('newFile', "New Text File") }, group: '1_file', order: 10 });
+	// MenuRegistry.appendMenuItem(menuId, { command: { id: NEW_UNTITLED_FILE_COMMAND_ID, title: nls.localize('newFile', "New Text File") }, group: '1_file', order: 10 });
 	MenuRegistry.appendMenuItem(menuId, { command: { id: 'workbench.action.quickOpen', title: nls.localize('openFile', "Open File...") }, group: '1_file', order: 20 });
 }
 
 // File menu
-
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '1_new',
 	command: {
-		id: NEW_UNTITLED_FILE_COMMAND_ID,
-		title: nls.localize({ key: 'miNewFile', comment: ['&& denotes a mnemonic'] }, "&&New Text File")
+		id: CREATE_APEX_CLASS_COMMAND_ID,
+		title: nls.localize({ key: 'miCreateApexClass', comment: ['&& denotes a mnemonic'] }, "Create &&Apex Class 📘")
 	},
 	order: 1
+});
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: '1_new',
+	command: {
+		id: CREATE_LWC_COMPONENT_COMMAND_ID,
+		title: nls.localize({ key: 'miCreateLWCComponent', comment: ['&& denotes a mnemonic'] }, "Create &&LWC Component ⚡")
+	},
+	order: 2
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
@@ -694,71 +711,71 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	order: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	group: '4_save',
-	command: {
-		id: SAVE_FILE_AS_COMMAND_ID,
-		title: nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As..."),
-		precondition: ContextKeyExpr.or(ActiveEditorContext, ContextKeyExpr.and(FoldersViewVisibleContext, SidebarFocusContext))
-	},
-	order: 2
-});
+// MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+// 	group: '4_save',
+// 	command: {
+// 		id: SAVE_FILE_AS_COMMAND_ID,
+// 		title: nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As..."),
+// 		precondition: ContextKeyExpr.or(ActiveEditorContext, ContextKeyExpr.and(FoldersViewVisibleContext, SidebarFocusContext))
+// 	},
+// 	order: 2
+// });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	group: '4_save',
-	command: {
-		id: SAVE_ALL_COMMAND_ID,
-		title: nls.localize({ key: 'miSaveAll', comment: ['&& denotes a mnemonic'] }, "Save A&&ll"),
-		precondition: DirtyWorkingCopiesContext
-	},
-	order: 3
-});
+// MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+// 	group: '4_save',
+// 	command: {
+// 		id: SAVE_ALL_COMMAND_ID,
+// 		title: nls.localize({ key: 'miSaveAll', comment: ['&& denotes a mnemonic'] }, "Save A&&ll"),
+// 		precondition: DirtyWorkingCopiesContext
+// 	},
+// 	order: 3
+// });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	group: '5_autosave',
-	command: {
-		id: ToggleAutoSaveAction.ID,
-		title: nls.localize({ key: 'miAutoSave', comment: ['&& denotes a mnemonic'] }, "A&&uto Save"),
-		toggled: ContextKeyExpr.notEquals('config.files.autoSave', 'off')
-	},
-	order: 1
-});
+// MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+// 	group: '5_autosave',
+// 	command: {
+// 		id: ToggleAutoSaveAction.ID,
+// 		title: nls.localize({ key: 'miAutoSave', comment: ['&& denotes a mnemonic'] }, "A&&uto Save"),
+// 		toggled: ContextKeyExpr.notEquals('config.files.autoSave', 'off')
+// 	},
+// 	order: 1
+// });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	group: '6_close',
-	command: {
-		id: REVERT_FILE_COMMAND_ID,
-		title: nls.localize({ key: 'miRevert', comment: ['&& denotes a mnemonic'] }, "Re&&vert File"),
-		precondition: ContextKeyExpr.or(
-			// Active editor can revert
-			ContextKeyExpr.and(ActiveEditorCanRevertContext),
-			// Explorer focused but not on untitled
-			ContextKeyExpr.and(ResourceContextKey.Scheme.notEqualsTo(Schemas.untitled), FoldersViewVisibleContext, SidebarFocusContext)
-		),
-	},
-	order: 1
-});
+// MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+// 	group: '6_close',
+// 	command: {
+// 		id: REVERT_FILE_COMMAND_ID,
+// 		title: nls.localize({ key: 'miRevert', comment: ['&& denotes a mnemonic'] }, "Re&&vert File"),
+// 		precondition: ContextKeyExpr.or(
+// 			// Active editor can revert
+// 			ContextKeyExpr.and(ActiveEditorCanRevertContext),
+// 			// Explorer focused but not on untitled
+// 			ContextKeyExpr.and(ResourceContextKey.Scheme.notEqualsTo(Schemas.untitled), FoldersViewVisibleContext, SidebarFocusContext)
+// 		),
+// 	},
+// 	order: 1
+// });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	group: '6_close',
-	command: {
-		id: CLOSE_EDITOR_COMMAND_ID,
-		title: nls.localize({ key: 'miCloseEditor', comment: ['&& denotes a mnemonic'] }, "&&Close Editor"),
-		precondition: ContextKeyExpr.or(ActiveEditorContext, ContextKeyExpr.and(FoldersViewVisibleContext, SidebarFocusContext))
-	},
-	order: 2
-});
+// MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+// 	group: '6_close',
+// 	command: {
+// 		id: CLOSE_EDITOR_COMMAND_ID,
+// 		title: nls.localize({ key: 'miCloseEditor', comment: ['&& denotes a mnemonic'] }, "&&Close Editor"),
+// 		precondition: ContextKeyExpr.or(ActiveEditorContext, ContextKeyExpr.and(FoldersViewVisibleContext, SidebarFocusContext))
+// 	},
+// 	order: 2
+// });
 
 // Go to menu
 
-MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: '3_global_nav',
-	command: {
-		id: 'workbench.action.quickOpen',
-		title: nls.localize({ key: 'miGotoFile', comment: ['&& denotes a mnemonic'] }, "Go to &&File...")
-	},
-	order: 1
-});
+// MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+// 	group: '3_global_nav',
+// 	command: {
+// 		id: 'workbench.action.quickOpen',
+// 		title: nls.localize({ key: 'miGotoFile', comment: ['&& denotes a mnemonic'] }, "Go to &&File...")
+// 	},
+// 	order: 1
+// });
 
 
 // Chat used attachment anchor context menu

@@ -27,6 +27,9 @@ import { TerminalLocation } from '../../../../platform/terminal/common/terminal.
 import { IListService } from '../../../../platform/list/browser/listService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { DEPLOY_FILE_TO_ORG_COMMAND_ID, registerDeployFileCommand } from '../../../../workbench/contrib/salesforce/browser/deployFileCommand.js';
+import { RETRIEVE_SOURCE_FROM_ORG_COMMAND_ID } from '../../../../workbench/contrib/salesforce/browser/retrieveFile.js';
+
 
 const OPEN_IN_TERMINAL_COMMAND_ID = 'openInTerminal';
 const OPEN_IN_INTEGRATED_TERMINAL_COMMAND_ID = 'openInIntegratedTerminal';
@@ -96,6 +99,8 @@ registerOpenTerminalCommand(OPEN_IN_INTEGRATED_TERMINAL_COMMAND_ID, 'integrated'
 export class ExternalTerminalContribution extends Disposable implements IWorkbenchContribution {
 	private _openInIntegratedTerminalMenuItem: IMenuItem;
 	private _openInTerminalMenuItem: IMenuItem;
+	private _deployFileToOrgMenuItem: IMenuItem;
+	private _retrieveSourceFromOrgMenuItem: IMenuItem;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService
@@ -111,20 +116,42 @@ export class ExternalTerminalContribution extends Disposable implements IWorkben
 			ResourceContextKey.Scheme.isEqualTo(Schemas.file),
 			ContextKeyExpr.or(ContextKeyExpr.equals('config.terminal.explorerKind', 'external'), ContextKeyExpr.equals('config.terminal.explorerKind', 'both')));
 
+		//
+		registerDeployFileCommand(); // Your custom deploy logic
+
 		this._openInIntegratedTerminalMenuItem = {
 			group: 'navigation',
 			order: 30,
 			command: {
 				id: OPEN_IN_INTEGRATED_TERMINAL_COMMAND_ID,
-				title: nls.localize('scopedConsoleAction.Integrated', "Open in Integrated Terminal")
+				title: nls.localize('scopedConsoleAction.integrated', "Open in Integrated Terminal")
 			},
-			when: ContextKeyExpr.or(shouldShowIntegratedOnLocal, ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote))
+			when: shouldShowIntegratedOnLocal
 		};
 
+		this._deployFileToOrgMenuItem = {
+			group: 'navigation',
+			order: 31,
+			command: {
+				id: DEPLOY_FILE_TO_ORG_COMMAND_ID,
+				title: "SFDX: Deploy This Source to Org"
+			},
+			when: ResourceContextKey.Scheme.isEqualTo(Schemas.file) // only show for local files
+		};
+
+		this._retrieveSourceFromOrgMenuItem = {
+			group: 'navigation',
+			order: 32,
+			command: {
+				id: RETRIEVE_SOURCE_FROM_ORG_COMMAND_ID,
+				title: " SFDX: Retrieve This Source from Org"
+			},
+			when: ResourceContextKey.Scheme.isEqualTo(Schemas.file) // only show for local files
+		};
 
 		this._openInTerminalMenuItem = {
 			group: 'navigation',
-			order: 31,
+			order: 33,
 			command: {
 				id: OPEN_IN_TERMINAL_COMMAND_ID,
 				title: nls.localize('scopedConsoleAction.external', "Open in External Terminal")
@@ -132,9 +159,10 @@ export class ExternalTerminalContribution extends Disposable implements IWorkben
 			when: shouldShowExternalKindOnLocal
 		};
 
-
-		MenuRegistry.appendMenuItem(MenuId.ExplorerContext, this._openInTerminalMenuItem);
 		MenuRegistry.appendMenuItem(MenuId.ExplorerContext, this._openInIntegratedTerminalMenuItem);
+		MenuRegistry.appendMenuItem(MenuId.ExplorerContext, this._deployFileToOrgMenuItem);
+		MenuRegistry.appendMenuItem(MenuId.ExplorerContext, this._retrieveSourceFromOrgMenuItem);
+		MenuRegistry.appendMenuItem(MenuId.ExplorerContext, this._openInTerminalMenuItem);
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('terminal.explorerKind') || e.affectsConfiguration('terminal.external')) {

@@ -122,8 +122,8 @@ export class Menubar extends Disposable {
 	private addFallbackHandlers(): void {
 
 		// File Menu Items
-		this.fallbackMenuHandlers['workbench.action.files.newUntitledFile'] = (menuItem, win, event) => {
-			if (!this.runActionInRenderer({ type: 'commandId', commandId: 'workbench.action.files.newUntitledFile' })) { // this is one of the few supported actions when aux window has focus
+		this.fallbackMenuHandlers['workbench.action.files.createApexClass'] = (menuItem, win, event) => {
+			if (!this.runActionInRenderer({ type: 'commandId', commandId: 'workbench.action.files.createApexClass' })) { // this is one of the few supported actions when aux window has focus
 				this.windowsMainService.openEmptyWindow({ context: OpenContext.MENU, contextWindowId: win?.id });
 			}
 		};

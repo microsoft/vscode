@@ -1,0 +1,26 @@
+{
+  "name": "my-webview-extension",
+  "displayName": "My Webview Extension",
+  "description": "A simple VS Code webview extension",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.88.0"
+  },
+  "activationEvents": ["onCommand:myWebview.start"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "myWebview.start",
+        "title": "Open Webview Tab"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "tsc -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.88.0",
+    "typescript": "^5.0.0"
+  }
+}

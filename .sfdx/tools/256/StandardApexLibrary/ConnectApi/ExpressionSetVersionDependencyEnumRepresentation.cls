@@ -1,0 +1,5 @@
+global enum ExpressionSetVersionDependencyEnumRepresentation {
+DECISIONMATRIX,
+DECISIONTABLE,
+EXPRESSIONSET
+}

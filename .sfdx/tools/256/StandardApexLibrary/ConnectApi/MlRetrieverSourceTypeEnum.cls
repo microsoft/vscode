@@ -1,0 +1,4 @@
+global enum MlRetrieverSourceTypeEnum {
+SEARCHINDEX,
+SEARCHINDEXCONFIGURATION
+}

@@ -1,0 +1,5 @@
+global enum MCSFolderShareStatus {
+PENDINGSHARE,
+PENDINGUNSHARE,
+SHARED
+}

@@ -1,0 +1,11 @@
+global enum ContentDownloadContext {
+CHATTER,
+CONTENT,
+DELIVERY,
+FILE_FIELD,
+MOBILE,
+REST_API,
+RETRIEVE,
+S1,
+SOQL
+}

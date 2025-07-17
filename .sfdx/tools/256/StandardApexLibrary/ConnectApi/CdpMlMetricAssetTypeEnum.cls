@@ -1,0 +1,5 @@
+global enum CdpMlMetricAssetTypeEnum {
+CONFIGUREDMODEL,
+MODELARTIFACT,
+WORKSPACE
+}

@@ -1,0 +1,5 @@
+global enum PersonalizationSchema {
+DECISIONDEFINED,
+EXPERIENCEVARIATION,
+FLOWPATH
+}

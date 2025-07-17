@@ -30,6 +30,8 @@ export const ADD_ROOT_FOLDER_LABEL: ILocalizedString = localize2('addFolderToWor
 
 export const SET_ROOT_FOLDER_COMMAND_ID = 'setRootFolder';
 
+export const SET_SALESFORCE_ORG_COMMAND_ID = 'salesforce.configureOrg';
+
 export const PICK_WORKSPACE_FOLDER_COMMAND_ID = '_workbench.pickWorkspaceFolder';
 
 // Command registration
@@ -85,6 +87,35 @@ CommandsRegistry.registerCommand({
 		}
 
 		await workspaceEditingService.updateFolders(0, contextService.getWorkspace().folders.length, folders.map(folder => ({ uri: folder })));
+	}
+});
+
+// this command is used to configure the salesforce organization
+CommandsRegistry.registerCommand({
+	id: SET_SALESFORCE_ORG_COMMAND_ID,
+	handler: async (accessor: ServicesAccessor) => {
+		const commandService = accessor.get(ICommandService);
+		const quickInputService = accessor.get(IQuickInputService);
+
+		// Step 1: Get alias name for the org
+		const alias = await quickInputService.input({
+			placeHolder: localize('salesforce.aliasPlaceholder', 'Enter alias for the org (e.g., MyDevOrg)'),
+			value: 'MyDevOrg'
+		});
+
+		if (!alias || alias.trim() === '') {
+			console.error(localize('salesforce.invalidAlias', 'Invalid alias name'));
+			return;
+		}
+
+		// Step 2: Open terminal
+		await commandService.executeCommand('workbench.action.terminal.new');
+
+		// Step 3: Run SFDX auth command
+		const authCommand = `sfdx force:auth:web:login -a ${alias.trim()}\n`;
+		await commandService.executeCommand('workbench.action.terminal.sendSequence', {
+			text: authCommand
+		});
 	}
 });
 

@@ -1,0 +1,6 @@
+global enum AccessType {
+CREATABLE,
+READABLE,
+UPDATABLE,
+UPSERTABLE
+}

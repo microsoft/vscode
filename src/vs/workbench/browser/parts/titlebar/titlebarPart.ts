@@ -55,6 +55,10 @@ import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { safeIntl } from '../../../../base/common/date.js';
 import { IsCompactTitleBarContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import '../../../../workbench/contrib/salesforce/browser/authorizeCommands.js';
+import { onOrgAuthorizationChanged } from '../../../../workbench/contrib/salesforce/browser/authorizeCommands.js';
+
 
 export interface ITitleVariable {
 	readonly name: string;
@@ -218,9 +222,7 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 }
 
 export class BrowserTitlebarPart extends Part implements ITitlebarPart {
-
 	//#region IView
-
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 
@@ -306,7 +308,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		@IHostService private readonly hostService: IHostService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -473,12 +476,160 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		}
 
 		// Title
+
 		this.title = append(this.centerContent, $('div.window-title'));
 		this.createTitle();
+
 
 		// Create Toolbar Actions
 		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
 			this.actionToolBarElement = append(this.rightContent, $('div.action-toolbar-container'));
+			// Add the AuthorizedOrg interface at the top
+			interface AuthorizedOrg {
+				username: string;
+				alias: string;
+				authorised: boolean;
+			}
+			try {
+				const chatButton = append(this.rightContent, $('div.action-toolbar-container'));
+				chatButton.innerText = '💬 Chat';
+				chatButton.title = 'Chat';
+				chatButton.style.marginLeft = '40px';
+				chatButton.style.marginTop = '11px';
+				chatButton.style.padding = '4px 8px';
+				chatButton.style.cursor = 'pointer';
+				chatButton.style.backgroundColor = '#3c3c3c';
+				chatButton.style.color = '#cccccc';
+				chatButton.style.border = '1px  #565656';
+				chatButton.style.borderRadius = '3px';
+				chatButton.style.fontSize = '12px';
+				chatButton.style.zIndex = '10';
+
+				this._register(addDisposableListener(chatButton, EventType.CLICK, () => {
+					console.log('Chat button clicked');
+
+					if (!this.layoutService) {
+						console.error('layoutService is undefined!');
+						return;
+					}
+
+					// Simply show the auxiliary bar (secondary side bar)
+					this.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+				}));
+			} catch (error) {
+				console.error('Error adding chat button:', error);
+			}
+
+
+			// Import the event emitter (add this import at the top of your file)
+
+			// Add your custom button with dropdown
+			const buttonContainer = append(this.actionToolBarElement, $('div.custom-button-container'));
+			buttonContainer.style.display = 'flex';
+			buttonContainer.style.alignItems = 'center';
+
+			// Current org display - now clickable and at the top
+			const currentOrgDisplay = append(buttonContainer, $('button.current-org-display'));
+			currentOrgDisplay.style.marginRight = '4px';
+			currentOrgDisplay.style.padding = '2px 6px';
+			currentOrgDisplay.style.backgroundColor = '#3c3c3c';
+			currentOrgDisplay.style.border = '1px solid #565656';
+			currentOrgDisplay.style.borderRadius = '3px';
+			currentOrgDisplay.style.fontSize = '11px';
+			currentOrgDisplay.style.color = '#cccccc';
+			currentOrgDisplay.style.cursor = 'pointer';
+			currentOrgDisplay.style.order = '1'; // Display first
+
+			// Function to update current org display
+			const updateCurrentOrgDisplay = async () => {
+				try {
+					const authorizedOrgs = await this.instantiationService.invokeFunction(async accessor => {
+						const commandService = accessor.get(ICommandService);
+						return await commandService.executeCommand('salesforce.getAuthorizedOrgs');
+					});
+
+					const currentOrg = authorizedOrgs.find((org: AuthorizedOrg) => org.authorised === true);
+
+					if (currentOrg) {
+						currentOrgDisplay.innerText = `☁ ${currentOrg.alias}`;
+						currentOrgDisplay.style.display = 'inline-block';
+						currentOrgDisplay.title = `Current Org: ${currentOrg.alias} (${currentOrg.username}) - Click to switch`;
+					} else {
+						currentOrgDisplay.innerText = '☁ No Org';
+						currentOrgDisplay.style.display = 'inline-block';
+						currentOrgDisplay.title = 'No authorized org selected - Click to select one';
+					}
+				} catch (error) {
+					console.error('Failed to get current org:', error);
+					currentOrgDisplay.innerText = '☁ Error';
+					currentOrgDisplay.style.display = 'inline-block';
+					currentOrgDisplay.title = 'Error loading org info - Click to try again';
+				}
+			};
+
+			// Initial load of current org
+			updateCurrentOrgDisplay();
+
+			// Register event listener for org authorization changes
+			// This will automatically update the display when org changes
+			this._register(onOrgAuthorizationChanged.event(() => {
+				updateCurrentOrgDisplay();
+			}));
+
+			// Click handler for current org display - opens command palette
+			this._register(addDisposableListener(currentOrgDisplay, EventType.CLICK, async () => {
+				try {
+					await this.instantiationService.invokeFunction(async accessor => {
+						const commandService = accessor.get(ICommandService);
+						await commandService.executeCommand('salesforce.showAuthorizedOrgs');
+					});
+
+					// The updateCurrentOrgDisplay will be called automatically via the event listener
+					// No need for setTimeout here anymore
+				} catch (error) {
+					console.error('Failed to show authorized orgs:', error);
+				}
+			}));
+
+			// Main "Authorize Org" button
+			const authorizeButton = append(buttonContainer, $('button.custom-titlebar-button'));
+			authorizeButton.innerText = ' 🚀Authorize Org';
+			authorizeButton.style.marginLeft = '4px';
+			authorizeButton.style.padding = '2px 6px';
+			authorizeButton.style.cursor = 'pointer';
+			authorizeButton.style.backgroundColor = '#3c3c3c';
+			authorizeButton.style.color = '#cccccc';
+			authorizeButton.style.border = '1px solid #565656';
+			authorizeButton.style.borderRadius = '3px';
+			authorizeButton.style.fontSize = '11px';
+			authorizeButton.style.order = '2'; // Display second
+
+			// Click handler for "Authorize Org"
+			this._register(addDisposableListener(authorizeButton, EventType.CLICK, async () => {
+				const originalText = authorizeButton.innerText;
+				authorizeButton.innerText = 'Authorizing...';
+				try {
+					await this.instantiationService.invokeFunction(async accessor => {
+						const commandService = accessor.get(ICommandService);
+						await commandService.executeCommand('salesforce.authorizeOrg');
+					});
+
+					// Reset button text immediately as the update will happen via event listener
+					authorizeButton.innerText = originalText;
+					// The updateCurrentOrgDisplay will be called automatically via the event listener
+					// when the authorization completes
+				} catch (error) {
+					console.error('Failed to authorize org:', error);
+					authorizeButton.innerText = 'Error!';
+					authorizeButton.style.backgroundColor = '#ea001e';
+					authorizeButton.style.color = 'white';
+					setTimeout(() => {
+						authorizeButton.innerText = originalText;
+						authorizeButton.style.backgroundColor = '#3c3c3c';
+						authorizeButton.style.color = '#cccccc';
+					}, 2000);
+				}
+			}));
 			this.createActionToolBar();
 			this.createActionToolBarMenus();
 		}
@@ -565,9 +716,23 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				this.titleDisposables.add(this.windowTitle.onDidChange(() => {
 					this.title.innerText = this.windowTitle.value;
 					if (this.lastLayoutDimensions) {
-						this.updateLayout(this.lastLayoutDimensions); // layout menubar and other renderings in the titlebar
+						this.updateLayout(this.lastLayoutDimensions);
 					}
 				}));
+
+				// // ✅ Create a button
+				const customButton = document.createElement("button");
+				customButton.innerText = "Click Me";
+				customButton.style.marginLeft = "10px"; // optional spacing
+				customButton.style.padding = "4px 8px";
+				customButton.style.cursor = "pointer";
+
+				// Optional: Add a click handler
+				customButton.addEventListener("click", () => {
+					alert("Button in title clicked!");
+				});
+
+				this.title.appendChild(customButton);
 			} else {
 				reset(this.title);
 			}
@@ -646,7 +811,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		const updateToolBarActions = () => {
 			const actions: IToolbarActions = { primary: [], secondary: [] };
 
-			// --- Editor Actions
 			if (this.editorActionsEnabled) {
 				this.editorActionsChangeDisposable.clear();
 
@@ -708,18 +872,18 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			}
 		}
 
-		if (update.layoutActions) {
-			this.layoutToolbarMenuDisposables.clear();
+		// if (update.layoutActions) {
+		// 	this.layoutToolbarMenuDisposables.clear();
 
-			if (this.layoutControlEnabled) {
-				this.layoutToolbarMenu = this.menuService.createMenu(MenuId.LayoutControlMenu, this.contextKeyService);
+		// 	if (this.layoutControlEnabled) {
+		// 		this.layoutToolbarMenu = this.menuService.createMenu(MenuId.LayoutControlMenu, this.contextKeyService);
 
-				this.layoutToolbarMenuDisposables.add(this.layoutToolbarMenu);
-				this.layoutToolbarMenuDisposables.add(this.layoutToolbarMenu.onDidChange(() => updateToolBarActions()));
-			} else {
-				this.layoutToolbarMenu = undefined;
-			}
-		}
+		// 		this.layoutToolbarMenuDisposables.add(this.layoutToolbarMenu);
+		// 		this.layoutToolbarMenuDisposables.add(this.layoutToolbarMenu.onDidChange(() => updateToolBarActions()));
+		// 	} else {
+		// 		this.layoutToolbarMenu = undefined;
+		// 	}
+		// }
 
 		if (update.globalActions) {
 			this.globalToolbarMenuDisposables.clear();
@@ -906,6 +1070,8 @@ export class MainBrowserTitlebarPart extends BrowserTitlebarPart {
 		@IEditorService editorService: IEditorService,
 		@IMenuService menuService: IMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		// @ICommandService commandService: ICommandService, // Add this line
+
 	) {
 		super(Parts.TITLEBAR_PART, mainWindow, editorGroupService.mainPart, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, editorService, menuService, keybindingService);
 	}
@@ -941,6 +1107,8 @@ export class AuxiliaryBrowserTitlebarPart extends BrowserTitlebarPart implements
 		@IEditorService editorService: IEditorService,
 		@IMenuService menuService: IMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		// @ICommandService commandService: ICommandService, // Add this line
+
 	) {
 		const id = AuxiliaryBrowserTitlebarPart.COUNTER++;
 		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, editorService, menuService, keybindingService);

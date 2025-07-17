@@ -1,0 +1,12 @@
+global enum EnrollmentChannelResource {
+CALLCENTER,
+EMAIL,
+FRANCHISE,
+MOBILE,
+PARTNER,
+POS,
+PRINT,
+SOCIAL,
+STORE,
+WEB
+}

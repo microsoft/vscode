@@ -1,0 +1,3 @@
+global enum ResultCode {
+TAXENGINEERROR
+}

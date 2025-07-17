@@ -1,0 +1,9 @@
+global enum DecisionTableDataType {
+BOOLEAN,
+CURRENCY,
+DATE,
+DATETIME,
+NUMBER,
+PERCENT,
+STRING
+}

@@ -113,31 +113,31 @@ export const startEntries: GettingStartedStartEntryContent = [
 			command: 'command:welcome.showNewFileEntries',
 		}
 	},
-	{
-		id: 'topLevelOpenMac',
-		title: localize('gettingStarted.openMac.title', "Open..."),
-		description: localize('gettingStarted.openMac.description', "Open a file or folder to start working"),
-		icon: Codicon.folderOpened,
-		when: '!isWeb && isMac',
-		content: {
-			type: 'startEntry',
-			command: 'command:workbench.action.files.openFileFolder',
-		}
-	},
-	{
-		id: 'topLevelOpenFile',
-		title: localize('gettingStarted.openFile.title', "Open File..."),
-		description: localize('gettingStarted.openFile.description', "Open a file to start working"),
-		icon: Codicon.goToFile,
-		when: 'isWeb || !isMac',
-		content: {
-			type: 'startEntry',
-			command: 'command:workbench.action.files.openFile',
-		}
-	},
+	// // {
+	// 	id: 'topLevelOpenMac',
+	// 	title: localize('gettingStarted.openMac.title', "Open..."),
+	// 	description: localize('gettingStarted.openMac.description', "Open a file or folder to start working"),
+	// 	icon: Codicon.folderOpened,
+	// 	when: '!isWeb && isMac',
+	// 	content: {
+	// 		type: 'startEntry',
+	// 		command: 'command:workbench.action.files.openFileFolder',
+	// 	}
+	// },
+	// {
+	// 	id: 'topLevelOpenFile',
+	// 	title: localize('gettingStarted.openFile.title', "Open File..."),
+	// 	description: localize('gettingStarted.openFile.description', "Open a file to start working"),
+	// 	icon: Codicon.goToFile,
+	// 	when: 'isWeb || !isMac',
+	// 	content: {
+	// 		type: 'startEntry',
+	// 		command: 'command:workbench.action.files.openFile',
+	// 	}
+	// },
 	{
 		id: 'topLevelOpenFolder',
-		title: localize('gettingStarted.openFolder.title', "Open Folder..."),
+		title: localize('gettingStarted.openFolder.title', "Open Project"),
 		description: localize('gettingStarted.openFolder.description', "Open a folder to start working"),
 		icon: Codicon.folderOpened,
 		when: '!isWeb && !isMac',
@@ -148,7 +148,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 	},
 	{
 		id: 'topLevelOpenFolderWeb',
-		title: localize('gettingStarted.openFolder.title', "Open Folder..."),
+		title: localize('gettingStarted.openFolder.title', "Open Project"),
 		description: localize('gettingStarted.openFolder.description', "Open a folder to start working"),
 		icon: Codicon.folderOpened,
 		when: '!openFolderWorkspaceSupport && workbenchState == \'workspace\'',
@@ -159,7 +159,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 	},
 	{
 		id: 'topLevelGitClone',
-		title: localize('gettingStarted.topLevelGitClone.title', "Clone Git Repository..."),
+		title: localize('gettingStarted.topLevelGitClone.title', "Clone Git"),
 		description: localize('gettingStarted.topLevelGitClone.description', "Clone a remote repository to a local folder"),
 		when: 'config.git.enabled && !git.missing',
 		icon: Codicon.sourceControl,
@@ -170,7 +170,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 	},
 	{
 		id: 'topLevelGitOpen',
-		title: localize('gettingStarted.topLevelGitOpen.title', "Open Repository..."),
+		title: localize('gettingStarted.topLevelGitOpen.title', "Open Repository"),
 		description: localize('gettingStarted.topLevelGitOpen.description', "Connect to a remote repository or pull request to browse, search, edit, and commit"),
 		when: 'workspacePlatform == \'webworker\'',
 		icon: Codicon.sourceControl,
@@ -179,17 +179,17 @@ export const startEntries: GettingStartedStartEntryContent = [
 			command: 'command:remoteHub.openRepository',
 		}
 	},
-	{
-		id: 'topLevelRemoteOpen',
-		title: localize('gettingStarted.topLevelRemoteOpen.title', "Connect to..."),
-		description: localize('gettingStarted.topLevelRemoteOpen.description', "Connect to remote development workspaces."),
-		when: '!isWeb',
-		icon: Codicon.remote,
-		content: {
-			type: 'startEntry',
-			command: 'command:workbench.action.remote.showMenu',
-		}
-	},
+	// {
+	// 	id: 'topLevelRemoteOpen',
+	// 	title: localize('gettingStarted.topLevelRemoteOpen.title', "Connect to..."),
+	// 	description: localize('gettingStarted.topLevelRemoteOpen.description', "Connect to remote development workspaces."),
+	// 	when: '!isWeb',
+	// 	icon: Codicon.remote,
+	// 	content: {
+	// 		type: 'startEntry',
+	// 		command: 'command:workbench.action.remote.showMenu',
+	// 	}
+	// },
 	{
 		id: 'topLevelOpenTunnel',
 		title: localize('gettingStarted.topLevelOpenTunnel.title', "Open Tunnel..."),

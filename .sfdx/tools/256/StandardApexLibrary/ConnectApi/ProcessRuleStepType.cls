@@ -1,0 +1,6 @@
+global enum ProcessRuleStepType {
+ACTION,
+CONDITION,
+CONDITIONGROUP,
+DEFAULTPATH
+}

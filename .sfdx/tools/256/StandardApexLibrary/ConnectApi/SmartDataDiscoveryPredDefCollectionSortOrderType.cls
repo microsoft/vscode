@@ -1,0 +1,7 @@
+global enum SmartDataDiscoveryPredDefCollectionSortOrderType {
+LASTUPDATE,
+NAME,
+OUTCOMEFIELDLABEL,
+PREDICTIONTYPE,
+SUBSCRIBEDENTITY
+}

@@ -1,0 +1,9 @@
+global enum OrchestrationInstanceStatus {
+CANCELED,
+COMPLETED,
+DISCONTINUED,
+ERROR,
+INPROGRESS,
+NOTSTARTED,
+SUSPENDED
+}

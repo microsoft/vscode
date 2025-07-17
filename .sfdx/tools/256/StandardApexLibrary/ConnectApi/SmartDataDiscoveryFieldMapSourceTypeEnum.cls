@@ -1,0 +1,4 @@
+global enum SmartDataDiscoveryFieldMapSourceTypeEnum {
+ANALYTICSDATASETFIELD,
+SALESFORCEFIELD
+}

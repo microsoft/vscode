@@ -1,0 +1,8 @@
+global enum SmartDataDiscoveryAIModelCollectionSortOrderType {
+CREATEDDATE,
+DESCRIPTION,
+NAME,
+PREDICTIONFIELDNAME,
+PREDICTIONTYPE,
+RUNTIMETYPE
+}

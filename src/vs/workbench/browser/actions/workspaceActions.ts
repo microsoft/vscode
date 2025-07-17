@@ -9,7 +9,7 @@ import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, hasWorkspac
 import { IWorkspaceEditingService } from '../../services/workspaces/common/workspaceEditing.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID, SET_ROOT_FOLDER_COMMAND_ID } from './workspaceCommands.js';
+import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID, SET_ROOT_FOLDER_COMMAND_ID, SET_SALESFORCE_ORG_COMMAND_ID } from './workspaceCommands.js';
 import { IFileDialogService } from '../../../platform/dialogs/common/dialogs.js';
 import { MenuRegistry, MenuId, Action2, registerAction2 } from '../../../platform/actions/common/actions.js';
 import { EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, OpenFolderWorkspaceSupportContext, WorkbenchStateContext, WorkspaceFolderCountContext } from '../../common/contextkeys.js';
@@ -81,6 +81,7 @@ export class OpenFolderAction extends Action2 {
 		return fileDialogService.pickFolderAndOpen({ forceNewWindow: false, telemetryExtraData: data });
 	}
 }
+
 
 export class OpenFolderViaWorkspaceAction extends Action2 {
 
@@ -320,6 +321,26 @@ class DuplicateWorkspaceInNewWindowAction extends Action2 {
 	}
 }
 
+// --- Commands Registration
+class OrgConfigurationAction extends Action2 {
+
+	static readonly ID = 'salesforce.orgConfiguration';
+
+	constructor() {
+		super({
+			id: OrgConfigurationAction.ID,
+			title: localize2('orgConfiguration', 'Configure Org'),
+			category: workspacesCategory,
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+		return commandService.executeCommand(SET_SALESFORCE_ORG_COMMAND_ID);
+	}
+}
+
 // --- Actions Registration
 
 registerAction2(AddRootFolderAction);
@@ -333,6 +354,7 @@ registerAction2(OpenWorkspaceConfigFileAction);
 registerAction2(CloseWorkspaceAction);
 registerAction2(SaveWorkspaceAsAction);
 registerAction2(DuplicateWorkspaceInNewWindowAction);
+registerAction2(OrgConfigurationAction);
 
 // --- Menu Registration
 

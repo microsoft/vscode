@@ -1,0 +1,7 @@
+global enum ExecutionTypeEnum {
+API_EXECUTION,
+DISCOVERY,
+DISCOVERY_LINE,
+PRICING,
+PRICING_LINE
+}

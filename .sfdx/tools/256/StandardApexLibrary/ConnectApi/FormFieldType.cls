@@ -1,0 +1,7 @@
+global enum FormFieldType {
+BOOLEAN,
+DATE,
+EMAILADDRESS,
+NUMBER,
+TEXT
+}

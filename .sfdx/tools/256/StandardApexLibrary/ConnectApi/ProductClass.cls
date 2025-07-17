@@ -1,0 +1,7 @@
+global enum ProductClass {
+BUNDLE,
+SET,
+SIMPLE,
+VARIATION,
+VARIATIONPARENT
+}

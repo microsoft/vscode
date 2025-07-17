@@ -1,0 +1,3 @@
+global enum ProductExpandType {
+RETURNREASONS
+}

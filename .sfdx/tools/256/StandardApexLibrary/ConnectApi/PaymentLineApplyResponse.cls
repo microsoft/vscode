@@ -1,0 +1,11 @@
+global class PaymentLineApplyResponse {
+	global Datetime appliedDate;
+	global String id;
+	global PaymentLineApplyResponse() { }
+	global Object clone() { }
+	global Boolean equals(Object obj) { }
+	global Double getBuildVersion() { }
+	global Integer hashCode() { }
+	global String toString() { }
+
+}

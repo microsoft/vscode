@@ -1,0 +1,8 @@
+global enum ConnectCommerceSearchSortStandardField {
+CREATEDDATE,
+FAMILY,
+NAME,
+PRODUCTCODE,
+QUANTITYUNITOFMEASURE,
+STOCKKEEPINGUNIT
+}

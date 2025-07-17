@@ -1,0 +1,63 @@
+{
+  "name": "ai-hub-server",
+  "displayName": "AI Chatbot with MCP",
+  "description": "AI Chatbot extension with MCP Hub integration",
+    "publisher": "suhas-labs",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "ai-chatbot.openChat",
+        "title": "Open AI Chat",
+        "icon": "$(comment-discussion)"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "ai-chatbot-view",
+          "name": "AI Chatbot",
+          "type": "webview"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "AI Chatbot",
+      "properties": {
+        "ai-chatbot.mcpServers": {
+          "type": "object",
+          "default": {},
+          "description": "MCP Server configurations"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^16.18.126",
+    "@types/vscode": "^1.102.0",
+    "typescript": "^4.9.5"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.5.0",
+    "openai": "^4.104.0",
+    "zod": "^3.25.76"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

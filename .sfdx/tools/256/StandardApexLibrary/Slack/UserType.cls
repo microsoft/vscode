@@ -1,0 +1,5 @@
+global enum UserType {
+AUTHENTICATED,
+SYSTEM,
+UNAUTHENTICATED
+}

@@ -1,0 +1,6 @@
+global enum PersonalizationBatchDecisionErrorCodeOffCoreEnum {
+CONFIGURATIONMISSINGERROR,
+INTERNALERROR,
+MODELVALIDATIONERROR,
+NONE
+}

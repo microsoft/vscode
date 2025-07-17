@@ -1,0 +1,10 @@
+global enum FilePreviewFormat {
+AUDIO,
+JPG,
+PDF,
+SVG,
+THUMBNAIL,
+THUMBNAILBIG,
+THUMBNAILTINY,
+VIDEO
+}

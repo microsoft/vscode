@@ -1,0 +1,11 @@
+global class ExternalManagedAccountCollectionOutput {
+	global List<ConnectApi.ExternalManagedAccountOutput> externalManagedAccounts;
+	global Integer totalExternalManagedAccounts;
+	global ExternalManagedAccountCollectionOutput() { }
+	global Object clone() { }
+	global Boolean equals(Object obj) { }
+	global Double getBuildVersion() { }
+	global Integer hashCode() { }
+	global String toString() { }
+
+}

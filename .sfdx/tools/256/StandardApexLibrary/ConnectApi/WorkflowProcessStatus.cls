@@ -1,0 +1,11 @@
+global enum WorkflowProcessStatus {
+APPROVED,
+FAULT,
+HELD,
+NORESPONSE,
+PENDING,
+REASSIGNED,
+REJECTED,
+REMOVED,
+STARTED
+}

@@ -1,0 +1,10 @@
+global enum RecommendationType {
+APPS,
+ARTICLES,
+CUSTOM,
+FILES,
+GROUPS,
+RECORDS,
+TOPICS,
+USERS
+}

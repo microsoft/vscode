@@ -1,0 +1,3 @@
+global enum ExtensionInformationType {
+LIGHTNING
+}

@@ -1,0 +1,4 @@
+global enum Event {
+ALERTOUTCOMEUPDATED,
+BATCHPROCESSED
+}

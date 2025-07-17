@@ -1,0 +1,7 @@
+global enum DecisionTableSortType {
+ASCNULLFIRST,
+ASCNULLLAST,
+DESCNULLFIRST,
+DESCNULLLAST,
+NONE
+}

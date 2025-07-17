@@ -1,0 +1,22 @@
+{
+  "name": "sfdx-project-creator",
+  "displayName": "SFDX Project Creator",
+  "description": "Create a new Salesforce DX project with a name and location.",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.50.0"
+  },
+  "activationEvents": [
+    "onCommand:extension.createSFDXProject"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "extension.createSFDXProject",
+        "title": "SFDX: Create Project"
+      }
+    ]
+  },
+  "dependencies": {}
+}

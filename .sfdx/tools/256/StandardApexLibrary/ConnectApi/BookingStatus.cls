@@ -1,0 +1,8 @@
+global enum BookingStatus {
+CANCELED,
+NOSHOW,
+NONE,
+PROPOSED,
+REJECTED,
+SCHEDULED
+}

@@ -173,7 +173,7 @@
 	border-top-right-radius: 6px;
 	border-bottom-right-radius: 6px;
 	height: 22px;
-	width: 38vw;
+	width: 24vw;
 	max-width: 600px;
 }
 
@@ -465,3 +465,52 @@
 	border-radius: 16px;
 	text-align: center;
 }
+.custom-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  padding-right: 12px;
+}
+
+.custom-button {
+  width: 16px;
+  height: 16px;
+  mask-size: contain;
+  -webkit-mask-size: contain;
+  background-color: currentColor;
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.custom-button:hover {
+  opacity: 1;
+}
+
+.extensions-icon {
+  mask: url('codicon://extensions-view-icon') no-repeat center;
+  -webkit-mask: url('codicon://extensions-view-icon') no-repeat center;
+}
+
+.debug-icon {
+  mask: url('codicon://debug-view-icon') no-repeat center;
+  -webkit-mask: url('codicon://debug-view-icon') no-repeat center;
+}
+.codicon.codicon-extensions {
+	font-size: 16px;
+	color: var(--vscode-titleBar-activeForeground);
+	cursor: pointer;
+}
+.authorize-org-button {
+    padding: 4px 10px;
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border-radius: 4px;
+    font-size: 12px;
+}
+.authorize-org-button:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+
+
+

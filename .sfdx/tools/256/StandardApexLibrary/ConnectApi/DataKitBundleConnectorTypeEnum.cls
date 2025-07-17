@@ -1,0 +1,10 @@
+global enum DataKitBundleConnectorTypeEnum {
+COMMERCE,
+CRM,
+EXTERNAL,
+INGESTAPI,
+MC,
+MORECONNECTORS,
+S3,
+STREAMINGAPP
+}

@@ -16,7 +16,7 @@ import { AccessibilityHelpAction } from './accessibleViewActions.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { CommentAccessibilityHelpNLS } from '../../comments/browser/commentsAccessibility.js';
 import { CommentContextKeys } from '../../comments/common/commentContextKeys.js';
-import { NEW_UNTITLED_FILE_COMMAND_ID } from '../../files/browser/fileConstants.js';
+import { CREATE_APEX_CLASS_COMMAND_ID, CREATE_LWC_COMPONENT_COMMAND_ID } from '../../files/browser/fileConstants.js';
 import { IAccessibleViewService, IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibilityVerbositySettingId } from './accessibilityConfiguration.js';
 import { ctxHasEditorModification, ctxHasRequestInProgress } from '../../chat/browser/chatEditing/chatEditingEditorContextKeys.js';
@@ -34,7 +34,8 @@ export class EditorAccessibilityHelpContribution extends Disposable {
 			const commandService = accessor.get(ICommandService);
 			let codeEditor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
 			if (!codeEditor) {
-				await commandService.executeCommand(NEW_UNTITLED_FILE_COMMAND_ID);
+				await commandService.executeCommand(CREATE_APEX_CLASS_COMMAND_ID);
+				await commandService.executeCommand(CREATE_LWC_COMPONENT_COMMAND_ID);
 				codeEditor = codeEditorService.getActiveCodeEditor()!;
 			}
 			accessibleViewService.show(instantiationService.createInstance(EditorAccessibilityHelpProvider, codeEditor));

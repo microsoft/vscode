@@ -125,7 +125,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this._register(this.registerManageProfilesAction());
 		this._register(this.registerSwitchProfileAction());
 
-		this.registerOpenProfileSubMenu();
+		// this.registerOpenProfileSubMenu();
 		this.registerNewWindowWithProfileAction();
 		this.registerProfilesActions();
 		this._register(this.userDataProfilesService.onDidChangeProfiles(() => this.registerProfilesActions()));
@@ -163,14 +163,14 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		});
 	}
 
-	private registerOpenProfileSubMenu(): void {
-		MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-			title: localize('New Profile Window', "New Window with Profile"),
-			submenu: OpenProfileMenu,
-			group: '1_new',
-			order: 4,
-		});
-	}
+	// private registerOpenProfileSubMenu(): void {
+	// 	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	// 		title: localize('New Profile Window', "New Window with Profile"),
+	// 		submenu: OpenProfileMenu,
+	// 		group: '1_new',
+	// 		order: 4,
+	// 	});
+	// }
 
 	private readonly profilesDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private registerProfilesActions(): void {

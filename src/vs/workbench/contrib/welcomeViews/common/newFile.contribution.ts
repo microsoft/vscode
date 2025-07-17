@@ -27,11 +27,11 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'welcome.showNewFileEntries',
-			title: localize2('welcome.newFile', 'New File...'),
+			title: localize2('welcome.newFile', 'New File'),
 			category,
 			f1: true,
 			keybinding: {
-				primary: KeyMod.Alt + KeyMod.CtrlCmd + KeyMod.WinCtrl + KeyCode.KeyN,
+				primary: KeyMod.Alt + KeyMod.CtrlCmd + KeyMod.WinCtrl + KeyCode.KeyL,
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: {
@@ -210,7 +210,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 MenuRegistry.appendMenuItem(MenuId.NewFile, {
 	group: 'file',
 	command: {
-		id: 'workbench.action.files.newUntitledFile',
+		id: 'workbench.action.files.createApexClass',
 		title: localize('miNewFile2', "Text File")
 	},
 	order: 1

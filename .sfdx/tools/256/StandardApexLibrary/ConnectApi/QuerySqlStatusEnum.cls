@@ -1,0 +1,6 @@
+global enum QuerySqlStatusEnum {
+FINISHED,
+RESULTSPRODUCED,
+RUNNING,
+UNSPECIFIED
+}

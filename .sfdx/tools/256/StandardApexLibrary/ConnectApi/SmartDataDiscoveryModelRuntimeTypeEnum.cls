@@ -1,0 +1,7 @@
+global enum SmartDataDiscoveryModelRuntimeTypeEnum {
+DISCOVERY,
+H2O,
+PY36TENSORFLOW244,
+PY37SCIKITLEARN102,
+PY37TENSORFLOW270
+}

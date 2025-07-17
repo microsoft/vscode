@@ -1,0 +1,6 @@
+global enum CommerceAddressSort {
+CREATEDDATEASC,
+CREATEDDATEDESC,
+NAMEASC,
+NAMEDESC
+}

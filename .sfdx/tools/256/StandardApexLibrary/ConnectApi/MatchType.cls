@@ -1,0 +1,5 @@
+global enum MatchType {
+MULTIPLEMATCH,
+NOMATCH,
+SINGLEMATCH
+}

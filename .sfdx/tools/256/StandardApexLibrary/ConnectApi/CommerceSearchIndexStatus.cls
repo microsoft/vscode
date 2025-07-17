@@ -1,0 +1,6 @@
+global enum CommerceSearchIndexStatus {
+COMPLETED,
+COMPLETEDWITHERRORS,
+FAILED,
+INPROGRESS
+}

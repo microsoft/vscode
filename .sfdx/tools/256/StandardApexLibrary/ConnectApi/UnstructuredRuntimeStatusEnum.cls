@@ -1,0 +1,10 @@
+global enum UnstructuredRuntimeStatusEnum {
+ABORTED,
+FAILED,
+INPROGRESS,
+NOTSTARTED,
+PENDING,
+READY,
+SUBMITTED,
+SUCCESS
+}

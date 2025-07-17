@@ -1,0 +1,11 @@
+global enum ConnectManagedContentNodeType {
+DATE,
+DATETIME,
+MEDIA,
+MEDIASOURCE,
+MULTILINETEXT,
+NAMEFIELD,
+RICHTEXT,
+TEXT,
+URL
+}

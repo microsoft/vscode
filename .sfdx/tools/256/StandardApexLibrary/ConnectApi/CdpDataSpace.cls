@@ -1,0 +1,3 @@
+global class CdpDataSpace {
+
+}

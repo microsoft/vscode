@@ -1,0 +1,13 @@
+global enum FilterOperator {
+EQOP,
+EXCLUDESOP,
+GTOP,
+GTEOP,
+INOP,
+INCLUDESOP,
+LIKEOP,
+LTOP,
+LTEOP,
+NEOP,
+NINOP
+}

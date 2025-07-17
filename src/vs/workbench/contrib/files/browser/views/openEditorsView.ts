@@ -28,7 +28,7 @@ import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { DisposableMap, IDisposable, dispose } from '../../../../../base/common/lifecycle.js';
 import { MenuId, Action2, registerAction2, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID, OpenEditorsSelectedFileOrUntitledContext } from '../fileConstants.js';
+import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID, CREATE_APEX_CLASS_COMMAND_ID, CREATE_LWC_COMPONENT_COMMAND_ID, OpenEditorsSelectedFileOrUntitledContext } from '../fileConstants.js';
 import { ResourceContextKey, MultipleEditorGroupsContext } from '../../../../common/contextkeys.js';
 import { CodeDataTransfers, containsDragType } from '../../../../../platform/dnd/browser/dnd.js';
 import { ResourcesDropHandler, fillEditorsDragData } from '../../../../browser/dnd.js';
@@ -942,6 +942,8 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const commandService = accessor.get(ICommandService);
-		await commandService.executeCommand(NEW_UNTITLED_FILE_COMMAND_ID);
+		await commandService.executeCommand(CREATE_APEX_CLASS_COMMAND_ID);
+		await commandService.executeCommand(CREATE_LWC_COMPONENT_COMMAND_ID);
+
 	}
 });
