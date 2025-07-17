@@ -2946,7 +2946,7 @@ export class CommandCenter {
 		return '';
 	}
 
-	private async promptForBranchName(repository: Repository, defaultName?: string, initialValue?: string): Promise<string> {
+	private async promptForBranchName(repository: Repository, defaultName?: string, initialValue?: string, currentBranch?: string): Promise<string> {
 		const config = workspace.getConfiguration('git');
 		const branchPrefix = config.get<string>('branchPrefix')!;
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
@@ -2958,9 +2958,16 @@ export class CommandCenter {
 			return sanitizeBranchName(defaultName, branchWhitespaceChar);
 		}
 
+		const getBranchPrefix = (branchPrefix: string, currentBranch?: string) => {
+			const selectedBranch = currentBranch ? currentBranch : '';
+
+			return branchPrefix.replace('${branch}', selectedBranch);
+		};
+
 		const getBranchName = async (): Promise<string> => {
 			const branchName = branchRandomNameEnabled ? await this.generateRandomBranchName(repository, branchWhitespaceChar) : '';
-			return `${branchPrefix}${branchName}`;
+			const modifiedBranchPrefix = getBranchPrefix(branchPrefix, currentBranch);
+			return `${modifiedBranchPrefix}${branchName}`;
 		};
 
 		const getValueSelection = (value: string): [number, number] | undefined => {
@@ -3062,7 +3069,9 @@ export class CommandCenter {
 			}
 		}
 
-		const branchName = await this.promptForBranchName(repository, defaultName);
+		const currentBranch = from ? target : (repository.HEAD && repository.HEAD.name);
+
+		const branchName = await this.promptForBranchName(repository, defaultName, undefined, currentBranch);
 
 		if (!branchName) {
 			return;
