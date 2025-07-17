@@ -31,8 +31,10 @@ export interface IChatEditorOptions extends IEditorOptions {
 }
 
 export class ChatEditor extends EditorPane {
-	private widget!: ChatWidget;
-
+	private _chatWidget!: ChatWidget;
+	public get chatWidget(): ChatWidget {
+		return this._chatWidget;
+	}
 	private _scopedContextKeyService!: IScopedContextKeyService;
 	override get scopedContextKeyService() {
 		return this._scopedContextKeyService;
@@ -63,7 +65,7 @@ export class ChatEditor extends EditorPane {
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 		ChatContextKeys.inChatEditor.bindTo(this._scopedContextKeyService).set(true);
 
-		this.widget = this._register(
+		this._chatWidget = this._register(
 			scopedInstantiationService.createInstance(
 				ChatWidget,
 				ChatAgentLocation.Panel,
@@ -90,21 +92,21 @@ export class ChatEditor extends EditorPane {
 					inputEditorBackground: inputBackground,
 					resultEditorBackground: editorBackground
 				}));
-		this._register(this.widget.onDidClear(() => this.clear()));
-		this.widget.render(parent);
-		this.widget.setVisible(true);
+		this._register(this.chatWidget.onDidClear(() => this.clear()));
+		this.chatWidget.render(parent);
+		this.chatWidget.setVisible(true);
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
 		super.setEditorVisible(visible);
 
-		this.widget?.setVisible(visible);
+		this.chatWidget?.setVisible(visible);
 	}
 
 	public override focus(): void {
 		super.focus();
 
-		this.widget?.focusInput();
+		this.chatWidget?.focusInput();
 	}
 
 	override clearInput(): void {
@@ -120,7 +122,7 @@ export class ChatEditor extends EditorPane {
 			throw new Error(`Failed to get model for chat editor. id: ${input.sessionId}`);
 		}
 
-		if (!this.widget) {
+		if (!this.chatWidget) {
 			throw new Error('ChatEditor lifecycle issue: no editor widget');
 		}
 
@@ -130,14 +132,14 @@ export class ChatEditor extends EditorPane {
 	private updateModel(model: IChatModel, viewState?: IChatViewState): void {
 		this._memento = new Memento('interactive-session-editor-' + CHAT_PROVIDER_ID, this.storageService);
 		this._viewState = viewState ?? this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IChatViewState;
-		this.widget.setModel(model, { ...this._viewState });
+		this.chatWidget.setModel(model, { ...this._viewState });
 	}
 
 	protected override saveState(): void {
-		this.widget?.saveState();
+		this.chatWidget?.saveState();
 
 		if (this._memento && this._viewState) {
-			const widgetViewState = this.widget.getViewState();
+			const widgetViewState = this.chatWidget.getViewState();
 
 			// Need to set props individually on the memento
 			this._viewState.inputValue = widgetViewState.inputValue;
@@ -151,8 +153,8 @@ export class ChatEditor extends EditorPane {
 	}
 
 	override layout(dimension: dom.Dimension, position?: dom.IDomPosition | undefined): void {
-		if (this.widget) {
-			this.widget.layout(dimension.height, dimension.width);
+		if (this.chatWidget) {
+			this.chatWidget.layout(dimension.height, dimension.width);
 		}
 	}
 }

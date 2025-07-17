@@ -47,7 +47,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { IChatAgentService } from '../../common/chatAgents.js';
+import { IChatAgentData, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
@@ -508,6 +508,79 @@ export function registerChatActions() {
 		async run(accessor: ServicesAccessor) {
 			const editorService = accessor.get(IEditorService);
 			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } satisfies IChatEditorOptions });
+		}
+	});
+
+	registerAction2(class OpenCodingAgentEditorAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.openCodingAgentEditor',
+				title: localize2('codingAgentSession.open', "New Coding Agent Editor"),
+				f1: true,
+				category: CHAT_CATEGORY,
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.hasRemoteCodingAgent),
+				icon: Codicon.cloud,
+				menu: {
+					id: MenuId.ViewTitle,
+					group: 'navigation',
+					order: 5,
+					when: ContextKeyExpr.equals('view', ChatViewId)
+				}
+			});
+		}
+
+		async run(accessor: ServicesAccessor) {
+			const chatAgentService = accessor.get(IChatAgentService);
+			const editorService = accessor.get(IEditorService);
+			const quickInputService = accessor.get(IQuickInputService);
+			const chatWidgetService = accessor.get(IChatWidgetService);
+
+			// Get all coding agents
+			const allAgents = chatAgentService.getAgents();
+			const codingAgents = allAgents.filter(agent => agent.isCodingAgent);
+
+			if (codingAgents.length === 0) {
+				return;
+			}
+
+			let selectedAgent: IChatAgentData;
+			if (codingAgents.length === 1) {
+				selectedAgent = codingAgents[0];
+			} else {
+				const quickPickItems = codingAgents.map(agent => ({
+					label: agent.fullName || agent.name,
+					description: agent.description,
+					detail: `@${agent.name}`,
+					agent: agent
+				}));
+
+				const picked = await quickInputService.pick(quickPickItems, {
+					title: localize('selectCodingAgent', "Select Coding Agent"),
+					placeHolder: localize('selectCodingAgentPlaceholder', "Choose which coding agent to start a session with")
+				});
+
+				if (!picked) {
+					return; // User cancelled
+				}
+
+				selectedAgent = picked.agent;
+			}
+
+			// Open the chat editor
+			await editorService.openEditor({
+				resource: ChatEditorInput.getNewEditorUri(),
+				options: { pinned: true, sticky: true } satisfies IChatEditorOptions
+			});
+
+			// Wait a bit for the editor to be ready, then get the widget
+			setTimeout(() => {
+				const widget = chatWidgetService.lastFocusedWidget;
+				if (widget) {
+					const agentMessage = `@${selectedAgent.name} `;
+					widget.setInput(agentMessage);
+					widget.lockToCodingAgent(selectedAgent);
+				}
+			}, 100);
 		}
 	});
 
