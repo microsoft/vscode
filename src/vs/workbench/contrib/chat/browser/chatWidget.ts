@@ -815,6 +815,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			: localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.");
 		const icon = expEmptyState ? Codicon.chatSparkle : Codicon.copilotLarge;
 
+		if (this.isLockedToCodingAgent) {
+			return {
+				title: localize('codingAgentTitle', "Chat with {0}", this._codingAgentPrefix),
+				message: new MarkdownString(localize('codingAgentMessage', "This chat session will be forwarded to the {0} coding agent", this._codingAgentPrefix)),
+				icon: Codicon.cloud,
+				additionalMessage,
+			};
+		}
+
 		if (this.input.currentModeKind === ChatModeKind.Ask) {
 			return {
 				title: localize('chatDescription', "Ask about your code."),
@@ -1561,6 +1570,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.updateCodingAgentVisualState();
 		this.registerPrefixLockKeydownHandler();
 		this._lockedToCodingAgentContextKey.set(true);
+		this.renderWelcomeViewContentIfNeeded();
 	}
 
 	public unlockFromCodingAgent(): void {
@@ -1570,6 +1580,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.updateCodingAgentVisualState();
 		this.unregisterPrefixLockKeydownHandler();
 		this._lockedToCodingAgentContextKey.set(false);
+		this.renderWelcomeViewContentIfNeeded();
 	}
 	private _prefixLockKeydownDisposable: IDisposable | undefined;
 
