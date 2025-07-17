@@ -47,6 +47,10 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			'experimental'
 		],
 		default: {},
+		policy: {
+			name: 'TerminalChatAgentToolsAllowList',
+			minimumVersion: '1.103',
+		}
 	},
 	[TerminalChatAgentToolsSettingId.DenyList]: {
 		markdownDescription: localize('denyList', "A list of commands or regular expressions that override matches in `#chat.agent.terminal.allowList#` and force a command line to require explicit approval. This will be matched against the start of a command. A regular expression can be provided by wrapping the string in `/` characters.\n\nExamples:\n- `\"rm\"` will require explicit approval for any command starting with `rm`\n- `\"/^git (push|pull)/\"` will require explicit approval for any command starting with `git push` or `git pull` \n\nThis provides basic protection by preventing certain commands from running automatically, especially those a user would likely want to approve first. It is not intended as a comprehensive security measure or a defense against prompt injection."),
@@ -78,5 +82,9 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			chown: true,
 			'Remove-Item': true,
 		},
+		policy: {
+			name: 'TerminalChatAgentToolsDenyList',
+			minimumVersion: '1.103',
+		}
 	}
 };
