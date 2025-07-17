@@ -37,6 +37,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		if (!input.multiDiffSource && !input.resources) {
 			throw new BugIndicatingError('MultiDiffEditorInput requires either multiDiffSource or resources');
 		}
+		console.log('input.resources', input.resources);
 		const multiDiffSource = input.multiDiffSource ?? URI.parse(`multi-diff-editor:${new Date().getMilliseconds().toString() + Math.random().toString()}`);
 		return instantiationService.createInstance(
 			MultiDiffEditorInput,
@@ -111,6 +112,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			};
 		});
 		this.resources = derived(this, reader => this._resolvedSource.cachedPromiseResult.read(reader)?.data?.resources.read(reader));
+		console.log('resources', this.resources.get());
 		this.textFileServiceOnDidChange = new FastEventDispatcher<ITextFileEditorModel, URI>(
 			this._textFileService.files.onDidChangeDirty,
 			item => item.resource.toString(),

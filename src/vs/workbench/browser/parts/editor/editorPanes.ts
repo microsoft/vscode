@@ -321,7 +321,7 @@ export class EditorPanes extends Disposable {
 	}
 
 	private doShowEditorPane(descriptor: IEditorPaneDescriptor): EditorPane {
-
+		console.log('descriptor : ', descriptor);
 		// Return early if the currently active editor pane can handle the input
 		if (this._activeEditorPane && descriptor.describes(this._activeEditorPane)) {
 			return this._activeEditorPane;
