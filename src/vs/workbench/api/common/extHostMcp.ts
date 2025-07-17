@@ -16,7 +16,7 @@ import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionStat
 import { ExtHostMcpShape, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as Convert from './extHostTypeConverters.js';
-import { AUTH_SERVER_METADATA_DISCOVERY_PATH, getDefaultMetadataForUrl, getResourceServerBaseUrlFromDiscoveryUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
+import { AUTH_SERVER_METADATA_DISCOVERY_PATH, OPENID_CONNECT_DISCOVERY_PATH, getDefaultMetadataForUrl, getResourceServerBaseUrlFromDiscoveryUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
 import { URI } from '../../../base/common/uri.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { CancellationError } from '../../../base/common/errors.js';
@@ -420,7 +420,7 @@ class McpHTTPHandle extends Disposable {
 			// Try fetching the OpenID Connect Discovery with path insertion.
 			// For issuer URLs with path components, this inserts the well-known path
 			// after the origin and before the path.
-			const openidPathInsertionUrl = new URL('/.well-known/openid-configuration', authorizationServer).toString() + extraPath;
+			const openidPathInsertionUrl = new URL(OPENID_CONNECT_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
 			authServerMetadataResponse = await this._fetch(openidPathInsertionUrl, {
 				method: 'GET',
 				headers: {
