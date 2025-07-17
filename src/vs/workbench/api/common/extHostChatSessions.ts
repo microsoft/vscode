@@ -6,22 +6,22 @@
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
-import { ExtHostChatSessionShape, MainContext, MainThreadChatSessionShape } from './extHost.protocol.js';
+import { ExtHostChatSessionsShape, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
 import type * as vscode from 'vscode';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 
-export interface IExtHostChatSession extends ExtHostChatSessionShape {
-	registerChatSessionInformationProvider(provider: vscode.ChatSessionInformationProvider): vscode.Disposable;
-	$provideChatSessionInformation(handle: number, token: vscode.CancellationToken): Promise<vscode.ChatSessionInformation[]>;
+export interface IExtHostChatSessions extends ExtHostChatSessionsShape {
+	registerChatSessionsProvider(provider: vscode.ChatSessionsProvider): vscode.Disposable;
+	$provideChatSessions(handle: number, token: vscode.CancellationToken): Promise<vscode.ChatSessionContent[]>;
 }
-export const IExtHostChatSession = createDecorator<IExtHostChatSession>('IExtHostChatSession');
+export const IExtHostChatSessions = createDecorator<IExtHostChatSessions>('IExtHostChatSessions');
 
-export class ExtHostChatSession extends Disposable implements IExtHostChatSession {
+export class ExtHostChatSessions extends Disposable implements IExtHostChatSessions {
 	declare _serviceBrand: undefined;
 
-	private readonly _proxy: Proxied<MainThreadChatSessionShape>;
-	private readonly _statusProviders = new Map<number, { provider: vscode.ChatSessionInformationProvider; disposable: DisposableStore }>();
+	private readonly _proxy: Proxied<MainThreadChatSessionsShape>;
+	private readonly _statusProviders = new Map<number, { provider: vscode.ChatSessionsProvider; disposable: DisposableStore }>();
 	private _nextHandle = 0;
 
 	constructor(
@@ -29,38 +29,38 @@ export class ExtHostChatSession extends Disposable implements IExtHostChatSessio
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this._proxy = this._extHostRpc.getProxy(MainContext.MainThreadChatSession);
+		this._proxy = this._extHostRpc.getProxy(MainContext.MainThreadChatSessions);
 	}
 
-	registerChatSessionInformationProvider(provider: vscode.ChatSessionInformationProvider): vscode.Disposable {
+	registerChatSessionsProvider(provider: vscode.ChatSessionsProvider): vscode.Disposable {
 		const handle = this._nextHandle++;
 		const disposables = new DisposableStore();
 
 		this._statusProviders.set(handle, { provider, disposable: disposables });
 
-		disposables.add(provider.onDidChangeChatSessionInformation(() => {
-			this._proxy.$onDidChangeChatSessionInformation(handle);
+		disposables.add(provider.onDidChangeChatSessionContent(() => {
+			this._proxy.$onDidChangeChatSessionContent(handle);
 		}));
 
-		this._proxy.$registerChatSessionInformationProvider(handle);
+		this._proxy.$registerChatSessionsProvider(handle);
 
 		return {
 			dispose: () => {
 				this._statusProviders.delete(handle);
 				disposables.dispose();
 				provider.dispose();
-				this._proxy.$unregisterChatSessionInformationProvider(handle);
+				this._proxy.$unregisterChatSessionsProvider(handle);
 			}
 		};
 	}
 
-	async $provideChatSessionInformation(handle: number, token: vscode.CancellationToken): Promise<vscode.ChatSessionInformation[]> {
+	async $provideChatSessions(handle: number, token: vscode.CancellationToken): Promise<vscode.ChatSessionContent[]> {
 		const entry = this._statusProviders.get(handle);
 		if (!entry) {
 			this._logService.error(`No provider registered for handle ${handle}`);
 			return [];
 		}
 
-		return await entry.provider.provideChatSessionInformation(token);
+		return await entry.provider.provideChatSessions(token);
 	}
 }
