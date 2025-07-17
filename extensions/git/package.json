@@ -2571,6 +2571,7 @@
           "group": "worktrees@1"
         },
         {
+          "when": "scmProviderContext == worktree",
           "command": "git.deleteWorktree",
           "group": "worktrees@2"
         }
