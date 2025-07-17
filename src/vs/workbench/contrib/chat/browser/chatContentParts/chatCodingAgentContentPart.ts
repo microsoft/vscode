@@ -10,7 +10,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
-import { ICodingAgentHasBegun } from '../../common/chatService.js';
+import { ICodingAgentSessionBegin } from '../../common/chatService.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
 import './media/chatCodingAgent.css';
@@ -22,7 +22,7 @@ export class ChatCodingAgentContentPart extends Disposable implements IChatConte
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	constructor(
-		private readonly session: ICodingAgentHasBegun,
+		private readonly session: ICodingAgentSessionBegin,
 		renderer: MarkdownRenderer,
 		context: IChatContentPartRenderContext,
 	) {

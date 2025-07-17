@@ -11,10 +11,22 @@ import { localize } from '../../../../nls.js';
 
 import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService, IChatAgentData } from '../../chat/common/chatAgents.js';
 import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
-import { IChatProgress } from '../../chat/common/chatService.js';
+import { IChatProgress, IChatService } from '../../chat/common/chatService.js';
 import { IRemoteCodingAgentsService, IRemoteCodingAgent } from '../common/remoteCodingAgentsService.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ChatRequestTextPart, IParsedChatRequest } from '../../chat/common/chatParserTypes.js';
+import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+
+interface IDemoStep {
+	kind: 'PROGRESS_MESSAGE' | 'ADD_REQUEST' | 'FILE_UPDATE';
+	delay: number;
+	text?: string;
+	uri?: string;
+	changeType?: string;
+	preview?: string;
+}
 
 
 
@@ -27,7 +39,8 @@ export class RemoteCodingAgentsDynamicChatHandler extends Disposable {
 
 	constructor(
 		@IRemoteCodingAgentsService private readonly remoteCodingAgentsService: IRemoteCodingAgentsService,
-		@IChatAgentService private readonly chatAgentService: IChatAgentService
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 		console.log('RemoteCodingAgentsDynamicChatHandler: Initializing...');
@@ -82,7 +95,7 @@ export class RemoteCodingAgentsDynamicChatHandler extends Disposable {
 			extensionPublisherId: nullExtensionDescription.publisher
 		};
 
-		const agentImpl = new RemoteCodingAgentChatImplementation(remoteCodingAgent);
+		const agentImpl = this.instantiationService.createInstance(RemoteCodingAgentChatImplementation, remoteCodingAgent);
 		const disposable = this.chatAgentService.registerDynamicAgent(agentData, agentImpl);
 
 		this.registeredAgents.set(agentId, disposable);
@@ -102,7 +115,7 @@ class RemoteCodingAgentChatImplementation extends Disposable implements IChatAge
 
 	constructor(
 		private readonly remoteCodingAgent: IRemoteCodingAgent,
-		// @IRemoteCodingAgentsService readonly remoteCodingAgentService: IRemoteCodingAgentsService (TODO:)
+		@IChatService private readonly chatService: IChatService
 	) {
 		super();
 	}
@@ -110,7 +123,7 @@ class RemoteCodingAgentChatImplementation extends Disposable implements IChatAge
 	async invoke(request: IChatAgentRequest, progress: (progress: IChatProgress[]) => void, history: any[], token: CancellationToken): Promise<IChatAgentResult> {
 		const message = request.message.trim();
 		try {
-			return this.handle(message, progress, token);
+			return this.handle(request, message, progress, token);
 		} catch (error) {
 			progress([{
 				kind: 'markdownContent',
@@ -120,7 +133,7 @@ class RemoteCodingAgentChatImplementation extends Disposable implements IChatAge
 		}
 	}
 
-	private async handle(message: string, progress: (progress: IChatProgress[]) => void, token: CancellationToken): Promise<IChatAgentResult> {
+	private async handle(request: IChatAgentRequest, message: string, progress: (progress: IChatProgress[]) => void, token: CancellationToken): Promise<IChatAgentResult> {
 		const { displayName } = this.remoteCodingAgent;
 
 		progress([{
@@ -143,49 +156,130 @@ class RemoteCodingAgentChatImplementation extends Disposable implements IChatAge
 			description
 		}]);
 
-		this.doDemoStreaming(progress, token);
+		// Get the chat model for this session so we can add requests over time
+		const chatModel = this.chatService.getSession(request.sessionId);
+		if (!chatModel) {
+			throw new Error(`Chat session ${request.sessionId} not found`);
+		}
+
+		this.doDemoStreaming(chatModel, progress, token);
 
 		return {};
 	}
 
 	// TODO: DEMO!
-	private doDemoStreaming(progress: (progress: IChatProgress[]) => void, token: CancellationToken): void {
-		const steps = [
+	private doDemoStreaming(chatModel: any, progress: (progress: IChatProgress[]) => void, token: CancellationToken): void {
+		const steps: IDemoStep[] = [
 			{ kind: 'PROGRESS_MESSAGE', text: 'Analyzing codebase...', delay: 1000 },
+			{ kind: 'ADD_REQUEST', text: 'Let me check the current file structure', delay: 2000 },
+			{ kind: 'PROGRESS_MESSAGE', text: 'Planning implementation...', delay: 1500 },
+			{ kind: 'ADD_REQUEST', text: 'I need to create a new utility function', delay: 2000 },
 			{ kind: 'FILE_UPDATE', delay: 1500, uri: 'file:///path/to/file1.js', changeType: 'modified', preview: 'function foo() { ... }' },
+			{ kind: 'ADD_REQUEST', text: 'Testing the implementation...', delay: 2000 },
 		];
 
 		let currentStep = 0;
-		// eslint-disable-next-line no-restricted-globals
-		const interval = setInterval(() => {
+
+		const executeStep = () => {
+			// Check if we should stop
 			if (currentStep >= steps.length || token.isCancellationRequested) {
-				// eslint-disable-next-line no-restricted-globals
-				clearInterval(interval);
 				return;
 			}
 
 			const step = steps[currentStep];
+			console.log(`Executing step ${currentStep + 1}/${steps.length}: ${step.kind}`);
+
+			try {
+				switch (step.kind) {
+					case 'PROGRESS_MESSAGE':
+						progress([{
+							kind: 'progressMessage',
+							content: new MarkdownString(step.text || 'Working...')
+						}]);
+						break;
+
+					case 'ADD_REQUEST':
+						if (step.text) {
+							this.addRequestToChatSession(chatModel, step.text);
+						}
+						break;
+
+					case 'FILE_UPDATE':
+						if (step.uri) {
+							progress([{
+								kind: 'textEdit',
+								uri: URI.parse(step.uri),
+								edits: [{
+									range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+									text: step.preview || ''
+								}]
+							}]);
+						}
+						break;
+
+					default:
+						console.warn(`Unknown step kind: ${step.kind}`);
+						break;
+				}
+			} catch (error) {
+				console.error(`Error executing step ${currentStep}:`, error);
+			}
+
+			// Move to next step
 			currentStep++;
 
-			switch (step.kind) {
-				case 'PROGRESS_MESSAGE':
-					progress([{
-						kind: 'progressMessage',
-						content: new MarkdownString(step.text)
-					}]);
-					break;
-
-				case 'FILE_UPDATE':
-					progress([{
-						kind: 'textEdit',
-						uri: URI.parse(step.uri!),
-						edits: [{
-							range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
-							text: step.preview || ''
-						}]
-					}]);
-					break;
+			// Schedule next step if there are more and not cancelled
+			if (currentStep < steps.length && !token.isCancellationRequested) {
+				const nextStep = steps[currentStep];
+				const delay = nextStep.delay || 1000;
+				setTimeout(executeStep, delay);
 			}
-		});
+		};
+
+		// Start the first step after initial delay
+		if (steps.length > 0 && !token.isCancellationRequested) {
+			const firstDelay = steps[0].delay || 1000;
+			setTimeout(executeStep, firstDelay);
+		}
+	}
+
+	private addRequestToChatSession(chatModel: any, requestText: string): void {
+		try {
+			// Create a simple parsed request with just text
+			const parsedRequest: IParsedChatRequest = {
+				text: requestText,
+				parts: [new ChatRequestTextPart(
+					new OffsetRange(0, requestText.length),
+					{ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: requestText.length + 1 },
+					requestText
+				)]
+			};
+
+			// Add the request to the chat model
+			const addedRequest = chatModel.addRequest(
+				parsedRequest,
+				{ variables: [] }, // variableData
+				0, // attempt
+				undefined, // chatAgent - will use default
+				undefined, // slashCommand
+				undefined, // confirmation
+				undefined, // locationData
+				undefined, // attachments
+				true // isCompleteAddedRequest - this indicates it's a complete request, not user input
+			);
+
+			// Immediately add a response with some content
+			chatModel.acceptResponseProgress(addedRequest, {
+				kind: 'markdownContent',
+				content: new MarkdownString(`✓ ${requestText}`)
+			});
+
+			// Complete the response
+			chatModel.setResponse(addedRequest, {});
+			chatModel.completeResponse(addedRequest);
+
+		} catch (error) {
+			console.error('Error adding request to chat session:', error);
+		}
 	}
 }

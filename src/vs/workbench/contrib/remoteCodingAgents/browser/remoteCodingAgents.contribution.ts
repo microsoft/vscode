@@ -6,6 +6,7 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
@@ -14,7 +15,6 @@ import { ExtensionsRegistry } from '../../../services/extensions/common/extensio
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IRemoteCodingAgent, IRemoteCodingAgentsService } from '../common/remoteCodingAgentsService.js';
 import { RemoteCodingAgentsDynamicChatHandler } from './remoteCodingAgentsChatProvider.js';
-import { IChatAgentService } from '../../chat/common/chatAgents.js';
 
 
 interface IRemoteCodingAgentExtensionPoint {
@@ -71,15 +71,12 @@ export class RemoteCodingAgentsContribution extends Disposable implements IWorkb
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IRemoteCodingAgentsService private readonly remoteCodingAgentsService: IRemoteCodingAgentsService,
-		@IChatAgentService private readonly chatAgentService: IChatAgentService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
 		// Initialize the chat provider
-		this.chatProvider = new RemoteCodingAgentsDynamicChatHandler(
-			this.remoteCodingAgentsService,
-			this.chatAgentService
-		);
+		this.chatProvider = this.instantiationService.createInstance(RemoteCodingAgentsDynamicChatHandler);
 		this._register(this.chatProvider);
 
 		extensionPoint.setHandler(extensions => {
