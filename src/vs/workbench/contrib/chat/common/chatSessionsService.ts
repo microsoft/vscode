@@ -25,6 +25,7 @@ export interface IChatSessionsService {
 	readonly _serviceBrand: undefined;
 	registerChatSessionsProvider(handle: number, provider: IChatSessionsProvider): IDisposable;
 	hasChatSessionsProviders: boolean;
+	provideChatSessions(token: CancellationToken): Promise<IChatSessionContent[]>;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
