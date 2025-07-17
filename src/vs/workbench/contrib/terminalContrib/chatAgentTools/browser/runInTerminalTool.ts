@@ -37,6 +37,8 @@ import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from './sub
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from './toolTerminalCreator.js';
 import { ChatModel } from '../../../chat/common/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../chat/browser/chatElicitationRequestPart.js';
+import { ChatMessageRole, ILanguageModelsService } from '../../../chat/common/languageModels.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -144,6 +146,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IChatService private readonly _chatService: IChatService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService
 	) {
 		super();
 
@@ -278,7 +281,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 				// Poll for output until the terminal is idle or 20 seconds have passed
-				outputAndIdle = await this._pollForOutputAndIdle(execution);
+				outputAndIdle = await this._pollForOutputAndIdle(execution, false, token);
 				if (!outputAndIdle.idle) {
 					const chatModel = invocation.context?.sessionId && this._chatService.getSession(invocation.context?.sessionId);
 					if (chatModel instanceof ChatModel) {
@@ -289,7 +292,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 								'Continue waiting for the task to finish up to 2 minutes',
 								'Continue waiting for the task to finish up to 2 minutes',
 								async () => {
-									outputAndIdle = await this._pollForOutputAndIdle(execution, true);
+									outputAndIdle = await this._pollForOutputAndIdle(execution, true, token);
 								},
 								() => {
 									return Promise.resolve();
@@ -428,7 +431,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	private async _pollForOutputAndIdle(
 		execution: BackgroundTerminalExecution,
-		extendedPolling?: boolean
+		extendedPolling: boolean,
+		token: CancellationToken
 	): Promise<{ idle: boolean; output: string; pollDurationMs?: number }> {
 		const maxWaitMs = extendedPolling ? 120000 : 20000;
 		const maxInterval = 2000;
@@ -468,13 +472,45 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				idleCount = 0;
 				lastBufferLength = currentBufferLength;
 			}
-			if (idleCount >= 2) {
+			const isLikelyFinished = await this._assessOutputForFinishedState(buffer, token);
+			if (isLikelyFinished && idleCount >= 2) {
 				return { idle: true, output: buffer, pollDurationMs: Date.now() - pollStartTime };
 			}
 		}
 		return { idle: idleCount >= 2, output: buffer, pollDurationMs: Date.now() - pollStartTime };
 	}
 
+	private async _assessOutputForFinishedState(buffer: string, token: CancellationToken): Promise<boolean> {
+		const modelId = this._languageModelsService.getLanguageModelIds().filter(m => this._languageModelsService.lookupLanguageModel(m)?.isDefault)?.[0];
+		if (!modelId) {
+			return false;
+		}
+
+		const response = await this._languageModelsService.sendChatRequest(modelId, new ExtensionIdentifier('Github.copilot-chat'), [{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: `Evaluate this terminal output to determine if the command is finished or still in process: ${buffer}. Return the word true if finished and false if still in process.` }] }], {}, token);
+
+		let responseText = '';
+
+		const streaming = (async () => {
+			for await (const part of response.stream) {
+				if (Array.isArray(part)) {
+					for (const p of part) {
+						if (p.part.type === 'text') {
+							responseText += p.part.value;
+						}
+					}
+				} else if (part.part.type === 'text') {
+					responseText += part.part.value;
+				}
+			}
+		})();
+
+		try {
+			await Promise.all([response.result, streaming]);
+			return responseText === 'true' ? true : false;
+		} catch (err) {
+			return false;
+		}
+	}
 
 	protected async _rewriteCommandIfNeeded(context: IToolInvocationPreparationContext, args: IRunInTerminalInputParams, instance: Pick<ITerminalInstance, 'getCwdResource'> | undefined, shell: string): Promise<string> {
 		const commandLine = args.command;
