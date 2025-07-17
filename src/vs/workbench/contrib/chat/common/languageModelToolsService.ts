@@ -60,6 +60,8 @@ export type ToolDataSource =
 	| {
 		type: 'mcp';
 		label: string;
+		serverLabel: string | undefined;
+		instructions: string | undefined;
 		collectionId: string;
 		definitionId: string;
 	}
