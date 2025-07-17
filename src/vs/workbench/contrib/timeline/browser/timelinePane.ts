@@ -48,7 +48,7 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { isString } from '../../../../base/common/types.js';
-import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -1225,7 +1225,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		const tooltip = item.tooltip
 			? isString(item.tooltip)
 				? item.tooltip
-				: { markdown: item.tooltip, markdownNotSupportedFallback: renderMarkdownAsPlaintext(item.tooltip) }
+				: { markdown: item.tooltip, markdownNotSupportedFallback: renderAsPlaintext(item.tooltip) }
 			: undefined;
 
 		template.iconLabel.setLabel(item.label, item.description, {
