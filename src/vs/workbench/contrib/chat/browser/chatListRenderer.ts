@@ -683,6 +683,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			content.push({ kind: 'errorDetails', errorDetails: element.errorDetails, isLast: index === this.delegate.getListLength() - 1 });
 		}
 
+		content.push({ kind: 'changesSummary', changes: [] });
+
+		console.log('renderChatResponseBasic');
+		console.log('templateData.renderedParts', templateData.renderedParts);
+		console.log('content', content);
 		const diff = this.diff(templateData.renderedParts ?? [], content, element);
 		this.renderChatContentDiff(diff, content, element, index, templateData);
 
@@ -821,6 +826,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('chat-response-loading', true);
 		this.traceLayout('doNextProgressiveRender', `START progressive render, index=${index}, renderData=${JSON.stringify(element.renderData)}`);
 		const contentForThisTurn = this.getNextProgressiveRenderContent(element);
+		console.log('doNextProgressiveRender');
+		console.log('templateData.renderedParts : ', templateData.renderedParts);
+		console.log('contentForThisTurn', contentForThisTurn.content);
 		const partsToRender = this.diff(templateData.renderedParts ?? [], contentForThisTurn.content, element);
 
 		const contentIsAlreadyRendered = partsToRender.every(part => part === null);
@@ -865,6 +873,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderChatContentDiff(partsToRender: ReadonlyArray<IChatRendererContent | null>, contentForThisTurn: ReadonlyArray<IChatRendererContent>, element: IChatResponseViewModel, elementIndex: number, templateData: IChatListItemTemplate): void {
 		console.log('partsToRender', partsToRender);
 		const renderedParts = templateData.renderedParts ?? [];
+		console.log('renderedParts', renderedParts);
 		templateData.renderedParts = renderedParts;
 		partsToRender.forEach((partToRender, contentIndex) => {
 			if (!partToRender) {

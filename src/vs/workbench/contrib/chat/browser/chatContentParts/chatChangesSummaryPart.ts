@@ -46,6 +46,7 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 
 	private initContent(): HTMLElement {
 		console.log('initContent');
+		console.log('this.changes', this.changes);
 		const ref = this._register(this.listPool.get());
 		const list = ref.object;
 		this._register(list.onDidOpen((e) => {
