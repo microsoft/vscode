@@ -257,6 +257,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 				// Poll for output until the terminal is idle or 20 seconds have passed
 				outputAndIdle = await this._pollForOutput(execution);
+				if (!outputAndIdle.idle) {
+					// const shouldContinue = await this._languageModelToolsService.invokeTool(AskUserToContinuePollingToolData, _countTokens, token);
+					// if (shouldContinue.content?.[0].value === 'true') {
+					// outputAndIdle = await this._pollForOutput(execution, true);
+					// }
+				}
 				let resultText = (
 					didUserEditCommand
 						? `Note: The user manually edited the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
@@ -384,9 +390,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	private async _pollForOutput(execution: BackgroundTerminalExecution): Promise<{ idle: boolean; output: string; pollDurationMs?: number }> {
-		// Poll for up to 20 seconds
-		const maxWaitMs = 20000;
+	private async _pollForOutput(execution: BackgroundTerminalExecution, extendedPolling?: boolean): Promise<{ idle: boolean; output: string; pollDurationMs?: number }> {
+		// Poll for up to 20 seconds or 2 minutes if extendedPolling is true
+		const maxWaitMs = extendedPolling ? 120000 : 20000;
 		const maxInterval = 2000;
 		let currentInterval = 1000;
 		const endTime = Date.now() + maxWaitMs;
