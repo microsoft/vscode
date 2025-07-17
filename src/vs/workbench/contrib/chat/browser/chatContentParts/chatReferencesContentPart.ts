@@ -40,7 +40,7 @@ import { SETTINGS_AUTHORITY } from '../../../../services/preferences/common/pref
 import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
 import { ExplorerFolderContext } from '../../../files/common/files.js';
 import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { ChatResponseReferencePartStatusKind, IChatContentReference, IChatWarningMessage } from '../../common/chatService.js';
+import { ChatResponseReferencePartStatusKind, IChatChangesSummary, IChatContentReference, IChatWarningMessage } from '../../common/chatService.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../common/chatViewModel.js';
 import { ChatTreeItem, IChatWidgetService } from '../chat.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
@@ -56,7 +56,14 @@ export interface IChatReferenceListItem extends IChatContentReference {
 	excluded?: boolean;
 }
 
-export type IChatCollapsibleListItem = IChatReferenceListItem | IChatWarningMessage;
+export interface IChatChangesSummaryItem extends IChatChangesSummary {
+	title?: string;
+	description?: string;
+	state?: ModifiedFileEntryState;
+	excluded?: boolean;
+}
+
+export type IChatCollapsibleListItem = IChatReferenceListItem | IChatWarningMessage | IChatChangesSummaryItem;
 
 export class ChatCollapsibleListContentPart extends ChatCollapsibleContentPart {
 
@@ -322,7 +329,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 	}
 
 
-	private getReferenceIcon(data: IChatContentReference): URI | ThemeIcon | undefined {
+	private getReferenceIcon(data: IChatContentReference | IChatChangesSummary): URI | ThemeIcon | undefined {
 		if (ThemeIcon.isThemeIcon(data.iconPath)) {
 			return data.iconPath;
 		} else {

@@ -18,7 +18,7 @@ import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameS
 import { ChatPauseState, IChatModel, IChatProgressRenderableResponseContent, IChatRequestDisablement, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from './chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatChangesSummary, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from './chatService.js';
 import { countWords } from './chatWordCounter.js';
 import { CodeBlockModelCollection } from './codeBlockModelCollection.js';
 
@@ -177,7 +177,7 @@ export interface IChatErrorDetailsPart {
 
 export interface IChatChangesSummaryPart {
 	kind: 'changesSummary';
-	edits: IChatTextEditGroup[];
+	changes: ReadonlyArray<IChatChangesSummary>;
 }
 
 /**

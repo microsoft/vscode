@@ -3,17 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { $ } from '../../../../../base/browser/dom.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
-import * as dom from '../../../../../base/browser/dom.js';
 import { IChatChangesSummaryPart, IChatRendererContent } from '../../common/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ChatCollapsibleListContentPart, CollapsibleListPool } from './chatReferencesContentPart.js';
+import { CollapsibleListPool } from './chatReferencesContentPart.js';
+import { IChatChangesSummary } from '../../common/chatService.js';
 
 export class ChatChangesSummaryContentPart extends Disposable implements IChatContentPart {
 
-	public readonly domNode: HTMLElement;
+	private _domNode: HTMLElement | undefined;
+
+	private readonly listPool: CollapsibleListPool;
+	private readonly changes: ReadonlyArray<IChatChangesSummary>;
 
 	constructor(
 		content: IChatChangesSummaryPart,
@@ -21,21 +25,45 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this.domNode = dom.$('.chat-tool-invocation-part');
-		const listPool = this._register(instantiationService.createInstance(CollapsibleListPool, () => Disposable.None, undefined, undefined));
-		const collapsibleListPart = this._register(instantiationService.createInstance(
-			ChatCollapsibleListContentPart,
-			[],
-			'',
-			context,
-			listPool,
-		));
-		this.domNode = collapsibleListPart.domNode;
+		this.changes = content.changes;
+		this.listPool = this._register(instantiationService.createInstance(CollapsibleListPool, () => Disposable.None, undefined, undefined));
+	}
+
+	get domNode(): HTMLElement {
+		this._domNode ??= this.init();
+		return this._domNode;
+	}
+
+	private init(): HTMLElement {
+		console.log('init');
+		const buttonElement = $('.chat-used-context-label', undefined);
+		this._domNode = $('.chat-used-context', undefined, buttonElement);
+		const content = this.initContent();
+		this._domNode.appendChild(content);
+		console.log('this._domNode', this._domNode);
+		return this._domNode;
+	}
+
+	private initContent(): HTMLElement {
+		console.log('initContent');
+		const ref = this._register(this.listPool.get());
+		const list = ref.object;
+		this._register(list.onDidOpen((e) => {
+			console.log('Open event:', e);
+		}));
+		this._register(list.onContextMenu(e => {
+			console.log('Context menu event:', e);
+		}));
+		const maxItemsShown = 6;
+		const itemsShown = Math.min(this.changes.length, maxItemsShown);
+		const height = itemsShown * 22;
+		list.layout(height);
+		list.getHTMLElement().style.height = `${height}px`;
+		list.splice(0, list.length, this.changes);
+		return list.getHTMLElement().parentElement!;
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
-		console.log('hadSameContent', other.kind === 'changesSummary');
-		return false;
-		// should actually be something along the lines of other.kind === 'changesSummary';
+		return other.kind === 'changesSummary' && other.changes.length === this.changes.length;
 	}
 }

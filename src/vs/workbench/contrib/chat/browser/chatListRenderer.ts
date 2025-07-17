@@ -49,7 +49,7 @@ import { IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
@@ -997,8 +997,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const isPaused = element.model.isPaused.get();
 			partsToRender.push({ kind: 'working', isPaused, setPaused: p => element.model.setPaused(p) });
 		}
-		const textEditResponse = element.model.response.value.filter(part => part.kind === 'textEditGroup');
-		partsToRender.push({ kind: 'changesSummary', edits: textEditResponse });
+		const changes: IChatChangesSummary[] = element.model.response.value.filter(part => part.kind === 'textEditGroup').map(part => {
+			return {
+				kind: 'changesSummary',
+				reference: part.uri,
+				edits: part.edits,
+				done: part.done,
+				state: part.state
+			};
+		});
+		partsToRender.push({ kind: 'changesSummary', changes });
 
 		return { content: partsToRender, moreContentAvailable };
 	}
@@ -1056,7 +1064,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				// null -> no change
 				diff.push(null);
 			}
-			// console.log('diff : ', diff);
 		}
 
 		return diff;
