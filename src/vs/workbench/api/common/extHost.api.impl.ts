@@ -112,6 +112,7 @@ import { ExtHostWebviewViews } from './extHostWebviewView.js';
 import { IExtHostWindow } from './extHostWindow.js';
 import { IExtHostWorkspace } from './extHostWorkspace.js';
 import { ExtHostAiSettingsSearch } from './extHostAiSettingsSearch.js';
+import { IExtHostChatSession } from './extHostChatSessions.js';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -153,6 +154,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostLanguageModels = accessor.get(IExtHostLanguageModels);
 	const extHostMcp = accessor.get(IExtHostMpcService);
 	const extHostDataChannels = accessor.get(IExtHostDataChannels);
+	const extHostChatSession = accessor.get(IExtHostChatSession);
 
 	// register addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostFileSystemInfo, extHostFileSystemInfo);
@@ -172,6 +174,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostAuthentication, extHostAuthentication);
 	rpcProtocol.set(ExtHostContext.ExtHostChatProvider, extHostLanguageModels);
 	rpcProtocol.set(ExtHostContext.ExtHostDataChannels, extHostDataChannels);
+	rpcProtocol.set(ExtHostContext.ExtHostChatSession, extHostChatSession);
 
 	// automatically create and register addressable instances
 	const extHostDecorations = rpcProtocol.set(ExtHostContext.ExtHostDecorations, accessor.get(IExtHostDecorations));
@@ -1566,12 +1569,22 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			}
 		};
 
+		// namespace: chatSession
+		const chatSession = {
+			registerChatSessionInformationProvider(provider: vscode.ChatSessionInformationProvider) {
+				// TODO: Check enabled proposed API
+				// checkProposedApiEnabled(extension, 'chatSession');
+				return extHostChatSession.registerChatSessionInformationProvider(provider);
+			},
+		};
+
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return <typeof vscode>{
 			version: initData.version,
 			// namespaces
 			ai,
 			authentication,
+			chatSession,
 			commands,
 			comments,
 			chat,
