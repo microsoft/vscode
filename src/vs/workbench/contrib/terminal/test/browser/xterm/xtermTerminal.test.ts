@@ -94,6 +94,12 @@ suite('XtermTerminal', () => {
 	let xterm: XtermTerminal;
 	let XTermBaseCtor: typeof Terminal;
 
+	function write(data: string): Promise<void> {
+		return new Promise<void>((resolve) => {
+			xterm.write(data, resolve);
+		});
+	}
+
 	setup(async () => {
 		configurationService = new TestConfigurationService({
 			editor: {
@@ -133,100 +139,78 @@ suite('XtermTerminal', () => {
 	});
 
 	suite('getContentsAsText', () => {
-		let testXterm: XtermTerminal;
-
-		function write(xterm: XtermTerminal, data: string): Promise<void> {
-			return new Promise<void>((resolve) => {
-				xterm.write(data, resolve);
-			});
-		}
-
-		setup(() => {
-			// Create a fresh xterm instance for these tests
-			const capabilityStore = store.add(new TerminalCapabilityStore());
-			testXterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, {
-				cols: 80,
-				rows: 30,
-				xtermColorProvider: { getBackgroundColor: () => undefined },
-				capabilities: capabilityStore,
-				disableShellIntegrationReporting: true,
-				xtermAddonImporter: new TestXtermAddonImporter(),
-			}, undefined));
-		});
-
 		test('should return all buffer contents when no markers provided', async () => {
-			await write(testXterm, 'line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5');
+			await write('line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5');
 
-			const result = testXterm.getContentsAsText();
+			const result = xterm.getContentsAsText();
 			strictEqual(result.startsWith('line 1\nline 2\nline 3\nline 4\nline 5'), true, 'Should include the content plus empty lines up to buffer length');
 			const lines = result.split('\n');
-			strictEqual(lines.length, testXterm.raw.buffer.active.length, 'Should end with empty lines (total buffer size is 30 rows)');
+			strictEqual(lines.length, xterm.raw.buffer.active.length, 'Should end with empty lines (total buffer size is 30 rows)');
 		});
 
 		test('should return contents from start marker to end', async () => {
-			await write(testXterm, 'line 1\r\n');
-			const startMarker = testXterm.raw.registerMarker(0)!;
-			await write(testXterm, 'line 2\r\nline 3\r\nline 4\r\nline 5');
+			await write('line 1\r\n');
+			const startMarker = xterm.raw.registerMarker(0)!;
+			await write('line 2\r\nline 3\r\nline 4\r\nline 5');
 
-			const result = testXterm.getContentsAsText(startMarker);
+			const result = xterm.getContentsAsText(startMarker);
 			strictEqual(result.startsWith('line 2\nline 3\nline 4\nline 5'), true, 'Should start with line 2 and include empty lines');
 		});
 
 		test('should return contents from start to end marker', async () => {
-			await write(testXterm, 'line 1\r\n');
-			const startMarker = testXterm.raw.registerMarker(0)!;
-			await write(testXterm, 'line 2\r\nline 3\r\n');
-			const endMarker = testXterm.raw.registerMarker(0)!;
-			await write(testXterm, 'line 4\r\nline 5');
+			await write('line 1\r\n');
+			const startMarker = xterm.raw.registerMarker(0)!;
+			await write('line 2\r\nline 3\r\n');
+			const endMarker = xterm.raw.registerMarker(0)!;
+			await write('line 4\r\nline 5');
 
-			const result = testXterm.getContentsAsText(startMarker, endMarker);
+			const result = xterm.getContentsAsText(startMarker, endMarker);
 			strictEqual(result, 'line 2\nline 3\nline 4');
 		});
 
 		test('should return single line when start and end markers are the same', async () => {
-			await write(testXterm, 'line 1\r\nline 2\r\n');
-			const marker = testXterm.raw.registerMarker(0)!;
-			await write(testXterm, 'line 3\r\nline 4\r\nline 5');
+			await write('line 1\r\nline 2\r\n');
+			const marker = xterm.raw.registerMarker(0)!;
+			await write('line 3\r\nline 4\r\nline 5');
 
-			const result = testXterm.getContentsAsText(marker, marker);
+			const result = xterm.getContentsAsText(marker, marker);
 			strictEqual(result, 'line 3');
 		});
 
 		test('should return empty string when start marker is beyond end marker', async () => {
-			await write(testXterm, 'line 1\r\n');
-			const endMarker = testXterm.raw.registerMarker(0)!;
-			await write(testXterm, 'line 2\r\nline 3\r\n');
-			const startMarker = testXterm.raw.registerMarker(0)!;
-			await write(testXterm, 'line 4\r\nline 5');
+			await write('line 1\r\n');
+			const endMarker = xterm.raw.registerMarker(0)!;
+			await write('line 2\r\nline 3\r\n');
+			const startMarker = xterm.raw.registerMarker(0)!;
+			await write('line 4\r\nline 5');
 
-			const result = testXterm.getContentsAsText(startMarker, endMarker);
+			const result = xterm.getContentsAsText(startMarker, endMarker);
 			strictEqual(result, '');
 		});
 
 		test('should handle empty buffer', async () => {
-			const result = testXterm.getContentsAsText();
+			const result = xterm.getContentsAsText();
 			const lines = result.split('\n');
-			strictEqual(lines.length, testXterm.raw.buffer.active.length, 'Empty terminal should have empty lines equal to buffer length');
+			strictEqual(lines.length, xterm.raw.buffer.active.length, 'Empty terminal should have empty lines equal to buffer length');
 			strictEqual(lines.every(line => line === ''), true, 'All lines should be empty');
 		});
 
 		test('should handle mixed content with spaces and special characters', async () => {
-			await write(testXterm, 'hello world\r\n  indented line\r\nline with $pecial chars!@#\r\n\r\nempty line above');
+			await write('hello world\r\n  indented line\r\nline with $pecial chars!@#\r\n\r\nempty line above');
 
-			const result = testXterm.getContentsAsText();
+			const result = xterm.getContentsAsText();
 			strictEqual(result.startsWith('hello world\n  indented line\nline with $pecial chars!@#\n\nempty line above'), true, 'Should handle spaces and special characters correctly');
 		});
 
 		test('should throw error when startMarker is disposed (line === -1)', async () => {
-			await write(testXterm, 'line 1\r\n');
-			const disposedMarker = testXterm.raw.registerMarker(0)!;
-			await write(testXterm, 'line 2\r\nline 3\r\nline 4\r\nline 5');
+			await write('line 1\r\n');
+			const disposedMarker = xterm.raw.registerMarker(0)!;
+			await write('line 2\r\nline 3\r\nline 4\r\nline 5');
 
-			// Dispose the marker
 			disposedMarker.dispose();
 
 			try {
-				testXterm.getContentsAsText(disposedMarker);
+				xterm.getContentsAsText(disposedMarker);
 				throw new Error('Expected error was not thrown');
 			} catch (error: any) {
 				strictEqual(error.message, 'Cannot get contents of a disposed startMarker');
@@ -234,17 +218,16 @@ suite('XtermTerminal', () => {
 		});
 
 		test('should throw error when endMarker is disposed (line === -1)', async () => {
-			await write(testXterm, 'line 1\r\n');
-			const startMarker = testXterm.raw.registerMarker(0)!;
-			await write(testXterm, 'line 2\r\n');
-			const disposedEndMarker = testXterm.raw.registerMarker(0)!;
-			await write(testXterm, 'line 3\r\nline 4\r\nline 5');
+			await write('line 1\r\n');
+			const startMarker = xterm.raw.registerMarker(0)!;
+			await write('line 2\r\n');
+			const disposedEndMarker = xterm.raw.registerMarker(0)!;
+			await write('line 3\r\nline 4\r\nline 5');
 
-			// Dispose the end marker
 			disposedEndMarker.dispose();
 
 			try {
-				testXterm.getContentsAsText(startMarker, disposedEndMarker);
+				xterm.getContentsAsText(startMarker, disposedEndMarker);
 				throw new Error('Expected error was not thrown');
 			} catch (error: any) {
 				strictEqual(error.message, 'Cannot get contents of a disposed endMarker');
@@ -252,19 +235,19 @@ suite('XtermTerminal', () => {
 		});
 
 		test('should handle markers at buffer boundaries', async () => {
-			const startMarker = testXterm.raw.registerMarker(0)!;
-			await write(testXterm, 'line 1\r\nline 2\r\nline 3\r\nline 4\r\n');
-			const endMarker = testXterm.raw.registerMarker(0)!;
-			await write(testXterm, 'line 5');
+			const startMarker = xterm.raw.registerMarker(0)!;
+			await write('line 1\r\nline 2\r\nline 3\r\nline 4\r\n');
+			const endMarker = xterm.raw.registerMarker(0)!;
+			await write('line 5');
 
-			const result = testXterm.getContentsAsText(startMarker, endMarker);
+			const result = xterm.getContentsAsText(startMarker, endMarker);
 			strictEqual(result, 'line 1\nline 2\nline 3\nline 4\nline 5', 'Should handle markers at buffer boundaries correctly');
 		});
 
 		test('should handle terminal escape sequences properly', async () => {
-			await write(testXterm, '\x1b[31mred text\x1b[0m\r\n\x1b[32mgreen text\x1b[0m');
+			await write('\x1b[31mred text\x1b[0m\r\n\x1b[32mgreen text\x1b[0m');
 
-			const result = testXterm.getContentsAsText();
+			const result = xterm.getContentsAsText();
 			strictEqual(result.startsWith('red text\ngreen text'), true, 'ANSI escape sequences should be filtered out, but there will be trailing empty lines');
 		});
 	});
