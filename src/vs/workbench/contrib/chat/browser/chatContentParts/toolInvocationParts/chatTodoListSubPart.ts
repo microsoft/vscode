@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { localize } from '../../../../../../nls.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
@@ -47,7 +48,7 @@ export class ChatTodoListSubPart extends BaseChatToolInvocationSubPart {
 		expandIcon.classList.add(this._isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right');
 
 		const titleElement = dom.$('.todo-title');
-		titleElement.textContent = `${this.todoData.title} (${this.todoData.todos.length})`;
+		titleElement.textContent = localize('chat.todo.title', 'Tasks');
 
 		this.expandoElement.appendChild(expandIcon);
 		this.expandoElement.appendChild(titleElement);
