@@ -36,10 +36,16 @@ import { IChatModel, ISerializableChatData } from '../../common/chatModel.js';
 import { IChatFollowup, IChatService } from '../../common/chatService.js';
 import { ChatService } from '../../common/chatServiceImpl.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../common/chatSlashCommands.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { ChatTransferService, IChatTransferService } from '../../common/chatTransferService.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
+import { ILanguageModelsService } from '../../common/languageModels.js';
 import { MockChatService } from './mockChatService.js';
 import { MockChatVariablesService } from './mockChatVariables.js';
+import { NullLanguageModelsService } from './languageModels.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
@@ -136,6 +142,18 @@ suite('ChatService', () => {
 		instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IFileService, new class extends mock<IFileService>() {
+			override exists(): Promise<boolean> {
+				return Promise.resolve(false);
+			}
+		});
+		instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
+			override setWorkspaceTrust(): Promise<void> {
+				return Promise.resolve();
+			}
+		});
+		instantiationService.stub(IChatTransferService, testDisposables.add(instantiationService.createInstance(ChatTransferService)));
+		instantiationService.stub(ILanguageModelsService, new NullLanguageModelsService());
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/path/to/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
