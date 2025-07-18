@@ -184,6 +184,66 @@ suite('CommandLineAutoApprover', () => {
 			ok(!isAutoApproved('del file'));
 			ok(!isAutoApproved('kill process'));
 		});
+
+		suite('flags', () => {
+			test('should handle case-insensitive regex patterns with i flag', () => {
+				setAutoApprove({
+					"/^echo/i": true,
+					"/^ls/i": true,
+					"/rm|del/i": false
+				});
+
+				ok(isAutoApproved('echo hello'));
+				ok(isAutoApproved('ECHO hello'));
+				ok(isAutoApproved('Echo hello'));
+				ok(isAutoApproved('ls -la'));
+				ok(isAutoApproved('LS -la'));
+				ok(isAutoApproved('Ls -la'));
+				ok(!isAutoApproved('rm file'));
+				ok(!isAutoApproved('RM file'));
+				ok(!isAutoApproved('del file'));
+				ok(!isAutoApproved('DEL file'));
+			});
+
+			test('should handle multiple regex flags', () => {
+				setAutoApprove({
+					"/^git\\s+/gim": true,
+					"/dangerous/gim": false
+				});
+
+				ok(isAutoApproved('git status'));
+				ok(isAutoApproved('GIT status'));
+				ok(isAutoApproved('Git status'));
+				ok(!isAutoApproved('dangerous command'));
+				ok(!isAutoApproved('DANGEROUS command'));
+			});
+
+			test('should handle various regex flags', () => {
+				setAutoApprove({
+					"/^echo.*/s": true,  // dotall flag
+					"/^git\\s+/i": true, // case-insensitive flag
+					"/rm|del/g": false   // global flag
+				});
+
+				ok(isAutoApproved('echo hello\nworld'));
+				ok(isAutoApproved('git status'));
+				ok(isAutoApproved('GIT status'));
+				ok(!isAutoApproved('rm file'));
+				ok(!isAutoApproved('del file'));
+			});
+
+			test('should handle regex patterns without flags', () => {
+				setAutoApprove({
+					"/^echo/": true,
+					"/rm|del/": false
+				});
+
+				ok(isAutoApproved('echo hello'));
+				ok(!isAutoApproved('ECHO hello'), 'Should be case-sensitive without i flag');
+				ok(!isAutoApproved('rm file'));
+				ok(!isAutoApproved('RM file'), 'Should be case-sensitive without i flag');
+			});
+		});
 	});
 
 	suite('edge cases', () => {

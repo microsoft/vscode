@@ -90,8 +90,16 @@ export class CommandLineAutoApprover extends Disposable {
 
 	private _convertAutoApproveEntryToRegex(value: string): RegExp {
 		// If it's wrapped in `/`, it's in regex format and should be converted directly
-		if (value.match(/^\/.+\/$/)) {
-			return new RegExp(value.slice(1, -1));
+		// Support all standard JavaScript regex flags: d, g, i, m, s, u, v, y
+		const regexMatch = value.match(/^\/(?<pattern>.+)\/(?<flags>[dgimsuvy]*)$/);
+		const regexPattern = regexMatch?.groups?.pattern;
+		if (regexPattern) {
+			let flags = regexMatch.groups?.flags;
+			// Remove global flag as it can cause confusion
+			if (flags) {
+				flags = flags.replaceAll('g', '');
+			}
+			return new RegExp(regexPattern, flags || undefined);
 		}
 
 		// Escape regex special characters
