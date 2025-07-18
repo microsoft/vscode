@@ -34,6 +34,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			enum: [
 				true,
 				false,
+				null,
 			],
 			enumDescriptions: [
 				localize('autoApprove.true', "Automatically approve the pattern."),
