@@ -141,6 +141,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 * before xterm.js could be created.
 	 */
 	private _xtermReadyPromise: Promise<XtermTerminal | undefined>;
+	get xtermReadyPromise(): Promise<XtermTerminal | undefined> { return this._xtermReadyPromise; }
 
 	private _pressAnyKeyToCloseListener: IDisposable | undefined;
 	private _instanceId: number;
@@ -1961,11 +1962,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._shellType === shellType) {
 			return;
 		}
-		if (shellType) {
-			this._shellType = shellType;
+		this._shellType = shellType;
+		if (shellType === undefined) {
+			this._terminalShellTypeContextKey.reset();
+		} else {
 			this._terminalShellTypeContextKey.set(shellType?.toString());
-			this._onDidChangeShellType.fire(shellType);
 		}
+		this._onDidChangeShellType.fire(shellType);
+
 	}
 
 	private _setAriaLabel(xterm: XTermTerminal | undefined, terminalId: number, title: string | undefined): void {

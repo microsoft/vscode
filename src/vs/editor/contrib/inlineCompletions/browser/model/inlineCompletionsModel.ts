@@ -5,11 +5,11 @@
 
 import { mapFindFirst } from '../../../../../base/common/arraysFind.js';
 import { itemsEquals } from '../../../../../base/common/equals.js';
-import { BugIndicatingError, onUnexpectedError, onUnexpectedExternalError } from '../../../../../base/common/errors.js';
+import { BugIndicatingError, onUnexpectedExternalError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, IObservableWithChange, IReader, ITransaction, autorun, constObservable, derived, derivedHandleChanges, derivedOpts, mapObservableArrayCached, observableFromEvent, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../../base/common/observable.js';
-import { commonPrefixLength, firstNonWhitespaceIndex } from '../../../../../base/common/strings.js';
+import { firstNonWhitespaceIndex } from '../../../../../base/common/strings.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -33,7 +33,7 @@ import { IFeatureDebounceInformation } from '../../../../common/services/languag
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
-import { addPositions, getEndPositionsAfterApplying, removeTextReplacementCommonSuffixPrefix, substringPos, subtractPositions } from '../utils.js';
+import { getEndPositionsAfterApplying, removeTextReplacementCommonSuffixPrefix } from '../utils.js';
 import { AnimatedValue, easeOutCubic, ObservableAnimatedValue } from './animation.js';
 import { computeGhostText } from './computeGhostText.js';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from './ghostText.js';
@@ -43,10 +43,13 @@ import { InlineCompletionItem, InlineEditItem, InlineSuggestionItem } from './in
 import { InlineCompletionContextWithoutUuid, InlineCompletionEditorType, InlineSuggestRequestInfo } from './provideInlineCompletions.js';
 import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 import { SuggestItemInfo } from './suggestWidgetAdapter.js';
-import { TextModelEditReason, EditReasons } from '../../../../common/textModelEditReason.js';
+import { TextModelEditSource, EditSources } from '../../../../common/textModelEditSource.js';
 import { ICodeEditorService } from '../../../../browser/services/codeEditorService.js';
 import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
 import { IInlineCompletionsService } from '../../../../browser/services/inlineCompletionsService.js';
+import { TypingInterval } from './typingSpeed.js';
+import { StringReplacement } from '../../../../common/core/edits/stringEdit.js';
+import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -84,6 +87,8 @@ export class InlineCompletionsModel extends Disposable {
 
 	private readonly _editorObs;
 
+	private readonly _typing: TypingInterval;
+
 	private readonly _suggestPreviewEnabled;
 	private readonly _suggestPreviewMode;
 	private readonly _inlineSuggestMode;
@@ -120,6 +125,7 @@ export class InlineCompletionsModel extends Disposable {
 		this._inlineEditsEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.enabled);
 		this._inlineEditsShowCollapsedEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
 		this._triggerCommandOnProviderChange = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.experimental.triggerCommandOnProviderChange);
+		this._typing = this._register(new TypingInterval(this.textModel));
 
 		this._register(this._inlineCompletionsService.onDidChangeIsSnoozing((isSnoozing) => {
 			if (isSnoozing) {
@@ -360,11 +366,14 @@ export class InlineCompletionsModel extends Disposable {
 			reason += reason.length > 0 ? `:${changeSummary.changeReason}` : changeSummary.changeReason;
 		}
 
+		const typingInterval = this._typing.getTypingInterval();
 		const requestInfo: InlineSuggestRequestInfo = {
 			editorType: this.editorType,
 			startTime: Date.now(),
 			languageId: this.textModel.getLanguageId(),
 			reason,
+			typingInterval: typingInterval.averageInterval,
+			typingIntervalCharacterCount: typingInterval.characterCount,
 		};
 
 		let context: InlineCompletionContextWithoutUuid = {
@@ -372,6 +381,7 @@ export class InlineCompletionsModel extends Disposable {
 			selectedSuggestionInfo: suggestItem?.toSelectedSuggestionInfo(),
 			includeInlineCompletions: !changeSummary.onlyRequestInlineEdits,
 			includeInlineEdits: this._inlineEditsEnabled.read(reader),
+			requestIssuedDateTime: requestInfo.startTime,
 		};
 
 		if (context.triggerKind === InlineCompletionTriggerKind.Automatic && changeSummary.textChange) {
@@ -392,7 +402,7 @@ export class InlineCompletionsModel extends Disposable {
 		const userJumpedToActiveCompletion = this._jumpedToId.map(jumpedTo => !!jumpedTo && jumpedTo === this._inlineCompletionItems.get()?.inlineEdit?.semanticId);
 
 		const providers = changeSummary.provider
-			? { providers: [changeSummary.provider], label: 'single:' + changeSummary.provider.providerId }
+			? { providers: [changeSummary.provider], label: 'single:' + changeSummary.provider.providerId?.toString() }
 			: { providers: this._languageFeaturesService.inlineCompletionsProvider.all(this.textModel), label: undefined };
 		const suppressedProviderGroupIds = this._suppressedInlineCompletionGroupIds.get();
 		const availableProviders = providers.providers.filter(provider => !(provider.groupId && suppressedProviderGroupIds.has(provider.groupId)));
@@ -569,10 +579,12 @@ export class InlineCompletionsModel extends Disposable {
 
 			const mode = this._suggestPreviewMode.read(reader);
 			const positions = this._positions.read(reader);
-			const edits = [fullEdit, ...getSecondaryEdits(this.textModel, positions, fullEdit)];
-			const ghostTexts = edits
-				.map((edit, idx) => computeGhostText(edit, model, mode, positions[idx], fullEditPreviewLength))
-				.filter(isDefined);
+			const allPotentialEdits = [fullEdit, ...getSecondaryEdits(this.textModel, positions, fullEdit)];
+			const validEditsAndGhostTexts = allPotentialEdits
+				.map((edit, idx) => ({ edit, ghostText: edit ? computeGhostText(edit, model, mode, positions[idx], fullEditPreviewLength) : undefined }))
+				.filter(({ edit, ghostText }) => edit !== undefined && ghostText !== undefined);
+			const edits = validEditsAndGhostTexts.map(({ edit }) => edit!);
+			const ghostTexts = validEditsAndGhostTexts.map(({ ghostText }) => ghostText!);
 			const primaryGhostText = ghostTexts[0] ?? new GhostText(fullEdit.range.endLineNumber, []);
 			return { kind: 'ghostText', edits, primaryGhostText, ghostTexts, inlineCompletion: augmentation?.completion, suggestItem };
 		} else {
@@ -583,10 +595,12 @@ export class InlineCompletionsModel extends Disposable {
 			const replacement = inlineCompletion.getSingleTextEdit();
 			const mode = this._inlineSuggestMode.read(reader);
 			const positions = this._positions.read(reader);
-			const edits = [replacement, ...getSecondaryEdits(this.textModel, positions, replacement)];
-			const ghostTexts = edits
-				.map((edit, idx) => computeGhostText(edit, model, mode, positions[idx], 0))
-				.filter(isDefined);
+			const allPotentialEdits = [replacement, ...getSecondaryEdits(this.textModel, positions, replacement)];
+			const validEditsAndGhostTexts = allPotentialEdits
+				.map((edit, idx) => ({ edit, ghostText: edit ? computeGhostText(edit, model, mode, positions[idx], 0) : undefined }))
+				.filter(({ edit, ghostText }) => edit !== undefined && ghostText !== undefined);
+			const edits = validEditsAndGhostTexts.map(({ edit }) => edit!);
+			const ghostTexts = validEditsAndGhostTexts.map(({ ghostText }) => ghostText!);
 			if (!ghostTexts[0]) { return undefined; }
 			return { kind: 'ghostText', edits, primaryGhostText: ghostTexts[0], ghostTexts, inlineCompletion, suggestItem: undefined };
 		}
@@ -771,19 +785,19 @@ export class InlineCompletionsModel extends Disposable {
 
 	public async previous(): Promise<void> { await this._deltaSelectedInlineCompletionIndex(-1); }
 
-	private _getMetadata(completion: InlineSuggestionItem, type: 'word' | 'line' | undefined = undefined): TextModelEditReason {
+	private _getMetadata(completion: InlineSuggestionItem, type: 'word' | 'line' | undefined = undefined): TextModelEditSource {
 		if (type) {
-			return EditReasons.inlineCompletionPartialAccept({
+			return EditSources.inlineCompletionPartialAccept({
 				nes: completion.isInlineEdit,
 				requestUuid: completion.requestUuid,
-				extensionId: completion.source.provider.groupId ?? 'unknown',
+				providerId: completion.source.provider.providerId,
 				type,
 			});
 		} else {
-			return EditReasons.inlineCompletionAccept({
+			return EditSources.inlineCompletionAccept({
 				nes: completion.isInlineEdit,
 				requestUuid: completion.requestUuid,
-				extensionId: completion.source.provider.groupId ?? 'unknown',
+				providerId: completion.source.provider.providerId,
 			});
 		}
 	}
@@ -948,7 +962,7 @@ export class InlineCompletionsModel extends Disposable {
 				const replaceRange = Range.fromPositions(cursorPosition, ghostTextPos);
 				const newText = editor.getModel()!.getValueInRange(replaceRange) + partialGhostTextVal;
 				const primaryEdit = new TextReplacement(replaceRange, newText);
-				const edits = [primaryEdit, ...getSecondaryEdits(this.textModel, positions, primaryEdit)];
+				const edits = [primaryEdit, ...getSecondaryEdits(this.textModel, positions, primaryEdit)].filter(isDefined);
 				const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
 
 				editor.edit(TextEdit.fromParallelReplacementsUnsorted(edits), this._getMetadata(completion, type));
@@ -1038,36 +1052,40 @@ export enum VersionIdChangeReason {
 	Other,
 }
 
-export function getSecondaryEdits(textModel: ITextModel, positions: readonly Position[], primaryEdit: TextReplacement): TextReplacement[] {
+export function getSecondaryEdits(textModel: ITextModel, positions: readonly Position[], primaryTextRepl: TextReplacement): (TextReplacement | undefined)[] {
 	if (positions.length === 1) {
 		// No secondary cursor positions
 		return [];
 	}
-	const primaryPosition = positions[0];
-	const secondaryPositions = positions.slice(1);
-	const primaryEditStartPosition = primaryEdit.range.getStartPosition();
-	const primaryEditEndPosition = primaryEdit.range.getEndPosition();
-	const replacedTextAfterPrimaryCursor = textModel.getValueInRange(
-		Range.fromPositions(primaryPosition, primaryEditEndPosition)
-	);
-	const positionWithinTextEdit = subtractPositions(primaryPosition, primaryEditStartPosition);
-	if (positionWithinTextEdit.lineNumber < 1) {
-		onUnexpectedError(new BugIndicatingError(
-			`positionWithinTextEdit line number should be bigger than 0.
-			Invalid subtraction between ${primaryPosition.toString()} and ${primaryEditStartPosition.toString()}`
-		));
-		return [];
-	}
-	const secondaryEditText = substringPos(primaryEdit.text, positionWithinTextEdit);
-	return secondaryPositions.map(pos => {
-		const posEnd = addPositions(subtractPositions(pos, primaryEditStartPosition), primaryEditEndPosition);
-		const textAfterSecondaryCursor = textModel.getValueInRange(
-			Range.fromPositions(pos, posEnd)
-		);
-		const l = commonPrefixLength(replacedTextAfterPrimaryCursor, textAfterSecondaryCursor);
-		const range = Range.fromPositions(pos, pos.delta(0, l));
-		return new TextReplacement(range, secondaryEditText);
-	});
+	const text = new TextModelText(textModel);
+	const textTransformer = text.getTransformer();
+	const primaryOffset = textTransformer.getOffset(positions[0]);
+	const secondaryOffsets = positions.slice(1).map(pos => textTransformer.getOffset(pos));
+
+	primaryTextRepl = primaryTextRepl.removeCommonPrefixAndSuffix(text);
+	const primaryStringRepl = textTransformer.getStringReplacement(primaryTextRepl);
+
+	const deltaFromOffsetToRangeStart = primaryStringRepl.replaceRange.start - primaryOffset;
+	const primaryContextRange = primaryStringRepl.replaceRange.join(OffsetRange.emptyAt(primaryOffset));
+	const primaryContextValue = text.getValueOfOffsetRange(primaryContextRange);
+
+	const replacements = secondaryOffsets.map(secondaryOffset => {
+		const newRangeStart = secondaryOffset + deltaFromOffsetToRangeStart;
+		const newRangeEnd = newRangeStart + primaryStringRepl.replaceRange.length;
+		const range = new OffsetRange(newRangeStart, newRangeEnd);
+
+		const contextRange = range.join(OffsetRange.emptyAt(secondaryOffset));
+		const contextValue = text.getValueOfOffsetRange(contextRange);
+		if (contextValue !== primaryContextValue) {
+			return undefined;
+		}
+
+		const stringRepl = new StringReplacement(range, primaryStringRepl.newText);
+		const repl = textTransformer.getTextReplacement(stringRepl);
+		return repl;
+	}).filter(isDefined);
+
+	return replacements;
 }
 
 class FadeoutDecoration extends Disposable {

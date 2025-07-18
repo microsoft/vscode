@@ -7,7 +7,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditTelemetryService } from './editTelemetryService.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { localize } from '../../../../nls.js';
-import { EDIT_TELEMETRY_SETTING_ID, EDIT_TELEMETRY_SHOW_DECORATIONS, EDIT_TELEMETRY_SHOW_STATUS_BAR } from './settings.js';
+import { EDIT_TELEMETRY_DETAILS_SETTING_ID, EDIT_TELEMETRY_SETTING_ID, EDIT_TELEMETRY_SHOW_DECORATIONS, EDIT_TELEMETRY_SHOW_STATUS_BAR } from './settings.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 
 registerWorkbenchContribution2('EditTelemetryService', EditTelemetryService, WorkbenchPhase.AfterRestored);
@@ -24,6 +24,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			tags: ['experimental'],
+		},
+		[EDIT_TELEMETRY_DETAILS_SETTING_ID]: {
+			markdownDescription: localize('telemetry.editStats.detailed.enabled', "Controls whether to enable telemetry for detailed edit statistics (only sends statistics if general telemetry is enabled)."),
+			type: 'boolean',
+			default: false,
+			tags: ['experimental', 'onExP'],
 		},
 		[EDIT_TELEMETRY_SHOW_STATUS_BAR]: {
 			markdownDescription: localize('telemetry.editStats.showStatusBar', "Controls whether to show the status bar for edit telemetry."),

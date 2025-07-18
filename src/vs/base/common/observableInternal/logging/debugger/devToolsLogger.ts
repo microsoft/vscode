@@ -135,7 +135,25 @@ export class DevToolsLogger implements IObservableLogger {
 					}
 
 					return undefined;
-				}
+				},
+				logValue: (instanceId) => {
+					const obs = this._aliveInstances.get(instanceId);
+					if (obs && 'get' in obs) {
+						console.log('Logged Value:', obs.get());
+					} else {
+						throw new BugIndicatingError('Observable is not supported');
+					}
+				},
+				rerun: (instanceId) => {
+					const obs = this._aliveInstances.get(instanceId);
+					if (obs instanceof Derived) {
+						obs.debugRecompute();
+					} else if (obs instanceof AutorunObserver) {
+						obs.debugRerun();
+					} else {
+						throw new BugIndicatingError('Observable is not supported');
+					}
+				},
 			}
 		};
 	});

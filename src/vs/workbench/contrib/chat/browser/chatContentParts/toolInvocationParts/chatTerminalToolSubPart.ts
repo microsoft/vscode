@@ -14,7 +14,7 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
-import { IChatTerminalToolInvocationData, IChatToolInvocation } from '../../../common/chatService.js';
+import { IChatTerminalToolInvocationData, IChatToolInvocation, type IChatTerminalToolInvocationData2 } from '../../../common/chatService.js';
 import { CancelChatActionId } from '../../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
@@ -30,7 +30,7 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 
 	constructor(
 		toolInvocation: IChatToolInvocation,
-		terminalData: IChatTerminalToolInvocationData,
+		terminalData: IChatTerminalToolInvocationData | IChatTerminalToolInvocationData2,
 		private readonly context: IChatContentPartRenderContext,
 		private readonly renderer: MarkdownRenderer,
 		private readonly editorPool: EditorPool,
@@ -86,7 +86,7 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 			}
 		};
 		const langId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';
-		const model = this.modelService.createModel(terminalData.command, this.languageService.createById(langId), undefined, true);
+		const model = this.modelService.createModel(terminalData.kind === 'terminal' ? terminalData.command : terminalData.commandLine.toolEdited ?? terminalData.commandLine.original, this.languageService.createById(langId), undefined, true);
 		const editor = this._register(this.editorPool.get());
 		const renderPromise = editor.object.render({
 			codeBlockIndex: this.codeBlockStartIndex,
@@ -114,7 +114,11 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 			this._onDidChangeHeight.fire();
 		}));
 		this._register(model.onDidChangeContent(e => {
-			terminalData.command = model.getValue();
+			if (terminalData.kind === 'terminal') {
+				terminalData.command = model.getValue();
+			} else {
+				terminalData.commandLine.userEdited = model.getValue();
+			}
 		}));
 		const element = dom.$('');
 		dom.append(element, editor.object.element);

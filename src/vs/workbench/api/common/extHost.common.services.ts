@@ -33,6 +33,8 @@ import { ExtHostTesting, IExtHostTesting } from './extHostTesting.js';
 import { ExtHostMcpService, IExtHostMpcService } from './extHostMcp.js';
 import { ExtHostUrls, IExtHostUrlsService } from './extHostUrls.js';
 import { ExtHostProgress, IExtHostProgress } from './extHostProgress.js';
+import { ExtHostDataChannels, IExtHostDataChannels } from './extHostDataChannels.js';
+import { ExtHostChatSessions, IExtHostChatSessions } from './extHostChatSessions.js';
 
 registerSingleton(IExtHostLocalizationService, ExtHostLocalizationService, InstantiationType.Delayed);
 registerSingleton(ILoggerService, ExtHostLoggerService, InstantiationType.Delayed);
@@ -62,3 +64,5 @@ registerSingleton(IExtHostSecretState, ExtHostSecretState, InstantiationType.Eag
 registerSingleton(IExtHostEditorTabs, ExtHostEditorTabs, InstantiationType.Eager);
 registerSingleton(IExtHostVariableResolverProvider, ExtHostVariableResolverProviderService, InstantiationType.Eager);
 registerSingleton(IExtHostMpcService, ExtHostMcpService, InstantiationType.Eager);
+registerSingleton(IExtHostDataChannels, ExtHostDataChannels, InstantiationType.Eager);
+registerSingleton(IExtHostChatSessions, ExtHostChatSessions, InstantiationType.Eager);

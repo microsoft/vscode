@@ -215,13 +215,14 @@ class Widget {
 		this._viewDomNode = viewDomNode;
 		this._actual = actual;
 
-		this.domNode = createFastDomNode(this._actual.getDomNode());
-		this.id = this._actual.getId();
-		this.allowEditorOverflow = this._actual.allowEditorOverflow || false;
-		this.suppressMouseDown = this._actual.suppressMouseDown || false;
-
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
+		const allowOverflow = options.get(EditorOption.allowOverflow);
+
+		this.domNode = createFastDomNode(this._actual.getDomNode());
+		this.id = this._actual.getId();
+		this.allowEditorOverflow = (this._actual.allowEditorOverflow || false) && allowOverflow;
+		this.suppressMouseDown = this._actual.suppressMouseDown || false;
 
 		this._fixedOverflowWidgets = options.get(EditorOption.fixedOverflowWidgets);
 		this._contentWidth = layoutInfo.contentWidth;

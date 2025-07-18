@@ -6,7 +6,7 @@
 import { commonPrefixLength, commonSuffixLength } from '../../../../../base/common/strings.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
-import { ScreenReaderContentState } from '../screenReaderUtils.js';
+import { ISimpleScreenReaderContentState } from '../screenReaderUtils.js';
 
 export const _debugComposition = false;
 
@@ -225,7 +225,7 @@ export class TextAreaState {
 		};
 	}
 
-	public static fromScreenReaderContentState(screenReaderContentState: ScreenReaderContentState) {
+	public static fromScreenReaderContentState(screenReaderContentState: ISimpleScreenReaderContentState) {
 		return new TextAreaState(
 			screenReaderContentState.value,
 			screenReaderContentState.selectionStart,

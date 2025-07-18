@@ -84,7 +84,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				return this.instantiationService.createInstance(ExtensionsInstallConfirmationWidgetSubPart, this.toolInvocation, this.context);
 			}
 			if (this.toolInvocation.confirmationMessages) {
-				if (this.toolInvocation.toolSpecificData?.kind === 'terminal') {
+				if (this.toolInvocation.toolSpecificData?.kind === 'terminal' || this.toolInvocation.toolSpecificData?.kind === 'terminal2') {
 					return this.instantiationService.createInstance(TerminalConfirmationWidgetSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockStartIndex);
 				} else {
 					return this.instantiationService.createInstance(ToolConfirmationSubPart, this.toolInvocation, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockModelCollection, this.codeBlockStartIndex);
@@ -92,7 +92,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			}
 		}
 
-		if (this.toolInvocation.toolSpecificData?.kind === 'terminal') {
+		if (this.toolInvocation.toolSpecificData?.kind === 'terminal' || this.toolInvocation.toolSpecificData?.kind === 'terminal2') {
 			return this.instantiationService.createInstance(ChatTerminalMarkdownProgressPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockStartIndex, this.codeBlockModelCollection);
 		}
 

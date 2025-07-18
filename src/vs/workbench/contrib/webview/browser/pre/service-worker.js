@@ -2,9 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+//@ts-check
 /// <reference lib="webworker" />
 
-const sw: ServiceWorkerGlobalScope = self as any as ServiceWorkerGlobalScope;
+/** @type {ServiceWorkerGlobalScope} */
+const sw = /** @type {any} */ (self);
 
 const VERSION = 4;
 
@@ -16,38 +18,54 @@ const searchParams = new URL(location.toString()).searchParams;
 
 const remoteAuthority = searchParams.get('remoteAuthority');
 
-let outerIframeMessagePort: MessagePort | undefined;
+/** @type {MessagePort|undefined} */
+let outerIframeMessagePort;
 
 /**
  * Origin used for resources
  */
 const resourceBaseAuthority = searchParams.get('vscode-resource-base-authority');
 
+
+/** @type {number} */
 const resolveTimeout = 30_000;
 
-type RequestStoreResult<T> = {
-	status: 'ok';
-	value: T;
-} | {
-	status: 'timeout';
-};
 
-interface RequestStoreEntry<T> {
-	resolve: (x: RequestStoreResult<T>) => void;
-	promise: Promise<RequestStoreResult<T>>;
-}
+/**
+ * @template T
+ * @typedef {{ status: 'ok', value: T } | { status: 'timeout' }} RequestStoreResult
+ */
 
-class RequestStore<T> {
-	private map: Map<number, RequestStoreEntry<T>> = new Map();
-	private requestPool: number = 0;
 
-	create(): { requestId: number; promise: Promise<RequestStoreResult<T>> } {
+/**
+ * @template T
+ * @typedef {{ resolve: (x: RequestStoreResult<T>) => void, promise: Promise<RequestStoreResult<T>> }} RequestStoreEntry
+ */
+
+
+/**
+ * @template T
+ */
+class RequestStore {
+	constructor() {
+		/** @type {Map<number, RequestStoreEntry<T>>} */
+		this.map = new Map();
+		/** @type {number} */
+		this.requestPool = 0;
+	}
+
+	/**
+ * @returns {{ requestId: number, promise: Promise<RequestStoreResult<T>> }}
+ */
+	create() {
 		const requestId = ++this.requestPool;
 
-		let resolve: (x: RequestStoreResult<T>) => void;
-		const promise = new Promise<RequestStoreResult<T>>(r => resolve = r);
+		/** @type {(x: RequestStoreResult<T>) => void} */
+		let resolve;
+		const promise = new Promise(r => resolve = r);
 
-		const entry: RequestStoreEntry<T> = { resolve: resolve!, promise };
+		/** @type {RequestStoreEntry<T>} */
+		const entry = { resolve, promise };
 		this.map.set(requestId, entry);
 
 		const dispose = () => {
@@ -62,7 +80,12 @@ class RequestStore<T> {
 		return { requestId, promise };
 	}
 
-	resolve(requestId: number, result: T): boolean {
+	/**
+	 * @param {number} requestId
+	 * @param {T} result
+	 * @returns {boolean}
+	 */
+	resolve(requestId, result) {
 		const entry = this.map.get(requestId);
 		if (!entry) {
 			return false;
@@ -76,12 +99,14 @@ class RequestStore<T> {
 /**
  * Map of requested paths to responses.
  */
-const resourceRequestStore = new RequestStore<ResourceResponse>();
+/** @type {RequestStore<ResourceResponse>} */
+const resourceRequestStore = new RequestStore();
 
 /**
  * Map of requested localhost origins to optional redirects.
  */
-const localhostRequestStore = new RequestStore<string | undefined>();
+/** @type {RequestStore<string|undefined>} */
+const localhostRequestStore = new RequestStore();
 
 const unauthorized = () =>
 	new Response('Unauthorized', { status: 401, });
@@ -95,12 +120,13 @@ const methodNotAllowed = () =>
 const requestTimeout = () =>
 	new Response('Request Timeout', { status: 408, });
 
-sw.addEventListener('message', async (event: ExtendableMessageEvent) => {
+sw.addEventListener('message', async (event) => {
 	if (!event.source) {
 		return;
 	}
 
-	const source = event.source as Client;
+	/** @type {Client} */
+	const source = event.source;
 	switch (event.data.channel) {
 		case 'version': {
 			outerIframeMessagePort = event.ports[0];
@@ -115,7 +141,8 @@ sw.addEventListener('message', async (event: ExtendableMessageEvent) => {
 			return;
 		}
 		case 'did-load-resource': {
-			const response = event.data.data as ResourceResponse;
+			/** @type {ResourceResponse} */
+			const response = event.data.data;
 			if (!resourceRequestStore.resolve(response.id, response)) {
 				console.log('Could not resolve unknown resource', response.path);
 			}
@@ -135,7 +162,7 @@ sw.addEventListener('message', async (event: ExtendableMessageEvent) => {
 	}
 });
 
-sw.addEventListener('fetch', (event: FetchEvent) => {
+sw.addEventListener('fetch', (event) => {
 	const requestUrl = new URL(event.request.url);
 	if (typeof resourceBaseAuthority === 'string' && requestUrl.protocol === 'https:' && requestUrl.hostname.endsWith('.' + resourceBaseAuthority)) {
 		switch (event.request.method) {
@@ -184,25 +211,32 @@ sw.addEventListener('fetch', (event: FetchEvent) => {
 	}
 });
 
-sw.addEventListener('install', (event: ExtendableEvent) => {
+sw.addEventListener('install', (event) => {
 	event.waitUntil(sw.skipWaiting()); // Activate worker immediately
 });
 
-sw.addEventListener('activate', (event: ExtendableEvent) => {
+sw.addEventListener('activate', (event) => {
 	event.waitUntil(sw.clients.claim()); // Become available to all pages
 });
 
-interface ResourceRequestUrlComponents {
-	scheme: string;
-	authority: string;
-	path: string;
-	query: string;
-}
 
+/**
+ * @typedef {Object} ResourceRequestUrlComponents
+ * @property {string} scheme
+ * @property {string} authority
+ * @property {string} path
+ * @property {string} query
+ */
+
+/**
+ * @param {FetchEvent} event
+ * @param {ResourceRequestUrlComponents} requestUrlComponents
+ * @returns {Promise<Response>}
+ */
 async function processResourceRequest(
-	event: FetchEvent,
-	requestUrlComponents: ResourceRequestUrlComponents
-): Promise<Response> {
+	event,
+	requestUrlComponents
+) {
 	let client = await sw.clients.get(event.clientId);
 	if (!client) {
 		client = await getWorkerClientForId(event.clientId);
@@ -227,10 +261,12 @@ async function processResourceRequest(
 
 	const shouldTryCaching = (event.request.method === 'GET');
 
-	const resolveResourceEntry = (
-		result: RequestStoreResult<ResourceResponse>,
-		cachedResponse: Response | undefined
-	): Response => {
+	/**
+	 * @param {RequestStoreResult<ResourceResponse>} result
+	 * @param {Response|undefined} cachedResponse
+	 * @returns {Response}
+	 */
+	const resolveResourceEntry = (result, cachedResponse) => {
 		if (result.status === 'timeout') {
 			return requestTimeout();
 		}
@@ -252,7 +288,8 @@ async function processResourceRequest(
 			return notFound();
 		}
 
-		const commonHeaders: Record<string, string> = {
+		/** @type {Record<string, string>} */
+		const commonHeaders = {
 			'Access-Control-Allow-Origin': '*',
 		};
 
@@ -287,7 +324,8 @@ async function processResourceRequest(
 			}
 		}
 
-		const headers: Record<string, string> = {
+		/** @type {Record<string, string>} */
+		const headers = {
 			...commonHeaders,
 			'Content-Type': entry.mime,
 			'Content-Length': byteLength.toString(),
@@ -312,7 +350,7 @@ async function processResourceRequest(
 			headers['Cross-Origin-Opener-Policy'] = 'same-origin';
 		}
 
-		const response = new Response(entry.data as Uint8Array<ArrayBuffer>, {
+		const response = new Response(entry.data, {
 			status: 200,
 			headers
 		});
@@ -325,7 +363,8 @@ async function processResourceRequest(
 		return response.clone();
 	};
 
-	let cached: Response | undefined;
+	/** @type {Response|undefined} */
+	let cached;
 	if (shouldTryCaching) {
 		const cache = await caches.open(resourceCacheName);
 		cached = await cache.match(event.request);
@@ -366,10 +405,15 @@ async function processResourceRequest(
 	return promise.then(entry => resolveResourceEntry(entry, cached));
 }
 
+/**
+ * @param {FetchEvent} event
+ * @param {URL} requestUrl
+ * @returns {Promise<Response>}
+ */
 async function processLocalhostRequest(
-	event: FetchEvent,
-	requestUrl: URL
-): Promise<Response> {
+	event,
+	requestUrl
+) {
 	const client = await sw.clients.get(event.clientId);
 	if (!client) {
 		// This is expected when requesting resources on other localhost ports
@@ -390,9 +434,11 @@ async function processLocalhostRequest(
 
 	const origin = requestUrl.origin;
 
-	const resolveRedirect = async (
-		result: RequestStoreResult<string | undefined>
-	): Promise<Response> => {
+	/**
+	 * @param {RequestStoreResult<string|undefined>} result
+	 * @returns {Promise<Response>}
+	 */
+	const resolveRedirect = async function (result) {
 		if (result.status !== 'ok' || !result.value) {
 			return fetch(event.request);
 		}
@@ -432,12 +478,20 @@ async function processLocalhostRequest(
 	return promise.then(resolveRedirect);
 }
 
-function getWebviewIdForClient(client: Client): string | null {
+/**
+ * @param {Client} client
+ * @returns {string|null}
+ */
+function getWebviewIdForClient(client) {
 	const requesterClientUrl = new URL(client.url);
 	return requesterClientUrl.searchParams.get('id');
 }
 
-async function getOuterIframeClient(webviewId: string): Promise<Client[]> {
+/**
+ * @param {string} webviewId
+ * @returns {Promise<Client[]>}
+ */
+async function getOuterIframeClient(webviewId) {
 	const allClients = await sw.clients.matchAll({ includeUncontrolled: true });
 	return allClients.filter(client => {
 		const clientUrl = new URL(client.url);
@@ -446,7 +500,11 @@ async function getOuterIframeClient(webviewId: string): Promise<Client[]> {
 	});
 }
 
-async function getWorkerClientForId(clientId: string): Promise<Client | undefined> {
+/**
+ * @param {string} clientId
+ * @returns {Promise<Client|undefined>}
+ */
+async function getWorkerClientForId(clientId) {
 	const allDedicatedWorkerClients = await sw.clients.matchAll({ type: 'worker' });
 	const allSharedWorkerClients = await sw.clients.matchAll({ type: 'sharedworker' });
 	const allWorkerClients = [...allDedicatedWorkerClients, ...allSharedWorkerClients];
@@ -455,9 +513,12 @@ async function getWorkerClientForId(clientId: string): Promise<Client | undefine
 	});
 }
 
-type ResourceResponse =
-	| { readonly status: 200; id: number; path: string; mime: string; data: Uint8Array; etag: string | undefined; mtime: number | undefined }
-	| { readonly status: 304; id: number; path: string; mime: string; mtime: number | undefined }
-	| { readonly status: 401; id: number; path: string }
-	| { readonly status: 404; id: number; path: string }
-	;
+
+/**
+ * @typedef {(
+ *   | { readonly status: 200, id: number, path: string, mime: string, data: Uint8Array, etag: string|undefined, mtime: number|undefined }
+ *   | { readonly status: 304, id: number, path: string, mime: string, mtime: number|undefined }
+ *   | { readonly status: 401, id: number, path: string }
+ *   | { readonly status: 404, id: number, path: string }
+ * )} ResourceResponse
+ */
