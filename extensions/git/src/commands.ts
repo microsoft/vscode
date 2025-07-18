@@ -3413,7 +3413,7 @@ export class CommandCenter {
 				}
 			}
 		}
-		this.model.openRepository(repo.root);
+		this.model.openRepository(repository.root);
 		return;
 	}
 
