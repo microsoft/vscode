@@ -9,14 +9,12 @@ import type { IConfigurationPropertySchema } from '../../../../../platform/confi
 
 export const enum TerminalChatAgentToolsSettingId {
 	CoreToolsEnabled = 'chat.agent.terminal.coreToolsEnabled',
-	AllowList = 'chat.agent.terminal.allowList',
-	DenyList = 'chat.agent.terminal.denyList',
+	AutoApprove = 'chat.agent.terminal.autoApprove',
 }
 
 export interface ITerminalChatAgentToolsConfiguration {
 	coreToolsEnabled: boolean;
-	allowList: { [key: string]: string };
-	denyList: { [key: string]: string };
+	autoApprove: { [key: string]: boolean };
 }
 
 export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
@@ -28,55 +26,43 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		],
 		default: true,
 	},
-	[TerminalChatAgentToolsSettingId.AllowList]: {
-		markdownDescription: localize('allowList', "A list of commands or regular expressions that allow the run in terminal tool commands to run without explicit approval. These will be matched against the start of a command. A regular expression can be provided by wrapping the string in `/` characters.\n\nExamples:\n- `\"mkdir\"` Will allow all command lines starting with `mkdir`\n- `\"npm run build\"` Will allow all command lines starting with `npm run build`\n- `\"/^git (status|show\\b.*)$/\"` will allow `git status` and all command lines starting with `git show`\n- `\"/.*/\"` will allow all command lines\n\nThis will be overridden by anything that matches an entry in `#chat.agent.terminal.denyList#`."),
+	[TerminalChatAgentToolsSettingId.AutoApprove]: {
+		markdownDescription: localize('autoApprove', "A list of commands or regular expressions that control whether the run in terminal tool commands require explicit approval. These will be matched against the start of a command. A regular expression can be provided by wrapping the string in `/` characters.\n\nSet to `true` to automatically approve commands, `false` to always require explicit approval or `null` to unset the value.\n\nExamples:\n- `\"mkdir\": true` Will allow all command lines starting with `mkdir`\n- `\"npm run build\": true` Will allow all command lines starting with `npm run build`\n- `\"rm\": false` Will require explicit approval for all command lines starting with `rm`\n- `\"/^git (status|show\\b.*)$/\": true` will allow `git status` and all command lines starting with `git show`\n- `\"/.*/\": true` will allow all command lines\n- `\"rm\": null` will unset the default `false` value for `rm`\n\nNote that these commands and regular expressions are evaluated for every _sub-command_  within a single command line, so `foo && bar` for example will need both `foo` and `bar` to match a `true` entry and must not match a `false` entry in order to auto approve. Inline commands are also detected so `echo $(rm file)` will need both `echo $(rm file)` and `rm file` to pass."),
 		type: 'object',
 		additionalProperties: {
-			type: 'boolean',
-			enum: [
-				true,
-				false,
-			],
-			enumDescriptions: [
-				localize('allowList.true', "Allow the pattern."),
-				localize('allowList.false', "Do not allow the pattern."),
-			],
-			description: localize('allowList.key', "The start of a command to match against. A regular expression can be provided by wrapping the string in `/` characters."),
-		},
-		tags: [
-			'experimental'
-		],
-		default: {},
-	},
-	[TerminalChatAgentToolsSettingId.DenyList]: {
-		markdownDescription: localize('denyList', "A list of commands or regular expressions that override matches in `#chat.agent.terminal.allowList#` and force a command line to require explicit approval. This will be matched against the start of a command. A regular expression can be provided by wrapping the string in `/` characters.\n\nExamples:\n- `\"rm\"` will require explicit approval for any command starting with `rm`\n- `\"/^git (push|pull)/\"` will require explicit approval for any command starting with `git push` or `git pull` \n\nThis provides basic protection by preventing certain commands from running automatically, especially those a user would likely want to approve first. It is not intended as a comprehensive security measure or a defense against prompt injection."),
-		type: 'object',
-		additionalProperties: {
-			type: 'boolean',
-			enum: [
-				true,
-				false
-			],
-			enumDescriptions: [
-				localize('denyList.value.true', "Deny the pattern."),
-				localize('denyList.value.false', "Do not deny the pattern."),
-			],
-			description: localize('denyList.key', "The start of a command to match against. A regular expression can be provided by wrapping the string in `/` characters.")
+			anyOf: [
+				{
+					type: 'boolean',
+					enum: [
+						true,
+						false,
+					],
+					enumDescriptions: [
+						localize('autoApprove.true', "Automatically approve the pattern."),
+						localize('autoApprove.false', "Require explicit approval for the pattern."),
+					],
+					description: localize('autoApprove.key', "The start of a command to match against. A regular expression can be provided by wrapping the string in `/` characters."),
+				},
+				{
+					type: 'null',
+					description: localize('autoApprove.null', "Ignore the pattern, this is useful for unsetting the same pattern set at a higher scope."),
+				},
+			]
 		},
 		tags: [
 			'experimental'
 		],
 		default: {
-			rm: true,
-			rmdir: true,
-			del: true,
-			kill: true,
-			curl: true,
-			wget: true,
-			eval: true,
-			chmod: true,
-			chown: true,
-			'Remove-Item': true,
+			rm: false,
+			rmdir: false,
+			del: false,
+			kill: false,
+			curl: false,
+			wget: false,
+			eval: false,
+			chmod: false,
+			chown: false,
+			'Remove-Item': false,
 		},
 	}
 };

@@ -19,15 +19,16 @@ export class CommandLineAutoApprover extends Disposable {
 		super();
 		this.updateConfiguration();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalChatAgentToolsSettingId.AllowList) || e.affectsConfiguration(TerminalChatAgentToolsSettingId.DenyList)) {
+			if (e.affectsConfiguration(TerminalChatAgentToolsSettingId.AutoApprove)) {
 				this.updateConfiguration();
 			}
 		}));
 	}
 
 	updateConfiguration() {
-		this._denyListRegexes = this._mapAutoApproveConfigToRegexList(this._configurationService.getValue(TerminalChatAgentToolsSettingId.DenyList));
-		this._allowListRegexes = this._mapAutoApproveConfigToRegexList(this._configurationService.getValue(TerminalChatAgentToolsSettingId.AllowList));
+		const { denyList, allowList } = this._mapAutoApproveConfigToRegexList(this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoApprove));
+		this._allowListRegexes = allowList;
+		this._denyListRegexes = denyList;
 	}
 
 	isAutoApproved(command: string, shell: string, os: OperatingSystem): boolean {
@@ -64,13 +65,27 @@ export class CommandLineAutoApprover extends Disposable {
 		return false;
 	}
 
-	private _mapAutoApproveConfigToRegexList(config: unknown): RegExp[] {
+	private _mapAutoApproveConfigToRegexList(config: unknown): { denyList: RegExp[]; allowList: RegExp[] } {
 		if (!config || typeof config !== 'object') {
-			return [];
+			return { denyList: [], allowList: [] };
 		}
-		return Object.entries(config)
-			.map(([key, value]) => value ? this._convertAutoApproveEntryToRegex(key) : undefined)
-			.filter(e => !!e);
+
+		const denyList: RegExp[] = [];
+		const allowList: RegExp[] = [];
+
+		Object.entries(config).forEach(([key, value]) => {
+			if (typeof value === 'boolean') {
+				const regex = this._convertAutoApproveEntryToRegex(key);
+				// IMPORTANT: Only true and false are used, null entries need to be ignored
+				if (value === true) {
+					allowList.push(regex);
+				} else if (value === false) {
+					denyList.push(regex);
+				}
+			}
+		});
+
+		return { denyList, allowList };
 	}
 
 	private _convertAutoApproveEntryToRegex(value: string): RegExp {

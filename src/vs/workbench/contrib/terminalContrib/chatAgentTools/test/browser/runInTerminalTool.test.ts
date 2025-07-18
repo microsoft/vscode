@@ -58,20 +58,8 @@ suite('RunInTerminalTool', () => {
 		runInTerminalTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
 	});
 
-	/**
-	 * Sets up the configuration with allow and deny lists
-	 */
-	function setupConfiguration(allowList: string[] = [], denyList: string[] = []) {
-		const allowListObject: { [key: string]: boolean } = {};
-		for (const entry of allowList) {
-			allowListObject[entry] = true;
-		}
-		const denyListObject: { [key: string]: boolean } = {};
-		for (const entry of denyList) {
-			denyListObject[entry] = true;
-		}
-		setConfig(TerminalChatAgentToolsSettingId.AllowList, allowListObject);
-		setConfig(TerminalChatAgentToolsSettingId.DenyList, denyListObject);
+	function setAutoApprove(value: { [key: string]: boolean }) {
+		setConfig(TerminalChatAgentToolsSettingId.AutoApprove, value);
 	}
 
 	function setConfig(key: string, value: unknown) {
@@ -131,14 +119,18 @@ suite('RunInTerminalTool', () => {
 	suite('prepareToolInvocation - auto approval behavior', () => {
 
 		test('should auto-approve commands in allow list', async () => {
-			setupConfiguration(['echo']);
+			setAutoApprove({
+				echo: true
+			});
 
 			const result = await executeToolTest({ command: 'echo hello world' });
 			assertAutoApproved(result);
 		});
 
 		test('should require confirmation for commands not in allow list', async () => {
-			setupConfiguration(['ls']);
+			setAutoApprove({
+				ls: true
+			});
 
 			const result = await executeToolTest({
 				command: 'rm file.txt',
@@ -148,7 +140,10 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should require confirmation for commands in deny list even if in allow list', async () => {
-			setupConfiguration(['rm', 'echo'], ['rm']);
+			setAutoApprove({
+				rm: false,
+				echo: true
+			});
 
 			const result = await executeToolTest({
 				command: 'rm dangerous-file.txt',
@@ -158,7 +153,9 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should handle background commands with confirmation', async () => {
-			setupConfiguration(['ls']);
+			setAutoApprove({
+				ls: true
+			});
 
 			const result = await executeToolTest({
 				command: 'npm run watch',
@@ -169,7 +166,9 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should auto-approve background commands in allow list', async () => {
-			setupConfiguration(['npm']);
+			setAutoApprove({
+				npm: true
+			});
 
 			const result = await executeToolTest({
 				command: 'npm run watch',
@@ -180,28 +179,37 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should handle regex patterns in allow list', async () => {
-			setupConfiguration(['/^git (status|log)/']);
+			setAutoApprove({
+				'/^git (status|log)/': true
+			});
 
 			const result = await executeToolTest({ command: 'git status --porcelain' });
 			assertAutoApproved(result);
 		});
 
 		test('should handle complex command chains with sub-commands', async () => {
-			setupConfiguration(['echo', 'ls']);
+			setAutoApprove({
+				echo: true,
+				ls: true
+			});
 
 			const result = await executeToolTest({ command: 'echo "hello" && ls -la' });
 			assertAutoApproved(result);
 		});
 
 		test('should require confirmation when one sub-command is not approved', async () => {
-			setupConfiguration(['echo']);
+			setAutoApprove({
+				echo: true
+			});
 
 			const result = await executeToolTest({ command: 'echo "hello" && rm file.txt' });
 			assertConfirmationRequired(result);
 		});
 
 		test('should handle empty command strings', async () => {
-			setupConfiguration(['echo']);
+			setAutoApprove({
+				echo: true
+			});
 
 			const result = await executeToolTest({
 				command: '',
@@ -211,7 +219,9 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should handle commands with only whitespace', async () => {
-			setupConfiguration(['echo']);
+			setAutoApprove({
+				echo: true
+			});
 
 			const result = await executeToolTest({
 				command: '   \t\n   ',

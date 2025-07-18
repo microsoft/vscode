@@ -34,12 +34,8 @@ suite('CommandLineAutoApprover', () => {
 		commandLineAutoApprover = store.add(instantiationService.createInstance(CommandLineAutoApprover));
 	});
 
-	function setAllowList(value: { [key: string]: boolean }) {
-		setConfig(TerminalChatAgentToolsSettingId.AllowList, value);
-	}
-
-	function setDenyList(value: { [key: string]: boolean }) {
-		setConfig(TerminalChatAgentToolsSettingId.DenyList, value);
+	function setAutoApprove(value: { [key: string]: boolean }) {
+		setConfig(TerminalChatAgentToolsSettingId.AutoApprove, value);
 	}
 
 	function setConfig(key: string, value: unknown) {
@@ -56,37 +52,37 @@ suite('CommandLineAutoApprover', () => {
 		return commandLineAutoApprover.isAutoApproved(commandLine, shell, os);
 	}
 
-	suite('allowList without a denyList', () => {
+	suite('autoApprove with allow patterns only', () => {
 		test('should auto-approve exact command match', () => {
-			setAllowList({
+			setAutoApprove({
 				"echo": true
 			});
 			ok(isAutoApproved('echo'));
 		});
 
 		test('should auto-approve command with arguments', () => {
-			setAllowList({
+			setAutoApprove({
 				"echo": true
 			});
 			ok(isAutoApproved('echo hello world'));
 		});
 
 		test('should not auto-approve when there is no match', () => {
-			setAllowList({
+			setAutoApprove({
 				"echo": true
 			});
 			ok(!isAutoApproved('ls'));
 		});
 
 		test('should not auto-approve partial command matches', () => {
-			setAllowList({
+			setAutoApprove({
 				"echo": true
 			});
 			ok(!isAutoApproved('echotest'));
 		});
 
-		test('should handle multiple commands in allowList', () => {
-			setAllowList({
+		test('should handle multiple commands in autoApprove', () => {
+			setAutoApprove({
 				"echo": true,
 				"ls": true,
 				"pwd": true
@@ -98,47 +94,42 @@ suite('CommandLineAutoApprover', () => {
 		});
 	});
 
-	suite('denyList without an allowList', () => {
-		test('should deny commands in denyList', () => {
-			setDenyList({
-				"rm": true,
-				"del": true
+	suite('autoApprove with deny patterns only', () => {
+		test('should deny commands in autoApprove', () => {
+			setAutoApprove({
+				"rm": false,
+				"del": false
 			});
 			ok(!isAutoApproved('rm file.txt'));
 			ok(!isAutoApproved('del file.txt'));
 		});
 
-		test('should not auto-approve safe commands when no allowList is present', () => {
-			setDenyList({
-				"rm": true
+		test('should not auto-approve safe commands when no allow patterns are present', () => {
+			setAutoApprove({
+				"rm": false
 			});
 			ok(!isAutoApproved('echo hello'));
 			ok(!isAutoApproved('ls'));
 		});
 	});
 
-	suite('allowList with denyList', () => {
-		test('should deny commands in denyList even if in allowList', () => {
-			setAllowList({
+	suite('autoApprove with mixed allow and deny patterns', () => {
+		test('should deny commands set to false even if other commands are set to true', () => {
+			setAutoApprove({
 				"echo": true,
-				"rm": true
-			});
-			setDenyList({
-				"rm": true
+				"rm": false
 			});
 			ok(isAutoApproved('echo hello'));
 			ok(!isAutoApproved('rm file.txt'));
 		});
 
-		test('should auto-approve allowList commands not in denyList', () => {
-			setAllowList({
+		test('should auto-approve allow patterns not set to false', () => {
+			setAutoApprove({
 				"echo": true,
 				"ls": true,
-				"pwd": true
-			});
-			setDenyList({
-				"rm": true,
-				"del": true
+				"pwd": true,
+				"rm": false,
+				"del": false
 			});
 			ok(isAutoApproved('echo'));
 			ok(isAutoApproved('ls'));
@@ -149,8 +140,8 @@ suite('CommandLineAutoApprover', () => {
 	});
 
 	suite('regex patterns', () => {
-		test('should handle regex patterns in allowList', () => {
-			setAllowList({
+		test('should handle regex patterns in autoApprove', () => {
+			setAutoApprove({
 				"/^echo/": true,
 				"/^ls/": true,
 				"pwd": true
@@ -162,14 +153,12 @@ suite('CommandLineAutoApprover', () => {
 			ok(!isAutoApproved('rm file'));
 		});
 
-		test('should handle regex patterns in denyList', () => {
-			setAllowList({
+		test('should handle regex patterns for deny', () => {
+			setAutoApprove({
 				"echo": true,
-				"rm": true
-			});
-			setDenyList({
-				"/^rm\\s+/": true,
-				"/^del\\s+/": true
+				"rm": true,
+				"/^rm\\s+/": false,
+				"/^del\\s+/": false
 			});
 
 			ok(isAutoApproved('echo hello'));
@@ -179,12 +168,10 @@ suite('CommandLineAutoApprover', () => {
 		});
 
 		test('should handle complex regex patterns', () => {
-			setAllowList({
+			setAutoApprove({
 				"/^(echo|ls|pwd)\\b/": true,
-				"/^git (status|show\\b.*)$/": true
-			});
-			setDenyList({
-				"/rm|del|kill/": true
+				"/^git (status|show\\b.*)$/": true,
+				"/rm|del|kill/": false
 			});
 
 			ok(isAutoApproved('echo test'));
@@ -200,9 +187,8 @@ suite('CommandLineAutoApprover', () => {
 	});
 
 	suite('edge cases', () => {
-		test('should handle empty allowList and denyList', () => {
-			setAllowList({});
-			setDenyList({});
+		test('should handle empty autoApprove', () => {
+			setAutoApprove({});
 
 			ok(!isAutoApproved('echo hello'));
 			ok(!isAutoApproved('ls'));
@@ -210,7 +196,7 @@ suite('CommandLineAutoApprover', () => {
 		});
 
 		test('should handle empty command strings', () => {
-			setAllowList({
+			setAutoApprove({
 				"echo": true
 			});
 
@@ -219,7 +205,7 @@ suite('CommandLineAutoApprover', () => {
 		});
 
 		test('should handle whitespace in commands', () => {
-			setAllowList({
+			setAutoApprove({
 				"echo": true
 			});
 
@@ -228,7 +214,7 @@ suite('CommandLineAutoApprover', () => {
 		});
 
 		test('should be case-sensitive by default', () => {
-			setAllowList({
+			setAutoApprove({
 				"echo": true
 			});
 
@@ -239,7 +225,7 @@ suite('CommandLineAutoApprover', () => {
 
 		// https://github.com/microsoft/vscode/issues/252411
 		test('should handle string-based values with special regex characters', () => {
-			setAllowList({
+			setAutoApprove({
 				"pwsh.exe -File D:\\foo.bar\\a-script.ps1": true
 			});
 
@@ -254,14 +240,12 @@ suite('CommandLineAutoApprover', () => {
 		});
 
 		test('should handle Windows PowerShell commands', () => {
-			setAllowList({
+			setAutoApprove({
 				"Get-ChildItem": true,
 				"Get-Content": true,
-				"Get-Location": true
-			});
-			setDenyList({
-				"Remove-Item": true,
-				"del": true
+				"Get-Location": true,
+				"Remove-Item": false,
+				"del": false
 			});
 
 			ok(isAutoApproved('Get-ChildItem'));
@@ -271,7 +255,7 @@ suite('CommandLineAutoApprover', () => {
 		});
 
 		test('should handle ( prefixes', () => {
-			setAllowList({
+			setAutoApprove({
 				"Get-Content": true
 			});
 
