@@ -51,7 +51,7 @@ import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequest
 import { IChatInputState } from '../common/chatWidgetHistoryService.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
-import { ILanguageModelToolsService, ToolSet } from '../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/languageModelToolsService.js';
 import { type TPromptMetadata } from '../common/promptSyntax/parsers/promptHeader/promptHeader.js';
 import { IPromptParserResult, IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
@@ -2019,21 +2019,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.logService.debug(`ChatWidget#_autoAttachInstructions: ${PromptsConfig.KEY}: ${promptsConfigEnabled}`);
 
 		if (promptsConfigEnabled) {
-			let readFileTool = this.toolsService.getToolByName('readFile');
-			const enablementMap = this.input.selectedToolsModel.enablementMap.get();
-			if (readFileTool && Iterable.some(enablementMap, ([tool, enabled]) => tool.id === readFileTool!.id && enabled === false)) {
-				readFileTool = undefined;
-			}
-
-			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, readFileTool);
+			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, this._getReadTool());
 			await computer.collect(attachedContext, CancellationToken.None);
 		} else {
 			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, undefined);
 			await computer.collectCopilotInstructionsOnly(attachedContext, CancellationToken.None);
 		}
+	}
 
-		// add to attached list to make the instructions sticky
-		//this.inputPart.attachmentModel.addContext(...computer.autoAddedInstructions);
+	private _getReadTool(): IToolData | undefined {
+		if (this.input.currentModeKind !== ChatModeKind.Agent) {
+			return undefined;
+		}
+		const readFileTool = this.toolsService.getToolByName('readFile');
+		if (!readFileTool || !this.input.selectedToolsModel.enablementMap.get().get(readFileTool)) {
+			return undefined;
+		}
+		return readFileTool;
 	}
 }
 
