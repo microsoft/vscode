@@ -63,9 +63,12 @@ export class MultiDiffSourceResolverService implements IMultiDiffSourceResolverS
 	}
 
 	resolve(uri: URI): Promise<IResolvedMultiDiffSource | undefined> {
+		console.log('resolve uri : ', uri);
 		for (const resolver of this._resolvers) {
 			if (resolver.canHandleUri(uri)) {
-				return resolver.resolveDiffSource(uri);
+				const resources = resolver.resolveDiffSource(uri);
+				console.log('resolved resources : ', resources);
+				return resources;
 			}
 		}
 		return Promise.resolve(undefined);

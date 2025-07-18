@@ -28,6 +28,7 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
+import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ISnapshotEntry, IStreamingEdits, ModifiedFileEntryState } from '../../common/chatEditingService.js';
@@ -338,6 +339,26 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
 	}
 
+	async showForTurn(resources: { originalUri: URI | undefined; modifiedUri: URI | undefined; goToFileUri: URI | undefined }[]): Promise<void> {
+		const multiDiffSource = URI.parse(`multi-diff-editor:${new Date().getMilliseconds().toString() + Math.random().toString()}`);
+		const input = this._instantiationService.createInstance(
+			MultiDiffEditorInput,
+			multiDiffSource,
+			'File Changes',
+			resources.map(resource => {
+				return new MultiDiffEditorItem(
+					resource.originalUri,
+					resource.modifiedUri,
+					resource.goToFileUri,
+				);
+			}),
+			false
+		);
+		console.log('showForTurn');
+		console.log('input : ', input);
+		this._editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE });
+	}
+
 	async show(previousChanges?: boolean): Promise<void> {
 		this._assertNotDisposed();
 		if (this._editorPane) {
@@ -352,8 +373,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			multiDiffSource: getMultiDiffSourceUri(this, previousChanges),
 			label: localize('multiDiffEditorInput.name', "Suggested Edits")
 		}, this._instantiationService);
+		console.log('input : ', input);
 
 		this._editorPane = await this._editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE }) as MultiDiffEditor | undefined;
+		console.log('editor pane : ', this._editorPane);
 	}
 
 	private _stopPromise: Promise<void> | undefined;

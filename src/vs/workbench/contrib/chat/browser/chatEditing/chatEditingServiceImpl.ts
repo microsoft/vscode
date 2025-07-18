@@ -457,7 +457,7 @@ export class ChatEditingMultiDiffSourceResolver implements IMultiDiffSourceResol
 	}
 
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
-
+		console.log('resolveDiffSource uri : ', uri);
 		const parsed = parseChatMultiDiffUri(uri);
 		const thisSession = derived(this, r => {
 			return this._editingSessionsObs.read(r).find(candidate => candidate.chatSessionId === parsed.chatSessionId);

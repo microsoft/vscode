@@ -305,6 +305,39 @@ export class ChatEditingShowChangesAction extends EditingSessionAction {
 }
 registerAction2(ChatEditingShowChangesAction);
 
+export class ChatShowFileChangesSummaryAction extends EditingSessionAction {
+	static readonly ID = 'chatEditing.viewFileChangesSummary';
+	static readonly LABEL = localize('chatEditing.viewFileChangesSummary', 'View File Changes Summary');
+
+	constructor() {
+		super({
+			id: ChatShowFileChangesSummaryAction.ID,
+			title: ChatShowFileChangesSummaryAction.LABEL,
+			tooltip: ChatShowFileChangesSummaryAction.LABEL,
+			f1: false,
+			icon: Codicon.diffMultiple,
+			precondition: undefined,
+		});
+	}
+
+	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): Promise<void> {
+		console.log('ChatShowFileChangesSummaryAction.runEditingSessionAction', args);
+		const arg0 = args[0][0];
+		console.log('arg0 : ', arg0);
+		console.log(!('originalUri' in arg0));
+		console.log(!('modifiedUri' in arg0));
+		console.log(!URI.isUri(arg0.originalUri));
+		console.log(!URI.isUri(arg0.modifiedUri));
+		if (!arg0 || !('originalUri' in arg0) || !('modifiedUri' in arg0) || !URI.isUri(arg0.originalUri) || !URI.isUri(arg0.modifiedUri)) {
+			return;
+		}
+		const parsedArgs = args[0] as { originalUri: URI; modifiedUri: URI }[];
+		console.log('parsedArgs : ', parsedArgs);
+		await editingSession.showForTurn(parsedArgs);
+	}
+}
+registerAction2(ChatShowFileChangesSummaryAction);
+
 async function restoreSnapshotWithConfirmation(accessor: ServicesAccessor, item: ChatTreeItem): Promise<void> {
 	const configurationService = accessor.get(IConfigurationService);
 	const dialogService = accessor.get(IDialogService);

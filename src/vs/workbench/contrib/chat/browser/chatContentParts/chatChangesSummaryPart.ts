@@ -17,6 +17,8 @@ import { findLast } from '../../../../../base/common/arraysFind.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 export class ChatChangesSummaryContentPart extends Disposable implements IChatContentPart {
 
@@ -30,6 +32,7 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 	constructor(
 		content: IChatChangesSummaryPart,
 		private readonly context: IChatContentPartRenderContext,
+		@ICommandService commandService: ICommandService,
 		@IChatService private readonly chatService: IChatService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -41,6 +44,7 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 		console.log('this.changes.length', content.changes.length);
 
 		const buttonElement = $('.chat-used-context-label', undefined);
+		buttonElement.style.float = 'left';
 		const collapseButton = this._register(new ButtonWithIcon(buttonElement, {
 			buttonBackground: undefined,
 			buttonBorder: undefined,
@@ -51,14 +55,69 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 			buttonSecondaryHoverBackground: undefined,
 			buttonSeparator: undefined
 		}));
+		const viewAllFileChanges = $('.chat-view-changes-icon');
+		viewAllFileChanges.style.height = '16px';
+		viewAllFileChanges.style.width = '16px';
+		viewAllFileChanges.style.float = 'right';
+		viewAllFileChanges.style.cursor = 'pointer';
+		const viewAllFileChangesButton = this._register(new ButtonWithIcon(viewAllFileChanges, {
+			buttonBackground: undefined,
+			buttonBorder: undefined,
+			buttonForeground: undefined,
+			buttonHoverBackground: undefined,
+			buttonSecondaryBackground: undefined,
+			buttonSecondaryForeground: undefined,
+			buttonSecondaryHoverBackground: undefined,
+			buttonSeparator: undefined
+		}));
+		this._register(viewAllFileChangesButton.onDidClick(() => {
+			const resources: { originalUri: URI; modifiedUri: URI }[] = [];
+			this.changes.forEach(e => {
+				const sessionId = e.sessionId;
+				if (!sessionId) {
+					return;
+				}
+				const session = this.chatService.getSession(sessionId);
+				if (!session || !session.editingSessionObs) {
+					return;
+				}
+				const editSession = session.editingSessionObs.promiseResult.get()?.data;
+				if (!editSession) {
+					return;
+				}
+				const uri = e.reference;
+				const modifiedEntry = editSession.getEntry(uri);
+				if (!modifiedEntry) {
+					return;
+				}
+				const requestId = e.requestId;
+				if (!requestId) {
+					return;
+				}
+				const inUndoStop = (findLast(this.context.content, e => e.kind === 'undoStop', this.context.contentIndex) as IChatUndoStop | undefined)?.id;
+				const diffBetweenStops: IEditSessionEntryDiff | undefined = editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, requestId, inUndoStop)?.get();
+				if (!diffBetweenStops) {
+					return;
+				}
+				resources.push({
+					originalUri: diffBetweenStops.originalURI,
+					modifiedUri: diffBetweenStops.modifiedURI,
+				});
+			});
+			commandService.executeCommand('chatEditing.viewFileChangesSummary', resources);
+		}));
+		const fileChangesSummary = $('.container-file-changes-summary', undefined, buttonElement, viewAllFileChanges);
+		fileChangesSummary.style.display = 'flex';
+		fileChangesSummary.style.justifyContent = 'space-between';
 
 		this.changes = content.changes;
 		this.listPool = this._register(instantiationService.createInstance(CollapsibleListPool, () => Disposable.None, undefined, undefined));
 		const list = this.listPool.get().object;
 		list.splice(0, list.length, this.changes);
 
-		this.domNode = $('.chat-file-changes-summary', undefined, buttonElement);
+		this.domNode = $('.chat-file-changes-summary', undefined, fileChangesSummary);
 		collapseButton.label = 'File Changes';
+		viewAllFileChangesButton.icon = Codicon.diffMultiple;
 
 		const maxItemsShown = 6;
 		const itemsShown = Math.min(this.changes.length, maxItemsShown);

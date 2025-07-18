@@ -94,6 +94,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 	) {
 		super();
 		this._name = '';
+		console.log('initialResources', initialResources);
 		this._viewModel = new LazyStatefulPromise(async () => {
 			const model = await this._createModel();
 			this._register(model);
@@ -143,6 +144,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		this._register(autorun((reader) => {
 			/** @description Updates name */
 			const resources = this.resources.read(reader);
+			console.log('resources ', resources);
 			const label = this.label ?? localize('name', "Multi Diff Editor");
 			if (resources && resources.length === 1) {
 				this._name = localize({ key: 'nameWithOneFile', comment: ['{0} is the name of the editor'] }, "{0} (1 file)", label);
