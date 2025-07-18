@@ -428,7 +428,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const isPwsh = isPowerShell(shell, os);
 		const cdPrefixMatch = commandLine.match(
 			isPwsh
-				? /^(?:cd|Set-Location(?: -Path)?) (?<dir>[^\s]+) ?(?:&&|;)\s+(?<suffix>.+)$/i
+				? /^(?:cd(?: \/d)?|Set-Location(?: -Path)?) (?<dir>[^\s]+) ?(?:&&|;)\s+(?<suffix>.+)$/i
 				: /^cd (?<dir>[^\s]+) &&\s+(?<suffix>.+)$/
 		);
 		const cdDir = cdPrefixMatch?.groups?.dir;
