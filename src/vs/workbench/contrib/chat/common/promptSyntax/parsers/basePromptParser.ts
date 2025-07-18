@@ -505,7 +505,8 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 
 		if (tools !== undefined && mode !== ChatModeKind.Ask && mode !== ChatModeKind.Edit) {
 			result.tools = tools;
-			result.mode = ChatModeKind.Agent;
+			// Preserve custom mode if specified, otherwise default to Agent
+			result.mode = mode || ChatModeKind.Agent;
 		} else if (mode !== undefined) {
 			result.mode = mode;
 		}
