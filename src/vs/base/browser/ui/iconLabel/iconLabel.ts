@@ -266,8 +266,6 @@ export class IconLabel extends Disposable {
 	private rereateAdditionalDataNode(data: { description: string; className: string }): HTMLElement {
 		const element = dom.append(this.labelContainer, dom.$(`.${data.className}`));
 		element.textContent = data.description;
-		element.style.paddingLeft = '5px';
-		element.style.paddingRight = '5px';
 		this._register(toDisposable(() => {
 			element.remove();
 		}));
