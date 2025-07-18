@@ -80,6 +80,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly onDidChangeResources: Event<void>;
 
 	readonly rootUri?: URI;
+	readonly iconPath?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly inputBoxTextModel: ITextModel;
 	readonly contextValue: IObservable<string | undefined>;
 	readonly count: IObservable<number | undefined>;
