@@ -6,6 +6,9 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { thenIfNotDisposed } from '../../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
@@ -86,7 +89,12 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 			}
 		};
 		const langId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';
-		const model = this.modelService.createModel(terminalData.kind === 'terminal' ? terminalData.command : terminalData.commandLine.toolEdited ?? terminalData.commandLine.original, this.languageService.createById(langId), undefined, true);
+		const model = this.modelService.createModel(
+			terminalData.kind === 'terminal' ? terminalData.command : terminalData.commandLine.toolEdited ?? terminalData.commandLine.original,
+			this.languageService.createById(langId),
+			this._getUniqueCodeBlockUri(),
+			true
+		);
 		const editor = this._register(this.editorPool.get());
 		const renderPromise = editor.object.render({
 			codeBlockIndex: this.codeBlockStartIndex,
@@ -143,5 +151,12 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 			this._onNeedsRerender.fire();
 		});
 		this.domNode = confirmWidget.domNode;
+	}
+
+	private _getUniqueCodeBlockUri() {
+		return URI.from({
+			scheme: Schemas.vscodeChatCodeBlock,
+			path: generateUuid(),
+		});
 	}
 }
