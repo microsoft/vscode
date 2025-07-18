@@ -125,12 +125,70 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 		const listElement = list.getHTMLElement();
 		listElement.style.height = `${height}px`;
 		list.layout(height);
-		list.splice(0, list.length, this.changes);
+		list.splice(0, list.length, this.getChatCollapsibleItems(this.changes));
 		const innerDomNode = listElement.parentElement!;
 		this.domNode.appendChild(innerDomNode);
 
 		this.registerCollapseButtonListeners(collapseButton);
 		this.registerListListeners(list);
+	}
+
+	private getChatCollapsibleItems(changes: readonly IChatChangesSummary[]): IChatCollapsibleListItem[] {
+		const items: IChatCollapsibleListItem[] = [];
+		for (const change of changes) {
+			const insertionsAndDeletions = this.getInsertionsAndDeletions(change);
+			const additionalData: { description: string; className: string }[] = [];
+			if (insertionsAndDeletions) {
+				additionalData.push({
+					description: ` +${insertionsAndDeletions.insertions} `,
+					className: 'insertions',
+				});
+				additionalData.push({
+					description: ` -${insertionsAndDeletions.deletions} `,
+					className: 'deletions',
+				});
+			}
+			const modifiedChange: IChatCollapsibleListItem = {
+				...change,
+				additionalData
+			};
+			items.push(modifiedChange);
+		}
+		console.log('items', items);
+		return items;
+	}
+
+	private getInsertionsAndDeletions(change: IChatChangesSummary): { insertions: number; deletions: number } | undefined {
+		const sessionId = change.sessionId;
+		if (!sessionId) {
+			return;
+		}
+		const session = this.chatService.getSession(sessionId);
+		if (!session || !session.editingSessionObs) {
+			return;
+		}
+		const editSession = session.editingSessionObs.promiseResult.get()?.data;
+		if (!editSession) {
+			return;
+		}
+		const uri = change.reference;
+		const modifiedEntry = editSession.getEntry(uri);
+		if (!modifiedEntry) {
+			return;
+		}
+		const requestId = change.requestId;
+		if (!requestId) {
+			return;
+		}
+		const inUndoStop = (findLast(this.context.content, e => e.kind === 'undoStop', this.context.contentIndex) as IChatUndoStop | undefined)?.id;
+		const diffBetweenStops: IEditSessionEntryDiff | undefined = editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, requestId, inUndoStop)?.get();
+		if (!diffBetweenStops) {
+			return;
+		}
+		return {
+			insertions: diffBetweenStops.added,
+			deletions: diffBetweenStops.removed
+		};
 	}
 
 	private registerCollapseButtonListeners(collapseButton: ButtonWithIcon): void {

@@ -60,6 +60,7 @@ export interface IChatChangesSummaryItem extends IChatChangesSummary {
 	title?: string;
 	description?: string;
 	state?: ModifiedFileEntryState;
+	additionalData?: { description: string; className: string }[];
 	excluded?: boolean;
 }
 
@@ -392,7 +393,8 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 					range: 'range' in reference ? reference.range : undefined,
 					title: data.options?.status?.description ?? data.title,
 					strikethrough: data.excluded,
-					extraClasses
+					extraClasses,
+					additionalData: 'additionalData' in data ? data.additionalData : undefined
 				});
 			}
 		}

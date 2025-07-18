@@ -1539,6 +1539,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: none;
 }
 
+.interactive-session .chat-file-changes-summary .insertions {
+	color: green;
+}
+
+.interactive-session .chat-file-changes-summary .deletions {
+	color: red;
+}
+
 .interactive-session .chat-file-changes-summary.chat-used-context-collapsed .chat-used-context-list,
 .interactive-session .chat-used-context.chat-used-context-collapsed .chat-used-context-list {
 	display: none;
