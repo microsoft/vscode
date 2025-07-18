@@ -23,6 +23,7 @@ import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidgetService } from '../chat.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { chatViewsWelcomeRegistry, IChatViewsWelcomeDescriptor } from './chatViewsWelcome.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 
 const $ = dom.$;
 
@@ -188,19 +189,16 @@ export class ChatViewWelcomePart extends Disposable {
 					const suggestedPromptsContainer = dom.append(this.element, $('.chat-welcome-view-suggested-prompts'));
 					for (const prompt of content.suggestedPrompts) {
 						const promptElement = dom.append(suggestedPromptsContainer, $('.chat-welcome-view-suggested-prompt'));
-						
 						// Make the prompt element keyboard accessible
 						promptElement.setAttribute('role', 'button');
 						promptElement.setAttribute('tabindex', '0');
 						promptElement.setAttribute('aria-label', localize('suggestedPromptAriaLabel', 'Suggested prompt: {0}', prompt.label));
-						
 						if (prompt.icon) {
 							const iconElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-icon'));
 							iconElement.appendChild(renderIcon(prompt.icon));
 						}
 						const labelElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-label'));
 						labelElement.textContent = prompt.label;
-						
 						const executePrompt = () => {
 							type SuggestedPromptClickEvent = { suggestedPrompt: string };
 
@@ -223,13 +221,12 @@ export class ChatViewWelcomePart extends Disposable {
 								this.chatWidgetService.lastFocusedWidget.setInput(prompt.prompt);
 							}
 						};
-						
 						// Add click handler
 						this._register(dom.addDisposableListener(promptElement, dom.EventType.CLICK, executePrompt));
-						
 						// Add keyboard handler for Enter and Space keys
 						this._register(dom.addDisposableListener(promptElement, dom.EventType.KEY_DOWN, (e) => {
-							if (e.keyCode === KeyCode.Enter || e.keyCode === KeyCode.Space) {
+							const event = new StandardKeyboardEvent(e);
+							if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 								e.preventDefault();
 								e.stopPropagation();
 								executePrompt();

@@ -183,10 +183,5 @@ div.chat-welcome-view {
 			background-color: var(--vscode-list-hoverBackground);
 			border-color: var(--vscode-focusBorder);
 		}
-
-		> .chat-welcome-view-suggested-prompt:focus {
-			outline: 1px solid var(--vscode-focusBorder);
-			outline-offset: -1px;
-		}
 	}
 }
