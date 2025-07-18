@@ -262,7 +262,8 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 }
 
 function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOptions, markdown: IMarkdownString): { renderer: marked.Renderer; codeBlocks: Promise<[string, HTMLElement]>[]; syncCodeBlocks: [string, HTMLElement][] } {
-	const renderer = new marked.Renderer(options.markedOptions);
+	const markedOptions: marked.MarkedOptions = { ...options.markedOptions };
+	const renderer = new marked.Renderer(markedOptions);
 	renderer.image = defaultMarkedRenderers.image;
 	renderer.link = defaultMarkedRenderers.link;
 	renderer.paragraph = defaultMarkedRenderers.paragraph;
