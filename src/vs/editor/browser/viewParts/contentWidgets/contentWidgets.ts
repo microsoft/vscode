@@ -5,14 +5,14 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
-import { ContentWidgetPositionPreference, IContentWidget } from '../../editorBrowser.js';
+import { ContentWidgetPositionPreference, IContentWidget, IContentWidgetRenderedCoordinate } from '../../editorBrowser.js';
 import { PartFingerprint, PartFingerprints, ViewPart } from '../../view/viewPart.js';
 import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import * as viewEvents from '../../../common/viewEvents.js';
 import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
-import { IDimension } from '../../../common/core/dimension.js';
+import { IDimension } from '../../../common/core/2d/dimension.js';
 import { PositionAffinity } from '../../../common/model.js';
 import { IPosition, Position } from '../../../common/core/position.js';
 import { IViewModel } from '../../../common/viewModel.js';
@@ -198,7 +198,6 @@ class Widget {
 	private readonly _fixedOverflowWidgets: boolean;
 	private _contentWidth: number;
 	private _contentLeft: number;
-	private _lineHeight: number;
 
 	private _primaryAnchor: PositionPair = new PositionPair(null, null);
 	private _secondaryAnchor: PositionPair = new PositionPair(null, null);
@@ -216,18 +215,18 @@ class Widget {
 		this._viewDomNode = viewDomNode;
 		this._actual = actual;
 
-		this.domNode = createFastDomNode(this._actual.getDomNode());
-		this.id = this._actual.getId();
-		this.allowEditorOverflow = this._actual.allowEditorOverflow || false;
-		this.suppressMouseDown = this._actual.suppressMouseDown || false;
-
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
+		const allowOverflow = options.get(EditorOption.allowOverflow);
+
+		this.domNode = createFastDomNode(this._actual.getDomNode());
+		this.id = this._actual.getId();
+		this.allowEditorOverflow = (this._actual.allowEditorOverflow || false) && allowOverflow;
+		this.suppressMouseDown = this._actual.suppressMouseDown || false;
 
 		this._fixedOverflowWidgets = options.get(EditorOption.fixedOverflowWidgets);
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentLeft = layoutInfo.contentLeft;
-		this._lineHeight = options.get(EditorOption.lineHeight);
 
 		this._affinity = null;
 		this._preference = [];
@@ -246,7 +245,6 @@ class Widget {
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): void {
 		const options = this._context.configuration.options;
-		this._lineHeight = options.get(EditorOption.lineHeight);
 		if (e.hasChanged(EditorOption.layoutInfo)) {
 			const layoutInfo = options.get(EditorOption.layoutInfo);
 			this._contentLeft = layoutInfo.contentLeft;
@@ -403,12 +401,12 @@ class Widget {
 	 * The content widget should touch if possible the secondary anchor.
 	 */
 	private _getAnchorsCoordinates(ctx: RenderingContext): { primary: AnchorCoordinate | null; secondary: AnchorCoordinate | null } {
-		const primary = getCoordinates(this._primaryAnchor.viewPosition, this._affinity, this._lineHeight);
+		const primary = getCoordinates(this._primaryAnchor.viewPosition, this._affinity);
 		const secondaryViewPosition = (this._secondaryAnchor.viewPosition?.lineNumber === this._primaryAnchor.viewPosition?.lineNumber ? this._secondaryAnchor.viewPosition : null);
-		const secondary = getCoordinates(secondaryViewPosition, this._affinity, this._lineHeight);
+		const secondary = getCoordinates(secondaryViewPosition, this._affinity);
 		return { primary, secondary };
 
-		function getCoordinates(position: Position | null, affinity: PositionAffinity | null, lineHeight: number): AnchorCoordinate | null {
+		function getCoordinates(position: Position | null, affinity: PositionAffinity | null): AnchorCoordinate | null {
 			if (!position) {
 				return null;
 			}
@@ -421,6 +419,7 @@ class Widget {
 			// Left-align widgets that should appear :before content
 			const left = (position.column === 1 && affinity === PositionAffinity.LeftOfInjectedText ? 0 : horizontalPosition.left);
 			const top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.scrollTop;
+			const lineHeight = ctx.getLineHeightForLineNumber(position.lineNumber);
 			return new AnchorCoordinate(top, left, lineHeight);
 		}
 	}
@@ -600,7 +599,7 @@ class PositionPair {
 	) { }
 }
 
-class Coordinate {
+class Coordinate implements IContentWidgetRenderedCoordinate {
 	_coordinateBrand: void = undefined;
 
 	constructor(

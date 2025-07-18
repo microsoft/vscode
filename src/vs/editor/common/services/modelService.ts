@@ -11,7 +11,7 @@ import { EditOperation, ISingleEditOperation } from '../core/editOperation.js';
 import { Range } from '../core/range.js';
 import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from '../model.js';
 import { TextModel, createTextBuffer } from '../model/textModel.js';
-import { EDITOR_MODEL_DEFAULTS } from '../core/textModelDefaults.js';
+import { EDITOR_MODEL_DEFAULTS } from '../core/misc/textModelDefaults.js';
 import { IModelLanguageChangedEvent } from '../textModelEvents.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../languages/modesRegistry.js';
 import { ILanguageSelection } from '../languages/language.js';
@@ -24,6 +24,7 @@ import { isEditStackElement } from '../model/editStack.js';
 import { Schemas } from '../../../base/common/network.js';
 import { equals } from '../../../base/common/objects.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -368,7 +369,7 @@ export class ModelService extends Disposable implements IModelService {
 		return modelData;
 	}
 
-	public updateModel(model: ITextModel, value: string | ITextBufferFactory): void {
+	public updateModel(model: ITextModel, value: string | ITextBufferFactory, reason: TextModelEditSource = EditSources.unknown({ name: 'updateModel' })): void {
 		const options = this.getCreationOptions(model.getLanguageId(), model.uri, model.isForSimpleWidget);
 		const { textBuffer, disposable } = createTextBuffer(value, options.defaultEOL);
 
@@ -384,7 +385,9 @@ export class ModelService extends Disposable implements IModelService {
 		model.pushEditOperations(
 			[],
 			ModelService._computeEdits(model, textBuffer),
-			() => []
+			() => [],
+			undefined,
+			reason
 		);
 		model.pushStackElement();
 		disposable.dispose();

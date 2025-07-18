@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basicMarkupHtmlTags, hookDomPurifyHrefAndSrcSanitizer } from '../../../../base/browser/dom.js';
-import dompurify from '../../../../base/browser/dompurify/dompurify.js';
-import { allowedMarkdownAttr } from '../../../../base/browser/markdownRenderer.js';
+import { basicMarkupHtmlTags, sanitizeHtml } from '../../../../base/browser/domSanitize.js';
+import { allowedMarkdownHtmlAttributes } from '../../../../base/browser/markdownRenderer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import * as marked from '../../../../base/common/marked/marked.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -157,31 +156,36 @@ pre code {
 }
 `;
 
-const allowedProtocols = [Schemas.http, Schemas.https, Schemas.command];
-function sanitize(documentContent: string, allowUnknownProtocols: boolean): string {
+const allowedProtocols = [
+	Schemas.http,
+	Schemas.https,
+	Schemas.command,
+];
 
-	const hook = hookDomPurifyHrefAndSrcSanitizer(allowedProtocols, true);
-
-	try {
-		return dompurify.sanitize(documentContent, {
-			...{
-				ALLOWED_TAGS: [
-					...basicMarkupHtmlTags,
-					'checkbox',
-					'checklist',
-				],
-				ALLOWED_ATTR: [
-					...allowedMarkdownAttr,
-					'data-command', 'name', 'id', 'role', 'tabindex',
-					'x-dispatch',
-					'required', 'checked', 'placeholder', 'when-checked', 'checked-on',
-				],
-			},
-			...(allowUnknownProtocols ? { ALLOW_UNKNOWN_PROTOCOLS: true } : {}),
-		});
-	} finally {
-		hook.dispose();
-	}
+function sanitize(documentContent: string, allowAllProtocols = false): TrustedHTML {
+	// TODO: Move most of these options to the callers
+	return sanitizeHtml(documentContent, {
+		allowedLinkProtocols: {
+			override: allowAllProtocols ? '*' : allowedProtocols,
+		},
+		allowedTags: {
+			override: [
+				...basicMarkupHtmlTags,
+				'input',
+				'select',
+				'checkbox',
+				'checklist',
+			],
+		},
+		allowedAttributes: {
+			override: [
+				...allowedMarkdownHtmlAttributes,
+				'data-command', 'name', 'id', 'role', 'tabindex',
+				'x-dispatch',
+				'required', 'checked', 'placeholder', 'when-checked', 'checked-on',
+			],
+		}
+	});
 }
 
 interface IRenderMarkdownDocumentOptions {
@@ -225,7 +229,7 @@ export async function renderMarkdownDocument(
 
 	const raw = await m.parse(text, { async: true });
 	if (options?.shouldSanitize ?? true) {
-		return sanitize(raw, options?.allowUnknownProtocols ?? false);
+		return sanitize(raw, options?.allowUnknownProtocols ?? false) as any as string;
 	} else {
 		return raw;
 	}
@@ -234,7 +238,7 @@ export async function renderMarkdownDocument(
 namespace MarkedHighlight {
 	// Copied from https://github.com/markedjs/marked-highlight/blob/main/src/index.js
 
-	export function markedHighlight(options: marked.MarkedOptions & { highlight: (code: string, lang: string, info: string) => string | Promise<string> }): marked.MarkedExtension {
+	export function markedHighlight(options: marked.MarkedOptions & { highlight: (code: string, lang: string) => string | Promise<string> }): marked.MarkedExtension {
 		if (typeof options === 'function') {
 			options = {
 				highlight: options,
@@ -252,13 +256,11 @@ namespace MarkedHighlight {
 					return;
 				}
 
-				const lang = getLang(token.lang);
-
 				if (options.async) {
-					return Promise.resolve(options.highlight(token.text, lang, token.lang || '')).then(updateToken(token));
+					return Promise.resolve(options.highlight(token.text, token.lang)).then(updateToken(token));
 				}
 
-				const code = options.highlight(token.text, lang, token.lang || '');
+				const code = options.highlight(token.text, token.lang);
 				if (code instanceof Promise) {
 					throw new Error('markedHighlight is not set to async but the highlight function is async. Set the async option to true on markedHighlight to await the async highlight function.');
 				}
@@ -274,10 +276,6 @@ namespace MarkedHighlight {
 				},
 			},
 		};
-	}
-
-	function getLang(lang: string) {
-		return (lang || '').match(/\S*/)![0];
 	}
 
 	function updateToken(token: any) {

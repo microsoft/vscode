@@ -112,10 +112,8 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 		if (hoverParts.length === 0 || !editor.hasModel()) {
 			return new RenderedHoverParts([]);
 		}
-		if (context.setMinimumDimensions) {
-			const minimumHeight = editor.getOption(EditorOption.lineHeight) + 8;
-			context.setMinimumDimensions(new Dimension(302, minimumHeight));
-		}
+		const minimumHeight = editor.getOption(EditorOption.lineHeight) + 8;
+		context.setMinimumDimensions(new Dimension(302, minimumHeight));
 
 		const disposables = new DisposableStore();
 		const colorHover = hoverParts[0];
@@ -155,6 +153,10 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 	}
 
 	public handleResize(): void {
+		this._colorPicker?.layout();
+	}
+
+	public handleContentsChanged(): void {
 		this._colorPicker?.layout();
 	}
 

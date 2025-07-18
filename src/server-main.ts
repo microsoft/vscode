@@ -12,7 +12,7 @@ import * as readline from 'readline';
 import { performance } from 'perf_hooks';
 import { fileURLToPath } from 'url';
 import minimist from 'minimist';
-import { devInjectNodeModuleLookupPath } from './bootstrap-node.js';
+import { devInjectNodeModuleLookupPath, removeGlobalNodeJsModuleLookupPaths } from './bootstrap-node.js';
 import { bootstrapESM } from './bootstrap-esm.js';
 import { resolveNLSConfiguration } from './vs/base/node/nls.js';
 import { product } from './bootstrap-meta.js';
@@ -246,6 +246,9 @@ async function loadCode(nlsConfiguration: INLSConfiguration) {
 	} else {
 		delete process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'];
 	}
+
+	// Remove global paths from the node module lookup (node.js only)
+	removeGlobalNodeJsModuleLookupPaths();
 
 	// Bootstrap ESM
 	await bootstrapESM();

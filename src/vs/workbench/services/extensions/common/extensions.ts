@@ -28,7 +28,8 @@ export const nullExtensionDescription = Object.freeze<IExtensionDescription>({
 	isBuiltin: false,
 	targetPlatform: TargetPlatform.UNDEFINED,
 	isUserBuiltin: false,
-	isUnderDevelopment: false
+	isUnderDevelopment: false,
+	preRelease: false,
 });
 
 export type WebWorkerExtHostConfigValue = boolean | 'auto';
@@ -106,9 +107,9 @@ export const enum ExtensionHostStartup {
 	 */
 	EagerManualStart = 2,
 	/**
-	 * The extension host should be launched lazily and only when it has extensions it needs to host. It needs a `$startExtensionHost` call.
+	 * The extension host should be launched lazily and only when it has extensions it needs to host. It doesn't require a `$startExtensionHost` call.
 	 */
-	Lazy = 3,
+	LazyAutoStart = 3,
 }
 
 export interface IExtensionHost {
@@ -559,7 +560,9 @@ export function toExtension(extensionDescription: IExtensionDescription): IExten
 		location: extensionDescription.extensionLocation,
 		targetPlatform: extensionDescription.targetPlatform,
 		validations: [],
-		isValid: true
+		isValid: true,
+		preRelease: extensionDescription.preRelease,
+		publisherDisplayName: extensionDescription.publisherDisplayName,
 	};
 }
 
@@ -575,6 +578,7 @@ export function toExtensionDescription(extension: IExtension, isUnderDevelopment
 		uuid: extension.identifier.uuid,
 		targetPlatform: extension.targetPlatform,
 		publisherDisplayName: extension.publisherDisplayName,
+		preRelease: extension.preRelease,
 		...extension.manifest
 	};
 }

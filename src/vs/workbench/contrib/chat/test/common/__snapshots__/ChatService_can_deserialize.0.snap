@@ -32,6 +32,7 @@
               publisherDisplayName: "",
               extensionDisplayName: "",
               locations: [ "panel" ],
+              modes: [ "ask" ],
               metadata: {  },
               slashCommands: [  ],
               disambiguation: [  ]
@@ -57,6 +58,7 @@
       variableData: { variables: [  ] },
       response: [  ],
       responseId: undefined,
+      shouldBeRemovedOnSend: undefined,
       result: { metadata: { metadataKey: "value" } },
       followups: undefined,
       isCanceled: false,
@@ -73,6 +75,7 @@
         publisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
+        modes: [ "ask" ],
         metadata: {  },
         slashCommands: [  ],
         disambiguation: [  ]
@@ -97,7 +100,10 @@
       },
       contentReferences: [  ],
       codeCitations: [  ],
-      timestamp: undefined
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined,
+      modelId: undefined
     }
   ]
 }

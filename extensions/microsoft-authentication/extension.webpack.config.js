@@ -10,7 +10,6 @@
 const withDefaults = require('../shared.webpack.config');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const path = require('path');
-const { NormalModuleReplacementPlugin } = require('webpack');
 
 const isWindows = process.platform === 'win32';
 
@@ -42,13 +41,6 @@ module.exports = withDefaults({
 					noErrorOnMissing: !isWindows
 				}
 			]
-		}),
-		// We don't use the feature that uses Dpapi, so we can just replace it with a mock.
-		// This is a bit of a hack, but it's the easiest way to do it. Really, msal should
-		// handle when this native node module is not available.
-		new NormalModuleReplacementPlugin(
-			/\.\.\/Dpapi\.mjs/,
-			path.resolve(__dirname, 'packageMocks', 'dpapi', 'dpapi.js')
-		)
+		})
 	]
 });

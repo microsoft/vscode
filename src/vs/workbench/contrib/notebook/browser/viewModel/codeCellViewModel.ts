@@ -5,7 +5,7 @@
 
 import { Emitter, Event, PauseableEmitter } from '../../../../../base/common/event.js';
 import { dispose } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import * as UUID from '../../../../../base/common/uuid.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import * as editorCommon from '../../../../../editor/common/editorCommon.js';
@@ -23,6 +23,7 @@ import { CellKind, INotebookFindOptions, NotebookCellOutputsSplice } from '../..
 import { ICellExecutionError, ICellExecutionStateChangedEvent } from '../../common/notebookExecutionStateService.js';
 import { INotebookService } from '../../common/notebookService.js';
 import { BaseCellViewModel } from './baseCellViewModel.js';
+import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
 
 export const outputDisplayLimit = 500;
 
@@ -134,11 +135,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		return this._outputViewModels;
 	}
 
-	get executionError(): IObservable<ICellExecutionError | undefined> {
-		return this._executionError;
-	}
-
-	private readonly _executionError = observableValue<ICellExecutionError | undefined>('excecutionError', undefined);
+	readonly executionErrorDiagnostic = observableValue<ICellExecutionError | undefined>('excecutionError', undefined);
 
 	constructor(
 		viewType: string,
@@ -149,9 +146,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		@INotebookService private readonly _notebookService: INotebookService,
 		@ITextModelService modelService: ITextModelService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IInlineChatSessionService inlineChatSessionService: IInlineChatSessionService
 	) {
-		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, modelService, undoRedoService, codeEditorService);
+		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, modelService, undoRedoService, codeEditorService, inlineChatSessionService);
 		this._outputViewModels = this.model.outputs.map(output => new CellOutputViewModel(this, output, this._notebookService));
 
 		this._register(this.model.onDidChangeOutputs((splice) => {
@@ -173,7 +171,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				this.layoutChange({ outputHeight: true }, 'CodeCellViewModel#model.onDidChangeOutputs');
 			}
 			if (!this._outputCollection.length) {
-				this._executionError.set(undefined, undefined);
+				this.executionErrorDiagnostic.set(undefined, undefined);
 			}
 			dispose(removedOutputs);
 		}));
@@ -205,14 +203,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 	updateExecutionState(e: ICellExecutionStateChangedEvent) {
 		if (e.changed) {
-			this._executionError.set(undefined, undefined);
+			this.executionErrorDiagnostic.set(undefined, undefined);
 			this._onDidStartExecution.fire(e);
 		} else {
 			this._onDidStopExecution.fire(e);
-			if (this.internalMetadata.lastRunSuccess === false && this.internalMetadata.error) {
-				const metadata = this.internalMetadata;
-				this._executionError.set(metadata.error, undefined);
-			}
 		}
 	}
 

@@ -165,6 +165,24 @@ export class BrowserWindowDriver implements IWindowDriver {
 		}
 	}
 
+	async getEditorSelection(selector: string): Promise<{ selectionStart: number; selectionEnd: number }> {
+		const element = mainWindow.document.querySelector(selector);
+		if (!element) {
+			throw new Error(`Editor not found: ${selector}`);
+		}
+		if (isHTMLDivElement(element)) {
+			const editContext = element.editContext;
+			if (!editContext) {
+				throw new Error(`Edit context not found: ${selector}`);
+			}
+			return { selectionStart: editContext.selectionStart, selectionEnd: editContext.selectionEnd };
+		} else if (isHTMLTextAreaElement(element)) {
+			return { selectionStart: element.selectionStart, selectionEnd: element.selectionEnd };
+		} else {
+			throw new Error(`Unknown type of element: ${selector}`);
+		}
+	}
+
 	async getTerminalBuffer(selector: string): Promise<string[]> {
 		const element = mainWindow.document.querySelector(selector);
 
@@ -241,11 +259,6 @@ export class BrowserWindowDriver implements IWindowDriver {
 
 		return { x, y };
 	}
-
-	async exitApplication(): Promise<void> {
-		// No-op in web
-	}
-
 }
 
 export function registerWindowDriver(instantiationService: IInstantiationService): void {

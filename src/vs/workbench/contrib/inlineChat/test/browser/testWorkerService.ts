@@ -9,26 +9,36 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { DiffAlgorithmName, IEditorWorkerService, ILineChange } from '../../../../../editor/common/services/editorWorker.js';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../../../../editor/common/diff/documentDiffProvider.js';
-import { BaseEditorSimpleWorker } from '../../../../../editor/common/services/editorSimpleWorker.js';
-import { LineRange } from '../../../../../editor/common/core/lineRange.js';
+import { EditorWorker } from '../../../../../editor/common/services/editorWebWorker.js';
+import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
 import { MovedText } from '../../../../../editor/common/diff/linesDiffComputer.js';
 import { LineRangeMapping, DetailedLineRangeMapping, RangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 
 
-export class TestWorkerService extends mock<IEditorWorkerService>() {
+export class TestWorkerService extends mock<IEditorWorkerService>() implements IDisposable {
 
-	private readonly _worker = new BaseEditorSimpleWorker();
+	private readonly _store = new DisposableStore();
+	private readonly _worker = this._store.add(new EditorWorker());
 
 	constructor(@IModelService private readonly _modelService: IModelService) {
 		super();
 	}
 
+	dispose(): void {
+		this._store.dispose();
+	}
 	override async computeMoreMinimalEdits(resource: URI, edits: TextEdit[] | null | undefined, pretty?: boolean | undefined): Promise<TextEdit[] | undefined> {
 		return undefined;
 	}
 
 	override async computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDocumentDiff | null> {
+		await new Promise<void>(resolve => disposableTimeout(() => resolve(), 0, this._store));
+		if (this._store.isDisposed) {
+			return null;
+		}
 
 		const originalModel = this._modelService.getModel(original);
 		const modifiedModel = this._modelService.getModel(modified);

@@ -31,6 +31,7 @@
               publisherDisplayName: "",
               extensionDisplayName: "",
               locations: [ "panel" ],
+              modes: [ "ask" ],
               metadata: { requester: { name: "test" } },
               slashCommands: [  ],
               disambiguation: [  ]
@@ -57,6 +58,7 @@
       variableData: { variables: [  ] },
       response: [  ],
       responseId: undefined,
+      shouldBeRemovedOnSend: undefined,
       result: { metadata: { metadataKey: "value" } },
       followups: [
         {
@@ -80,6 +82,7 @@
         publisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
+        modes: [ "ask" ],
         metadata: { requester: { name: "test" } },
         slashCommands: [  ],
         disambiguation: [  ]
@@ -104,7 +107,10 @@
       },
       contentReferences: [  ],
       codeCitations: [  ],
-      timestamp: undefined
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined,
+      modelId: undefined
     },
     {
       requestId: undefined,
@@ -130,6 +136,7 @@
       variableData: { variables: [  ] },
       response: [  ],
       responseId: undefined,
+      shouldBeRemovedOnSend: undefined,
       result: {  },
       followups: [  ],
       isCanceled: false,
@@ -146,6 +153,7 @@
         publisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
+        modes: [ "ask" ],
         metadata: { requester: { name: "test" } },
         slashCommands: [  ],
         disambiguation: [  ],
@@ -155,7 +163,10 @@
       usedContext: undefined,
       contentReferences: [  ],
       codeCitations: [  ],
-      timestamp: undefined
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined,
+      modelId: undefined
     }
   ]
 }

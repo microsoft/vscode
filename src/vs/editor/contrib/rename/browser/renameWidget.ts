@@ -24,7 +24,7 @@ import * as domFontInfo from '../../../browser/config/domFontInfo.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { FontInfo } from '../../../common/config/fontInfo.js';
-import { IDimension } from '../../../common/core/dimension.js';
+import { IDimension } from '../../../common/core/2d/dimension.js';
 import { Position } from '../../../common/core/position.js';
 import { IRange, Range } from '../../../common/core/range.js';
 import { ScrollType } from '../../../common/editorCommon.js';
@@ -995,7 +995,7 @@ class InputWithButton implements IDisposable {
 
 	setStopButton() {
 		this._buttonState = 'stop';
-		this._stopIcon ??= renderIcon(Codicon.primitiveSquare);
+		this._stopIcon ??= renderIcon(Codicon.stopCircle);
 		dom.clearNode(this.button);
 		this.button.appendChild(this._stopIcon);
 		this.button.setAttribute('aria-label', 'Cancel generating new name suggestions');

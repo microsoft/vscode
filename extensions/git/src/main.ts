@@ -70,7 +70,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 		logger.error(`[main] Failed to create git IPC: ${err}`);
 	}
 
-	const askpass = new Askpass(ipcServer);
+	const askpass = new Askpass(ipcServer, logger);
 	disposables.push(askpass);
 
 	const gitEditor = new GitEditor(ipcServer);
@@ -111,7 +111,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	const cc = new CommandCenter(git, model, context.globalState, logger, telemetryReporter);
 	disposables.push(
 		cc,
-		new GitFileSystemProvider(model),
+		new GitFileSystemProvider(model, logger),
 		new GitDecorations(model),
 		new GitBlameController(model),
 		new GitTimelineProvider(model, cc),
@@ -119,7 +119,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 		new TerminalShellExecutionManager(model, logger)
 	);
 
-	const postCommitCommandsProvider = new GitPostCommitCommandsProvider();
+	const postCommitCommandsProvider = new GitPostCommitCommandsProvider(model);
 	model.registerPostCommitCommandsProvider(postCommitCommandsProvider);
 
 	const diagnosticsManager = new GitCommitInputBoxDiagnosticsManager(model);

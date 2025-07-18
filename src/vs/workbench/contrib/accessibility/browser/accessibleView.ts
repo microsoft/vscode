@@ -12,6 +12,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import * as marked from '../../../../base/common/marked/marked.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -21,11 +22,13 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/b
 import { IPosition, Position } from '../../../../editor/common/core/position.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { AccessibilityHelpNLS } from '../../../../editor/common/standaloneStrings.js';
 import { CodeActionController } from '../../../../editor/contrib/codeAction/browser/codeActionController.js';
 import { localize } from '../../../../nls.js';
-import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider, ExtensionContentProvider, IAccessibleViewService, IAccessibleViewSymbol } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType, ExtensionContentProvider, IAccessibleViewService, IAccessibleViewSymbol, isIAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX, IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
@@ -40,14 +43,13 @@ import { ILayoutService } from '../../../../platform/layout/browser/layoutServic
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewHasAssignedKeybindings, accessibleViewHasUnassignedKeybindings, accessibleViewInCodeBlock, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from './accessibilityConfiguration.js';
-import { resolveContentAndKeybindingItems } from './accessibleViewKeybindingResolver.js';
-import { AccessibilityCommandId } from '../common/accessibilityCommands.js';
+import { FloatingEditorClickMenu } from '../../../browser/codeeditor.js';
 import { IChatCodeBlockContextProviderService } from '../../chat/browser/chat.js';
 import { ICodeBlockActionContext } from '../../chat/browser/codeBlockPart.js';
 import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
-import { Schemas } from '../../../../base/common/network.js';
-import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { AccessibilityCommandId } from '../common/accessibilityCommands.js';
+import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewHasAssignedKeybindings, accessibleViewHasUnassignedKeybindings, accessibleViewInCodeBlock, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from './accessibilityConfiguration.js';
+import { resolveContentAndKeybindingItems } from './accessibleViewKeybindingResolver.js';
 
 const enum DIMENSIONS {
 	MAX_WIDTH = 600
@@ -60,6 +62,7 @@ interface ICodeBlock {
 	endLine: number;
 	code: string;
 	languageId?: string;
+	chatSessionId: string | undefined;
 }
 
 export class AccessibleView extends Disposable implements ITextModelContentProvider {
@@ -78,7 +81,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 	private _hasAssignedKeybindings: IContextKey<boolean>;
 
 	private _codeBlocks?: ICodeBlock[];
-	private _inQuickPick: boolean = false;
+	private _isInQuickPick: boolean = false;
 
 	get editorWidget() { return this._editorWidget; }
 	private _container: HTMLElement;
@@ -108,7 +111,8 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		@IChatCodeBlockContextProviderService private readonly _codeBlockContextProviderService: IChatCodeBlockContextProviderService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@IQuickInputService private readonly _quickInputService: IQuickInputService
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 	) {
 		super();
 
@@ -130,7 +134,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 			this._container.classList.add('hide');
 		}
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-			contributions: EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeActionController.ID)
+			contributions: EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeActionController.ID && c.id !== FloatingEditorClickMenu.ID)
 		};
 		const titleBar = document.createElement('div');
 		titleBar.classList.add('accessible-view-title-bar');
@@ -170,7 +174,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 			}
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (this._currentProvider instanceof AccessibleContentProvider && e.affectsConfiguration(this._currentProvider.verbositySettingKey)) {
+			if (isIAccessibleViewContentProvider(this._currentProvider) && e.affectsConfiguration(this._currentProvider.verbositySettingKey)) {
 				if (this._accessiblityHelpIsShown.get()) {
 					this.show(this._currentProvider);
 				}
@@ -184,15 +188,29 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		this._register(this._editorWidget.onDidDispose(() => this._resetContextKeys()));
 		this._register(this._editorWidget.onDidChangeCursorPosition(() => {
 			this._onLastLine.set(this._editorWidget.getPosition()?.lineNumber === this._editorWidget.getModel()?.getLineCount());
-		}));
-		this._register(this._editorWidget.onDidChangeCursorPosition(() => {
 			const cursorPosition = this._editorWidget.getPosition()?.lineNumber;
 			if (this._codeBlocks && cursorPosition !== undefined) {
 				const inCodeBlock = this._codeBlocks.find(c => c.startLine <= cursorPosition && c.endLine >= cursorPosition) !== undefined;
 				this._accessibleViewInCodeBlock.set(inCodeBlock);
 			}
+			this._playDiffSignals();
 		}));
 	}
+
+	private _playDiffSignals(): void {
+		const position = this._editorWidget.getPosition();
+		const model = this._editorWidget.getModel();
+		if (!position || !model) {
+			return undefined;
+		}
+		const lineContent = model.getLineContent(position.lineNumber);
+		if (lineContent?.startsWith('+')) {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineInserted);
+		} else if (lineContent?.startsWith('-')) {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineDeleted);
+		}
+	}
+
 	provideTextContent(resource: URI): Promise<ITextModel | null> | null {
 		return this._getTextModel(resource);
 	}
@@ -238,7 +256,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		if (!codeBlock || codeBlockIndex === undefined) {
 			return;
 		}
-		return { code: codeBlock.code, languageId: codeBlock.languageId, codeBlockIndex, element: undefined };
+		return { code: codeBlock.code, languageId: codeBlock.languageId, codeBlockIndex, element: undefined, chatSessionId: codeBlock.chatSessionId };
 	}
 
 	navigateToCodeBlock(type: 'next' | 'previous'): void {
@@ -345,13 +363,14 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		if (!this._currentProvider) {
 			return false;
 		}
-		return this._currentProvider instanceof AccessibleContentProvider ? this._configurationService.getValue(this._currentProvider.verbositySettingKey) === true : this._storageService.getBoolean(`${ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX}${this._currentProvider.id}`, StorageScope.APPLICATION, false);
+		return isIAccessibleViewContentProvider(this._currentProvider) ? this._configurationService.getValue(this._currentProvider.verbositySettingKey) === true : this._storageService.getBoolean(`${ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX}${this._currentProvider.id}`, StorageScope.APPLICATION, false);
 	}
 
 	goToSymbol(): void {
 		if (!this._currentProvider) {
 			return;
 		}
+		this._isInQuickPick = true;
 		this._instantiationService.createInstance(AccessibleViewSymbolQuickPick, this).show(this._currentProvider);
 	}
 
@@ -381,18 +400,18 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 				inBlock = false;
 				const endLine = i;
 				const code = lines.slice(startLine, endLine).join('\n');
-				this._codeBlocks?.push({ startLine, endLine, code, languageId });
+				this._codeBlocks?.push({ startLine, endLine, code, languageId, chatSessionId: undefined });
 			}
 		});
 		this._accessibleViewContainsCodeBlocks.set(this._codeBlocks.length > 0);
 	}
 
 	getSymbols(): IAccessibleViewSymbol[] | undefined {
-		const provider = this._currentProvider instanceof AccessibleContentProvider ? this._currentProvider : undefined;
+		const provider = this._currentProvider ? this._currentProvider : undefined;
 		if (!this._currentContent || !provider) {
 			return;
 		}
-		const symbols: IAccessibleViewSymbol[] = provider.getSymbols?.() || [];
+		const symbols: IAccessibleViewSymbol[] = 'getSymbols' in provider ? provider.getSymbols?.() || [] : [];
 		if (symbols?.length) {
 			return symbols;
 		}
@@ -416,7 +435,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 	}
 
 	configureKeybindings(unassigned: boolean): void {
-		this._inQuickPick = true;
+		this._isInQuickPick = true;
 		const provider = this._updateLastProvider();
 		const items = unassigned ? provider?.options?.configureKeybindingItems : provider?.options?.configuredKeybindingItems;
 		if (!items) {
@@ -440,7 +459,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 				this.show(provider);
 			}
 			disposables.dispose();
-			this._inQuickPick = false;
+			this._isInQuickPick = false;
 		}));
 	}
 
@@ -495,12 +514,13 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		if (lineNumber === undefined) {
 			return;
 		}
+		this._isInQuickPick = false;
 		this.show(provider, undefined, undefined, { lineNumber, column: 1 });
 		this._updateContextKeys(provider, true);
 	}
 
 	disableHint(): void {
-		if (!(this._currentProvider instanceof AccessibleContentProvider)) {
+		if (!isIAccessibleViewContentProvider(this._currentProvider)) {
 			return;
 		}
 		this._configurationService.updateValue(this._currentProvider?.verbositySettingKey, false);
@@ -609,11 +629,14 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		this._updateToolbar(this._currentProvider.actions, provider.options.type);
 
 		const hide = (e?: KeyboardEvent | IKeyboardEvent): void => {
-			if (!this._inQuickPick) {
+			if (!this._isInQuickPick) {
 				provider.onClose();
 			}
 			e?.stopPropagation();
 			this._contextViewService.hideContextView();
+			if (this._isInQuickPick) {
+				return;
+			}
 			this._updateContextKeys(provider, false);
 			this._lastProvider = undefined;
 			this._currentContent = undefined;
@@ -938,11 +961,15 @@ class AccessibleViewSymbolQuickPick {
 		for (const symbol of symbols) {
 			picks.push({
 				label: symbol.label,
-				ariaLabel: symbol.ariaLabel
+				ariaLabel: symbol.ariaLabel,
+				firstListItem: symbol.firstListItem,
+				lineNumber: symbol.lineNumber,
+				endLineNumber: symbol.endLineNumber,
+				markdownToParse: symbol.markdownToParse
 			});
 		}
 		quickPick.canSelectMany = false;
-		quickPick.items = symbols;
+		quickPick.items = picks;
 		quickPick.show();
 		disposables.add(quickPick.onDidAccept(() => {
 			this._accessibleView.showSymbol(provider, quickPick.selectedItems[0]);

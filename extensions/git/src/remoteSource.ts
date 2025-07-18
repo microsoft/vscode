@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PickRemoteSourceOptions, PickRemoteSourceResult } from './api/git-base';
+import { PickRemoteSourceOptions, PickRemoteSourceResult } from './typings/git-base';
 import { GitBaseApi } from './git-base';
 
 export async function pickRemoteSource(options: PickRemoteSourceOptions & { branch?: false | undefined }): Promise<string | undefined>;

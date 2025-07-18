@@ -12,11 +12,14 @@ declare module 'vscode' {
 		Modification = 3
 	}
 
+	export interface TextEditorLineRange {
+		readonly startLineNumber: number;
+		readonly endLineNumberExclusive: number;
+	}
+
 	export interface TextEditorChange {
-		readonly originalStartLineNumber: number;
-		readonly originalEndLineNumber: number;
-		readonly modifiedStartLineNumber: number;
-		readonly modifiedEndLineNumber: number;
+		readonly original: TextEditorLineRange;
+		readonly modified: TextEditorLineRange;
 		readonly kind: TextEditorChangeKind;
 	}
 
@@ -30,11 +33,11 @@ declare module 'vscode' {
 
 	export interface TextEditorDiffInformationChangeEvent {
 		readonly textEditor: TextEditor;
-		readonly diffInformation: TextEditorDiffInformation | undefined;
+		readonly diffInformation: TextEditorDiffInformation[] | undefined;
 	}
 
 	export interface TextEditor {
-		readonly diffInformation: TextEditorDiffInformation | undefined;
+		readonly diffInformation: TextEditorDiffInformation[] | undefined;
 	}
 
 	export namespace window {

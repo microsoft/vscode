@@ -13,7 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
-import { IWorkerClient } from '../../../../base/common/worker/simpleWorker.js';
+import { IWebWorkerClient } from '../../../../base/common/worker/webWorker.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IDiagnosticsService } from '../../../../platform/diagnostics/common/diagnostics.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -22,7 +22,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { LRUCache } from '../../../../base/common/map.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { canASAR } from '../../../../amdX.js';
-import { createWebWorker } from '../../../../base/browser/defaultWorkerFactory.js';
+import { createWebWorker } from '../../../../base/browser/webWorkerFactory.js';
 import { WorkerTextModelSyncClient } from '../../../../editor/common/services/textModelSync/textModelSync.impl.js';
 import { ILanguageDetectionWorker, LanguageDetectionWorkerHost } from './languageDetectionWorker.protocol.js';
 
@@ -179,7 +179,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 
 export class LanguageDetectionWorkerClient extends Disposable {
 	private worker: {
-		workerClient: IWorkerClient<ILanguageDetectionWorker>;
+		workerClient: IWebWorkerClient<ILanguageDetectionWorker>;
 		workerTextModelSyncClient: WorkerTextModelSyncClient;
 	} | undefined;
 
@@ -196,12 +196,12 @@ export class LanguageDetectionWorkerClient extends Disposable {
 	}
 
 	private _getOrCreateLanguageDetectionWorker(): {
-		workerClient: IWorkerClient<ILanguageDetectionWorker>;
+		workerClient: IWebWorkerClient<ILanguageDetectionWorker>;
 		workerTextModelSyncClient: WorkerTextModelSyncClient;
 	} {
 		if (!this.worker) {
 			const workerClient = this._register(createWebWorker<ILanguageDetectionWorker>(
-				'vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker',
+				FileAccess.asBrowserUri('vs/workbench/services/languageDetection/browser/languageDetectionWebWorkerMain.js'),
 				'LanguageDetectionWorker'
 			));
 			LanguageDetectionWorkerHost.setChannel(workerClient, {

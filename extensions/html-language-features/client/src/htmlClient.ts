@@ -7,7 +7,8 @@
 import {
 	languages, ExtensionContext, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, extensions,
 	Disposable, FormattingOptions, CancellationToken, ProviderResult, TextEdit, CompletionContext, CompletionList, SemanticTokensLegend,
-	DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider, SemanticTokens, window, commands, OutputChannel, l10n
+	DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider, SemanticTokens, window, commands, l10n,
+	LogOutputChannel
 } from 'vscode';
 import {
 	LanguageClientOptions, RequestType, DocumentRangeFormattingParams,
@@ -76,7 +77,7 @@ export type LanguageClientConstructor = (name: string, description: string, clie
 export const languageServerDescription = l10n.t('HTML Language Server');
 
 export interface Runtime {
-	TextDecoder: { new(encoding?: string): { decode(buffer: ArrayBuffer): string } };
+	TextDecoder: typeof TextDecoder;
 	fileFs?: FileSystemProvider;
 	telemetry?: TelemetryReporter;
 	readonly timer: {
@@ -90,12 +91,12 @@ export interface AsyncDisposable {
 
 export async function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<AsyncDisposable> {
 
-	const outputChannel = window.createOutputChannel(languageServerDescription);
+	const logOutputChannel = window.createOutputChannel(languageServerDescription, { log: true });
 
 	const languageParticipants = getLanguageParticipants();
 	context.subscriptions.push(languageParticipants);
 
-	let client: Disposable | undefined = await startClientWithParticipants(languageParticipants, newLanguageClient, outputChannel, runtime);
+	let client: Disposable | undefined = await startClientWithParticipants(languageParticipants, newLanguageClient, logOutputChannel, runtime);
 
 	const promptForLinkedEditingKey = 'html.promptForLinkedEditing';
 	if (extensions.getExtension('formulahendry.auto-rename-tag') !== undefined && (context.globalState.get(promptForLinkedEditingKey) !== false)) {
@@ -123,12 +124,12 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 		}
 		restartTrigger = runtime.timer.setTimeout(async () => {
 			if (client) {
-				outputChannel.appendLine('Extensions have changed, restarting HTML server...');
-				outputChannel.appendLine('');
+				logOutputChannel.info('Extensions have changed, restarting HTML server...');
+				logOutputChannel.info('');
 				const oldClient = client;
 				client = undefined;
 				await oldClient.dispose();
-				client = await startClientWithParticipants(languageParticipants, newLanguageClient, outputChannel, runtime);
+				client = await startClientWithParticipants(languageParticipants, newLanguageClient, logOutputChannel, runtime);
 			}
 		}, 2000);
 	});
@@ -137,12 +138,12 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 		dispose: async () => {
 			restartTrigger?.dispose();
 			await client?.dispose();
-			outputChannel.dispose();
+			logOutputChannel.dispose();
 		}
 	};
 }
 
-async function startClientWithParticipants(languageParticipants: LanguageParticipants, newLanguageClient: LanguageClientConstructor, outputChannel: OutputChannel, runtime: Runtime): Promise<AsyncDisposable> {
+async function startClientWithParticipants(languageParticipants: LanguageParticipants, newLanguageClient: LanguageClientConstructor, logOutputChannel: LogOutputChannel, runtime: Runtime): Promise<AsyncDisposable> {
 
 	const toDispose: Disposable[] = [];
 
@@ -188,7 +189,7 @@ async function startClientWithParticipants(languageParticipants: LanguagePartici
 			}
 		}
 	};
-	clientOptions.outputChannel = outputChannel;
+	clientOptions.outputChannel = logOutputChannel;
 
 	// Create the language client and start the client.
 	const client = newLanguageClient('html', languageServerDescription, clientOptions);
