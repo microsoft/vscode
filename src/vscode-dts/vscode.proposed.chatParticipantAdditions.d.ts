@@ -265,6 +265,43 @@ declare module 'vscode' {
 		export const onDidChangeChatRequestTools: Event<ChatRequest>;
 	}
 
+	export class LanguageModelToolExtensionSource {
+		/**
+		 * ID of the extension that published the tool.
+		 */
+		readonly id: string;
+
+		/**
+		 * Label of the extension that published the tool.
+		 */
+		readonly label: string;
+
+		private constructor(id: string, label: string);
+	}
+
+	export class LanguageModelToolMCPSource {
+		/**
+		 * Editor-configured label of the MCP server that published the tool.
+		 */
+		readonly label: string;
+
+		/**
+		 * Server-defined name of the MCP server.
+		 */
+		readonly name: string;
+
+		/**
+		 * Server-defined instructions for MCP tool use.
+		 */
+		readonly instructions?: string;
+
+		private constructor(label: string, name: string, instructions?: string);
+	}
+
+	export interface LanguageModelToolInformation {
+		source: LanguageModelToolExtensionSource | LanguageModelToolMCPSource | undefined;
+	}
+
 	// TODO@API fit this into the stream
 	export interface ChatUsedContext {
 		documents: ChatDocumentContext[];

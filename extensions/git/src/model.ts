@@ -713,6 +713,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 		const onDidDisappearRepository = filterEvent(repository.onDidChangeState, state => state === RepositoryState.Disposed);
 		const disappearListener = onDidDisappearRepository(() => dispose());
+		const disposeParentListener = repository.sourceControl.onDidDisposeParent(() => dispose());
 		const changeListener = repository.onDidChangeRepository(uri => this._onDidChangeRepository.fire({ repository, uri }));
 		const originalResourceChangeListener = repository.onDidChangeOriginalResource(uri => this._onDidChangeOriginalResource.fire({ repository, uri }));
 
@@ -809,6 +810,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 		const dispose = () => {
 			disappearListener.dispose();
+			disposeParentListener.dispose();
 			changeListener.dispose();
 			originalResourceChangeListener.dispose();
 			statusListener.dispose();

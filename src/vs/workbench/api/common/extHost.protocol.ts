@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ChatSessionContent } from 'vscode';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IRemoteConsoleLog } from '../../../base/common/console.js';
@@ -61,7 +62,7 @@ import { IChatContentInlineReference, IChatFollowup, IChatNotebookEdit, IChatPro
 import { IChatRequestVariableValue } from '../../contrib/chat/common/chatVariables.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsChangeEvent } from '../../contrib/chat/common/languageModels.js';
-import { IPreparedToolInvocation, IToolInvocation, IToolInvocationPreparationContext, IToolProgressStep, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IPreparedToolInvocation, IToolInvocation, IToolInvocationPreparationContext, IToolProgressStep, IToolResult, ToolDataSource } from '../../contrib/chat/common/languageModelToolsService.js';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from '../../contrib/debug/common/debug.js';
 import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from '../../contrib/mcp/common/mcpTypes.js';
 import * as notebookCommon from '../../contrib/notebook/common/notebookCommon.js';
@@ -1391,6 +1392,7 @@ export interface IToolDataDto {
 	displayName: string;
 	userDescription?: string;
 	modelDescription: string;
+	source: Dto<ToolDataSource>;
 	inputSchema?: IJSONSchema;
 }
 
@@ -1648,7 +1650,7 @@ export interface SCMHistoryItemChangeDto {
 }
 
 export interface MainThreadSCMShape extends IDisposable {
-	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined, inputBoxDocumentUri: UriComponents): Promise<void>;
+	$registerSourceControl(handle: number, parentHandle: number | undefined, id: string, label: string, rootUri: UriComponents | undefined, inputBoxDocumentUri: UriComponents): Promise<void>;
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): Promise<void>;
 	$unregisterSourceControl(handle: number): Promise<void>;
 
@@ -2174,7 +2176,7 @@ export interface IWorkspaceEditEntryMetadataDto {
 }
 
 export interface IChatNotebookEditDto {
-	uri: URI;
+	uri: UriComponents;
 	edits: ICellEditOperationDto[];
 	kind: 'notebookEdit';
 	done?: boolean;
@@ -3099,6 +3101,15 @@ export interface MainThreadChatStatusShape {
 	$disposeEntry(id: string): void;
 }
 
+export interface MainThreadChatSessionsShape extends IDisposable {
+	$registerChatSessionsProvider(handle: number): void;
+	$unregisterChatSessionsProvider(handle: number): void;
+}
+
+export interface ExtHostChatSessionsShape {
+	$provideChatSessions(handle: number, token: CancellationToken): Promise<ChatSessionContent[]>;
+}
+
 // --- proxy identifiers
 
 export const MainContext = {
@@ -3176,6 +3187,7 @@ export const MainContext = {
 	MainThreadChatStatus: createProxyIdentifier<MainThreadChatStatusShape>('MainThreadChatStatus'),
 	MainThreadAiSettingsSearch: createProxyIdentifier<MainThreadAiSettingsSearchShape>('MainThreadAiSettingsSearch'),
 	MainThreadDataChannels: createProxyIdentifier<MainThreadDataChannelsShape>('MainThreadDataChannels'),
+	MainThreadChatSessions: createProxyIdentifier<MainThreadChatSessionsShape>('MainThreadChatSessions'),
 };
 
 export const ExtHostContext = {
@@ -3249,4 +3261,5 @@ export const ExtHostContext = {
 	ExtHostLocalization: createProxyIdentifier<ExtHostLocalizationShape>('ExtHostLocalization'),
 	ExtHostMcp: createProxyIdentifier<ExtHostMcpShape>('ExtHostMcp'),
 	ExtHostDataChannels: createProxyIdentifier<ExtHostDataChannelsShape>('ExtHostDataChannels'),
+	ExtHostChatSessions: createProxyIdentifier<ExtHostChatSessionsShape>('ExtHostChatSessions'),
 };

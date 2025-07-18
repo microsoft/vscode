@@ -8,7 +8,6 @@ import type { CancellationToken } from '../../../../../../base/common/cancellati
 import type { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
 
 export interface ITerminalExecuteStrategy {
 	readonly type: 'rich' | 'basic' | 'none';
@@ -80,37 +79,4 @@ export async function trackIdleOnPrompt(
 		}
 	}));
 	return idleOnPrompt.p;
-}
-
-/**
- * @deprecated Migrate to the real xterm instance instead of mirroring
- */
-export function getSanitizedXtermOutput(xterm: XtermTerminal['raw']): string {
-	// Assemble the output from the xterm buffer
-	const outputLines: string[] = [];
-	const buffer = xterm.buffer.active;
-	for (let i = 0; i < xterm.buffer.active.length; i++) {
-		outputLines.push(buffer.getLine(i)?.translateToString(true) ?? '');
-	}
-
-	// Clean output by removing empty lines at the end. The main case this covers is when the
-	// buffer's content didn't get filled.
-	for (let i = outputLines.length - 1; i >= 0; i--) {
-		if (outputLines[i].length > 0) {
-			break;
-		}
-		outputLines.pop();
-	}
-
-	// Clean output by removing empty lines at the start. The main case this covers is conpty
-	// repositioning the cursor due to PSReadLine, causing many empty lines at the start of the
-	// terminal for any commands after the first one.
-	while (outputLines.length > 0) {
-		if (outputLines[0].length > 0) {
-			break;
-		}
-		outputLines.shift();
-	}
-
-	return outputLines.join('\n');
 }

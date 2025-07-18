@@ -16,10 +16,12 @@ export class MarkedKatexSupport {
 		readonly allowedAttributes: readonly string[];
 	}): ISanitizerOptions {
 		return {
-			allowedTags: [
-				...baseConfig.allowedTags,
-				...trustedMathMlTags,
-			],
+			allowedTags: {
+				override: [
+					...baseConfig.allowedTags,
+					...trustedMathMlTags,
+				]
+			},
 			customAttrSanitizer: (attrName, attrValue) => {
 				if (attrName === 'class') {
 					return true; // TODO: allows all classes for now since we don't have a list of possible katex classes

@@ -362,7 +362,7 @@ export class CodeCell extends Disposable {
 			if (this.viewCell.isInputCollapsed && this._inputCollapseElement) {
 				// flush the collapsed input with the latest tokens
 				const content = this._getRichTextFromLineTokens(model);
-				domSanitize.safeInnerHtml(this._inputCollapseElement, content);
+				domSanitize.safeSetInnerHtml(this._inputCollapseElement, content);
 				this._attachInputExpandButton(this._inputCollapseElement);
 			}
 		}));
@@ -442,7 +442,7 @@ export class CodeCell extends Disposable {
 		// update preview
 		const richEditorText = this.templateData.editor.hasModel() ? this._getRichTextFromLineTokens(this.templateData.editor.getModel()) : this._getRichText(this.viewCell.textBuffer, this.viewCell.language);
 		const element = DOM.$('div.cell-collapse-preview');
-		domSanitize.safeInnerHtml(element, richEditorText);
+		domSanitize.safeSetInnerHtml(element, richEditorText);
 		this._inputCollapseElement = element;
 		this.templateData.cellInputCollapsedContainer.appendChild(element);
 		this._attachInputExpandButton(element);
