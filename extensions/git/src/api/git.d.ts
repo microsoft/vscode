@@ -440,5 +440,6 @@ export const enum GitErrorCodes {
 	BranchNotYetBorn = 'BranchNotYetBorn',
 	TagConflict = 'TagConflict',
 	CherryPickEmpty = 'CherryPickEmpty',
-	CherryPickConflict = 'CherryPickConflict'
+	CherryPickConflict = 'CherryPickConflict',
+	WorktreeContainsChanges = 'WorktreeContainsChanges'
 }

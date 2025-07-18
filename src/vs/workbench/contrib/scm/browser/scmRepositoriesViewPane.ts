@@ -10,7 +10,7 @@ import { append, $ } from '../../../../base/browser/dom.js';
 import { IListVirtualDelegate, IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
 import { IAsyncDataSource, ITreeEvent, ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
 import { WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
-import { ISCMRepository, ISCMViewService } from '../common/scm.js';
+import { ISCMRepository, ISCMService, ISCMViewService } from '../common/scm.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -27,7 +27,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { autorun, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { Sequencer } from '../../../../base/common/async.js';
 
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
@@ -55,20 +55,6 @@ class RepositoryTreeDataSource extends Disposable implements IAsyncDataSource<IS
 			.filter(r => r.provider.parentId === parentId);
 
 		return repositories;
-	}
-
-	getParent(element: ISCMViewService | ISCMRepository): ISCMViewService | ISCMRepository {
-		if (!isSCMRepository(element)) {
-			throw new Error('Unexpected call to getParent');
-		}
-
-		const repository = this.scmViewService.repositories
-			.find(r => r.provider.id === element.provider.parentId);
-		if (!repository) {
-			throw new Error('Invalid element passed to getParent');
-		}
-
-		return repository;
 	}
 
 	hasChildren(inputOrElement: ISCMViewService | ISCMRepository): boolean {
@@ -103,6 +89,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 	constructor(
 		options: IViewPaneOptions,
+		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -150,13 +137,29 @@ export class SCMRepositoriesViewPane extends ViewPane {
 					this.updateBodySize(this.tree.contentHeight, visibleCount);
 				}));
 
-				// Update tree
-				const onDidChangeRepositoriesSignal = observableSignalFromEvent(
-					this, this.scmViewService.onDidChangeRepositories);
+				// Update tree (add/remove repositories)
+				const addedRepositoryObs = observableFromEvent(
+					this, this.scmService.onDidAddRepository, e => e);
+
+				const removedRepositoryObs = observableFromEvent(
+					this, this.scmService.onDidRemoveRepository, e => e);
 
 				this.visibilityDisposables.add(autorun(async reader => {
-					onDidChangeRepositoriesSignal.read(reader);
-					await this.treeOperationSequencer.queue(() => this.updateChildren());
+					const addedRepository = addedRepositoryObs.read(reader);
+					const removedRepository = removedRepositoryObs.read(reader);
+
+					if (addedRepository === undefined && removedRepository === undefined) {
+						await this.updateChildren();
+						return;
+					}
+
+					if (addedRepository) {
+						await this.updateRepository(addedRepository);
+					}
+
+					if (removedRepository) {
+						await this.updateRepository(removedRepository);
+					}
 				}));
 
 				// Update tree selection
@@ -203,6 +206,12 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			{
 				identityProvider: this.treeIdentityProvider,
 				horizontalScrolling: false,
+				collapseByDefault: (e: unknown) => {
+					if (isSCMRepository(e) && e.provider.parentId === undefined) {
+						return false;
+					}
+					return true;
+				},
 				compressionEnabled: compressionEnabled.get(),
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 				expandOnDoubleClick: false,
@@ -267,11 +276,43 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 	private onTreeContentHeightChange(height: number): void {
 		this.updateBodySize(height);
+
+		// Refresh the selection
+		this.treeOperationSequencer.queue(() => this.updateTreeSelection());
 	}
 
-	private async updateChildren(): Promise<void> {
-		await this.tree.updateChildren();
-		this.updateBodySize(this.tree.contentHeight);
+	private async updateChildren(element?: ISCMRepository): Promise<void> {
+		await this.treeOperationSequencer.queue(async () => {
+			if (element && this.tree.hasNode(element)) {
+				await this.tree.updateChildren(element, true);
+			} else {
+				await this.tree.updateChildren(undefined, true);
+			}
+		});
+	}
+
+	private async expand(element: ISCMRepository): Promise<void> {
+		await this.treeOperationSequencer.queue(() => this.tree.expand(element, true));
+	}
+
+	private async updateRepository(repository: ISCMRepository): Promise<void> {
+		if (repository.provider.parentId === undefined) {
+			await this.updateChildren();
+			return;
+		}
+
+		await this.updateParentRepository(repository);
+	}
+
+	private async updateParentRepository(repository: ISCMRepository): Promise<void> {
+		const parentRepository = this.scmViewService.repositories
+			.find(r => r.provider.id === repository.provider.parentId);
+		if (!parentRepository) {
+			return;
+		}
+
+		await this.updateChildren(parentRepository);
+		await this.expand(parentRepository);
 	}
 
 	private updateBodySize(contentHeight: number, visibleCount?: number): void {
@@ -307,15 +348,14 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			}
 		}
 
-		// Expand all selected items
-		for (const item of selection) {
-			await this.tree.expandTo(item);
-		}
-		this.tree.setSelection(selection);
+		const visibleSelection = selection
+			.filter(s => this.tree.hasNode(s));
 
-		if (selection.length > 0 && !this.tree.getFocus().includes(selection[0])) {
-			this.tree.setAnchor(selection[0]);
-			this.tree.setFocus([selection[0]]);
+		this.tree.setSelection(visibleSelection);
+
+		if (visibleSelection.length > 0 && !this.tree.getFocus().includes(visibleSelection[0])) {
+			this.tree.setAnchor(visibleSelection[0]);
+			this.tree.setFocus([visibleSelection[0]]);
 		}
 	}
 

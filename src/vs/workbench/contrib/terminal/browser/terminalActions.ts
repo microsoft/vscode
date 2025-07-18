@@ -69,7 +69,7 @@ const category = terminalStrings.actionCategory;
 
 // Some terminal context keys get complicated. Since normalizing and/or context keys can be
 // expensive this is done once per context key and shared.
-const sharedWhenClause = (() => {
+export const sharedWhenClause = (() => {
 	const terminalAvailable = ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated);
 	return {
 		terminalAvailable,

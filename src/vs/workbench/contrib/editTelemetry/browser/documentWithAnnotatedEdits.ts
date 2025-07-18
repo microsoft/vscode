@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncIterableProducer } from '../../../../base/common/async.js';
+import { AsyncReader, AsyncReaderEndOfStream } from '../../../../base/common/async.js';
 import { CachedFunction } from '../../../../base/common/cache.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservableWithChange, ISettableObservable, observableValue, RemoveUndefined, runOnChange } from '../../../../base/common/observable.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IObservableWithChange, ISettableObservable, observableValue, runOnChange } from '../../../../base/common/observable.js';
 import { AnnotatedStringEdit, IEditData } from '../../../../editor/common/core/edits/stringEdit.js';
 import { StringText } from '../../../../editor/common/core/text/abstractText.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
 import { TextModelEditSource } from '../../../../editor/common/textModelEditSource.js';
 import { IObservableDocument } from './observableWorkspace.js';
-import { AsyncReader, AsyncReaderEndOfStream, mapObservableDelta } from './utils.js';
+import { iterateObservableChanges, mapObservableDelta } from './utils.js';
 
 export interface IDocumentWithAnnotatedEdits<TEditData extends IEditData<TEditData> = EditKeySourceData> {
 	readonly value: IObservableWithChange<StringText, { edit: AnnotatedStringEdit<TEditData> }>;
@@ -220,7 +220,7 @@ export class CombineStreamedChanges<TEditData extends (EditKeySourceData | EditS
 
 	async _restart(): Promise<void> {
 		this._runStore.clear();
-		const iterator = iterateChangesFromObservable(this._originalDoc.value, this._runStore)[Symbol.asyncIterator]();
+		const iterator = iterateObservableChanges(this._originalDoc.value, this._runStore)[Symbol.asyncIterator]();
 		const p = this._runQueue;
 		this._runQueue = this._runQueue.then(() => this._run(iterator));
 		await p;
@@ -239,13 +239,14 @@ export class CombineStreamedChanges<TEditData extends (EditKeySourceData | EditS
 				let chatEdit = AnnotatedStringEdit.empty as AnnotatedStringEdit<TEditData>;
 
 				do {
-					reader.readSyncOrThrow();
+					reader.readBufferedOrThrow();
 					last = peeked;
 					chatEdit = chatEdit.compose(AnnotatedStringEdit.compose(peeked.change.map(c => c.edit)));
-					if (!await reader.waitForBufferTimeout(1000)) {
+					const peekedOrUndefined = await reader.peekTimeout(1000);
+					if (!peekedOrUndefined) {
 						break;
 					}
-					peeked = reader.peekSyncOrThrow();
+					peeked = peekedOrUndefined;
 				} while (peeked !== AsyncReaderEndOfStream && isChatEdit(peeked));
 
 				if (!chatEdit.isEmpty()) {
@@ -255,7 +256,7 @@ export class CombineStreamedChanges<TEditData extends (EditKeySourceData | EditS
 					this._value.set(last.value, undefined, { edit });
 				}
 			} else {
-				reader.readSyncOrThrow();
+				reader.readBufferedOrThrow();
 				const e = AnnotatedStringEdit.compose(peeked.change.map(c => c.edit));
 				this._value.set(peeked.value, undefined, { edit: e });
 			}
@@ -275,20 +276,6 @@ function isChatEdit(next: { value: StringText; change: { edit: AnnotatedStringEd
 		}
 		return false;
 	}));
-}
-
-function iterateChangesFromObservable<T, TChange>(obs: IObservableWithChange<T, TChange>, store: DisposableStore): AsyncIterable<{ value: T; prevValue: T; change: RemoveUndefined<TChange>[] }> {
-	return new AsyncIterableProducer<{ value: T; prevValue: T; change: RemoveUndefined<TChange>[] }>((e) => {
-		store.add(runOnChange(obs, (value, prevValue, change) => {
-			e.emitOne({ value, prevValue, change: change });
-		}));
-
-		return new Promise((res) => {
-			store.add(toDisposable(() => {
-				res(undefined);
-			}));
-		});
-	});
 }
 
 export class MinimizeEditsProcessor<TEditData extends IEditData<TEditData>> extends Disposable implements IDocumentWithAnnotatedEdits<TEditData> {
