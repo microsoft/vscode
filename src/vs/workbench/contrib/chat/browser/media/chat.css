@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .interactive-session {
-	max-width: 850px;
+	max-width: 950px;
 	margin: auto;
 	position: relative; /* For chat dnd */
 }

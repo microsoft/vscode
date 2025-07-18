@@ -1721,8 +1721,8 @@ export class Repository implements Disposable {
 		await this.run(Operation.Worktree, () => this.repository.worktree(options));
 	}
 
-	async deleteWorktree(path: string): Promise<void> {
-		await this.run(Operation.DeleteWorktree, () => this.repository.deleteWorktree(path));
+	async deleteWorktree(path: string, options?: { force?: boolean }): Promise<void> {
+		await this.run(Operation.DeleteWorktree, () => this.repository.deleteWorktree(path, options));
 	}
 
 	async deleteRemoteRef(remoteName: string, refName: string, options?: { force?: boolean }): Promise<void> {
