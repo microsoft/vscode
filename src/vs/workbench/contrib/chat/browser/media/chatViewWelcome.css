@@ -13,6 +13,14 @@
 	}
 }
 
+.interactive-session.experimental-welcome-view .interactive-input-part .dropdown-action-container {
+	display: none;
+}
+
+.interactive-session.experimental-welcome-view .interactive-input-part .chat-attachments-container {
+	display: none;
+}
+
 /* Container for chat widget welcome message */
 .interactive-session .chat-welcome-view-container {
 	display: flex;
@@ -27,6 +35,10 @@
 }
 
 .interactive-session.experimental-welcome-view .chat-input-toolbars > .chat-input-toolbar > div {
+	display: none;
+}
+
+.interactive-session.experimental-welcome-view .chat-input-toolbars .action-item:not(:has(.monaco-dropdown-with-primary)) {
 	display: none;
 }
 
