@@ -257,18 +257,36 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				return undefined;
 			}
 
-			return {
-				confirmationMessages: result.confirmationMessages ? {
-					title: typeof result.confirmationMessages.title === 'string' ? result.confirmationMessages.title : typeConvert.MarkdownString.from(result.confirmationMessages.title),
-					message: typeof result.confirmationMessages.message === 'string' ? result.confirmationMessages.message : typeConvert.MarkdownString.from(result.confirmationMessages.message),
-				} : undefined,
-				toolSpecificData: {
-					kind: 'terminal',
-					language: result.language,
-					command: result.command,
-				},
-				presentation: result.presentation
-			};
+			if ('command' in result && 'language' in result) {
+				return {
+					confirmationMessages: result.confirmationMessages ? {
+						title: typeof result.confirmationMessages.title === 'string' ? result.confirmationMessages.title : typeConvert.MarkdownString.from(result.confirmationMessages.title),
+						message: typeof result.confirmationMessages.message === 'string' ? result.confirmationMessages.message : typeConvert.MarkdownString.from(result.confirmationMessages.message),
+					} : undefined,
+					toolSpecificData: {
+						kind: 'terminal',
+						language: result.language,
+						command: result.command,
+					},
+					presentation: result.presentation
+				};
+			}
+			else if ('chatSessionId' in result && 'todoList' in result) {
+				return {
+					invocationMessage: typeConvert.MarkdownString.fromStrict(result.invocationMessage),
+					toolSpecificData: {
+						kind: 'todo',
+						sessionId: result.chatSessionId,
+						todoData: result.todoList.map(item => ({
+							id: item.id,
+							title: item.title,
+							description: item.description || '',
+							status: item.status === 1 ? 'not-started' : item.status === 2 ? 'in-progress' : 'completed'
+						}))
+					},
+					presentation: undefined
+				};
+			}
 		} else if (item.tool.prepareInvocation) {
 			const result = await item.tool.prepareInvocation(options, token);
 			if (!result) {

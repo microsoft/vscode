@@ -4848,6 +4848,29 @@ export class PreparedTerminalToolInvocation {
 	) { }
 }
 
+export enum LanguageModelToolTodoItemStatus {
+	NOT_STARTED = 1,
+	IN_PROGRESS = 2,
+	COMPLETED = 3,
+}
+
+export class LanguageModelToolTodoItem {
+	constructor(
+		public readonly id: string,
+		public readonly title: string,
+		public readonly description: string,
+		public readonly status: LanguageModelToolTodoItemStatus,
+	) { }
+}
+
+export class PreparedTodoToolInvocation {
+	constructor(
+		public readonly chatSessionId: string,
+		public readonly todoList: LanguageModelToolTodoItem[],
+		public readonly invocationMessage?: string | MarkdownString,
+	) { }
+}
+
 export enum ChatErrorLevel {
 	Info = 0,
 	Warning = 1,

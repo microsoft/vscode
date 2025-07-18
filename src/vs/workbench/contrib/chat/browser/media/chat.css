@@ -458,6 +458,105 @@
 	}
 }
 
+/* Todo List Styles */
+.chat-todo-list-part {
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 6px;
+	background: var(--vscode-editor-background);
+	margin: 4px 0;
+	overflow: hidden;
+}
+
+.chat-todo-list-part .todo-expando {
+	display: flex;
+	align-items: center;
+	padding: 8px 12px;
+	background: var(--vscode-editorWidget-background);
+	border-bottom: 1px solid var(--vscode-widget-border);
+	cursor: pointer;
+	user-select: none;
+	gap: 6px;
+}
+
+.chat-todo-list-part .todo-expando:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.chat-todo-list-part .todo-expando:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.chat-todo-list-part .expand-icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.chat-todo-list-part .todo-title {
+	font-weight: 600;
+	font-size: 13px;
+	color: var(--vscode-foreground);
+}
+
+.chat-todo-list-part .todo-list-container {
+	padding: 8px 0;
+}
+
+.chat-todo-list-part .todo-list {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+}
+
+.chat-todo-list-part .todo-item {
+	display: flex;
+	align-items: center;
+	padding: 4px 12px;
+	gap: 8px;
+	min-height: 24px;
+	font-size: 13px;
+}
+
+.chat-todo-list-part .todo-item:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.chat-todo-list-part .todo-number {
+	color: var(--vscode-descriptionForeground);
+	font-weight: 500;
+	min-width: 20px;
+	text-align: right;
+}
+
+.chat-todo-list-part .todo-status-icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.chat-todo-list-part .todo-content {
+	flex: 1;
+	color: var(--vscode-foreground);
+	line-height: 1.4;
+}
+
+.chat-todo-list-part .todo-status-text {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	background: var(--vscode-badge-background);
+	border-radius: 10px;
+	padding: 2px 6px;
+	margin-left: auto;
+	white-space: nowrap;
+}
+
 .interactive-item-container .value > .rendered-markdown li > p {
 	margin: 0;
 }

@@ -206,7 +206,7 @@ declare module 'vscode' {
 	}
 
 	export interface LanguageModelTool<T> {
-		prepareInvocation2?(options: LanguageModelToolInvocationPrepareOptions<T>, token: CancellationToken): ProviderResult<PreparedTerminalToolInvocation>;
+		prepareInvocation2?(options: LanguageModelToolInvocationPrepareOptions<T>, token: CancellationToken): ProviderResult<PreparedTerminalToolInvocation | PreparedTodoToolInvocation>;
 	}
 
 	export class PreparedTerminalToolInvocation {
@@ -221,6 +221,38 @@ declare module 'vscode' {
 			confirmationMessages?: LanguageModelToolConfirmationMessages,
 			presentation?: 'hidden'
 		);
+	}
+
+	export class PreparedTodoToolInvocation {
+		chatSessionId: string;
+		todoList: LanguageModelToolTodoItem[];
+		invocationMessage?: string | MarkdownString;
+
+		constructor(
+			chatSessionId: string,
+			todoList: LanguageModelToolTodoItem[],
+			invocationMessage?: string | MarkdownString
+		);
+	}
+
+	export class LanguageModelToolTodoItem {
+		id: string;
+		title: string;
+		description?: string;
+		status: LanguageModelToolTodoItemStatus;
+
+		constructor(
+			id: string,
+			title: string,
+			description: string | undefined,
+			status: LanguageModelToolTodoItemStatus
+		);
+	}
+
+	export enum LanguageModelToolTodoItemStatus {
+		NOT_STARTED = 1,
+		IN_PROGRESS = 2,
+		COMPLETED = 3,
 	}
 
 	export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
