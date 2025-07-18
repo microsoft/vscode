@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -71,14 +71,16 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 			for (const toolInvocation of toolInvocations) {
 				if (toolInvocation.confirmationMessages) {
 					const title = typeof toolInvocation.confirmationMessages.title === 'string' ? toolInvocation.confirmationMessages.title : toolInvocation.confirmationMessages.title.value;
-					const message = typeof toolInvocation.confirmationMessages.message === 'string' ? toolInvocation.confirmationMessages.message : stripIcons(renderMarkdownAsPlaintext(toolInvocation.confirmationMessages.message));
+					const message = typeof toolInvocation.confirmationMessages.message === 'string' ? toolInvocation.confirmationMessages.message : stripIcons(renderAsPlaintext(toolInvocation.confirmationMessages.message));
 					let input = '';
 					if (toolInvocation.toolSpecificData) {
 						input = toolInvocation.toolSpecificData?.kind === 'terminal'
 							? toolInvocation.toolSpecificData.command
-							: input = toolInvocation.toolSpecificData?.kind === 'extensions'
-								? JSON.stringify(toolInvocation.toolSpecificData.extensions)
-								: JSON.stringify(toolInvocation.toolSpecificData.rawInput);
+							: toolInvocation.toolSpecificData?.kind === 'terminal2'
+								? toolInvocation.toolSpecificData.commandLine.userEdited ?? toolInvocation.toolSpecificData.commandLine.toolEdited ?? toolInvocation.toolSpecificData.commandLine.original
+								: toolInvocation.toolSpecificData?.kind === 'extensions'
+									? JSON.stringify(toolInvocation.toolSpecificData.extensions)
+									: JSON.stringify(toolInvocation.toolSpecificData.rawInput);
 					}
 					responseContent += `${title}`;
 					if (input) {
@@ -87,7 +89,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 					responseContent += `\n${message}\n`;
 				} else if (toolInvocation.isComplete && toolInvocation.resultDetails && 'input' in toolInvocation.resultDetails) {
 					responseContent += '\n' + toolInvocation.resultDetails.isError ? 'Errored ' : 'Completed ';
-					responseContent += `${`${typeof toolInvocation.invocationMessage === 'string' ? toolInvocation.invocationMessage : stripIcons(renderMarkdownAsPlaintext(toolInvocation.invocationMessage))} with input: ${toolInvocation.resultDetails.input}`}\n`;
+					responseContent += `${`${typeof toolInvocation.invocationMessage === 'string' ? toolInvocation.invocationMessage : stripIcons(renderAsPlaintext(toolInvocation.invocationMessage))} with input: ${toolInvocation.resultDetails.input}`}\n`;
 				}
 			}
 
@@ -95,12 +97,12 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 			for (const pastConfirmation of pastConfirmations) {
 				if (pastConfirmation.isComplete && pastConfirmation.resultDetails && 'input' in pastConfirmation.resultDetails) {
 					if (pastConfirmation.pastTenseMessage) {
-						responseContent += `\n${`${typeof pastConfirmation.pastTenseMessage === 'string' ? pastConfirmation.pastTenseMessage : stripIcons(renderMarkdownAsPlaintext(pastConfirmation.pastTenseMessage))} with input: ${pastConfirmation.resultDetails.input}`}\n`;
+						responseContent += `\n${`${typeof pastConfirmation.pastTenseMessage === 'string' ? pastConfirmation.pastTenseMessage : stripIcons(renderAsPlaintext(pastConfirmation.pastTenseMessage))} with input: ${pastConfirmation.resultDetails.input}`}\n`;
 					}
 				}
 			}
 		}
-		return renderMarkdownAsPlaintext(new MarkdownString(responseContent), true);
+		return renderAsPlaintext(new MarkdownString(responseContent), { includeCodeBlocksFences: true });
 	}
 
 	onClose(): void {

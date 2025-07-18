@@ -58,6 +58,7 @@ import { ICodeMapperRequest, ICodeMapperResult } from '../../contrib/chat/common
 import { IChatRelatedFile, IChatRelatedFileProviderMetadata as IChatRelatedFilesProviderMetadata, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatProgressHistoryResponseContent } from '../../contrib/chat/common/chatModel.js';
 import { IChatContentInlineReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
+import { IChatSessionContent } from '../../contrib/chat/common/chatSessionsService.js';
 import { IChatRequestVariableValue } from '../../contrib/chat/common/chatVariables.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatSelector } from '../../contrib/chat/common/languageModels.js';
@@ -1391,6 +1392,7 @@ export interface IToolDataDto {
 	displayName: string;
 	userDescription?: string;
 	modelDescription: string;
+	source: Dto<ToolDataSource>;
 	inputSchema?: IJSONSchema;
 }
 
@@ -2174,7 +2176,7 @@ export interface IWorkspaceEditEntryMetadataDto {
 }
 
 export interface IChatNotebookEditDto {
-	uri: URI;
+	uri: UriComponents;
 	edits: ICellEditOperationDto[];
 	kind: 'notebookEdit';
 	done?: boolean;
@@ -3099,6 +3101,15 @@ export interface MainThreadChatStatusShape {
 	$disposeEntry(id: string): void;
 }
 
+export interface MainThreadChatSessionsShape extends IDisposable {
+	$registerChatSessionsProvider(handle: number, chatSessionType: string): void;
+	$unregisterChatSessionsProvider(handle: number): void;
+}
+
+export interface ExtHostChatSessionsShape {
+	$provideChatSessions(handle: number, token: CancellationToken): Promise<IChatSessionContent[]>;
+}
+
 // --- proxy identifiers
 
 export const MainContext = {
@@ -3176,6 +3187,7 @@ export const MainContext = {
 	MainThreadChatStatus: createProxyIdentifier<MainThreadChatStatusShape>('MainThreadChatStatus'),
 	MainThreadAiSettingsSearch: createProxyIdentifier<MainThreadAiSettingsSearchShape>('MainThreadAiSettingsSearch'),
 	MainThreadDataChannels: createProxyIdentifier<MainThreadDataChannelsShape>('MainThreadDataChannels'),
+	MainThreadChatSessions: createProxyIdentifier<MainThreadChatSessionsShape>('MainThreadChatSessions'),
 };
 
 export const ExtHostContext = {
@@ -3249,4 +3261,5 @@ export const ExtHostContext = {
 	ExtHostLocalization: createProxyIdentifier<ExtHostLocalizationShape>('ExtHostLocalization'),
 	ExtHostMcp: createProxyIdentifier<ExtHostMcpShape>('ExtHostMcp'),
 	ExtHostDataChannels: createProxyIdentifier<ExtHostDataChannelsShape>('ExtHostDataChannels'),
+	ExtHostChatSessions: createProxyIdentifier<ExtHostChatSessionsShape>('ExtHostChatSessions'),
 };

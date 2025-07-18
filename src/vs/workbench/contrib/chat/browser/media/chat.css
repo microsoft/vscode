@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .interactive-session {
-	max-width: 850px;
+	max-width: 950px;
 	margin: auto;
 	position: relative; /* For chat dnd */
 }
@@ -1904,7 +1904,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.interactive-item-container.interactive-request .value .rendered-markdown.clickable:hover {
-		cursor: text;
+		cursor: pointer;
 		background-color: var(--vscode-chat-requestBubbleHoverBackground);
 	}
 
