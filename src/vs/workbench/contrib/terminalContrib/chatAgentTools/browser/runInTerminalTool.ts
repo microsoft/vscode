@@ -356,8 +356,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				throw e;
 			} finally {
-				console.log('outputlinecount, ', outputAndIdle?.output ? count(outputAndIdle.output, '\n') : 0);
-				console.log('pollDurationMs, ', outputAndIdle?.pollDurationMs);
+				this._logService.trace('runInTerminalTool#outputLineCount, ', outputAndIdle?.output ? count(outputAndIdle.output, '\n') : 0);
+				this._logService.trace('runInTerminalTool#pollDurationMs, ', outputAndIdle?.pollDurationMs);
 				const timingExecuteMs = Date.now() - timingStart;
 				this._sendTelemetry(toolTerminal.instance, {
 					didUserEditCommand,
