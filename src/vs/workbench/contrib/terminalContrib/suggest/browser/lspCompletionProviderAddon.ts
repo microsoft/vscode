@@ -51,27 +51,47 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		const lineNum = this._textVirtualModel.object.textEditorModel.getLineCount();
 		const positionVirtualDocument = new Position(lineNum, column);
 
-
 		// TODO: Scan back to start of nearest word like other providers? Is this needed for `ILanguageFeaturesService`?
 		const completions: ITerminalCompletion[] = [];
 		if (this._provider && this._provider._debugDisplayName !== 'wordbasedCompletions') {
 
 			const result = await this._provider.provideCompletionItems(this._textVirtualModel.object.textEditorModel, positionVirtualDocument, { triggerKind: CompletionTriggerKind.TriggerCharacter }, token);
 
-			completions.push(...(result?.suggestions || []).map((e: any) => {
+			// Process and resolve completions
+			const completionPromises = (result?.suggestions || []).map(async (item: any) => {
+				let resolvedItem = item;
+
+				// Only resolve if we're missing detail or documentation and the provider supports it
+				if (this._provider.resolveCompletionItem && (!item.detail || !item.documentation)) {
+					try {
+						const resolved = await this._provider.resolveCompletionItem(item, token);
+						if (resolved) {
+							resolvedItem = resolved;
+						}
+					} catch (error) {
+						console.error('Failed to resolve completion item:', error);
+						// Fall back to the original item if resolution fails
+					}
+				}
+
 				// TODO: Support more terminalCompletionItemKind for [different LSP providers](https://github.com/microsoft/vscode/issues/249479)
-				const convertedKind = e.kind ? mapLspKindToTerminalKind(e.kind) : TerminalCompletionItemKind.Method;
+				const convertedKind = resolvedItem.kind ? mapLspKindToTerminalKind(resolvedItem.kind) : TerminalCompletionItemKind.Method;
 				const completionItemTemp = createCompletionItemPython(cursorPosition, textBeforeCursor, convertedKind, 'lspCompletionItem', undefined);
 
 				return {
-					label: e.insertText,
+					label: resolvedItem.insertText || resolvedItem.label,
 					provider: `lsp:${this._provider._debugDisplayName}`,
-					detail: e.detail,
+					detail: resolvedItem.detail,
+					documentation: resolvedItem.documentation,
 					kind: convertedKind,
 					replacementIndex: completionItemTemp.replacementIndex,
 					replacementLength: completionItemTemp.replacementLength,
 				};
-			}));
+			});
+
+			// Wait for all completions to be resolved
+			const resolvedCompletions = await Promise.all(completionPromises);
+			completions.push(...resolvedCompletions);
 		}
 
 		return completions;
