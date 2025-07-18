@@ -2423,3 +2423,108 @@ export class AsyncIterableProducer<T> implements AsyncIterable<T> {
 }
 
 //#endregion
+
+export const AsyncReaderEndOfStream = Symbol('AsyncReaderEndOfStream');
+
+export class AsyncReader<T> {
+	private _buffer: T[] = [];
+	private _atEnd = false;
+
+	public get endOfStream(): boolean { return this._buffer.length === 0 && this._atEnd; }
+	private _extendBufferPromise: Promise<void> | undefined;
+
+	constructor(
+		private readonly _source: AsyncIterator<T>
+	) {
+	}
+
+	public async read(): Promise<T | typeof AsyncReaderEndOfStream> {
+		if (this._buffer.length === 0 && !this._atEnd) {
+			await this._extendBuffer();
+		}
+		if (this._buffer.length === 0) {
+			return AsyncReaderEndOfStream;
+		}
+		return this._buffer.shift()!;
+	}
+
+	public async readWhile(predicate: (value: T) => boolean, callback: (element: T) => unknown): Promise<void> {
+		do {
+			const piece = await this.peek();
+			if (piece === AsyncReaderEndOfStream) {
+				break;
+			}
+			if (!predicate(piece)) {
+				break;
+			}
+			await this.read(); // consume
+			await callback(piece);
+		} while (true);
+	}
+
+	public readBufferedOrThrow(): T | typeof AsyncReaderEndOfStream {
+		const value = this.peekBufferedOrThrow();
+		this._buffer.shift();
+		return value;
+	}
+
+	public async consumeToEnd(): Promise<void> {
+		while (!this.endOfStream) {
+			await this.read();
+		}
+	}
+
+	public async peek(): Promise<T | typeof AsyncReaderEndOfStream> {
+		if (this._buffer.length === 0 && !this._atEnd) {
+			await this._extendBuffer();
+		}
+		if (this._buffer.length === 0) {
+			return AsyncReaderEndOfStream;
+		}
+		return this._buffer[0];
+	}
+
+	public peekBufferedOrThrow(): T | typeof AsyncReaderEndOfStream {
+		if (this._buffer.length === 0) {
+			if (this._atEnd) {
+				return AsyncReaderEndOfStream;
+			}
+			throw new BugIndicatingError('No buffered elements');
+		}
+
+		return this._buffer[0];
+	}
+
+	public async peekTimeout(timeoutMs: number): Promise<T | typeof AsyncReaderEndOfStream | undefined> {
+		if (this._buffer.length === 0 && !this._atEnd) {
+			await raceTimeout(this._extendBuffer(), timeoutMs);
+		}
+		if (this._atEnd) {
+			return AsyncReaderEndOfStream;
+		}
+		if (this._buffer.length === 0) {
+			return undefined;
+		}
+		return this._buffer[0];
+	}
+
+	private _extendBuffer(): Promise<void> {
+		if (this._atEnd) {
+			return Promise.resolve();
+		}
+
+		if (!this._extendBufferPromise) {
+			this._extendBufferPromise = (async () => {
+				const { value, done } = await this._source.next();
+				this._extendBufferPromise = undefined;
+				if (done) {
+					this._atEnd = true;
+				} else {
+					this._buffer.push(value);
+				}
+			})();
+		}
+
+		return this._extendBufferPromise;
+	}
+}
