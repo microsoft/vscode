@@ -94,7 +94,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 
 		if (isSuggestedEnabled) {
 			if (!this.attachment.isSelection) {
-				const buttonMsg = this.attachment.enabled ? localize('disable', "Disable current {0} context", attachmentTypeName) : title;
+				const buttonMsg = this.attachment.enabled ? localize('disable', "Disable current {0} context", attachmentTypeName) : '';
 				const toggleButton = this.renderDisposables.add(new Button(this.domNode, { supportIcons: true, title: buttonMsg }));
 				toggleButton.icon = this.attachment.enabled ? Codicon.x : Codicon.plus;
 				this.renderDisposables.add(toggleButton.onDidClick((e) => {
