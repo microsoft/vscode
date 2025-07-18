@@ -8,24 +8,22 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
+import { URI } from '../../../../base/common/uri.js';
+import { FileType } from '../../../../platform/files/common/files.js';
 
 import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService, IChatAgentData } from '../../chat/common/chatAgents.js';
 import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
-import { IChatProgress, IChatService } from '../../chat/common/chatService.js';
+import { IChatProgress, IChatResponseProgressFileTreeData, IChatService } from '../../chat/common/chatService.js';
 import { IRemoteCodingAgentsService, IRemoteCodingAgent } from '../common/remoteCodingAgentsService.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 interface IDemoStep {
-	kind: 'PROGRESS_MESSAGE' | 'ADD_REQUEST' | 'FILE_UPDATE';
+	kind: 'PROGRESS_MESSAGE' | 'ADD_REQUEST' | 'FILE_UPDATE' | 'QUESTION';
 	delay: number;
 	text?: string;
-	uri?: string;
-	changeType?: string;
-	preview?: string;
+	detail?: string;
 }
-
-
 
 /**
  * Chat provider that creates dynamic chat agents for each registered remote coding agent
@@ -133,11 +131,6 @@ class RemoteCodingAgentChatImplementation extends Disposable implements IChatAge
 	private async handle(request: IChatAgentRequest, message: string, progress: (progress: IChatProgress[]) => void, token: CancellationToken): Promise<IChatAgentResult> {
 		const { displayName } = this.remoteCodingAgent;
 
-		progress([{
-			kind: 'markdownContent',
-			content: new MarkdownString(localize('remoteCodingAgent.welcome', 'I am **{0}**, a coding agent at your service.', displayName))
-		}]);
-
 		// Generate a job ID and simulate starting a coding task
 		const jobId = `job-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 		const title = `Implement: ${message}`;
@@ -167,17 +160,19 @@ class RemoteCodingAgentChatImplementation extends Disposable implements IChatAge
 	}
 
 	// TODO: DEMO!
-	private queueDemoStreaming(progress: (progress: IChatProgress[]) => void, token: CancellationToken): Promise<void> {
+	private async queueDemoStreaming(progress: (progress: IChatProgress[]) => void, token: CancellationToken): Promise<void> {
 		const steps: IDemoStep[] = [
 			{ kind: 'PROGRESS_MESSAGE', text: 'Analyzing codebase...', delay: 1000 },
 			{ kind: 'PROGRESS_MESSAGE', text: 'Planning implementation...', delay: 1500 },
-			{ kind: 'FILE_UPDATE', delay: 1500, uri: 'file:///path/to/file1.js', changeType: 'modified', preview: 'function foo() { ... }' },
+			{ kind: 'FILE_UPDATE', delay: 1500 },
+			{ kind: 'QUESTION', text: 'Run unit tests?', detail: 'This will execute all tests in a GitHub Action and report the result', delay: 5000 },
+			{ kind: 'PROGRESS_MESSAGE', text: 'Deploying to Azure', delay: 5000 },
 		];
 
 		return new Promise((resolve) => {
 			let currentStep = 0;
 
-			const executeStep = () => {
+			const executeStep = async () => {
 				// Check if we should stop
 				if (currentStep >= steps.length || token.isCancellationRequested) {
 					resolve(); // Complete the promise
@@ -189,25 +184,99 @@ class RemoteCodingAgentChatImplementation extends Disposable implements IChatAge
 
 				try {
 					switch (step.kind) {
-						case 'PROGRESS_MESSAGE':
+						case 'PROGRESS_MESSAGE': {
 							// Add progress message directly using the progress function
 							progress([{
 								kind: 'progressMessage',
 								content: new MarkdownString(step.text),
 							}]);
 							break;
+						}
 
-						case 'FILE_UPDATE':
-							// // Add file modification progress
-							// progress([{
-							// 	kind: 'textEdit',
+						case 'FILE_UPDATE': {
 
-							// }]);
+							progress([{
+								kind: 'markdownContent',
+								content: new MarkdownString('JoshBot has completed your task by making the following modifications.')
+							}]);
+
+							// Create a file tree representation of the changes
+							const fileTreeData: IChatResponseProgressFileTreeData = {
+								label: 'Remote Project Files',
+								uri: URI.parse('file:///remote/project'),
+								type: FileType.Directory,
+								children: [
+									{
+										label: 'src',
+										uri: URI.parse('file:///remote/project/src'),
+										type: FileType.Directory,
+										children: [
+											{
+												label: 'file1.js',
+												uri: URI.parse('file:///remote/project/src/file1.js'),
+												type: FileType.File
+											},
+											{
+												label: 'utils.js',
+												uri: URI.parse('file:///remote/project/src/utils.js'),
+												type: FileType.File
+											}
+										]
+									},
+									{
+										label: 'package.json',
+										uri: URI.parse('file:///remote/project/package.json'),
+										type: FileType.File
+									},
+									{
+										label: 'README.md',
+										uri: URI.parse('file:///remote/project/README.md'),
+										type: FileType.File
+									}
+								]
+							};
+
+							// Send the tree data to the chat UI
+							progress([{
+								kind: 'treeData',
+								treeData: fileTreeData
+							}]);
 							break;
-
-						default:
+						}
+						case 'QUESTION': {
+							await new Promise<void>((resolve) => {
+								progress([{
+									kind: 'elicitation',
+									title: step.text || 'title!',
+									message: new MarkdownString(step.detail),
+									state: 'pending',
+									accept: async () => {
+										// Show running test progress
+										progress([
+											{
+												kind: 'progressMessage',
+												content: new MarkdownString('Running test suite')
+											}
+										]);
+										resolve();
+									},
+									reject: async () => {
+										progress([
+											{
+												kind: 'warning',
+												content: new MarkdownString('You are that confident you don\'t need to run tests?! Bold!')
+											}
+										]);
+										resolve();
+									},
+								}]);
+							});
+							break;
+						}
+						default: {
 							console.warn(`Unknown step kind: ${step.kind}`);
 							break;
+						}
 					}
 				} catch (error) {
 					console.error(`Error executing step ${currentStep}:`, error);
