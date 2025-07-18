@@ -349,6 +349,13 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['preview'],
 		},
+		[ChatConfiguration.AgentSessionsViewLocation]: {
+			type: 'string',
+			enum: ['disabled', 'showChatsMenu'],
+			description: nls.localize('chat.sessionsViewLocation.description', "Controls where to show the agent sessions menu."),
+			default: 'disabled',
+			tags: ['experimental'],
+		},
 		[mcpDiscoverySection]: {
 			oneOf: [
 				{ type: 'boolean' },

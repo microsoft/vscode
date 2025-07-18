@@ -89,9 +89,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		this.domNode.tabIndex = 0;
 
 		const isSuggestedEnabled = this.configService.getValue('chat.implicitContext.suggestedContext');
-		const hintLabel = !this.attachment.isSelection && !isSuggestedEnabled ? localize('hint.label.current', "Current {0}", attachmentTypeName) : '';
-		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, hintLabel));
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), hintElement, title));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.domNode, title));
 
 
 		if (isSuggestedEnabled) {

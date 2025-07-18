@@ -21,7 +21,7 @@ import { TerminalCapability } from '../../../../../platform/terminal/common/capa
 import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
-import type { IChatTerminalToolInvocationData } from '../../../chat/common/chatService.js';
+import type { IChatTerminalToolInvocationData, IChatTerminalToolInvocationData2 } from '../../../chat/common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../terminal/browser/xterm/xtermTerminal.js';
@@ -46,7 +46,7 @@ interface IStoredTerminalAssociation {
 }
 
 export const RunInTerminalToolData: IToolData = {
-	id: 'vscode_runInTerminal',
+	id: 'run_in_terminal2',
 	toolReferenceName: 'runInTerminal2',
 	canBeReferencedInPrompt: true,
 	displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
@@ -92,7 +92,7 @@ export const RunInTerminalToolData: IToolData = {
 			},
 			isBackground: {
 				type: 'boolean',
-				description: 'Whether the command starts a background process. If true, the command will run in the background and you will not see the output. If false, the tool call will block on the command finishing, and then you will get the output. Examples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using getTerminalOutput.'
+				description: 'Whether the command starts a background process. If true, the command will run in the background and you will not see the output. If false, the tool call will block on the command finishing, and then you will get the output. Examples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using get_terminal_output2.'
 			},
 		},
 		required: [
@@ -186,20 +186,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
-		const rewrittenCommand = await this._rewriteCommandIfNeeded(context, args, instance, shell);
-		if (rewrittenCommand && rewrittenCommand !== args.command) {
-			this._rewrittenCommand = rewrittenCommand;
-		} else {
-			this._rewrittenCommand = undefined;
+		let toolEditedCommand: string | undefined = await this._rewriteCommandIfNeeded(args, instance, shell);
+		if (toolEditedCommand === args.command) {
+			toolEditedCommand = undefined;
 		}
 
 		return {
 			confirmationMessages,
 			presentation,
 			toolSpecificData: {
-				kind: 'terminal',
-				// TODO: Ideally this would be named something like editedCommand for clarity https://github.com/microsoft/vscode/issues/256227
-				command: this._rewrittenCommand ?? args.command,
+				kind: 'terminal2',
+				commandLine: {
+					original: args.command,
+					toolEdited: toolEditedCommand
+				},
 				language,
 			}
 		};
@@ -211,7 +211,31 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		const args = invocation.parameters as IRunInTerminalInputParams;
-		const toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined; // undefined when auto-approved
+
+		// Tool specific data is not provided when the invocation is auto-approved. Re-calculate it
+		// if needed
+		let toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | IChatTerminalToolInvocationData2 | undefined;
+		if (toolSpecificData === undefined) {
+			const os = await this._osBackend;
+			const shell = await this._terminalProfileResolverService.getDefaultShell({
+				os,
+				remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority
+			});
+			const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
+			const instance = invocation.context?.sessionId ? this._sessionTerminalAssociations.get(invocation.context!.sessionId)?.instance : undefined;
+			let toolEditedCommand: string | undefined = await this._rewriteCommandIfNeeded(args, instance, shell);
+			if (toolEditedCommand === args.command) {
+				toolEditedCommand = undefined;
+			}
+			toolSpecificData = {
+				kind: 'terminal2',
+				commandLine: {
+					original: args.command,
+					toolEdited: toolEditedCommand
+				},
+				language
+			};
+		}
 
 		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
 
@@ -220,9 +244,25 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			throw new Error('A chat session ID is required for this tool');
 		}
 
-		const command = toolSpecificData?.command ?? this._rewrittenCommand ?? args.command;
-		const didUserEditCommand = typeof toolSpecificData?.command === 'string' && toolSpecificData.command !== args.command;
-		const didToolEditCommand = !didUserEditCommand && this._rewrittenCommand !== undefined;
+		let command: string | undefined;
+		let didUserEditCommand: boolean;
+		let didToolEditCommand: boolean;
+		if (toolSpecificData.kind === 'terminal') {
+			command = toolSpecificData.command ?? this._rewrittenCommand ?? args.command;
+			didUserEditCommand = typeof toolSpecificData?.command === 'string' && toolSpecificData.command !== args.command;
+			didToolEditCommand = !didUserEditCommand && this._rewrittenCommand !== undefined;
+		} else {
+			command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
+			didUserEditCommand = (
+				toolSpecificData.commandLine.userEdited !== undefined &&
+				toolSpecificData.commandLine.userEdited !== toolSpecificData.commandLine.original
+			);
+			didToolEditCommand = (
+				!didUserEditCommand &&
+				toolSpecificData.commandLine.toolEdited !== undefined &&
+				toolSpecificData.commandLine.toolEdited !== toolSpecificData.commandLine.original
+			);
+		}
 
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
@@ -276,7 +316,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				throw e;
 			} finally {
 				const timingExecuteMs = Date.now() - timingStart;
-				this._sendTelemetry({
+				this._sendTelemetry(toolTerminal.instance, {
 					didUserEditCommand,
 					didToolEditCommand,
 					shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
@@ -347,7 +387,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				throw e;
 			} finally {
 				const timingExecuteMs = Date.now() - timingStart;
-				this._sendTelemetry({
+				this._sendTelemetry(toolTerminal.instance, {
 					didUserEditCommand,
 					didToolEditCommand,
 					isBackground: false,
@@ -378,7 +418,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	protected async _rewriteCommandIfNeeded(context: IToolInvocationPreparationContext, args: IRunInTerminalInputParams, instance: Pick<ITerminalInstance, 'getCwdResource'> | undefined, shell: string): Promise<string> {
+	protected async _rewriteCommandIfNeeded(args: IRunInTerminalInputParams, instance: Pick<ITerminalInstance, 'getCwdResource'> | undefined, shell: string): Promise<string> {
 		const commandLine = args.command;
 		const os = await this._osBackend;
 
@@ -515,7 +555,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	private _sendTelemetry(state: {
+	private _sendTelemetry(instance: ITerminalInstance, state: {
 		didUserEditCommand: boolean;
 		didToolEditCommand: boolean;
 		error: string | undefined;
@@ -528,6 +568,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		exitCode: number | undefined;
 	}) {
 		type TelemetryEvent = {
+			terminalSessionId: string;
+
 			result: string;
 			strategy: 0 | 1 | 2;
 			userEditedCommand: 0 | 1;
@@ -543,6 +585,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			owner: 'tyriar';
 			comment: 'Understanding the usage of the runInTerminal tool';
 
+			terminalSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID of the terminal instance.' };
+
 			result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the tool ran successfully, or the type of error' };
 			strategy: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'What strategy was used to execute the command (0=none, 1=basic, 2=rich)' };
 			userEditedCommand: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user edited the command' };
@@ -555,6 +599,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			timingExecuteMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the command took to execute' };
 		};
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal', {
+			terminalSessionId: instance.sessionId,
 			result: state.error ?? 'success',
 			strategy: state.shellIntegrationQuality === ShellIntegrationQuality.Rich ? 2 : state.shellIntegrationQuality === ShellIntegrationQuality.Basic ? 1 : 0,
 			userEditedCommand: state.didUserEditCommand ? 1 : 0,
@@ -580,7 +625,7 @@ class BackgroundTerminalExecution extends Disposable {
 		super();
 
 		this._startMarker = this._register(this._xterm.raw.registerMarker());
-		this._instance.runCommand(this._commandLine);
+		this._instance.runCommand(this._commandLine, true);
 	}
 
 	getOutput(): string {

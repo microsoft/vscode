@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { fillInIncompleteTokens, renderMarkdown, renderMarkdownAsPlaintext } from '../../browser/markdownRenderer.js';
+import { fillInIncompleteTokens, renderMarkdown, renderAsPlaintext } from '../../browser/markdownRenderer.js';
 import { IMarkdownString, MarkdownString } from '../../common/htmlContent.js';
 import * as marked from '../../common/marked/marked.js';
 import { parse } from '../../common/marshalling.js';
@@ -261,14 +261,14 @@ suite('MarkdownRenderer', () => {
 		test('test code, blockquote, heading, list, listitem, paragraph, table, tablerow, tablecell, strong, em, br, del, text are rendered plaintext', () => {
 			const markdown = { value: '`code`\n>quote\n# heading\n- list\n\ntable | table2\n--- | --- \none | two\n\n\nbo**ld**\n_italic_\n~~del~~\nsome text' };
 			const expected = 'code\nquote\nheading\nlist\n\ntable table2\none two\nbold\nitalic\ndel\nsome text';
-			const result: string = renderMarkdownAsPlaintext(markdown);
+			const result: string = renderAsPlaintext(markdown);
 			assert.strictEqual(result, expected);
 		});
 
 		test('test html, hr, image, link are rendered plaintext', () => {
 			const markdown = { value: '<div>html</div>\n\n---\n![image](imageLink)\n[text](textLink)' };
 			const expected = 'text';
-			const result: string = renderMarkdownAsPlaintext(markdown);
+			const result: string = renderAsPlaintext(markdown);
 			assert.strictEqual(result, expected);
 		});
 
@@ -285,7 +285,7 @@ suite('MarkdownRenderer', () => {
 				'<form>html</form>',
 				'```',
 			].join('\n');
-			const result: string = renderMarkdownAsPlaintext(markdown, true);
+			const result: string = renderAsPlaintext(markdown, { includeCodeBlocksFences: true });
 			assert.strictEqual(result, expected);
 		});
 	});

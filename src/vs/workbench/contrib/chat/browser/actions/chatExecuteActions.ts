@@ -360,7 +360,7 @@ class OpenModelPickerAction extends Action2 {
 						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook),
 						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal)
 					)
-				),
+				)
 			}
 		});
 	}

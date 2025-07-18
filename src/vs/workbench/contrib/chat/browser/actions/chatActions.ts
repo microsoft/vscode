@@ -7,12 +7,14 @@ import { isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
 import { toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNowByDay, safeIntl } from '../../../../../base/common/date.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, markAsSingleton } from '../../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { language } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -23,10 +25,11 @@ import { SuggestController } from '../../../../../editor/contrib/suggest/browser
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { Action2, ICommandPaletteOptions, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { getContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Action2, ICommandPaletteOptions, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -54,6 +57,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntit
 import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
@@ -364,6 +368,442 @@ export function registerChatActions() {
 			});
 		}
 
+		private showLegacyPicker = async (
+			chatService: IChatService,
+			quickInputService: IQuickInputService,
+			commandService: ICommandService,
+			editorService: IEditorService,
+			view: ChatViewPane
+		) => {
+			const clearChatHistoryButton: IQuickInputButton = {
+				iconClass: ThemeIcon.asClassName(Codicon.clearAll),
+				tooltip: localize('interactiveSession.history.clear', "Clear All Workspace Chats"),
+			};
+
+			const openInEditorButton: IQuickInputButton = {
+				iconClass: ThemeIcon.asClassName(Codicon.file),
+				tooltip: localize('interactiveSession.history.editor', "Open in Editor"),
+			};
+			const deleteButton: IQuickInputButton = {
+				iconClass: ThemeIcon.asClassName(Codicon.x),
+				tooltip: localize('interactiveSession.history.delete', "Delete"),
+			};
+			const renameButton: IQuickInputButton = {
+				iconClass: ThemeIcon.asClassName(Codicon.pencil),
+				tooltip: localize('chat.history.rename', "Rename"),
+			};
+
+			interface IChatPickerItem extends IQuickPickItem {
+				chat: IChatDetail;
+			}
+
+			const getPicks = async () => {
+				const items = await chatService.getHistory();
+				items.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0));
+
+				let lastDate: string | undefined = undefined;
+				const picks = items.flatMap((i): [IQuickPickSeparator | undefined, IChatPickerItem] => {
+					const timeAgoStr = fromNowByDay(i.lastMessageDate, true, true);
+					const separator: IQuickPickSeparator | undefined = timeAgoStr !== lastDate ? {
+						type: 'separator', label: timeAgoStr,
+					} : undefined;
+					lastDate = timeAgoStr;
+					return [
+						separator,
+						{
+							label: i.title,
+							description: i.isActive ? `(${localize('currentChatLabel', 'current')})` : '',
+							chat: i,
+							buttons: i.isActive ? [renameButton] : [
+								renameButton,
+								openInEditorButton,
+								deleteButton,
+							]
+						}
+					];
+				});
+
+				return coalesce(picks);
+			};
+
+			const store = new (DisposableStore as { new(): DisposableStore })();
+			const picker = store.add(quickInputService.createQuickPick<IChatPickerItem>({ useSeparators: true }));
+			picker.title = localize('interactiveSession.history.title', "Workspace Chat History");
+			picker.placeholder = localize('interactiveSession.history.pick', "Switch to chat");
+			picker.buttons = [clearChatHistoryButton];
+			const picks = await getPicks();
+			picker.items = picks;
+			store.add(picker.onDidTriggerButton(async button => {
+				if (button === clearChatHistoryButton) {
+					await commandService.executeCommand(CHAT_CLEAR_HISTORY_ACTION_ID);
+				}
+			}));
+			store.add(picker.onDidTriggerItemButton(async context => {
+				if (context.button === openInEditorButton) {
+					const options: IChatEditorOptions = { target: { sessionId: context.item.chat.sessionId }, pinned: true };
+					editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, ACTIVE_GROUP);
+					picker.hide();
+				} else if (context.button === deleteButton) {
+					chatService.removeHistoryEntry(context.item.chat.sessionId);
+					picker.items = await getPicks();
+				} else if (context.button === renameButton) {
+					const title = await quickInputService.input({ title: localize('newChatTitle', "New chat title"), value: context.item.chat.title });
+					if (title) {
+						chatService.setChatSessionTitle(context.item.chat.sessionId, title);
+					}
+
+					// The quick input hides the picker, it gets disposed, so we kick it off from scratch
+					await this.showLegacyPicker(chatService, quickInputService, commandService, editorService, view);
+				}
+			}));
+			store.add(picker.onDidAccept(async () => {
+				try {
+					const item = picker.selectedItems[0];
+					const sessionId = item.chat.sessionId;
+					await view.loadSession(sessionId);
+				} finally {
+					picker.hide();
+				}
+			}));
+			store.add(picker.onDidHide(() => store.dispose()));
+
+			picker.show();
+		};
+
+		private showIntegratedPicker = async (
+			chatService: IChatService,
+			quickInputService: IQuickInputService,
+			commandService: ICommandService,
+			editorService: IEditorService,
+			view: ChatViewPane,
+			chatSessionsService: IChatSessionsService,
+			contextKeyService: IContextKeyService,
+			menuService: IMenuService,
+			showAllChats: boolean = false,
+			showAllAgents: boolean = false
+		) => {
+			const clearChatHistoryButton: IQuickInputButton = {
+				iconClass: ThemeIcon.asClassName(Codicon.clearAll),
+				tooltip: localize('interactiveSession.history.clear', "Clear All Workspace Chats"),
+			};
+
+			const openInEditorButton: IQuickInputButton = {
+				iconClass: ThemeIcon.asClassName(Codicon.file),
+				tooltip: localize('interactiveSession.history.editor', "Open in Editor"),
+			};
+			const deleteButton: IQuickInputButton = {
+				iconClass: ThemeIcon.asClassName(Codicon.x),
+				tooltip: localize('interactiveSession.history.delete', "Delete"),
+			};
+			const renameButton: IQuickInputButton = {
+				iconClass: ThemeIcon.asClassName(Codicon.pencil),
+				tooltip: localize('chat.history.rename', "Rename"),
+			};
+
+			interface IChatPickerItem extends IQuickPickItem {
+				chat: IChatDetail;
+			}
+
+			interface ICodingAgentPickerItem extends IChatPickerItem {
+				id?: string;
+				uri?: URI;
+			}
+
+			const getPicks = async (showAllChats: boolean = false, showAllAgents: boolean = false) => {
+				// Fast picks: Get cached/immediate items first
+				const cachedItems = await chatService.getHistory();
+				cachedItems.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0));
+
+				const allFastPickItems: IChatPickerItem[] = cachedItems.map((i) => {
+					const timeAgoStr = fromNowByDay(i.lastMessageDate, true, true);
+					const currentLabel = i.isActive ? localize('currentChatLabel', 'current') : '';
+					const description = currentLabel ? `${timeAgoStr} • ${currentLabel}` : timeAgoStr;
+
+					return {
+						label: i.title,
+						description: description,
+						chat: i,
+						buttons: i.isActive ? [renameButton] : [
+							renameButton,
+							openInEditorButton,
+							deleteButton,
+						]
+					};
+				});
+
+				const fastPickItems = showAllChats ? allFastPickItems : allFastPickItems.slice(0, 5);
+				const fastPicks: (IQuickPickSeparator | IChatPickerItem)[] = [];
+				if (fastPickItems.length > 0) {
+					fastPicks.push({
+						type: 'separator',
+						label: localize('chat.history.recent', 'Recent Chats'),
+					});
+					fastPicks.push(...fastPickItems);
+
+					// Add "Show more..." if there are more items and we're not showing all chats
+					if (!showAllChats && allFastPickItems.length > 5) {
+						fastPicks.push({
+							label: localize('chat.history.showMore', 'Show more...'),
+							description: '',
+							chat: {
+								sessionId: 'show-more-chats',
+								title: 'Show more...',
+								isActive: false,
+								lastMessageDate: 0,
+							},
+							buttons: []
+						});
+					}
+				}
+
+				// Slow picks: Get coding agents asynchronously via AsyncIterable
+				const slowPicks = (async function* (): AsyncGenerator<(IQuickPickSeparator | ICodingAgentPickerItem)[]> {
+					try {
+						const agentPicks: ICodingAgentPickerItem[] = [];
+
+						// Use the new Promise-based API to get chat sessions
+						const cancellationToken = new CancellationTokenSource();
+
+						try {
+							const sessions = await chatSessionsService.provideChatSessions(cancellationToken.token);
+
+							for (const session of sessions) {
+								const sessionContent = session.session;
+								const provider = session.provider;
+
+								const ckey = contextKeyService.createKey('chatSessionType', provider.chatSessionType);
+								const actions = menuService.getMenuActions(MenuId.ChatSessionsMenu, contextKeyService);
+								const menuActions = getContextMenuActions(actions, 'navigation');
+								ckey.reset();
+
+								const buttons = menuActions.primary.map(action => ({
+									id: action.id,
+									tooltip: action.tooltip,
+									iconClass: action.class || ThemeIcon.asClassName(Codicon.symbolClass),
+								}));
+								// Create agent pick from the session content
+								const agentPick: ICodingAgentPickerItem = {
+									label: sessionContent.label,
+									description: '',
+									chat: {
+										sessionId: sessionContent.uri.toString(),
+										title: sessionContent.label,
+										isActive: false,
+										lastMessageDate: 0,
+									},
+									buttons,
+									uri: sessionContent.uri
+								};
+
+								// Check if this agent already exists (update existing or add new)
+								const existingIndex = agentPicks.findIndex(pick => pick.chat.sessionId === sessionContent.uri.path);
+								if (existingIndex >= 0) {
+									agentPicks[existingIndex] = agentPick;
+								} else {
+									// Respect show limits
+									const maxToShow = showAllAgents ? Number.MAX_SAFE_INTEGER : 5;
+									if (agentPicks.length < maxToShow) {
+										agentPicks.push(agentPick);
+									}
+								}
+							}
+
+							// Create current picks with separator if we have agents
+							const currentPicks: (IQuickPickSeparator | ICodingAgentPickerItem)[] = [];
+
+							if (agentPicks.length > 0) {
+								// Always add separator for coding agents section
+								currentPicks.push({
+									type: 'separator',
+									label: 'Chat Sessions',
+								});
+								currentPicks.push(...agentPicks);
+
+								// Add "Show more..." if needed and not showing all agents
+								if (!showAllAgents && sessions.length > 5) {
+									currentPicks.push({
+										label: localize('chat.history.showMoreAgents', 'Show more...'),
+										description: '',
+										chat: {
+											sessionId: 'show-more-agents',
+											title: 'Show more...',
+											isActive: false,
+											lastMessageDate: 0,
+										},
+										buttons: [],
+										uri: undefined,
+									});
+								}
+							}
+
+							// Yield the current state
+							yield currentPicks;
+
+						} finally {
+							cancellationToken.dispose();
+						}
+
+					} catch (error) {
+						// Gracefully handle errors in async contributions
+						return;
+					}
+				})();
+
+				// Return fast picks immediately, add slow picks as async generator
+				return {
+					fast: coalesce(fastPicks),
+					slow: slowPicks
+				};
+			};
+
+			const store = new (DisposableStore as { new(): DisposableStore })();
+			const picker = store.add(quickInputService.createQuickPick<IChatPickerItem | ICodingAgentPickerItem>({ useSeparators: true }));
+			picker.title = (showAllChats || showAllAgents) ?
+				localize('interactiveSession.history.titleAll', "All Workspace Chat History") :
+				localize('interactiveSession.history.title', "Workspace Chat History");
+			picker.placeholder = localize('interactiveSession.history.pick', "Switch to chat");
+			picker.buttons = [clearChatHistoryButton];
+
+			// Get fast and slow picks
+			const { fast, slow } = await getPicks(showAllChats, showAllAgents);
+
+			// Set fast picks immediately
+			picker.items = fast;
+			picker.busy = true;
+
+			// Consume slow picks progressively
+			(async () => {
+				try {
+					for await (const slowPicks of slow) {
+						if (!store.isDisposed) {
+							picker.items = coalesce([...fast, ...slowPicks]);
+						}
+					}
+				} catch (error) {
+					// Handle errors gracefully
+				} finally {
+					if (!store.isDisposed) {
+						picker.busy = false;
+					}
+				}
+			})();
+			store.add(picker.onDidTriggerButton(async button => {
+				if (button === clearChatHistoryButton) {
+					await commandService.executeCommand(CHAT_CLEAR_HISTORY_ACTION_ID);
+				}
+			}));
+			store.add(picker.onDidTriggerItemButton(async context => {
+				if (context.button === openInEditorButton) {
+					const options: IChatEditorOptions = { target: { sessionId: context.item.chat.sessionId }, pinned: true };
+					editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, ACTIVE_GROUP);
+					picker.hide();
+				} else if (context.button === deleteButton) {
+					chatService.removeHistoryEntry(context.item.chat.sessionId);
+					// Refresh picker items after deletion
+					const { fast, slow } = await getPicks(showAllChats, showAllAgents);
+					picker.items = fast;
+					picker.busy = true;
+
+					// Consume slow picks progressively after deletion
+					(async () => {
+						try {
+							for await (const slowPicks of slow) {
+								if (!store.isDisposed) {
+									picker.items = coalesce([...fast, ...slowPicks]);
+								}
+							}
+						} catch (error) {
+							// Handle errors gracefully
+						} finally {
+							if (!store.isDisposed) {
+								picker.busy = false;
+							}
+						}
+					})();
+				} else if (context.button === renameButton) {
+					const title = await quickInputService.input({ title: localize('newChatTitle', "New chat title"), value: context.item.chat.title });
+					if (title) {
+						chatService.setChatSessionTitle(context.item.chat.sessionId, title);
+					}
+
+					// The quick input hides the picker, it gets disposed, so we kick it off from scratch
+					await this.showIntegratedPicker(
+						chatService,
+						quickInputService,
+						commandService,
+						editorService,
+						view,
+						chatSessionsService,
+						contextKeyService,
+						menuService,
+						showAllChats,
+						showAllAgents
+					);
+				} else {
+					const buttonItem = context.button as ICodingAgentPickerItem;
+					if (buttonItem.id) {
+						const contextItem = context.item as ICodingAgentPickerItem;
+						commandService.executeCommand(buttonItem.id, {
+							uri: contextItem.uri,
+							$mid: MarshalledId.ChatSessionContext
+						});
+					}
+				}
+			}));
+			store.add(picker.onDidAccept(async () => {
+				try {
+					const item = picker.selectedItems[0];
+					const sessionId = item.chat.sessionId;
+
+					// Handle "Show more..." options
+					if (sessionId === 'show-more-chats') {
+						picker.hide();
+						// Create a new picker with all chat items expanded
+						await this.showIntegratedPicker(
+							chatService,
+							quickInputService,
+							commandService,
+							editorService,
+							view,
+							chatSessionsService,
+							contextKeyService,
+							menuService,
+							true,
+							showAllAgents
+						);
+						return;
+					} else if (sessionId === 'show-more-agents') {
+						picker.hide();
+						// Create a new picker with all agent items expanded
+						await this.showIntegratedPicker(
+							chatService,
+							quickInputService,
+							commandService,
+							editorService,
+							view,
+							chatSessionsService,
+							contextKeyService,
+							menuService,
+							showAllChats,
+							true
+						);
+						return;
+					} else if ((item as ICodingAgentPickerItem).uri !== undefined) {
+					} else if ((item as ICodingAgentPickerItem).uri !== undefined) {
+						// TODO: handle click
+						return;
+					}
+
+					await view.loadSession(sessionId);
+				} finally {
+					picker.hide();
+				}
+			}));
+			store.add(picker.onDidHide(() => store.dispose()));
+
+			picker.show();
+		};
+
 		async run(accessor: ServicesAccessor) {
 			const chatService = accessor.get(IChatService);
 			const quickInputService = accessor.get(IQuickInputService);
@@ -371,6 +811,10 @@ export function registerChatActions() {
 			const editorService = accessor.get(IEditorService);
 			const dialogService = accessor.get(IDialogService);
 			const commandService = accessor.get(ICommandService);
+			const chatSessionsService = accessor.get(IChatSessionsService);
+			const configurationService = accessor.get(IConfigurationService);
+			const contextKeyService = accessor.get(IContextKeyService);
+			const menuService = accessor.get(IMenuService);
 
 			const view = await viewsService.openView<ChatViewPane>(ChatViewId);
 			if (!view) {
@@ -390,102 +834,21 @@ export function registerChatActions() {
 				}
 			}
 
-			const showPicker = async () => {
-				const clearChatHistoryButton: IQuickInputButton = {
-					iconClass: ThemeIcon.asClassName(Codicon.clearAll),
-					tooltip: localize('interactiveSession.history.clear', "Clear All Workspace Chats"),
-				};
-
-				const openInEditorButton: IQuickInputButton = {
-					iconClass: ThemeIcon.asClassName(Codicon.file),
-					tooltip: localize('interactiveSession.history.editor', "Open in Editor"),
-				};
-				const deleteButton: IQuickInputButton = {
-					iconClass: ThemeIcon.asClassName(Codicon.x),
-					tooltip: localize('interactiveSession.history.delete', "Delete"),
-				};
-				const renameButton: IQuickInputButton = {
-					iconClass: ThemeIcon.asClassName(Codicon.pencil),
-					tooltip: localize('chat.history.rename', "Rename"),
-				};
-
-				interface IChatPickerItem extends IQuickPickItem {
-					chat: IChatDetail;
-				}
-
-				const getPicks = async () => {
-					const items = await chatService.getHistory();
-					items.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0));
-
-					let lastDate: string | undefined = undefined;
-					const picks = items.flatMap((i): [IQuickPickSeparator | undefined, IChatPickerItem] => {
-						const timeAgoStr = fromNowByDay(i.lastMessageDate, true, true);
-						const separator: IQuickPickSeparator | undefined = timeAgoStr !== lastDate ? {
-							type: 'separator', label: timeAgoStr,
-						} : undefined;
-						lastDate = timeAgoStr;
-						return [
-							separator,
-							{
-								label: i.title,
-								description: i.isActive ? `(${localize('currentChatLabel', 'current')})` : '',
-								chat: i,
-								buttons: i.isActive ? [renameButton] : [
-									renameButton,
-									openInEditorButton,
-									deleteButton,
-								]
-							}
-						];
-					});
-
-					return coalesce(picks);
-				};
-
-				const store = new DisposableStore();
-				const picker = store.add(quickInputService.createQuickPick<IChatPickerItem>({ useSeparators: true }));
-				picker.title = localize('interactiveSession.history.title', "Workspace Chat History");
-				picker.placeholder = localize('interactiveSession.history.pick', "Switch to chat");
-				picker.buttons = [clearChatHistoryButton];
-				const picks = await getPicks();
-				picker.items = picks;
-				store.add(picker.onDidTriggerButton(async button => {
-					if (button === clearChatHistoryButton) {
-						await commandService.executeCommand(CHAT_CLEAR_HISTORY_ACTION_ID);
-					}
-				}));
-				store.add(picker.onDidTriggerItemButton(async context => {
-					if (context.button === openInEditorButton) {
-						const options: IChatEditorOptions = { target: { sessionId: context.item.chat.sessionId }, pinned: true };
-						editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, ACTIVE_GROUP);
-						picker.hide();
-					} else if (context.button === deleteButton) {
-						chatService.removeHistoryEntry(context.item.chat.sessionId);
-						picker.items = await getPicks();
-					} else if (context.button === renameButton) {
-						const title = await quickInputService.input({ title: localize('newChatTitle', "New chat title"), value: context.item.chat.title });
-						if (title) {
-							chatService.setChatSessionTitle(context.item.chat.sessionId, title);
-						}
-
-						// The quick input hides the picker, it gets disposed, so we kick it off from scratch
-						await showPicker();
-					}
-				}));
-				store.add(picker.onDidAccept(async () => {
-					try {
-						const item = picker.selectedItems[0];
-						const sessionId = item.chat.sessionId;
-						await view.loadSession(sessionId);
-					} finally {
-						picker.hide();
-					}
-				}));
-				store.add(picker.onDidHide(() => store.dispose()));
-
-				picker.show();
-			};
-			await showPicker();
+			const showAgentSessionsMenuConfig = configurationService.getValue<string>(ChatConfiguration.AgentSessionsViewLocation);
+			if (showAgentSessionsMenuConfig === 'showChatsMenu' && chatSessionsService.hasChatSessionsProviders) {
+				await this.showIntegratedPicker(
+					chatService,
+					quickInputService,
+					commandService,
+					editorService,
+					view,
+					chatSessionsService,
+					contextKeyService,
+					menuService
+				);
+			} else {
+				await this.showLegacyPicker(chatService, quickInputService, commandService, editorService, view);
+			}
 		}
 	});
 
