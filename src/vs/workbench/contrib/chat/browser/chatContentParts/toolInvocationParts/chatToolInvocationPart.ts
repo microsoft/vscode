@@ -99,12 +99,6 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			return this.instantiationService.createInstance(ChatTodoListSubPart, this.toolInvocation, todoSpecificData.todoData);
 		}
 
-		// Check for todo list data from the todo tool
-		if (this.toolInvocation.toolSpecificData?.kind === 'todo') {
-			const todoSpecificData = this.toolInvocation.toolSpecificData as IChatTodoContent;
-			return this.instantiationService.createInstance(ChatTodoListSubPart, this.toolInvocation, todoSpecificData.todoData);
-		}
-
 		if (this.toolInvocation.toolSpecificData?.kind === 'terminal' || this.toolInvocation.toolSpecificData?.kind === 'terminal2') {
 			return this.instantiationService.createInstance(ChatTerminalMarkdownProgressPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockStartIndex, this.codeBlockModelCollection);
 		}

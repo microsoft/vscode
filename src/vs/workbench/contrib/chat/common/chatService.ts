@@ -310,7 +310,7 @@ export interface IChatTodoContent {
 		todos: Array<{
 			id: string;
 			content: string;
-			status: 'not-started' | 'in-progress' | 'completed' | 'errored';
+			status: 'not-started' | 'in-progress' | 'completed';
 		}>;
 	};
 }
