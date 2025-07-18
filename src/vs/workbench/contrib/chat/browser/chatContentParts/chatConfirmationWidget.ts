@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { renderStringAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { Button, ButtonWithDropdown, IButton, IButtonOptions } from '../../../../../base/browser/ui/button/button.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -201,7 +201,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
 
 		// Notify
-		const title = renderStringAsPlaintext(this.title);
+		const title = renderAsPlaintext(this.title);
 		const notification = await dom.triggerNotification(title ? localize('notificationTitle', "Chat: {0}", title) : localize('defaultTitle', "Chat: Confirmation Required"),
 			{
 				detail: localize('notificationDetail', "The current chat session requires your confirmation to proceed.")
