@@ -290,7 +290,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							let requestMorePolling = false;
 							const waitPromise = new Promise<void>(resolve => {
 								const part = new ChatElicitationRequestPart(
-									new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for {0} to finish?", command)),
+									new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for `{0}` to finish?", command)),
 									new MarkdownString(localize('poll.terminal.polling', "Copilot will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
 									'',
 									localize('poll.terminal.accept', 'Yes'),
