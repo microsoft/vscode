@@ -172,15 +172,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const inlineSubCommands = subCommands.map(e => Array.from(extractInlineSubCommands(e, shell, os))).flat();
 			const allSubCommands = [...subCommands, ...inlineSubCommands];
 			const subCommandResults = allSubCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
-			console.log({ subCommandResults });
 			if (subCommandResults.every(e => e.isAutoApproved)) {
 				confirmationMessages = undefined;
 			} else {
 				const commandLineResults = this._commandLineAutoApprover.isCommandLineAutoApproved(args.command);
-				console.log({ commandLineResults });
-				if (commandLineResults) {
+				if (commandLineResults.isAutoApproved) {
 					confirmationMessages = undefined;
 				} else {
+					// TODO: Surface reason in UI
 					confirmationMessages = {
 						title: args.isBackground
 							? localize('runInTerminal.background', "Run command in background terminal")

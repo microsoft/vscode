@@ -49,11 +49,11 @@ suite('CommandLineAutoApprover', () => {
 	}
 
 	function isAutoApproved(commandLine: string): boolean {
-		return commandLineAutoApprover.isCommandAutoApproved(commandLine, shell, os);
+		return commandLineAutoApprover.isCommandAutoApproved(commandLine, shell, os).isAutoApproved;
 	}
 
 	function isCommandLineAutoApproved(commandLine: string): boolean {
-		return commandLineAutoApprover.isCommandLineAutoApproved(commandLine);
+		return commandLineAutoApprover.isCommandLineAutoApproved(commandLine).isAutoApproved;
 	}
 
 	suite('autoApprove with allow patterns only', () => {
