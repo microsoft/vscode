@@ -169,6 +169,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private focusedInputDOM!: HTMLElement;
 	private editorOptions!: ChatEditorOptions;
 
+	private recentlyRestoredCheckpoint: boolean = false;
+
 	private settingChangeCounter = 0;
 
 	private listContainer!: HTMLElement;
@@ -969,7 +971,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._register(this.renderer.onDidFocusOutside(() => {
 			this.finishedEditing();
-			this.viewModel?.model.setCheckpoint(undefined);
 		}));
 
 		this._register(this.renderer.onDidClickFollowup(item => {
@@ -1062,6 +1063,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return;
 			}
 
+			// this will only ever be true if we restored a checkpoint
+			if (this.viewModel?.model.checkpoint) {
+				this.recentlyRestoredCheckpoint = true;
+			}
+
 			this.viewModel?.model.setCheckpoint(currentElement.id);
 
 			// set contexts and request to false
@@ -1144,7 +1150,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	finishedEditing(completedEdit?: boolean): void {
 		// reset states
 		const editedRequest = this.renderer.getTemplateDataForRequestId(this.viewModel?.editing?.id);
-		this.viewModel?.model.setCheckpoint(undefined);
+		if (this.recentlyRestoredCheckpoint) {
+			this.recentlyRestoredCheckpoint = false;
+		} else {
+			this.viewModel?.model.setCheckpoint(undefined);
+		}
 		this.inputPart.dnd.setDisabledOverlay(false);
 		if (editedRequest?.contextKeyService) {
 			ChatContextKeys.currentlyEditing.bindTo(editedRequest.contextKeyService).set(false);
@@ -1750,6 +1760,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 				if (this.viewModel?.editing) {
 					this.finishedEditing(true);
+					this.viewModel.model?.setCheckpoint(undefined);
 				}
 				return result.responseCreatedPromise;
 			}
