@@ -21,9 +21,7 @@ suite('Markdown Katex Support Test', () => {
 				allowedTags: basicMarkupHtmlTags,
 				allowedAttributes: defaultAllowedAttrs,
 			}),
-			markedOptions: {
-				markedExtensions: [katex],
-			}
+			markedExtensions: [katex],
 		}));
 		return rendered;
 	}

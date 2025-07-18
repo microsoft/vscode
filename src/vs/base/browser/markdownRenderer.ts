@@ -39,6 +39,7 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	readonly sanitizerConfig?: MarkdownSanitizerConfig;
 
 	readonly markedOptions?: MarkdownRendererMarkedOptions;
+	readonly markedExtensions?: marked.MarkedExtension[];
 }
 
 /**
@@ -47,7 +48,6 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 export interface MarkdownRendererMarkedOptions {
 	readonly gfm?: boolean;
 	readonly breaks?: boolean;
-	readonly markedExtensions?: marked.MarkedExtension[];
 }
 
 export interface MarkdownSanitizerConfig {
@@ -121,7 +121,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	const disposables = new DisposableStore();
 	let isDisposed = false;
 
-	const markedInstance = new marked.Marked(...(options.markedOptions?.markedExtensions ?? []));
+	const markedInstance = new marked.Marked(...(options.markedExtensions ?? []));
 	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(markedInstance, options, markdown);
 	const value = preprocessMarkdownString(markdown);
 
@@ -262,8 +262,7 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 }
 
 function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOptions, markdown: IMarkdownString): { renderer: marked.Renderer; codeBlocks: Promise<[string, HTMLElement]>[]; syncCodeBlocks: [string, HTMLElement][] } {
-	const markedOptions: marked.MarkedOptions = { ...options.markedOptions };
-	const renderer = new marked.Renderer(markedOptions);
+	const renderer = new marked.Renderer(options.markedOptions);
 	renderer.image = defaultMarkedRenderers.image;
 	renderer.link = defaultMarkedRenderers.link;
 	renderer.paragraph = defaultMarkedRenderers.paragraph;

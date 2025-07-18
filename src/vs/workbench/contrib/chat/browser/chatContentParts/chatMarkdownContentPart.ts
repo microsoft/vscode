@@ -121,10 +121,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			const markedOpts: MarkdownRendererMarkedOptions = isRequestVM(element) ? {
 				gfm: true,
 				breaks: true,
-				markedExtensions,
-			} : {
-				markedExtensions,
-			};
+			} : {};
 
 			const result = this._register(renderer.render(markdown.content, {
 				sanitizerConfig: MarkedKatexSupport.getSanitizerOptions({
@@ -240,6 +237,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				},
 				asyncRenderCallback: () => this._onDidChangeHeight.fire(),
 				markedOptions: markedOpts,
+				markedExtensions,
 			}, this.domNode));
 
 			const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
