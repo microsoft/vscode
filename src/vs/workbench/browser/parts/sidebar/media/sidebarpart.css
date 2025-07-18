@@ -109,17 +109,17 @@
 
 /* Make sidebar tabs smaller and more compact */
 .monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
-    min-width: 32px;
-    max-width: 32px;
-    height: 32px;
+    min-width: 40px;
+    max-width: 40px;
+    height: 40px;
     margin: 2px 0;
     padding: 0;
     justify-content: center;
 }
 
 .monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
     font-size: 18px;
     padding: 0;
     margin: 0 auto;

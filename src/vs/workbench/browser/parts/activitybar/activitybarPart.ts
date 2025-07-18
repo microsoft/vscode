@@ -41,7 +41,7 @@ import { SwitchCompositeViewAction } from '../compositeBarActions.js';
 
 export class ActivitybarPart extends Part {
 
-	static readonly ACTION_HEIGHT = 48;
+	static readonly ACTION_HEIGHT = 40;
 
 	static readonly pinnedViewContainersKey = 'workbench.activity.pinnedViewlets2';
 	static readonly placeholderViewContainersKey = 'workbench.activity.placeholderViewlets';
@@ -49,8 +49,8 @@ export class ActivitybarPart extends Part {
 
 	//#region IView
 
-	readonly minimumWidth: number = 48;
-	readonly maximumWidth: number = 48;
+	readonly minimumWidth: number = 40;
+	readonly maximumWidth: number = 40;
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
@@ -77,14 +77,14 @@ export class ActivitybarPart extends Part {
 			viewContainersWorkspaceStateKey: ActivitybarPart.viewContainersWorkspaceStateKey,
 			orientation: ActionsOrientation.VERTICAL,
 			icon: true,
-			iconSize: 24,
+			iconSize: 20,
 			activityHoverOptions: {
 				position: () => this.layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT,
 			},
 			preventLoopNavigation: true,
 			recomputeSizes: false,
 			fillExtraContextMenuActions: (actions, e?: MouseEvent | GestureEvent) => { },
-			compositeSize: 52,
+			compositeSize: 40,
 			colors: (theme: IColorTheme) => ({
 				activeForegroundColor: theme.getColor(ACTIVITY_BAR_FOREGROUND),
 				inactiveForegroundColor: theme.getColor(ACTIVITY_BAR_INACTIVE_FOREGROUND),
@@ -95,7 +95,7 @@ export class ActivitybarPart extends Part {
 				dragAndDropBorder: theme.getColor(ACTIVITY_BAR_DRAG_AND_DROP_BORDER),
 				activeBackgroundColor: undefined, inactiveBackgroundColor: undefined, activeBorderBottomColor: undefined,
 			}),
-			overflowActionSize: ActivitybarPart.ACTION_HEIGHT,
+			overflowActionSize: 40,
 		}, Parts.ACTIVITYBAR_PART, this.paneCompositePart, true);
 	}
 

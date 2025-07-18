@@ -188,9 +188,9 @@ export class SidebarPart extends AbstractPaneCompositePart {
 					}
 				}
 			},
-			compositeSize: 0,
-			iconSize: 16,
-			overflowActionSize: 30,
+			compositeSize: 40,
+			iconSize: 20,
+			overflowActionSize: 40,
 			colors: theme => ({
 				activeBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),
 				inactiveBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),

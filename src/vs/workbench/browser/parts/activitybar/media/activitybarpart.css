@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .part.activitybar {
-	width: 48px;
+	width: 40px;
 	height: 100%;
 }
 
@@ -62,4 +62,12 @@
 .monaco-workbench .activitybar .menubar.compact .toolbar-toggle-more {
 	width: 100%;
 	height: 35px;
+}
+
+.monaco-workbench .part.activitybar .action-item .action-label {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
