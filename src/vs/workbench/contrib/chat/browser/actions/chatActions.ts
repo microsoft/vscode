@@ -14,6 +14,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, markAsSingleton } from '../../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { language } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -24,10 +25,11 @@ import { SuggestController } from '../../../../../editor/contrib/suggest/browser
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { Action2, ICommandPaletteOptions, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { getContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Action2, ICommandPaletteOptions, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -475,6 +477,8 @@ export function registerChatActions() {
 			editorService: IEditorService,
 			view: ChatViewPane,
 			chatSessionsService: IChatSessionsService,
+			contextKeyService: IContextKeyService,
+			menuService: IMenuService,
 			showAllChats: boolean = false,
 			showAllAgents: boolean = false
 		) => {
@@ -501,6 +505,7 @@ export function registerChatActions() {
 			}
 
 			interface ICodingAgentPickerItem extends IChatPickerItem {
+				id?: string;
 				uri?: URI;
 			}
 
@@ -560,9 +565,22 @@ export function registerChatActions() {
 						const cancellationToken = new CancellationTokenSource();
 
 						try {
-							const chatSessions = await chatSessionsService.provideChatSessions(cancellationToken.token);
+							const sessions = await chatSessionsService.provideChatSessions(cancellationToken.token);
 
-							for (const sessionContent of chatSessions) {
+							for (const session of sessions) {
+								const sessionContent = session.session;
+								const provider = session.provider;
+
+								const ckey = contextKeyService.createKey('chatSessionType', provider.chatSessionType);
+								const actions = menuService.getMenuActions(MenuId.ChatSessionsMenu, contextKeyService);
+								const menuActions = getContextMenuActions(actions, 'navigation');
+								ckey.reset();
+
+								const buttons = menuActions.secondary.map(action => ({
+									id: action.id,
+									tooltip: action.tooltip,
+									iconClass: action.class || ThemeIcon.asClassName(Codicon.symbolClass),
+								}));
 								// Create agent pick from the session content
 								const agentPick: ICodingAgentPickerItem = {
 									label: sessionContent.label,
@@ -573,7 +591,7 @@ export function registerChatActions() {
 										isActive: false,
 										lastMessageDate: 0,
 									},
-									buttons: [],
+									buttons,
 									uri: sessionContent.uri
 								};
 
@@ -602,7 +620,7 @@ export function registerChatActions() {
 								currentPicks.push(...agentPicks);
 
 								// Add "Show more..." if needed and not showing all agents
-								if (!showAllAgents && chatSessions.length > 5) {
+								if (!showAllAgents && sessions.length > 5) {
 									currentPicks.push({
 										label: localize('chat.history.showMoreAgents', 'Show more...'),
 										description: '',
@@ -716,9 +734,20 @@ export function registerChatActions() {
 						editorService,
 						view,
 						chatSessionsService,
+						contextKeyService,
+						menuService,
 						showAllChats,
 						showAllAgents
 					);
+				} else {
+					const buttonItem = context.button as ICodingAgentPickerItem;
+					if (buttonItem.id) {
+						const contextItem = context.item as ICodingAgentPickerItem;
+						commandService.executeCommand(buttonItem.id, {
+							uri: contextItem.uri,
+							$mid: MarshalledId.ChatSessionContext
+						});
+					}
 				}
 			}));
 			store.add(picker.onDidAccept(async () => {
@@ -737,6 +766,8 @@ export function registerChatActions() {
 							editorService,
 							view,
 							chatSessionsService,
+							contextKeyService,
+							menuService,
 							true,
 							showAllAgents
 						);
@@ -751,10 +782,13 @@ export function registerChatActions() {
 							editorService,
 							view,
 							chatSessionsService,
+							contextKeyService,
+							menuService,
 							showAllChats,
 							true
 						);
 						return;
+					} else if ((item as ICodingAgentPickerItem).uri !== undefined) {
 					} else if ((item as ICodingAgentPickerItem).uri !== undefined) {
 						// TODO: handle click
 						return;
@@ -779,6 +813,8 @@ export function registerChatActions() {
 			const commandService = accessor.get(ICommandService);
 			const chatSessionsService = accessor.get(IChatSessionsService);
 			const configurationService = accessor.get(IConfigurationService);
+			const contextKeyService = accessor.get(IContextKeyService);
+			const menuService = accessor.get(IMenuService);
 
 			const view = await viewsService.openView<ChatViewPane>(ChatViewId);
 			if (!view) {
@@ -800,7 +836,16 @@ export function registerChatActions() {
 
 			const showAgentSessionsMenuConfig = configurationService.getValue<string>(ChatConfiguration.AgentSessionsViewLocation);
 			if (showAgentSessionsMenuConfig === 'showChatsMenu' && chatSessionsService.hasChatSessionsProviders) {
-				await this.showIntegratedPicker(chatService, quickInputService, commandService, editorService, view, chatSessionsService);
+				await this.showIntegratedPicker(
+					chatService,
+					quickInputService,
+					commandService,
+					editorService,
+					view,
+					chatSessionsService,
+					contextKeyService,
+					menuService
+				);
 			} else {
 				await this.showLegacyPicker(chatService, quickInputService, commandService, editorService, view);
 			}
