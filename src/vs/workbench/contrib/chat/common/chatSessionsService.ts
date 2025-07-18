@@ -8,13 +8,16 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IconPath } from '../../../../editor/common/languages.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 export interface IChatSessionContent {
 	uri: URI;
 	label: string;
-	iconPath?: IconPath;
+	iconPath?: URI | {
+		light: URI;
+		dark: URI;
+	} | ThemeIcon;
 }
 
 export interface IChatSessionsProvider {

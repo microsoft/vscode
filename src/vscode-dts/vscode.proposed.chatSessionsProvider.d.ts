@@ -8,6 +8,10 @@ declare module 'vscode' {
 	 * Provides a list of chat sessions
 	 */
 	export interface ChatSessionsProvider extends Disposable {
+		/**
+		 * Type to identify providers.
+		 */
+		readonly chatSessionType: string;
 
 		/**
 		 * Fired when chat sessions change.
