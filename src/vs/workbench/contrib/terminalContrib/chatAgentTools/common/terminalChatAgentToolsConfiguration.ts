@@ -27,20 +27,27 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		default: true,
 	},
 	[TerminalChatAgentToolsSettingId.AutoApprove]: {
-		markdownDescription: localize('autoApprove', "A list of commands or regular expressions that control whether the run in terminal tool commands require explicit approval. These will be matched against the start of a command. A regular expression can be provided by wrapping the string in `/` characters.\n\nSet to `true` to automatically approve commands, or `false` to require explicit approval.\n\nExamples:\n- `\"mkdir\": true` Will allow all command lines starting with `mkdir`\n- `\"npm run build\": true` Will allow all command lines starting with `npm run build`\n- `\"rm\": false` Will require explicit approval for all command lines starting with `rm`\n- `\"/^git (status|show\\b.*)$/\": true` will allow `git status` and all command lines starting with `git show`\n- `\"/.*/\": true` will allow all command lines\n\nCommands set to `false` will override those set to `true`."),
+		markdownDescription: localize('autoApprove', "A list of commands or regular expressions that control whether the run in terminal tool commands require explicit approval. These will be matched against the start of a command. A regular expression can be provided by wrapping the string in `/` characters.\n\nSet to `true` to automatically approve commands, or `false` to always require explicit approval.\n\nExamples:\n- `\"mkdir\": true` Will allow all command lines starting with `mkdir`\n- `\"npm run build\": true` Will allow all command lines starting with `npm run build`\n- `\"rm\": false` Will require explicit approval for all command lines starting with `rm`\n- `\"/^git (status|show\\b.*)$/\": true` will allow `git status` and all command lines starting with `git show`\n- `\"/.*/\": true` will allow all command lines\n\nNote that these commands and regular expressions are evaluated for every sub-command within a single command line, so `foo && bar` for example will need both `foo` and `bar` to match a `true` entry and must not match a `false` entry."),
 		type: 'object',
 		additionalProperties: {
-			type: 'boolean',
-			enum: [
-				true,
-				false,
-				null,
-			],
-			enumDescriptions: [
-				localize('autoApprove.true', "Automatically approve the pattern."),
-				localize('autoApprove.false', "Require explicit approval for the pattern."),
-			],
-			description: localize('autoApprove.key', "The start of a command to match against. A regular expression can be provided by wrapping the string in `/` characters."),
+			anyOf: [
+				{
+					type: 'boolean',
+					enum: [
+						true,
+						false,
+					],
+					enumDescriptions: [
+						localize('autoApprove.true', "Automatically approve the pattern."),
+						localize('autoApprove.false', "Require explicit approval for the pattern."),
+					],
+					description: localize('autoApprove.key', "The start of a command to match against. A regular expression can be provided by wrapping the string in `/` characters."),
+				},
+				{
+					type: 'null',
+					description: localize('autoApprove.null', "Ignore the pattern, this is useful for unsetting the same pattern set at a higher scope."),
+				},
+			]
 		},
 		tags: [
 			'experimental'
@@ -57,9 +64,5 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			chown: false,
 			'Remove-Item': false,
 		},
-		policy: {
-			name: 'TerminalChatAgentToolsAutoApprove',
-			minimumVersion: '1.103',
-		}
 	}
 };
