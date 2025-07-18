@@ -249,6 +249,8 @@ class RemoteCodingAgentChatImplementation extends Disposable implements IChatAge
 									kind: 'elicitation',
 									title: step.text || 'title!',
 									message: new MarkdownString(step.detail),
+									acceptButtonLabel: 'Run Tests',
+									rejectButtonLabel: 'Skip Tests',
 									state: 'pending',
 									accept: async () => {
 										// Show running test progress
