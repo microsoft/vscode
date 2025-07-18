@@ -10,8 +10,7 @@ import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentTool
 import { isPowerShell } from './runInTerminalHelpers.js';
 
 export class CommandLineAutoApprover extends Disposable {
-	private _denyListRegexes: RegExp[] = [];
-	private _allowListRegexes: RegExp[] = [];
+	private _autoApproveRegexes: { regex: RegExp; approved: boolean }[] = [];
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -19,30 +18,40 @@ export class CommandLineAutoApprover extends Disposable {
 		super();
 		this.updateConfiguration();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalChatAgentToolsSettingId.AllowList) || e.affectsConfiguration(TerminalChatAgentToolsSettingId.DenyList)) {
+			if (e.affectsConfiguration(TerminalChatAgentToolsSettingId.AutoApprove)) {
 				this.updateConfiguration();
 			}
 		}));
 	}
 
 	updateConfiguration() {
-		this._denyListRegexes = this._mapAutoApproveConfigToRegexList(this._configurationService.getValue(TerminalChatAgentToolsSettingId.DenyList));
-		this._allowListRegexes = this._mapAutoApproveConfigToRegexList(this._configurationService.getValue(TerminalChatAgentToolsSettingId.AllowList));
+		this._autoApproveRegexes = this._mapAutoApproveConfigToRegexList(this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoApprove));
 	}
 
 	isAutoApproved(command: string, shell: string, os: OperatingSystem): boolean {
-		// Check the deny list to see if this command requires explicit approval
-		for (const regex of this._denyListRegexes) {
+		// Check all patterns in the auto approve list
+		// Deny patterns (false) take precedence over allow patterns (true)
+		let hasAllowMatch = false;
+		let hasDenyMatch = false;
+
+		for (const { regex, approved } of this._autoApproveRegexes) {
 			if (this._commandMatchesRegex(regex, command, shell, os)) {
-				return false;
+				if (approved) {
+					hasAllowMatch = true;
+				} else {
+					hasDenyMatch = true;
+				}
 			}
 		}
 
-		// Check the allow list to see if the command is allowed to run without explicit approval
-		for (const regex of this._allowListRegexes) {
-			if (this._commandMatchesRegex(regex, command, shell, os)) {
-				return true;
-			}
+		// If there's a deny match, always require approval
+		if (hasDenyMatch) {
+			return false;
+		}
+
+		// If there's an allow match and no deny match, auto-approve
+		if (hasAllowMatch) {
+			return true;
 		}
 
 		// TODO: LLM-based auto-approval https://github.com/microsoft/vscode/issues/253267
@@ -64,12 +73,18 @@ export class CommandLineAutoApprover extends Disposable {
 		return false;
 	}
 
-	private _mapAutoApproveConfigToRegexList(config: unknown): RegExp[] {
+	private _mapAutoApproveConfigToRegexList(config: unknown): { regex: RegExp; approved: boolean }[] {
 		if (!config || typeof config !== 'object') {
 			return [];
 		}
 		return Object.entries(config)
-			.map(([key, value]) => value ? this._convertAutoApproveEntryToRegex(key) : undefined)
+			.map(([key, value]) => {
+				if (typeof value === 'boolean') {
+					const regex = this._convertAutoApproveEntryToRegex(key);
+					return { regex, approved: value };
+				}
+				return undefined;
+			})
 			.filter(e => !!e);
 	}
 
