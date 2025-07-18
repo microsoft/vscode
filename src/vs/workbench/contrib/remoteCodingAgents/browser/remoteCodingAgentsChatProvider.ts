@@ -14,9 +14,6 @@ import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js'
 import { IChatProgress, IChatService } from '../../chat/common/chatService.js';
 import { IRemoteCodingAgentsService, IRemoteCodingAgent } from '../common/remoteCodingAgentsService.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
-import { URI } from '../../../../base/common/uri.js';
-import { ChatRequestTextPart, IParsedChatRequest } from '../../chat/common/chatParserTypes.js';
-import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 interface IDemoStep {
@@ -162,124 +159,80 @@ class RemoteCodingAgentChatImplementation extends Disposable implements IChatAge
 			throw new Error(`Chat session ${request.sessionId} not found`);
 		}
 
-		this.doDemoStreaming(chatModel, progress, token);
+		// IMPORTANT: Instead of fire-and-forget, we await the streaming to complete
+		// This keeps the response stream open until all steps are done
+		await this.queueDemoStreaming(progress, token);
 
 		return {};
 	}
 
 	// TODO: DEMO!
-	private doDemoStreaming(chatModel: any, progress: (progress: IChatProgress[]) => void, token: CancellationToken): void {
+	private queueDemoStreaming(progress: (progress: IChatProgress[]) => void, token: CancellationToken): Promise<void> {
 		const steps: IDemoStep[] = [
 			{ kind: 'PROGRESS_MESSAGE', text: 'Analyzing codebase...', delay: 1000 },
-			{ kind: 'ADD_REQUEST', text: 'Let me check the current file structure', delay: 2000 },
 			{ kind: 'PROGRESS_MESSAGE', text: 'Planning implementation...', delay: 1500 },
-			{ kind: 'ADD_REQUEST', text: 'I need to create a new utility function', delay: 2000 },
 			{ kind: 'FILE_UPDATE', delay: 1500, uri: 'file:///path/to/file1.js', changeType: 'modified', preview: 'function foo() { ... }' },
-			{ kind: 'ADD_REQUEST', text: 'Testing the implementation...', delay: 2000 },
 		];
 
-		let currentStep = 0;
+		return new Promise((resolve) => {
+			let currentStep = 0;
 
-		const executeStep = () => {
-			// Check if we should stop
-			if (currentStep >= steps.length || token.isCancellationRequested) {
-				return;
-			}
-
-			const step = steps[currentStep];
-			console.log(`Executing step ${currentStep + 1}/${steps.length}: ${step.kind}`);
-
-			try {
-				switch (step.kind) {
-					case 'PROGRESS_MESSAGE':
-						progress([{
-							kind: 'progressMessage',
-							content: new MarkdownString(step.text || 'Working...')
-						}]);
-						break;
-
-					case 'ADD_REQUEST':
-						if (step.text) {
-							this.addRequestToChatSession(chatModel, step.text);
-						}
-						break;
-
-					case 'FILE_UPDATE':
-						if (step.uri) {
-							progress([{
-								kind: 'textEdit',
-								uri: URI.parse(step.uri),
-								edits: [{
-									range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
-									text: step.preview || ''
-								}]
-							}]);
-						}
-						break;
-
-					default:
-						console.warn(`Unknown step kind: ${step.kind}`);
-						break;
+			const executeStep = () => {
+				// Check if we should stop
+				if (currentStep >= steps.length || token.isCancellationRequested) {
+					resolve(); // Complete the promise
+					return;
 				}
-			} catch (error) {
-				console.error(`Error executing step ${currentStep}:`, error);
-			}
 
-			// Move to next step
-			currentStep++;
+				const step = steps[currentStep];
+				console.log(`Executing step ${currentStep + 1}/${steps.length}: ${step.kind}`);
 
-			// Schedule next step if there are more and not cancelled
-			if (currentStep < steps.length && !token.isCancellationRequested) {
-				const nextStep = steps[currentStep];
-				const delay = nextStep.delay || 1000;
-				setTimeout(executeStep, delay);
-			}
-		};
+				try {
+					switch (step.kind) {
+						case 'PROGRESS_MESSAGE':
+							// Add progress message directly using the progress function
+							progress([{
+								kind: 'progressMessage',
+								content: new MarkdownString(step.text),
+							}]);
+							break;
 
-		// Start the first step after initial delay
-		if (steps.length > 0 && !token.isCancellationRequested) {
-			const firstDelay = steps[0].delay || 1000;
-			setTimeout(executeStep, firstDelay);
-		}
-	}
+						case 'FILE_UPDATE':
+							// // Add file modification progress
+							// progress([{
+							// 	kind: 'textEdit',
 
-	private addRequestToChatSession(chatModel: any, requestText: string): void {
-		try {
-			// Create a simple parsed request with just text
-			const parsedRequest: IParsedChatRequest = {
-				text: requestText,
-				parts: [new ChatRequestTextPart(
-					new OffsetRange(0, requestText.length),
-					{ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: requestText.length + 1 },
-					requestText
-				)]
+							// }]);
+							break;
+
+						default:
+							console.warn(`Unknown step kind: ${step.kind}`);
+							break;
+					}
+				} catch (error) {
+					console.error(`Error executing step ${currentStep}:`, error);
+				}
+
+				// Move to next step
+				currentStep++;
+
+				// Schedule next step if there are more and not cancelled
+				if (currentStep < steps.length && !token.isCancellationRequested) {
+					const nextStep = steps[currentStep];
+					const delay = nextStep.delay || 1000;
+					setTimeout(executeStep, delay);
+				} else {
+					resolve(); // Complete when done
+				}
 			};
 
-			// Add the request to the chat model
-			const addedRequest = chatModel.addRequest(
-				parsedRequest,
-				{ variables: [] }, // variableData
-				0, // attempt
-				undefined, // chatAgent - will use default
-				undefined, // slashCommand
-				undefined, // confirmation
-				undefined, // locationData
-				undefined, // attachments
-				true // isCompleteAddedRequest - this indicates it's a complete request, not user input
-			);
-
-			// Immediately add a response with some content
-			chatModel.acceptResponseProgress(addedRequest, {
-				kind: 'markdownContent',
-				content: new MarkdownString(`✓ ${requestText}`)
-			});
-
-			// Complete the response
-			chatModel.setResponse(addedRequest, {});
-			chatModel.completeResponse(addedRequest);
-
-		} catch (error) {
-			console.error('Error adding request to chat session:', error);
-		}
+			// Start the first step after initial delay
+			if (steps.length > 0 && !token.isCancellationRequested) {
+				const firstDelay = steps[0].delay || 1000;
+				setTimeout(executeStep, firstDelay);
+			} else {
+				resolve();
+			}
+		});
 	}
 }
