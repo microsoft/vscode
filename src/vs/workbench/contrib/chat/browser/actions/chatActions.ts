@@ -47,7 +47,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { IChatAgentData, IChatAgentService } from '../../common/chatAgents.js';
+import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
@@ -543,42 +543,31 @@ export function registerChatActions() {
 				return;
 			}
 
-			let selectedAgent: IChatAgentData;
-			if (codingAgents.length === 1) {
-				selectedAgent = codingAgents[0];
-			} else {
-				const quickPickItems = codingAgents.map(agent => ({
-					label: agent.fullName || agent.name,
-					description: agent.description,
-					detail: `@${agent.name}`,
-					agent: agent
-				}));
+			const quickPickItems = codingAgents.map(agent => ({
+				label: agent.fullName || agent.name,
+				description: agent.description,
+				detail: `@${agent.name}`,
+				agent: agent
+			}));
 
-				const picked = await quickInputService.pick(quickPickItems, {
-					title: localize('selectCodingAgent', "Select Coding Agent"),
-					placeHolder: localize('selectCodingAgentPlaceholder', "Choose which coding agent to start a session with")
-				});
+			const picked = await quickInputService.pick(quickPickItems, {
+				title: localize('selectCodingAgent', "Select Coding Agent"),
+				placeHolder: localize('selectCodingAgentPlaceholder', "Select your coding agent")
+			});
 
-				if (!picked) {
-					return; // User cancelled
-				}
-
-				selectedAgent = picked.agent;
+			if (!picked) {
+				return; // User cancelled
 			}
-
-			// Open the chat editor
 			await editorService.openEditor({
 				resource: ChatEditorInput.getNewEditorUri(),
 				options: { pinned: true, sticky: true } satisfies IChatEditorOptions
 			});
-
-			// Wait a bit for the editor to be ready, then get the widget
 			setTimeout(() => {
 				const widget = chatWidgetService.lastFocusedWidget;
 				if (widget) {
-					const agentMessage = `@${selectedAgent.name} `;
+					const agentMessage = `@${picked.agent.name} `;
 					widget.setInput(agentMessage);
-					widget.lockToCodingAgent(selectedAgent);
+					widget.lockToCodingAgent(picked.agent);
 				}
 			}, 100);
 		}

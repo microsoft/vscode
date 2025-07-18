@@ -53,6 +53,7 @@ export class RemoteCodingAgentsService extends Disposable implements IRemoteCodi
 			{
 				id: 'joshbot',
 				displayName: 'JoshBot',
+				description: 'A diligent coding assistant great at complex tasks',
 				command: 'joshbot.command'
 			}
 		);

@@ -19,7 +19,7 @@ import { nullExtensionDescription } from '../../../services/extensions/common/ex
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 interface IDemoStep {
-	kind: 'PROGRESS_MESSAGE' | 'ADD_REQUEST' | 'FILE_UPDATE' | 'QUESTION';
+	kind: 'PROGRESS_MESSAGE' | 'ADD_REQUEST' | 'FILE_UPDATE' | 'QUESTION' | 'SESSION_BEGIN' | 'MARKDOWN';
 	delay: number;
 	text?: string;
 	detail?: string;
@@ -80,7 +80,6 @@ export class RemoteCodingAgentsDynamicChatHandler extends Disposable {
 			locations: [ChatAgentLocation.Panel],
 			modes: [ChatModeKind.Agent, ChatModeKind.Ask],
 			disambiguation: [],
-
 			metadata: {
 				themeIcon: Codicon.robot,
 				isSticky: true,
@@ -118,7 +117,11 @@ class RemoteCodingAgentChatImplementation extends Disposable implements IChatAge
 	async invoke(request: IChatAgentRequest, progress: (progress: IChatProgress[]) => void, history: any[], token: CancellationToken): Promise<IChatAgentResult> {
 		const message = request.message.trim();
 		try {
-			return this.handle(request, message, progress, token);
+			if (history.length === 0) {
+				return this.handleNew(request, message, progress, token);
+			} else {
+				return this.handleExisting(request, message, progress, token);
+			}
 		} catch (error) {
 			progress([{
 				kind: 'markdownContent',
@@ -128,49 +131,47 @@ class RemoteCodingAgentChatImplementation extends Disposable implements IChatAge
 		}
 	}
 
-	private async handle(request: IChatAgentRequest, message: string, progress: (progress: IChatProgress[]) => void, token: CancellationToken): Promise<IChatAgentResult> {
+	private async handleExisting(request: IChatAgentRequest, message: string, progress: (progress: IChatProgress[]) => void, token: CancellationToken): Promise<IChatAgentResult> {
 		const { displayName } = this.remoteCodingAgent;
-
-		// Generate a job ID and simulate starting a coding task
-		const jobId = `job-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-		const title = `Implement: ${message}`;
-		const description = `Working on your request: "${message}"`;
-
-		// Report the session start
 		progress([{
-			kind: 'codingAgentSessionBegin',
-			agentDisplayName: displayName,
-			agentId: this.remoteCodingAgent.id,
-			jobId,
-			title,
-			description
+			kind: 'progressMessage',
+			content: new MarkdownString(localize('remoteCodingAgent.working', '{0} queued your request', displayName))
 		}]);
+		await new Promise(resolve => setTimeout(resolve, 1000));
+		await this.queueDemoStreaming(progress, message, displayName, token, 4);
+		return {};
+	}
+
+	private async handleNew(request: IChatAgentRequest, message: string, progress: (progress: IChatProgress[]) => void, token: CancellationToken): Promise<IChatAgentResult> {
+		const { displayName } = this.remoteCodingAgent;
 
 		// Get the chat model for this session so we can add requests over time
 		const chatModel = this.chatService.getSession(request.sessionId);
 		if (!chatModel) {
 			throw new Error(`Chat session ${request.sessionId} not found`);
 		}
-
-		// IMPORTANT: Instead of fire-and-forget, we await the streaming to complete
-		// This keeps the response stream open until all steps are done
-		await this.queueDemoStreaming(progress, token);
-
+		await this.queueDemoStreaming(progress, message, displayName, token);
 		return {};
 	}
 
 	// TODO: DEMO!
-	private async queueDemoStreaming(progress: (progress: IChatProgress[]) => void, token: CancellationToken): Promise<void> {
+	private async queueDemoStreaming(progress: (progress: IChatProgress[]) => void, message: string, displayName: string, token: CancellationToken, start: number = 0): Promise<void> {
 		const steps: IDemoStep[] = [
+			{ kind: 'PROGRESS_MESSAGE', text: 'Connecting...', delay: 1000 },
+			{ kind: 'SESSION_BEGIN', delay: 2000 },
 			{ kind: 'PROGRESS_MESSAGE', text: 'Analyzing codebase...', delay: 1000 },
-			{ kind: 'PROGRESS_MESSAGE', text: 'Planning implementation...', delay: 1500 },
-			{ kind: 'FILE_UPDATE', delay: 1500 },
-			{ kind: 'QUESTION', text: 'Run unit tests?', detail: 'This will execute all tests in a GitHub Action and report the result', delay: 5000 },
+			{ kind: 'PROGRESS_MESSAGE', text: 'Planning implementation...', delay: 3000 },
+			{ kind: 'PROGRESS_MESSAGE', text: 'Implementing changes...', delay: 3000 },
+			{ kind: 'PROGRESS_MESSAGE', text: 'Finalizing changes...', delay: 3000 },
+			{ kind: 'FILE_UPDATE', delay: 2500 },
+			{ kind: 'QUESTION', text: 'Run unit tests?', detail: 'This will execute all tests in a GitHub Action and report the results', delay: 5000 },
 			{ kind: 'PROGRESS_MESSAGE', text: 'Deploying to Azure', delay: 5000 },
+			{ kind: 'MARKDOWN', text: '## Summary\n\n- JoshBot has successfully completed your task\n- Run unit tests\n - Deployed to Azure\n\n Thanks for using JoshBot!', delay: 2000 }
+
 		];
 
 		return new Promise((resolve) => {
-			let currentStep = 0;
+			let currentStep = start;
 
 			const executeStep = async () => {
 				// Check if we should stop
@@ -184,6 +185,29 @@ class RemoteCodingAgentChatImplementation extends Disposable implements IChatAge
 
 				try {
 					switch (step.kind) {
+						case 'SESSION_BEGIN': {
+							// Generate a job ID and simulate starting a coding task
+							const jobId = `job-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+							const title = message;
+							// Report the session start
+							progress([{
+								kind: 'codingAgentSessionBegin',
+								agentDisplayName: displayName,
+								agentId: this.remoteCodingAgent.id,
+								jobId,
+								title,
+								description: localize('remoteCodingAgent.sessionBegin', '{0} is starting a new session and will alert you when the change is ready', displayName),
+							}]);
+							break;
+						}
+						case 'MARKDOWN': {
+							// Add a markdown message to the chat
+							progress([{
+								kind: 'markdownContent',
+								content: new MarkdownString(step.text)
+							}]);
+							break;
+						}
 						case 'PROGRESS_MESSAGE': {
 							// Add progress message directly using the progress function
 							progress([{
@@ -192,13 +216,14 @@ class RemoteCodingAgentChatImplementation extends Disposable implements IChatAge
 							}]);
 							break;
 						}
-
 						case 'FILE_UPDATE': {
 
 							progress([{
 								kind: 'markdownContent',
 								content: new MarkdownString('JoshBot has completed your task by making the following modifications.')
 							}]);
+
+							await new Promise(resolve => setTimeout(resolve, 1000));
 
 							// Create a file tree representation of the changes
 							const fileTreeData: IChatResponseProgressFileTreeData = {
@@ -212,8 +237,8 @@ class RemoteCodingAgentChatImplementation extends Disposable implements IChatAge
 										type: FileType.Directory,
 										children: [
 											{
-												label: 'file1.js',
-												uri: URI.parse('file:///remote/project/src/file1.js'),
+												label: 'package.nls.json',
+												uri: URI.parse('file:///remote/project/src/package.nls.json'),
 												type: FileType.File
 											},
 											{
@@ -266,7 +291,7 @@ class RemoteCodingAgentChatImplementation extends Disposable implements IChatAge
 										progress([
 											{
 												kind: 'warning',
-												content: new MarkdownString('You are that confident you don\'t need to run tests?! Bold!')
+												content: new MarkdownString('No tests? ...Ok')
 											}
 										]);
 										resolve();
