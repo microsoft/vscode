@@ -296,42 +296,12 @@
       "expirationDate": "2025-11-19 21:48:17Z",
       "justification": "This error is baselined with an expiration date of 180 days from 2025-06-02 21:48:17Z"
     },
-    "216e2ac9cb596796224b47799f656570a01fa0d9b5f935608b47d15ab613c8e8": {
-      "signature": "216e2ac9cb596796224b47799f656570a01fa0d9b5f935608b47d15ab613c8e8",
-      "alternativeSignatures": [
-        "07746898f43afab7cc50931b33154c2d9e1a35f82a649dbe8aecf785b3d5a813"
-      ],
-      "target": "file:///D:/a/_work/1/vscode-server-win32-x64/node_modules/@vscode/vsce-sign/bin/vsce-sign.exe",
-      "memberOf": [
-        "default"
-      ],
-      "tool": "binskim",
-      "ruleId": "BA2008",
-      "createdDate": "2025-06-02 21:46:49Z",
-      "expirationDate": "2025-11-19 21:48:17Z",
-      "justification": "This error is baselined with an expiration date of 180 days from 2025-06-02 21:48:17Z"
-    },
     "1d4a48ebc63e3b652146bc16309b2d960a7168d299c7ac94cf794347c06265ef": {
       "signature": "1d4a48ebc63e3b652146bc16309b2d960a7168d299c7ac94cf794347c06265ef",
       "alternativeSignatures": [
         "679d725f3dda5ced7103a135600f67fb2b4ee66b286aa995205feb4eafa2e3b0"
       ],
       "target": "file:///D:/a/_work/1/vscode-server-win32-x64-web/node_modules/@vscode/ripgrep/bin/rg.exe",
-      "memberOf": [
-        "default"
-      ],
-      "tool": "binskim",
-      "ruleId": "BA2008",
-      "createdDate": "2025-06-02 21:46:49Z",
-      "expirationDate": "2025-11-19 21:48:17Z",
-      "justification": "This error is baselined with an expiration date of 180 days from 2025-06-02 21:48:17Z"
-    },
-    "77797a3e44634bb2994bd13ccc95ff4575bba474585dbd2cf3068a1c16bc0624": {
-      "signature": "77797a3e44634bb2994bd13ccc95ff4575bba474585dbd2cf3068a1c16bc0624",
-      "alternativeSignatures": [
-        "4a6cb67bd4b401e9669c13a2162660aaefc0a94a4122e5b50c198414db545672"
-      ],
-      "target": "file:///D:/a/_work/1/vscode-server-win32-x64-web/node_modules/@vscode/vsce-sign/bin/vsce-sign.exe",
       "memberOf": [
         "default"
       ],
@@ -407,21 +377,6 @@
         "d33a0c2987713428bb7fc768be76919de7d7ea04d44d0339f561a044a2616eb8"
       ],
       "target": "file:///D:/a/_work/1/VSCode-win32-x64/resources/app/node_modules/@vscode/ripgrep/bin/rg.exe",
-      "memberOf": [
-        "default"
-      ],
-      "tool": "binskim",
-      "ruleId": "BA2008",
-      "createdDate": "2025-06-02 21:46:49Z",
-      "expirationDate": "2025-11-19 21:48:17Z",
-      "justification": "This error is baselined with an expiration date of 180 days from 2025-06-02 21:48:17Z"
-    },
-    "30418bcc5269eaeb2832a2404465784431d4e72a2af332320c2b1db4768902ad": {
-      "signature": "30418bcc5269eaeb2832a2404465784431d4e72a2af332320c2b1db4768902ad",
-      "alternativeSignatures": [
-        "b7b9eb974d7d3a4ae14df8695ca5a62592c8c9d20b7eda70a6535d50cbda3e7f"
-      ],
-      "target": "file:///D:/a/_work/1/VSCode-win32-x64/resources/app/node_modules/@vscode/vsce-sign/bin/vsce-sign.exe",
       "memberOf": [
         "default"
       ],

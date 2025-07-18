@@ -287,6 +287,7 @@ suite('ChatService', () => {
 		assert(chatModel2);
 
 		await assertSnapshot(toSnapshotExportData(chatModel2));
+		chatModel2.dispose();
 	});
 
 	test('can deserialize with response', async () => {
@@ -315,6 +316,7 @@ suite('ChatService', () => {
 		assert(chatModel2);
 
 		await assertSnapshot(toSnapshotExportData(chatModel2));
+		chatModel2.dispose();
 	});
 });
 

@@ -250,9 +250,8 @@ export async function main(argv: string[]): Promise<any> {
 
 			addArg(argv, '--user-data-dir', tempUserDataDir);
 			addArg(argv, '--extensions-dir', tempExtensionsDir);
-			addArg(argv, '--disable-updates');
 
-			console.log(`Warning: state is temporarily stored in: "${tempParentDir}"`);
+			console.log(`State is temporarily stored. Relaunch this state with: ${product.applicationName} --user-data-dir "${tempUserDataDir}" --extensions-dir "${tempExtensionsDir}"`);
 		}
 
 		const hasReadStdinArg = args._.some(arg => arg === '-') || args.chat?._.some(arg => arg === '-');

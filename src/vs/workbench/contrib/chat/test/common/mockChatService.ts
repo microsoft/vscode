@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, ISerializableChatData } from '../../common/chatModel.js';
 import { IParsedChatRequest } from '../../common/chatParserTypes.js';
@@ -12,6 +13,7 @@ import { IChatCompleteResponse, IChatDetail, IChatProviderInfo, IChatSendRequest
 import { ChatAgentLocation } from '../../common/constants.js';
 
 export class MockChatService implements IChatService {
+	requestInProgressObs = observableValue('name', false);
 	edits2Enabled: boolean = false;
 	_serviceBrand: undefined;
 	transferredSessionData: IChatTransferredSessionData | undefined;

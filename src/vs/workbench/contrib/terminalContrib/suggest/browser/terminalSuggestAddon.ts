@@ -139,7 +139,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		inputData: '\x1b[C',
 		replacementIndex: 0,
 		replacementLength: 0,
-		provider: 'core',
+		provider: 'core:inlineSuggestion',
 		detail: 'Inline suggestion',
 		kind: TerminalCompletionItemKind.InlineSuggestion,
 		kindLabel: 'Inline suggestion',
@@ -262,7 +262,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		let doNotRequestExtensionCompletions = false;
 		// Ensure that a key has been pressed since the last accepted completion in order to prevent
 		// completions being requested again right after accepting a completion
-		if (this._lastUserDataTimestamp < SuggestAddon.lastAcceptedCompletionTimestamp) {
+		if (this._promptInputModel.value !== '' && this._lastUserDataTimestamp < SuggestAddon.lastAcceptedCompletionTimestamp) {
 			doNotRequestExtensionCompletions = true;
 		}
 

@@ -31,7 +31,7 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 	}
 
 	public override get languageId(): string {
-		return this.model.getLanguageId();
+		return this.options.languageId ?? this.model.getLanguageId();
 	}
 
 	constructor(
