@@ -597,7 +597,10 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		this.gettingStartedContributions.set(walkthroughDescriptor.id, walkthroughDescriptor);
 
 		walkthroughDescriptor.steps.forEach(step => {
-			if (this.steps.has(step.id)) { throw Error('Attempting to register step with id ' + step.id + ' twice. Second is dropped.'); }
+			if (this.steps.has(step.id)) {
+				console.error(`Skipping attempt to register step with id ${step.id} twice. Second is dropped.`);
+				return;
+			}
 			this.steps.set(step.id, step);
 			step.when.keys().forEach(key => this.categoryVisibilityContextKeys.add(key));
 			this.registerDoneListeners(step);
