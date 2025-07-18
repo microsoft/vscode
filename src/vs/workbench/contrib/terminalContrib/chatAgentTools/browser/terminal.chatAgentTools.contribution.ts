@@ -8,7 +8,6 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
-import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 import { GetTerminalOutputTool, GetTerminalOutputToolData } from './getTerminalOutputTool.js';
 import { RunInTerminalTool, RunInTerminalToolData } from './runInTerminalTool.js';
 
@@ -25,15 +24,13 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 	) {
 		super();
 
-		if (configurationService.getValue(TerminalChatAgentToolsSettingId.CoreToolsEnabled)) {
-			const runInTerminalTool = instantiationService.createInstance(RunInTerminalTool);
-			this._register(toolsService.registerToolData(RunInTerminalToolData));
-			this._register(toolsService.registerToolImplementation(RunInTerminalToolData.id, runInTerminalTool));
+		const runInTerminalTool = instantiationService.createInstance(RunInTerminalTool);
+		this._register(toolsService.registerToolData(RunInTerminalToolData));
+		this._register(toolsService.registerToolImplementation(RunInTerminalToolData.id, runInTerminalTool));
 
-			const getTerminalOutputTool = instantiationService.createInstance(GetTerminalOutputTool);
-			this._register(toolsService.registerToolData(GetTerminalOutputToolData));
-			this._register(toolsService.registerToolImplementation(GetTerminalOutputToolData.id, getTerminalOutputTool));
-		}
+		const getTerminalOutputTool = instantiationService.createInstance(GetTerminalOutputTool);
+		this._register(toolsService.registerToolData(GetTerminalOutputToolData));
+		this._register(toolsService.registerToolImplementation(GetTerminalOutputToolData.id, getTerminalOutputTool));
 	}
 }
 registerWorkbenchContribution2(ChatAgentToolsContribution.ID, ChatAgentToolsContribution, WorkbenchPhase.AfterRestored);
