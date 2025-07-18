@@ -25,8 +25,8 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 	get commandLineAutoApprover(): CommandLineAutoApprover { return this._commandLineAutoApprover; }
 
-	async rewriteCommandIfNeeded(options: IToolInvocationPreparationContext, args: IRunInTerminalInputParams, instance: Pick<ITerminalInstance, 'getCwdResource'> | undefined, shell: string): Promise<string> {
-		return this._rewriteCommandIfNeeded(options, args, instance, shell);
+	async rewriteCommandIfNeeded(args: IRunInTerminalInputParams, instance: Pick<ITerminalInstance, 'getCwdResource'> | undefined, shell: string): Promise<string> {
+		return this._rewriteCommandIfNeeded(args, instance, shell);
 	}
 
 	setBackendOs(os: OperatingSystem) {
@@ -58,20 +58,8 @@ suite('RunInTerminalTool', () => {
 		runInTerminalTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
 	});
 
-	/**
-	 * Sets up the configuration with allow and deny lists
-	 */
-	function setupConfiguration(allowList: string[] = [], denyList: string[] = []) {
-		const allowListObject: { [key: string]: boolean } = {};
-		for (const entry of allowList) {
-			allowListObject[entry] = true;
-		}
-		const denyListObject: { [key: string]: boolean } = {};
-		for (const entry of denyList) {
-			denyListObject[entry] = true;
-		}
-		setConfig(TerminalChatAgentToolsSettingId.AllowList, allowListObject);
-		setConfig(TerminalChatAgentToolsSettingId.DenyList, denyListObject);
+	function setAutoApprove(value: { [key: string]: boolean }) {
+		setConfig(TerminalChatAgentToolsSettingId.AutoApprove, value);
 	}
 
 	function setConfig(key: string, value: unknown) {
@@ -131,14 +119,18 @@ suite('RunInTerminalTool', () => {
 	suite('prepareToolInvocation - auto approval behavior', () => {
 
 		test('should auto-approve commands in allow list', async () => {
-			setupConfiguration(['echo']);
+			setAutoApprove({
+				echo: true
+			});
 
 			const result = await executeToolTest({ command: 'echo hello world' });
 			assertAutoApproved(result);
 		});
 
 		test('should require confirmation for commands not in allow list', async () => {
-			setupConfiguration(['ls']);
+			setAutoApprove({
+				ls: true
+			});
 
 			const result = await executeToolTest({
 				command: 'rm file.txt',
@@ -148,7 +140,10 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should require confirmation for commands in deny list even if in allow list', async () => {
-			setupConfiguration(['rm', 'echo'], ['rm']);
+			setAutoApprove({
+				rm: false,
+				echo: true
+			});
 
 			const result = await executeToolTest({
 				command: 'rm dangerous-file.txt',
@@ -158,7 +153,9 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should handle background commands with confirmation', async () => {
-			setupConfiguration(['ls']);
+			setAutoApprove({
+				ls: true
+			});
 
 			const result = await executeToolTest({
 				command: 'npm run watch',
@@ -169,7 +166,9 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should auto-approve background commands in allow list', async () => {
-			setupConfiguration(['npm']);
+			setAutoApprove({
+				npm: true
+			});
 
 			const result = await executeToolTest({
 				command: 'npm run watch',
@@ -180,28 +179,37 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should handle regex patterns in allow list', async () => {
-			setupConfiguration(['/^git (status|log)/']);
+			setAutoApprove({
+				'/^git (status|log)/': true
+			});
 
 			const result = await executeToolTest({ command: 'git status --porcelain' });
 			assertAutoApproved(result);
 		});
 
 		test('should handle complex command chains with sub-commands', async () => {
-			setupConfiguration(['echo', 'ls']);
+			setAutoApprove({
+				echo: true,
+				ls: true
+			});
 
 			const result = await executeToolTest({ command: 'echo "hello" && ls -la' });
 			assertAutoApproved(result);
 		});
 
 		test('should require confirmation when one sub-command is not approved', async () => {
-			setupConfiguration(['echo']);
+			setAutoApprove({
+				echo: true
+			});
 
 			const result = await executeToolTest({ command: 'echo "hello" && rm file.txt' });
 			assertConfirmationRequired(result);
 		});
 
 		test('should handle empty command strings', async () => {
-			setupConfiguration(['echo']);
+			setAutoApprove({
+				echo: true
+			});
 
 			const result = await executeToolTest({
 				command: '',
@@ -211,7 +219,9 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should handle commands with only whitespace', async () => {
-			setupConfiguration(['echo']);
+			setAutoApprove({
+				echo: true
+			});
 
 			const result = await executeToolTest({
 				command: '   \t\n   ',
@@ -222,15 +232,12 @@ suite('RunInTerminalTool', () => {
 	});
 
 	suite('command re-writing', () => {
-		function createRewriteOptions(command: string, chatSessionId?: string): IToolInvocationPreparationContext {
+		function createRewriteParams(command: string, chatSessionId?: string): IRunInTerminalInputParams {
 			return {
-				parameters: {
-					command,
-					explanation: 'Test command',
-					isBackground: false
-				} as IRunInTerminalInputParams,
-				chatSessionId
-			} as IToolInvocationPreparationContext;
+				command,
+				explanation: 'Test command',
+				isBackground: false
+			};
 		}
 
 		suite('cd <cwd> && <suffix> -> <suffix>', () => {
@@ -240,52 +247,52 @@ suite('RunInTerminalTool', () => {
 				});
 
 				test('should return original command when no cd prefix pattern matches', async () => {
-					const options = createRewriteOptions('echo hello world');
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'pwsh');
+					const parameters = createRewriteParams('echo hello world');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, undefined, 'pwsh');
 
 					strictEqual(result, 'echo hello world');
 				});
 
 				test('should return original command when cd pattern does not have suffix', async () => {
 					runInTerminalTool.setBackendOs(OperatingSystem.Linux);
-					const options = createRewriteOptions('cd /some/path');
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'pwsh');
+					const parameters = createRewriteParams('cd /some/path');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, undefined, 'pwsh');
 
 					strictEqual(result, 'cd /some/path');
 				});
 
 				test('should rewrite command with ; separator when directory matches cwd', async () => {
 					const testDir = '/test/workspace';
-					const options = createRewriteOptions(`cd ${testDir}; npm test`, 'session-1');
+					const parameters = createRewriteParams(`cd ${testDir}; npm test`, 'session-1');
 					workspaceService.setWorkspace({
 						folders: [{ uri: { fsPath: testDir } }]
 					} as any);
 
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'pwsh');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, undefined, 'pwsh');
 
 					strictEqual(result, 'npm test');
 				});
 
 				test('should rewrite command with && separator when directory matches cwd', async () => {
 					const testDir = '/test/workspace';
-					const options = createRewriteOptions(`cd ${testDir} && npm install`, 'session-1');
+					const parameters = createRewriteParams(`cd ${testDir} && npm install`, 'session-1');
 					workspaceService.setWorkspace({
 						folders: [{ uri: { fsPath: testDir } }]
 					} as any);
 
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'bash');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, undefined, 'bash');
 
 					strictEqual(result, 'npm install');
 				});
 
 				test('should rewrite command when the path is wrapped in double quotes', async () => {
 					const testDir = '/test/workspace';
-					const options = createRewriteOptions(`cd "${testDir}" && npm install`, 'session-1');
+					const parameters = createRewriteParams(`cd "${testDir}" && npm install`, 'session-1');
 					workspaceService.setWorkspace({
 						folders: [{ uri: { fsPath: testDir } }]
 					} as any);
 
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'bash');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, undefined, 'bash');
 
 					strictEqual(result, 'npm install');
 				});
@@ -294,31 +301,31 @@ suite('RunInTerminalTool', () => {
 					const testDir = '/test/workspace';
 					const differentDir = '/different/path';
 					const command = `cd ${differentDir} && npm install`;
-					const options = createRewriteOptions(command, 'session-1');
+					const parameters = createRewriteParams(command, 'session-1');
 					workspaceService.setWorkspace({
 						folders: [{ uri: { fsPath: testDir } }]
 					} as any);
 
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'bash');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, undefined, 'bash');
 
 					strictEqual(result, command);
 				});
 
 				test('should return original command when no workspace folders available', async () => {
 					const command = 'cd /some/path && npm install';
-					const options = createRewriteOptions(command, 'session-1');
+					const parameters = createRewriteParams(command, 'session-1');
 					workspaceService.setWorkspace({
 						folders: []
 					} as any);
 
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'bash');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, undefined, 'bash');
 
 					strictEqual(result, command);
 				});
 
 				test('should return original command when multiple workspace folders available', async () => {
 					const command = 'cd /some/path && npm install';
-					const options = createRewriteOptions(command, 'session-1');
+					const parameters = createRewriteParams(command, 'session-1');
 					workspaceService.setWorkspace({
 						folders: [
 							{ uri: { fsPath: '/workspace1' } },
@@ -326,7 +333,7 @@ suite('RunInTerminalTool', () => {
 						]
 					} as any);
 
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'bash');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, undefined, 'bash');
 
 					strictEqual(result, command);
 				});
@@ -334,36 +341,36 @@ suite('RunInTerminalTool', () => {
 				test('should handle commands with complex suffixes', async () => {
 					const testDir = '/test/workspace';
 					const command = `cd ${testDir} && npm install && npm test && echo "done"`;
-					const options = createRewriteOptions(command, 'session-1');
+					const parameters = createRewriteParams(command, 'session-1');
 					workspaceService.setWorkspace({
 						folders: [{ uri: { fsPath: testDir } }]
 					} as any);
 
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'bash');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, undefined, 'bash');
 
 					strictEqual(result, 'npm install && npm test && echo "done"');
 				});
 
 				test('should handle session without chatSessionId', async () => {
 					const command = 'cd /some/path && npm install';
-					const options = createRewriteOptions(command);
+					const parameters = createRewriteParams(command);
 					workspaceService.setWorkspace({
 						folders: [{ uri: { fsPath: '/some/path' } }]
 					} as any);
 
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'bash');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, undefined, 'bash');
 
 					strictEqual(result, 'npm install');
 				});
 
 				test('should ignore any trailing forward slash', async () => {
 					const testDir = '/test/workspace';
-					const options = createRewriteOptions(`cd ${testDir}/ && npm install`, 'session-1');
+					const parameters = createRewriteParams(`cd ${testDir}/ && npm install`, 'session-1');
 					workspaceService.setWorkspace({
 						folders: [{ uri: { fsPath: testDir } }]
 					} as any);
 
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'bash');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, undefined, 'bash');
 
 					strictEqual(result, 'npm install');
 				});
@@ -376,12 +383,12 @@ suite('RunInTerminalTool', () => {
 
 				test('should ignore any trailing back slash', async () => {
 					const testDir = 'c:\\test\\workspace';
-					const options = createRewriteOptions(`cd ${testDir}\\ && npm install`, 'session-1');
+					const parameters = createRewriteParams(`cd ${testDir}\\ && npm install`, 'session-1');
 					workspaceService.setWorkspace({
 						folders: [{ uri: { fsPath: testDir } }]
 					} as any);
 
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'cmd');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, undefined, 'cmd');
 
 					strictEqual(result, 'npm install');
 				});
@@ -390,14 +397,14 @@ suite('RunInTerminalTool', () => {
 					const instanceDir = 'C:\\instance\\workspace';
 					const workspaceDir = 'C:\\workspace\\service';
 					const command = `cd ${instanceDir} && npm test`;
-					const options = createRewriteOptions(command, 'session-1');
+					const parameters = createRewriteParams(command, 'session-1');
 
 					workspaceService.setWorkspace({
 						folders: [{ uri: { fsPath: workspaceDir } }]
 					} as any);
 					const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
 
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, instance, 'cmd');
 
 					strictEqual(result, 'npm test');
 				});
@@ -406,14 +413,14 @@ suite('RunInTerminalTool', () => {
 					const instanceDir = 'C:\\instance\\workspace';
 					const workspaceDir = 'C:\\workspace\\service';
 					const command = `cd ${instanceDir}; npm test`;
-					const options = createRewriteOptions(command, 'session-1');
+					const parameters = createRewriteParams(command, 'session-1');
 
 					workspaceService.setWorkspace({
 						folders: [{ uri: { fsPath: workspaceDir } }]
 					} as any);
 					const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
 
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'pwsh');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, instance, 'pwsh');
 
 					strictEqual(result, 'npm test');
 				});
@@ -423,14 +430,14 @@ suite('RunInTerminalTool', () => {
 					const cdDir = 'C:\\different\\path';
 					const workspaceDir = 'C:\\workspace\\service';
 					const command = `cd ${cdDir} && npm test`;
-					const options = createRewriteOptions(command, 'session-1');
+					const parameters = createRewriteParams(command, 'session-1');
 
 					workspaceService.setWorkspace({
 						folders: [{ uri: { fsPath: workspaceDir } }]
 					} as any);
 					const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
 
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, instance, 'cmd');
 
 					// Should not rewrite since instance cwd doesn't match cd path
 					strictEqual(result, command);
@@ -439,14 +446,14 @@ suite('RunInTerminalTool', () => {
 				test('should fallback to workspace service when instance getCwdResource returns undefined', async () => {
 					const workspaceDir = 'C:\\workspace\\service';
 					const command = `cd ${workspaceDir} && npm test`;
-					const options = createRewriteOptions(command, 'session-1');
+					const parameters = createRewriteParams(command, 'session-1');
 
 					workspaceService.setWorkspace({
 						folders: [{ uri: { fsPath: workspaceDir } }]
 					} as any);
 					const instance = createInstanceWithCwd(undefined);
 
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, instance, 'cmd');
 
 					strictEqual(result, 'npm test');
 				});
@@ -454,14 +461,14 @@ suite('RunInTerminalTool', () => {
 				test('should prioritize instance cwd over workspace service even when both match cd path', async () => {
 					const sharedDir = 'C:\\shared\\workspace';
 					const command = `cd ${sharedDir} && npm build`;
-					const options = createRewriteOptions(command, 'session-1');
+					const parameters = createRewriteParams(command, 'session-1');
 
 					workspaceService.setWorkspace({
 						folders: [{ uri: { fsPath: sharedDir } }]
 					} as any);
 					const instance = createInstanceWithCwd({ fsPath: sharedDir } as any);
 
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, instance, 'cmd');
 
 					strictEqual(result, 'npm build');
 				});
@@ -470,11 +477,11 @@ suite('RunInTerminalTool', () => {
 					const instanceDir = 'C:\\Instance\\Workspace';
 					const cdDir = 'c:\\instance\\workspace'; // Different case
 					const command = `cd ${cdDir} && npm test`;
-					const options = createRewriteOptions(command, 'session-1');
+					const parameters = createRewriteParams(command, 'session-1');
 
 					const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
 
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, instance, 'cmd');
 
 					strictEqual(result, 'npm test');
 				});
@@ -482,14 +489,14 @@ suite('RunInTerminalTool', () => {
 				test('should handle quoted paths with instance priority', async () => {
 					const instanceDir = 'C:\\instance\\workspace';
 					const command = 'cd "C:\\instance\\workspace" && npm test';
-					const options = createRewriteOptions(command, 'session-1');
+					const parameters = createRewriteParams(command, 'session-1');
 
 					workspaceService.setWorkspace({
 						folders: [{ uri: { fsPath: 'C:\\different\\workspace' } }]
 					} as any);
 					const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
 
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, instance, 'cmd');
 
 					strictEqual(result, 'npm test');
 				});

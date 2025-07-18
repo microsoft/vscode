@@ -186,7 +186,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
-		let toolEditedCommand: string | undefined = await this._rewriteCommandIfNeeded(context, args, instance, shell);
+		let toolEditedCommand: string | undefined = await this._rewriteCommandIfNeeded(args, instance, shell);
 		if (toolEditedCommand === args.command) {
 			toolEditedCommand = undefined;
 		}
@@ -211,9 +211,30 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		const args = invocation.parameters as IRunInTerminalInputParams;
-		const toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | IChatTerminalToolInvocationData2 | undefined;
+
+		// Tool specific data is not provided when the invocation is auto-approved. Re-calculate it
+		// if needed
+		let toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | IChatTerminalToolInvocationData2 | undefined;
 		if (toolSpecificData === undefined) {
-			throw new Error('Tool specific data must be provided');
+			const os = await this._osBackend;
+			const shell = await this._terminalProfileResolverService.getDefaultShell({
+				os,
+				remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority
+			});
+			const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
+			const instance = invocation.context?.sessionId ? this._sessionTerminalAssociations.get(invocation.context!.sessionId)?.instance : undefined;
+			let toolEditedCommand: string | undefined = await this._rewriteCommandIfNeeded(args, instance, shell);
+			if (toolEditedCommand === args.command) {
+				toolEditedCommand = undefined;
+			}
+			toolSpecificData = {
+				kind: 'terminal2',
+				commandLine: {
+					original: args.command,
+					toolEdited: toolEditedCommand
+				},
+				language
+			};
 		}
 
 		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
@@ -397,7 +418,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	protected async _rewriteCommandIfNeeded(context: IToolInvocationPreparationContext, args: IRunInTerminalInputParams, instance: Pick<ITerminalInstance, 'getCwdResource'> | undefined, shell: string): Promise<string> {
+	protected async _rewriteCommandIfNeeded(args: IRunInTerminalInputParams, instance: Pick<ITerminalInstance, 'getCwdResource'> | undefined, shell: string): Promise<string> {
 		const commandLine = args.command;
 		const os = await this._osBackend;
 
@@ -604,7 +625,7 @@ class BackgroundTerminalExecution extends Disposable {
 		super();
 
 		this._startMarker = this._register(this._xterm.raw.registerMarker());
-		this._instance.runCommand(this._commandLine);
+		this._instance.runCommand(this._commandLine, true);
 	}
 
 	getOutput(): string {
