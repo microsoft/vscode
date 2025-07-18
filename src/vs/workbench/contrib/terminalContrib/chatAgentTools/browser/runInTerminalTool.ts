@@ -171,10 +171,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const subCommands = splitCommandLineIntoSubCommands(args.command, shell, os);
 			const inlineSubCommands = subCommands.map(e => Array.from(extractInlineSubCommands(e, shell, os))).flat();
 			const allSubCommands = [...subCommands, ...inlineSubCommands];
-			if (allSubCommands.every(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os))) {
+			const subCommandResults = allSubCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
+			console.log({ subCommandResults });
+			if (subCommandResults.every(e => e.isAutoApproved)) {
 				confirmationMessages = undefined;
 			} else {
-				if (this._commandLineAutoApprover.isCommandLineAutoApproved(args.command)) {
+				const commandLineResults = this._commandLineAutoApprover.isCommandLineAutoApproved(args.command);
+				console.log({ commandLineResults });
+				if (commandLineResults) {
 					confirmationMessages = undefined;
 				} else {
 					confirmationMessages = {
