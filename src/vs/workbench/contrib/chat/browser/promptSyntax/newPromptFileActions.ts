@@ -144,7 +144,7 @@ function getDefaultContentSnippet(promptType: PromptsType): string {
 		case PromptsType.prompt:
 			return [
 				`---`,
-				`mode: \${1|ask,edit,agent|}`,
+				`mode: \${1|ask,edit,agent|} # Built-in modes; custom modes also supported`,
 				`---`,
 				`\${2:Define the task to achieve, including specific requirements, constraints, and success criteria.}`,
 			].join('\n');

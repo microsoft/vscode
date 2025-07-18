@@ -1308,17 +1308,152 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([]);
 					});
 
-					test('invalid mode', async () => {
-						const value = (randomBoolean())
-							? 'unknown mode  '
-							: 'unknown';
+					test('custom mode with tools', async () => {
+						const customModeId = 'myCustomMode';
 
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
 					/* 01 */"---",
 					/* 02 */"tools: [ 'tool_name3', \"tool_name4\" ]  \t\t  ",
-					/* 03 */`mode:  \t\t${value}`,
+					/* 03 */`mode: ${customModeId}`,
+					/* 04 */"---",
+					/* 05 */"The cactus on my desk has a thriving Instagram account.",
+							],
+							PROMPT_LANGUAGE_ID,
+						);
+
+						await test.allSettled();
+
+						const { header, metadata } = test.parser;
+						assertDefined(
+							header,
+							'Prompt header must be defined.',
+						);
+
+						assert(
+							metadata?.promptType === PromptsType.prompt,
+							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+						);
+
+						const { tools, mode } = metadata;
+						assertDefined(
+							tools,
+							'Tools metadata must be defined.',
+						);
+
+						assert.strictEqual(
+							mode,
+							customModeId,
+							'Mode metadata must have the custom mode value.',
+						);
+
+						// Custom modes are now allowed, so no error expected
+						await test.validateHeaderDiagnostics([]);
+					});
+
+					test('custom mode with spaces in value', async () => {
+						const customModeId = 'my custom mode with spaces';
+
+						const test = createTest(
+							URI.file('/absolute/folder/and/a/filename.txt'),
+							[
+					/* 01 */"---",
+					/* 02 */"tools: [ 'tool1', 'tool2' ]",
+					/* 03 */`mode: "${customModeId}"`,
+					/* 04 */"---",
+					/* 05 */"Test prompt with custom mode that has spaces.",
+							],
+							PROMPT_LANGUAGE_ID,
+						);
+
+						await test.allSettled();
+
+						const { header, metadata } = test.parser;
+						assertDefined(
+							header,
+							'Prompt header must be defined.',
+						);
+
+						assert(
+							metadata?.promptType === PromptsType.prompt,
+							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+						);
+
+						const { tools, mode } = metadata;
+						assertDefined(
+							tools,
+							'Tools metadata must be defined.',
+						);
+
+						assert.strictEqual(
+							mode,
+							customModeId,
+							'Mode metadata must preserve custom mode with spaces.',
+						);
+
+						// Custom modes are now allowed, so no error expected
+						await test.validateHeaderDiagnostics([]);
+					});
+
+					test('custom mode without tools', async () => {
+						const customModeId = 'debugHelperMode';
+
+						const test = createTest(
+							URI.file('/absolute/folder/and/a/filename.txt'),
+							[
+					/* 01 */"---",
+					/* 02 */"description: \"Custom debugging mode\"",
+					/* 03 */`mode: ${customModeId}`,
+					/* 04 */"---",
+					/* 05 */"This is a custom mode without tools.",
+							],
+							PROMPT_LANGUAGE_ID,
+						);
+
+						await test.allSettled();
+
+						const { header, metadata } = test.parser;
+						assertDefined(
+							header,
+							'Prompt header must be defined.',
+						);
+
+						assert(
+							metadata?.promptType === PromptsType.prompt,
+							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+						);
+
+						const { tools, mode, description } = metadata;
+						assert.strictEqual(
+							tools,
+							undefined,
+							'Tools metadata must not be defined.',
+						);
+
+						assert.strictEqual(
+							mode,
+							customModeId,
+							'Mode metadata must have the custom mode value.',
+						);
+
+						assert.strictEqual(
+							description,
+							'Custom debugging mode',
+							'Description metadata must be preserved.',
+						);
+
+						// Custom modes are now allowed, so no error expected
+						await test.validateHeaderDiagnostics([]);
+					});
+
+					test('invalid mode - empty string', async () => {
+						const test = createTest(
+							URI.file('/absolute/folder/and/a/filename.txt'),
+							[
+					/* 01 */"---",
+					/* 02 */"tools: [ 'tool_name3', \"tool_name4\" ]  \t\t  ",
+					/* 03 */"mode: \"\"",
 					/* 04 */"---",
 					/* 05 */"The cactus on my desk has a thriving Instagram account.",
 							],
@@ -1347,15 +1482,238 @@ suite('TextModelPromptParser', () => {
 						assert.strictEqual(
 							mode,
 							ChatModeKind.Agent,
-							'Mode metadata must have correct value.',
+							'Mode metadata must default to agent when mode is empty string.',
 						);
 
+						// Empty string mode should be handled gracefully (no error expected)
+						await test.validateHeaderDiagnostics([]);
+					});
+
+					test('invalid mode - boolean value', async () => {
+						const test = createTest(
+							URI.file('/absolute/folder/and/a/filename.txt'),
+							[
+					/* 01 */"---",
+					/* 02 */"tools: [ 'tool_name3', \"tool_name4\" ]  \t\t  ",
+					/* 03 */"mode: true",
+					/* 04 */"---",
+					/* 05 */"The cactus on my desk has a thriving Instagram account.",
+							],
+							PROMPT_LANGUAGE_ID,
+						);
+
+						await test.allSettled();
+
+						const { header, metadata } = test.parser;
+						assertDefined(
+							header,
+							'Prompt header must be defined.',
+						);
+
+						assert(
+							metadata?.promptType === PromptsType.prompt,
+							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+						);
+
+						const { tools, mode } = metadata;
+						assertDefined(
+							tools,
+							'Tools metadata must be defined.',
+						);
+
+						assert.strictEqual(
+							mode,
+							ChatModeKind.Agent,
+							'Mode metadata must default to agent when mode is boolean.',
+						);
+
+						// Boolean mode value should trigger validation error
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticError(
-								new Range(3, 10, 3, 10 + value.trim().length),
-								`The 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got '${value.trim()}'.`,
+								new Range(3, 7, 3, 11),
+								"The 'mode' metadata must be a 'string', got 'boolean'.",
 							),
 						]);
+					});
+
+					test('invalid mode - array value', async () => {
+						const test = createTest(
+							URI.file('/absolute/folder/and/a/filename.txt'),
+							[
+					/* 01 */"---",
+					/* 02 */"tools: [ 'tool_name3', \"tool_name4\" ]  \t\t  ",
+					/* 03 */"mode: ['array', 'mode']",
+					/* 04 */"---",
+					/* 05 */"The cactus on my desk has a thriving Instagram account.",
+							],
+							PROMPT_LANGUAGE_ID,
+						);
+
+						await test.allSettled();
+
+						const { header, metadata } = test.parser;
+						assertDefined(
+							header,
+							'Prompt header must be defined.',
+						);
+
+						assert(
+							metadata?.promptType === PromptsType.prompt,
+							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+						);
+
+						const { tools, mode } = metadata;
+						assertDefined(
+							tools,
+							'Tools metadata must be defined.',
+						);
+
+						assert.strictEqual(
+							mode,
+							ChatModeKind.Agent,
+							'Mode metadata must default to agent when mode is array.',
+						);
+
+						// Array mode value should trigger validation error
+						await test.validateHeaderDiagnostics([
+							new ExpectedDiagnosticError(
+								new Range(3, 7, 3, 23),
+								"The 'mode' metadata must be a 'string', got 'array'.",
+							),
+						]);
+					});
+
+					// Test builtin modes to ensure they still work correctly
+					test('builtin ask mode', async () => {
+						const test = createTest(
+							URI.file('/absolute/folder/and/a/filename.txt'),
+							[
+					/* 01 */"---",
+					/* 02 */"description: \"Ask mode test\"",
+					/* 03 */"mode: ask",
+					/* 04 */"---",
+					/* 05 */"This is a builtin ask mode test.",
+							],
+							PROMPT_LANGUAGE_ID,
+						);
+
+						await test.allSettled();
+
+						const { header, metadata } = test.parser;
+						assertDefined(
+							header,
+							'Prompt header must be defined.',
+						);
+
+						assert(
+							metadata?.promptType === PromptsType.prompt,
+							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+						);
+
+						const { mode, description } = metadata;
+						assert.strictEqual(
+							mode,
+							ChatModeKind.Ask,
+							'Mode metadata must be ask.',
+						);
+
+						assert.strictEqual(
+							description,
+							'Ask mode test',
+							'Description metadata must be preserved.',
+						);
+
+						await test.validateHeaderDiagnostics([]);
+					});
+
+					test('builtin edit mode', async () => {
+						const test = createTest(
+							URI.file('/absolute/folder/and/a/filename.txt'),
+							[
+					/* 01 */"---",
+					/* 02 */"description: \"Edit mode test\"",
+					/* 03 */"mode: edit",
+					/* 04 */"---",
+					/* 05 */"This is a builtin edit mode test.",
+							],
+							PROMPT_LANGUAGE_ID,
+						);
+
+						await test.allSettled();
+
+						const { header, metadata } = test.parser;
+						assertDefined(
+							header,
+							'Prompt header must be defined.',
+						);
+
+						assert(
+							metadata?.promptType === PromptsType.prompt,
+							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+						);
+
+						const { mode, description } = metadata;
+						assert.strictEqual(
+							mode,
+							ChatModeKind.Edit,
+							'Mode metadata must be edit.',
+						);
+
+						assert.strictEqual(
+							description,
+							'Edit mode test',
+							'Description metadata must be preserved.',
+						);
+
+						await test.validateHeaderDiagnostics([]);
+					});
+
+					test('builtin agent mode with tools', async () => {
+						const test = createTest(
+							URI.file('/absolute/folder/and/a/filename.txt'),
+							[
+					/* 01 */"---",
+					/* 02 */"description: \"Agent mode test\"",
+					/* 03 */"mode: agent",
+					/* 04 */"tools: ['tool1', 'tool2']",
+					/* 05 */"---",
+					/* 06 */"This is a builtin agent mode test.",
+							],
+							PROMPT_LANGUAGE_ID,
+						);
+
+						await test.allSettled();
+
+						const { header, metadata } = test.parser;
+						assertDefined(
+							header,
+							'Prompt header must be defined.',
+						);
+
+						assert(
+							metadata?.promptType === PromptsType.prompt,
+							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+						);
+
+						const { mode, tools, description } = metadata;
+						assert.strictEqual(
+							mode,
+							ChatModeKind.Agent,
+							'Mode metadata must be agent.',
+						);
+
+						assertDefined(
+							tools,
+							'Tools metadata must be defined for agent mode.',
+						);
+
+						assert.strictEqual(
+							description,
+							'Agent mode test',
+							'Description metadata must be preserved.',
+						);
+
+						await test.validateHeaderDiagnostics([]);
 					});
 				});
 

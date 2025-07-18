@@ -19,6 +19,8 @@ import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../langua
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
 import { localize } from '../../../../../../nls.js';
 import { ChatModeKind } from '../../constants.js';
+import { IChatModeService } from '../../chatModes.js';
+import { PromptModeMetadata } from '../parsers/promptHeader/metadata/mode.js';
 
 /**
  * Unique ID of the markers provider class.
@@ -36,12 +38,16 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 		@IMarkerService private readonly markerService: IMarkerService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
+		@IChatModeService private readonly chatModeService: IChatModeService,
 	) {
 		super(model, promptsService);
 		this._register(languageModelsService.onDidChangeLanguageModels(() => {
 			this.onPromptSettled(undefined, CancellationToken.None);
 		}));
 		this._register(languageModelToolsService.onDidChangeTools(() => {
+			this.onPromptSettled(undefined, CancellationToken.None);
+		}));
+		this._register(chatModeService.onDidChangeChatModes(() => {
 			this.onPromptSettled(undefined, CancellationToken.None);
 		}));
 	}
@@ -73,6 +79,7 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 		}
 
 		if (header instanceof PromptHeader) {
+			this.validateMode(header.metadataUtility.mode, markers);
 			this.validateTools(header.metadataUtility.tools, header.metadata.mode, markers);
 			this.validateModel(header.metadataUtility.model, header.metadata.mode, markers);
 		} else if (header instanceof ModeHeader) {
@@ -93,7 +100,7 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 		);
 		return;
 	}
-	validateModel(modelNode: PromptModelMetadata | undefined, modeKind: ChatModeKind | undefined, markers: IMarkerData[]) {
+	validateModel(modelNode: PromptModelMetadata | undefined, modeKind: string | ChatModeKind | undefined, markers: IMarkerData[]) {
 		if (!modelNode || modelNode.value === undefined) {
 			return;
 		}
@@ -128,7 +135,7 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 		return undefined;
 	}
 
-	validateTools(tools: PromptToolsMetadata | undefined, modeKind: ChatModeKind | undefined, markers: IMarkerData[]) {
+	validateTools(tools: PromptToolsMetadata | undefined, modeKind: string | ChatModeKind | undefined, markers: IMarkerData[]) {
 		if (!tools || tools.value === undefined || modeKind === ChatModeKind.Ask || modeKind === ChatModeKind.Edit) {
 			return;
 		}
@@ -152,6 +159,35 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 					...range,
 				});
 			}
+		}
+	}
+
+	validateMode(modeNode: PromptModeMetadata | undefined, markers: IMarkerData[]) {
+		if (!modeNode || modeNode.value === undefined) {
+			return;
+		}
+
+		const modeValue = modeNode.value;
+		const modes = this.chatModeService.getModes();
+
+		// Check if mode exists in builtin modes (by id or kind)
+		const isBuiltinMode = modes.builtin.some(mode => mode.id === modeValue || mode.kind === modeValue);
+
+		// Check if mode exists in custom modes (by id or name)
+		const isCustomMode = modes.custom.some(mode => mode.id === modeValue || mode.name === modeValue);
+
+		if (!isBuiltinMode && !isCustomMode) {
+			// Use friendly names for display
+			const availableModes = [
+				...modes.builtin.map(mode => mode.id),
+				...modes.custom.map(mode => mode.name) // Use name instead of id for custom modes
+			];
+
+			markers.push({
+				message: localize('promptHeaderDiagnosticsProvider.modeNotFound', "Unknown mode '{0}'. Available modes: {1}", modeValue, availableModes.join(', ')),
+				severity: MarkerSeverity.Warning,
+				...modeNode.range,
+			});
 		}
 	}
 
