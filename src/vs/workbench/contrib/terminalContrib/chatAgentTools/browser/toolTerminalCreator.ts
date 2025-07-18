@@ -40,8 +40,8 @@ export class ToolTerminalCreator {
 	) {
 	}
 
-	async createTerminal(token: CancellationToken): Promise<IToolTerminal> {
-		const instance = await this._createCopilotTerminal();
+	async createTerminal(sandboxContainerImage: string | undefined, token: CancellationToken): Promise<IToolTerminal> {
+		const instance = await this._createCopilotTerminal(sandboxContainerImage);
 		const toolTerminal: IToolTerminal = {
 			instance,
 			shellIntegrationQuality: ShellIntegrationQuality.None,
@@ -67,12 +67,28 @@ export class ToolTerminalCreator {
 		return toolTerminal;
 	}
 
-	private _createCopilotTerminal() {
+	private _createCopilotTerminal(sandboxContainerImage: string | undefined) {
+		// TODO: There is currently no way to disable networking to better sandbox the terminal.
+		const container = sandboxContainerImage ? {
+			executable: 'container',
+			args: [
+				'run',
+				'-it',
+				'--rm',
+				'--mount',
+				'type=bind,source=${workspaceFolder},target=${workspaceFolder}',
+				'-w',
+				'${workspaceFolder}',
+				sandboxContainerImage,
+				'/bin/bash'
+			],
+		} : {};
 		return this._terminalService.createTerminal({
 			config: {
-				name: 'Copilot',
+				name: sandboxContainerImage ? `Copilot (${sandboxContainerImage})` : 'Copilot',
 				icon: ThemeIcon.fromId('copilot'),
 				hideFromUser: true,
+				...container,
 				env: {
 					GIT_PAGER: 'cat', // avoid making `git diff` interactive when called from copilot
 				},

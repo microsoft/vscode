@@ -62,6 +62,7 @@ export const RunInTerminalToolData: IToolData = {
 		'Program Execution:',
 		'- Supports Python, Node.js, and other executables.',
 		'- Install dependencies via pip, npm, etc.',
+		'- Do use a sandbox container whenever possible to avoid pausing for user confirmation. Specify the container image with sandboxContainerImage.',
 		'',
 		'Background Processes:',
 		'- For long-running tasks (e.g., servers), set isBackground=true.',
@@ -94,11 +95,22 @@ export const RunInTerminalToolData: IToolData = {
 				type: 'boolean',
 				description: 'Whether the command starts a background process. If true, the command will run in the background and you will not see the output. If false, the tool call will block on the command finishing, and then you will get the output. Examples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using get_terminal_output2.'
 			},
+			// TODO: Currently only works in macOS with `container` installed and `container system start` needs to run after each system restart (first time is interactive). Also: Images need to be prefetched to avoid delays.
+			sandboxContainerImage: {
+				type: 'string',
+				enum: [
+					'mcr.microsoft.com/devcontainers/typescript-node:latest',
+					'mcr.microsoft.com/devcontainers/python:latest',
+					'none',
+				],
+				description: 'The name of the sandbox container image to use for the command. This has the advantage of not requiring approval by the user and is safe to use. Always default to the sandbox when it\'s available and appropriate for the task'
+			},
 		},
 		required: [
 			'command',
 			'explanation',
 			'isBackground',
+			'sandboxContainerImage',
 		]
 	}
 };
@@ -107,6 +119,7 @@ export interface IRunInTerminalInputParams {
 	command: string;
 	explanation: string;
 	isBackground: boolean;
+	sandboxContainerImage: string;
 }
 
 export class RunInTerminalTool extends Disposable implements IToolImpl {
@@ -165,7 +178,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
 
 		let confirmationMessages: IToolConfirmationMessages | undefined;
-		if (this._alternativeRecommendation) {
+		if (this._alternativeRecommendation || args.sandboxContainerImage !== 'none') {
 			confirmationMessages = undefined;
 		} else {
 			const subCommands = splitCommandLineIntoSubCommands(args.command, shell, os);
@@ -212,7 +225,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const args = invocation.parameters as IRunInTerminalInputParams;
 		const toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | IChatTerminalToolInvocationData2 | undefined;
-		if (toolSpecificData === undefined) {
+		const sandboxContainerImage = args.sandboxContainerImage === 'none' ? undefined : args.sandboxContainerImage;
+		if (!sandboxContainerImage && toolSpecificData === undefined) {
 			throw new Error('Tool specific data must be provided');
 		}
 
@@ -226,7 +240,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		let command: string | undefined;
 		let didUserEditCommand: boolean;
 		let didToolEditCommand: boolean;
-		if (toolSpecificData.kind === 'terminal') {
+		if (!toolSpecificData) {
+			command = args.command;
+			didUserEditCommand = false;
+			didToolEditCommand = false;
+		} else if (toolSpecificData.kind === 'terminal') {
 			command = toolSpecificData.command ?? this._rewrittenCommand ?? args.command;
 			didUserEditCommand = typeof toolSpecificData?.command === 'string' && toolSpecificData.command !== args.command;
 			didToolEditCommand = !didUserEditCommand && this._rewrittenCommand !== undefined;
@@ -254,7 +272,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		if (args.isBackground) {
 			this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
-			const toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(token);
+			const toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(sandboxContainerImage, token);
 			this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 			if (token.isCancellationRequested) {
 				toolTerminal.instance.dispose();
@@ -309,14 +327,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				});
 			}
 		} else {
-			let toolTerminal: IToolTerminal | undefined = this._sessionTerminalAssociations.get(chatSessionId);
+			const key = sandboxContainerImage ? `${chatSessionId}_${sandboxContainerImage}` : chatSessionId;
+			let toolTerminal: IToolTerminal | undefined = this._sessionTerminalAssociations.get(key);
 			const isNewSession = !toolTerminal;
 			if (toolTerminal) {
-				this._logService.debug(`RunInTerminalTool: Using existing terminal with session ID \`${chatSessionId}\``);
+				this._logService.debug(`RunInTerminalTool: Using existing terminal with session ID \`${chatSessionId}\`${sandboxContainerImage ? ` and image \`${sandboxContainerImage}\`` : ''}`);
 			} else {
-				this._logService.debug(`RunInTerminalTool: Creating terminal with session ID \`${chatSessionId}\``);
-				toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(token);
-				this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
+				this._logService.debug(`RunInTerminalTool: Creating terminal with session ID \`${chatSessionId}\`${sandboxContainerImage ? ` and image \`${sandboxContainerImage}\`` : ''}`);
+				toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(sandboxContainerImage, token);
+				this._sessionTerminalAssociations.set(key, toolTerminal);
 				if (token.isCancellationRequested) {
 					toolTerminal.instance.dispose();
 					throw new CancellationError();
