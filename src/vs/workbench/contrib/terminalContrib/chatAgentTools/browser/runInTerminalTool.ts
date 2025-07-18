@@ -46,8 +46,8 @@ interface IStoredTerminalAssociation {
 }
 
 export const RunInTerminalToolData: IToolData = {
-	id: 'run_in_terminal2',
-	toolReferenceName: 'runInTerminal2',
+	id: 'run_in_terminal',
+	toolReferenceName: 'runInTerminal',
 	canBeReferencedInPrompt: true,
 	displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
 	modelDescription: [
@@ -92,7 +92,7 @@ export const RunInTerminalToolData: IToolData = {
 			},
 			isBackground: {
 				type: 'boolean',
-				description: 'Whether the command starts a background process. If true, the command will run in the background and you will not see the output. If false, the tool call will block on the command finishing, and then you will get the output. Examples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using get_terminal_output2.'
+				description: 'Whether the command starts a background process. If true, the command will run in the background and you will not see the output. If false, the tool call will block on the command finishing, and then you will get the output. Examples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using get_terminal_output.'
 			},
 		},
 		required: [
