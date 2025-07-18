@@ -3,80 +3,105 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.chat-coding-agent-session {
-	margin: 8px 0;
-	padding: 12px;
-	border-left: 3px solid var(--vscode-charts-blue);
-	background-color: var(--vscode-editorWidget-background);
+.chat-coding-agent-widget {
+	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
-	position: relative;
+	margin: 8px 0;
+	overflow: hidden;
 }
 
-.coding-agent-title {
+.chat-coding-agent-widget:not(:last-child) {
+	margin-bottom: 16px;
+}
+
+.chat-coding-agent-header {
 	display: flex;
 	align-items: center;
-	margin-bottom: 8px;
-	font-weight: bold;
 	justify-content: space-between;
-	gap: 8px;
+	padding: 8px 12px;
+	background-color: var(--vscode-editorWidget-background);
+	border-bottom: 1px solid var(--vscode-chat-requestBorder);
 }
 
-.coding-agent-title .title-text {
+.chat-coding-agent-title {
+	display: flex;
+	align-items: center;
 	flex: 1;
 }
 
-.coding-agent-open-btn {
-	background: var(--vscode-button-secondaryBackground);
-	border: 1px solid var(--vscode-button-border);
-	cursor: pointer;
-	padding: 4px 8px;
-	border-radius: 3px;
-	color: var(--vscode-button-secondaryForeground);
-	font-size: 12px;
-	transition: all 0.2s;
+.chat-coding-agent-title-inner {
 	display: flex;
 	align-items: center;
-	margin-left: auto;
+	gap: 8px;
 }
 
-.coding-agent-open-btn:hover {
+.chat-coding-agent-icon {
+	color: var(--vscode-symbolIcon-interfaceForeground);
+	font-size: 16px;
+}
+
+.chat-coding-agent-title-text {
+	font-weight: 600;
+	font-size: 13px;
+	color: var(--vscode-foreground);
+}
+
+.chat-coding-agent-button {
+	background: var(--vscode-button-secondaryBackground);
+	border: 1px solid var(--vscode-button-border);
+	color: var(--vscode-button-secondaryForeground);
+	border-radius: 3px;
+	padding: 4px 6px;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: all 0.15s ease;
+	font-size: 11px;
+	min-width: 24px;
+	height: 24px;
+}
+
+.chat-coding-agent-button:hover {
 	background: var(--vscode-button-secondaryHoverBackground);
-	color: var(--vscode-button-foreground);
 }
 
-.coding-agent-open-btn:focus {
+.chat-coding-agent-button:focus {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 2px;
 }
 
-.coding-agent-title .codicon-robot {
-	margin-right: 8px;
-	color: var(--vscode-charts-blue);
+.chat-coding-agent-content {
+	padding: 12px;
+	background-color: var(--vscode-editorWidget-background);
 }
 
-.coding-agent-content {
-	margin-left: 24px; /* Align with text after icon */
+.chat-coding-agent-content .rendered-markdown {
+	margin: 0;
 }
 
-.chat-coding-agent-status {
-	display: flex;
-	align-items: center;
+.chat-coding-agent-content .rendered-markdown > :first-child {
+	margin-top: 0;
+}
+
+.chat-coding-agent-content .rendered-markdown > :last-child {
+	margin-bottom: 0;
+}
+
+.chat-coding-agent-content p {
+	margin: 0 0 8px 0;
+	line-height: 1.4;
+}
+
+.chat-coding-agent-content p:last-child {
+	margin-bottom: 0;
+}
+
+.chat-coding-agent-content code {
+	background-color: var(--vscode-textCodeBlock-background);
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 3px;
+	padding: 2px 4px;
+	font-family: var(--monaco-monospace-font);
 	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-	margin: 4px 0;
-	padding: 4px 8px;
-	line-height: 1.4em;
-	background-color: var(--vscode-panel-background);
-	border-radius: 2px;
-}
-
-.chat-coding-agent-status .codicon-sync.codicon-modifier-spin {
-	animation-duration: 2s;
-	margin-right: 6px;
-	color: var(--vscode-progressBar-background);
-}
-
-.chat-coding-agent-status .file-count {
-	color: var(--vscode-descriptionForeground);
-	font-style: italic;
 }

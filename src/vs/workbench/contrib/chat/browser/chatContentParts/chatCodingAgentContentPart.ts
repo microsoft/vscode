@@ -28,29 +28,31 @@ export class ChatCodingAgentContentPart extends Disposable implements IChatConte
 	) {
 		super();
 
-		this.domNode = dom.$('.coding-agent-session');
+		this.domNode = dom.$('.chat-coding-agent-widget');
 
-		// Create a styled container
-		const container = dom.$('.chat-coding-agent-session');
-		this.domNode.appendChild(container);
+		// Create header section with title and button
+		const headerContainer = dom.$('.chat-coding-agent-header');
+		this.domNode.appendChild(headerContainer);
 
-		// Create title with icon
-		const titleContainer = dom.$('.coding-agent-title');
-		container.appendChild(titleContainer);
+		const titleContainer = dom.$('.chat-coding-agent-title');
+		headerContainer.appendChild(titleContainer);
 
-		const robotIcon = dom.$('span.codicon.codicon-robot');
-		titleContainer.appendChild(robotIcon);
+		// Icon and title text
+		const titleInner = dom.$('.chat-coding-agent-title-inner');
+		titleContainer.appendChild(titleInner);
 
-		const titleText = dom.$('span.title-text');
+		const robotIcon = dom.$('span.codicon.codicon-robot.chat-coding-agent-icon');
+		titleInner.appendChild(robotIcon);
+
+		const titleText = dom.$('span.chat-coding-agent-title-text');
 		titleText.textContent = localize('codingAgentStarted', 'Coding Agent Session Started');
-		titleContainer.appendChild(titleText);
+		titleInner.appendChild(titleText);
 
-		// Add open-in-new-editor button
-		const openButton = dom.$('button.coding-agent-open-btn');
+		// Open in new editor button
+		const openButton = dom.$('button.chat-coding-agent-button');
 		openButton.title = localize('openInNewEditor', 'Open in New Editor Window');
 		openButton.setAttribute('aria-label', openButton.title);
 		openButton.setAttribute('type', 'button');
-		openButton.classList.add('monaco-button', 'monaco-text-button');
 		const arrowIcon = dom.$('span.codicon.codicon-arrow-top-right');
 		openButton.appendChild(arrowIcon);
 		openButton.onclick = (e) => {
@@ -59,11 +61,11 @@ export class ChatCodingAgentContentPart extends Disposable implements IChatConte
 			// TODO: Implement open in new editor window logic
 			console.log('Open coding agent session in new editor window:', this.session);
 		};
-		titleContainer.appendChild(openButton);
+		headerContainer.appendChild(openButton);
 
-		// Create content
-		const contentContainer = dom.$('.coding-agent-content');
-		container.appendChild(contentContainer);
+		// Create content section
+		const contentContainer = dom.$('.chat-coding-agent-content');
+		this.domNode.appendChild(contentContainer);
 
 		const content = new MarkdownString()
 			.appendMarkdown(`**${session.title}**`)
