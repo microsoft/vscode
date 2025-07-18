@@ -595,7 +595,10 @@ export function registerChatActions() {
 				category: CHAT_CATEGORY,
 				menu: [{
 					id: MenuId.ChatExecute,
-					when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
+					when: ContextKeyExpr.and(
+						ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
+						ChatContextKeys.lockedToCodingAgent.negate()
+					),
 					group: 'navigation',
 					order: 1
 				}]
