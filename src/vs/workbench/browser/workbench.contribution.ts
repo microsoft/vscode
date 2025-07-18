@@ -558,28 +558,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true,
 				'description': localize('statusBarVisibility', "Controls the visibility of the status bar at the bottom of the workbench.")
 			},
-			[LayoutSettings.ACTIVITY_BAR_LOCATION]: {
-				'type': 'string',
-				'enum': ['default', 'top', 'bottom', 'hidden'],
-				'default': 'default',
-				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarLocation' }, "Controls the location of the Activity Bar relative to the Primary and Secondary Side Bars."),
-				'enumDescriptions': [
-					localize('workbench.activityBar.location.default', "Show the Activity Bar on the side of the Primary Side Bar and on top of the Secondary Side Bar."),
-					localize('workbench.activityBar.location.top', "Show the Activity Bar on top of the Primary and Secondary Side Bars."),
-					localize('workbench.activityBar.location.bottom', "Show the Activity Bar at the bottom of the Primary and Secondary Side Bars."),
-					localize('workbench.activityBar.location.hide', "Hide the Activity Bar in the Primary and Secondary Side Bars.")
-				],
-			},
-			'workbench.activityBar.iconClickBehavior': {
-				'type': 'string',
-				'enum': ['toggle', 'focus'],
-				'default': 'toggle',
-				'markdownDescription': localize({ comment: ['{0}, {1} will be a setting name rendered as a link'], key: 'activityBarIconClickBehavior' }, "Controls the behavior of clicking an Activity Bar icon in the workbench. This value is ignored when {0} is not set to {1}.", '`#workbench.activityBar.location#`', '`default`'),
-				'enumDescriptions': [
-					localize('workbench.activityBar.iconClickBehavior.toggle', "Hide the Primary Side Bar if the clicked item is already visible."),
-					localize('workbench.activityBar.iconClickBehavior.focus', "Focus the Primary Side Bar if the clicked item is already visible.")
-				]
-			},
 			'workbench.view.alwaysShowHeaderActions': {
 				'type': 'boolean',
 				'default': false,

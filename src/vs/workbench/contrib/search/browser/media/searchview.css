@@ -419,9 +419,9 @@
 	padding-right: 3px;
 }
 
-.monaco-workbench .search-view .monaco-list.element-focused .monaco-list-row.focused.selected:not(.highlighted) .action-label:focus {
+/* .monaco-workbench .search-view .monaco-list.element-focused .monaco-list-row.focused.selected:not(.highlighted) .action-label:focus {
 	outline-color: var(--vscode-list-activeSelectionForeground)
-}
+} */
 
 .monaco-workbench .search-container .monaco-custom-toggle.disabled {
 	opacity: 0.3;

@@ -238,6 +238,14 @@ body {
 	opacity: 1;
 }
 
+.monaco-workbench .monaco-scrollable-element > *,
+.monaco-workbench .monaco-list,
+.monaco-workbench .monaco-list::before,
+.monaco-workbench .message-box-container,
+.monaco-workbench .statusbar {
+	outline: 0 !important;
+}
+
 .monaco-workbench.hc-black .synthetic-focus input,
 .monaco-workbench.hc-light .synthetic-focus input {
 	background: transparent; /* Search input focus fix when in high contrast */
@@ -279,9 +287,9 @@ body {
 	color: var(--vscode-list-highlightForeground);
 }
 
-.monaco-workbench .monaco-list .monaco-list-row.focused .monaco-highlighted-label .highlight {
+/* .monaco-workbench .monaco-list .monaco-list-row.focused .monaco-highlighted-label .highlight {
 	color: var(--vscode-list-focusHighlightForeground);
-}
+} */
 
 .monaco-workbench .synthetic-focus :focus {
 	outline: 0 !important; /* elements within widgets that draw synthetic-focus should never show focus */

@@ -382,9 +382,9 @@
 	background-color: var(--vscode-settings-rowHoverBackground) !important;
 }
 
-.profiles-editor .contents-container .profile-body .profile-tree .monaco-list:focus .monaco-list-row.focused {
+/* .profiles-editor .contents-container .profile-body .profile-tree .monaco-list:focus .monaco-list-row.focused {
 	outline: 1px solid var(--vscode-settings-focusedRowBorder) !important;
-}
+} */
 
 .profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row {
 	cursor: default;

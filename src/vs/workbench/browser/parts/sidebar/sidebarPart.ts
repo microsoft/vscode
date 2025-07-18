@@ -215,7 +215,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			return false;
 		}
 
-		return this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.HIDDEN;
+		return true;
 	}
 
 	protected getCompositeBarPosition(): CompositeBarPosition {
@@ -258,12 +258,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	}
 
 	async focusActivityBar(): Promise<void> {
-		if (this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.HIDDEN) {
-			await this.configurationService.updateValue(LayoutSettings.ACTIVITY_BAR_LOCATION, this.getRememberedActivityBarVisiblePosition());
-
-			this.onDidChangeActivityBarLocation();
-		}
-
 		if (this.shouldShowCompositeBar()) {
 			this.focusCompositeBar();
 		} else {
@@ -285,7 +279,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 				});
 			}
 			run(): Promise<void> {
-				const value = that.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.HIDDEN ? that.getRememberedActivityBarVisiblePosition() : ActivityBarPosition.HIDDEN;
+				const value = ActivityBarPosition.HIDDEN;
 				return that.configurationService.updateValue(LayoutSettings.ACTIVITY_BAR_LOCATION, value);
 			}
 		}));

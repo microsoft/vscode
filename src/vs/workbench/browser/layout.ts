@@ -3049,7 +3049,7 @@ class LayoutStateModel extends Disposable {
 			return !oldValue;
 		}
 
-		return this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.DEFAULT;
+		return false;
 	}
 
 	private setRuntimeValueAndFire<T extends StorageKeyType>(key: RuntimeStateKey<T>, value: T): void {

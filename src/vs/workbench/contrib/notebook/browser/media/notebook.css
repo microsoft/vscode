@@ -584,9 +584,9 @@
 }
 
 /** Cell focused editor border */
-.notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-editor-focus .cell-editor-part:before {
+/* .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-editor-focus .cell-editor-part:before {
 	outline: solid 1px var(--vscode-notebook-focusedEditorBorder);
-}
+} */
 
 /** Cell border color */
 .notebookOverlay .cell.markdown h1 { border-color: var(--vscode-notebook-cellBorderColor); }

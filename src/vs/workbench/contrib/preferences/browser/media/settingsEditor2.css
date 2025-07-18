@@ -241,10 +241,10 @@
 	background-color: var(--vscode-settings-rowHoverBackground);
 }
 
-.settings-editor > .settings-body .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .setting-item-contents,
+/* .settings-editor > .settings-body .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .setting-item-contents,
 .settings-editor > .settings-body .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .settings-group-title-label {
 	outline: 1px solid var(--vscode-settings-focusedRowBorder);
-}
+} */
 
 .settings-editor > .settings-body .settings-tree-container .monaco-list:focus-within .monaco-tree-sticky-container .monaco-list-row.focused .settings-group-title-label {
 	outline: none; /* Remove Sticky Scroll focus */
