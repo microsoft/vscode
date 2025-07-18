@@ -43,20 +43,11 @@ export interface ITodo {
 export interface ITodoStorage {
 	getTodos(sessionId: string): ITodo[];
 	setTodos(sessionId: string, todos: ITodo[]): void;
-	addTodo(sessionId: string, todo: Omit<ITodo, 'id' | 'createdAt' | 'updatedAt' | 'order'>): ITodo;
-	updateTodo(sessionId: string, todoId: string, updates: Partial<Pick<ITodo, 'content' | 'status'>>): ITodo | undefined;
-	deleteTodo(sessionId: string, todoId: string): boolean;
-	reorderTodos(sessionId: string, todoIds: string[]): void;
 }
 
 // Todo operation types
-interface CreateTodoOperation {
-	operation: 'create';
-	content: string;
-}
-
-interface UpdateTodoOperation {
-	operation: 'update';
+interface SetTodosOperation {
+	operation: 'set';
 	content: string;
 }
 
@@ -64,7 +55,7 @@ interface ReadTodosOperation {
 	operation: 'read';
 }
 
-type TodoOperation = CreateTodoOperation | UpdateTodoOperation | ReadTodosOperation;
+type TodoOperation = SetTodosOperation | ReadTodosOperation;
 
 // Service ID
 export const ITodoToolService = createDecorator<ITodoToolService>('todoToolService');
@@ -103,84 +94,6 @@ export class TodoStorage implements ITodoStorage {
 		data.todos = todos;
 		this.setSessionData(sessionId, data);
 	}
-
-	addTodo(sessionId: string, todo: Omit<ITodo, 'id' | 'createdAt' | 'updatedAt' | 'order'>): ITodo {
-		const data = this.getSessionData(sessionId);
-		const now = Date.now();
-		const maxOrder = data.todos.length > 0 ? Math.max(...data.todos.map(t => t.order)) : 0;
-
-		const newTodo: ITodo = {
-			...todo,
-			id: `todo-${data.nextId}`,
-			createdAt: now,
-			updatedAt: now,
-			order: maxOrder + 1
-		};
-
-		data.todos.push(newTodo);
-		data.nextId++;
-		this.setSessionData(sessionId, data);
-
-		return newTodo;
-	}
-
-	updateTodo(sessionId: string, todoId: string, updates: Partial<Pick<ITodo, 'content' | 'status'>>): ITodo | undefined {
-		const data = this.getSessionData(sessionId);
-		const todoIndex = data.todos.findIndex(t => t.id === todoId);
-
-		if (todoIndex === -1) {
-			return undefined;
-		}
-
-		const todo = data.todos[todoIndex];
-		const updatedTodo: ITodo = {
-			...todo,
-			...updates,
-			updatedAt: Date.now()
-		};
-
-		data.todos[todoIndex] = updatedTodo;
-		this.setSessionData(sessionId, data);
-
-		return updatedTodo;
-	}
-
-	deleteTodo(sessionId: string, todoId: string): boolean {
-		const data = this.getSessionData(sessionId);
-		const todoIndex = data.todos.findIndex(t => t.id === todoId);
-
-		if (todoIndex === -1) {
-			return false;
-		}
-
-		data.todos.splice(todoIndex, 1);
-		this.setSessionData(sessionId, data);
-
-		return true;
-	}
-
-	reorderTodos(sessionId: string, todoIds: string[]): void {
-		const data = this.getSessionData(sessionId);
-		const todoMap = new Map(data.todos.map(t => [t.id, t]));
-
-		// Reorder todos based on the provided order
-		const reorderedTodos: ITodo[] = [];
-		todoIds.forEach((id, index) => {
-			const todo = todoMap.get(id);
-			if (todo) {
-				reorderedTodos.push({ ...todo, order: index + 1 });
-				todoMap.delete(id);
-			}
-		});
-
-		// Add any remaining todos that weren't in the reorder list
-		todoMap.forEach(todo => {
-			reorderedTodos.push({ ...todo, order: reorderedTodos.length + 1 });
-		});
-
-		data.todos = reorderedTodos;
-		this.setSessionData(sessionId, data);
-	}
 }
 
 // Todo tool service implementation
@@ -206,7 +119,7 @@ export const TodoToolData: IToolData = {
 	canBeReferencedInPrompt: true,
 	icon: ThemeIcon.fromId(Codicon.checklist.id),
 	displayName: 'Todo List',
-	modelDescription: 'A tool for managing markdown todo lists. Can create, update, and read todos using markdown task list format. Use -[x] for completed tasks, -[~] for in-progress tasks, and -[ ] for not started tasks. Create operation adds new todos from markdown. Update operation changes status of existing todos by matching content. Todos are stored per chat session.',
+	modelDescription: 'A tool for managing markdown todo lists. Can set and read todos using markdown task list format. Use -[x] for completed tasks, -[~] for in-progress tasks, and -[ ] for not started tasks. Set operation replaces all todos with the provided markdown content. Read operation returns all todos. Todos are stored per chat session.',
 	userDescription: 'Manage markdown todo lists with status tracking and markdown task list formatting',
 	source: ToolDataSource.Internal,
 	inputSchema: {
@@ -214,12 +127,12 @@ export const TodoToolData: IToolData = {
 		properties: {
 			operation: {
 				type: 'string',
-				enum: ['create', 'update', 'read'],
+				enum: ['set', 'read'],
 				description: 'The operation to perform on todos'
 			},
 			content: {
 				type: 'string',
-				description: 'Markdown task list content. Format: "- [x] Completed task\\n- [~] In progress task\\n- [ ] Not started task". Use -[x] for completion, -[~] for in progress, -[ ] for not started. For create: list new tasks. For update: list tasks with their current status.'
+				description: 'Markdown task list content. Format: "- [x] Completed task\\n- [~] In progress task\\n- [ ] Not started task". Use -[x] for completion, -[~] for in progress, -[ ] for not started. For set: replaces all existing todos with the provided list.'
 			}
 		},
 		required: ['operation']
@@ -254,29 +167,16 @@ export class TodoTool implements IToolImpl {
 			const storage = this.todoToolService.getTodoStorage();
 
 			switch (params.operation) {
-				case 'create': {
-					const createResult = this.handleCreateTodo(storage, sessionId, params);
+				case 'set': {
+					const setResult = this.handleSetTodos(storage, sessionId, params);
 					return {
 						content: [{
 							kind: 'text',
-							value: createResult
+							value: setResult
 						}],
 						toolResultDetails: {
 							input: JSON.stringify(params),
-							output: [{ isText: true, value: createResult }]
-						}
-					};
-				}
-				case 'update': {
-					const updateResult = this.handleUpdateTodo(storage, sessionId, params);
-					return {
-						content: [{
-							kind: 'text',
-							value: updateResult
-						}],
-						toolResultDetails: {
-							input: JSON.stringify(params),
-							output: [{ isText: true, value: updateResult }]
+							output: [{ isText: true, value: setResult }]
 						}
 					};
 				}
@@ -335,24 +235,21 @@ export class TodoTool implements IToolImpl {
 			const todos = storage.getTodos(context.chatSessionId);
 
 			switch (params.operation) {
-				case 'create': {
+				case 'set': {
 					if (params.content) {
 						const parsedTodos = this.parseMarkdownTaskList(params.content);
 						if (parsedTodos.length > 0) {
-							message = `Creating ${parsedTodos.length} todo(s) from markdown task list`;
-							// Show current todos plus preview of the new todos being created
-							const previewTodos = [
-								...todos,
-								...parsedTodos.map((todo, index) => ({
-									id: `preview-new-${index}`,
-									content: todo.content,
-									status: todo.status
-								}))
-							];
+							message = `Setting ${parsedTodos.length} todo(s) from markdown task list`;
+							// Show preview of the new todos being set
+							const previewTodos = parsedTodos.map((todo, index) => ({
+								id: `preview-${index}`,
+								content: todo.content,
+								status: todo.status
+							}));
 							toolSpecificData = {
 								kind: 'todo',
 								todoData: {
-									title: `Todo List (Creating ${parsedTodos.length} new todo(s))`,
+									title: `Todo List (Setting ${parsedTodos.length} todo(s))`,
 									todos: previewTodos.map(todo => ({
 										id: todo.id,
 										content: todo.content,
@@ -361,9 +258,9 @@ export class TodoTool implements IToolImpl {
 								}
 							};
 						} else {
-							message = `Creating todo: "${params.content}"`;
+							message = `Setting todo: "${params.content}"`;
 							// Fallback for plain text content
-							const previewTodos = [...todos, {
+							const previewTodos = [{
 								id: 'preview-new',
 								content: params.content || 'New todo',
 								status: TodoStatus.NotStarted
@@ -371,7 +268,7 @@ export class TodoTool implements IToolImpl {
 							toolSpecificData = {
 								kind: 'todo',
 								todoData: {
-									title: 'Todo List (Creating new todo)',
+									title: 'Todo List (Setting todo)',
 									todos: previewTodos.map(todo => ({
 										id: todo.id,
 										content: todo.content,
@@ -381,59 +278,11 @@ export class TodoTool implements IToolImpl {
 							};
 						}
 					} else {
-						message = 'Creating new todo';
+						message = 'Setting todos';
 						toolSpecificData = {
 							kind: 'todo',
 							todoData: {
-								title: 'Todo List (Creating new todo)',
-								todos: todos.map(todo => ({
-									id: todo.id,
-									content: todo.content,
-									status: todo.status
-								}))
-							}
-						};
-					}
-					break;
-				}
-				case 'update': {
-					message = 'Updating todos from markdown task list';
-					// Show todos with the updates applied for preview
-					if (params.content) {
-						const parsedTodos = this.parseMarkdownTaskList(params.content);
-						const todoMap = new Map(todos.map(t => [t.content, t]));
-						const updatedTodos = [...todos];
-
-						// Update existing todos based on content match
-						for (const parsedTodo of parsedTodos) {
-							const existingTodo = todoMap.get(parsedTodo.content);
-							if (existingTodo) {
-								const todoIndex = updatedTodos.findIndex(t => t.id === existingTodo.id);
-								if (todoIndex !== -1) {
-									updatedTodos[todoIndex] = {
-										...updatedTodos[todoIndex],
-										status: parsedTodo.status
-									};
-								}
-							}
-						}
-
-						toolSpecificData = {
-							kind: 'todo',
-							todoData: {
-								title: 'Todo List (Updating todos)',
-								todos: updatedTodos.map(todo => ({
-									id: todo.id,
-									content: todo.content,
-									status: todo.status
-								}))
-							}
-						};
-					} else {
-						toolSpecificData = {
-							kind: 'todo',
-							todoData: {
-								title: 'Todo List (Updating todos)',
+								title: 'Todo List (Setting todos)',
 								todos: todos.map(todo => ({
 									id: todo.id,
 									content: todo.content,
@@ -477,11 +326,8 @@ export class TodoTool implements IToolImpl {
 		} else {
 			// Fallback when no session ID is available
 			switch (params.operation) {
-				case 'create':
-					message = `Creating todo: "${params.content}"`;
-					break;
-				case 'update':
-					message = 'Updating todos from markdown task list';
+				case 'set':
+					message = `Setting todos: "${params.content}"`;
 					break;
 				case 'read':
 					message = 'Reading all todos';
@@ -498,9 +344,11 @@ export class TodoTool implements IToolImpl {
 		};
 	}
 
-	private handleCreateTodo(storage: ITodoStorage, sessionId: string, params: CreateTodoOperation): string {
+	private handleSetTodos(storage: ITodoStorage, sessionId: string, params: SetTodosOperation): string {
 		if (!params.content?.trim()) {
-			throw new Error('Markdown task list content is required');
+			// If no content provided, clear all todos
+			storage.setTodos(sessionId, []);
+			return '# Todo List\n\nAll todos cleared.';
 		}
 
 		const parsedTodos = this.parseMarkdownTaskList(params.content.trim());
@@ -508,49 +356,20 @@ export class TodoTool implements IToolImpl {
 			throw new Error('No valid markdown tasks found. Use format: "- [ ] Task 1\\n- [x] Task 2"');
 		}
 
-		const createdTodos: ITodo[] = [];
-		for (const parsedTodo of parsedTodos) {
-			const todo = storage.addTodo(sessionId, {
-				content: parsedTodo.content,
-				status: parsedTodo.status
-			});
-			createdTodos.push(todo);
-		}
+		const now = Date.now();
+		const todos: ITodo[] = parsedTodos.map((parsedTodo, index) => ({
+			id: `todo-${Date.now()}-${index}`,
+			content: parsedTodo.content,
+			status: parsedTodo.status,
+			order: index + 1,
+			createdAt: now,
+			updatedAt: now
+		}));
 
-		return this.formatTodosAsMarkdown(createdTodos, `${createdTodos.length} Todo(s) Created`);
-	}
+		// Replace all todos with the new list
+		storage.setTodos(sessionId, todos);
 
-	private handleUpdateTodo(storage: ITodoStorage, sessionId: string, params: UpdateTodoOperation): string {
-		if (!params.content?.trim()) {
-			throw new Error('Markdown task list content is required for update operation');
-		}
-
-		const parsedTodos = this.parseMarkdownTaskList(params.content.trim());
-		if (parsedTodos.length === 0) {
-			throw new Error('No valid markdown tasks found. Use format: "- [ ] Task 1\\n- [x] Task 2"');
-		}
-
-		const existingTodos = storage.getTodos(sessionId);
-		const updatedTodos: ITodo[] = [];
-
-		// Update existing todos based on content match
-		for (const parsedTodo of parsedTodos) {
-			const existingTodo = existingTodos.find(t => t.content === parsedTodo.content);
-			if (existingTodo) {
-				const updatedTodo = storage.updateTodo(sessionId, existingTodo.id, {
-					status: parsedTodo.status
-				});
-				if (updatedTodo) {
-					updatedTodos.push(updatedTodo);
-				}
-			}
-		}
-
-		if (updatedTodos.length === 0) {
-			throw new Error('No matching todos found to update. Make sure the task content matches existing todos.');
-		}
-
-		return this.formatTodosAsMarkdown(updatedTodos, `${updatedTodos.length} Todo(s) Updated`);
+		return this.formatTodosAsMarkdown(todos, `${todos.length} Todo(s) Set`);
 	}
 
 	private handleReadTodos(storage: ITodoStorage, sessionId: string): string {

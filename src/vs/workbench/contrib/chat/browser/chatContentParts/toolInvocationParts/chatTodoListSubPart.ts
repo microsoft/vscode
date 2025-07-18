@@ -125,7 +125,7 @@ export class ChatTodoListSubPart extends BaseChatToolInvocationSubPart {
 			case 'completed':
 				return 'codicon-check';
 			case 'in-progress':
-				return 'codicon-sync';
+				return 'codicon-record';
 			case 'not-started':
 			default:
 				return 'codicon-circle-large-outline';
@@ -140,7 +140,7 @@ export class ChatTodoListSubPart extends BaseChatToolInvocationSubPart {
 				return 'var(--vscode-charts-blue)';
 			case 'not-started':
 			default:
-				return 'var(--vscode-charts-blue)';
+				return 'var(--vscode-foreground)';
 		}
 	}
 }
