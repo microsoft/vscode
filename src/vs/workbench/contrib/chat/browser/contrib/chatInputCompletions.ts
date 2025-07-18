@@ -868,15 +868,16 @@ class BuiltinDynamicCompletions extends Disposable {
 
 	private async addFileAndFolderEntries(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
 
-		const makeCompletionItem = (resource: URI, kind: FileKind, description?: string): CompletionItem => {
-
+		const makeCompletionItem = (resource: URI, kind: FileKind, description?: string, boostPriority?: boolean): CompletionItem => {
+			console.log('makeCompletionItem', resource);
 			const basename = this.labelService.getUriBasenameLabel(resource);
 			const text = `${chatVariableLeader}file:${basename}`;
 			const uriLabel = this.labelService.getUriLabel(resource, { relative: true });
 			const labelDescription = description
 				? localize('fileEntryDescription', '{0} ({1})', uriLabel, description)
 				: uriLabel;
-			const sortText = ' '; // keep files always at the top
+			// keep files above other completions
+			const sortText = boostPriority ? ' ' : '!';
 
 			return {
 				label: { label: basename, description: labelDescription },
@@ -905,22 +906,9 @@ class BuiltinDynamicCompletions extends Disposable {
 		const seen = new ResourceSet();
 		const len = result.suggestions.length;
 
-		// RELATED FILES
-		if (widget.input.currentModeKind !== ChatModeKind.Ask && widget.viewModel && widget.viewModel.model.editingSession) {
-			const relatedFiles = (await raceTimeout(this._chatEditingService.getRelatedFiles(widget.viewModel.sessionId, widget.getInput(), widget.attachmentModel.fileAttachments, token), 200)) ?? [];
-			for (const relatedFileGroup of relatedFiles) {
-				for (const relatedFile of relatedFileGroup.files) {
-					if (!seen.has(relatedFile.uri)) {
-						seen.add(relatedFile.uri);
-						result.suggestions.push(makeCompletionItem(relatedFile.uri, FileKind.FILE, relatedFile.description));
-					}
-				}
-			}
-		}
-
 		// HISTORY
 		// always take the last N items
-		for (const item of this.historyService.getHistory()) {
+		for (const [i, item] of this.historyService.getHistory().entries()) {
 			if (!item.resource || seen.has(item.resource)) {
 				// ignore editors without a resource
 				continue;
@@ -935,9 +923,22 @@ class BuiltinDynamicCompletions extends Disposable {
 			}
 
 			seen.add(item.resource);
-			const newLen = result.suggestions.push(makeCompletionItem(item.resource, FileKind.FILE));
+			const newLen = result.suggestions.push(makeCompletionItem(item.resource, FileKind.FILE, i === 0 ? localize('activeFile', 'Active file') : undefined, i === 0));
 			if (newLen - len >= 5) {
 				break;
+			}
+		}
+
+		// RELATED FILES
+		if (widget.input.currentModeKind !== ChatModeKind.Ask && widget.viewModel && widget.viewModel.model.editingSession) {
+			const relatedFiles = (await raceTimeout(this._chatEditingService.getRelatedFiles(widget.viewModel.sessionId, widget.getInput(), widget.attachmentModel.fileAttachments, token), 200)) ?? [];
+			for (const relatedFileGroup of relatedFiles) {
+				for (const relatedFile of relatedFileGroup.files) {
+					if (!seen.has(relatedFile.uri)) {
+						seen.add(relatedFile.uri);
+						result.suggestions.push(makeCompletionItem(relatedFile.uri, FileKind.FILE, relatedFile.description));
+					}
+				}
 			}
 		}
 

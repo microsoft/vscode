@@ -7,13 +7,10 @@ import type { CancellationToken } from '../../../../../../base/common/cancellati
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { TerminalInstance } from '../../../../terminal/browser/terminalInstance.js';
-import { getSanitizedXtermOutput, trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy } from './executeStrategy.js';
+import { trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy } from './executeStrategy.js';
 
 /**
  * This strategy is used when shell integration is enabled, but rich command detection was not
@@ -43,8 +40,6 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		private readonly _commandDetection: ICommandDetectionCapability,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 	}
@@ -74,21 +69,19 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 				}),
 			]);
 
-			const xtermCtor = await TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService);
-			if (token.isCancellationRequested) {
-				throw new CancellationError();
+			// Ensure xterm is available
+			this._logService.debug('RunInTerminalTool#None: Waiting for xterm');
+			const xterm = await this._instance.xtermReadyPromise;
+			if (!xterm) {
+				throw new Error('Xterm is not available');
 			}
-
-			const xterm = store.add(new xtermCtor({ allowProposedApi: true }));
-			const onData = this._instance.onData;
-			store.add(onData(e => xterm.write(e)));
 
 			// Wait for the terminal to idle before executing the command
 			this._logService.debug('RunInTerminalTool#Basic: Waiting for idle');
-			await waitForIdle(onData, 1000);
+			await waitForIdle(this._instance.onData, 1000);
 
-			// The TerminalShellExecution.read is only reliable when rich command detection
-			// is available
+			// Execute the command
+			const startMarker = store.add(xterm.raw.registerMarker());
 			this._logService.debug(`RunInTerminalTool#Basic: Executing command line \`${commandLine}\``);
 			this._instance.runCommand(commandLine, true);
 
@@ -98,10 +91,14 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 
 			// Wait for the terminal to idle
 			this._logService.debug('RunInTerminalTool#Basic: Waiting for idle');
-			await waitForIdle(onData, 1000);
+			await waitForIdle(this._instance.onData, 1000);
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			const endMarker = store.add(xterm.raw.registerMarker());
 
 			// Assemble final result
-			let result = getSanitizedXtermOutput(xterm);
+			let result = xterm.getContentsAsText(startMarker, endMarker);
 			if (doneData && typeof doneData.exitCode === 'number' && doneData.exitCode > 0) {
 				result += `\n\nCommand exited with code ${doneData.exitCode}`;
 			}

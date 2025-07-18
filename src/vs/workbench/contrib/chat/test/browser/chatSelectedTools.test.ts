@@ -49,7 +49,7 @@ suite('ChatSelectedTools', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const mcpSource: ToolDataSource = { type: 'mcp', label: 'MCP', collectionId: '', definitionId: '' };
+	const mcpSource: ToolDataSource = { type: 'mcp', label: 'MCP', collectionId: '', definitionId: '', instructions: '', serverLabel: '' };
 	test('Can\'t enable/disable MCP tools directly #18161', () => {
 
 		return runWithFakedTimers({}, async () => {

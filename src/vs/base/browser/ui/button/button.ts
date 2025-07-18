@@ -6,7 +6,7 @@
 import { IContextMenuProvider } from '../../contextmenu.js';
 import { addDisposableListener, EventHelper, EventType, IFocusTracker, isActiveElement, reset, trackFocus, $ } from '../../dom.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
-import { renderMarkdown, renderStringAsPlaintext } from '../../markdownRenderer.js';
+import { renderMarkdown, renderAsPlaintext } from '../../markdownRenderer.js';
 import { Gesture, EventType as TouchEventType } from '../../touch.js';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
@@ -24,7 +24,7 @@ import { localize } from '../../../../nls.js';
 import type { IManagedHover } from '../hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 import { IActionProvider } from '../dropdown/dropdown.js';
-import { safeInnerHtml, SanitizeOptions } from '../../domSanitize.js';
+import { safeSetInnerHtml, DomSanitizerConfig } from '../../domSanitize.js';
 
 export interface IButtonOptions extends Partial<IButtonStyles> {
 	readonly title?: boolean | string;
@@ -79,7 +79,7 @@ export interface IButtonWithDescription extends IButton {
 }
 
 // Only allow a very limited set of inline html tags
-const buttonSanitizerOptions = Object.freeze<SanitizeOptions>({
+const buttonSanitizerConfig = Object.freeze<DomSanitizerConfig>({
 	allowedTags: {
 		override: ['b', 'i', 'u', 'code', 'span'],
 	},
@@ -253,7 +253,7 @@ export class Button extends Disposable implements IButton {
 			// Don't include outer `<p>`
 			const root = rendered.element.querySelector('p')?.innerHTML;
 			if (root) {
-				safeInnerHtml(labelElement, root, buttonSanitizerOptions);
+				safeSetInnerHtml(labelElement, root, buttonSanitizerConfig);
 			} else {
 				reset(labelElement);
 			}
@@ -269,7 +269,7 @@ export class Button extends Disposable implements IButton {
 		if (typeof this.options.title === 'string') {
 			title = this.options.title;
 		} else if (this.options.title) {
-			title = renderStringAsPlaintext(value);
+			title = renderAsPlaintext(value);
 		}
 
 		this.setTitle(title);
@@ -393,7 +393,7 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 
 		this.primaryButton = this._register(new Button(this.element, options));
 		this._register(this.primaryButton.onDidClick(e => this._onDidClick.fire(e)));
-		this.action = this._register(new Action('primaryAction', renderStringAsPlaintext(this.primaryButton.label), undefined, true, async () => this._onDidClick.fire(undefined)));
+		this.action = this._register(new Action('primaryAction', renderAsPlaintext(this.primaryButton.label), undefined, true, async () => this._onDidClick.fire(undefined)));
 
 		this.separatorContainer = document.createElement('div');
 		this.separatorContainer.classList.add('monaco-button-dropdown-separator');
@@ -654,7 +654,7 @@ export class ButtonWithIcon extends Button {
 
 			const root = rendered.element.querySelector('p')?.innerHTML;
 			if (root) {
-				safeInnerHtml(this._mdlabelElement, root, buttonSanitizerOptions);
+				safeSetInnerHtml(this._mdlabelElement, root, buttonSanitizerConfig);
 			} else {
 				reset(this._mdlabelElement);
 			}
@@ -670,7 +670,7 @@ export class ButtonWithIcon extends Button {
 		if (typeof this.options.title === 'string') {
 			title = this.options.title;
 		} else if (this.options.title) {
-			title = renderStringAsPlaintext(value);
+			title = renderAsPlaintext(value);
 		}
 
 		this.setTitle(title);

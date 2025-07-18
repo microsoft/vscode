@@ -10,7 +10,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { AccessibilityProgressSignalScheduler } from '../../../../platform/accessibilitySignal/browser/progressAccessibilitySignalScheduler.js';
 import { IChatAccessibilityService } from './chat.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
-import { renderStringAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { AccessibilityVoiceSettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
@@ -46,7 +46,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 			return;
 		}
 		const errorDetails = isPanelChat && response.errorDetails ? ` ${response.errorDetails.message}` : '';
-		const plainTextResponse = renderStringAsPlaintext(new MarkdownString(responseContent));
+		const plainTextResponse = renderAsPlaintext(new MarkdownString(responseContent));
 		if (!isVoiceInput || this._configurationService.getValue(AccessibilityVoiceSettingId.AutoSynthesize) !== 'on') {
 			status(plainTextResponse + errorDetails);
 		}
