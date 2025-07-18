@@ -66,7 +66,7 @@ import './media/chatAgentHover.css';
 import './media/chatViewWelcome.css';
 import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
-import { IChatRequestVariableEntry, ChatRequestVariableSet as ChatRequestVariableSet, isPromptFileVariableEntry, toPromptFileVariableEntry, PromptFileVariableKind } from '../common/chatVariableEntries.js';
+import { IChatRequestVariableEntry, ChatRequestVariableSet as ChatRequestVariableSet, isPromptFileVariableEntry, toPromptFileVariableEntry, PromptFileVariableKind, isPromptTextVariableEntry } from '../common/chatVariableEntries.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
@@ -1071,7 +1071,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				if (request.id === currentElement.id) {
 					request.shouldBeBlocked = false; // unblocking just this request.
 					if (request.attachedContext) {
-						currentContext.push(...request.attachedContext);
+						const context = request.attachedContext.filter(entry => !(isPromptFileVariableEntry(entry) || isPromptTextVariableEntry(entry)) || !entry.automaticallyAdded);
+						currentContext.push(...context);
 					}
 				}
 			}
