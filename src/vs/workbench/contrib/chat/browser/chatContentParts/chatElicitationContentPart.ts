@@ -25,10 +25,10 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
-
+		const { acceptButtonLabel, rejectButtonLabel } = elicitation;
 		const buttons = [
-			{ label: localize('accept', "Respond"), data: true },
-			{ label: localize('dismiss', "Cancel"), data: false, isSecondary: true },
+			{ label: acceptButtonLabel ?? localize('accept', "Respond"), data: true },
+			{ label: rejectButtonLabel ?? localize('dismiss', "Cancel"), data: false, isSecondary: true },
 		];
 		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, elicitation.title, elicitation.originMessage, this.getMessageToRender(elicitation), buttons, context.container));
 		confirmationWidget.setShowButtons(elicitation.state === 'pending');

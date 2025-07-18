@@ -234,6 +234,8 @@ export interface IChatElicitationRequest {
 	originMessage?: string | IMarkdownString;
 	state: 'pending' | 'accepted' | 'rejected';
 	acceptedResult?: Record<string, unknown>;
+	acceptButtonLabel?: string;
+	rejectButtonLabel?: string;
 	accept(): Promise<void>;
 	reject(): Promise<void>;
 }
