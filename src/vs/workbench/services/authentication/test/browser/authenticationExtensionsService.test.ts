@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { scopesMatch } from '../../../../../base/common/oauth.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AuthenticationExtensionsService } from '../../browser/authenticationExtensionsService.js';
 import { AuthenticationService } from '../../browser/authenticationService.js';
@@ -18,21 +19,6 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { TestQuickInputService } from '../../../../../platform/quickinput/test/common/testQuickInputService.js';
 import { IActivity, IActivityService } from '../../../activity/common/activity.js';
-
-/**
- * Checks if two scope lists are equivalent, regardless of order
- */
-function scopesMatch(scopes1: string[], scopes2: string[]): boolean {
-	if (scopes1.length !== scopes2.length) {
-		return false;
-	}
-	
-	// Sort both arrays for comparison to handle different orderings
-	const sortedScopes1 = [...scopes1].sort();
-	const sortedScopes2 = [...scopes2].sort();
-	
-	return sortedScopes1.every((scope, index) => scope === sortedScopes2[index]);
-}
 
 class TestActivityService implements IActivityService {
 	_serviceBrand: undefined;
@@ -118,38 +104,6 @@ suite('AuthenticationExtensionsService', () => {
 		// Dispose services after each test
 		authenticationExtensionsService.dispose();
 		authenticationService.dispose();
-	});
-
-	suite('scopesMatch helper', () => {
-		test('should return true for identical scopes', () => {
-			const scopes1 = ['scope1', 'scope2'];
-			const scopes2 = ['scope1', 'scope2'];
-			assert.equal(scopesMatch(scopes1, scopes2), true);
-		});
-
-		test('should return true for scopes in different order', () => {
-			const scopes1 = ['scope1', 'scope2'];
-			const scopes2 = ['scope2', 'scope1'];
-			assert.equal(scopesMatch(scopes1, scopes2), true);
-		});
-
-		test('should return false for different scopes', () => {
-			const scopes1 = ['scope1', 'scope2'];
-			const scopes2 = ['scope1', 'scope3'];
-			assert.equal(scopesMatch(scopes1, scopes2), false);
-		});
-
-		test('should return false for different length arrays', () => {
-			const scopes1 = ['scope1', 'scope2'];
-			const scopes2 = ['scope1'];
-			assert.equal(scopesMatch(scopes1, scopes2), false);
-		});
-
-		test('should handle complex Microsoft scopes', () => {
-			const scopes1 = ['6f1cc985-85e8-487e-b0dd-aa633302a731/.default', 'VSCODE_TENANT:organizations'];
-			const scopes2 = ['VSCODE_TENANT:organizations', '6f1cc985-85e8-487e-b0dd-aa633302a731/.default'];
-			assert.equal(scopesMatch(scopes1, scopes2), true);
-		});
 	});
 
 	test('badge is removed when session is created with matching scopes', async () => {

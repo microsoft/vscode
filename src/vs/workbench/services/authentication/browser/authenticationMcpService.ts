@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, dispose, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { scopesMatch } from '../../../../base/common/oauth.js';
 import * as nls from '../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
@@ -22,21 +23,6 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 
 // OAuth2 spec prohibits space in a scope, so use that to join them.
 const SCOPESLIST_SEPARATOR = ' ';
-
-/**
- * Checks if two scope lists are equivalent, regardless of order
- */
-function scopesMatch(scopes1: string[], scopes2: string[]): boolean {
-	if (scopes1.length !== scopes2.length) {
-		return false;
-	}
-	
-	// Sort both arrays for comparison to handle different orderings
-	const sortedScopes1 = [...scopes1].sort();
-	const sortedScopes2 = [...scopes2].sort();
-	
-	return sortedScopes1.every((scope, index) => scope === sortedScopes2[index]);
-}
 
 interface SessionRequest {
 	disposables: IDisposable[];
