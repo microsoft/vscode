@@ -3389,38 +3389,44 @@ export class CommandCenter {
 	@command('git.deleteWorktree', { repository: true })
 	async deleteWorktree(repository: Repository): Promise<void> {
 		const worktreePath = repository.root;
+		const repo = this.findRepositoryForWorktree(repository);
 
-		// Find the main repository (not the worktree) to perform deletion
-		const mainRepository = this.model.repositories.find(repo =>
-			repo.root !== worktreePath &&
-			repo.worktrees.some(w => w.path === worktreePath)
-		);
+		if (!repo) {
+			return;
+		}
 
-		if (mainRepository) {
-			try {
-				await mainRepository.deleteWorktree(worktreePath);
-			} catch (err) {
-				if (err.gitErrorCode === GitErrorCodes.WorktreeContainsChanges) {
-					try {
-						const forceDelete = l10n.t('Force Delete');
-						const message = l10n.t('The worktree contains modified or untracked files. Do you want to force delete?');
+		repository.dispose();
 
-						const choice = await window.showWarningMessage(message, { modal: true }, forceDelete);
-						if (choice === forceDelete) {
-							await mainRepository.deleteWorktree(worktreePath, { force: true });
-						}
-					} catch (err) {
-						if (err.gitErrorCode === GitErrorCodes.PermissionDenied) {
-							return;
-						}
-						throw err;
-					}
+		try {
+			await repo.deleteWorktree(worktreePath);
+		} catch (err) {
+			if (err.gitErrorCode === GitErrorCodes.WorktreeContainsChanges) {
+				const forceDelete = l10n.t('Force Delete');
+				const message = l10n.t('The worktree contains modified or untracked files. Do you want to force delete?');
+				const choice = await window.showWarningMessage(message, { modal: true }, forceDelete);
+				if (choice === forceDelete) {
+					await repo.deleteWorktree(worktreePath, { force: true });
+					return;
 				} else {
-					throw err;
+					this.model.openRepository(worktreePath);
+					return;
 				}
 			}
 		}
+		this.model.openRepository(repo.root);
 		return;
+	}
+
+	private findRepositoryForWorktree(worktreeRepository: Repository): Repository | undefined {
+		const allRepositories = this.model.repositories;
+
+		// Find a repository that's not the intended to be deleted worktree
+		for (const repo of allRepositories) {
+			if (repo !== worktreeRepository) {
+				return repo;
+			}
+		}
+		return undefined;
 	}
 
 	@command('git.graph.deleteTag', { repository: true })
