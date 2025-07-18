@@ -356,6 +356,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				throw e;
 			} finally {
+				console.log('outputlinecount, ', outputAndIdle?.output ? count(outputAndIdle.output, '\n') : 0);
+				console.log('pollDurationMs, ', outputAndIdle?.pollDurationMs);
 				const timingExecuteMs = Date.now() - timingStart;
 				this._sendTelemetry(toolTerminal.instance, {
 					didUserEditCommand,
@@ -506,10 +508,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 			const isLikelyFinished = await this._assessOutputForFinishedState(buffer, token);
 			if (isLikelyFinished && idleCount >= 2) {
-				return { idle: true, output: buffer, pollDurationMs: Date.now() - pollStartTime };
+				return { idle: true, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? 20000 : 0) };
 			}
 		}
-		return { idle: idleCount >= 2, output: buffer, pollDurationMs: Date.now() - pollStartTime };
+		return { idle: idleCount >= 2, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? 20000 : 0) };
 	}
 
 	private async _assessOutputForFinishedState(buffer: string, token: CancellationToken): Promise<boolean> {
