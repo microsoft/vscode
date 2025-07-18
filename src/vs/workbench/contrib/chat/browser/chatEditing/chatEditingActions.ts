@@ -321,7 +321,6 @@ export class ChatShowFileChangesSummaryAction extends EditingSessionAction {
 	}
 
 	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): Promise<void> {
-		console.log('ChatShowFileChangesSummaryAction.runEditingSessionAction', args);
 		const arg0 = args[0][0];
 		if (!arg0 || !('originalUri' in arg0) || !('modifiedUri' in arg0) || !URI.isUri(arg0.originalUri) || !URI.isUri(arg0.modifiedUri)) {
 			return;

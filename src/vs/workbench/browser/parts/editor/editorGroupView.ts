@@ -1223,7 +1223,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Update model and make sure to continue to use the editor we get from
 		// the model. It is possible that the editor was already opened and we
 		// want to ensure that we use the existing instance in that case.
-		console.log('editor : ', editor);
 		const { editor: openedEditor, isNew } = this.model.openEditor(editor, openEditorOptions);
 
 		// Conditionally lock the group
@@ -1239,7 +1238,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Show editor
-		console.log('openedEditor : ', openedEditor);
 		const showEditorResult = this.doShowEditor(openedEditor, { active: !!openEditorOptions.active, isNew }, options, internalOptions);
 
 		// Finally make sure the group is active or restored as instructed

@@ -354,8 +354,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			}),
 			false
 		);
-		console.log('showForTurn');
-		console.log('input : ', input);
 		this._editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE });
 	}
 
@@ -373,10 +371,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			multiDiffSource: getMultiDiffSourceUri(this, previousChanges),
 			label: localize('multiDiffEditorInput.name', "Suggested Edits")
 		}, this._instantiationService);
-		console.log('input : ', input);
 
 		this._editorPane = await this._editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE }) as MultiDiffEditor | undefined;
-		console.log('editor pane : ', this._editorPane);
 	}
 
 	private _stopPromise: Promise<void> | undefined;

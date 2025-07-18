@@ -1541,6 +1541,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-file-changes-summary .insertions {
 	color: green;
+	font-weight: bold;
 }
 
 .interactive-session .chat-file-changes-summary .deletions {

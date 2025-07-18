@@ -41,7 +41,6 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 
 		console.log('ChatChangesSummaryContentPart constructor');
 		console.log('this.changes', content.changes);
-		console.log('this.changes.length', content.changes.length);
 
 		const buttonElement = $('.chat-used-context-label', undefined);
 		buttonElement.style.float = 'left';
@@ -154,7 +153,6 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 			};
 			items.push(modifiedChange);
 		}
-		console.log('items', items);
 		return items;
 	}
 
