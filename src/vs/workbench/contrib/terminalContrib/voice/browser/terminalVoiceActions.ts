@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize2 } from '../../../../nls.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { HasSpeechProvider } from '../../speech/common/speechService.js';
-import { TerminalCommandId } from '../common/terminal.js';
-import { registerActiveInstanceAction, sharedWhenClause } from './terminalActions.js';
+import { localize2 } from '../../../../../nls.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { HasSpeechProvider } from '../../../speech/common/speechService.js';
+import { registerActiveInstanceAction, sharedWhenClause } from '../../../terminal/browser/terminalActions.js';
+import { TerminalCommandId } from '../../../terminal/common/terminal.js';
 import { TerminalVoiceSession } from './terminalVoice.js';
 
 export function registerTerminalVoiceActions() {

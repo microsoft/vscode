@@ -46,7 +46,6 @@ import { TerminalProfileService } from './terminalProfileService.js';
 import { TerminalService } from './terminalService.js';
 import { TerminalTelemetryContribution } from './terminalTelemetry.js';
 import { TerminalViewPane } from './terminalView.js';
-import { registerTerminalVoiceActions } from './terminalVoiceActions.js';
 
 // Register services
 registerSingleton(ITerminalLogService, TerminalLogService, InstantiationType.Delayed);
@@ -130,8 +129,6 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 }], VIEW_CONTAINER);
 
 registerTerminalActions();
-
-registerTerminalVoiceActions();
 
 setupTerminalCommands();
 

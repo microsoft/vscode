@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { isNumber } from '../../../../base/common/types.js';
-import { localize } from '../../../../nls.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { SpeechTimeoutDefault } from '../../accessibility/browser/accessibilityConfiguration.js';
-import { ISpeechService, AccessibilityVoiceSettingId, ISpeechToTextEvent, SpeechToTextStatus } from '../../speech/common/speechService.js';
-import { ITerminalService } from './terminal.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { isNumber } from '../../../../../base/common/types.js';
+import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { SpeechTimeoutDefault } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { ISpeechService, AccessibilityVoiceSettingId, ISpeechToTextEvent, SpeechToTextStatus } from '../../../speech/common/speechService.js';
 import type { IMarker, IDecoration } from '@xterm/xterm';
-import { alert } from '../../../../base/browser/ui/aria/aria.js';
+import { alert } from '../../../../../base/browser/ui/aria/aria.js';
+import { ITerminalService } from '../../../terminal/browser/terminal.js';
 
 
 const symbolMap: { [key: string]: string } = {
