@@ -987,7 +987,7 @@ export class ProblemPatternParser extends Parser {
 			}
 			result.push(pattern);
 		}
-		if (result.length === 0) {
+		if (!result || result.length === 0) {
 			this.error(localize('ProblemPatternParser.problemPattern.emptyPattern', 'The problem pattern is invalid. It must contain at least one pattern.'));
 			return null;
 		}
@@ -1046,7 +1046,7 @@ export class ProblemPatternParser extends Parser {
 	}
 
 	private validateProblemPattern(values: IProblemPattern[]): boolean {
-		if (values.length === 0) {
+		if (!values || values.length === 0) {
 			this.error(localize('ProblemPatternParser.problemPattern.emptyPattern', 'The problem pattern is invalid. It must contain at least one pattern.'));
 			return false;
 		}
