@@ -173,14 +173,14 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 		// Check if mode exists in builtin modes (by id or kind)
 		const isBuiltinMode = modes.builtin.some(mode => mode.id === modeValue || mode.kind === modeValue);
 
-		// Check if mode exists in custom modes (by id or name)
-		const isCustomMode = modes.custom.some(mode => mode.id === modeValue || mode.name === modeValue);
+		// Check if mode exists in custom modes (by id)
+		const isCustomMode = modes.custom.some(mode => mode.id === modeValue);
 
 		if (!isBuiltinMode && !isCustomMode) {
-			// Use friendly names for display
+			// Use mode IDs for display (for custom modes)
 			const availableModes = [
 				...modes.builtin.map(mode => mode.id),
-				...modes.custom.map(mode => mode.name) // Use name instead of id for custom modes
+				...modes.custom.map(mode => mode.id)
 			];
 
 			markers.push({

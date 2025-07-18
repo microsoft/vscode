@@ -265,7 +265,7 @@ export class CustomChatMode implements IChatMode {
 	constructor(
 		customChatMode: ICustomChatMode
 	) {
-		this.id = customChatMode.uri.toString();
+		this.id = customChatMode.name;
 		this.name = customChatMode.name;
 		this._descriptionObservable = observableValue('description', customChatMode.description);
 		this._customToolsObservable = observableValue('customTools', customChatMode.tools);

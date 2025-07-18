@@ -193,7 +193,7 @@ export class PromptHeaderHoverProvider extends Disposable implements HoverProvid
 			lines.push(localize('promptHeader.prompt.mode.custom', '**Custom modes:**'));
 			for (const mode of modes.custom) {
 				const description = mode.description.get();
-				lines.push(`- \`${mode.name}\`: ${description || localize('promptHeader.prompt.mode.customNoDesc', 'Custom chat mode')}`);
+				lines.push(`- \`${mode.id}\`: ${description || localize('promptHeader.prompt.mode.customNoDesc', 'Custom chat mode')}`);
 			}
 		}
 
