@@ -17,7 +17,7 @@ suite('Markdown Katex Support Test', () => {
 	async function renderMarkdownWithKatex(str: string) {
 		const katex = await MarkedKatexSupport.loadExtension(getWindow(document), {});
 		const rendered = store.add(renderMarkdown(new MarkdownString(str), {
-			sanitizerOptions: MarkedKatexSupport.getSanitizerOptions({
+			sanitizerConfig: MarkedKatexSupport.getSanitizerOptions({
 				allowedTags: basicMarkupHtmlTags,
 				allowedAttributes: defaultAllowedAttrs,
 			}),

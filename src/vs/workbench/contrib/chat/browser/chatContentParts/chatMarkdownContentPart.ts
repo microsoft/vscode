@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { allowedMarkdownHtmlAttributes, MarkedOptions } from '../../../../../base/browser/markdownRenderer.js';
+import { allowedMarkdownHtmlAttributes, MarkdownRendererMarkedOptions } from '../../../../../base/browser/markdownRenderer.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -118,7 +118,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				: [];
 
 			// Don't set to 'false' for responses, respect defaults
-			const markedOpts: MarkedOptions = isRequestVM(element) ? {
+			const markedOpts: MarkdownRendererMarkedOptions = isRequestVM(element) ? {
 				gfm: true,
 				breaks: true,
 				markedExtensions,
@@ -127,7 +127,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			};
 
 			const result = this._register(renderer.render(markdown.content, {
-				sanitizerOptions: MarkedKatexSupport.getSanitizerOptions({
+				sanitizerConfig: MarkedKatexSupport.getSanitizerOptions({
 					allowedTags: allowedChatMarkdownHtmlTags,
 					allowedAttributes: allowedMarkdownHtmlAttributes,
 				}),

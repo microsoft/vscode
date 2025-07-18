@@ -73,14 +73,14 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 	override render(markdown: IMarkdownString | undefined, options?: MarkdownRenderOptions, outElement?: HTMLElement): IMarkdownRenderResult {
 		options = {
 			...options,
-			remoteImageIsAllowed: (_uri) => false,
-			sanitizerOptions: {
+			sanitizerConfig: {
 				replaceWithPlaintext: true,
 				allowedTags: {
 					override: allowedChatMarkdownHtmlTags,
 				},
-				...options?.sanitizerOptions,
-				allowedProductProtocols: [product.urlProtocol]
+				...options?.sanitizerConfig,
+				allowedLinkSchemes: { augment: [product.urlProtocol] },
+				remoteImageIsAllowed: (_uri) => false,
 			}
 		};
 
