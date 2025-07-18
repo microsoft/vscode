@@ -44,7 +44,9 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 
 export interface ISanitizerOptions {
 	readonly replaceWithPlaintext?: boolean;
-	readonly allowedTags?: readonly string[];
+	readonly allowedTags?: {
+		readonly override: readonly string[];
+	};
 	readonly customAttrSanitizer?: (attrName: string, attrValue: string) => boolean | string;
 	readonly allowedProductProtocols?: readonly string[];
 }
@@ -472,7 +474,7 @@ function getSanitizerOptions(options: IInternalSanitizerOptions): domSanitize.Sa
 		// HTML tags that can result from markdown are from reading https://spec.commonmark.org/0.29/
 		// HTML table tags that can result from markdown are from https://github.github.com/gfm/#tables-extension-
 		allowedTags: {
-			override: options.allowedTags ?? domSanitize.basicMarkupHtmlTags
+			override: options.allowedTags?.override ?? domSanitize.basicMarkupHtmlTags
 		},
 		allowedAttributes: {
 			override: allowedMarkdownHtmlAttributes,
@@ -491,7 +493,7 @@ function getSanitizerOptions(options: IInternalSanitizerOptions): domSanitize.Sa
 				Schemas.vscodeRemoteResource,
 			]
 		},
-		hooks: {
+		_do_not_use_hooks: {
 			uponSanitizeAttribute: (element, e) => {
 				if (options.customAttrSanitizer) {
 					const result = options.customAttrSanitizer(e.attrName, e.attrValue);

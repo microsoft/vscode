@@ -381,7 +381,7 @@ export class WalkThroughPart extends EditorPane {
 	}
 
 	private safeSetInnerHtml(node: HTMLElement, content: string) {
-		domSanitize.safeInnerHtml(node, content, {
+		domSanitize.safeSetInnerHtml(node, content, {
 			allowedAttributes: {
 				augment: [
 					'id',
