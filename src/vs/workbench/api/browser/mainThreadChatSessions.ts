@@ -23,9 +23,10 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		super();
 	}
 
-	$registerChatSessionsProvider(handle: number): void {
+	$registerChatSessionsProvider(handle: number, chatSessionType: string): void {
 		// Register the provider handle - this tracks that a provider exists
 		const provider: IChatSessionsProvider = {
+			chatSessionType,
 			provideChatSessions: (token) => this._provideChatSessionsInformation(handle, token)
 		};
 		this._registrations.set(handle, this._chatSessionsService.registerChatSessionsProvider(handle, provider));

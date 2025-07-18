@@ -21,6 +21,7 @@ export interface IChatSessionContent {
 }
 
 export interface IChatSessionsProvider {
+	readonly chatSessionType: string;
 	provideChatSessions(token: CancellationToken): Promise<IChatSessionContent[]>;
 }
 
@@ -28,7 +29,7 @@ export interface IChatSessionsService {
 	readonly _serviceBrand: undefined;
 	registerChatSessionsProvider(handle: number, provider: IChatSessionsProvider): IDisposable;
 	hasChatSessionsProviders: boolean;
-	provideChatSessions(token: CancellationToken): Promise<IChatSessionContent[]>;
+	provideChatSessions(token: CancellationToken): Promise<{ provider: IChatSessionsProvider; session: IChatSessionContent }[]>;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
@@ -43,19 +44,19 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		super();
 	}
 
-	public async provideChatSessions(token: CancellationToken): Promise<IChatSessionContent[]> {
-		const results: IChatSessionContent[] = [];
+	public async provideChatSessions(token: CancellationToken): Promise<{ provider: IChatSessionsProvider; session: IChatSessionContent }[]> {
+		const results: { provider: IChatSessionsProvider; session: IChatSessionContent }[] = [];
 
 		// Iterate through all registered providers and collect their results
 		for (const [handle, provider] of this._providers) {
 			try {
 				if (provider.provideChatSessions) {
-					results.push(...await provider.provideChatSessions(token));
+					const sessions = await provider.provideChatSessions(token);
+					results.push(...sessions.map(session => ({ provider, session })));
 				}
 			} catch (error) {
 				this._logService.error(`Error getting chat sessions from provider ${handle}:`, error);
 			}
-
 			if (token.isCancellationRequested) {
 				break;
 			}
