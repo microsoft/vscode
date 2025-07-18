@@ -3406,13 +3406,13 @@ export class CommandCenter {
 				const choice = await window.showWarningMessage(message, { modal: true }, forceDelete);
 				if (choice === forceDelete) {
 					await repo.deleteWorktree(worktreePath, { force: true });
-					return;
 				} else {
 					this.model.openRepository(worktreePath);
-					return;
 				}
+				return;
 			}
 		}
+
 		this.model.openRepository(repository.root);
 		return;
 	}
