@@ -20,7 +20,6 @@ import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../comm
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../common/chatColors.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../common/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
-import { ChatModeKind } from '../../common/constants.js';
 import { IChatWidget } from '../chat.js';
 import { ChatWidget } from '../chatWidget.js';
 import { dynamicVariableDecorationType } from './chatDynamicVariables.js';
@@ -133,11 +132,7 @@ class InputEditorDecorations extends Disposable {
 			const mode = this.widget.input.currentModeObs.get();
 			let description = mode.description.get();
 			if (this.configurationService.getValue<boolean>('chat.emptyChatState.enabled')) {
-				if (mode.kind === ChatModeKind.Edit) {
-					description += ` ${localize('askPlaceholderHint', "Type # to add context.")}`;
-				} else if (mode.kind === ChatModeKind.Ask || mode.kind === ChatModeKind.Agent) {
-					description += ` ${localize('editPlaceholderHint', "Type # to add context, @ for extensions, / for commands.")}`;
-				}
+				description = localize('chatPlaceholderHint', "Add Context (#), Extensions (@), Commands (/)");
 			}
 
 			const decoration: IDecorationOptions[] = [
