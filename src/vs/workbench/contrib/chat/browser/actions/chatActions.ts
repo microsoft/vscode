@@ -7,7 +7,7 @@ import { isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
 import { toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { timeout } from '../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNowByDay, safeIntl } from '../../../../../base/common/date.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -21,6 +21,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorAction2 } from '../../../../../editor/browser/editorExtensions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
+import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
@@ -54,10 +55,11 @@ import { IChatAgentData, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
+import { IChatRequestModel } from '../../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
-import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
+import { ChatRequestTextPart, extractAgentAndCommand, IParsedChatRequest } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatSessionContent, IChatSessionsProvider, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
@@ -506,6 +508,7 @@ export function registerChatActions() {
 
 			interface ICodingAgentPickerItem extends IChatPickerItem {
 				id?: string;
+				session?: { provider: IChatSessionsProvider; session: IChatSessionContent };
 				uri?: URI;
 			}
 
@@ -585,6 +588,7 @@ export function registerChatActions() {
 								const agentPick: ICodingAgentPickerItem = {
 									label: sessionContent.label,
 									description: '',
+									session: session,
 									chat: {
 										sessionId: sessionContent.uri.toString(),
 										title: sessionContent.label,
@@ -745,8 +749,12 @@ export function registerChatActions() {
 						const contextItem = context.item as ICodingAgentPickerItem;
 						commandService.executeCommand(buttonItem.id, {
 							uri: contextItem.uri,
+							session: contextItem.session,
 							$mid: MarshalledId.ChatSessionContext
 						});
+
+						// dismiss quick picker
+						picker.hide();
 					}
 				}
 			}));
@@ -942,6 +950,92 @@ export function registerChatActions() {
 					const agentMessage = `@${selectedAgent.name} `;
 					widget.setInput(agentMessage);
 					widget.lockToCodingAgent(selectedAgent);
+				}
+			}, 100);
+		}
+	});
+
+	registerAction2(class OpenCodingAgentEditorSessionAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.openCodingAgentEditorSession',
+				title: localize2('codingAgentSession.openSession', "Open in Coding Agent Editor"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.hasRemoteCodingAgent),
+				icon: Codicon.cloud,
+				menu: {
+					id: MenuId.ChatSessionsMenu,
+					group: 'navigation',
+					order: 1
+				}
+			});
+		}
+
+		async run(accessor: ServicesAccessor, arg?: {
+			session?: { provider: IChatSessionsProvider; session: IChatSessionContent };
+			uri?: URI;
+		}): Promise<void> {
+			if (!arg || !arg.session) {
+				return;
+			}
+
+			const editorService = accessor.get(IEditorService);
+			const chatWidgetService = accessor.get(IChatWidgetService);
+			const session = arg.session;
+			const content = await arg.session.provider.provideChatSessionContent(arg.session.session.uri, CancellationToken.None);
+
+			// Open the chat editor
+			await editorService.openEditor({
+				resource: ChatEditorInput.getNewEditorUri(),
+				options: { pinned: true, sticky: true } satisfies IChatEditorOptions
+			});
+
+			// Wait a bit for the editor to be ready, then get the widget
+			setTimeout(() => {
+				const widget = chatWidgetService.lastFocusedWidget;
+				if (widget) {
+					const agentMessage = `@${session.provider.chatSessionType} `;
+					widget.setInput(agentMessage);
+
+					const model = widget.viewModel?.model;
+
+					if (!model) {
+						return;
+					}
+
+					let lastRequest: IChatRequestModel;
+					content.history.forEach(message => {
+						if (message.type === 'request') {
+							const requestText = message.prompt;
+
+							const parsedRequest: IParsedChatRequest = {
+								text: requestText,
+								parts: [new ChatRequestTextPart(
+									new OffsetRange(0, requestText.length),
+									{ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: requestText.length + 1 },
+									requestText
+								)]
+							};
+							lastRequest = model.addRequest(parsedRequest,
+								{ variables: [] }, // variableData
+								0, // attempt
+								undefined, // chatAgent - will use default
+								undefined, // slashCommand
+								undefined, // confirmation
+								undefined, // locationData
+								undefined, // attachments
+								true // isCompleteAddedRequest - this indicates it's a complete request, not user input
+							);
+						} else {
+							// response
+							message.parts.forEach(part => {
+								model.acceptResponseProgress(lastRequest, part);
+							});
+						}
+					});
+
+					// widget.lockToCodingAgent(selectedAgent);
 				}
 			}, 100);
 		}

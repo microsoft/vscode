@@ -3106,8 +3106,22 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 	$unregisterChatSessionsProvider(handle: number): void;
 }
 
+export interface IChatRequestTurnDto {
+
+}
+
+export interface ChatSessionDto {
+	id: string;
+
+	history: Array<
+		| { type: 'request'; prompt: string }
+		| { type: 'response'; parts: IChatProgressDto[] }>;
+}
+
+
 export interface ExtHostChatSessionsShape {
 	$provideChatSessions(handle: number, token: CancellationToken): Promise<IChatSessionContent[]>;
+	$provideChatSessionContent(handle: number, uri: UriComponents, token: CancellationToken): Promise<ChatSessionDto>;
 }
 
 // --- proxy identifiers
