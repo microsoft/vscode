@@ -1540,14 +1540,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-file-changes-summary .insertions {
-	color: green;
+	color: var(--vscode-chat-linesAddedForeground);;
 	font-weight: bold;
 	padding-left: 5px;
 	padding-right: 5px;
 }
 
 .interactive-session .chat-file-changes-summary .deletions {
-	color: red;
+	color: var(--vscode-chat-linesRemovedForeground);;
 	font-weight: bold;
 }
 
