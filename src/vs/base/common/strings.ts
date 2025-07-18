@@ -82,47 +82,12 @@ export function escape(html: string): string {
 	});
 }
 
-const CONTROL_ESCAPES = new Map(Object.entries({ '\t': 't', '\n': 'n', '\v': 'v', '\f': 'f', '\r': 'r' }));
-const SYNTAX_CHARACTERS = /[\^$\\.*+?()[\]{}|/]/;
-const HEX_ESCAPABLE = /[,\-=<>#&!%:;@~'`"\t\v\f\uFEFF\p{Zs}\n\r\u2028\u2029\uD800-\uDFFF]/u;
-const ASCII_ALPHANUMERIC = /[a-zA-Z0-9]/;
-
-function hexEscapeChar(char: string): string {
-	const escaped = char.charCodeAt(0) > 0xff
-		? `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`
-		: `\\x${char.charCodeAt(0).toString(16).padStart(2, '0')}`;
-	return escaped + (char[1] ? hexEscapeChar(char[1]) : '');
-}
-
-function regExpEscapeChar(char: string) {
-	const controlEscape = CONTROL_ESCAPES.get(char);
-	return controlEscape
-		? '\\' + controlEscape
-		: SYNTAX_CHARACTERS.test(char)
-			? '\\' + char
-			: HEX_ESCAPABLE.test(char)
-				? hexEscapeChar(char)
-				: char;
-}
-
 /**
- * Escapes regular expression characters in a given string
- * using identical logic to `RegExp.escape` (not yet available in vscode's current Electron version)
+ * Escapes regular expression characters in a given string.
+ * Typed alias for `RegExp.escape` (not yet available in TS types).
  */
-export let escapeRegExpCharacters = (value: string): string => {
-	let escaped = '';
-	for (const char of value) {
-		escaped += escaped === '' && ASCII_ALPHANUMERIC.test(char)
-			? hexEscapeChar(char)
-			: regExpEscapeChar(char);
-	}
-	return escaped;
-};
-
-if (typeof (RegExp as any).escape === 'function') {
-	escapeRegExpCharacters = (RegExp as any).escape;
-	console.log(`\x1b[36mNative RegExp.escape can replace ponyfill in ${import.meta.url}\x1b[0m`);
-}
+// @ts-expect-error remove once TS types available
+export const escapeRegExpCharacters: (value: string) => string = RegExp.escape;
 
 /**
  * Counts how often `substr` occurs inside `value`.

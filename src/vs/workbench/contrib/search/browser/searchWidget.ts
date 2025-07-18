@@ -594,7 +594,7 @@ export class SearchWidget extends Widget {
 			return null;
 		}
 		try {
-			new RegExp(value, 'gv');
+			new RegExp(value, 'v');
 		} catch (e) {
 			return { content: e.message };
 		}
