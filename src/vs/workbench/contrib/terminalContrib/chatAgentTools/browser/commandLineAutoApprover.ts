@@ -53,7 +53,7 @@ export class CommandLineAutoApprover extends Disposable {
 		// TODO: LLM-based auto-approval https://github.com/microsoft/vscode/issues/253267
 
 		// Fallback is always to require approval
-		return { isAutoApproved: false, reason: `Command '${command}' requires explicit approval (no matching allow list rule found)` };
+		return { isAutoApproved: false, reason: `Command '${command}' has no matching auto approve entries` };
 	}
 
 	isCommandLineAutoApproved(commandLine: string): { isAutoApproved: boolean; reason: string } {
@@ -70,7 +70,7 @@ export class CommandLineAutoApprover extends Disposable {
 				return { isAutoApproved: true, reason: `Command line '${commandLine}' is approved by allow list rule: ${regex.source}` };
 			}
 		}
-		return { isAutoApproved: false, reason: `Command line '${commandLine}' requires explicit approval (no matching allow list rule found)` };
+		return { isAutoApproved: false, reason: `Command line '${commandLine}' has no matching auto approve entries` };
 	}
 
 	private _commandMatchesRegex(regex: RegExp, command: string, shell: string, os: OperatingSystem): boolean {
