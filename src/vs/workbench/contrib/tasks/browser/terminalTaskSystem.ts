@@ -276,6 +276,14 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 	}
 
+	getTerminalSessionIdForTask(task: Task): string | undefined {
+		const terminalData = this._activeTasks[task.getMapKey()];
+		if (!terminalData?.terminal) {
+			return terminalData?.terminal?.sessionId;
+		}
+		return undefined;
+	}
+
 	public rerun(): ITaskExecuteResult | undefined {
 		if (this._lastTask && this._lastTask.verify()) {
 			if ((this._lastTask.task.runOptions.reevaluateOnRerun !== undefined) && !this._lastTask.task.runOptions.reevaluateOnRerun) {

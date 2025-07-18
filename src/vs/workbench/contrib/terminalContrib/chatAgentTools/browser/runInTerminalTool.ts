@@ -35,6 +35,7 @@ import { RichExecuteStrategy } from './executeStrategy/richExecuteStrategy.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from './subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from './toolTerminalCreator.js';
+import { getOutput } from './outputHelpers.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -627,16 +628,7 @@ class BackgroundTerminalExecution extends Disposable {
 		this._startMarker = this._register(this._xterm.raw.registerMarker());
 		this._instance.runCommand(this._commandLine, true);
 	}
-
 	getOutput(): string {
-		const lines: string[] = [];
-		for (let y = Math.min(this._startMarker?.line ?? 0, 0); y < this._xterm.raw.buffer.active.length; y++) {
-			const line = this._xterm.raw.buffer.active.getLine(y);
-			if (!line) {
-				continue;
-			}
-			lines.push(line.translateToString(true));
-		}
-		return lines.join('\n');
+		return getOutput(this._instance, this._startMarker);
 	}
 }
