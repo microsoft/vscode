@@ -349,6 +349,8 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.DirtyWorkTree;
 	} else if (/detected dubious ownership in repository at/.test(stderr)) {
 		return GitErrorCodes.NotASafeGitRepository;
+	} else if (/contains modified or untracked files|use --force to delete it/.test(stderr)) {
+		return GitErrorCodes.WorktreeContainsChanges;
 	}
 
 	return undefined;
@@ -858,6 +860,11 @@ export class GitStatusParser {
 
 		return lastIndex + 1;
 	}
+}
+
+export interface Worktree {
+	readonly name: string;
+	readonly path: string;
 }
 
 export interface Submodule {
@@ -2028,6 +2035,22 @@ export class Repository {
 		await this.exec(args);
 	}
 
+	async worktree(options: { path: string; name: string }): Promise<void> {
+		const args = ['worktree', 'add', options.path, options.name];
+		await this.exec(args);
+	}
+
+	async deleteWorktree(path: string, options?: { force?: boolean }): Promise<void> {
+		const args = ['worktree', 'remove'];
+
+		if (options?.force) {
+			args.push('--force');
+		}
+
+		args.push(path);
+		await this.exec(args);
+	}
+
 	async deleteRemoteRef(remoteName: string, refName: string, options?: { force?: boolean }): Promise<void> {
 		const args = ['push', remoteName, '--delete'];
 
@@ -2738,6 +2761,62 @@ export class Repository {
 	async getStashes(): Promise<Stash[]> {
 		const result = await this.exec(['stash', 'list', `--format=${STASH_FORMAT}`, '-z']);
 		return parseGitStashes(result.stdout.trim());
+	}
+
+	async getWorktrees(): Promise<Worktree[]> {
+		return await this.getWorktreesFS();
+	}
+
+	private async getWorktreesFS(): Promise<Worktree[]> {
+		const config = workspace.getConfiguration('git', Uri.file(this.repositoryRoot));
+		const shouldDetectWorktrees = config.get<boolean>('detectWorktrees') === true;
+
+		if (!shouldDetectWorktrees) {
+			this.logger.info('[Git][getWorktreesFS] Worktree detection is disabled, skipping worktree detection');
+			return [];
+		}
+
+		if (this.kind !== 'repository') {
+			this.logger.info('[Git][getWorktreesFS] Either a submodule or a worktree, skipping worktree detection');
+			return [];
+		}
+
+		try {
+			// List all worktree folder names
+			const worktreesPath = path.join(this.repositoryRoot, '.git', 'worktrees');
+			const dirents = await fs.readdir(worktreesPath, { withFileTypes: true });
+			const result: Worktree[] = [];
+
+			for (const dirent of dirents) {
+				if (!dirent.isDirectory()) {
+					continue;
+				}
+
+				const gitdirPath = path.join(worktreesPath, dirent.name, 'gitdir');
+
+				try {
+					const gitdirContent = (await fs.readFile(gitdirPath, 'utf8')).trim();
+					// Remove trailing '/.git'
+					const gitdirTrimmed = gitdirContent.replace(/\.git.*$/, '');
+					result.push({ name: dirent.name, path: gitdirTrimmed });
+				} catch (err) {
+					if (/ENOENT/.test(err.message)) {
+						continue;
+					}
+
+					throw err;
+				}
+			}
+
+			return result;
+		}
+		catch (err) {
+			if (/ENOENT/.test(err.message) || /ENOTDIR/.test(err.message)) {
+				return [];
+			}
+
+			throw err;
+		}
 	}
 
 	async getRemotes(): Promise<Remote[]> {

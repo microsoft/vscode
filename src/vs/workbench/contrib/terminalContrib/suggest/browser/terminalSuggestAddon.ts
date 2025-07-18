@@ -139,7 +139,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		inputData: '\x1b[C',
 		replacementIndex: 0,
 		replacementLength: 0,
-		provider: 'core',
+		provider: 'core:inlineSuggestion',
 		detail: 'Inline suggestion',
 		kind: TerminalCompletionItemKind.InlineSuggestion,
 		kindLabel: 'Inline suggestion',

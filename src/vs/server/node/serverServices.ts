@@ -85,11 +85,12 @@ import { NativeMcpDiscoveryHelperChannel } from '../../platform/mcp/node/nativeM
 import { NativeMcpDiscoveryHelperService } from '../../platform/mcp/node/nativeMcpDiscoveryHelperService.js';
 import { IExtensionGalleryManifestService } from '../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestIPCService } from '../../platform/extensionManagement/common/extensionGalleryManifestServiceIpc.js';
-import { IMcpGalleryService, IMcpManagementService } from '../../platform/mcp/common/mcpManagement.js';
+import { IAllowedMcpServersService, IMcpGalleryService, IMcpManagementService } from '../../platform/mcp/common/mcpManagement.js';
 import { McpManagementService } from '../../platform/mcp/node/mcpManagementService.js';
 import { McpGalleryService } from '../../platform/mcp/common/mcpGalleryService.js';
 import { IMcpResourceScannerService, McpResourceScannerService } from '../../platform/mcp/common/mcpResourceScannerService.js';
 import { McpManagementChannel } from '../../platform/mcp/common/mcpManagementIpc.js';
+import { AllowedMcpServersService } from '../../platform/mcp/common/allowedMcpServersService.js';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -220,6 +221,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const ptyHostService = instantiationService.createInstance(PtyHostService, ptyHostStarter);
 	services.set(IPtyService, ptyHostService);
 
+	services.set(IAllowedMcpServersService, new SyncDescriptor(AllowedMcpServersService));
 	services.set(IMcpResourceScannerService, new SyncDescriptor(McpResourceScannerService));
 	services.set(IMcpGalleryService, new SyncDescriptor(McpGalleryService));
 	services.set(IMcpManagementService, new SyncDescriptor(McpManagementService));

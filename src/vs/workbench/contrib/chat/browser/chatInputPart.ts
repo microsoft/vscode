@@ -486,14 +486,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 			} else {
 				this._waitForPersistedLanguageModel.value = this.languageModelsService.onDidChangeLanguageModels(e => {
-					const persistedModel = e.added?.find(m => m.identifier === persistedSelection);
+					const persistedModel = this.languageModelsService.lookupLanguageModel(persistedSelection);
 					if (persistedModel) {
 						this._waitForPersistedLanguageModel.clear();
 
 						// Only restore the model if it wasn't the default at the time of storing or it is now the default
-						if (!persistedAsDefault || persistedModel.metadata.isDefault) {
-							if (persistedModel.metadata.isUserSelectable) {
-								this.setCurrentLanguageModel({ metadata: persistedModel.metadata, identifier: persistedSelection });
+						if (!persistedAsDefault || persistedModel.isDefault) {
+							if (persistedModel.isUserSelectable) {
+								this.setCurrentLanguageModel({ metadata: persistedModel, identifier: persistedSelection });
 								this.checkModelSupported();
 							}
 						}
@@ -742,13 +742,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.checkModelSupported();
 			this._waitForPersistedLanguageModel.clear();
 		} else {
-			this._waitForPersistedLanguageModel.value = this.languageModelsService.onDidChangeLanguageModels(e => {
-				const model = e.added?.find(m => m.identifier === modelId);
+			this._waitForPersistedLanguageModel.value = this.languageModelsService.onDidChangeLanguageModels(() => {
+				const model = this.languageModelsService.lookupLanguageModel(modelId);
 				if (model) {
 					this._waitForPersistedLanguageModel.clear();
 
-					if (model.metadata.isUserSelectable) {
-						this.setCurrentLanguageModel({ metadata: model.metadata, identifier: modelId });
+					if (model.isUserSelectable) {
+						this.setCurrentLanguageModel({ metadata: model, identifier: modelId });
 						this.checkModelSupported();
 					}
 				}
@@ -1142,20 +1142,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						this.setCurrentLanguageModelToDefault();
 					}
 
-					if (this._currentLanguageModel) {
-						const itemDelegate: IModelPickerDelegate = {
-							getCurrentModel: () => this._currentLanguageModel,
-							onDidChangeModel: this._onDidChangeCurrentLanguageModel.event,
-							setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
-								// The user changed the language model, so we don't wait for the persisted option to be registered
-								this._waitForPersistedLanguageModel.clear();
-								this.setCurrentLanguageModel(model);
-								this.renderAttachedContext();
-							},
-							getModels: () => this.getModels()
-						};
-						return this.modelWidget = this.instantiationService.createInstance(ModelPickerActionItem, action, this._currentLanguageModel, itemDelegate);
-					}
+					const itemDelegate: IModelPickerDelegate = {
+						getCurrentModel: () => this._currentLanguageModel,
+						onDidChangeModel: this._onDidChangeCurrentLanguageModel.event,
+						setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
+							// The user changed the language model, so we don't wait for the persisted option to be registered
+							this._waitForPersistedLanguageModel.clear();
+							this.setCurrentLanguageModel(model);
+							this.renderAttachedContext();
+						},
+						getModels: () => this.getModels()
+					};
+					return this.modelWidget = this.instantiationService.createInstance(ModelPickerActionItem, action, this._currentLanguageModel, itemDelegate);
 				} else if (action.id === ToggleAgentModeActionId && action instanceof MenuItemAction) {
 					const delegate: IModePickerDelegate = {
 						currentMode: this._currentModeObservable

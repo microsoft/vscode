@@ -21,7 +21,7 @@ import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurati
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { mcpEnabledConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, MODE_DEFAULT_SOURCE_FOLDER, MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../common/promptSyntax/config/promptFileLocations.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -31,7 +31,7 @@ import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
-import { allDiscoverySources, discoverySourceLabel, mcpDiscoverySection, mcpEnabledSection, mcpServerSamplingSection } from '../../mcp/common/mcpConfiguration.js';
+import { allDiscoverySources, discoverySourceLabel, mcpDiscoverySection, mcpServerSamplingSection } from '../../mcp/common/mcpConfiguration.js';
 import { ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
 import { CodeMapperService, ICodeMapperService } from '../common/chatCodeMapperService.js';
 import '../common/chatColors.js';
@@ -268,7 +268,13 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.emptyChatState', "Shows a modified empty chat state with hints in the input placeholder text."),
 			tags: ['experimental', 'onExp'],
 		},
-		[mcpEnabledSection]: {
+		'chat.checkpoints.enabled': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.checkpoints.enabled', "Enables checkpoints in chat. Checkpoints allow you to restore the chat to a previous state."),
+			tags: ['experimental'],
+		},
+		[mcpEnabledConfig]: {
 			type: 'boolean',
 			description: nls.localize('chat.mcp.enabled', "Enables integration with Model Context Protocol servers to provide additional tools and functionality."),
 			default: true,
@@ -343,6 +349,13 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['preview'],
 		},
+		[ChatConfiguration.AgentSessionsViewLocation]: {
+			type: 'string',
+			enum: ['disabled', 'showChatsMenu'],
+			description: nls.localize('chat.sessionsViewLocation.description', "Controls where to show the agent sessions menu."),
+			default: 'disabled',
+			tags: ['experimental'],
+		},
 		[mcpDiscoverySection]: {
 			oneOf: [
 				{ type: 'boolean' },
@@ -378,7 +391,7 @@ configurationRegistry.registerConfiguration({
 			),
 			markdownDescription: nls.localize(
 				'chat.reusablePrompts.config.enabled.description',
-				"Enable reusable prompt (`*{0}`) and instruction files in Chat, Edits, and Inline Chat sessions. [Learn More]({1}).",
+				"Enable reusable prompt (`*{0}`) and instruction files (`*{1}`) in Chat sessions. [Learn More]({2}).",
 				PROMPT_FILE_EXTENSION,
 				INSTRUCTION_FILE_EXTENSION,
 				PROMPT_DOCUMENTATION_URL,
@@ -390,7 +403,7 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatPromptFiles',
 				minimumVersion: '1.99',
-				description: nls.localize('chat.promptFiles.policy', "Enables reusable prompt and instruction files in Chat, Edits, and Inline Chat sessions."),
+				description: nls.localize('chat.promptFiles.policy', "Enables reusable prompt and instruction files in Chat sessions."),
 				defaultValue: false,
 				tags: [PolicyTag.Account, PolicyTag.Preview]
 			}
@@ -403,7 +416,7 @@ configurationRegistry.registerConfiguration({
 			),
 			markdownDescription: nls.localize(
 				'chat.instructions.config.locations.description',
-				"Specify location(s) of instructions files (`*{0}`) that can be attached in Chat, Edits, and Inline Chat sessions. [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.",
+				"Specify location(s) of instructions files (`*{0}`) that can be attached in Chat sessions. [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.",
 				INSTRUCTION_FILE_EXTENSION,
 				INSTRUCTIONS_DOCUMENTATION_URL,
 			),
@@ -431,7 +444,7 @@ configurationRegistry.registerConfiguration({
 			),
 			markdownDescription: nls.localize(
 				'chat.reusablePrompts.config.locations.description',
-				"Specify location(s) of reusable prompt files (`*{0}`) that can be run in Chat, Edits, and Inline Chat sessions. [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.",
+				"Specify location(s) of reusable prompt files (`*{0}`) that can be run in Chat sessions. [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.",
 				PROMPT_FILE_EXTENSION,
 				PROMPT_DOCUMENTATION_URL,
 			),

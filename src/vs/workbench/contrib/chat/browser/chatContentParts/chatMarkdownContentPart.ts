@@ -4,15 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { MarkedOptions } from '../../../../../base/browser/markdownRenderer.js';
+import { allowedMarkdownHtmlAttributes, MarkdownRendererMarkedOptions } from '../../../../../base/browser/markdownRenderer.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Lazy } from '../../../../../base/common/lazy.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -45,6 +48,7 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { IChatCodeBlockInfo } from '../chat.js';
 import { IChatRendererDelegate } from '../chatListRenderer.js';
 import { ChatMarkdownDecorationsRenderer } from '../chatMarkdownDecorationsRenderer.js';
+import { allowedChatMarkdownHtmlTags } from '../chatMarkdownRenderer.js';
 import { ChatEditorOptions } from '../chatOptions.js';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions, localFileLanguageId, parseLocalFileData } from '../codeBlockPart.js';
 import '../media/chatCodeBlockPill.css';
@@ -70,6 +74,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	public readonly codeblocks: IChatCodeBlockInfo[] = [];
+
+	private readonly mathLayoutParticipants = new Set<() => void>();
 
 	constructor(
 		private readonly markdown: IChatMarkdownContent,
@@ -99,12 +105,12 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		let globalCodeBlockIndexStart = codeBlockStartIndex;
 		let thisPartCodeBlockIndexStart = 0;
 
-		this.domNode = document.createElement('div');
-		this.domNode.classList.add('chat-markdown-part', 'rendered-markdown');
+		this.domNode = $('div.chat-markdown-part');
 
 		const enableMath = configurationService.getValue<boolean>(ChatConfiguration.EnableMath);
 
 		const doRenderMarkdown = () => {
+			// TODO: Move katex support into chatMarkdownRenderer
 			const markedExtensions = enableMath
 				? coalesce([MarkedKatexSupport.getExtension(dom.getWindow(context.container), {
 					throwOnError: false
@@ -112,16 +118,16 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				: [];
 
 			// Don't set to 'false' for responses, respect defaults
-			const markedOpts: MarkedOptions = isRequestVM(element) ? {
+			const markedOpts: MarkdownRendererMarkedOptions = isRequestVM(element) ? {
 				gfm: true,
 				breaks: true,
-				markedExtensions,
-			} : {
-				markedExtensions,
-			};
+			} : {};
 
 			const result = this._register(renderer.render(markdown.content, {
-				sanitizerOptions: MarkedKatexSupport.getSanitizerOptions(),
+				sanitizerConfig: MarkedKatexSupport.getSanitizerOptions({
+					allowedTags: allowedChatMarkdownHtmlTags,
+					allowedAttributes: allowedMarkdownHtmlAttributes,
+				}),
 				fillInIncompleteTokens,
 				codeBlockRendererSync: (languageId, text, raw) => {
 					const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || codeblockHasClosingBackticks(raw);
@@ -230,14 +236,38 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					}
 				},
 				asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-			}, markedOpts));
+				markedOptions: markedOpts,
+				markedExtensions,
+			}, this.domNode));
 
 			const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 			this._register(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(markdown, result.element));
 
-			orderedDisposablesList.reverse().forEach(d => this._register(d));
+			const layoutParticipants = new Lazy(() => {
+				const observer = new ResizeObserver(() => this.mathLayoutParticipants.forEach(layout => layout()));
+				observer.observe(this.domNode);
+				this._register(toDisposable(() => observer.disconnect()));
+				return this.mathLayoutParticipants;
+			});
 
-			this.domNode.replaceChildren(...result.element.children);
+			// Make katex blocks horizontally scrollable
+			for (const katexBlock of this.domNode.querySelectorAll('.katex-display')) {
+				if (!dom.isHTMLElement(katexBlock)) {
+					continue;
+				}
+
+				const scrollable = new DomScrollableElement(katexBlock.cloneNode(true) as HTMLElement, {
+					vertical: ScrollbarVisibility.Hidden,
+					horizontal: ScrollbarVisibility.Auto,
+				});
+				orderedDisposablesList.push(scrollable);
+				katexBlock.replaceWith(scrollable.getDomNode());
+
+				layoutParticipants.value.add(() => { scrollable.scanDomNode(); });
+				scrollable.scanDomNode();
+			}
+
+			orderedDisposablesList.reverse().forEach(d => this._register(d));
 		};
 
 		if (enableMath && !MarkedKatexSupport.getExtension(dom.getWindow(context.container))) {
@@ -294,6 +324,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				}
 			}
 		});
+
+		this.mathLayoutParticipants.forEach(layout => layout());
 	}
 
 	addDisposable(disposable: IDisposable): void {

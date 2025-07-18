@@ -7,7 +7,7 @@ import { IObservableWithChange, derivedHandleChanges, derivedWithStore, observab
 import { URI } from '../../../../base/common/uri.js';
 import { StringEdit } from '../../../../editor/common/core/edits/stringEdit.js';
 import { StringText } from '../../../../editor/common/core/text/abstractText.js';
-import { TextModelEditReason } from '../../../../editor/common/textModelEditReason.js';
+import { TextModelEditSource } from '../../../../editor/common/textModelEditSource.js';
 
 export abstract class ObservableWorkspace {
 	abstract get documents(): IObservableWithChange<readonly IObservableDocument[]>;
@@ -87,7 +87,7 @@ export interface IObservableDocument {
 export class StringEditWithReason extends StringEdit {
 	constructor(
 		replacements: StringEdit['replacements'],
-		public readonly reason: TextModelEditReason,
+		public readonly reason: TextModelEditSource,
 	) {
 		super(replacements);
 	}

@@ -5,22 +5,20 @@
 
 import { reverseOrder, compareBy, numberComparator, sumBy } from '../../../../base/common/arrays.js';
 import { IntervalTimer, TimeoutTimer } from '../../../../base/common/async.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { toDisposable, DisposableStore, Disposable } from '../../../../base/common/lifecycle.js';
-import { mapObservableArrayCached, derived, IReader, IObservable, observableSignal, runOnChange, IObservableWithChange, observableValue, transaction, derivedObservableWithCache } from '../../../../base/common/observable.js';
+import { toDisposable, Disposable } from '../../../../base/common/lifecycle.js';
+import { mapObservableArrayCached, derived, IReader, IObservable, observableSignal, runOnChange, derivedObservableWithCache } from '../../../../base/common/observable.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { AnnotatedStringEdit, BaseStringEdit } from '../../../../editor/common/core/edits/stringEdit.js';
-import { StringText } from '../../../../editor/common/core/text/abstractText.js';
-import { TextModelEditReason } from '../../../../editor/common/textModelEditReason.js';
+import { TextModelEditSource } from '../../../../editor/common/textModelEditSource.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ISCMRepository, ISCMService } from '../../scm/common/scm.js';
-import { ArcTracker } from './arcTracker.js';
-import { CombineStreamedChanges, DocumentWithSourceAnnotatedEdits, EditKeySourceData, EditSource, EditSourceData, IDocumentWithAnnotatedEdits, MinimizeEditsProcessor } from './documentWithAnnotatedEdits.js';
+import { ChatArcTelemetrySender, InlineEditArcTelemetrySender } from './arcTelemetrySender.js';
+import { CombineStreamedChanges, createDocWithJustReason, DocumentWithSourceAnnotatedEdits, EditSource, EditSourceData, IDocumentWithAnnotatedEdits, MinimizeEditsProcessor } from './documentWithAnnotatedEdits.js';
 import { DocumentEditSourceTracker, TrackedEdit } from './editTracker.js';
 import { ObservableWorkspace, IObservableDocument } from './observableWorkspace.js';
+import { sumByCategory } from './utils.js';
 
 export class EditSourceTrackingImpl extends Disposable {
 	public readonly docsState;
@@ -43,34 +41,6 @@ export class EditSourceTrackingImpl extends Disposable {
 
 		this.docsState = states.map((entries, reader) => new Map(entries.map(e => e.read(reader)).filter(isDefined)))
 			.recomputeInitiallyAndOnChange(this._store);
-	}
-}
-
-class ScmBridge {
-	constructor(
-		@ISCMService private readonly _scmService: ISCMService
-	) { }
-
-	public async getRepo(uri: URI): Promise<ScmRepoBridge | undefined> {
-		const repo = this._scmService.getRepository(uri);
-		if (!repo) {
-			return undefined;
-		}
-		return new ScmRepoBridge(repo);
-	}
-}
-
-class ScmRepoBridge {
-	public readonly headBranchNameObs: IObservable<string | undefined> = derived(reader => this._repo.provider.historyProvider.read(reader)?.historyItemRef.read(reader)?.name);
-	public readonly headCommitHashObs: IObservable<string | undefined> = derived(reader => this._repo.provider.historyProvider.read(reader)?.historyItemRef.read(reader)?.revision);
-
-	constructor(
-		private readonly _repo: ISCMRepository,
-	) {
-	}
-
-	async isIgnored(uri: URI): Promise<boolean> {
-		return false;
 	}
 }
 
@@ -143,7 +113,8 @@ class TrackedDocumentInfo extends Disposable {
 				}));
 			}
 
-			this._store.add(this._instantiationService.createInstance(ArcTelemetrySender, processedDoc, repo));
+			this._store.add(this._instantiationService.createInstance(InlineEditArcTelemetrySender, processedDoc, repo));
+			this._store.add(this._instantiationService.createInstance(ChatArcTelemetrySender, processedDoc, repo));
 		})();
 
 		const resetSignal = observableSignal('resetSignal');
@@ -185,7 +156,7 @@ class TrackedDocumentInfo extends Disposable {
 
 		const statsUuid = generateUuid();
 
-		const sourceKeyToRepresentative = new Map<string, TextModelEditReason>();
+		const sourceKeyToRepresentative = new Map<string, TextModelEditSource>();
 		for (const r of ranges) {
 			sourceKeyToRepresentative.set(r.sourceKey, r.sourceRepresentative);
 		}
@@ -200,22 +171,18 @@ class TrackedDocumentInfo extends Disposable {
 				continue;
 			}
 
-
-			const repr = sourceKeyToRepresentative.get(key);
-			const cleanedKey = repr?.toKey(1, { $extensionId: false, $extensionVersion: false });
-
-			const metadata = repr?.metadata;
-			const extensionId = metadata && '$extensionId' in metadata ? metadata.$extensionId : undefined;
-			const extensionVersion = metadata && '$extensionVersion' in metadata ? metadata.$extensionVersion : undefined;
-
+			const repr = sourceKeyToRepresentative.get(key)!;
 			const m = t.getChangedCharactersCount(key);
 
 			this._telemetryService.publicLog2<{
 				mode: string;
 				sourceKey: string;
-				extensionId: string;
-				extensionVersion: string;
-				sourceKeyWithoutExtId: string;
+
+				sourceKeyCleaned: string;
+				extensionId: string | undefined;
+				extensionVersion: string | undefined;
+				modelId: string | undefined;
+
 				trigger: string;
 				languageId: string;
 				statsUuid: string;
@@ -226,13 +193,17 @@ class TrackedDocumentInfo extends Disposable {
 				owner: 'hediet';
 				comment: 'Reports distribution of various edit kinds.';
 
-				sourceKey: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the edit.' };
 				mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'longterm or 5minWindow' };
-				languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
-				statsUuid: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The unique identifier for the telemetry event.' };
+				sourceKey: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the edit.' };
+
+				sourceKeyCleaned: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the edit.' };
 				extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension id which provided this inline completion.' };
 				extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension.' };
-				sourceKeyWithoutExtId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the edit.' };
+				modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model id.' };
+
+				languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
+				statsUuid: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The unique identifier for the telemetry event.' };
+
 				trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The trigger for the telemetry event.' };
 
 				modifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Fraction of nes modified characters'; isMeasurement: true };
@@ -242,9 +213,12 @@ class TrackedDocumentInfo extends Disposable {
 			}>('editTelemetry.editSources.details', {
 				mode,
 				sourceKey: key,
-				extensionId: extensionId ?? '',
-				extensionVersion: extensionVersion ?? '',
-				sourceKeyWithoutExtId: cleanedKey ?? '',
+
+				sourceKeyCleaned: repr.toKey(1, { $extensionId: false, $extensionVersion: false, $modelId: false }),
+				extensionId: repr.props.$extensionId,
+				extensionVersion: repr.props.$extensionVersion,
+				modelId: repr.props.$modelId,
+
 				trigger,
 				languageId: this._doc.languageId.get(),
 				statsUuid: statsUuid,
@@ -339,171 +313,30 @@ class TrackedDocumentInfo extends Disposable {
 	}
 }
 
-
-function mapObservableDelta<T, TDelta, TDeltaNew>(obs: IObservableWithChange<T, TDelta>, mapFn: (value: TDelta) => TDeltaNew, store: DisposableStore): IObservableWithChange<T, TDeltaNew> {
-	const obsResult = observableValue<T, TDeltaNew>('mapped', obs.get());
-	store.add(runOnChange(obs, (value, _prevValue, changes) => {
-		transaction(tx => {
-			for (const c of changes) {
-				obsResult.set(value, tx, mapFn(c));
-			}
-		});
-	}));
-	return obsResult;
-}
-
-/**
- * Removing the metadata allows touching edits from the same source to merged, even if they were caused by different actions (e.g. two user edits).
- */
-function createDocWithJustReason(docWithAnnotatedEdits: IDocumentWithAnnotatedEdits<EditSourceData>, store: DisposableStore): IDocumentWithAnnotatedEdits<EditKeySourceData> {
-	const docWithJustReason: IDocumentWithAnnotatedEdits<EditKeySourceData> = {
-		value: mapObservableDelta(docWithAnnotatedEdits.value, edit => ({ edit: edit.edit.mapData(d => d.data.toEditSourceData()) }), store),
-		waitForQueue: () => docWithAnnotatedEdits.waitForQueue(),
-	};
-	return docWithJustReason;
-}
-
-class ArcTelemetrySender extends Disposable {
+class ScmBridge {
 	constructor(
-		docWithAnnotatedEdits: IDocumentWithAnnotatedEdits<EditSourceData>,
-		scmRepoBridge: ScmRepoBridge | undefined,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-	) {
-		super();
+		@ISCMService private readonly _scmService: ISCMService
+	) { }
 
-		this._register(runOnChange(docWithAnnotatedEdits.value, (_val, _prev, changes) => {
-			const edit = AnnotatedStringEdit.compose(changes.map(c => c.edit));
-
-			if (!edit.replacements.some(r => r.data.editReason.metadata.source === 'inlineCompletionAccept')) {
-				return;
-			}
-			if (!edit.replacements.every(r => r.data.editReason.metadata.source === 'inlineCompletionAccept')) {
-				onUnexpectedError(new Error('ArcTelemetrySender: Not all edits are inline completion accept edits!'));
-				return;
-			}
-			if (edit.replacements[0].data.editReason.metadata.source !== 'inlineCompletionAccept') {
-				return;
-			}
-			const data = edit.replacements[0].data.editReason.metadata;
-
-			const docWithJustReason = createDocWithJustReason(docWithAnnotatedEdits, this._store);
-			const reporter = this._instantiationService.createInstance(ArcTelemetryReporter, docWithJustReason, scmRepoBridge, edit, res => {
-				res.telemetryService.publicLog2<{
-					extensionId: string;
-					extensionVersion: string;
-					opportunityId: string;
-					didBranchChange: number;
-					timeDelayMs: number;
-					arc: number;
-					originalCharCount: number;
-				}, {
-					owner: 'hediet';
-					comment: 'Reports the accepted and retained character count for an inline completion/edit.';
-
-					extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension id (copilot or copilot-chat); which provided this inline completion.' };
-					extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension.' };
-					opportunityId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for an opportunity to show an inline completion or NES.' };
-
-					didBranchChange: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates if the branch changed in the meantime. If the branch changed (value is 1); this event should probably be ignored.' };
-					timeDelayMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The time delay between the user accepting the edit and measuring the survival rate.' };
-					arc: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The accepted and restrained character count.' };
-					originalCharCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The original character count before any edits.' };
-				}>('editTelemetry.reportInlineEditArc', {
-					extensionId: data.$extensionId ?? '',
-					extensionVersion: data.$extensionVersion ?? '',
-					opportunityId: data.$$requestUuid ?? 'unknown',
-					didBranchChange: res.didBranchChange ? 1 : 0,
-					timeDelayMs: res.timeDelayMs,
-					arc: res.arc,
-					originalCharCount: res.originalCharCount,
-				});
-			});
-
-			this._register(toDisposable(() => {
-				reporter.cancel();
-			}));
-		}));
+	public async getRepo(uri: URI): Promise<ScmRepoBridge | undefined> {
+		const repo = this._scmService.getRepository(uri);
+		if (!repo) {
+			return undefined;
+		}
+		return new ScmRepoBridge(repo);
 	}
 }
 
-export interface EditTelemetryData {
-	telemetryService: ITelemetryService;
-	timeDelayMs: number;
-	didBranchChange: boolean;
-	arc: number;
-	originalCharCount: number;
-}
-
-export class ArcTelemetryReporter {
-	private readonly _store = new DisposableStore();
-	private readonly _arcTracker;
-	private readonly _initialBranchName: string | undefined;
+export class ScmRepoBridge {
+	public readonly headBranchNameObs: IObservable<string | undefined> = derived(reader => this._repo.provider.historyProvider.read(reader)?.historyItemRef.read(reader)?.name);
+	public readonly headCommitHashObs: IObservable<string | undefined> = derived(reader => this._repo.provider.historyProvider.read(reader)?.historyItemRef.read(reader)?.revision);
 
 	constructor(
-		private readonly _document: { value: IObservableWithChange<StringText, { edit: BaseStringEdit }> },
-		// _markedEdits -> document.value
-		private readonly _gitRepo: ScmRepoBridge | undefined,
-		private readonly _trackedEdit: BaseStringEdit,
-		private readonly _sendTelemetryEvent: (res: EditTelemetryData) => void,
-
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		private readonly _repo: ISCMRepository,
 	) {
-		this._arcTracker = new ArcTracker(this._document.value.get().value, this._trackedEdit);
-
-		this._store.add(runOnChange(this._document.value, (_val, _prevVal, changes) => {
-			const edit = BaseStringEdit.composeOrUndefined(changes.map(c => c.edit));
-			if (edit) {
-				this._arcTracker.handleEdits(edit);
-			}
-		}));
-
-		this._initialBranchName = this._gitRepo?.headBranchNameObs.get();
-
-		// This aligns with github inline completions
-		this._report(0); // for debugging
-		this._reportAfter(30 * 1000);
-		this._reportAfter(120 * 1000);
-		this._reportAfter(300 * 1000);
-		this._reportAfter(600 * 1000);
-		// track up to 15min to allow for slower edit responses from legacy SD endpoint
-		this._reportAfter(900 * 1000, () => {
-			this._store.dispose();
-		});
 	}
 
-	private _reportAfter(timeoutMs: number, cb?: () => void) {
-		const timer = new TimeoutTimer(() => {
-			this._report(timeoutMs);
-			timer.dispose();
-			if (cb) {
-				cb();
-			}
-		}, timeoutMs);
-		this._store.add(timer);
+	async isIgnored(uri: URI): Promise<boolean> {
+		return false;
 	}
-
-	private _report(timeMs: number): void {
-		const currentBranch = this._gitRepo?.headBranchNameObs.get();
-		const didBranchChange = currentBranch !== this._initialBranchName;
-
-		this._sendTelemetryEvent({
-			telemetryService: this._telemetryService,
-			timeDelayMs: timeMs,
-			didBranchChange,
-			arc: this._arcTracker.getAcceptedRestrainedCharactersCount(),
-			originalCharCount: this._arcTracker.getOriginalCharacterCount(),
-		});
-	}
-
-	public cancel(): void {
-		this._store.dispose();
-	}
-}
-
-function sumByCategory<T, TCategory extends string>(items: readonly T[], getValue: (item: T) => number, getCategory: (item: T) => TCategory): Record<TCategory, number | undefined> {
-	return items.reduce((acc, item) => {
-		const category = getCategory(item);
-		acc[category] = (acc[category] || 0) + getValue(item);
-		return acc;
-	}, {} as any as Record<TCategory, number>);
 }

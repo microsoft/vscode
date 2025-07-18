@@ -120,6 +120,10 @@ abstract class InlineSuggestionItemBase {
 		this._data.reportInlineEditError(reason);
 	}
 
+	public setIsPreceeded(): void {
+		this._data.setIsPreceeded();
+	}
+
 	/**
 	 * Avoid using this method. Instead introduce getters for the needed properties.
 	*/

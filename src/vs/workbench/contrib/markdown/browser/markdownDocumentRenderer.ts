@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basicMarkupHtmlTags, hookDomPurifyHrefAndSrcSanitizer } from '../../../../base/browser/dom.js';
-import dompurify from '../../../../base/browser/dompurify/dompurify.js';
-import { allowedMarkdownAttr } from '../../../../base/browser/markdownRenderer.js';
+import { basicMarkupHtmlTags, sanitizeHtml } from '../../../../base/browser/domSanitize.js';
+import { allowedMarkdownHtmlAttributes } from '../../../../base/browser/markdownRenderer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import * as marked from '../../../../base/common/marked/marked.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -157,31 +156,36 @@ pre code {
 }
 `;
 
-const allowedProtocols = [Schemas.http, Schemas.https, Schemas.command];
-function sanitize(documentContent: string, allowUnknownProtocols: boolean): string {
+const allowedProtocols = [
+	Schemas.http,
+	Schemas.https,
+	Schemas.command,
+];
 
-	const hook = hookDomPurifyHrefAndSrcSanitizer(allowedProtocols, true);
-
-	try {
-		return dompurify.sanitize(documentContent, {
-			...{
-				ALLOWED_TAGS: [
-					...basicMarkupHtmlTags,
-					'checkbox',
-					'checklist',
-				],
-				ALLOWED_ATTR: [
-					...allowedMarkdownAttr,
-					'data-command', 'name', 'id', 'role', 'tabindex',
-					'x-dispatch',
-					'required', 'checked', 'placeholder', 'when-checked', 'checked-on',
-				],
-			},
-			...(allowUnknownProtocols ? { ALLOW_UNKNOWN_PROTOCOLS: true } : {}),
-		});
-	} finally {
-		hook.dispose();
-	}
+function sanitize(documentContent: string, allowAllProtocols = false): TrustedHTML {
+	// TODO: Move most of these options to the callers
+	return sanitizeHtml(documentContent, {
+		allowedLinkProtocols: {
+			override: allowAllProtocols ? '*' : allowedProtocols,
+		},
+		allowedTags: {
+			override: [
+				...basicMarkupHtmlTags,
+				'input',
+				'select',
+				'checkbox',
+				'checklist',
+			],
+		},
+		allowedAttributes: {
+			override: [
+				...allowedMarkdownHtmlAttributes,
+				'data-command', 'name', 'id', 'role', 'tabindex',
+				'x-dispatch',
+				'required', 'checked', 'placeholder', 'when-checked', 'checked-on',
+			],
+		}
+	});
 }
 
 interface IRenderMarkdownDocumentOptions {
@@ -225,7 +229,7 @@ export async function renderMarkdownDocument(
 
 	const raw = await m.parse(text, { async: true });
 	if (options?.shouldSanitize ?? true) {
-		return sanitize(raw, options?.allowUnknownProtocols ?? false);
+		return sanitize(raw, options?.allowUnknownProtocols ?? false) as any as string;
 	} else {
 		return raw;
 	}
