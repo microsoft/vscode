@@ -44,6 +44,8 @@ export class McpElicitationService implements IMcpElicitationService {
 							title: localize('msg.subtitle', "{0} (MCP Server)", server.definition.label),
 							arguments: [server.collection.id, server.definition.id],
 						}), { isTrusted: true }),
+						localize('mcp.elicit.accept', 'Respond'),
+						localize('mcp.elicit.reject', 'Cancel'),
 						async () => {
 							const p = this._doElicit(elicitation, token);
 							resolve(p);

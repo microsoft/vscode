@@ -15,6 +15,8 @@ export class ChatElicitationRequestPart implements IChatElicitationRequest {
 		public readonly title: string | IMarkdownString,
 		public readonly message: string | IMarkdownString,
 		public readonly originMessage: string | IMarkdownString,
+		public readonly acceptButtonLabel: string,
+		public readonly rejectButtonLabel: string,
 		public readonly accept: () => Promise<void>,
 		public readonly reject: () => Promise<void>,
 	) { }

@@ -287,18 +287,29 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					if (chatModel instanceof ChatModel) {
 						const request = chatModel.getRequests().at(-1);
 						if (request) {
-							const part = new ChatElicitationRequestPart(
-								localize('poll.terminal.title', 'Continue waiting for task'),
-								'Continue waiting for the task to finish up to 2 minutes',
-								'Continue waiting for the task to finish up to 2 minutes',
-								async () => {
-									outputAndIdle = await this._pollForOutputAndIdle(execution, true, token);
-								},
-								() => {
-									return Promise.resolve();
-								}
-							);
-							chatModel.acceptResponseProgress(request, part);
+							let requestMorePolling = false;
+							const waitPromise = new Promise<void>(resolve => {
+								const part = new ChatElicitationRequestPart(
+									localize('poll.terminal.title', 'Continue waiting for task?'),
+									new MarkdownString(`It will continue to poll for output to determine when the terminal becomes idle.`),
+									'',
+									localize('poll.terminal.accept', 'Yes'),
+									localize('poll.terminal.reject', 'No'),
+									async () => {
+										requestMorePolling = true;
+										resolve();
+									},
+									async () => {
+										requestMorePolling = false;
+										resolve();
+									}
+								);
+								chatModel.acceptResponseProgress(request, part);
+							});
+							await waitPromise;
+							if (requestMorePolling) {
+								outputAndIdle = await this._pollForOutputAndIdle(execution, true, token);
+							}
 						}
 					}
 				}
