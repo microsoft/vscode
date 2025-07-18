@@ -501,7 +501,7 @@ suite('RunInTerminalTool', () => {
 						folders: [{ uri: { fsPath: testDir } }]
 					} as any);
 
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'pwsh');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'cmd');
 
 					strictEqual(result, 'echo hello');
 				});
@@ -513,7 +513,7 @@ suite('RunInTerminalTool', () => {
 						folders: [{ uri: { fsPath: testDir } }]
 					} as any);
 
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'pwsh');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'cmd');
 
 					strictEqual(result, 'echo hello');
 				});
@@ -525,7 +525,7 @@ suite('RunInTerminalTool', () => {
 						folders: [{ uri: { fsPath: testDir } }]
 					} as any);
 
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'pwsh');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'cmd');
 
 					strictEqual(result, '.\\scripts\\test.bat');
 				});
@@ -539,7 +539,7 @@ suite('RunInTerminalTool', () => {
 						folders: [{ uri: { fsPath: testDir } }]
 					} as any);
 
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'pwsh');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'cmd');
 
 					strictEqual(result, command);
 				});
@@ -555,7 +555,7 @@ suite('RunInTerminalTool', () => {
 					} as any);
 					const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
 
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'pwsh');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
 
 					strictEqual(result, 'npm test');
 				});
@@ -567,7 +567,7 @@ suite('RunInTerminalTool', () => {
 						folders: [{ uri: { fsPath: testDir } }]
 					} as any);
 
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'pwsh');
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'cmd');
 
 					strictEqual(result, 'echo hello');
 				});
