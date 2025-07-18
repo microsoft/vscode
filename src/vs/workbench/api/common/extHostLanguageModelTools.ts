@@ -20,11 +20,34 @@ import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import { SearchExtensionsToolId } from '../../contrib/extensions/common/searchExtensionsTool.js';
+import { Lazy } from '../../../base/common/lazy.js';
 
 class Tool {
 
 	private _data: IToolDataDto;
-	private _apiObject: vscode.LanguageModelToolInformation | undefined;
+	private _apiObject = new Lazy<vscode.LanguageModelToolInformation>(() => {
+		const that = this;
+		return Object.freeze({
+			get name() { return that._data.id; },
+			get description() { return that._data.modelDescription; },
+			get inputSchema() { return that._data.inputSchema; },
+			get tags() { return that._data.tags ?? []; },
+			get source() { return undefined; }
+		});
+	});
+
+	private _apiObjectWithChatParticipantAdditions = new Lazy<vscode.LanguageModelToolInformation>(() => {
+		const that = this;
+		const source = typeConvert.LanguageModelToolSource.to(that._data.source);
+
+		return Object.freeze({
+			get name() { return that._data.id; },
+			get description() { return that._data.modelDescription; },
+			get inputSchema() { return that._data.inputSchema; },
+			get tags() { return that._data.tags ?? []; },
+			get source() { return source; }
+		});
+	});
 
 	constructor(data: IToolDataDto) {
 		this._data = data;
@@ -39,16 +62,11 @@ class Tool {
 	}
 
 	get apiObject(): vscode.LanguageModelToolInformation {
-		if (!this._apiObject) {
-			const that = this;
-			this._apiObject = Object.freeze({
-				get name() { return that._data.id; },
-				get description() { return that._data.modelDescription; },
-				get inputSchema() { return that._data.inputSchema; },
-				get tags() { return that._data.tags ?? []; },
-			});
-		}
-		return this._apiObject;
+		return this._apiObject.value;
+	}
+
+	get apiObjectWithChatParticipantAdditions() {
+		return this._apiObjectWithChatParticipantAdditions.value;
 	}
 }
 
@@ -136,8 +154,9 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 	}
 
 	getTools(extension: IExtensionDescription): vscode.LanguageModelToolInformation[] {
+		const hasParticipantAdditions = isProposedApiEnabled(extension, 'chatParticipantPrivate');
 		return Array.from(this._allTools.values())
-			.map(tool => tool.apiObject)
+			.map(tool => hasParticipantAdditions ? tool.apiObjectWithChatParticipantAdditions : tool.apiObject)
 			.filter(tool => {
 				switch (tool.name) {
 					case InternalEditToolId:

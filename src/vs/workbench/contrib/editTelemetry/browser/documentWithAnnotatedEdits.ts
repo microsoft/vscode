@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncIterableObject } from '../../../../base/common/async.js';
+import { AsyncIterableProducer } from '../../../../base/common/async.js';
 import { CachedFunction } from '../../../../base/common/cache.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservableWithChange, ISettableObservable, observableValue, RemoveUndefined, runOnChange } from '../../../../base/common/observable.js';
@@ -278,7 +278,7 @@ function isChatEdit(next: { value: StringText; change: { edit: AnnotatedStringEd
 }
 
 function iterateChangesFromObservable<T, TChange>(obs: IObservableWithChange<T, TChange>, store: DisposableStore): AsyncIterable<{ value: T; prevValue: T; change: RemoveUndefined<TChange>[] }> {
-	return new AsyncIterableObject<{ value: T; prevValue: T; change: RemoveUndefined<TChange>[] }>((e) => {
+	return new AsyncIterableProducer<{ value: T; prevValue: T; change: RemoveUndefined<TChange>[] }>((e) => {
 		store.add(runOnChange(obs, (value, prevValue, change) => {
 			e.emitOne({ value, prevValue, change: change });
 		}));

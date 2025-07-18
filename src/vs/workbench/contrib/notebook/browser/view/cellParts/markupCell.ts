@@ -262,7 +262,7 @@ export class MarkupCell extends Disposable {
 		const element = DOM.$('div');
 		element.classList.add('cell-collapse-preview');
 		const richEditorText = this.getRichText(this.viewCell.textBuffer, this.viewCell.language);
-		domSanitize.safeInnerHtml(element, richEditorText);
+		domSanitize.safeSetInnerHtml(element, richEditorText);
 		this.templateData.cellInputCollapsedContainer.appendChild(element);
 
 		const expandIcon = DOM.append(element, DOM.$('span.expandInputIcon'));
@@ -404,7 +404,7 @@ export class MarkupCell extends Disposable {
 		this.markdownAccessibilityContainer.innerText = '';
 		if (this.viewCell.renderedHtml) {
 			if (this.accessibilityService.isScreenReaderOptimized()) {
-				domSanitize.safeInnerHtml(this.markdownAccessibilityContainer, this.viewCell.renderedHtml);
+				domSanitize.safeSetInnerHtml(this.markdownAccessibilityContainer, this.viewCell.renderedHtml);
 			} else {
 				DOM.clearNode(this.markdownAccessibilityContainer);
 			}

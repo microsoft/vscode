@@ -79,6 +79,9 @@ type ServerBootStateClassification = {
 };
 
 interface IToolCacheEntry {
+	readonly serverName: string | undefined;
+	readonly serverInstructions: string | undefined;
+
 	readonly nonce: string | undefined;
 	/** Cached tools so we can show what's available before it's started */
 	readonly tools: readonly IValidatedMcpTool[];
@@ -173,29 +176,35 @@ interface IValidatedMcpTool extends MCP.Tool {
 	serverToolName: string;
 }
 
+interface ServerMetadata {
+	readonly serverName: string | undefined;
+	readonly serverInstructions: string | undefined;
+}
+
 class CachedPrimitive<T, C> {
 	constructor(
 		private readonly _definitionId: string,
 		private readonly _cache: McpServerMetadataCache,
-		private readonly _fromCache: (entry: IToolCacheEntry) => readonly C[],
-		private readonly _toT: (values: readonly C[], reader: IDerivedReader<void>) => T[],
+		private readonly _fromCache: (entry: IToolCacheEntry) => C,
+		private readonly _toT: (values: C, reader: IDerivedReader<void>) => T,
+		private readonly defaultValue: C,
 	) { }
 
-	public get fromCache(): { nonce: string | undefined; data: readonly C[] } | undefined {
+	public get fromCache(): { nonce: string | undefined; data: C } | undefined {
 		const c = this._cache.get(this._definitionId);
 		return c ? { data: this._fromCache(c), nonce: c.nonce } : undefined;
 	}
 
 	public readonly fromServerPromise = observableValue<ObservablePromise<{
-		readonly data: C[];
+		readonly data: C;
 		readonly nonce: string | undefined;
 	}> | undefined>(this, undefined);
 
 	private readonly fromServer = derived(reader => this.fromServerPromise.read(reader)?.promiseResult.read(reader)?.data);
 
-	public readonly value: IObservable<readonly T[]> = derived(reader => {
+	public readonly value: IObservable<T> = derived(reader => {
 		const serverTools = this.fromServer.read(reader);
-		const definitions = serverTools?.data ?? this.fromCache?.data ?? [];
+		const definitions = serverTools?.data ?? this.fromCache?.data ?? this.defaultValue;
 		return this._toT(definitions, reader);
 	});
 }
@@ -254,14 +263,19 @@ export class McpServer extends Disposable implements IMcpServer {
 		return this._capabilities;
 	}
 
-	private readonly _tools: CachedPrimitive<IMcpTool, IValidatedMcpTool>;
+	private readonly _tools: CachedPrimitive<readonly IMcpTool[], readonly IValidatedMcpTool[]>;
 	public get tools() {
 		return this._tools.value;
 	}
 
-	private readonly _prompts: CachedPrimitive<IMcpPrompt, MCP.Prompt>;
+	private readonly _prompts: CachedPrimitive<readonly IMcpPrompt[], readonly MCP.Prompt[]>;
 	public get prompts() {
 		return this._prompts.value;
+	}
+
+	private readonly _serverMetadata: CachedPrimitive<ServerMetadata, ServerMetadata | undefined>;
+	public get serverMetadata() {
+		return this._serverMetadata.value;
 	}
 
 	private readonly _fullDefinitions: IObservable<{
@@ -388,19 +402,29 @@ export class McpServer extends Disposable implements IMcpServer {
 		}));
 
 		// 3. Publish tools
-		this._tools = new CachedPrimitive<IMcpTool, IValidatedMcpTool>(
+		this._tools = new CachedPrimitive<readonly IMcpTool[], readonly IValidatedMcpTool[]>(
 			this.definition.id,
 			this._primitiveCache,
 			(entry) => entry.tools,
 			(entry) => entry.map(def => new McpTool(this, toolPrefix, def)).sort((a, b) => a.compare(b)),
+			[],
 		);
 
 		// 4. Publish promtps
-		this._prompts = new CachedPrimitive<IMcpPrompt, MCP.Prompt>(
+		this._prompts = new CachedPrimitive<readonly IMcpPrompt[], readonly MCP.Prompt[]>(
 			this.definition.id,
 			this._primitiveCache,
 			(entry) => entry.prompts || [],
 			(entry) => entry.map(e => new McpPrompt(this, e)),
+			[],
+		);
+
+		this._serverMetadata = new CachedPrimitive<ServerMetadata, ServerMetadata | undefined>(
+			this.definition.id,
+			this._primitiveCache,
+			(entry) => ({ serverName: entry.serverName, serverInstructions: entry.serverInstructions }),
+			(entry) => ({ serverName: entry?.serverName, serverInstructions: entry?.serverInstructions }),
+			undefined,
 		);
 
 		this._capabilities.set(this._primitiveCache.get(this.definition.id)?.capabilities, undefined);
@@ -664,13 +688,25 @@ export class McpServer extends Disposable implements IMcpServer {
 			updatePrompts(undefined);
 		}));
 
+		const metadataPromise = new ObservablePromise(Promise.resolve({
+			nonce: cacheNonce,
+			data: {
+				serverName: handler.serverInfo.title || handler.serverInfo.name,
+				serverInstructions: handler.serverInstructions,
+			},
+		}));
+
 		transaction(tx => {
 			// note: all update* methods must use tx synchronously
 			const capabilities = encodeCapabilities(handler.capabilities);
 			this._capabilities.set(capabilities, tx);
 
+			this._serverMetadata.fromServerPromise.set(metadataPromise, tx);
+
 			Promise.all([updateTools(tx), updatePrompts(tx)]).then(([{ data: tools }, { data: prompts }]) => {
 				this._primitiveCache.store(this.definition.id, {
+					serverName: handler.serverInfo.title || handler.serverInfo.name,
+					serverInstructions: handler.serverInstructions,
 					nonce: cacheNonce,
 					tools,
 					prompts,

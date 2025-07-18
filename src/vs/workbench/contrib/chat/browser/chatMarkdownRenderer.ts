@@ -76,7 +76,9 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 			remoteImageIsAllowed: (_uri) => false,
 			sanitizerOptions: {
 				replaceWithPlaintext: true,
-				allowedTags: allowedChatMarkdownHtmlTags,
+				allowedTags: {
+					override: allowedChatMarkdownHtmlTags,
+				},
 				...options?.sanitizerOptions,
 				allowedProductProtocols: [product.urlProtocol]
 			}

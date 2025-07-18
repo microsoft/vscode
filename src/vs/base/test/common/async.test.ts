@@ -1868,5 +1868,303 @@ suite('Async', () => {
 			assert.strictEqual(returnCalled, true);
 			assert.strictEqual(n < 2, true);
 		});
+
+		suite('AsyncIterableProducer', () => {
+			test('emitOne produces single values', async () => {
+				const producer = new async.AsyncIterableProducer<number>(emitter => {
+					emitter.emitOne(1);
+					emitter.emitOne(2);
+					emitter.emitOne(3);
+				});
+
+				const result: number[] = [];
+				for await (const item of producer) {
+					result.push(item);
+				}
+
+				assert.deepStrictEqual(result, [1, 2, 3]);
+			});
+
+			test('emitMany produces multiple values', async () => {
+				const producer = new async.AsyncIterableProducer<number>(emitter => {
+					emitter.emitMany([1, 2, 3]);
+					emitter.emitMany([4, 5]);
+				});
+
+				const result: number[] = [];
+				for await (const item of producer) {
+					result.push(item);
+				}
+
+				assert.deepStrictEqual(result, [1, 2, 3, 4, 5]);
+			});
+
+			test('mixed emitOne and emitMany', async () => {
+				const producer = new async.AsyncIterableProducer<number>(emitter => {
+					emitter.emitOne(1);
+					emitter.emitMany([2, 3]);
+					emitter.emitOne(4);
+				});
+
+				const result: number[] = [];
+				for await (const item of producer) {
+					result.push(item);
+				}
+
+				assert.deepStrictEqual(result, [1, 2, 3, 4]);
+			});
+
+			test('async executor with emitOne', async () => {
+				const producer = new async.AsyncIterableProducer<number>(async emitter => {
+					emitter.emitOne(1);
+					await async.timeout(1);
+					emitter.emitOne(2);
+					await async.timeout(1);
+					emitter.emitOne(3);
+				});
+
+				const result: number[] = [];
+				for await (const item of producer) {
+					result.push(item);
+				}
+
+				assert.deepStrictEqual(result, [1, 2, 3]);
+			});
+
+			test('async executor with emitMany', async () => {
+				const producer = new async.AsyncIterableProducer<number>(async emitter => {
+					emitter.emitMany([1, 2]);
+					await async.timeout(1);
+					emitter.emitMany([3, 4]);
+				});
+
+				const result: number[] = [];
+				for await (const item of producer) {
+					result.push(item);
+				}
+
+				assert.deepStrictEqual(result, [1, 2, 3, 4]);
+			});
+
+			test('reject with error', async () => {
+				const expectedError = new Error('test error');
+				const producer = new async.AsyncIterableProducer<number>(emitter => {
+					emitter.emitOne(1);
+					emitter.reject(expectedError);
+				});
+
+				const result: number[] = [];
+				let caughtError: Error | undefined;
+
+				try {
+					for await (const item of producer) {
+						result.push(item);
+					}
+				} catch (error) {
+					caughtError = error as Error;
+				}
+
+				assert.deepStrictEqual(result, [1]);
+				assert.strictEqual(caughtError, expectedError);
+			});
+
+			test('async executor throws error', async () => {
+				const expectedError = new Error('executor error');
+				const producer = new async.AsyncIterableProducer<number>(async emitter => {
+					emitter.emitOne(1);
+					throw expectedError;
+				});
+
+				const result: number[] = [];
+				let caughtError: Error | undefined;
+
+				try {
+					for await (const item of producer) {
+						result.push(item);
+					}
+				} catch (error) {
+					caughtError = error as Error;
+				}
+
+				assert.deepStrictEqual(result, [1]);
+				assert.strictEqual(caughtError, expectedError);
+			});
+
+			test('empty producer', async () => {
+				const producer = new async.AsyncIterableProducer<number>(emitter => {
+					// Don't emit anything
+				});
+
+				const result: number[] = [];
+				for await (const item of producer) {
+					result.push(item);
+				}
+
+				assert.deepStrictEqual(result, []);
+			});
+
+			test('async executor resolves without emitting', async () => {
+				const producer = new async.AsyncIterableProducer<number>(async emitter => {
+					await async.timeout(1);
+					// Don't emit anything
+				});
+
+				const result: number[] = [];
+				for await (const item of producer) {
+					result.push(item);
+				}
+
+				assert.deepStrictEqual(result, []);
+			});
+
+			test('multiple iterators on same producer', async () => {
+				const producer = new async.AsyncIterableProducer<number>(emitter => {
+					emitter.emitMany([1, 2, 3]);
+				});
+
+				// First iterator should consume all values
+				const result1: number[] = [];
+				for await (const item of producer) {
+					result1.push(item);
+				}
+
+				// Second iterator should not see any values (already consumed)
+				const result2: number[] = [];
+				for await (const item of producer) {
+					result2.push(item);
+				}
+
+				assert.deepStrictEqual(result1, [1, 2, 3]);
+				assert.deepStrictEqual(result2, []);
+			});
+
+			test('concurrent iteration', async () => {
+				const producer = new async.AsyncIterableProducer<number>(async emitter => {
+					emitter.emitOne(1);
+					await async.timeout(1);
+					emitter.emitOne(2);
+					await async.timeout(1);
+					emitter.emitOne(3);
+				});
+
+				const iterator1 = producer[Symbol.asyncIterator]();
+				const iterator2 = producer[Symbol.asyncIterator]();
+
+				// Both iterators share the same underlying producer
+				const first1 = await iterator1.next();
+				const first2 = await iterator2.next();
+				const second1 = await iterator1.next();
+				const second2 = await iterator2.next();
+
+				// Since they share the same producer, values are consumed in order
+				assert.strictEqual(first1.value, 1);
+				assert.strictEqual(first2.value, 2);
+				assert.strictEqual(second1.value, 3);
+				assert.strictEqual(second2.done, true);
+			});
+
+			test('executor with promise return value', async () => {
+				const producer = new async.AsyncIterableProducer<number>(emitter => {
+					emitter.emitOne(1);
+					emitter.emitOne(2);
+					return Promise.resolve();
+				});
+
+				const result: number[] = [];
+				for await (const item of producer) {
+					result.push(item);
+				}
+
+				assert.deepStrictEqual(result, [1, 2]);
+			});
+
+			test('executor with non-promise return value', async () => {
+				const producer = new async.AsyncIterableProducer<number>(emitter => {
+					emitter.emitOne(1);
+					emitter.emitOne(2);
+					return 'some value';
+				});
+
+				const result: number[] = [];
+				for await (const item of producer) {
+					result.push(item);
+				}
+
+				assert.deepStrictEqual(result, [1, 2]);
+			});
+
+			test('emitMany with empty array', async () => {
+				const producer = new async.AsyncIterableProducer<number>(emitter => {
+					emitter.emitOne(1);
+					emitter.emitMany([]);
+					emitter.emitOne(2);
+				});
+
+				const result: number[] = [];
+				for await (const item of producer) {
+					result.push(item);
+				}
+
+				assert.deepStrictEqual(result, [1, 2]);
+			});
+
+			test('reject immediately without emitting', async () => {
+				const expectedError = new Error('immediate error');
+				const producer = new async.AsyncIterableProducer<number>(emitter => {
+					emitter.reject(expectedError);
+				});
+
+				let caughtError: Error | undefined;
+				try {
+					for await (const _item of producer) {
+						assert.fail('Should not iterate when rejected immediately');
+					}
+				} catch (error) {
+					caughtError = error as Error;
+				}
+
+				assert.strictEqual(caughtError, expectedError);
+			});
+
+			test('string values', async () => {
+				const producer = new async.AsyncIterableProducer<string>(emitter => {
+					emitter.emitOne('hello');
+					emitter.emitMany(['world', 'test']);
+				});
+
+				const result: string[] = [];
+				for await (const item of producer) {
+					result.push(item);
+				}
+
+				assert.deepStrictEqual(result, ['hello', 'world', 'test']);
+			});
+
+			test('object values', async () => {
+				interface TestObject {
+					id: number;
+					name: string;
+				}
+
+				const producer = new async.AsyncIterableProducer<TestObject>(emitter => {
+					emitter.emitOne({ id: 1, name: 'first' });
+					emitter.emitMany([
+						{ id: 2, name: 'second' },
+						{ id: 3, name: 'third' }
+					]);
+				});
+
+				const result: TestObject[] = [];
+				for await (const item of producer) {
+					result.push(item);
+				}
+
+				assert.deepStrictEqual(result, [
+					{ id: 1, name: 'first' },
+					{ id: 2, name: 'second' },
+					{ id: 3, name: 'third' }
+				]);
+			});
+		});
 	});
 });

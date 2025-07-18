@@ -72,6 +72,10 @@ export class McpServerRequestHandler extends Disposable {
 		return this._serverInit.serverInfo;
 	}
 
+	public get serverInstructions(): string | undefined {
+		return this._serverInit.instructions;
+	}
+
 	// Event emitters for server notifications
 	private readonly _onDidReceiveCancelledNotification = this._register(new Emitter<MCP.CancelledNotification>());
 	readonly onDidReceiveCancelledNotification = this._onDidReceiveCancelledNotification.event;
