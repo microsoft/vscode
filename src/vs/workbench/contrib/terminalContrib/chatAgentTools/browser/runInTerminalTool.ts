@@ -604,7 +604,7 @@ class BackgroundTerminalExecution extends Disposable {
 		super();
 
 		this._startMarker = this._register(this._xterm.raw.registerMarker());
-		this._instance.runCommand(this._commandLine);
+		this._instance.runCommand(this._commandLine, true);
 	}
 
 	getOutput(): string {
