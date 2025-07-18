@@ -8,7 +8,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService.js';
+import { IChatTodoContent, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService.js';
 import { IChatRendererContent } from '../../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
 import { isToolResultInputOutputDetails } from '../../../common/languageModelToolsService.js';
@@ -24,6 +24,7 @@ import { TerminalConfirmationWidgetSubPart } from './chatTerminalToolSubPart.js'
 import { ToolConfirmationSubPart } from './chatToolConfirmationSubPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
+import { ChatTodoListSubPart } from './chatTodoListSubPart.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -90,6 +91,18 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 					return this.instantiationService.createInstance(ToolConfirmationSubPart, this.toolInvocation, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockModelCollection, this.codeBlockStartIndex);
 				}
 			}
+		}
+
+		// Check for todo list data from the todo tool
+		if (this.toolInvocation.toolSpecificData?.kind === 'todo') {
+			const todoSpecificData = this.toolInvocation.toolSpecificData as IChatTodoContent;
+			return this.instantiationService.createInstance(ChatTodoListSubPart, this.toolInvocation, todoSpecificData.todoData);
+		}
+
+		// Check for todo list data from the todo tool
+		if (this.toolInvocation.toolSpecificData?.kind === 'todo') {
+			const todoSpecificData = this.toolInvocation.toolSpecificData as IChatTodoContent;
+			return this.instantiationService.createInstance(ChatTodoListSubPart, this.toolInvocation, todoSpecificData.todoData);
 		}
 
 		if (this.toolInvocation.toolSpecificData?.kind === 'terminal' || this.toolInvocation.toolSpecificData?.kind === 'terminal2') {

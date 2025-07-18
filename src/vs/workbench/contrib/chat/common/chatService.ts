@@ -261,7 +261,7 @@ export interface IChatToolInputInvocationData {
 
 export interface IChatToolInvocation {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatTerminalToolInvocationData2 | IChatToolInputInvocationData | IChatExtensionsContent;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatTerminalToolInvocationData2 | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoContent;
 	/** Presence of this property says that confirmation is required */
 	confirmationMessages?: IToolConfirmationMessages;
 	confirmed: DeferredPromise<boolean>;
@@ -286,7 +286,7 @@ export interface IChatToolInvocation {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatTerminalToolInvocationData2 | IChatToolInputInvocationData | IChatExtensionsContent;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatTerminalToolInvocationData2 | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoContent;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
@@ -301,6 +301,18 @@ export interface IChatToolInvocationSerialized {
 export interface IChatExtensionsContent {
 	extensions: string[];
 	kind: 'extensions';
+}
+
+export interface IChatTodoContent {
+	kind: 'todo';
+	todoData: {
+		title: string;
+		todos: Array<{
+			id: string;
+			content: string;
+			status: 'not-started' | 'in-progress' | 'completed' | 'errored';
+		}>;
+	};
 }
 
 export interface IChatPrepareToolInvocationPart {
