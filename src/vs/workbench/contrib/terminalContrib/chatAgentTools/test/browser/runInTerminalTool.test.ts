@@ -493,6 +493,84 @@ suite('RunInTerminalTool', () => {
 
 					strictEqual(result, 'npm test');
 				});
+
+				test('should handle cd /d flag when directory matches cwd', async () => {
+					const testDir = 'C:\\test\\workspace';
+					const options = createRewriteOptions(`cd /d ${testDir} && echo hello`, 'session-1');
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: testDir } }]
+					} as any);
+
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'cmd');
+
+					strictEqual(result, 'echo hello');
+				});
+
+				test('should handle cd /d flag with quoted paths when directory matches cwd', async () => {
+					const testDir = 'C:\\test\\workspace';
+					const options = createRewriteOptions(`cd /d "${testDir}" && echo hello`, 'session-1');
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: testDir } }]
+					} as any);
+
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'cmd');
+
+					strictEqual(result, 'echo hello');
+				});
+
+				test('should handle cd /d flag with quoted paths from issue example', async () => {
+					const testDir = 'd:\\microsoft\\vscode';
+					const options = createRewriteOptions(`cd /d "${testDir}" && .\\scripts\\test.bat`, 'session-1');
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: testDir } }]
+					} as any);
+
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'cmd');
+
+					strictEqual(result, '.\\scripts\\test.bat');
+				});
+
+				test('should not rewrite cd /d when directory does not match cwd', async () => {
+					const testDir = 'C:\\test\\workspace';
+					const differentDir = 'C:\\different\\path';
+					const command = `cd /d ${differentDir} && echo hello`;
+					const options = createRewriteOptions(command, 'session-1');
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: testDir } }]
+					} as any);
+
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'cmd');
+
+					strictEqual(result, command);
+				});
+
+				test('should handle cd /d flag with instance priority', async () => {
+					const instanceDir = 'C:\\instance\\workspace';
+					const workspaceDir = 'C:\\workspace\\service';
+					const command = `cd /d ${instanceDir} && npm test`;
+					const options = createRewriteOptions(command, 'session-1');
+
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: workspaceDir } }]
+					} as any);
+					const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
+
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, instance, 'cmd');
+
+					strictEqual(result, 'npm test');
+				});
+
+				test('should handle cd /d flag with semicolon separator', async () => {
+					const testDir = 'C:\\test\\workspace';
+					const options = createRewriteOptions(`cd /d ${testDir}; echo hello`, 'session-1');
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: testDir } }]
+					} as any);
+
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, options.parameters as IRunInTerminalInputParams, undefined, 'cmd');
+
+					strictEqual(result, 'echo hello');
+				});
 			});
 		});
 	});

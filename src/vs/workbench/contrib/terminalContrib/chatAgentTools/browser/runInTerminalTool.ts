@@ -408,7 +408,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const cdPrefixMatch = commandLine.match(
 			isPwsh
 				? /^(?:cd|Set-Location(?: -Path)?) (?<dir>[^\s]+) ?(?:&&|;)\s+(?<suffix>.+)$/i
-				: /^cd (?<dir>[^\s]+) &&\s+(?<suffix>.+)$/
+				: /^cd(?: \/d)? (?<dir>(?:[^\s]+|"[^"]*")) ?(?:&&|;)\s*(?<suffix>.+)$/
 		);
 		const cdDir = cdPrefixMatch?.groups?.dir;
 		const cdSuffix = cdPrefixMatch?.groups?.suffix;
