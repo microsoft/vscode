@@ -128,13 +128,6 @@
 
 	// --- Git ---
 	"git.ignoreLimitWarning": true,
-	"git.branchProtection": [
-		"main",
-		"distro",
-		"release/*"
-	],
-	"git.branchProtectionPrompt": "alwaysCommitToNewBranch",
-	"git.branchRandomName.enable": true,
 	"git.pullBeforeCheckout": true,
 	"git.mergeEditor": true,
 	"git.diagnosticsCommitHook.enabled": true,
