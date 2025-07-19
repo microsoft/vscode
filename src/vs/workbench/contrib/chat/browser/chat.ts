@@ -222,6 +222,7 @@ export interface IChatWidget {
 	waitForReady(): Promise<void>;
 	getViewState(): IChatViewState;
 	togglePaused(): void;
+	lockToCodingAgent(agent: IChatAgentData): void;
 }
 
 

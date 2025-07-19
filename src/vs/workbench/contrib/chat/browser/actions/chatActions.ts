@@ -873,6 +873,66 @@ export function registerChatActions() {
 		}
 	});
 
+	registerAction2(class OpenCodingAgentEditorAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.openCodingAgentEditor',
+				title: localize2('codingAgentSession.open', "New Coding Agent Editor"),
+				f1: true,
+				category: CHAT_CATEGORY,
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.hasRemoteCodingAgent),
+				icon: Codicon.cloud,
+				menu: {
+					id: MenuId.ViewTitle,
+					group: 'navigation',
+					order: 5,
+					when: ContextKeyExpr.equals('view', ChatViewId)
+				}
+			});
+		}
+
+		async run(accessor: ServicesAccessor) {
+			const chatAgentService = accessor.get(IChatAgentService);
+			const editorService = accessor.get(IEditorService);
+			const quickInputService = accessor.get(IQuickInputService);
+			const chatWidgetService = accessor.get(IChatWidgetService);
+
+			// Get all coding agents
+			const allAgents = chatAgentService.getAgents();
+			const codingAgents = allAgents.filter(agent => agent.isCodingAgent);
+
+			if (codingAgents.length === 0) {
+				return;
+			}
+
+			const quickPickItems = codingAgents.map(agent => ({
+				label: agent.fullName || agent.name,
+				description: agent.description,
+				detail: `@${agent.name}`,
+				agent: agent
+			}));
+
+			const picked = await quickInputService.pick(quickPickItems, {
+				title: localize('selectCodingAgent', "Select Coding Agent"),
+				placeHolder: localize('selectCodingAgentPlaceholder', "Select your coding agent")
+			});
+
+			if (!picked) {
+				return; // User cancelled
+			}
+			await editorService.openEditor({
+				resource: ChatEditorInput.getNewEditorUri(),
+				options: { pinned: true, sticky: true } satisfies IChatEditorOptions
+			});
+			const widget = chatWidgetService.lastFocusedWidget;
+			if (widget) {
+				const agentMessage = `@${picked.agent.name} `;
+				widget.setInput(agentMessage);
+				widget.lockToCodingAgent(picked.agent);
+			}
+		}
+	});
+
 
 	registerAction2(class ChatAddAction extends Action2 {
 		constructor() {
@@ -884,7 +944,10 @@ export function registerChatActions() {
 				category: CHAT_CATEGORY,
 				menu: [{
 					id: MenuId.ChatExecute,
-					when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
+					when: ContextKeyExpr.and(
+						ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
+						ChatContextKeys.lockedToCodingAgent.negate()
+					),
 					group: 'navigation',
 					order: 1
 				}]

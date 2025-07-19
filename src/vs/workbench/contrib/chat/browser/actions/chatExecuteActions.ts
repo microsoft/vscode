@@ -217,6 +217,7 @@ class ToggleChatModeAction extends Action2 {
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
 						ChatContextKeys.inQuickChat.negate(),
+						ChatContextKeys.lockedToCodingAgent.negate(),
 					),
 					group: 'navigation',
 				},
@@ -351,11 +352,13 @@ class OpenModelPickerAction extends Action2 {
 				order: 3,
 				group: 'navigation',
 				when:
-					ContextKeyExpr.or(
-						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
-						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Editor),
-						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook),
-						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal)
+					ContextKeyExpr.and(
+						ChatContextKeys.lockedToCodingAgent.negate(),
+						ContextKeyExpr.or(
+							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
+							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Editor),
+							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook),
+							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal))
 					)
 			}
 		});
@@ -539,7 +542,10 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				id: MenuId.ChatExecute,
 				group: 'navigation',
 				order: 3.4,
-				when: ChatContextKeys.hasRemoteCodingAgent
+				when: ContextKeyExpr.and(
+					ChatContextKeys.hasRemoteCodingAgent,
+					ChatContextKeys.lockedToCodingAgent.negate()
+				)
 			}
 		});
 	}
@@ -702,7 +708,10 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 				id: MenuId.ChatExecuteSecondary,
 				group: 'group_1',
 				order: 3,
-				when: ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
+					ChatContextKeys.lockedToCodingAgent.negate()
+				),
 			},
 			keybinding: {
 				when: ChatContextKeys.inChatInput,
@@ -757,8 +766,10 @@ class SendToNewChatAction extends Action2 {
 			menu: {
 				id: MenuId.ChatExecuteSecondary,
 				group: 'group_2',
-				when: ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel)
-
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
+					ChatContextKeys.lockedToCodingAgent.negate()
+				)
 			},
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,

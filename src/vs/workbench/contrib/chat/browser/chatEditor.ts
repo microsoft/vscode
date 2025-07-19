@@ -31,8 +31,10 @@ export interface IChatEditorOptions extends IEditorOptions {
 }
 
 export class ChatEditor extends EditorPane {
-	private widget!: ChatWidget;
-
+	private _widget!: ChatWidget;
+	public get widget(): ChatWidget {
+		return this._widget;
+	}
 	private _scopedContextKeyService!: IScopedContextKeyService;
 	override get scopedContextKeyService() {
 		return this._scopedContextKeyService;
@@ -63,7 +65,7 @@ export class ChatEditor extends EditorPane {
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 		ChatContextKeys.inChatEditor.bindTo(this._scopedContextKeyService).set(true);
 
-		this.widget = this._register(
+		this._widget = this._register(
 			scopedInstantiationService.createInstance(
 				ChatWidget,
 				ChatAgentLocation.Panel,
