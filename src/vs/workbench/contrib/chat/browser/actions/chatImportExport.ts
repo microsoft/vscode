@@ -18,6 +18,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { isExportableSessionData } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 const defaultFileName = 'chat.json';
 const filters = [{ name: localize('chat.file.label', "Chat Session"), extensions: ['json'] }];
@@ -44,14 +45,18 @@ export function registerChatExportActions() {
 				return;
 			}
 
-			const defaultUri = joinPath(await fileDialogService.defaultFilePath(), defaultFileName);
-			const result = await fileDialogService.showSaveDialog({
-				defaultUri,
-				filters
-			});
-			if (!result) {
-				return;
+			const dest = args.length > 0 ? args[0] : undefined;
+
+			// If destination is passed, use it and avoid the fileDialogService
+			// Otherwise, use the fileDialogService
+			let target: URI | undefined;
+			if (URI.isUri(dest)) {
+				target = dest;
+			} else {
+				const defaultUri = joinPath(await fileDialogService.defaultFilePath(), defaultFileName);
+				target = await fileDialogService.showSaveDialog({ defaultUri, filters });
 			}
+			if (!target) { return; }
 
 			const model = chatService.getSession(widget.viewModel.sessionId);
 			if (!model) {
@@ -60,7 +65,10 @@ export function registerChatExportActions() {
 
 			// Using toJSON on the model
 			const content = VSBuffer.fromString(JSON.stringify(model.toExport(), undefined, 2));
-			await fileService.writeFile(result, content);
+			await fileService.writeFile(target, content, {
+				// Using atomic for better reliability
+				atomic: { postfix: '.vsctmp' }
+			});
 		}
 	});
 
