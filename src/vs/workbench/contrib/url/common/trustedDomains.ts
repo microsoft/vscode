@@ -51,9 +51,10 @@ export function normalizeURL(url: string | URI): string {
 	} catch { return url.toString(); }
 }
 const rLocalhost = /^localhost(:\d+)?$/i;
+const rLocalhostTld = /^(.+\.)?localhost(:\d+)?$/i;
 const r127 = /^127.0.0.1(:\d+)?$/;
 
 export function isLocalhostAuthority(authority: string) {
-	return rLocalhost.test(authority) || r127.test(authority);
+	return rLocalhost.test(authority) || rLocalhostTld.test(authority) || r127.test(authority);
 }
 
