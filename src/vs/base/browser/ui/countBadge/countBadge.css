@@ -22,3 +22,9 @@
 	min-height: auto;
 	line-height: normal;
 }
+
+.monaco-toggle-count-badge {
+	cursor: pointer;
+	user-select: none;
+	outline: none;
+}
