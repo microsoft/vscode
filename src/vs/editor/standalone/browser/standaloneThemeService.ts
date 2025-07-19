@@ -6,7 +6,7 @@
 import * as dom from '../../../base/browser/dom.js';
 import * as domStylesheetsJs from '../../../base/browser/domStylesheets.js';
 import { addMatchMediaChangeListener } from '../../../base/browser/browser.js';
-import { Color } from '../../../base/common/color.js';
+import { Color, RGBColorSpace } from '../../../base/common/color.js';
 import { Emitter } from '../../../base/common/event.js';
 import { TokenizationRegistry } from '../../common/languages.js';
 import { FontStyle, TokenMetadata } from '../../common/encodedTokenAttributes.js';
@@ -232,6 +232,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 	private _styleElements: HTMLStyleElement[];
 	private _colorMapOverride: Color[] | null;
 	private _theme!: IStandaloneTheme;
+	private _highlightingColorSpace: RGBColorSpace = 'srgb';
 
 	private _builtInProductIconTheme = new UnthemedProductIconTheme();
 
@@ -374,6 +375,14 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		this._onOSSchemeChanged();
 	}
 
+	public setHighlightingColorSpace(highlightingColorSpace: RGBColorSpace): void {
+		if (this._highlightingColorSpace === highlightingColorSpace) {
+			return;
+		}
+		this._highlightingColorSpace = highlightingColorSpace;
+		this._updateThemeOrColorMap();
+	}
+
 	private _updateThemeOrColorMap(): void {
 		const cssRules: string[] = [];
 		const hasRule: { [rule: string]: boolean } = {};
@@ -397,7 +406,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		ruleCollector.addRule(`.monaco-editor, .monaco-diff-editor, .monaco-component { ${colorVariables.join('\n')} }`);
 
 		const colorMap = this._colorMapOverride || this._theme.tokenTheme.getColorMap();
-		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));
+		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap, this._highlightingColorSpace));
 
 		this._themeCSS = cssRules.join('\n');
 		this._updateCSS();
