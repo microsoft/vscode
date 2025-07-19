@@ -6,7 +6,6 @@
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, isMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { IChatElicitationRequest } from '../../common/chatService.js';
@@ -27,8 +26,8 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		super();
 
 		const buttons = [
-			{ label: localize('accept', "Respond"), data: true },
-			{ label: localize('dismiss', "Cancel"), data: false, isSecondary: true },
+			{ label: elicitation.acceptButtonLabel, data: true },
+			{ label: elicitation.rejectButtonLabel, data: false, isSecondary: true },
 		];
 		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, elicitation.title, elicitation.originMessage, this.getMessageToRender(elicitation), buttons, context.container));
 		confirmationWidget.setShowButtons(elicitation.state === 'pending');

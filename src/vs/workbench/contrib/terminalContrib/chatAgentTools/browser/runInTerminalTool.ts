@@ -21,7 +21,7 @@ import { TerminalCapability } from '../../../../../platform/terminal/common/capa
 import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
-import type { IChatTerminalToolInvocationData, IChatTerminalToolInvocationData2 } from '../../../chat/common/chatService.js';
+import { IChatService, type IChatTerminalToolInvocationData, type IChatTerminalToolInvocationData2 } from '../../../chat/common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../terminal/browser/xterm/xtermTerminal.js';
@@ -35,6 +35,10 @@ import { RichExecuteStrategy } from './executeStrategy/richExecuteStrategy.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from './subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from './toolTerminalCreator.js';
+import { ChatModel } from '../../../chat/common/chatModel.js';
+import { ChatElicitationRequestPart } from '../../../chat/browser/chatElicitationRequestPart.js';
+import { ChatMessageRole, ILanguageModelsService } from '../../../chat/common/languageModels.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -140,7 +144,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@IChatService private readonly _chatService: IChatService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService
 	) {
 		super();
 
@@ -285,6 +291,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		let error: string | undefined;
+		let outputAndIdle: { idle: boolean; output: string; pollDurationMs?: number } | undefined = undefined;
 
 		const timingStart = Date.now();
 		const termId = generateUuid();
@@ -310,13 +317,47 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
-				const resultText = (
+				// Poll for output until the terminal is idle or 20 seconds have passed
+				outputAndIdle = await this._pollForOutputAndIdle(execution, false, token);
+				if (!outputAndIdle.idle) {
+					const chatModel = invocation.context?.sessionId && this._chatService.getSession(invocation.context?.sessionId);
+					if (chatModel instanceof ChatModel) {
+						const request = chatModel.getRequests().at(-1);
+						if (request) {
+							let requestMorePolling = false;
+							const waitPromise = new Promise<void>(resolve => {
+								const part = new ChatElicitationRequestPart(
+									new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for `{0}` to finish?", command)),
+									new MarkdownString(localize('poll.terminal.polling', "Copilot will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
+									'',
+									localize('poll.terminal.accept', 'Yes'),
+									localize('poll.terminal.reject', 'No'),
+									async () => {
+										requestMorePolling = true;
+										resolve();
+									},
+									async () => {
+										requestMorePolling = false;
+										resolve();
+									}
+								);
+								chatModel.acceptResponseProgress(request, part);
+							});
+							await waitPromise;
+							if (requestMorePolling) {
+								outputAndIdle = await this._pollForOutputAndIdle(execution, true, token);
+							}
+						}
+					}
+				}
+				let resultText = (
 					didUserEditCommand
 						? `Note: The user manually edited the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
 						: didToolEditCommand
 							? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
 							: `Command is running in terminal with ID=${termId}`
 				);
+				resultText += outputAndIdle.idle ? `\n\nTerminal became idle with output:\n${outputAndIdle.output}` : `\n\nTerminal is still running, with output:\n${outputAndIdle.output}`;
 				return {
 					content: [{
 						kind: 'text',
@@ -331,6 +372,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				throw e;
 			} finally {
+				this._logService.trace('runInTerminalTool#outputLineCount, ', outputAndIdle?.output ? count(outputAndIdle.output, '\n') : 0);
+				this._logService.trace('runInTerminalTool#pollDurationMs, ', outputAndIdle?.pollDurationMs);
 				const timingExecuteMs = Date.now() - timingStart;
 				this._sendTelemetry(toolTerminal.instance, {
 					didUserEditCommand,
@@ -338,11 +381,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
 					isBackground: true,
 					error,
-					outputLineCount: -1,
 					exitCode: undefined,
 					isNewSession: true,
 					timingExecuteMs,
 					timingConnectMs,
+					idle: outputAndIdle?.idle,
+					outputLineCount: outputAndIdle?.output ? count(outputAndIdle.output, '\n') : 0,
+					pollDurationMs: outputAndIdle?.pollDurationMs,
 				});
 			}
 		} else {
@@ -431,6 +476,89 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					value: resultText.join(''),
 				}]
 			};
+		}
+	}
+
+	private async _pollForOutputAndIdle(
+		execution: BackgroundTerminalExecution,
+		extendedPolling: boolean,
+		token: CancellationToken
+	): Promise<{ idle: boolean; output: string; pollDurationMs?: number }> {
+		const maxWaitMs = extendedPolling ? 120000 : 20000;
+		const maxInterval = 2000;
+		let currentInterval = 500;
+		const pollStartTime = Date.now();
+
+		let lastBufferLength = 0;
+		let idleCount = 0;
+		let buffer = '';
+
+		while (true) {
+			const now = Date.now();
+			const elapsed = now - pollStartTime;
+			const timeLeft = maxWaitMs - elapsed;
+
+			if (timeLeft <= 0) {
+				break;
+			}
+
+			// Cap the wait so we never overshoot timeLeft
+			const waitTime = Math.min(currentInterval, timeLeft);
+			await timeout(waitTime);
+
+			// Check again immediately after waking
+			if (Date.now() - pollStartTime >= maxWaitMs) {
+				break;
+			}
+
+			currentInterval = Math.min(currentInterval * 2, maxInterval);
+
+			buffer = execution.getOutput();
+			const currentBufferLength = buffer.length;
+
+			if (currentBufferLength === lastBufferLength) {
+				idleCount++;
+			} else {
+				idleCount = 0;
+				lastBufferLength = currentBufferLength;
+			}
+			const isLikelyFinished = await this._assessOutputForFinishedState(buffer, token);
+			if (isLikelyFinished && idleCount >= 2) {
+				return { idle: true, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? 20000 : 0) };
+			}
+		}
+		return { idle: idleCount >= 2, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? 20000 : 0) };
+	}
+
+	private async _assessOutputForFinishedState(buffer: string, token: CancellationToken): Promise<boolean> {
+		const modelId = this._languageModelsService.getLanguageModelIds().filter(m => this._languageModelsService.lookupLanguageModel(m)?.isDefault)?.[0];
+		if (!modelId) {
+			return false;
+		}
+
+		const response = await this._languageModelsService.sendChatRequest(modelId, new ExtensionIdentifier('Github.copilot-chat'), [{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: `Evaluate this terminal output to determine if the command is finished or still in process: ${buffer}. Return the word true if finished and false if still in process.` }] }], {}, token);
+
+		let responseText = '';
+
+		const streaming = (async () => {
+			for await (const part of response.stream) {
+				if (Array.isArray(part)) {
+					for (const p of part) {
+						if (p.part.type === 'text') {
+							responseText += p.part.value;
+						}
+					}
+				} else if (part.part.type === 'text') {
+					responseText += part.part.value;
+				}
+			}
+		})();
+
+		try {
+			await Promise.all([response.result, streaming]);
+			return responseText === 'true' ? true : false;
+		} catch (err) {
+			return false;
 		}
 	}
 
@@ -580,6 +708,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		shellIntegrationQuality: ShellIntegrationQuality;
 		outputLineCount: number;
 		timingConnectMs: number;
+		pollDurationMs?: number;
+		idle?: boolean;
 		timingExecuteMs: number;
 		exitCode: number | undefined;
 	}) {
@@ -596,6 +726,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			nonZeroExitCode: -1 | 0 | 1;
 			timingConnectMs: number;
 			timingExecuteMs: number;
+			pollDurationMs: number;
+			idle: boolean;
 		};
 		type TelemetryClassification = {
 			owner: 'tyriar';
@@ -613,6 +745,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			nonZeroExitCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command exited with a non-zero code (-1=error/unknown, 0=zero exit code, 1=non-zero)' };
 			timingConnectMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the terminal took to start up and connect to' };
 			timingExecuteMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the command took to execute' };
+			pollDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the tool polled for output, this is undefined when isBackground is true or if there\'s an error' };
+			idle: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the terminal became idle before the tool finished polling for output' };
 		};
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal', {
 			terminalSessionId: instance.sessionId,
@@ -626,6 +760,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			nonZeroExitCode: state.exitCode === undefined ? -1 : state.exitCode === 0 ? 0 : 1,
 			timingConnectMs: state.timingConnectMs,
 			timingExecuteMs: state.timingExecuteMs,
+			pollDurationMs: state.pollDurationMs ?? 0,
+			idle: state.idle ?? false
 		});
 	}
 }
