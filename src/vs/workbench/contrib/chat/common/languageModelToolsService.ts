@@ -148,6 +148,10 @@ export interface IToolResultInputOutputDetails {
 	readonly isError?: boolean;
 }
 
+export interface IToolResultOutputDetails {
+	readonly output: { type: 'data'; mimeType: string; value: VSBuffer };
+}
+
 export function isToolResultInputOutputDetails(obj: any): obj is IToolResultInputOutputDetails {
 	return typeof obj === 'object' && typeof obj?.input === 'string' && (typeof obj?.output === 'string' || Array.isArray(obj?.output));
 }
@@ -155,7 +159,7 @@ export function isToolResultInputOutputDetails(obj: any): obj is IToolResultInpu
 export interface IToolResult {
 	content: (IToolResultPromptTsxPart | IToolResultTextPart | IToolResultDataPart)[];
 	toolResultMessage?: string | IMarkdownString;
-	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails;
+	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails;
 	toolResultError?: string;
 }
 
