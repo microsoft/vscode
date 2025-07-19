@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IStringDictionary } from '../../../../../base/common/collections.js';
+import type { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { localize } from '../../../../../nls.js';
 import type { IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 
@@ -15,23 +16,61 @@ export interface ITerminalChatAgentToolsConfiguration {
 	autoApprove: { [key: string]: boolean };
 }
 
+const autoApproveBoolean: IJSONSchema = {
+	type: 'boolean',
+	enum: [
+		true,
+		false,
+	],
+	enumDescriptions: [
+		localize('autoApprove.true', "Automatically approve the pattern."),
+		localize('autoApprove.false', "Require explicit approval for the pattern."),
+	],
+	description: localize('autoApprove.key', "The start of a command to match against. A regular expression can be provided by wrapping the string in `/` characters."),
+};
+
 export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalChatAgentToolsSettingId.AutoApprove]: {
-		markdownDescription: localize('autoApprove', "A list of commands or regular expressions that control whether the run in terminal tool commands require explicit approval. These will be matched against the start of a command. A regular expression can be provided by wrapping the string in `/` characters followed by optional flags such as `i`.\n\nSet to `true` to automatically approve commands, `false` to always require explicit approval or `null` to unset the value.\n\nExamples:\n- `\"mkdir\": true` Will allow all command lines starting with `mkdir`\n- `\"npm run build\": true` Will allow all command lines starting with `npm run build`\n- `\"rm\": false` Will require explicit approval for all command lines starting with `rm`\n- `\"/^git (status|show\\b.*)$/\": true` will allow `git status` and all command lines starting with `git show`\n- `\"/^Get-ChildItem\\b/i\": true` will allow Get-ChildItem command regardless of casing\n- `\"/.*/\": true` will allow all command lines\n- `\"rm\": null` will unset the default `false` value for `rm`\n\nNote that these commands and regular expressions are evaluated for every _sub-command_  within a single command line, so `foo && bar` for example will need both `foo` and `bar` to match a `true` entry and must not match a `false` entry in order to auto approve. Inline commands are also detected so `echo $(rm file)` will need both `echo $(rm file)` and `rm file` to pass."),
+		markdownDescription: [
+			localize('autoApprove.description.intro', "A list of commands or regular expressions that control whether the run in terminal tool commands require explicit approval. These will be matched against the start of a command. A regular expression can be provided by wrapping the string in {0} characters followed by optional flags such as {1} for case-insensitivity.", '`/`', '`i`'),
+			localize('autoApprove.description.values', "Set to {0} to automatically approve commands, {1} to always require explicit approval or {2} to unset the value.", '`true`', '`false`', '`null`'),
+			localize('autoApprove.description.subCommands', "Note that these commands and regular expressions are evaluated for every _sub-command_ within the full _command line_, so {0} for example will need both {1} and {2} to match a {3} entry and must not match a {4} entry in order to auto approve. Inline commands are also detected so {5} will need both {5} and {6} to pass.", '`foo && bar`', '`foo`', '`bar`', '`true`', '`false`', '`echo $(rm file)`', '`rm file`'),
+			localize('autoApprove.description.commandLine', "An object can be used to match against the full command line instead of matching sub-commands and inline commands, for example {0}. This will be checked _after_ sub-commands are checked, so denied sub-commands will take precedence.", '`{ approve: false, matchCommandLine: true }`'),
+			[
+				localize('autoApprove.description.examples.title', 'Examples:'),
+				`|${localize('autoApprove.description.examples.value', "Value")}|${localize('autoApprove.description.examples.description', "Description")}|`,
+				'|---|---|',
+				'| `\"mkdir\": true` | ' + localize('autoApprove.description.examples.mkdir', "Allow all commands starting with {0}", '`mkdir`'),
+				'| `\"npm run build\": true` | ' + localize('autoApprove.description.examples.npmRunBuild', "Allow all commands starting with {0}", '`npm run build`'),
+				'| `\"/^git (status\\|show\\b.*)$/\": true` | ' + localize('autoApprove.description.examples.regexGit', "Allow {0} and all commands starting with {1}", '`git status`', '`git show`'),
+				'| `\"/^Get-ChildItem\\b/i\": true` | ' + localize('autoApprove.description.examples.regexCase', "will allow {0} commands regardless of casing", '`Get-ChildItem`'),
+				'| `\"/.*/\": true` | ' + localize('autoApprove.description.examples.regexAll', "Allow all commands (denied commands still require approval)"),
+				'| `\"rm\": false` | ' + localize('autoApprove.description.examples.rm', "Require explicit approval for all commands starting with {0}", '`rm`'),
+				'| `\"/\.ps1/i\": { approve: false, matchCommandLine: true }` | ' + localize('autoApprove.description.examples.ps1', "Require explicit approval for any _command line_ that contains {0} regardless of casing", '`".ps1"`'),
+				'| `\"rm\": null` | ' + localize('autoApprove.description.examples.rmUnset', "Unset the default {0} value for {1}", '`false`', '`rm`'),
+			].join('\n')
+		].join('\n\n'),
 		type: 'object',
 		additionalProperties: {
 			anyOf: [
+				autoApproveBoolean,
 				{
-					type: 'boolean',
-					enum: [
-						true,
-						false,
-					],
-					enumDescriptions: [
-						localize('autoApprove.true', "Automatically approve the pattern."),
-						localize('autoApprove.false', "Require explicit approval for the pattern."),
-					],
-					description: localize('autoApprove.key', "The start of a command to match against. A regular expression can be provided by wrapping the string in `/` characters."),
+					type: 'object',
+					properties: {
+						approve: autoApproveBoolean,
+						matchCommandLine: {
+							type: 'boolean',
+							enum: [
+								true,
+								false,
+							],
+							enumDescriptions: [
+								localize('autoApprove.matchCommandLine.true', "Match against the full command line, eg. `foo && bar`."),
+								localize('autoApprove.matchCommandLine.false', "Match against sub-commands and inline commands, eg. `foo && bar` will need both `foo` and `bar` to match."),
+							],
+							description: localize('autoApprove.matchCommandLine', "Whether to match against the full command line, as opposed to splitting by sub-commands and inline commands."),
+						}
+					}
 				},
 				{
 					type: 'null',

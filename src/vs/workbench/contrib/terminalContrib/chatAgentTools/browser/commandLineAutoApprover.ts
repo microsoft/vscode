@@ -12,6 +12,8 @@ import { isPowerShell } from './runInTerminalHelpers.js';
 export class CommandLineAutoApprover extends Disposable {
 	private _denyListRegexes: RegExp[] = [];
 	private _allowListRegexes: RegExp[] = [];
+	private _allowListCommandLineRegexes: RegExp[] = [];
+	private _denyListCommandLineRegexes: RegExp[] = [];
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -26,12 +28,14 @@ export class CommandLineAutoApprover extends Disposable {
 	}
 
 	updateConfiguration() {
-		const { denyList, allowList } = this._mapAutoApproveConfigToRegexList(this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoApprove));
+		const { denyList, allowList, allowListCommandLine, denyListCommandLine } = this._mapAutoApproveConfigToRegexList(this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoApprove));
 		this._allowListRegexes = allowList;
 		this._denyListRegexes = denyList;
+		this._allowListCommandLineRegexes = allowListCommandLine;
+		this._denyListCommandLineRegexes = denyListCommandLine;
 	}
 
-	isAutoApproved(command: string, shell: string, os: OperatingSystem): boolean {
+	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): boolean {
 		// Check the deny list to see if this command requires explicit approval
 		for (const regex of this._denyListRegexes) {
 			if (this._commandMatchesRegex(regex, command, shell, os)) {
@@ -52,6 +56,23 @@ export class CommandLineAutoApprover extends Disposable {
 		return false;
 	}
 
+	isCommandLineAutoApproved(commandLine: string): boolean {
+		// Check the deny list first to see if this command line requires explicit approval
+		for (const regex of this._denyListCommandLineRegexes) {
+			if (regex.test(commandLine)) {
+				return false;
+			}
+		}
+
+		// Check if the full command line matches any of the allow list command line regexes
+		for (const regex of this._allowListCommandLineRegexes) {
+			if (regex.test(commandLine)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private _commandMatchesRegex(regex: RegExp, command: string, shell: string, os: OperatingSystem): boolean {
 		if (regex.test(command)) {
 			return true;
@@ -65,13 +86,15 @@ export class CommandLineAutoApprover extends Disposable {
 		return false;
 	}
 
-	private _mapAutoApproveConfigToRegexList(config: unknown): { denyList: RegExp[]; allowList: RegExp[] } {
+	private _mapAutoApproveConfigToRegexList(config: unknown): { denyList: RegExp[]; allowList: RegExp[]; allowListCommandLine: RegExp[]; denyListCommandLine: RegExp[] } {
 		if (!config || typeof config !== 'object') {
-			return { denyList: [], allowList: [] };
+			return { denyList: [], allowList: [], allowListCommandLine: [], denyListCommandLine: [] };
 		}
 
 		const denyList: RegExp[] = [];
 		const allowList: RegExp[] = [];
+		const allowListCommandLine: RegExp[] = [];
+		const denyListCommandLine: RegExp[] = [];
 
 		Object.entries(config).forEach(([key, value]) => {
 			if (typeof value === 'boolean') {
@@ -82,10 +105,29 @@ export class CommandLineAutoApprover extends Disposable {
 				} else if (value === false) {
 					denyList.push(regex);
 				}
+			} else if (typeof value === 'object' && value !== null) {
+				// Handle object format like { approve: true/false, matchCommandLine: true/false }
+				const objectValue = value as { approve?: boolean; matchCommandLine?: boolean };
+				if (typeof objectValue.approve === 'boolean') {
+					const regex = this._convertAutoApproveEntryToRegex(key);
+					if (objectValue.approve === true) {
+						if (objectValue.matchCommandLine === true) {
+							allowListCommandLine.push(regex);
+						} else {
+							allowList.push(regex);
+						}
+					} else if (objectValue.approve === false) {
+						if (objectValue.matchCommandLine === true) {
+							denyListCommandLine.push(regex);
+						} else {
+							denyList.push(regex);
+						}
+					}
+				}
 			}
 		});
 
-		return { denyList, allowList };
+		return { denyList, allowList, allowListCommandLine, denyListCommandLine };
 	}
 
 	private _convertAutoApproveEntryToRegex(value: string): RegExp {

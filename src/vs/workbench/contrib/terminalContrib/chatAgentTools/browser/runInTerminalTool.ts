@@ -171,17 +171,21 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const subCommands = splitCommandLineIntoSubCommands(args.command, shell, os);
 			const inlineSubCommands = subCommands.map(e => Array.from(extractInlineSubCommands(e, shell, os))).flat();
 			const allSubCommands = [...subCommands, ...inlineSubCommands];
-			if (allSubCommands.every(e => this._commandLineAutoApprover.isAutoApproved(e, shell, os))) {
+			if (allSubCommands.every(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os))) {
 				confirmationMessages = undefined;
 			} else {
-				confirmationMessages = {
-					title: args.isBackground
-						? localize('runInTerminal.background', "Run command in background terminal")
-						: localize('runInTerminal.foreground', "Run command in terminal"),
-					message: new MarkdownString(
-						args.explanation
-					),
-				};
+				if (this._commandLineAutoApprover.isCommandLineAutoApproved(args.command)) {
+					confirmationMessages = undefined;
+				} else {
+					confirmationMessages = {
+						title: args.isBackground
+							? localize('runInTerminal.background', "Run command in background terminal")
+							: localize('runInTerminal.foreground', "Run command in terminal"),
+						message: new MarkdownString(
+							args.explanation
+						),
+					};
+				}
 			}
 		}
 

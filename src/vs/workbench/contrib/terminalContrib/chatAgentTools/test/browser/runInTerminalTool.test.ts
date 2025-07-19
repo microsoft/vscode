@@ -62,6 +62,10 @@ suite('RunInTerminalTool', () => {
 		setConfig(TerminalChatAgentToolsSettingId.AutoApprove, value);
 	}
 
+	function setAutoApproveWithCommandLine(value: { [key: string]: { approve: boolean; matchCommandLine?: boolean } | boolean }) {
+		setConfig(TerminalChatAgentToolsSettingId.AutoApprove, value);
+	}
+
 	function setConfig(key: string, value: unknown) {
 		configurationService.setUserConfiguration(key, value);
 		configurationService.onDidChangeConfigurationEmitter.fire({
@@ -228,6 +232,21 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Whitespace only command'
 			});
 			assertConfirmationRequired(result);
+		});
+
+		test('should handle matchCommandLine: true patterns', async () => {
+			setAutoApproveWithCommandLine({
+				"/dangerous/": { approve: false, matchCommandLine: true },
+				"echo": { approve: true, matchCommandLine: true }
+			});
+
+			// Command line pattern should be approved
+			const result1 = await executeToolTest({ command: 'echo hello world' });
+			assertAutoApproved(result1);
+
+			// Command line pattern should be denied due to dangerous content
+			const result2 = await executeToolTest({ command: 'echo this is a dangerous command' });
+			assertConfirmationRequired(result2);
 		});
 	});
 
