@@ -188,6 +188,14 @@ function loadSourcemaps() {
             return;
         }
         f.contents = Buffer.from(contents.replace(/\/\/# sourceMappingURL=(.*)$/g, ''), 'utf8');
+        if (lastMatch[1].startsWith('data:application/json')) {
+            const parts = lastMatch[1].split('base64,');
+            if (parts.length > 1) {
+                f.sourceMap = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+            }
+            cb(undefined, f);
+            return;
+        }
         fs_1.default.readFile(path_1.default.join(path_1.default.dirname(f.path), lastMatch[1]), 'utf8', (err, contents) => {
             if (err) {
                 return cb(err);
