@@ -7,16 +7,22 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { Color } from '../../../base/common/color.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Size } from '../../../base/common/size.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import * as platform from '../../registry/common/platform.js';
 import { ColorIdentifier } from './colorRegistry.js';
 import { IconContribution, IconDefinition } from './iconRegistry.js';
-import { ColorScheme, ThemeTypeSelector } from './theme.js';
+import { SizeIdentifier } from './sizeUtils.js';
+import { ColorScheme, SizeScheme, ThemeTypeSelector } from './theme.js';
 
 export const IThemeService = createDecorator<IThemeService>('themeService');
 
 export function themeColorFromId(id: ColorIdentifier) {
+	return { id };
+}
+
+export function sizeFromId(id: SizeIdentifier) {
 	return { id };
 }
 
@@ -38,6 +44,37 @@ export interface ITokenStyle {
 	readonly underline: boolean | undefined;
 	readonly strikethrough: boolean | undefined;
 	readonly italic: boolean | undefined;
+}
+
+export interface ISizeTheme {
+
+	readonly type: SizeScheme;
+
+	readonly label: string;
+
+	/**
+	 * Resolves the size of the given size identifier. If the theme does not
+	 * specify the size, the default size is returned unless <code>useDefault</code> is set to false.
+	 * @param size the id of the size
+	 * @param useDefault specifies if the default size should be used. If not set, the default is used.
+	 */
+	getSize(size: SizeIdentifier, useDefault?: boolean): Size | undefined;
+
+	/**
+	 * Returns whether the theme defines a value for the size. If not, that means the
+	 * default size will be used.
+	 */
+	defines(size: SizeIdentifier): boolean;
+
+	/**
+	 * Returns the token style for a given classification. The result uses the <code>MetadataConsts</code> format
+	 */
+	getTokenStyleMetadata(type: string, modifiers: string[], modelLanguage: string): ITokenStyle | undefined;
+
+	/**
+	 * List of all sizes used with tokens. <code>getTokenStyleMetadata</code> references the sizes by index into this list.
+	 */
+	readonly tokenSizeMap: string[];
 }
 
 export interface IColorTheme {
