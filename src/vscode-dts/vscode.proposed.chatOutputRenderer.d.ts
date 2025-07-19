@@ -40,16 +40,27 @@ declare module 'vscode' {
 		 * @param token A cancellation token that is cancelled if we no longer care about the rendering before this
 		 * call completes.
 		 *
-		 * @returns A promise that resolves when the rendering is complete.
+		 * @returns A promise that resolves when the webview has been initialized and is ready to be presented to the user.
 		 */
-		renderChatOutput(data: ToolResultDataOutput, webview: Webview, token: CancellationToken): Thenable<void>;
+		renderChatOutput(data: Uint8Array, webview: Webview, token: CancellationToken): Thenable<void>;
 	}
 
 	export namespace chat {
 		/**
 		 * Registers a new renderer for a given mime type.
 		 *
-		 * TODO: needs contribution point so we know which mimes are available.
+		 * Note: To use this API, you should also add a contribution point in your extension's
+		 * package.json:
+		 *
+		 * ```json
+		 * "contributes": {
+		 *   "chatOutputRenderer": [
+		 *     {
+		 *       "mimeTypes": ["application/your-mime-type"]
+		 *     }
+		 *   ]
+		 * }
+		 * ```
 		 *
 		 * @param mime The MIME type of the output that this renderer can handle.
 		 * @param renderer The renderer to register.

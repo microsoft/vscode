@@ -1453,12 +1453,12 @@ export interface ExtHostUriOpenersShape {
 }
 
 export interface MainThreadChatOutputRendererShape extends IDisposable {
-	$registerChatOutputRenderer(mime: string): void;
+	$registerChatOutputRenderer(mime: string, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void;
 	$unregisterChatOutputRenderer(mime: string): void;
 }
 
 export interface ExtHostChatOutputRendererShape {
-	$renderChatPart(mime: string, valueData: VSBuffer, webviewHandle: string, token: CancellationToken): Promise<void>;
+	$renderChatOutput(mime: string, valueData: VSBuffer, webviewHandle: string, token: CancellationToken): Promise<void>;
 }
 
 export interface MainThreadProfileContentHandlersShape {

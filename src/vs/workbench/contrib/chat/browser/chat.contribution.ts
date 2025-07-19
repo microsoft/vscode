@@ -114,6 +114,7 @@ import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './chatAttachmentResolveService.js';
 import { registerLanguageModelActions } from './actions/chatLanguageModelActions.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
+import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -782,6 +783,7 @@ registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
 registerSingleton(IChatContextPickService, ChatContextPickService, InstantiationType.Delayed);
 registerSingleton(IChatModeService, ChatModeService, InstantiationType.Delayed);
 registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, InstantiationType.Delayed);
+registerSingleton(IChatOutputRendererService, ChatOutputRendererService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);
 

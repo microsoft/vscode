@@ -5,7 +5,9 @@
 
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
-import { IChatOutputItemRendererService } from '../../contrib/chat/browser/chatOutputItemRenderer.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
+import { IChatOutputRendererService } from '../../contrib/chat/browser/chatOutputItemRenderer.js';
 import { IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostChatOutputRendererShape, ExtHostContext, MainThreadChatOutputRendererShape } from '../common/extHost.protocol.js';
 import { MainThreadWebviews } from './mainThreadWebviews.js';
@@ -21,7 +23,7 @@ export class MainThreadChatOutputRenderer extends Disposable implements MainThre
 	constructor(
 		extHostContext: IExtHostContext,
 		private readonly _mainThreadWebview: MainThreadWebviews,
-		@IChatOutputItemRendererService private readonly _rendererService: IChatOutputItemRendererService,
+		@IChatOutputRendererService private readonly _rendererService: IChatOutputRendererService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatOutputRenderer);
@@ -34,7 +36,7 @@ export class MainThreadChatOutputRenderer extends Disposable implements MainThre
 		this.registeredRenderers.clear();
 	}
 
-	$registerChatOutputRenderer(mime: string): void {
+	$registerChatOutputRenderer(mime: string, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void {
 		this._rendererService.registerRenderer(mime, {
 			renderOutputPart: async (mime, data, webview, token) => {
 				const webviewHandle = `chat-output-${++this._webviewHandlePool}`;
@@ -43,8 +45,10 @@ export class MainThreadChatOutputRenderer extends Disposable implements MainThre
 					serializeBuffersForPostMessage: true,
 				});
 
-				this._proxy.$renderChatPart(mime, VSBuffer.wrap(data), webviewHandle, token);
+				this._proxy.$renderChatOutput(mime, VSBuffer.wrap(data), webviewHandle, token);
 			},
+		}, {
+			extension: { id: extensionId, location: URI.revive(extensionLocation) }
 		});
 	}
 
