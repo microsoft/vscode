@@ -2438,6 +2438,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return folder;
 	}
 
+	getTerminalSessionIdForTask(task: Task): string | undefined {
+		return this._taskSystem?.getTerminalSessionIdForTask(task);
+	}
+
 	protected async _computeWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, IWorkspaceFolderTaskResult>> {
 		const promises: Promise<IWorkspaceFolderTaskResult | undefined>[] = [];
 		for (const folder of this.workspaceFolders) {
