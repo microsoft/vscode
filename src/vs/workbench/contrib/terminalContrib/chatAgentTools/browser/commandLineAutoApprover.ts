@@ -9,11 +9,16 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 
+interface IAutoApproveRule {
+	regex: RegExp;
+	sourceText: string;
+}
+
 export class CommandLineAutoApprover extends Disposable {
-	private _denyListRegexes: RegExp[] = [];
-	private _allowListRegexes: RegExp[] = [];
-	private _allowListCommandLineRegexes: RegExp[] = [];
-	private _denyListCommandLineRegexes: RegExp[] = [];
+	private _denyListRules: IAutoApproveRule[] = [];
+	private _allowListRules: IAutoApproveRule[] = [];
+	private _allowListCommandLineRules: IAutoApproveRule[] = [];
+	private _denyListCommandLineRules: IAutoApproveRule[] = [];
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -28,49 +33,49 @@ export class CommandLineAutoApprover extends Disposable {
 	}
 
 	updateConfiguration() {
-		const { denyList, allowList, allowListCommandLine, denyListCommandLine } = this._mapAutoApproveConfigToRegexList(this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoApprove));
-		this._allowListRegexes = allowList;
-		this._denyListRegexes = denyList;
-		this._allowListCommandLineRegexes = allowListCommandLine;
-		this._denyListCommandLineRegexes = denyListCommandLine;
+		const { denyListRules, allowListRules, allowListCommandLineRules, denyListCommandLineRules } = this._mapAutoApproveConfigToRules(this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoApprove));
+		this._allowListRules = allowListRules;
+		this._denyListRules = denyListRules;
+		this._allowListCommandLineRules = allowListCommandLineRules;
+		this._denyListCommandLineRules = denyListCommandLineRules;
 	}
 
-	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): boolean {
+	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): { isAutoApproved: boolean; reason: string } {
 		// Check the deny list to see if this command requires explicit approval
-		for (const regex of this._denyListRegexes) {
-			if (this._commandMatchesRegex(regex, command, shell, os)) {
-				return false;
+		for (const rule of this._denyListRules) {
+			if (this._commandMatchesRegex(rule.regex, command, shell, os)) {
+				return { isAutoApproved: false, reason: `Command '${command}' is denied by deny list rule: ${rule.sourceText}` };
 			}
 		}
 
 		// Check the allow list to see if the command is allowed to run without explicit approval
-		for (const regex of this._allowListRegexes) {
-			if (this._commandMatchesRegex(regex, command, shell, os)) {
-				return true;
+		for (const rule of this._allowListRules) {
+			if (this._commandMatchesRegex(rule.regex, command, shell, os)) {
+				return { isAutoApproved: true, reason: `Command '${command}' is approved by allow list rule: ${rule.sourceText}` };
 			}
 		}
 
 		// TODO: LLM-based auto-approval https://github.com/microsoft/vscode/issues/253267
 
 		// Fallback is always to require approval
-		return false;
+		return { isAutoApproved: false, reason: `Command '${command}' has no matching auto approve entries` };
 	}
 
-	isCommandLineAutoApproved(commandLine: string): boolean {
+	isCommandLineAutoApproved(commandLine: string): { isAutoApproved: boolean; reason: string } {
 		// Check the deny list first to see if this command line requires explicit approval
-		for (const regex of this._denyListCommandLineRegexes) {
-			if (regex.test(commandLine)) {
-				return false;
+		for (const rule of this._denyListCommandLineRules) {
+			if (rule.regex.test(commandLine)) {
+				return { isAutoApproved: false, reason: `Command line '${commandLine}' is denied by deny list rule: ${rule.sourceText}` };
 			}
 		}
 
 		// Check if the full command line matches any of the allow list command line regexes
-		for (const regex of this._allowListCommandLineRegexes) {
-			if (regex.test(commandLine)) {
-				return true;
+		for (const rule of this._allowListCommandLineRules) {
+			if (rule.regex.test(commandLine)) {
+				return { isAutoApproved: true, reason: `Command line '${commandLine}' is approved by allow list rule: ${rule.sourceText}` };
 			}
 		}
-		return false;
+		return { isAutoApproved: false, reason: `Command line '${commandLine}' has no matching auto approve entries` };
 	}
 
 	private _commandMatchesRegex(regex: RegExp, command: string, shell: string, os: OperatingSystem): boolean {
@@ -86,24 +91,34 @@ export class CommandLineAutoApprover extends Disposable {
 		return false;
 	}
 
-	private _mapAutoApproveConfigToRegexList(config: unknown): { denyList: RegExp[]; allowList: RegExp[]; allowListCommandLine: RegExp[]; denyListCommandLine: RegExp[] } {
+	private _mapAutoApproveConfigToRules(config: unknown): {
+		denyListRules: IAutoApproveRule[];
+		allowListRules: IAutoApproveRule[];
+		allowListCommandLineRules: IAutoApproveRule[];
+		denyListCommandLineRules: IAutoApproveRule[];
+	} {
 		if (!config || typeof config !== 'object') {
-			return { denyList: [], allowList: [], allowListCommandLine: [], denyListCommandLine: [] };
+			return {
+				denyListRules: [],
+				allowListRules: [],
+				allowListCommandLineRules: [],
+				denyListCommandLineRules: []
+			};
 		}
 
-		const denyList: RegExp[] = [];
-		const allowList: RegExp[] = [];
-		const allowListCommandLine: RegExp[] = [];
-		const denyListCommandLine: RegExp[] = [];
+		const denyListRules: IAutoApproveRule[] = [];
+		const allowListRules: IAutoApproveRule[] = [];
+		const allowListCommandLineRules: IAutoApproveRule[] = [];
+		const denyListCommandLineRules: IAutoApproveRule[] = [];
 
 		Object.entries(config).forEach(([key, value]) => {
 			if (typeof value === 'boolean') {
 				const regex = this._convertAutoApproveEntryToRegex(key);
 				// IMPORTANT: Only true and false are used, null entries need to be ignored
 				if (value === true) {
-					allowList.push(regex);
+					allowListRules.push({ regex, sourceText: key });
 				} else if (value === false) {
-					denyList.push(regex);
+					denyListRules.push({ regex, sourceText: key });
 				}
 			} else if (typeof value === 'object' && value !== null) {
 				// Handle object format like { approve: true/false, matchCommandLine: true/false }
@@ -112,22 +127,27 @@ export class CommandLineAutoApprover extends Disposable {
 					const regex = this._convertAutoApproveEntryToRegex(key);
 					if (objectValue.approve === true) {
 						if (objectValue.matchCommandLine === true) {
-							allowListCommandLine.push(regex);
+							allowListCommandLineRules.push({ regex, sourceText: key });
 						} else {
-							allowList.push(regex);
+							allowListRules.push({ regex, sourceText: key });
 						}
 					} else if (objectValue.approve === false) {
 						if (objectValue.matchCommandLine === true) {
-							denyListCommandLine.push(regex);
+							denyListCommandLineRules.push({ regex, sourceText: key });
 						} else {
-							denyList.push(regex);
+							denyListRules.push({ regex, sourceText: key });
 						}
 					}
 				}
 			}
 		});
 
-		return { denyList, allowList, allowListCommandLine, denyListCommandLine };
+		return {
+			denyListRules,
+			allowListRules,
+			allowListCommandLineRules,
+			denyListCommandLineRules
+		};
 	}
 
 	private _convertAutoApproveEntryToRegex(value: string): RegExp {

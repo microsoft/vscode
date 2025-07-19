@@ -171,21 +171,33 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const subCommands = splitCommandLineIntoSubCommands(args.command, shell, os);
 			const inlineSubCommands = subCommands.map(e => Array.from(extractInlineSubCommands(e, shell, os))).flat();
 			const allSubCommands = [...subCommands, ...inlineSubCommands];
-			if (allSubCommands.every(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os))) {
+			const subCommandResults = allSubCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
+			const autoApproveReasons: string[] = [...subCommandResults.map(e => e.reason)];
+
+			if (subCommandResults.every(e => e.isAutoApproved)) {
+				this._logService.info('autoApprove: All sub-commands auto-approved');
 				confirmationMessages = undefined;
 			} else {
-				if (this._commandLineAutoApprover.isCommandLineAutoApproved(args.command)) {
+				this._logService.info('autoApprove: All sub-commands NOT auto-approved');
+				const commandLineResults = this._commandLineAutoApprover.isCommandLineAutoApproved(args.command);
+				autoApproveReasons.push(commandLineResults.reason);
+				if (commandLineResults.isAutoApproved) {
+					this._logService.info('autoApprove: Command line auto-approved');
 					confirmationMessages = undefined;
 				} else {
+					this._logService.info('autoApprove: Command line NOT auto-approved');
 					confirmationMessages = {
 						title: args.isBackground
 							? localize('runInTerminal.background', "Run command in background terminal")
 							: localize('runInTerminal.foreground', "Run command in terminal"),
-						message: new MarkdownString(
-							args.explanation
-						),
+						message: new MarkdownString(args.explanation),
 					};
 				}
+			}
+
+			// TODO: Surface reason on tool part https://github.com/microsoft/vscode/pull/256793
+			for (const reason of autoApproveReasons) {
+				this._logService.info(`- ${reason}`);
 			}
 		}
 
