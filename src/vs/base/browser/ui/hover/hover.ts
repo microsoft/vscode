@@ -107,6 +107,11 @@ export interface IHoverDelegate2 {
 	hideHover(force?: boolean): void;
 
 	/**
+	 * Enable or disable the hover service. This will force hide any currently visible hover
+	 */
+	enableHover(enabled: boolean): void;
+
+	/**
 	 * This should only be used until we have the ability to show multiple context views
 	 * simultaneously. #188822
 	 */
