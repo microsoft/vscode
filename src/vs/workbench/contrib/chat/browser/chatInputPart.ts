@@ -31,7 +31,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { EditorOptions, IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IDimension } from '../../../../editor/common/core/2d/dimension.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
@@ -428,9 +428,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._register(this.historyService.onDidClearHistory(() => this.history = new HistoryNavigator2<IChatHistoryEntry>([{ text: '', state: this.getInputState() }], ChatInputHistoryMaxEntries, historyKeyFn)));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			const newOptions: IEditorOptions = {};
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Chat)) {
-				this.inputEditor.updateOptions({ ariaLabel: this._getAriaLabel() });
+				newOptions.ariaLabel = this._getAriaLabel();
 			}
+			if (e.affectsConfiguration('editor.wordSegmenterLocales')) {
+				newOptions.wordSegmenterLocales = this.configurationService.getValue<string | string[]>('editor.wordSegmenterLocales');
+			}
+
+			this.inputEditor.updateOptions(newOptions);
 		}));
 
 		this._chatEditsListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, MenuId.ChatEditingWidgetModifiedFilesToolbar, { verticalScrollMode: ScrollbarVisibility.Visible }));

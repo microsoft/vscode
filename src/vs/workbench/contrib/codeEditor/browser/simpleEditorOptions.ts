@@ -45,6 +45,7 @@ export function getSimpleEditorOptions(configurationService: IConfigurationServi
 		guides: {
 			indentation: false
 		},
+		wordSegmenterLocales: configurationService.getValue<string | string[]>('editor.wordSegmenterLocales'),
 		accessibilitySupport: configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport'),
 		cursorBlinking: configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking'),
 		editContext: configurationService.getValue<boolean>('editor.editContext'),
