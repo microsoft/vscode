@@ -4,31 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { CachedFunction } from '../../../../base/common/cache.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, mapObservableArrayCached, derived, IObservable, ISettableObservable, observableValue, derivedWithSetter, observableSignalFromEvent, observableFromEvent } from '../../../../base/common/observable.js';
-import { isDefined } from '../../../../base/common/types.js';
-import { URI } from '../../../../base/common/uri.js';
-import { DynamicCssRules } from '../../../../editor/browser/editorDom.js';
-import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
-import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { IModelDeltaDecoration } from '../../../../editor/common/model.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { EditorResourceAccessor } from '../../../common/editor.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
-import { EditSource } from './documentWithAnnotatedEdits.js';
+import { CachedFunction } from '../../../../../base/common/cache.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, mapObservableArrayCached, derived, IObservable, ISettableObservable, observableValue, derivedWithSetter, observableFromEvent } from '../../../../../base/common/observable.js';
+import { DynamicCssRules } from '../../../../../editor/browser/editorDom.js';
+import { observableCodeEditor } from '../../../../../editor/browser/observableCodeEditor.js';
+import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { IModelDeltaDecoration } from '../../../../../editor/common/model.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
+import { EditSource } from '../helpers/documentWithAnnotatedEdits.js';
 import { EditSourceTrackingImpl } from './editSourceTrackingImpl.js';
+import { AnnotatedDocuments } from '../helpers/annotatedDocuments.js';
 import { DataChannelForwardingTelemetryService } from './forwardingTelemetryService.js';
-import { EDIT_TELEMETRY_DETAILS_SETTING_ID, EDIT_TELEMETRY_SHOW_DECORATIONS, EDIT_TELEMETRY_SHOW_STATUS_BAR } from './settings.js';
-import { VSCodeWorkspace } from './vscodeObservableWorkspace.js';
+import { EDIT_TELEMETRY_DETAILS_SETTING_ID, EDIT_TELEMETRY_SHOW_DECORATIONS, EDIT_TELEMETRY_SHOW_STATUS_BAR } from '../settings.js';
+import { VSCodeWorkspace } from '../helpers/vscodeObservableWorkspace.js';
 
 export class EditTrackingFeature extends Disposable {
 
@@ -40,10 +37,11 @@ export class EditTrackingFeature extends Disposable {
 
 	constructor(
 		private readonly _workspace: VSCodeWorkspace,
+		private readonly _annotatedDocuments: AnnotatedDocuments,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
-		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+
 		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		super();
@@ -52,36 +50,12 @@ export class EditTrackingFeature extends Disposable {
 		this._editSourceTrackingShowStatusBar = observableConfigValue(EDIT_TELEMETRY_SHOW_STATUS_BAR, false, this._configurationService);
 		this._editSourceDetailsEnabled = observableConfigValue(EDIT_TELEMETRY_DETAILS_SETTING_ID, false, this._configurationService);
 
-		const onDidAddGroupSignal = observableSignalFromEvent(this, this._editorGroupsService.onDidAddGroup);
-		const onDidRemoveGroupSignal = observableSignalFromEvent(this, this._editorGroupsService.onDidRemoveGroup);
-		const groups = derived(this, reader => {
-			onDidAddGroupSignal.read(reader);
-			onDidRemoveGroupSignal.read(reader);
-			return this._editorGroupsService.groups;
-		});
-		const visibleUris: IObservable<Map<string, URI>> = mapObservableArrayCached(this, groups, g => {
-			const editors = observableFromEvent(this, g.onDidModelChange, () => g.editors);
-			return editors.map(e => e.map(editor => EditorResourceAccessor.getCanonicalUri(editor)));
-		}).map((editors, reader) => {
-			const map = new Map<string, URI>();
-			for (const urisObs of editors) {
-				for (const uri of urisObs.read(reader)) {
-					if (isDefined(uri)) {
-						map.set(uri.toString(), uri);
-					}
-				}
-			}
-			return map;
-		});
+
 
 		const instantiationServiceWithInterceptedTelemetry = this._instantiationService.createChild(new ServiceCollection(
 			[ITelemetryService, this._instantiationService.createInstance(DataChannelForwardingTelemetryService)]
 		));
-
-		const impl = this._register(instantiationServiceWithInterceptedTelemetry.createInstance(EditSourceTrackingImpl, this._workspace, (doc, reader) => {
-			const map = visibleUris.read(reader);
-			return map.get(doc.uri.toString()) !== undefined;
-		}, this._editSourceDetailsEnabled));
+		const impl = this._register(instantiationServiceWithInterceptedTelemetry.createInstance(EditSourceTrackingImpl, this._editSourceDetailsEnabled, this._annotatedDocuments));
 
 		this._register(autorun((reader) => {
 			if (!this._editSourceTrackingShowDecorations.read(reader)) {

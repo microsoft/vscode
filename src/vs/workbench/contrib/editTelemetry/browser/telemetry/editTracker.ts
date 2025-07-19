@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { observableSignal, runOnChange, IReader } from '../../../../base/common/observable.js';
-import { AnnotatedStringEdit } from '../../../../editor/common/core/edits/stringEdit.js';
-import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
-import { TextModelEditSource } from '../../../../editor/common/textModelEditSource.js';
-import { IDocumentWithAnnotatedEdits, EditKeySourceData, EditSource } from './documentWithAnnotatedEdits.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { observableSignal, runOnChange, IReader } from '../../../../../base/common/observable.js';
+import { AnnotatedStringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
+import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
+import { TextModelEditSource } from '../../../../../editor/common/textModelEditSource.js';
+import { IDocumentWithAnnotatedEdits, EditKeySourceData, EditSource } from '../helpers/documentWithAnnotatedEdits.js';
 
 /**
  * Tracks a single document.

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ClassifiedEvent, OmitMetadata, IGDPRProperty, StrictPropertyCheck } from '../../../../platform/telemetry/common/gdprTypings.js';
-import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
-import { IDataChannelService } from '../../../services/dataChannel/common/dataChannel.js';
+import { ClassifiedEvent, OmitMetadata, IGDPRProperty, StrictPropertyCheck } from '../../../../../platform/telemetry/common/gdprTypings.js';
+import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IDataChannelService } from '../../../../services/dataChannel/common/dataChannel.js';
 
 export class InterceptingTelemetryService implements ITelemetryService {
 	_serviceBrand: undefined;

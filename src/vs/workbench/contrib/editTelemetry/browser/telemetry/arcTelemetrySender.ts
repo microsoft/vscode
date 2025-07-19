@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { sumBy } from '../../../../base/common/arrays.js';
-import { TimeoutTimer } from '../../../../base/common/async.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Disposable, toDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { runOnChange, IObservableWithChange } from '../../../../base/common/observable.js';
-import { LineEdit } from '../../../../editor/common/core/edits/lineEdit.js';
-import { AnnotatedStringEdit, BaseStringEdit } from '../../../../editor/common/core/edits/stringEdit.js';
-import { StringText } from '../../../../editor/common/core/text/abstractText.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { sumBy } from '../../../../../base/common/arrays.js';
+import { TimeoutTimer } from '../../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { Disposable, toDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { runOnChange, IObservableWithChange } from '../../../../../base/common/observable.js';
+import { LineEdit } from '../../../../../editor/common/core/edits/lineEdit.js';
+import { AnnotatedStringEdit, BaseStringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
+import { StringText } from '../../../../../editor/common/core/text/abstractText.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ArcTracker } from './arcTracker.js';
-import { IDocumentWithAnnotatedEdits, EditSourceData, createDocWithJustReason } from './documentWithAnnotatedEdits.js';
+import { IDocumentWithAnnotatedEdits, EditSourceData, createDocWithJustReason } from '../helpers/documentWithAnnotatedEdits.js';
 import type { ScmRepoBridge } from './editSourceTrackingImpl.js';
 
 export class InlineEditArcTelemetrySender extends Disposable {
@@ -28,17 +28,17 @@ export class InlineEditArcTelemetrySender extends Disposable {
 		this._register(runOnChange(docWithAnnotatedEdits.value, (_val, _prev, changes) => {
 			const edit = AnnotatedStringEdit.compose(changes.map(c => c.edit));
 
-			if (!edit.replacements.some(r => r.data.editReason.metadata.source === 'inlineCompletionAccept')) {
+			if (!edit.replacements.some(r => r.data.editSource.metadata.source === 'inlineCompletionAccept')) {
 				return;
 			}
-			if (!edit.replacements.every(r => r.data.editReason.metadata.source === 'inlineCompletionAccept')) {
+			if (!edit.replacements.every(r => r.data.editSource.metadata.source === 'inlineCompletionAccept')) {
 				onUnexpectedError(new Error('ArcTelemetrySender: Not all edits are inline completion accept edits!'));
 				return;
 			}
-			if (edit.replacements[0].data.editReason.metadata.source !== 'inlineCompletionAccept') {
+			if (edit.replacements[0].data.editSource.metadata.source !== 'inlineCompletionAccept') {
 				return;
 			}
-			const data = edit.replacements[0].data.editReason.metadata;
+			const data = edit.replacements[0].data.editSource.metadata;
 
 			const docWithJustReason = createDocWithJustReason(docWithAnnotatedEdits, this._store);
 			const reporter = this._instantiationService.createInstance(ArcTelemetryReporter, [0, 30, 120, 300, 600, 900].map(s => s * 1000), _prev, docWithJustReason, scmRepoBridge, edit, res => {
@@ -105,14 +105,14 @@ export class ChatArcTelemetrySender extends Disposable {
 
 			const supportedSource = new Set(['Chat.applyEdits']);
 
-			if (!edit.replacements.some(r => supportedSource.has(r.data.editReason.metadata.source))) {
+			if (!edit.replacements.some(r => supportedSource.has(r.data.editSource.metadata.source))) {
 				return;
 			}
-			if (!edit.replacements.every(r => supportedSource.has(r.data.editReason.metadata.source))) {
-				onUnexpectedError(new Error(`ArcTelemetrySender: Not all edits are ${edit.replacements[0].data.editReason.metadata.source}!`));
+			if (!edit.replacements.every(r => supportedSource.has(r.data.editSource.metadata.source))) {
+				onUnexpectedError(new Error(`ArcTelemetrySender: Not all edits are ${edit.replacements[0].data.editSource.metadata.source}!`));
 				return;
 			}
-			const data = edit.replacements[0].data.editReason;
+			const data = edit.replacements[0].data.editSource;
 
 			const docWithJustReason = createDocWithJustReason(docWithAnnotatedEdits, this._store);
 			const reporter = this._instantiationService.createInstance(ArcTelemetryReporter, [0, 60, 300].map(s => s * 1000), _prev, docWithJustReason, scmRepoBridge, edit, res => {
