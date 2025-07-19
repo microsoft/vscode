@@ -16,6 +16,9 @@ import { relativePath } from '../../../../base/common/resources.js';
 import { isObject } from '../../../../base/common/types.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { WindowIdleValue, getActiveWindow } from '../../../../base/browser/dom.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { type IResolvedTextEditorModel, type ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { type IReference } from '../../../../base/common/lifecycle.js';
 
 class SnippetBodyInsights {
 
@@ -170,6 +173,7 @@ export class SnippetFile {
 	readonly isUserSnippets: boolean;
 
 	private _loadPromise?: Promise<this>;
+	private _alreadyFailedToResolve?: boolean;
 
 	constructor(
 		readonly source: SnippetSource,
@@ -178,6 +182,7 @@ export class SnippetFile {
 		private readonly _extension: IExtensionDescription | undefined,
 		private readonly _fileService: IFileService,
 		private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
+		private readonly _textModelService: ITextModelService
 	) {
 		this.isGlobalSnippets = extname(location.path) === '.code-snippets';
 		this.isUserSnippets = !this._extension;
@@ -223,8 +228,38 @@ export class SnippetFile {
 		}
 	}
 
+	private async _loadFromContentProvider() {
+		let ref: IReference<IResolvedTextEditorModel>;
+		try {
+			ref = await this._textModelService.createModelReference(this.location);
+		} catch (error) {
+			// the extension might have still been in activation phase
+			// and not registered its content provider yet,
+			// wait 10 seconds and allow one more attempt
+			if (!this._alreadyFailedToResolve) {
+				this._alreadyFailedToResolve = true;
+				setTimeout(() => {
+					this.reset();
+				}, 10000);
+				return '';
+			} else {
+				return Promise.reject(error);
+			}
+		}
+		const listener = ref.object.textEditorModel.onDidChangeContent(() => {
+			listener.dispose();
+			ref.dispose();
+			this.reset();
+		});
+		const content = ref.object.textEditorModel.getValue();
+		return content;
+	}
+
 	private async _load(): Promise<string> {
-		if (this._extension) {
+		// custom uri-scheme
+		if (![Schemas.file, Schemas.http, Schemas.https, Schemas.data].includes(this.location.scheme)) {
+			return this._loadFromContentProvider();
+		} else if (this._extension) {
 			return this._extensionResourceLoaderService.readExtensionResource(this.location);
 		} else {
 			const content = await this._fileService.readFile(this.location);
