@@ -137,9 +137,8 @@ class GettingStartedAccessibleProvider extends Disposable implements IAccessible
 				stepsContent
 			].join('\n');
 		}
-		else {
-			return stepsContent;
-		}
+		// Only return the step content when navigating between steps
+		return stepsContent;
 	}
 
 	provideNextContent(): string | undefined {
@@ -147,7 +146,8 @@ class GettingStartedAccessibleProvider extends Disposable implements IAccessible
 			--this._currentStepIndex;
 			return;
 		}
-		return this._getContent(this._walkthrough, this._activeWalkthroughSteps[this._currentStepIndex]);
+		// Pass false for includeTitle to only get step content
+		return this._getContent(this._walkthrough, this._activeWalkthroughSteps[this._currentStepIndex], false);
 	}
 
 	providePreviousContent(): string | undefined {
@@ -155,7 +155,8 @@ class GettingStartedAccessibleProvider extends Disposable implements IAccessible
 			++this._currentStepIndex;
 			return;
 		}
-		return this._getContent(this._walkthrough, this._activeWalkthroughSteps[this._currentStepIndex]);
+		// Pass false for includeTitle to only get step content
+		return this._getContent(this._walkthrough, this._activeWalkthroughSteps[this._currentStepIndex], false);
 	}
 
 	onClose(): void {
