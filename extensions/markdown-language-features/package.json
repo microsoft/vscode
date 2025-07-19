@@ -15,6 +15,11 @@
   "categories": [
     "Programming Languages"
   ],
+  "enabledApiProposals": [
+    "chatParticipantAdditions",
+    "chatParticipantPrivate",
+    "chatOutputRenderer"
+  ],
   "activationEvents": [
     "onLanguage:markdown",
     "onLanguage:prompt",
@@ -35,6 +40,13 @@
     }
   },
   "contributes": {
+    "languageModelTools": [
+      {
+        "name": "test-renderer",
+        "displayName": "Test renderer",
+        "modelDescription": "Renders test data to the output"
+      }
+    ],
     "notebookRenderer": [
       {
         "id": "vscode.markdown-it-renderer",

@@ -156,6 +156,10 @@ export function isToolResultInputOutputDetails(obj: any): obj is IToolResultInpu
 	return typeof obj === 'object' && typeof obj?.input === 'string' && (typeof obj?.output === 'string' || Array.isArray(obj?.output));
 }
 
+export function isToolResultOutputDetails(obj: any): obj is IToolResultOutputDetails {
+	return typeof obj === 'object' && (typeof obj?.output === 'object');
+}
+
 export interface IToolResult {
 	content: (IToolResultPromptTsxPart | IToolResultTextPart | IToolResultDataPart)[];
 	toolResultMessage?: string | IMarkdownString;

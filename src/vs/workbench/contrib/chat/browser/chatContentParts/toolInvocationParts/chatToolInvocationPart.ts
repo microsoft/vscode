@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService.js';
 import { IChatRendererContent } from '../../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
-import { isToolResultInputOutputDetails } from '../../../common/languageModelToolsService.js';
+import { isToolResultInputOutputDetails, isToolResultOutputDetails } from '../../../common/languageModelToolsService.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from '../chatContentParts.js';
 import { EditorPool } from '../chatMarkdownContentPart.js';
@@ -23,6 +23,7 @@ import { ChatTerminalMarkdownProgressPart } from './chatTerminalMarkdownProgress
 import { TerminalConfirmationWidgetSubPart } from './chatTerminalToolSubPart.js';
 import { ToolConfirmationSubPart } from './chatToolConfirmationSubPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import { ChatToolOutputSubPart } from './chatToolOutputPart.js';
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
@@ -130,6 +131,10 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				false,
 				this.currentWidthDelegate
 			);
+		}
+
+		if (isToolResultOutputDetails(this.toolInvocation.resultDetails)) {
+			return this.instantiationService.createInstance(ChatToolOutputSubPart, this.toolInvocation, this.toolInvocation.resultDetails, this.context);
 		}
 
 		return this.instantiationService.createInstance(ChatToolProgressSubPart, this.toolInvocation, this.context, this.renderer);
