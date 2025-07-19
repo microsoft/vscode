@@ -123,8 +123,7 @@ export class InstallAction extends McpServerAction {
 			return;
 		}
 		this.class = InstallAction.CLASS;
-		this.enabled = true;
-		this.label = localize('install', "Install");
+		this.enabled = this.mcpWorkbenchService.canInstall(this.mcpServer) === true;
 	}
 
 	override async run(): Promise<any> {
@@ -749,6 +748,7 @@ export class McpServerStatusAction extends McpServerAction {
 	readonly onDidChangeStatus = this._onDidChangeStatus.event;
 
 	constructor(
+		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@IAllowedMcpServersService private readonly allowedMcpServersService: IAllowedMcpServersService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
@@ -769,7 +769,15 @@ export class McpServerStatusAction extends McpServerAction {
 			return;
 		}
 
-		if (this.mcpServer.local) {
+		if (this.mcpServer.installState === McpServerInstallState.Uninstalled) {
+			const result = this.mcpWorkbenchService.canInstall(this.mcpServer);
+			if (result !== true) {
+				this.updateStatus({ icon: warningIcon, message: result }, true);
+				return;
+			}
+		}
+
+		if (this.mcpServer.local && this.mcpServer.installState === McpServerInstallState.Installed) {
 			const result = this.allowedMcpServersService.isAllowed(this.mcpServer.local);
 			if (result !== true) {
 				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('disabled - not allowed', "This MCP Server is disabled because {0}", result.value)) }, true);

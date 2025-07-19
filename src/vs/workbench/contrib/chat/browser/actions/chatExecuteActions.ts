@@ -351,16 +351,15 @@ class OpenModelPickerAction extends Action2 {
 				id: MenuId.ChatInput,
 				order: 3,
 				group: 'navigation',
-				when: ContextKeyExpr.and(
-					ChatContextKeys.languageModelsAreUserSelectable,
-					ChatContextKeys.lockedToCodingAgent.negate(),
-					ContextKeyExpr.or(
-						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
-						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Editor),
-						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook),
-						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal)
+				when:
+					ContextKeyExpr.and(
+						ChatContextKeys.lockedToCodingAgent.negate(),
+						ContextKeyExpr.or(
+							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
+							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Editor),
+							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook),
+							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal))
 					)
-				),
 			}
 		});
 	}

@@ -5,6 +5,7 @@
 
 import { DeferredPromise, disposableTimeout, timeout } from '../../../../../base/common/async.js';
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -70,8 +71,7 @@ export class ToolTerminalCreator {
 	private _createCopilotTerminal() {
 		return this._terminalService.createTerminal({
 			config: {
-				name: 'Copilot',
-				icon: ThemeIcon.fromId('copilot'),
+				icon: ThemeIcon.fromId(Codicon.chatSparkle.id),
 				hideFromUser: true,
 				env: {
 					GIT_PAGER: 'cat', // avoid making `git diff` interactive when called from copilot

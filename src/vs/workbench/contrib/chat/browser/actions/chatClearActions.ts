@@ -181,7 +181,9 @@ export function registerNewChatActions() {
 		}
 
 		async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession) {
+			const widget = accessor.get(IChatWidgetService);
 			await editingSession.redoInteraction();
+			widget.lastFocusedWidget?.viewModel?.model.setCheckpoint(undefined);
 		}
 	});
 

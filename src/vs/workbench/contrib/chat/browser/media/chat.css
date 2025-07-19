@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .interactive-session {
-	max-width: 850px;
+	max-width: 950px;
 	margin: auto;
 	position: relative; /* For chat dnd */
 }
@@ -1256,6 +1256,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button.codicon.codicon-plus {
+	padding: 0 5px 0 3px;
 	font-size: 12px;
 }
 
@@ -1264,6 +1265,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button:hover {
 	cursor: pointer;
 	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled .monaco-button:hover {
+	cursor: pointer;
+	background: transparent;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label-container {
@@ -1870,6 +1876,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.interactive-item-container.interactive-request {
 		align-items: flex-end;
+
 	}
 
 	.interactive-item-container.interactive-request:not(.editing):hover .request-hover {
@@ -1878,6 +1885,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.interactive-item-container.interactive-request.confirmation-message {
 		align-items: flex-start;
+
+		.checkpoint-container {
+			display: none;
+		}
 	}
 
 	.interactive-item-container.interactive-request .value .rendered-markdown {
@@ -1896,7 +1907,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.interactive-item-container.interactive-request .value .rendered-markdown.clickable:hover {
-		cursor: text;
+		cursor: pointer;
 		background-color: var(--vscode-chat-requestBubbleHoverBackground);
 	}
 
@@ -2066,8 +2077,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			top: 0px;
 		}
 
-		.request-hover.checkpoints-enabled {
-			top: 30px;
+		.checkpoint-container {
+			display: none;
 		}
 	}
 
@@ -2094,6 +2105,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.interactive-request.editing {
 		padding: 0px;
+
+		.interactive-input-part .chat-input-container .interactive-input-editor .monaco-editor .native-edit-context {
+			height: 0px !important;
+		}
 	}
 }
 

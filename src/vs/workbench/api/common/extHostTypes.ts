@@ -5133,6 +5133,14 @@ export enum LanguageModelChatToolMode {
 	Required = 2
 }
 
+export class LanguageModelToolExtensionSource implements vscode.LanguageModelToolExtensionSource {
+	constructor(public readonly id: string, public readonly label: string) { }
+}
+
+export class LanguageModelToolMCPSource implements vscode.LanguageModelToolMCPSource {
+	constructor(public readonly label: string, public readonly name: string, public readonly instructions: string | undefined) { }
+}
+
 //#endregion
 
 //#region ai
@@ -5175,7 +5183,7 @@ export enum KeywordRecognitionStatus {
 
 //#endregion
 
-//#region MC
+//#region MCP
 export class McpStdioServerDefinition implements vscode.McpStdioServerDefinition {
 	cwd?: URI;
 
