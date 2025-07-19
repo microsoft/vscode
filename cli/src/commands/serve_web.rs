@@ -127,7 +127,9 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 		};
 		let builder = Server::try_bind(&addr).map_err(CodeError::CouldNotListenOnInterface)?;
 
-		let mut listening = format!("Web UI available at http://{addr}");
+		// Get the actual bound address (important when port 0 is used for random port assignment)
+		let bound_addr = builder.local_addr();
+		let mut listening = format!("Web UI available at http://{bound_addr}");
 		if let Some(base) = args.server_base_path {
 			if !base.starts_with('/') {
 				listening.push('/');
