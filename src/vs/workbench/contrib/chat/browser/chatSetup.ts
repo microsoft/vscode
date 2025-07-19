@@ -994,7 +994,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		class ChatSetupHideAction extends Action2 {
 
 			static readonly ID = 'workbench.action.chat.hideSetup';
-			static readonly TITLE = localize2('hideChatSetup', "Hide Copilot");
+			static readonly TITLE = localize2('hideChatSetup', "Hide Chat");
 
 			constructor() {
 				super({
@@ -1018,9 +1018,9 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const dialogService = accessor.get(IDialogService);
 
 				const { confirmed } = await dialogService.confirm({
-					message: localize('hideChatSetupConfirm', "Are you sure you want to hide Copilot?"),
-					detail: localize('hideChatSetupDetail', "You can restore Copilot by running the '{0}' command.", CHAT_SETUP_ACTION_LABEL.value),
-					primaryButton: localize('hideChatSetupButton', "Hide Copilot")
+					message: localize('hideChatSetupConfirm', "Are you sure you want to hide Chat?"),
+					detail: localize('hideChatSetupDetail', "You can restore Chat by running the '{0}' command.", CHAT_SETUP_ACTION_LABEL.value),
+					primaryButton: localize('hideChatSetupButton', "Hide Chat")
 				});
 
 				if (!confirmed) {
