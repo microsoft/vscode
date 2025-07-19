@@ -1545,10 +1545,24 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: none;
 }
 
+.interactive-session .chat-file-changes-summary .insertions {
+	color: var(--vscode-chat-linesAddedForeground);;
+	font-weight: bold;
+	padding-left: 5px;
+	padding-right: 5px;
+}
+
+.interactive-session .chat-file-changes-summary .deletions {
+	color: var(--vscode-chat-linesRemovedForeground);;
+	font-weight: bold;
+}
+
+.interactive-session .chat-file-changes-summary.chat-used-context-collapsed .chat-used-context-list,
 .interactive-session .chat-used-context.chat-used-context-collapsed .chat-used-context-list {
 	display: none;
 }
 
+.interactive-session .chat-file-changes-summary,
 .interactive-session .chat-used-context {
 	display: flex;
 	flex-direction: column;
