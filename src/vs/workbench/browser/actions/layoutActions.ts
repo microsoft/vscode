@@ -326,58 +326,8 @@ export class ToggleSidebarVisibilityAction extends Action2 {
 
 registerAction2(ToggleSidebarVisibilityAction);
 
-MenuRegistry.appendMenuItems([
-	{
-		id: MenuId.ViewContainerTitleContext,
-		item: {
-			group: '3_workbench_layout_move',
-			command: {
-				id: ToggleSidebarVisibilityAction.ID,
-				title: localize('compositePart.hideSideBarLabel', "Hide Primary Side Bar"),
-			},
-			when: ContextKeyExpr.and(SideBarVisibleContext, ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
-			order: 2
-		}
-	}, {
-		id: MenuId.LayoutControlMenu,
-		item: {
-			group: '2_pane_toggles',
-			command: {
-				id: ToggleSidebarVisibilityAction.ID,
-				title: localize('toggleSideBar', "Toggle Primary Side Bar"),
-				icon: panelLeftOffIcon,
-				toggled: { condition: SideBarVisibleContext, icon: panelLeftIcon }
-			},
-			when: ContextKeyExpr.and(
-				IsAuxiliaryWindowContext.negate(),
-				ContextKeyExpr.or(
-					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'),
-					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
-				ContextKeyExpr.equals('config.workbench.sideBar.location', 'left')
-			),
-			order: 0
-		}
-	}, {
-		id: MenuId.LayoutControlMenu,
-		item: {
-			group: '2_pane_toggles',
-			command: {
-				id: ToggleSidebarVisibilityAction.ID,
-				title: localize('toggleSideBar', "Toggle Primary Side Bar"),
-				icon: panelRightOffIcon,
-				toggled: { condition: SideBarVisibleContext, icon: panelRightIcon }
-			},
-			when: ContextKeyExpr.and(
-				IsAuxiliaryWindowContext.negate(),
-				ContextKeyExpr.or(
-					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'),
-					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
-				ContextKeyExpr.equals('config.workbench.sideBar.location', 'right')
-			),
-			order: 2
-		}
-	}
-]);
+// --- Remove Toggle Primary Side Bar button from UI ---
+// Comment out or delete all MenuRegistry.appendMenuItem and MenuRegistry.appendMenuItems calls that reference ToggleSidebarVisibilityAction.ID
 
 // --- Toggle Statusbar Visibility
 
@@ -1395,7 +1345,8 @@ if (!isMacintosh || !isNative) {
 
 ToggleVisibilityActions.push(...[
 	CreateToggleLayoutItem(ToggleActivityBarVisibilityActionId, ContextKeyExpr.notEquals('config.workbench.activityBar.location', 'hidden'), localize('activityBar', "Activity Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: activityBarLeftIcon, iconB: activityBarRightIcon }),
-	CreateToggleLayoutItem(ToggleSidebarVisibilityAction.ID, SideBarVisibleContext, localize('sideBar', "Primary Side Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: panelLeftIcon, iconB: panelRightIcon }),
+	CreateToggleLayoutItem(ToggleSidebarPositionAction.ID, ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), localize('leftSideBar', "Left"), panelLeftIcon),
+	CreateToggleLayoutItem(ToggleSidebarPositionAction.ID, ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), localize('rightSideBar', "Right"), panelRightIcon),
 	CreateToggleLayoutItem(ToggleAuxiliaryBarAction.ID, AuxiliaryBarVisibleContext, localize('secondarySideBar', "Secondary Side Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: panelRightIcon, iconB: panelLeftIcon }),
 	CreateToggleLayoutItem(TogglePanelAction.ID, PanelVisibleContext, localize('panel', "Panel"), panelIcon),
 	CreateToggleLayoutItem(ToggleStatusbarVisibilityAction.ID, ContextKeyExpr.equals('config.workbench.statusBar.visible', true), localize('statusBar', "Status Bar"), statusBarIcon),
