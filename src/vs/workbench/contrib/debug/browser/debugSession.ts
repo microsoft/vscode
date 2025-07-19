@@ -1153,7 +1153,8 @@ export class DebugSession implements IDebugSession {
 
 		const outputQueue = new Queue<void>();
 		this.rawListeners.add(this.raw.onDidOutput(async event => {
-			const outputSeverity = event.body.category === 'stderr' ? Severity.Error : event.body.category === 'console' ? Severity.Warning : Severity.Info;
+			const outputSeverity = event.body.category === 'stderr' ? Severity.Error :
+				(event.body.category === 'console' || event.body.category === 'important') ? Severity.Warning : Severity.Info;
 
 			// When a variables event is received, execute immediately to obtain the variables value #126967
 			if (event.body.variablesReference) {
