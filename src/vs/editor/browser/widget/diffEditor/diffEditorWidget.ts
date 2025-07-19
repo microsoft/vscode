@@ -606,16 +606,24 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 		const curLineNumber = this._editors.modified.getPosition()!.lineNumber;
 		let diff: DiffMapping | undefined;
+		const shouldLoop = this._options.get().diffEditorLoopChanges;
+		
 		if (target === 'next') {
 			const modifiedLineCount = this._editors.modified.getModel()!.getLineCount();
 			if (modifiedLineCount === curLineNumber) {
-				diff = diffs[0];
+				diff = shouldLoop ? diffs[0] : undefined;
 			} else {
-				diff = diffs.find(d => d.lineRangeMapping.modified.startLineNumber > curLineNumber) ?? diffs[0];
+				diff = diffs.find(d => d.lineRangeMapping.modified.startLineNumber > curLineNumber) ?? (shouldLoop ? diffs[0] : undefined);
 			}
 		} else {
-			diff = findLast(diffs, d => d.lineRangeMapping.modified.startLineNumber < curLineNumber) ?? diffs[diffs.length - 1];
+			diff = findLast(diffs, d => d.lineRangeMapping.modified.startLineNumber < curLineNumber) ?? (shouldLoop ? diffs[diffs.length - 1] : undefined);
 		}
+		
+		if (!diff) {
+			// No more changes in that direction and looping is disabled
+			return;
+		}
+		
 		this._goTo(diff);
 
 		if (diff.lineRangeMapping.modified.isEmpty) {

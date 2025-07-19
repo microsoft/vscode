@@ -954,6 +954,12 @@ export interface IDiffEditorBaseOptions {
 	diffAlgorithm?: 'legacy' | 'advanced';
 
 	/**
+	 * Controls whether the diff editor should loop when navigating between changes.
+	 * Defaults to true.
+	 */
+	diffEditorLoopChanges?: boolean;
+
+	/**
 	 * Whether the diff editor aria label should be verbose.
 	 */
 	accessibilityVerbose?: boolean;
