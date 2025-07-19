@@ -256,5 +256,13 @@ suite('ProblemPatternParser', () => {
 			assert.strictEqual(ValidationState.Error, reporter.state);
 			assert(reporter.hasMessage('The problem pattern is invalid. It must have at least have a file and a message.'));
 		});
+
+		test('empty pattern array should be handled gracefully', () => {
+			const problemPattern: matchers.Config.MultiLineProblemPattern = [];
+			const parsed = parser.parse(problemPattern);
+			assert.strictEqual(null, parsed);
+			assert.strictEqual(ValidationState.Error, reporter.state);
+			assert(reporter.hasMessage('The problem pattern is invalid. It must contain at least one pattern.'));
+		});
 	});
 });
