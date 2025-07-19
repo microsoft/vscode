@@ -98,3 +98,39 @@
 	display: inline-block;
 	transform: rotate(180deg);
 }
+
+/* --- Panel tab style to match composite bar (activity bar) --- */
+.monaco-workbench .part.panel .composite-bar .monaco-action-bar .actions-container {
+	padding-top: 3px;
+	padding-bottom: 3px;
+	box-sizing: border-box;
+}
+
+.monaco-workbench .part.panel .composite-bar .monaco-action-bar .actions-container .action-item .action-label {
+	padding: 0;
+	padding-left: 8px;
+	padding-right: 8px;
+	border-radius: 6px;
+	font-weight: 500;
+	font-size: 13px;
+	display: flex;
+	align-items: center;
+	background: transparent;
+	color: #c8c8c8;
+	transition: background 0.15s, color 0.15s;
+}
+
+.monaco-workbench .part.panel .composite-bar .monaco-action-bar .actions-container .action-item.checked .action-label {
+	background: #2c2c32;
+	color: #fff;
+	border-radius: 6px;
+}
+
+.monaco-workbench .part.panel .composite-bar .monaco-action-bar .actions-container .action-item.checked .active-item-indicator::before {
+	display: none;
+}
+
+.monaco-workbench .part.panel .composite-bar .monaco-action-bar .actions-container .action-item:not(.checked):hover .action-label {
+	background: rgba(200,200,200,0.08);
+	color: #fff;
+}

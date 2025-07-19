@@ -236,15 +236,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		}
 	}
 
-	private getRememberedActivityBarVisiblePosition(): ActivityBarPosition {
-		const activityBarPosition = this.storageService.get(LayoutSettings.ACTIVITY_BAR_LOCATION, StorageScope.PROFILE);
-		switch (activityBarPosition) {
-			case ActivityBarPosition.TOP: return ActivityBarPosition.TOP;
-			case ActivityBarPosition.BOTTOM: return ActivityBarPosition.BOTTOM;
-			default: return ActivityBarPosition.DEFAULT;
-		}
-	}
-
 	override getPinnedPaneCompositeIds(): string[] {
 		return this.shouldShowCompositeBar() ? super.getPinnedPaneCompositeIds() : this.activityBarPart.getPinnedPaneCompositeIds();
 	}
