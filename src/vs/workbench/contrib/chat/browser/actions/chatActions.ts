@@ -924,14 +924,12 @@ export function registerChatActions() {
 				resource: ChatEditorInput.getNewEditorUri(),
 				options: { pinned: true, sticky: true } satisfies IChatEditorOptions
 			});
-			setTimeout(() => {
-				const widget = chatWidgetService.lastFocusedWidget;
-				if (widget) {
-					const agentMessage = `@${picked.agent.name} `;
-					widget.setInput(agentMessage);
-					widget.lockToCodingAgent(picked.agent);
-				}
-			}, 100);
+			const widget = chatWidgetService.lastFocusedWidget;
+			if (widget) {
+				const agentMessage = `@${picked.agent.name} `;
+				widget.setInput(agentMessage);
+				widget.lockToCodingAgent(picked.agent);
+			}
 		}
 	});
 
