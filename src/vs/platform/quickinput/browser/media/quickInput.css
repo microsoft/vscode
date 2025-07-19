@@ -91,7 +91,43 @@
 
 .quick-input-check-all {
 	align-self: center;
-	margin: 0;
+	margin: 0 12px 0 0; /* Increase right margin for better spacing from input */
+	width: 16px;
+	height: 16px;
+	padding: 0px;
+	border: 1px solid var(--vscode-checkbox-border);
+	background-color: var(--vscode-checkbox-background);
+	position: relative; /* For partial state positioning */
+	opacity: 1;
+}
+
+/* Checked state styling to match tree checkboxes */
+.quick-input-check-all.checked {
+	background-color: var(--vscode-checkbox-background);
+	border: 1px solid var(--vscode-checkbox-border);
+}
+
+/* Icon styling for checkAll to match tree checkboxes */
+.quick-input-check-all.codicon {
+	font-size: 13px;
+	line-height: 15px;
+}
+
+/* Partial state for checkAll checkbox - only show dash when NOT checked */
+.quick-input-check-all.partial:not(.checked) .codicon {
+	display: none !important;
+}
+
+.quick-input-check-all.partial:not(.checked)::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	width: 8px;
+	height: 2px;
+	background-color: var(--vscode-checkbox-foreground);
+	border-radius: 1px;
 }
 
 .quick-input-filter {
@@ -106,7 +142,7 @@
 
 .quick-input-widget.show-checkboxes .quick-input-box,
 .quick-input-widget.show-checkboxes .quick-input-message {
-	margin-left: 5px;
+	margin-left: 12px;
 }
 
 .quick-input-visible-count {
@@ -164,6 +200,12 @@
 
 .quick-input-list {
 	line-height: 22px;
+}
+
+.quick-tree-container {
+	line-height: 22px;
+	position: relative;
+	overflow: hidden;
 }
 
 .quick-input-widget.hidden-input .quick-input-list {
@@ -368,8 +410,8 @@
 	padding: 0 5px;
 }
 
-/* Hide the twistie containers so that there isn't blank indent */
-.quick-input-list .monaco-tl-twistie {
+/* Hide the twistie containers so that there isn't blank indent (only for old quickInputTree, not new QuickTree) */
+.quick-input-list:not(.quick-tree-container):not(.monaco-tree-wrapper) .monaco-tl-twistie {
 	display: none !important;
 }
 
@@ -395,4 +437,232 @@
 	height: 100%;
 	width: 0;
 	top: 0;
+}
+
+/* QuickTree styles */
+.quick-tree-entry {
+	display: flex;
+	align-items: center;
+	cursor: pointer;
+	padding: 0 2px;
+	min-height: 22px;
+	box-sizing: border-box;
+	width: 100%;
+	overflow: hidden;
+}
+
+/* Tighter spacing for checkbox entries */
+.quick-tree-entry.has-checkbox {
+	gap: 1px; /* Very tight spacing between twisty and checkbox */
+}
+
+.quick-tree-rows {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.quick-tree-row {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	overflow: hidden;
+}
+
+/* QuickTree Checkbox styles */
+.quick-tree-checkbox-container {
+	display: flex;
+	align-items: center;
+	margin-right: 3px;
+	margin-left: -4px; /* Aggressively pull closer to twisty */
+	min-width: 16px;
+	flex-shrink: 0;
+	position: relative;
+	z-index: 1; /* Ensure checkbox is above any overlapping elements */
+}
+
+.quick-tree-checkbox {
+	margin: 0;
+}
+
+/* Mirror the treeView checkbox styling pattern for Quick Tree */
+.quick-tree-container .monaco-list .monaco-list-row.selected .quick-tree-checkbox {
+	/* background-color: var(--vscode-checkbox-selectBackground);
+	border: 1px solid var(--vscode-checkbox-selectBorder); */
+}
+
+.quick-tree-container .monaco-list .monaco-list-row .quick-tree-checkbox {
+	width: 16px;
+	height: 16px;
+	margin: 3px 6px 3px 0px;
+	padding: 0px;
+	border: 1px solid var(--vscode-checkbox-border);
+	opacity: 1;
+	background-color: var(--vscode-checkbox-background);
+}
+
+.quick-tree-container .monaco-list .monaco-list-row .quick-tree-checkbox.codicon {
+	font-size: 13px;
+	line-height: 15px;
+}
+
+.quick-tree-checkbox.partial {
+	position: relative;
+}
+
+.quick-tree-checkbox.partial::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	width: 8px;
+	height: 2px;
+	background-color: var(--vscode-checkbox-foreground);
+	border-radius: 1px;
+}
+
+.quick-tree-checkbox.disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+/* Fix label overflow issues and reduce spacing */
+.quick-tree-entry.has-checkbox .quick-tree-label {
+	margin-left: -2px; /* Pull label closer to checkbox */
+	flex: 1;
+	min-width: 0; /* Important for flex text overflow */
+}
+
+.quick-tree-label .label-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 100%;
+}
+
+.quick-tree-label .label-description {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 100%;
+}
+
+.quick-tree-label {
+	display: flex;
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	margin-left: 2px; /* Small gap from previous elements */
+	align-items: center;
+	cursor: pointer;
+	user-select: none;
+}
+
+.quick-tree-label .checkbox {
+	margin-right: 6px;
+}
+
+.quick-tree-label .checkbox.partial::before {
+	content: "";
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	width: 6px;
+	height: 2px;
+	background-color: var(--vscode-checkbox-foreground);
+}
+
+.quick-tree-icon {
+	width: 16px;
+	height: 16px;
+	margin-right: 6px;
+	background-size: 16px;
+	background-position: center center;
+	background-repeat: no-repeat;
+}
+
+.quick-tree-rows {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-width: 0;
+}
+
+.quick-tree-row {
+	display: flex;
+	align-items: center;
+	min-height: 22px;
+}
+
+.quick-tree-row:last-child {
+	min-height: 0;
+}
+
+.quick-tree-keybinding {
+	margin-left: auto;
+	padding-left: 10px;
+}
+
+.quick-tree-detail {
+	opacity: 0.7;
+	font-size: 0.9em;
+}
+
+.quick-tree-action-bar {
+	margin-left: 8px;
+}
+
+.quick-tree-entry.has-actions .quick-tree-action-bar {
+	display: flex;
+}
+
+.quick-tree-entry:not(.has-actions) .quick-tree-action-bar {
+	display: none;
+}
+
+/* QuickTree accessibility improvements */
+/* .quick-tree-entry[aria-expanded="true"] > .quick-tree-twistie {
+	transform: rotate(0deg);
+}
+
+.quick-tree-entry[aria-expanded="false"] > .quick-tree-twistie {
+	transform: rotate(-90deg);
+} */
+
+.quick-tree-entry[role="checkbox"][aria-checked="mixed"] .checkbox {
+	background-color: var(--vscode-checkbox-background);
+	border-color: var(--vscode-checkbox-border);
+}
+
+.quick-tree-entry[role="checkbox"][aria-checked="mixed"] .checkbox::before {
+	content: "";
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	width: 8px;
+	height: 2px;
+	background-color: var(--vscode-checkbox-foreground);
+}
+
+/* QuickTree container layout integration */
+.quick-tree-container {
+	height: 100%;
+	width: 100%;
+	overflow: hidden;
+	flex-shrink: 1;
+}
+
+.quick-tree-container .monaco-tree {
+	height: 100%;
+	width: 100%;
+}
+
+/* Reduce excessive padding for QuickTree */
+.quick-tree-container .monaco-scrollable-element {
+	padding: 0px 2px;
 }

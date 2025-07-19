@@ -2146,6 +2146,7 @@ export class TestQuickInputService implements IQuickInputService {
 	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T, { useSeparators: boolean }> { throw new Error('not implemented.'); }
 	createInputBox(): IInputBox { throw new Error('not implemented.'); }
 	createQuickWidget(): IQuickWidget { throw new Error('Method not implemented.'); }
+	createQuickTree<T extends import('../../../platform/quickinput/common/quickInput.js').IQuickTreeItem>(): import('../../../platform/quickinput/common/quickInput.js').IQuickTree<T> { throw new Error('not implemented.'); }
 	focus(): void { throw new Error('not implemented.'); }
 	toggle(): void { throw new Error('not implemented.'); }
 	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void { throw new Error('not implemented.'); }

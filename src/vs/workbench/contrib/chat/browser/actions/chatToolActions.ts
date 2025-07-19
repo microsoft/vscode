@@ -20,7 +20,7 @@ import { IToolData, ToolSet } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ToolsScope } from '../chatSelectedTools.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { showToolsPicker } from './chatToolPicker.js';
+import { showToolsPickerTree } from './chatToolPicker3.js';
 
 
 type SelectedToolData = {
@@ -129,7 +129,7 @@ class ConfigureToolsAction extends Action2 {
 				break;
 		}
 
-		const result = await instaService.invokeFunction(showToolsPicker, placeholder, description, entriesMap.get(), newEntriesMap => {
+		const result = await instaService.invokeFunction(showToolsPickerTree, placeholder, description, entriesMap.get(), newEntriesMap => {
 			const disableToolSets: ToolSet[] = [];
 			const disableTools: IToolData[] = [];
 			for (const [item, enabled] of newEntriesMap) {
