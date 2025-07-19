@@ -471,6 +471,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public afterInjectedText: InjectedTextOptions | undefined;
 
 	constructor(description: string, themeService: IThemeService, styleSheet: GlobalStyleSheet | RefCountedStyleSheet, providerArgs: ProviderArguments) {
+		console.log('DecorationTypeOptionsProvider', providerArgs.key, providerArgs.parentTypeKey);
 		this.description = description;
 
 		this._styleSheet = styleSheet;
@@ -634,6 +635,7 @@ class DecorationCSSRules {
 	private _usesThemeColors: boolean;
 
 	constructor(ruleType: ModelDecorationCSSRuleType, providerArgs: ProviderArguments, themeService: IThemeService) {
+		console.log('DecorationCSSRules', ruleType, providerArgs.key, providerArgs.parentTypeKey);
 		this._theme = themeService.getColorTheme();
 		this._ruleType = ruleType;
 		this._providerArgs = providerArgs;
@@ -775,6 +777,8 @@ class DecorationCSSRules {
 		if (opts.letterSpacing) {
 			this._hasLetterSpacing = true;
 		}
+		console.log('opts : ', opts);
+		console.log('cssTextArr : ', cssTextArr);
 		return cssTextArr.join('');
 	}
 
