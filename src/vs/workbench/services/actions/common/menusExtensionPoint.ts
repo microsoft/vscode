@@ -457,7 +457,14 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.chatTerminal', "The Chat submenu in the terminal context menu."),
 		supportsSubmenus: false,
 		proposed: 'chatParticipantPrivate'
-	}
+	},
+	{
+		key: 'chat/chatSessions',
+		id: MenuId.ChatSessionsMenu,
+		description: localize('menus.chatSessions', "The Chat Sessions menu."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionsProvider'
+	},
 ];
 
 namespace schema {

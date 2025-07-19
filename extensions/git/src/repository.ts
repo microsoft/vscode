@@ -7,7 +7,7 @@ import TelemetryReporter from '@vscode/extension-telemetry';
 import * as fs from 'fs';
 import * as path from 'path';
 import picomatch from 'picomatch';
-import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, FileDecoration, FileType, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, QuickDiffProvider, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, Uri, window, workspace, WorkspaceEdit } from 'vscode';
+import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, FileDecoration, FileType, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, QuickDiffProvider, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, ThemeIcon, Uri, window, workspace, WorkspaceEdit } from 'vscode';
 import { ActionButton } from './actionButton';
 import { ApiRepository } from './api/api1';
 import { Branch, BranchQuery, Change, CommitOptions, FetchOptions, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status } from './api/git';
@@ -899,8 +899,15 @@ export class Repository implements Disposable {
 				: undefined;
 		const parent = this.repositoryResolver.getRepository(parentRoot)?.sourceControl;
 
+		// Icon
+		const icon = repository.kind === 'submodule'
+			? new ThemeIcon('archive')
+			: repository.kind === 'worktree'
+				? new ThemeIcon('list-tree')
+				: new ThemeIcon('repo');
+
 		const root = Uri.file(repository.root);
-		this._sourceControl = scm.createSourceControl('git', 'Git', root, parent);
+		this._sourceControl = scm.createSourceControl('git', 'Git', root, icon, parent);
 		this._sourceControl.contextValue = repository.kind;
 
 		this._sourceControl.quickDiffProvider = this;

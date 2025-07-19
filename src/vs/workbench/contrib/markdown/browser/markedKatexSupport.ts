@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { importAMDNodeModule, resolveAmdNodeModulePath } from '../../../../amdX.js';
-import { ISanitizerOptions } from '../../../../base/browser/markdownRenderer.js';
+import { MarkdownSanitizerConfig } from '../../../../base/browser/markdownRenderer.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import type * as marked from '../../../../base/common/marked/marked.js';
@@ -14,7 +14,7 @@ export class MarkedKatexSupport {
 	public static getSanitizerOptions(baseConfig: {
 		readonly allowedTags: readonly string[];
 		readonly allowedAttributes: readonly string[];
-	}): ISanitizerOptions {
+	}): MarkdownSanitizerConfig {
 		return {
 			allowedTags: {
 				override: [

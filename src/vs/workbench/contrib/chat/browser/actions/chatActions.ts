@@ -789,7 +789,6 @@ export function registerChatActions() {
 						);
 						return;
 					} else if ((item as ICodingAgentPickerItem).uri !== undefined) {
-					} else if ((item as ICodingAgentPickerItem).uri !== undefined) {
 						// TODO: handle click
 						return;
 					}
