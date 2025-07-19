@@ -83,14 +83,20 @@ export function escape(html: string): string {
 }
 
 /**
- * Escapes regular expression characters in a given string
+ * Escapes characters that have special meaning in regular expressions.
+ * For example, "." becomes "\." so it’s treated literally.
+ * @param value The string to escape
+ * @returns The escaped string safe for RegExp use
  */
 export function escapeRegExpCharacters(value: string): string {
 	return value.replace(/[\\\{\}\*\+\?\|\^\$\.\[\]\(\)]/g, '\\$&');
 }
 
 /**
- * Counts how often `substr` occurs inside `value`.
+ * Counts the number of non-overlapping occurrences of `substr` in `value`.
+ * @param value The full string to search in
+ * @param substr The substring to count
+ * @returns The number of times `substr` appears
  */
 export function count(value: string, substr: string): number {
 	let result = 0;
