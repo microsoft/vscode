@@ -75,8 +75,8 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 
 		const uriLabel = this.labelService.getUriLabel(file, { relative: true });
 		const currentFile = localize('openEditor', "Current {0} context", attachmentTypeName);
-		const inactive = localize('enableHint', "disabled");
-		const currentFileHint = currentFile + (this.attachment.enabled || this.attachment.isSelection ? '' : ` (${inactive})`);
+		const inactive = localize('enableHint', "Enable current {0} context", attachmentTypeName);
+		const currentFileHint = this.attachment.enabled || this.attachment.isSelection ? currentFile : inactive;
 		const title = `${currentFileHint}\n${uriLabel}`;
 
 		label.setFile(file, {
@@ -94,7 +94,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 
 		if (isSuggestedEnabled) {
 			if (!this.attachment.isSelection) {
-				const buttonMsg = this.attachment.enabled ? localize('disable', "Disable current {0} context", attachmentTypeName) : localize('enable', "Enable current {0} context", attachmentTypeName);
+				const buttonMsg = this.attachment.enabled ? localize('disable', "Disable current {0} context", attachmentTypeName) : '';
 				const toggleButton = this.renderDisposables.add(new Button(this.domNode, { supportIcons: true, title: buttonMsg }));
 				toggleButton.icon = this.attachment.enabled ? Codicon.x : Codicon.plus;
 				this.renderDisposables.add(toggleButton.onDidClick((e) => {
