@@ -3458,9 +3458,10 @@ export class CommandCenter {
 
 	@command('git.deleteWorktreeFromPalette')
 	async deleteWorktreeFromPalette(): Promise<void> {
-		if (this.model.repositories.length === 0) { return; }
-
 		const repositoryLength = this.model.repositories.length;
+
+		if (repositoryLength === 0) { return; }
+
 		const mainRepository = this.model.repositories[repositoryLength - 1];
 
 		const worktreePicks = async (): Promise<WorktreeDeleteItem[] | QuickPickItem[]> => {
