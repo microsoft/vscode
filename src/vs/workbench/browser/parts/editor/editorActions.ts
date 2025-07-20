@@ -39,6 +39,7 @@ import { IProgressService, ProgressLocation } from '../../../../platform/progres
 import { resolveCommandsContext } from './editorCommandsContext.js';
 import { IListService } from '../../../../platform/list/browser/listService.js';
 import { prepareMoveCopyEditors } from './editor.js';
+import { URI } from '../../../../base/common/uri.js';
 
 class ExecuteCommandAction extends Action2 {
 
@@ -2710,5 +2711,41 @@ export class NewEmptyEditorWindowAction extends Action2 {
 
 		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
 		auxiliaryEditorPart.activeGroup.focus();
+	}
+}
+
+export class MoveEditorToStart extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.moveEditorToStart',
+			title: localize('moveEditorToStart', "Move Editor to Start"),
+			category: 'Tabs',
+			menu: {
+				id: MenuId.EditorTitleContext,
+				group: '1_move',
+				order: 90,
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context: any): Promise<void> {
+
+		const editorService = accessor.get(IEditorService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		const group = editorGroupService.activeGroup;
+
+		if (!URI.isUri(context)) {
+			return;
+		}
+
+		const editor = editorService.findEditors(context)[0]?.editor;
+
+		if (group && editor) {
+			const index = group.getIndexOfEditor(editor);
+			if (index > 0) {
+				group.moveEditor(editor, group, { index: 0 });
+			}
+		}
 	}
 }
