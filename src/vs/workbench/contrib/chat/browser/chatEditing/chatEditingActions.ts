@@ -474,6 +474,62 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 	}
 });
 
+registerAction2(class RestoreLastCheckpoint extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.restoreLastCheckpoint',
+			title: localize2('chat.restoreLastCheckpoint.label', "Restore Last Checkpoint"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			icon: Codicon.arrowUp,
+			menu: [
+				{
+					id: MenuId.ChatMessageFooter,
+					group: 'navigation',
+					order: 3,
+					when: ContextKeyExpr.and(ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, true)),
+				}
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		let item: ChatTreeItem | undefined = args[0];
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const chatService = accessor.get(IChatService);
+		const widget = chatWidgetService.lastFocusedWidget;
+		if (!isResponseVM(item) && !isRequestVM(item)) {
+			item = widget?.getFocus();
+		}
+
+		if (!item) {
+			return;
+		}
+
+		const chatModel = chatService.getSession(item.sessionId);
+		if (!chatModel) {
+			return;
+		}
+
+		const session = chatModel.editingSession;
+		if (!session) {
+			return;
+		}
+
+		await restoreSnapshotWithConfirmation(accessor, item);
+
+		if (isResponseVM(item)) {
+			widget?.viewModel?.model.setCheckpoint(item.requestId);
+			chatModel.getRequests().forEach(request => {
+				if (request.id === item.requestId) {
+					widget?.focusInput();
+					widget?.input.setValue(request.message.text, false);
+				}
+			});
+		}
+	}
+});
+
 registerAction2(class EditAction extends Action2 {
 	constructor() {
 		super({
