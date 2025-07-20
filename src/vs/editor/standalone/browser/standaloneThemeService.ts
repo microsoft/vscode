@@ -34,6 +34,7 @@ class StandaloneTheme implements IStandaloneTheme {
 
 	public readonly id: string;
 	public readonly themeName: string;
+	public highlightingColorSpace: RGBColorSpace;
 
 	private readonly themeData: IStandaloneThemeData;
 	private colors: Map<string, Color> | null;
@@ -57,6 +58,7 @@ class StandaloneTheme implements IStandaloneTheme {
 		this.colors = null;
 		this.defaultColors = Object.create(null);
 		this._tokenTheme = null;
+		this.highlightingColorSpace = standaloneThemeData.highlightingColorSpace;
 	}
 
 	public get label(): string {
@@ -232,7 +234,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 	private _styleElements: HTMLStyleElement[];
 	private _colorMapOverride: Color[] | null;
 	private _theme!: IStandaloneTheme;
-	private _highlightingColorSpace: RGBColorSpace = 'srgb';
+	private _highlightingColorSpace: RGBColorSpace = null;
 
 	private _builtInProductIconTheme = new UnthemedProductIconTheme();
 
@@ -406,7 +408,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		ruleCollector.addRule(`.monaco-editor, .monaco-diff-editor, .monaco-component { ${colorVariables.join('\n')} }`);
 
 		const colorMap = this._colorMapOverride || this._theme.tokenTheme.getColorMap();
-		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap, this._highlightingColorSpace));
+		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap, this._highlightingColorSpace || this._theme.highlightingColorSpace));
 
 		this._themeCSS = cssRules.join('\n');
 		this._updateCSS();

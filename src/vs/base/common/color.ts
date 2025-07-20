@@ -10,7 +10,7 @@ function roundFloat(number: number, decimalPoints: number): number {
 	return Math.round(number * decimal) / decimal;
 }
 
-export type RGBColorSpace = 'srgb' | 'display-p3' | 'a98-rgb' | 'prophoto-rgb' | 'rec2020';
+export type RGBColorSpace = null | 'srgb' | 'display-p3' | 'a98-rgb' | 'prophoto-rgb' | 'rec2020';
 
 export class RGBA {
 	_rgbaBrand: void = undefined;
@@ -560,7 +560,7 @@ export class Color {
 	 * Returns a CSS color(<color-space> ...) string for this color.
 	 */
 	toColorSpaceString(space: RGBColorSpace): string {
-		if (space === 'srgb') {
+		if (!space || space === 'srgb') {
 			return this.toString();
 		}
 

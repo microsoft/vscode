@@ -713,6 +713,7 @@ suite('Color', () => {
 	suite('toColorSpaceString', () => {
 		test('outputs correct CSS for all supported color spaces', () => {
 			const color = new Color(new RGBA(10, 20, 30, 0.5));
+			assert.strictEqual(color.toColorSpaceString(null), 'rgba(10, 20, 30, 0.5)');
 			assert.strictEqual(color.toColorSpaceString('srgb'), 'rgba(10, 20, 30, 0.5)');
 			assert.strictEqual(color.toColorSpaceString('display-p3'), 'color(display-p3 0.039 0.078 0.118 / 0.5)');
 			assert.strictEqual(color.toColorSpaceString('a98-rgb'), 'color(a98-rgb 0.039 0.078 0.118 / 0.5)');
@@ -720,6 +721,7 @@ suite('Color', () => {
 			assert.strictEqual(color.toColorSpaceString('rec2020'), 'color(rec2020 0.039 0.078 0.118 / 0.5)');
 
 			const colorOpaque = new Color(new RGBA(10, 20, 30, 1));
+			assert.strictEqual(colorOpaque.toColorSpaceString(null), '#0a141e');
 			assert.strictEqual(colorOpaque.toColorSpaceString('srgb'), '#0a141e');
 			assert.strictEqual(colorOpaque.toColorSpaceString('display-p3'), 'color(display-p3 0.039 0.078 0.118)');
 			assert.strictEqual(colorOpaque.toColorSpaceString('a98-rgb'), 'color(a98-rgb 0.039 0.078 0.118)');
@@ -734,6 +736,7 @@ suite('Color', () => {
 			const whiteAlpha = new Color(new RGBA(255, 255, 255, 0.5));
 
 			// Black, opaque
+			assert.strictEqual(black.toColorSpaceString(null), '#000000');
 			assert.strictEqual(black.toColorSpaceString('srgb'), '#000000');
 			assert.strictEqual(black.toColorSpaceString('display-p3'), 'color(display-p3 0 0 0)');
 			assert.strictEqual(black.toColorSpaceString('a98-rgb'), 'color(a98-rgb 0 0 0)');
@@ -741,6 +744,7 @@ suite('Color', () => {
 			assert.strictEqual(black.toColorSpaceString('rec2020'), 'color(rec2020 0 0 0)');
 
 			// Black, alpha
+			assert.strictEqual(blackAlpha.toColorSpaceString(null), 'rgba(0, 0, 0, 0.5)');
 			assert.strictEqual(blackAlpha.toColorSpaceString('srgb'), 'rgba(0, 0, 0, 0.5)');
 			assert.strictEqual(blackAlpha.toColorSpaceString('display-p3'), 'color(display-p3 0 0 0 / 0.5)');
 			assert.strictEqual(blackAlpha.toColorSpaceString('a98-rgb'), 'color(a98-rgb 0 0 0 / 0.5)');
@@ -748,6 +752,7 @@ suite('Color', () => {
 			assert.strictEqual(blackAlpha.toColorSpaceString('rec2020'), 'color(rec2020 0 0 0 / 0.5)');
 
 			// White, opaque
+			assert.strictEqual(white.toColorSpaceString(null), '#ffffff');
 			assert.strictEqual(white.toColorSpaceString('srgb'), '#ffffff');
 			assert.strictEqual(white.toColorSpaceString('display-p3'), 'color(display-p3 1 1 1)');
 			assert.strictEqual(white.toColorSpaceString('a98-rgb'), 'color(a98-rgb 1 1 1)');
@@ -755,6 +760,7 @@ suite('Color', () => {
 			assert.strictEqual(white.toColorSpaceString('rec2020'), 'color(rec2020 1 1 1)');
 
 			// White, alpha
+			assert.strictEqual(whiteAlpha.toColorSpaceString(null), 'rgba(255, 255, 255, 0.5)');
 			assert.strictEqual(whiteAlpha.toColorSpaceString('srgb'), 'rgba(255, 255, 255, 0.5)');
 			assert.strictEqual(whiteAlpha.toColorSpaceString('display-p3'), 'color(display-p3 1 1 1 / 0.5)');
 			assert.strictEqual(whiteAlpha.toColorSpaceString('a98-rgb'), 'color(a98-rgb 1 1 1 / 0.5)');

@@ -115,8 +115,13 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 		return !!this._configurationService.getValue<boolean>('editor.experimental.asyncTokenizationVerification');
 	}
 
-	private getHighlightingColorSpace(): RGBColorSpace {
-		return this._configurationService.getValue<RGBColorSpace>('workbench.highlightingColorSpace') ?? 'srgb';
+	private getHighlightingColorSpace(theme: IWorkbenchColorTheme): RGBColorSpace {
+		const space = this._configurationService.getValue<RGBColorSpace | 'default'>('workbench.highlightingColorSpace');
+		if (space !== 'default') {
+			return space;
+		}
+
+		return theme.highlightingColorSpace;
 	}
 
 	private _handleGrammarsExtPoint(extensions: readonly IExtensionPointUser<ITMSyntaxExtensionPoint[]>[]): void {
@@ -353,7 +358,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 
 		this._grammarFactory?.setTheme(this._currentTheme, this._currentTokenColorMap);
 		const colorMap = toColorMap(this._currentTokenColorMap);
-		const highlightingColorSpace = this.getHighlightingColorSpace();
+		const highlightingColorSpace = this.getHighlightingColorSpace(colorTheme);
 		const cssRules = generateTokensCSSForColorMap(colorMap, highlightingColorSpace);
 		this._styleElement.textContent = cssRules;
 

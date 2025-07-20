@@ -108,6 +108,7 @@ declare namespace monaco {
 		 */
 		readonly onCancellationRequested: (listener: (e: any) => any, thisArgs?: any, disposables?: IDisposable[]) => IDisposable;
 	}
+	export type RGBColorSpace = null | 'srgb' | 'display-p3' | 'a98-rgb' | 'prophoto-rgb' | 'rec2020';
 	/**
 	 * Uniform Resource Identifier (Uri) http://tools.ietf.org/html/rfc3986.
 	 * This class is a simple parser which creates the basic component parts
@@ -1187,6 +1188,7 @@ declare namespace monaco.editor {
 		rules: ITokenThemeRule[];
 		encodedTokensColors?: string[];
 		colors: IColors;
+		highlightingColorSpace: RGBColorSpace;
 	}
 
 	export type IColors = {

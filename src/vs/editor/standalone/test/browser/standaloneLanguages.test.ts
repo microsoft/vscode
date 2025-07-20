@@ -74,7 +74,9 @@ suite('TokenizationSupport2Adapter', () => {
 
 				semanticHighlighting: false,
 
-				tokenColorMap: []
+				tokenColorMap: [],
+
+				highlightingColorSpace: null,
 			};
 		}
 		setColorMapOverride(colorMapOverride: Color[] | null): void {

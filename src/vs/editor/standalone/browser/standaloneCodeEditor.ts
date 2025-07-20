@@ -474,7 +474,12 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 	}
 
 	private getHighlightingColorSpace(): RGBColorSpace {
-		return this._configurationService.getValue<RGBColorSpace>('workbench.highlightingColorSpace') ?? 'srgb';
+		const space = this._configurationService.getValue<RGBColorSpace | 'default'>('workbench.highlightingColorSpace');
+		if (space !== 'default') {
+			return space;
+		}
+
+		return null;
 	}
 
 	public override dispose(): void {
@@ -555,7 +560,12 @@ export class StandaloneDiffEditor2 extends DiffEditorWidget implements IStandalo
 	}
 
 	private getHighlightingColorSpace(): RGBColorSpace {
-		return this._configurationService.getValue<RGBColorSpace>('workbench.highlightingColorSpace') ?? 'srgb';
+		const space = this._configurationService.getValue<RGBColorSpace | 'default'>('workbench.highlightingColorSpace');
+		if (space !== 'default') {
+			return space;
+		}
+
+		return null;
 	}
 
 	public override dispose(): void {

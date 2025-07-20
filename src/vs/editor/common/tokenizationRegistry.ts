@@ -18,7 +18,7 @@ export class TokenizationRegistry<TSupport> implements ITokenizationRegistry<TSu
 	public readonly onDidChange: Event<ITokenizationSupportChangedEvent> = this._onDidChange.event;
 
 	private _colorMap: Color[] | null;
-	private _highlightingColorSpace: RGBColorSpace = 'srgb';
+	private _highlightingColorSpace: RGBColorSpace = null;
 
 	constructor() {
 		this._colorMap = null;

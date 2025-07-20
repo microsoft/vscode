@@ -19,6 +19,7 @@ export interface IStandaloneThemeData {
 	rules: ITokenThemeRule[];
 	encodedTokensColors?: string[];
 	colors: IColors;
+	highlightingColorSpace: RGBColorSpace;
 }
 
 export interface IStandaloneTheme extends IColorTheme {
