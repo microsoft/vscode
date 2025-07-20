@@ -22,3 +22,5 @@ product.overrides.json
 *.snap.actual
 *.tsbuildinfo
 .vscode-test
+
+.fake
