@@ -21,8 +21,6 @@ import { PromptFileRewriter } from './promptFileRewriter.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { join } from '../../../../../base/common/path.js';
-
 
 /**
  * Action ID for the `Save Prompt` action.
@@ -116,7 +114,7 @@ class SaveToPromptAction extends Action2 {
 			}
 			const promptText = output.join('\n');
 
-			const untitledPath = join('.github/prompts', 'new.prompt.md');
+			const untitledPath = 'new.prompt.md';
 			const untitledResource = URI.from({ scheme: Schemas.untitled, path: untitledPath });
 
 			const editor = await editorService.openEditor({
