@@ -10,6 +10,9 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 
 //#region Actions
 registerAction2(class ShowAllSymbolsAction extends Action2 {
@@ -27,10 +30,18 @@ registerAction2(class ShowAllSymbolsAction extends Action2 {
 				mnemonicTitle: nls.localize({ key: 'miGotoSymbolInWorkspace', comment: ['&& denotes a mnemonic'] }, "Go to Symbol in &&Workspace..."),
 			},
 			f1: true,
-			keybinding: {
+			keybinding: [{
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyT
 			},
+			{
+				weight: KeybindingWeight.WorkbenchContrib,
+				when: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, IsWebContext),
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyT,
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyT }
+			}
+
+			],
 			menu: {
 				id: MenuId.MenubarGoMenu,
 				group: '3_global_nav',
