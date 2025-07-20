@@ -520,12 +520,11 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 
 		if (isResponseVM(item)) {
 			widget?.viewModel?.model.setCheckpoint(item.requestId);
-			chatModel.getRequests().forEach(request => {
-				if (request.id === item.requestId) {
-					widget?.focusInput();
-					widget?.input.setValue(request.message.text, false);
-				}
-			});
+			const request = chatModel.getRequests().find(request => request.id === item.requestId);
+			if (request) {
+				widget?.focusInput();
+				widget?.input.setValue(request.message.text, false);
+			}
 		}
 	}
 });
