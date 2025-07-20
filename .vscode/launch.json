@@ -4,6 +4,7 @@
 		{
 			"type": "node",
 			"request": "launch",
+			"name": "Run chrome-remote-interface",
 			"runtimeExecutable": "chrome-remote-interface",
 			"cwd": "${workspaceFolder}",
 			"args": []
