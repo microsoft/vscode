@@ -77,6 +77,7 @@ import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionSer
 import { CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatConfigKeys, InlineChatResponseType } from '../../common/inlineChat.js';
 import { TestWorkerService } from './testWorkerService.js';
 import { PromptsType } from '../../../chat/common/promptSyntax/promptTypes.js';
+import { ChatTransferService, IChatTransferService } from '../../../chat/common/chatTransferService.js';
 
 suite('InlineChatController', function () {
 
@@ -157,6 +158,7 @@ suite('InlineChatController', function () {
 			[IChatWidgetHistoryService, new SyncDescriptor(ChatWidgetHistoryService)],
 			[IChatWidgetService, new SyncDescriptor(ChatWidgetService)],
 			[IChatSlashCommandService, new SyncDescriptor(ChatSlashCommandService)],
+			[IChatTransferService, new SyncDescriptor(ChatTransferService)],
 			[IChatService, new SyncDescriptor(ChatService)],
 			[IChatAgentNameService, new class extends mock<IChatAgentNameService>() {
 				override getAgentNameRestriction(chatAgentData: IChatAgentData): boolean {

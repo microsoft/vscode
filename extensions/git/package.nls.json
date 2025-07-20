@@ -76,7 +76,7 @@
 	"command.createTag": "Create Tag...",
 	"command.deleteTag": "Delete Tag...",
 	"command.createWorktree": "Create Worktree...",
-	"command.deleteWorktree": "Delete Worktree...",
+	"command.deleteWorktree": "Delete Worktree",
 	"command.deleteRemoteTag": "Delete Remote Tag...",
 	"command.fetch": "Fetch",
 	"command.fetchPrune": "Fetch (Prune)",
