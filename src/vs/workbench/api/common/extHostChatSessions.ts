@@ -26,7 +26,7 @@ export class ExtHostChatSessions extends Disposable implements IExtHostChatSessi
 	private readonly _proxy: Proxied<MainThreadChatSessionsShape>;
 	private readonly _statusProviders = new Map<number, { provider: vscode.ChatSessionsProvider; disposable: DisposableStore }>();
 	private _nextHandle = 0;
-	private _sessionMap: Map<string, vscode.ChatSessionContent & Record<string, unknown>> = new Map();
+	private _sessionMap: Map<string, vscode.ChatSessionContent> = new Map();
 
 	constructor(
 		commands: ExtHostCommands,
@@ -78,17 +78,22 @@ export class ExtHostChatSessions extends Disposable implements IExtHostChatSessi
 			return [];
 		}
 
-		const session = await entry.provider.provideChatSessions(token);
-		for (const sessionContent of session) {
+		const sessions = await entry.provider.provideChatSessions(token);
+		const response: vscode.ChatSessionContent[] = [];
+		for (const sessionContent of sessions) {
 			if (sessionContent.uri) {
 				this._sessionMap.set(
 					this.uriToId(sessionContent.uri),
-					sessionContent as vscode.ChatSessionContent & Record<string, unknown>
+					sessionContent
 				);
+				response.push({
+					uri: sessionContent.uri,
+					label: sessionContent.label,
+					iconPath: sessionContent.iconPath
+				});
 			}
 		}
-
-		return session;
+		return response;
 	}
 
 	private uriToId(uri: URI): string {
