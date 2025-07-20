@@ -453,17 +453,18 @@ export interface ISuggestItemPreselector {
 export abstract class QuickSuggestionsOptions {
 
 	static isAllOff(config: InternalQuickSuggestionsOptions): boolean {
-		return config.other === 'off' && config.comments === 'off' && config.strings === 'off';
+		return config.other === 'off' && config.comments === 'off' && config.strings === 'off' && config.regex === 'off';
 	}
 
 	static isAllOn(config: InternalQuickSuggestionsOptions): boolean {
-		return config.other === 'on' && config.comments === 'on' && config.strings === 'on';
+		return config.other === 'on' && config.comments === 'on' && config.strings === 'on' && config.regex === 'on';
 	}
 
 	static valueFor(config: InternalQuickSuggestionsOptions, tokenType: StandardTokenType): QuickSuggestionsValue {
 		switch (tokenType) {
 			case StandardTokenType.Comment: return config.comments;
 			case StandardTokenType.String: return config.strings;
+			case StandardTokenType.RegEx: return config.regex;
 			default: return config.other;
 		}
 	}
