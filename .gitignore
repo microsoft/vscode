@@ -22,3 +22,7 @@ product.overrides.json
 *.snap.actual
 *.tsbuildinfo
 .vscode-test
+
+# Python artifacts
+__pycache__/
+generated_articles/
