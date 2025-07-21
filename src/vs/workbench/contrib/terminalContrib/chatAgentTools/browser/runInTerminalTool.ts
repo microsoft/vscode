@@ -22,7 +22,7 @@ import { ITerminalLogService } from '../../../../../platform/terminal/common/ter
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { IChatService, type IChatTerminalToolInvocationData, type IChatTerminalToolInvocationData2 } from '../../../chat/common/chatService.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationContext, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../chat/common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../terminal/browser/xterm/xtermTerminal.js';
 import { ITerminalProfileResolverService } from '../../../terminal/common/terminal.js';
@@ -35,10 +35,8 @@ import { RichExecuteStrategy } from './executeStrategy/richExecuteStrategy.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from './subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from './toolTerminalCreator.js';
-import { ChatModel } from '../../../chat/common/chatModel.js';
-import { ChatElicitationRequestPart } from '../../../chat/browser/chatElicitationRequestPart.js';
-import { ChatMessageRole, ILanguageModelsService } from '../../../chat/common/languageModels.js';
-import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
+import { getOutput, pollForOutputAndIdle, promptForMorePolling } from './bufferOutputPolling.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -47,14 +45,6 @@ interface IStoredTerminalAssociation {
 	id: string;
 	shellIntegrationQuality: ShellIntegrationQuality;
 	isBackground?: boolean;
-}
-
-const enum PollingConsts {
-	MinNoDataEvents = 2, // Minimum number of no data checks before considering the terminal idle
-	MinPollingDuration = 500,
-	FirstPollingMaxDuration = 20000, // 20 seconds
-	ExtendedPollingMaxDuration = 120000, // 2 minutes
-	MaxPollingIntervalDuration = 2000, // 2 seconds
 }
 
 export const RunInTerminalToolData: IToolData = {
@@ -327,11 +317,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 				// Poll for output until the terminal is idle or some time has passed
-				outputAndIdle = await this._pollForOutputAndIdle(execution, false, token);
+				outputAndIdle = await pollForOutputAndIdle(execution, false, token, this._languageModelsService);
 				if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-					const extendPolling = await this._promptForMorePolling(command, execution, token, invocation.context);
+					const extendPolling = await promptForMorePolling(command, execution, token, invocation.context, this._chatService);
 					if (extendPolling) {
-						outputAndIdle = await this._pollForOutputAndIdle(execution, true, token);
+						outputAndIdle = await pollForOutputAndIdle(execution, true, token, this._languageModelsService);
 					}
 				}
 				let resultText = (
@@ -459,121 +449,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					value: resultText.join(''),
 				}]
 			};
-		}
-	}
-
-	private async _pollForOutputAndIdle(
-		execution: BackgroundTerminalExecution,
-		extendedPolling: boolean,
-		token: CancellationToken
-	): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number }> {
-		const maxWaitMs = extendedPolling ? PollingConsts.ExtendedPollingMaxDuration : PollingConsts.FirstPollingMaxDuration;
-		const maxInterval = PollingConsts.MaxPollingIntervalDuration;
-		let currentInterval = PollingConsts.MinPollingDuration;
-		const pollStartTime = Date.now();
-
-		let lastBufferLength = 0;
-		let noNewDataCount = 0;
-		let buffer = '';
-		let terminalExecutionIdleBeforeTimeout = false;
-
-		while (true) {
-			if (token.isCancellationRequested) {
-				break;
-			}
-			const now = Date.now();
-			const elapsed = now - pollStartTime;
-			const timeLeft = maxWaitMs - elapsed;
-
-			if (timeLeft <= 0) {
-				break;
-			}
-
-			// Cap the wait so we never overshoot timeLeft
-			const waitTime = Math.min(currentInterval, timeLeft);
-			await timeout(waitTime);
-
-			// Check again immediately after waking
-			if (Date.now() - pollStartTime >= maxWaitMs) {
-				break;
-			}
-
-			currentInterval = Math.min(currentInterval * 2, maxInterval);
-
-			buffer = execution.getOutput();
-			const currentBufferLength = buffer.length;
-
-			if (currentBufferLength === lastBufferLength) {
-				noNewDataCount++;
-			} else {
-				noNewDataCount = 0;
-				lastBufferLength = currentBufferLength;
-			}
-			const isLikelyFinished = await this._assessOutputForFinishedState(buffer, token);
-			terminalExecutionIdleBeforeTimeout = isLikelyFinished && noNewDataCount >= PollingConsts.MinNoDataEvents;
-			if (terminalExecutionIdleBeforeTimeout) {
-				return { terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
-			}
-		}
-		return { terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
-	}
-
-	private async _promptForMorePolling(command: string, execution: BackgroundTerminalExecution, token: CancellationToken, context: IToolInvocationContext): Promise<boolean> {
-		const chatModel = this._chatService.getSession(context.sessionId);
-		if (chatModel instanceof ChatModel) {
-			const request = chatModel.getRequests().at(-1);
-			if (request) {
-				const waitPromise = new Promise<boolean>(resolve => {
-					const part = new ChatElicitationRequestPart(
-						new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for `{0}` to finish?", command)),
-						new MarkdownString(localize('poll.terminal.polling', "Copilot will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
-						'',
-						localize('poll.terminal.accept', 'Yes'),
-						localize('poll.terminal.reject', 'No'),
-						async () => {
-							resolve(true);
-						},
-						async () => {
-							resolve(false);
-						}
-					);
-					chatModel.acceptResponseProgress(request, part);
-				});
-				return waitPromise;
-			}
-		}
-		return false; // Fallback to not waiting if we can't prompt the user
-	}
-
-	private async _assessOutputForFinishedState(buffer: string, token: CancellationToken): Promise<boolean> {
-		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
-		if (!models.length) {
-			return false;
-		}
-
-		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('Github.copilot-chat'), [{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: `Evaluate this terminal output to determine if the command is finished or still in process: ${buffer}. Return the word true if finished and false if still in process.` }] }], {}, token);
-
-		let responseText = '';
-
-		const streaming = (async () => {
-			for await (const part of response.stream) {
-				if (Array.isArray(part)) {
-					for (const p of part) {
-						if (p.part.type === 'text') {
-							responseText += p.part.value;
-						}
-					}
-				} else if (part.part.type === 'text') {
-					responseText += part.part.value;
-				}
-			}
-		})();
-
-		try {
-			await Promise.all([response.result, streaming]);
-			return responseText.includes('true');
-		} catch (err) {
-			return false;
 		}
 	}
 
@@ -793,14 +668,6 @@ class BackgroundTerminalExecution extends Disposable {
 	}
 
 	getOutput(): string {
-		const lines: string[] = [];
-		for (let y = Math.min(this._startMarker?.line ?? 0, 0); y < this._xterm.raw.buffer.active.length; y++) {
-			const line = this._xterm.raw.buffer.active.getLine(y);
-			if (!line) {
-				continue;
-			}
-			lines.push(line.translateToString(true));
-		}
-		return lines.join('\n');
+		return getOutput(this._instance, this._startMarker);
 	}
 }
