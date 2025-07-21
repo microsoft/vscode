@@ -9,8 +9,11 @@ import { Task } from '../../../tasks/common/tasks.js';
 export function getTaskDefinition(id: string) {
 	const idx = id.indexOf(': ');
 	const taskType = id.substring(0, idx);
-	const taskLabel = id.substring(idx + 2);
+	let taskLabel = id.substring(idx + 2);
 
+	if (/^\d+$/.test(taskLabel)) {
+		taskLabel = id;
+	}
 
 	return { taskLabel, taskType };
 
@@ -30,4 +33,3 @@ export function getTaskRepresentation(task: Task): string {
 	}
 	return '';
 }
-

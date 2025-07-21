@@ -15,6 +15,9 @@ import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { pollForOutputAndIdle, promptForMorePolling } from './bufferOutputPolling.js';
 import { getOutput } from './outputHelpers.js';
 import { getTaskDefinition } from './taskHelpers.js';
+import { ConfiguringTask } from '../../../tasks/common/tasks.js';
+import { IStringDictionary } from '../../../../../base/common/collections.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
 type RunTaskToolClassification = {
 	taskId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the task.' };
@@ -50,34 +53,51 @@ export class RunTaskTool implements IToolImpl {
 		if (!invocation.context) {
 			return { content: [], toolResultMessage: `No invocation context` };
 		}
+		let task;
+		let index = 0;
 		const taskDefinition = await getTaskDefinition(args.id);
-		const task = (await this._tasksService.tasks()).find(t => {
-			return (!t.type || t.type === taskDefinition?.taskType) && t._label === taskDefinition?.taskLabel;
-		});
-		if (!taskDefinition || !task) {
+		// TODO: fix hack with file://
+		const wTasks: IStringDictionary<ConfiguringTask> | undefined = (await this._tasksService.getWorkspaceTasks())?.get('file://' + args.workspaceFolder)?.configurations?.byIdentifier;
+		for (const workspaceTask of Object.values(wTasks ?? {})) {
+			if ((!workspaceTask.type || workspaceTask.type === taskDefinition?.taskType) && workspaceTask._label === taskDefinition?.taskLabel) {
+				task = workspaceTask;
+				break;
+			} else if (args.id === workspaceTask.type + ': ' + index) {
+				task = workspaceTask;
+				break;
+			}
+			index++;
+		}
+
+		if (!task) {
 			return { content: [], toolResultMessage: `Task not found: \`${args.id}\`` };
 		}
+		const resolvedTask = await this._tasksService.tryResolveTask(task);
+		if (!resolvedTask) {
+			return { content: [], toolResultMessage: `Task not found: \`${args.id}\`` };
+		}
+
 		const activeTasks = await this._tasksService.getActiveTasks();
-		if (activeTasks.includes(task)) {
+		if (activeTasks.includes(resolvedTask)) {
 			return { content: [], toolResultMessage: `The task \`${taskDefinition.taskLabel}\` is already running.` };
 		}
 
-		const raceResult = await Promise.race([this._tasksService.run(task), timeout(3000)]);
+		const raceResult = await Promise.race([this._tasksService.run(resolvedTask), timeout(3000)]);
 		const result: ITaskSummary | undefined = raceResult && typeof raceResult === 'object' ? raceResult as ITaskSummary : undefined;
 
-		const resource = this._tasksService.getTerminalForTask(task);
+		const resource = this._tasksService.getTerminalForTask(resolvedTask);
 		const terminal = this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme);
 		if (!terminal) {
 			return { content: [], toolResultMessage: `Task started but no terminal was found for: \`${taskDefinition.taskLabel}\`` };
 		}
 
-		_progress.report({ message: `Checking output for \`${taskDefinition.taskLabel}\`` });
+		_progress.report({ message: new MarkdownString(`Checking output for \`${taskDefinition.taskLabel}\``) });
 
 		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, false, token, this._languageModelsService);
 		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 			const extendPolling = await promptForMorePolling(taskDefinition.taskLabel, invocation.context, this._chatService);
 			if (extendPolling) {
-				_progress.report({ message: `Checking output for \`${taskDefinition.taskLabel}\`` });
+				_progress.report({ message: new MarkdownString(`Checking output for \`${taskDefinition.taskLabel}\``) });
 				outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService);
 			}
 		}
@@ -108,26 +128,40 @@ export class RunTaskTool implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IRunTaskToolInput;
 
-		const taskDefinition = await getTaskDefinition(args.id);
-		const tasks = await this._tasksService.tasks();
 		let task;
-		for (const t of tasks) {
-			if ((!t.type || taskDefinition.taskType === t.type) && taskDefinition.taskLabel === t._label) {
-				task = t;
+		let index = 0;
+		const taskDefinition = await getTaskDefinition(args.id);
+		const workspaceTasks = (await this._tasksService.getWorkspaceTasks());
+		const wTasks: IStringDictionary<ConfiguringTask> | undefined = workspaceTasks.get('file://' + args.workspaceFolder)?.configurations?.byIdentifier;
+		for (const workspaceTask of Object.values(wTasks ?? {})) {
+			if ((!workspaceTask.type || workspaceTask.type === taskDefinition?.taskType) && workspaceTask._label === taskDefinition?.taskLabel) {
+				task = workspaceTask;
+				break;
+			} else if (args.id === workspaceTask.type + ': ' + index) {
+				task = workspaceTask;
 				break;
 			}
-		}
-		if (!task || !taskDefinition) {
-			return { invocationMessage: `Task not found: \`${args.id}\`` };
-		}
-
-		const activeTasks = await this._tasksService.getActiveTasks();
-		if (task && activeTasks.includes(task)) {
-			return { invocationMessage: `The task is already running.` };
+			index++;
 		}
 
 		if (!task) {
-			return { invocationMessage: `Task not found: \`${args.id}\`` };
+			return { invocationMessage: new MarkdownString(`Task not found: \`${args.id}\``) };
+		}
+		const resolvedTask = await this._tasksService.tryResolveTask(task);
+		if (!resolvedTask) {
+			return { invocationMessage: new MarkdownString(`Task not found: \`${args.id}\``) };
+		}
+		if (!resolvedTask) {
+			return { invocationMessage: new MarkdownString(`Task not found: \`${args.id}\``) };
+		}
+
+		const activeTasks = await this._tasksService.getActiveTasks();
+		if (resolvedTask && activeTasks.includes(resolvedTask)) {
+			return { invocationMessage: new MarkdownString(`The task is already running.`) };
+		}
+
+		if (!resolvedTask) {
+			return { invocationMessage: new MarkdownString(`Task not found: \`${args.id}\``) };
 		}
 
 		// const position = workspaceFolder && task && await this._tasksService.getTaskConfigPosition(workspaceFolder, task);
@@ -138,18 +172,18 @@ export class RunTaskTool implements IToolImpl {
 		// 	return s;
 		// };
 
-		if (await this._isTaskActive(task)) {
+		if (await this._isTaskActive(resolvedTask)) {
 			return {
 				// TODO: do these have to be localized?
-				invocationMessage: `\`${(taskDefinition.taskLabel ?? args.id)}\` is already running.`,
-				pastTenseMessage: `\`${(taskDefinition.taskLabel ?? args.id)}\` was already running.`,
+				invocationMessage: new MarkdownString(`\`${(taskDefinition.taskLabel ?? args.id)}\` is already running.`),
+				pastTenseMessage: new MarkdownString(`\`${(taskDefinition.taskLabel ?? args.id)}\` was already running.`),
 				confirmationMessages: undefined
 			};
 		}
 
 		return {
-			invocationMessage: `Running \`${taskDefinition.taskLabel}\``,
-			pastTenseMessage: task?.configurationProperties.isBackground ? `Started \`${taskDefinition.taskLabel}\`` : `Ran \`${taskDefinition.taskLabel}\``,
+			invocationMessage: new MarkdownString(`Running \`${taskDefinition.taskLabel}\``),
+			pastTenseMessage: new MarkdownString(task?.configurationProperties.isBackground ? `Started \`${taskDefinition.taskLabel}\`` : `Ran \`${taskDefinition.taskLabel}\``),
 			confirmationMessages: task
 				? { title: `Allow task run?`, message: `Allow Copilot to run the task \`${taskDefinition.taskLabel}\`?` }
 				: undefined
