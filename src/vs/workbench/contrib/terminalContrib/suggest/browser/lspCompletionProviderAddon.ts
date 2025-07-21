@@ -22,20 +22,18 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 	private _provider: CompletionItemProvider;
 	private _textVirtualModel: IReference<IResolvedTextEditorModel>;
 	private _lspTerminalModelContentProvider: LspTerminalModelContentProvider;
-	private _logService: ITerminalLogService;
 
 	constructor(
 		provider: CompletionItemProvider,
 		textVirtualModel: IReference<IResolvedTextEditorModel>,
 		lspTerminalModelContentProvider: LspTerminalModelContentProvider,
-		@ITerminalLogService logService: ITerminalLogService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 		super();
 		this._provider = provider;
 		this._textVirtualModel = textVirtualModel;
 		this._lspTerminalModelContentProvider = lspTerminalModelContentProvider;
 		this.triggerCharacters = provider.triggerCharacters ? [...provider.triggerCharacters, ' '] : [' '];
-		this._logService = logService;
 	}
 
 	activate(terminal: Terminal): void {
