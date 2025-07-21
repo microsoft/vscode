@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncReader, AsyncReaderEndOfStream } from '../../../../base/common/async.js';
-import { CachedFunction } from '../../../../base/common/cache.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { IObservableWithChange, ISettableObservable, observableValue, runOnChange } from '../../../../base/common/observable.js';
-import { AnnotatedStringEdit, IEditData } from '../../../../editor/common/core/edits/stringEdit.js';
-import { StringText } from '../../../../editor/common/core/text/abstractText.js';
-import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
-import { TextModelEditSource } from '../../../../editor/common/textModelEditSource.js';
+import { AsyncReader, AsyncReaderEndOfStream } from '../../../../../base/common/async.js';
+import { CachedFunction } from '../../../../../base/common/cache.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { IObservableWithChange, ISettableObservable, observableValue, runOnChange } from '../../../../../base/common/observable.js';
+import { AnnotatedStringEdit, IEditData } from '../../../../../editor/common/core/edits/stringEdit.js';
+import { StringText } from '../../../../../editor/common/core/text/abstractText.js';
+import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
+import { TextModelEditSource } from '../../../../../editor/common/textModelEditSource.js';
 import { IObservableDocument } from './observableWorkspace.js';
 import { iterateObservableChanges, mapObservableDelta } from './utils.js';
 
@@ -54,21 +54,21 @@ export class EditSourceData implements IEditData<EditSourceData> {
 	public readonly key;
 
 	constructor(
-		public readonly editReason: TextModelEditSource
+		public readonly editSource: TextModelEditSource
 	) {
-		this.key = this.editReason.toKey(1);
-		this.source = EditSourceBase.create(this.editReason);
+		this.key = this.editSource.toKey(1);
+		this.source = EditSourceBase.create(this.editSource);
 	}
 
 	join(data: EditSourceData): EditSourceData | undefined {
-		if (this.editReason !== data.editReason) {
+		if (this.editSource !== data.editSource) {
 			return undefined;
 		}
 		return this;
 	}
 
 	toEditSourceData(): EditKeySourceData {
-		return new EditKeySourceData(this.key, this.source, this.editReason);
+		return new EditKeySourceData(this.key, this.source, this.editSource);
 	}
 }
 
