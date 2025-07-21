@@ -171,7 +171,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const subCommands = splitCommandLineIntoSubCommands(args.command, shell, os);
 			const inlineSubCommands = subCommands.map(e => Array.from(extractInlineSubCommands(e, shell, os))).flat();
 			const allSubCommands = [...subCommands, ...inlineSubCommands];
-			const subCommandResults = allSubCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
+			const subCommandResults = await Promise.all(allSubCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os)));
 			const autoApproveReasons: string[] = [...subCommandResults.map(e => e.reason)];
 
 			if (subCommandResults.every(e => e.isAutoApproved)) {

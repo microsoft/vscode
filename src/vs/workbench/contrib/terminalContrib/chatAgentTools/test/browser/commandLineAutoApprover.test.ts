@@ -3,6 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// Temporary type declarations for test framework globals
+declare function suite(title: string, fn: () => void): void;
+declare function test(title: string, fn: () => void | Promise<void>): void;
+declare function setup(fn: () => void): void;
+
+import assert from 'assert';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -11,7 +17,6 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { CommandLineAutoApprover } from '../../browser/commandLineAutoApprover.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
-import { ok, strictEqual } from 'assert';
 
 suite('CommandLineAutoApprover', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -52,8 +57,8 @@ suite('CommandLineAutoApprover', () => {
 		});
 	}
 
-	function isAutoApproved(commandLine: string): boolean {
-		return commandLineAutoApprover.isCommandAutoApproved(commandLine, shell, os).isAutoApproved;
+	async function isAutoApproved(commandLine: string): Promise<boolean> {
+		return (await commandLineAutoApprover.isCommandAutoApproved(commandLine, shell, os)).isAutoApproved;
 	}
 
 	function isCommandLineAutoApproved(commandLine: string): boolean {
@@ -61,63 +66,63 @@ suite('CommandLineAutoApprover', () => {
 	}
 
 	suite('autoApprove with allow patterns only', () => {
-		test('should auto-approve exact command match', () => {
+		test('should auto-approve exact command match', async () => {
 			setAutoApprove({
 				"echo": true
 			});
-			ok(isAutoApproved('echo'));
+			assert.ok(await isAutoApproved('echo'));
 		});
 
-		test('should auto-approve command with arguments', () => {
+		test('should auto-approve command with arguments', async () => {
 			setAutoApprove({
 				"echo": true
 			});
-			ok(isAutoApproved('echo hello world'));
+			assert.ok(await isAutoApproved('echo hello world'));
 		});
 
-		test('should not auto-approve when there is no match', () => {
+		test('should not auto-approve when there is no match', async () => {
 			setAutoApprove({
 				"echo": true
 			});
-			ok(!isAutoApproved('ls'));
+			assert.ok(!(await isAutoApproved('ls')));
 		});
 
-		test('should not auto-approve partial command matches', () => {
+		test('should not auto-approve partial command matches', async () => {
 			setAutoApprove({
 				"echo": true
 			});
-			ok(!isAutoApproved('echotest'));
+			assert.ok(!(await isAutoApproved('echotest')));
 		});
 
-		test('should handle multiple commands in autoApprove', () => {
+		test('should handle multiple commands in autoApprove', async () => {
 			setAutoApprove({
 				"echo": true,
 				"ls": true,
 				"pwd": true
 			});
-			ok(isAutoApproved('echo'));
-			ok(isAutoApproved('ls -la'));
-			ok(isAutoApproved('pwd'));
-			ok(!isAutoApproved('rm'));
+			assert.ok(await isAutoApproved('echo'));
+			assert.ok(await isAutoApproved('ls -la'));
+			assert.ok(await isAutoApproved('pwd'));
+			assert.ok(!(await isAutoApproved('rm')));
 		});
 	});
 
 	suite('autoApprove with deny patterns only', () => {
-		test('should deny commands in autoApprove', () => {
+		test('should deny commands in autoApprove', async () => {
 			setAutoApprove({
 				"rm": false,
 				"del": false
 			});
-			ok(!isAutoApproved('rm file.txt'));
-			ok(!isAutoApproved('del file.txt'));
+			assert.ok(!(await isAutoApproved('rm file.txt')));
+			assert.ok(!(await isAutoApproved('del file.txt')));
 		});
 
-		test('should not auto-approve safe commands when no allow patterns are present', () => {
+		test('should not auto-approve safe commands when no allow patterns are present', async () => {
 			setAutoApprove({
 				"rm": false
 			});
-			ok(!isAutoApproved('echo hello'));
-			ok(!isAutoApproved('ls'));
+			assert.ok(!(await isAutoApproved('echo hello')));
+			assert.ok(!(await isAutoApproved('ls')));
 		});
 	});
 
@@ -442,8 +447,8 @@ suite('CommandLineAutoApprover', () => {
 	});
 
 	suite('reasons', () => {
-		function getCommandReason(command: string): string {
-			return commandLineAutoApprover.isCommandAutoApproved(command, shell, os).reason;
+		async function getCommandReason(command: string): Promise<string> {
+			return (await commandLineAutoApprover.isCommandAutoApproved(command, shell, os)).reason;
 		}
 
 		function getCommandLineReason(commandLine: string): string {
@@ -451,32 +456,32 @@ suite('CommandLineAutoApprover', () => {
 		}
 
 		suite('command', () => {
-			test('approved', () => {
+			test('approved', async () => {
 				setAutoApprove({ echo: true });
-				strictEqual(getCommandReason('echo hello'), `Command 'echo hello' is approved by allow list rule: echo`);
+				assert.strictEqual(await getCommandReason('echo hello'), `Command 'echo hello' is approved by allow list rule: echo`);
 			});
-			test('not approved', () => {
+			test('not approved', async () => {
 				setAutoApprove({ echo: false });
-				strictEqual(getCommandReason('echo hello'), `Command 'echo hello' is denied by deny list rule: echo`);
+				assert.strictEqual(await getCommandReason('echo hello'), `Command 'echo hello' is denied by deny list rule: echo`);
 			});
-			test('no match', () => {
+			test('no match', async () => {
 				setAutoApprove({});
-				strictEqual(getCommandReason('echo hello'), `Command 'echo hello' has no matching auto approve entries`);
+				assert.strictEqual(await getCommandReason('echo hello'), `Command 'echo hello' has no matching auto approve entries`);
 			});
 		});
 
 		suite('command line', () => {
 			test('approved', () => {
 				setAutoApproveWithCommandLine({ echo: { approve: true, matchCommandLine: true } });
-				strictEqual(getCommandLineReason('echo hello'), `Command line 'echo hello' is approved by allow list rule: echo`);
+				assert.strictEqual(getCommandLineReason('echo hello'), `Command line 'echo hello' is approved by allow list rule: echo`);
 			});
 			test('not approved', () => {
 				setAutoApproveWithCommandLine({ echo: { approve: false, matchCommandLine: true } });
-				strictEqual(getCommandLineReason('echo hello'), `Command line 'echo hello' is denied by deny list rule: echo`);
+				assert.strictEqual(getCommandLineReason('echo hello'), `Command line 'echo hello' is denied by deny list rule: echo`);
 			});
 			test('no match', () => {
 				setAutoApproveWithCommandLine({});
-				strictEqual(getCommandLineReason('echo hello'), `Command line 'echo hello' has no matching auto approve entries`);
+				assert.strictEqual(getCommandLineReason('echo hello'), `Command line 'echo hello' has no matching auto approve entries`);
 			});
 		});
 	});
