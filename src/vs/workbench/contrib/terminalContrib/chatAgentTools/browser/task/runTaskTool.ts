@@ -125,14 +125,6 @@ export class RunTaskTool implements IToolImpl {
 			return { invocationMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
 		}
 
-		// const position = workspaceFolder && task && await this._tasksService.getTaskConfigPosition(workspaceFolder, task);
-		// const link = (s: string) => position ? `[${s}](${position.uri.toString()}#${position.range.startLineNumber}-${position.range.endLineNumber})` : s;
-		// const trustedMark = (value: string) => {
-		// 	const s = new MarkdownString(value);
-		// 	s.isTrusted = true;
-		// 	return s;
-		// };
-
 		if (await this._isTaskActive(task)) {
 			return {
 				invocationMessage: new MarkdownString(localize('copilotChat.taskIsAlreadyRunning', '`{0}` is already running.', taskDefinition.taskLabel ?? args.id)),
