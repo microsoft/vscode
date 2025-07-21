@@ -29,7 +29,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 import { OpaqueEdits, ResourceAttachmentEdit } from './opaqueEdits.js';
-import { TextModelEditReason } from '../../../../editor/common/textModelEditReason.js';
+import { TextModelEditSource } from '../../../../editor/common/textModelEditSource.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 
 function liftEdits(edits: ResourceEdit[]): ResourceEdit[] {
@@ -96,7 +96,7 @@ class BulkEdit {
 		}
 	}
 
-	async perform(reason?: TextModelEditReason): Promise<readonly URI[]> {
+	async perform(reason?: TextModelEditSource): Promise<readonly URI[]> {
 
 		if (this._edits.length === 0) {
 			return [];
@@ -147,7 +147,7 @@ class BulkEdit {
 		return await model.apply();
 	}
 
-	private async _performTextEdits(edits: ResourceTextEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, progress: IProgress<void>, reason: TextModelEditReason | undefined): Promise<readonly URI[]> {
+	private async _performTextEdits(edits: ResourceTextEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, progress: IProgress<void>, reason: TextModelEditSource | undefined): Promise<readonly URI[]> {
 		this._logService.debug('_performTextEdits', JSON.stringify(edits));
 		const model = this._instaService.createInstance(BulkTextEdits, this._label || localize('workspaceEdit', "Workspace Edit"), this._code || 'undoredo.workspaceEdit', this._editor, undoRedoGroup, undoRedoSource, progress, this._token, edits);
 		return await model.apply(reason);

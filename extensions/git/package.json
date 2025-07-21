@@ -540,6 +540,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.createWorktree",
+        "title": "%command.createWorktree%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.deleteWorktree",
         "title": "%command.deleteWorktree%",
         "category": "Git",
@@ -1296,8 +1302,12 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
-          "command": "git.deleteWorktree",
+          "command": "git.createWorktree",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.deleteWorktree",
+          "when": "false"
         },
         {
           "command": "git.deleteRemoteTag",
@@ -2556,8 +2566,14 @@
       ],
       "git.worktrees": [
         {
-          "command": "git.deleteWorktree",
+          "when": "scmProviderContext == repository",
+          "command": "git.createWorktree",
           "group": "worktrees@1"
+        },
+        {
+          "when": "scmProviderContext == worktree",
+          "command": "git.deleteWorktree",
+          "group": "worktrees@2"
         }
       ]
     },

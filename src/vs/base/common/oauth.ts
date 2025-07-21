@@ -8,6 +8,7 @@ import { decodeBase64 } from './buffer.js';
 const WELL_KNOWN_ROUTE = '/.well-known';
 export const AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH = `${WELL_KNOWN_ROUTE}/oauth-protected-resource`;
 export const AUTH_SERVER_METADATA_DISCOVERY_PATH = `${WELL_KNOWN_ROUTE}/oauth-authorization-server`;
+export const OPENID_CONNECT_DISCOVERY_PATH = `${WELL_KNOWN_ROUTE}/openid-configuration`;
 export const AUTH_SCOPE_SEPARATOR = ' ';
 
 //#region types
@@ -735,14 +736,14 @@ export async function fetchDynamicRegistration(serverMetadata: IAuthorizationSer
 			redirect_uris: [
 				'https://insiders.vscode.dev/redirect',
 				'https://vscode.dev/redirect',
-				'http://localhost/',
-				'http://127.0.0.1/',
+				'http://localhost',
+				'http://127.0.0.1',
 				// Added these for any server that might do
 				// only exact match on the redirect URI even
 				// though the spec says it should not care
 				// about the port.
-				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}/`,
-				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}/`
+				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}`,
+				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}`
 			],
 			scope: scopes?.join(AUTH_SCOPE_SEPARATOR),
 			token_endpoint_auth_method: 'none',

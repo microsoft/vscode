@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderStringAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { RunOnceScheduler, disposableTimeout, raceCancellation } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -818,7 +818,7 @@ class ChatSynthesizerSessions {
 		}
 
 		return {
-			chunk: chunk ? renderStringAsPlaintext({ value: chunk }) : chunk, // convert markdown to plain text
+			chunk: chunk ? renderAsPlaintext({ value: chunk }) : chunk, // convert markdown to plain text
 			offset
 		};
 	}

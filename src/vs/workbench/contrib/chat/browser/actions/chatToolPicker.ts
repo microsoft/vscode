@@ -358,8 +358,6 @@ export async function showToolsPicker(
 
 		const addPick = selectedPicks.find(isCallbackPick);
 		if (addPick) {
-			addPick.run();
-			picker.hide();
 			return;
 		}
 
@@ -398,8 +396,12 @@ export async function showToolsPicker(
 
 	let didAccept = false;
 	store.add(picker.onDidAccept(() => {
-		picker.activeItems.find(isCallbackPick)?.run();
-		didAccept = true;
+		const callbackPick = picker.activeItems.find(isCallbackPick);
+		if (callbackPick) {
+			callbackPick.run();
+		} else {
+			didAccept = true;
+		}
 	}));
 
 	await Promise.race([Event.toPromise(Event.any(picker.onDidAccept, picker.onDidHide))]);

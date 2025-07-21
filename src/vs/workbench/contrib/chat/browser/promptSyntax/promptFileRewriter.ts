@@ -46,28 +46,28 @@ export class PromptFileRewriter {
 			return undefined;
 		}
 		editor.setSelection(tools.range);
-		await this.rewriteTools(model, newTools, tools.range);
+		this.rewriteTools(model, newTools, tools.range);
 	}
 
 
 	public rewriteTools(model: ITextModel, newTools: IToolAndToolSetEnablementMap | undefined, range: Range): void {
+		const newString = newTools === undefined ? '' : `tools: ${this.getNewValueString(newTools)}`;
+		model.pushStackElement();
+		model.pushEditOperations(null, [EditOperation.replaceMove(range, newString)], () => null);
+		model.pushStackElement();
+	}
 
+	public getNewValueString(tools: IToolAndToolSetEnablementMap): string {
 		const newToolNames: string[] = [];
-		if (newTools === undefined) {
-			model.pushStackElement();
-			model.pushEditOperations(null, [EditOperation.replaceMove(range, '')], () => null);
-			model.pushStackElement();
-			return;
-		}
 		const toolsCoveredBySets = new Set<IToolData>();
-		for (const [item, picked] of newTools) {
+		for (const [item, picked] of tools) {
 			if (picked && item instanceof ToolSet) {
 				for (const tool of item.getTools()) {
 					toolsCoveredBySets.add(tool);
 				}
 			}
 		}
-		for (const [item, picked] of newTools) {
+		for (const [item, picked] of tools) {
 			if (picked) {
 				if (item instanceof ToolSet) {
 					newToolNames.push(item.referenceName);
@@ -76,10 +76,7 @@ export class PromptFileRewriter {
 				}
 			}
 		}
-
-		model.pushStackElement();
-		model.pushEditOperations(null, [EditOperation.replaceMove(range, `tools: [${newToolNames.map(s => `'${s}'`).join(', ')}]`)], () => null);
-		model.pushStackElement();
+		return `[${newToolNames.map(s => `'${s}'`).join(', ')}]`;
 	}
 }
 

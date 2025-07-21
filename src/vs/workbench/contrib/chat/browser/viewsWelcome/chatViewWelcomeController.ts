@@ -8,6 +8,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IMarkdownRenderResult, MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
@@ -22,6 +23,7 @@ import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidgetService } from '../chat.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { chatViewsWelcomeRegistry, IChatViewsWelcomeDescriptor } from './chatViewsWelcome.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 
 const $ = dom.$;
 
@@ -187,14 +189,17 @@ export class ChatViewWelcomePart extends Disposable {
 					const suggestedPromptsContainer = dom.append(this.element, $('.chat-welcome-view-suggested-prompts'));
 					for (const prompt of content.suggestedPrompts) {
 						const promptElement = dom.append(suggestedPromptsContainer, $('.chat-welcome-view-suggested-prompt'));
+						// Make the prompt element keyboard accessible
+						promptElement.setAttribute('role', 'button');
+						promptElement.setAttribute('tabindex', '0');
+						promptElement.setAttribute('aria-label', localize('suggestedPromptAriaLabel', 'Suggested prompt: {0}', prompt.label));
 						if (prompt.icon) {
 							const iconElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-icon'));
 							iconElement.appendChild(renderIcon(prompt.icon));
 						}
 						const labelElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-label'));
 						labelElement.textContent = prompt.label;
-						this._register(dom.addDisposableListener(promptElement, dom.EventType.CLICK, () => {
-
+						const executePrompt = () => {
 							type SuggestedPromptClickEvent = { suggestedPrompt: string };
 
 							type SuggestedPromptClickData = {
@@ -214,6 +219,17 @@ export class ChatViewWelcomePart extends Disposable {
 								}
 							} else {
 								this.chatWidgetService.lastFocusedWidget.setInput(prompt.prompt);
+							}
+						};
+						// Add click handler
+						this._register(dom.addDisposableListener(promptElement, dom.EventType.CLICK, executePrompt));
+						// Add keyboard handler for Enter and Space keys
+						this._register(dom.addDisposableListener(promptElement, dom.EventType.KEY_DOWN, (e) => {
+							const event = new StandardKeyboardEvent(e);
+							if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+								e.preventDefault();
+								e.stopPropagation();
+								executePrompt();
 							}
 						}));
 					}

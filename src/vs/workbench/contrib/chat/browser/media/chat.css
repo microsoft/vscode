@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .interactive-session {
-	max-width: 850px;
+	max-width: 950px;
 	margin: auto;
 	position: relative; /* For chat dnd */
 }
@@ -1256,6 +1256,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button.codicon.codicon-plus {
+	padding: 0 5px 0 3px;
 	font-size: 12px;
 }
 
@@ -1264,6 +1265,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button:hover {
 	cursor: pointer;
 	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled .monaco-button:hover {
+	cursor: pointer;
+	background: transparent;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label-container {
@@ -1870,7 +1876,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.interactive-item-container.interactive-request {
 		align-items: flex-end;
-		padding-bottom: 0px;
+
 	}
 
 	.interactive-item-container.interactive-request:not(.editing):hover .request-hover {
@@ -1879,6 +1885,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.interactive-item-container.interactive-request.confirmation-message {
 		align-items: flex-start;
+
+		.checkpoint-container {
+			display: none;
+		}
 	}
 
 	.interactive-item-container.interactive-request .value .rendered-markdown {
@@ -1897,7 +1907,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.interactive-item-container.interactive-request .value .rendered-markdown.clickable:hover {
-		cursor: text;
+		cursor: pointer;
 		background-color: var(--vscode-chat-requestBubbleHoverBackground);
 	}
 
@@ -1983,6 +1993,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.checkpoint-restore-container {
 		display: flex;
 		width: 100%;
+		position: relative;
 
 		.checkpoint-divider {
 			border-top: 1px dashed var(--vscode-editorWidget-border);
@@ -2005,22 +2016,38 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		}
 
 		.monaco-toolbar {
-			user-select: none;
 			opacity: 0;
-			width: 0;
+			height: fit-content;
+			width: fit-content;
+			user-select: none;
+			position: absolute;
+			top: 5px;
+			left: 25px;
+			background: var(--vscode-sideBar-background);
 		}
 
 		.monaco-toolbar .action-label {
 			border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background));
 			padding: 1px 5px;
 			background-color: var(--vscode-sideBar-background);
-			margin-top: 5px;
-			margin-left: 10px;
 		}
 	}
 
 	.checkpoint-restore-container {
 		margin-top: 10px;
+
+		.checkpoint-label-text {
+			font-size: 12px;
+			color: var(--vscode-descriptionForeground);
+			padding-right: 4px;
+			display: flex;
+			align-items: center;
+			gap: 4px;
+		}
+
+		.monaco-toolbar {
+			left: 145px;
+		}
 	}
 
 	.checkpoint-container .monaco-toolbar:focus-within,
@@ -2050,8 +2077,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			top: 0px;
 		}
 
-		.request-hover.checkpoints-enabled {
-			top: 30px;
+		.checkpoint-container {
+			display: none;
 		}
 	}
 
@@ -2062,7 +2089,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			outline: 1px solid var(--vscode-focusBorder);
 		}
 
-		.request-hover {
+		.request-hover:not(.has-no-actions) {
 			display: block;
 		}
 	}
@@ -2078,9 +2105,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.interactive-request.editing {
 		padding: 0px;
+
+		.interactive-input-part .chat-input-container .interactive-input-editor .monaco-editor .native-edit-context {
+			height: 0px !important;
+		}
 	}
 }
-
 
 .chat-buttons-container {
 	display: flex;
