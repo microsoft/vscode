@@ -304,7 +304,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const termId = generateUuid();
 
 		if (args.isBackground) {
-			let outputAndIdle: { idle: boolean; output: string; pollDurationMs?: number } | undefined = undefined;
+			let outputAndIdle: { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number } | undefined = undefined;
 
 			this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
 			const toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(token);
@@ -328,7 +328,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 				// Poll for output until the terminal is idle or some time has passed
 				outputAndIdle = await this._pollForOutputAndIdle(execution, false, token);
-				if (!outputAndIdle.idle) {
+				if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 					const extendPolling = await this._promptForMorePolling(command, execution, token, invocation.context);
 					if (extendPolling) {
 						outputAndIdle = await this._pollForOutputAndIdle(execution, true, token);
@@ -341,7 +341,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
 							: `Command is running in terminal with ID=${termId}`
 				);
-				resultText += outputAndIdle.idle ? `\n\ The command became idle with output:\n${outputAndIdle.output}` : `\n\ The command is still running, with output:\n${outputAndIdle.output}`;
+				resultText += outputAndIdle.terminalExecutionIdleBeforeTimeout ? `\n\ The command became idle with output:\n${outputAndIdle.output}` : `\n\ The command is still running, with output:\n${outputAndIdle.output}`;
 				return {
 					content: [{
 						kind: 'text',
@@ -368,7 +368,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					isNewSession: true,
 					timingExecuteMs,
 					timingConnectMs,
-					idle: outputAndIdle?.idle,
+					terminalExecutionIdleBeforeTimeout: outputAndIdle?.terminalExecutionIdleBeforeTimeout,
 					outputLineCount: outputAndIdle?.output ? count(outputAndIdle.output, '\n') : 0,
 					pollDurationMs: outputAndIdle?.pollDurationMs,
 				});
@@ -466,7 +466,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		execution: BackgroundTerminalExecution,
 		extendedPolling: boolean,
 		token: CancellationToken
-	): Promise<{ idle: boolean; output: string; pollDurationMs?: number }> {
+	): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number }> {
 		const maxWaitMs = extendedPolling ? PollingConsts.ExtendedPollingMaxDuration : PollingConsts.FirstPollingMaxDuration;
 		const maxInterval = PollingConsts.MaxPollingIntervalDuration;
 		let currentInterval = PollingConsts.MinPollingDuration;
@@ -475,7 +475,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		let lastBufferLength = 0;
 		let noNewDataCount = 0;
 		let buffer = '';
-		let idle = false;
+		let terminalExecutionIdleBeforeTimeout = false;
 
 		while (true) {
 			if (token.isCancellationRequested) {
@@ -510,12 +510,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				lastBufferLength = currentBufferLength;
 			}
 			const isLikelyFinished = await this._assessOutputForFinishedState(buffer, token);
-			idle = isLikelyFinished && noNewDataCount >= PollingConsts.MinNoDataEvents;
-			if (idle) {
-				return { idle, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+			terminalExecutionIdleBeforeTimeout = isLikelyFinished && noNewDataCount >= PollingConsts.MinNoDataEvents;
+			if (terminalExecutionIdleBeforeTimeout) {
+				return { terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 			}
 		}
-		return { idle, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+		return { terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 	}
 
 	private async _promptForMorePolling(command: string, execution: BackgroundTerminalExecution, token: CancellationToken, context: IToolInvocationContext): Promise<boolean> {
@@ -724,7 +724,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		outputLineCount: number;
 		timingConnectMs: number;
 		pollDurationMs?: number;
-		idle?: boolean;
+		terminalExecutionIdleBeforeTimeout?: boolean;
 		timingExecuteMs: number;
 		exitCode: number | undefined;
 	}) {
@@ -740,9 +740,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			outputLineCount: number;
 			nonZeroExitCode: -1 | 0 | 1;
 			timingConnectMs: number;
-			timingExecuteMs: number;
 			pollDurationMs: number;
-			idle: boolean;
+			terminalExecutionIdleBeforeTimeout: boolean;
 		};
 		type TelemetryClassification = {
 			owner: 'tyriar';
@@ -759,9 +758,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			outputLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How many lines of output were produced, this is -1 when isBackground is true or if there\'s an error' };
 			nonZeroExitCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command exited with a non-zero code (-1=error/unknown, 0=zero exit code, 1=non-zero)' };
 			timingConnectMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the terminal took to start up and connect to' };
-			timingExecuteMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the command took to execute' };
 			pollDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the tool polled for output, this is undefined when isBackground is true or if there\'s an error' };
-			idle: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the terminal became idle before the tool finished polling for output' };
+			terminalExecutionIdleBeforeTimeout: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates whether a terminal became idle before the run-in-terminal tool timed out or was cancelled by the user. This occurs when no data events are received twice consecutively and the model determines, based on terminal output, that the command has completed.' };
 		};
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal', {
 			terminalSessionId: instance.sessionId,
@@ -774,9 +772,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			outputLineCount: state.outputLineCount,
 			nonZeroExitCode: state.exitCode === undefined ? -1 : state.exitCode === 0 ? 0 : 1,
 			timingConnectMs: state.timingConnectMs,
-			timingExecuteMs: state.timingExecuteMs,
 			pollDurationMs: state.pollDurationMs ?? 0,
-			idle: state.idle ?? false
+			terminalExecutionIdleBeforeTimeout: state.terminalExecutionIdleBeforeTimeout ?? false
 		});
 	}
 }
