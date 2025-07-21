@@ -9,7 +9,7 @@ import { Command, commands, Disposable, MessageOptions, Position, ProgressLocati
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
-import { Git, Stash, Worktree } from './git';
+import { Git, Stash } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
@@ -55,19 +55,6 @@ class RefItemSeparator implements QuickPickItem {
 	}
 
 	constructor(private readonly refType: RefType) { }
-}
-
-class WorktreeItem implements QuickPickItem {
-
-	get label(): string {
-		return `$(list-tree) ${this.worktree.name}`;
-	}
-
-	get description(): string {
-		return this.worktree.path;
-	}
-
-	constructor(readonly worktree: Worktree) { }
 }
 
 class RefItem implements QuickPickItem {
@@ -224,14 +211,6 @@ class RemoteTagDeleteItem extends RefItem {
 	async run(repository: Repository, remote: string): Promise<void> {
 		if (this.ref.name) {
 			await repository.deleteRemoteRef(remote, this.ref.name);
-		}
-	}
-}
-
-class WorktreeDeleteItem extends WorktreeItem {
-	async run(repository: Repository): Promise<void> {
-		if (this.worktree.path) {
-			await repository.deleteWorktree(this.worktree.path);
 		}
 	}
 }
@@ -3336,20 +3315,108 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.createWorktree', { repository: true })
+	async createWorktree(repository: Repository): Promise<void> {
+		await this._createWorktree(repository, undefined, undefined);
+	}
+
+	private async _createWorktree(repository: Repository, worktreePath?: string, name?: string): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
+		if (!name) {
+			const getBranchPicks = async () => {
+				const refs = await repository.getRefs({
+					pattern: 'refs/heads',
+					includeCommitDetails: showRefDetails
+				});
+				const processors = [new RefProcessor(RefType.Head, BranchItem)];
+				const itemsProcessor = new RefItemsProcessor(repository, processors);
+				return itemsProcessor.processRefs(refs);
+			};
+
+			const placeHolder = l10n.t('Select a branch to create the new worktree from');
+			const choice = await this.pickRef(getBranchPicks(), placeHolder);
+
+			if (!(choice instanceof BranchItem) || !choice.refName) {
+				return;
+			}
+			name = choice.refName;
+		}
+
+		const disposables: Disposable[] = [];
+		const inputBox = window.createInputBox();
+		inputBox.placeholder = l10n.t('Worktree name');
+		inputBox.prompt = l10n.t('Please provide a worktree name');
+		inputBox.value = name || '';
+		inputBox.show();
+
+		const worktreeName = await new Promise<string | undefined>((resolve) => {
+			disposables.push(inputBox.onDidHide(() => resolve(undefined)));
+			disposables.push(inputBox.onDidAccept(() => resolve(inputBox.value)));
+		});
+
+		dispose(disposables);
+		inputBox.dispose();
+
+		// Default to view parent directory of repository root
+		const defaultUri = Uri.file(path.dirname(repository.root));
+
+		const uris = await window.showOpenDialog({
+			defaultUri,
+			canSelectFiles: false,
+			canSelectFolders: true,
+			canSelectMany: false,
+			openLabel: l10n.t('Select as Worktree Destination'),
+		});
+
+		if (!uris || uris.length === 0) {
+			return;
+		}
+
+		if (!worktreeName || worktreeName.trim() === '') {
+			return;
+		}
+
+		worktreePath = path.join(uris[0].fsPath, worktreeName);
+
+		await repository.worktree({
+			name: name,
+			path: worktreePath,
+		});
+	}
+
 	@command('git.deleteWorktree', { repository: true })
 	async deleteWorktree(repository: Repository): Promise<void> {
-		const worktreePicks = async (): Promise<WorktreeDeleteItem[] | QuickPickItem[]> => {
-			const worktrees = await repository.getWorktrees();
-			return worktrees.length === 0
-				? [{ label: l10n.t('$(info) This repository has no worktrees.') }]
-				: worktrees.map(worktree => new WorktreeDeleteItem(worktree));
-		};
+		if (!repository.dotGit.commonPath) {
+			return;
+		}
 
-		const placeHolder = l10n.t('Select a worktree to delete');
-		const choice = await this.pickRef<WorktreeDeleteItem | QuickPickItem>(worktreePicks(), placeHolder);
+		const mainRepository = this.model.getRepository(path.dirname(repository.dotGit.commonPath));
+		if (!mainRepository) {
+			return;
+		}
 
-		if (choice instanceof WorktreeDeleteItem) {
-			await choice.run(repository);
+		// Dispose worktree repository
+		this.model.disposeRepository(repository);
+
+		try {
+			await mainRepository.deleteWorktree(repository.root);
+		} catch (err) {
+			if (err.gitErrorCode === GitErrorCodes.WorktreeContainsChanges) {
+				const forceDelete = l10n.t('Force Delete');
+				const message = l10n.t('The worktree contains modified or untracked files. Do you want to force delete?');
+				const choice = await window.showWarningMessage(message, { modal: true }, forceDelete);
+				if (choice === forceDelete) {
+					await mainRepository.deleteWorktree(repository.root, { force: true });
+				} else {
+					await this.model.openRepository(repository.root);
+				}
+
+				return;
+			}
+
+			throw err;
 		}
 	}
 

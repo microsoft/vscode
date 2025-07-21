@@ -109,7 +109,7 @@ import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ChatModeService, IChatModeService } from '../common/chatModes.js';
 import { ChatResponseResourceFileSystemProvider } from '../common/chatResponseResourceFileSystemProvider.js';
-import { runSaveToPromptAction, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './promptSyntax/saveToPromptAction.js';
+import { SAVE_TO_PROMPT_ACTION_ID, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './promptSyntax/saveToPromptAction.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './chatAttachmentResolveService.js';
 import { registerLanguageModelActions } from './actions/chatLanguageModelActions.js';
@@ -348,6 +348,13 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using Katex."),
 			default: false,
 			tags: ['preview'],
+		},
+		[ChatConfiguration.AgentSessionsViewLocation]: {
+			type: 'string',
+			enum: ['disabled', 'showChatsMenu'],
+			description: nls.localize('chat.sessionsViewLocation.description', "Controls where to show the agent sessions menu."),
+			default: 'disabled',
+			tags: ['experimental'],
 		},
 		[mcpDiscoverySection]: {
 			oneOf: [
@@ -629,8 +636,8 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 				lastFocusedWidget,
 				'No currently active chat widget found.',
 			);
-
-			runSaveToPromptAction({ chat: lastFocusedWidget }, commandService);
+			const options = { chat: lastFocusedWidget };
+			return commandService.executeCommand(SAVE_TO_PROMPT_ACTION_ID, options,);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'help',

@@ -5,7 +5,7 @@
 
 import { onUnexpectedError } from '../common/errors.js';
 import { Event } from '../common/event.js';
-import { escapeDoubleQuotes, IMarkdownString, isMarkdownString, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
+import { escapeDoubleQuotes, IMarkdownString, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
 import { markdownEscapeEscapedIcons } from '../common/iconLabels.js';
 import { defaultGenerator } from '../common/idGenerator.js';
 import { KeyCode } from '../common/keyCodes.js';
@@ -26,27 +26,40 @@ import { StandardKeyboardEvent } from './keyboardEvent.js';
 import { StandardMouseEvent } from './mouseEvent.js';
 import { renderLabelWithIcons } from './ui/iconLabel/iconLabels.js';
 
-export interface MarkedOptions extends Readonly<Omit<marked.MarkedOptions, 'extensions' | 'baseUrl'>> {
-	readonly markedExtensions?: marked.MarkedExtension[];
-}
-
+/**
+ * Options for the rendering of markdown with {@link renderMarkdown}.
+ */
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	readonly codeBlockRenderer?: (languageId: string, value: string) => Promise<HTMLElement>;
 	readonly codeBlockRendererSync?: (languageId: string, value: string, raw?: string) => HTMLElement;
 	readonly asyncRenderCallback?: () => void;
+
 	readonly fillInIncompleteTokens?: boolean;
-	readonly remoteImageIsAllowed?: (uri: URI) => boolean;
 
-	readonly sanitizerOptions?: ISanitizerOptions;
+	readonly sanitizerConfig?: MarkdownSanitizerConfig;
 
-	readonly markedOptions?: MarkedOptions;
+	readonly markedOptions?: MarkdownRendererMarkedOptions;
+	readonly markedExtensions?: marked.MarkedExtension[];
 }
 
-export interface ISanitizerOptions {
+/**
+ * Subset of options passed to `Marked` for rendering markdown.
+ */
+export interface MarkdownRendererMarkedOptions {
+	readonly gfm?: boolean;
+	readonly breaks?: boolean;
+}
+
+export interface MarkdownSanitizerConfig {
 	readonly replaceWithPlaintext?: boolean;
-	readonly allowedTags?: readonly string[];
+	readonly allowedTags?: {
+		readonly override: readonly string[];
+	};
 	readonly customAttrSanitizer?: (attrName: string, attrValue: string) => boolean | string;
-	readonly allowedProductProtocols?: readonly string[];
+	readonly allowedLinkSchemes?: {
+		readonly augment: readonly string[];
+	};
+	readonly remoteImageIsAllowed?: (uri: URI) => boolean;
 }
 
 const defaultMarkedRenderers = Object.freeze({
@@ -108,14 +121,14 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	const disposables = new DisposableStore();
 	let isDisposed = false;
 
-	const markedInstance = new marked.Marked(...(options.markedOptions?.markedExtensions ?? []));
+	const markedInstance = new marked.Marked(...(options.markedExtensions ?? []));
 	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(markedInstance, options, markdown);
 	const value = preprocessMarkdownString(markdown);
 
 	let renderedMarkdown: string;
 	if (options.fillInIncompleteTokens) {
 		// The defaults are applied by parse but not lexer()/parser(), and they need to be present
-		const opts: MarkedOptions = {
+		const opts: marked.MarkedOptions = {
 			...markedInstance.defaults,
 			...options.markedOptions,
 			renderer
@@ -134,12 +147,12 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	}
 
 	const htmlParser = new DOMParser();
-	const markdownHtmlDoc = htmlParser.parseFromString(sanitizeRenderedMarkdown({ isTrusted: markdown.isTrusted, ...options.sanitizerOptions }, renderedMarkdown) as unknown as string, 'text/html');
+	const markdownHtmlDoc = htmlParser.parseFromString(sanitizeRenderedMarkdown(renderedMarkdown, markdown.isTrusted ?? false, options.sanitizerConfig) as unknown as string, 'text/html');
 
 	rewriteRenderedLinks(markdown, options, markdownHtmlDoc.body);
 
 	const element = target ?? document.createElement('div');
-	element.innerHTML = sanitizeRenderedMarkdown({ isTrusted: markdown.isTrusted, ...options.sanitizerOptions }, markdownHtmlDoc.body.innerHTML) as unknown as string;
+	element.innerHTML = sanitizeRenderedMarkdown(markdownHtmlDoc.body.innerHTML, markdown.isTrusted ?? false, options.sanitizerConfig) as unknown as string;
 
 	if (codeBlocks.length > 0) {
 		Promise.all(codeBlocks).then((tuples) => {
@@ -220,9 +233,9 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 
 			el.setAttribute('src', massageHref(markdown, href, true));
 
-			if (options.remoteImageIsAllowed) {
+			if (options.sanitizerConfig?.remoteImageIsAllowed) {
 				const uri = URI.parse(href);
-				if (uri.scheme !== Schemas.file && uri.scheme !== Schemas.data && !options.remoteImageIsAllowed(uri)) {
+				if (uri.scheme !== Schemas.file && uri.scheme !== Schemas.data && !options.sanitizerConfig.remoteImageIsAllowed(uri)) {
 					el.replaceWith(DOM.$('', undefined, el.outerHTML));
 				}
 			}
@@ -278,7 +291,7 @@ function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOp
 		// Note: we always pass the output through dompurify after this so that we don't rely on
 		// marked for real sanitization.
 		renderer.html = ({ text }) => {
-			if (options.sanitizerOptions?.replaceWithPlaintext) {
+			if (options.sanitizerConfig?.replaceWithPlaintext) {
 				return escape(text);
 			}
 
@@ -399,17 +412,15 @@ function resolveWithBaseUri(baseUri: URI, href: string): string {
 	}
 }
 
-interface IInternalSanitizerOptions extends ISanitizerOptions {
-	readonly isTrusted?: boolean | MarkdownStringTrustedOptions;
-}
 
 const selfClosingTags = ['area', 'base', 'br', 'col', 'command', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
 
 function sanitizeRenderedMarkdown(
-	options: IInternalSanitizerOptions,
 	renderedMarkdown: string,
+	isTrusted: boolean | MarkdownStringTrustedOptions,
+	options: MarkdownSanitizerConfig = {},
 ): TrustedHTML {
-	const sanitizerConfig = getSanitizerOptions(options);
+	const sanitizerConfig = getSanitizerOptions(isTrusted, options);
 	return domSanitize.sanitizeHtml(renderedMarkdown, sanitizerConfig);
 }
 
@@ -446,7 +457,7 @@ export const allowedMarkdownHtmlAttributes = [
 	'class',
 ];
 
-function getSanitizerOptions(options: IInternalSanitizerOptions): domSanitize.SanitizeOptions {
+function getSanitizerOptions(isTrusted: boolean | MarkdownStringTrustedOptions, options: MarkdownSanitizerConfig): domSanitize.DomSanitizerConfig {
 	const allowedLinkSchemes = [
 		Schemas.http,
 		Schemas.https,
@@ -458,12 +469,12 @@ function getSanitizerOptions(options: IInternalSanitizerOptions): domSanitize.Sa
 		Schemas.vscodeNotebookCell
 	];
 
-	if (options.isTrusted) {
+	if (isTrusted) {
 		allowedLinkSchemes.push(Schemas.command);
 	}
 
-	if (options.allowedProductProtocols) {
-		allowedLinkSchemes.push(...options.allowedProductProtocols);
+	if (options.allowedLinkSchemes?.augment) {
+		allowedLinkSchemes.push(...options.allowedLinkSchemes.augment);
 	}
 
 	return {
@@ -472,7 +483,7 @@ function getSanitizerOptions(options: IInternalSanitizerOptions): domSanitize.Sa
 		// HTML tags that can result from markdown are from reading https://spec.commonmark.org/0.29/
 		// HTML table tags that can result from markdown are from https://github.github.com/gfm/#tables-extension-
 		allowedTags: {
-			override: options.allowedTags ?? domSanitize.basicMarkupHtmlTags
+			override: options.allowedTags?.override ?? domSanitize.basicMarkupHtmlTags
 		},
 		allowedAttributes: {
 			override: allowedMarkdownHtmlAttributes,
@@ -491,7 +502,7 @@ function getSanitizerOptions(options: IInternalSanitizerOptions): domSanitize.Sa
 				Schemas.vscodeRemoteResource,
 			]
 		},
-		hooks: {
+		_do_not_use_hooks: {
 			uponSanitizeAttribute: (element, e) => {
 				if (options.customAttrSanitizer) {
 					const result = options.customAttrSanitizer(e.attrName, e.attrValue);
@@ -585,29 +596,26 @@ function getSanitizerOptions(options: IInternalSanitizerOptions): domSanitize.Sa
 }
 
 /**
- * Strips all markdown from `string`, if it's an IMarkdownString. For example
- * `# Header` would be output as `Header`. If it's not, the string is returned.
- */
-export function renderStringAsPlaintext(string: IMarkdownString | string) {
-	return isMarkdownString(string) ? renderMarkdownAsPlaintext(string) : string;
-}
-
-/**
- * Strips all markdown from `markdown`
+ * Renders `str` as plaintext, stripping out Markdown syntax if it's a {@link IMarkdownString}.
  *
  * For example `# Header` would be output as `Header`.
- *
- * @param withCodeBlocks Include the ``` of code blocks as well
  */
-export function renderMarkdownAsPlaintext(markdown: IMarkdownString, withCodeBlocks?: boolean) {
+export function renderAsPlaintext(str: IMarkdownString | string, options?: {
+	/** Controls if the ``` of code blocks should be preserved in the output or not */
+	readonly includeCodeBlocksFences?: boolean;
+}) {
+	if (typeof str === 'string') {
+		return str;
+	}
+
 	// values that are too long will freeze the UI
-	let value = markdown.value ?? '';
+	let value = str.value ?? '';
 	if (value.length > 100_000) {
 		value = `${value.substr(0, 100_000)}…`;
 	}
 
-	const html = marked.parse(value, { async: false, renderer: withCodeBlocks ? plainTextWithCodeBlocksRenderer.value : plainTextRenderer.value });
-	return sanitizeRenderedMarkdown({ isTrusted: false }, html)
+	const html = marked.parse(value, { async: false, renderer: options?.includeCodeBlocksFences ? plainTextWithCodeBlocksRenderer.value : plainTextRenderer.value });
+	return sanitizeRenderedMarkdown(html, /* isTrusted */ false, {})
 		.toString()
 		.replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m)
 		.trim();

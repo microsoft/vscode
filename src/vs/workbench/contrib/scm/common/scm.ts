@@ -70,6 +70,7 @@ export interface ISCMResourceGroup {
 
 export interface ISCMProvider extends IDisposable {
 	readonly id: string;
+	readonly parentId?: string;
 	readonly providerId: string;
 	readonly label: string;
 	readonly name: string;
@@ -79,6 +80,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly onDidChangeResources: Event<void>;
 
 	readonly rootUri?: URI;
+	readonly iconPath?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly inputBoxTextModel: ITextModel;
 	readonly contextValue: IObservable<string | undefined>;
 	readonly count: IObservable<number | undefined>;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IBuffer, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, LogLevel as XtermLogLevel } from '@xterm/xterm';
+import type { IBuffer, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, LogLevel as XtermLogLevel, IMarker as IXtermMarker } from '@xterm/xterm';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from '@xterm/addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from '@xterm/addon-unicode11';
 import type { ILigatureOptions, LigaturesAddon as LigaturesAddonType } from '@xterm/addon-ligatures';
@@ -334,6 +334,23 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				yield lineData;
 			}
 		}
+	}
+
+	getContentsAsText(startMarker?: IXtermMarker, endMarker?: IXtermMarker): string {
+		const lines: string[] = [];
+		const buffer = this.raw.buffer.active;
+		if (startMarker?.line === -1) {
+			throw new Error('Cannot get contents of a disposed startMarker');
+		}
+		if (endMarker?.line === -1) {
+			throw new Error('Cannot get contents of a disposed endMarker');
+		}
+		const startLine = startMarker?.line ?? 0;
+		const endLine = endMarker?.line ?? buffer.length - 1;
+		for (let y = startLine; y <= endLine; y++) {
+			lines.push(buffer.getLine(y)?.translateToString(true) ?? '');
+		}
+		return lines.join('\n');
 	}
 
 	async getContentsAsHtml(): Promise<string> {
