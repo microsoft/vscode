@@ -19,7 +19,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const logger = new VsCodeOutputLogger();
 	context.subscriptions.push(logger);
 	const engine = new MarkdownItEngine(contributions, githubSlugifier, logger);
-	registerTestOutputRenderer(context);
+	registerTestOutputRenderer();
 
 	const client = await startServer(context, engine);
 	context.subscriptions.push(client);
@@ -57,9 +57,9 @@ function startServer(context: vscode.ExtensionContext, parser: IMdParser): Promi
 }
 
 
-function registerTestOutputRenderer(context: vscode.ExtensionContext) {
+function registerTestOutputRenderer() {
 	vscode.lm.registerTool('renderMarkdown', {
-		invoke: (options, token) => {
+		invoke: (_options, _token) => {
 			const result = new vscode.ExtendedLanguageModelToolResult([]);
 
 			(result as vscode.ExtendedLanguageModelToolResult2).toolResultDetails2 = {
