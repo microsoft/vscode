@@ -86,7 +86,7 @@ export class RunTaskTool implements IToolImpl {
 			if (outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 				output += ` Task finished with output: ${outputAndIdle.output}`;
 			} else {
-				output += ` Task started and will continue to run in the background.`;
+				output += ` Task started and will continue to run in the background with current output: ${outputAndIdle.output}.`;
 			}
 		}
 		this._telemetryService.publicLog2?.<RunTaskToolEvent, RunTaskToolClassification>('copilotChat.runTaskTool.run', {
