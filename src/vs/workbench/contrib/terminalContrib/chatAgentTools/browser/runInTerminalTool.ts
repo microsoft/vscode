@@ -531,12 +531,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	private async _assessOutputForFinishedState(buffer: string, token: CancellationToken): Promise<boolean> {
-		const modelId = this._languageModelsService.getLanguageModelIds().filter(m => this._languageModelsService.lookupLanguageModel(m)?.isDefault)?.[0];
-		if (!modelId) {
+		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
+		if (!models.length) {
 			return false;
 		}
 
-		const response = await this._languageModelsService.sendChatRequest(modelId, new ExtensionIdentifier('Github.copilot-chat'), [{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: `Evaluate this terminal output to determine if the command is finished or still in process: ${buffer}. Return the word true if finished and false if still in process.` }] }], {}, token);
+		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('Github.copilot-chat'), [{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: `Evaluate this terminal output to determine if the command is finished or still in process: ${buffer}. Return the word true if finished and false if still in process.` }] }], {}, token);
 
 		let responseText = '';
 
@@ -556,7 +556,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		try {
 			await Promise.all([response.result, streaming]);
-			return responseText === 'true' ? true : false;
+			return responseText.includes('true');
 		} catch (err) {
 			return false;
 		}
