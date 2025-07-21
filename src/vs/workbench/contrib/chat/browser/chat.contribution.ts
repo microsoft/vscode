@@ -260,13 +260,19 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['inline', 'hover', 'input', 'none'],
 			default: 'inline',
-			tags: ['experimental', 'onExp'],
+			tags: ['experimental'],
+			experiment: {
+				autoRefetch: false
+			}
 		},
 		'chat.emptyChatState.enabled': {
 			type: 'boolean',
 			default: true,
 			description: nls.localize('chat.emptyChatState', "Shows a modified empty chat state with hints in the input placeholder text."),
-			tags: ['experimental', 'onExp'],
+			tags: ['experimental'],
+			experiment: {
+				autoRefetch: false
+			}
 		},
 		'chat.checkpoints.enabled': {
 			type: 'boolean',
@@ -321,7 +327,9 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.edits2Enabled', "Enable the new Edits mode that is based on tool-calling. When this is enabled, models that don't support tool-calling are unavailable for Edits mode."),
 			default: true,
-			tags: ['onExp'],
+			experiment: {
+				autoRefetch: false
+			}
 		},
 		[ChatConfiguration.ExtensionToolsEnabled]: {
 			type: 'boolean',
@@ -337,7 +345,9 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.agent.enabled.description', "Enable agent mode for {0}. When this is enabled, agent mode can be activated via the dropdown in the view.", 'Copilot Chat'),
 			default: true,
-			tags: ['onExp'],
+			experiment: {
+				autoRefetch: false
+			},
 			policy: {
 				name: 'ChatAgentMode',
 				minimumVersion: '1.99',
@@ -499,7 +509,10 @@ configurationRegistry.registerConfiguration({
 			enum: ['default', 'apple'],
 			description: nls.localize('chat.signInDialogVariant', "Control variations of the sign-in dialog."),
 			default: 'default',
-			tags: ['onExp', 'experimental']
+			tags: ['experimental'],
+			experiment: {
+				autoRefetch: false
+			}
 		}
 	}
 });

@@ -100,23 +100,6 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
-  - script: |
-      set -e
-
-      for i in {1..5}; do # try 5 times
-        npm ci && break
-        if [ $i -eq 5 ]; then
-          echo "Npm install failed too many times" >&2
-          exit 1
-        fi
-        echo "Npm install failed $i, trying again..."
-      done
-    workingDirectory: build
-    env:
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
-    displayName: Install build dependencies
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
   # Step will be used by both verify glibcxx version for remote server and building rpm package,
   # hence avoid adding it behind NODE_MODULES_RESTORED condition.
   - script: |

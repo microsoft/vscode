@@ -176,7 +176,6 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 * List of tags associated to the property.
 	 *  - A tag can be used for filtering
 	 *  - Use `experimental` tag for marking the setting as experimental.
-	 *  - Use `onExP` tag for marking that the default of the setting can be changed by running experiments.
 	 */
 	tags?: string[];
 
@@ -217,6 +216,23 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 * a system-wide policy.
 	 */
 	policy?: IPolicy;
+
+	/**
+	 * When specified, this setting's default value can always be overwritten by
+	 * an experiment.
+	 */
+	experiment?: {
+		/**
+		 * Whether to automatically refetch the experiment data and
+		 * update the configuration.
+		 */
+		autoRefetch: boolean;
+
+		/**
+		 * The name of the experiment. By default, this is `config.${settingId}`
+		 */
+		name?: string;
+	};
 }
 
 export interface IExtensionInfo {
@@ -657,6 +673,11 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 					property.restricted = types.isUndefinedOrNull(property.restricted) ? !!restrictedProperties?.includes(key) : property.restricted;
 				}
 
+				if (property.experiment) {
+					property.tags = property.tags ?? [];
+					property.tags.push('onExP');
+				}
+
 				const excluded = properties[key].hasOwnProperty('included') && !properties[key].included;
 				const policyName = properties[key].policy?.name;
 
@@ -678,6 +699,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 						properties[key].deprecationMessage = properties[key].markdownDeprecationMessage;
 					}
 				}
+
 
 			}
 		}
