@@ -14,21 +14,27 @@ import { getOutput } from '../bufferOutputPolling.js';
 import { getTaskDefinition, getTaskForTool } from './taskHelpers.js';
 
 export const GetTaskOutputToolData: IToolData = {
-	id: 'get_task_output',
+	id: 'get_task_output2',
 	toolReferenceName: 'getTaskOutput',
 	displayName: localize('getTaskOutputTool.displayName', 'Get Task Output'),
 	modelDescription: 'Get the output of a task',
 	source: ToolDataSource.Internal,
+	canBeReferencedInPrompt: true,
 	inputSchema: {
 		type: 'object',
 		properties: {
-			command: {
+			id: {
 				type: 'string',
-				description: 'The ID of the task terminal output to check.'
+				description: 'The task ID for which to get the output.'
+			},
+			workspaceFolder: {
+				type: 'string',
+				description: 'The workspace folder path containing the task'
 			},
 		},
 		required: [
 			'id',
+			'workspaceFolder'
 		]
 	}
 };
