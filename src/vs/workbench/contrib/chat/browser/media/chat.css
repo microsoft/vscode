@@ -1256,6 +1256,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button.codicon.codicon-plus {
+	padding: 0 5px 0 3px;
 	font-size: 12px;
 }
 
@@ -1264,6 +1265,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button:hover {
 	cursor: pointer;
 	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled .monaco-button:hover {
+	cursor: pointer;
+	background: transparent;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label-container {
@@ -1871,9 +1877,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.interactive-item-container.interactive-request {
 		align-items: flex-end;
 
-		.native-edit-context {
-			outline: none;
-		}
 	}
 
 	.interactive-item-container.interactive-request:not(.editing):hover .request-hover {
@@ -2102,6 +2105,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.interactive-request.editing {
 		padding: 0px;
+
+		.interactive-input-part .chat-input-container .interactive-input-editor .monaco-editor .native-edit-context {
+			height: 0px !important;
+		}
 	}
 }
 
