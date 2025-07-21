@@ -291,12 +291,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		let error: string | undefined;
-		let outputAndIdle: { idle: boolean; output: string; pollDurationMs?: number } | undefined = undefined;
 
 		const timingStart = Date.now();
 		const termId = generateUuid();
 
 		if (args.isBackground) {
+			let outputAndIdle: { idle: boolean; output: string; pollDurationMs?: number } | undefined = undefined;
+
 			this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
 			const toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(token);
 			this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
@@ -317,7 +318,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
-				// Poll for output until the terminal is idle or 20 seconds have passed
+				// Poll for output until the terminal is idle or some time has passed
 				outputAndIdle = await this._pollForOutputAndIdle(execution, false, token);
 				if (!outputAndIdle.idle) {
 					const chatModel = invocation.context?.sessionId && this._chatService.getSession(invocation.context?.sessionId);
