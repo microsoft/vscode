@@ -52,7 +52,7 @@ export class RunTaskTool implements IToolImpl {
 			return { content: [], toolResultMessage: `No invocation context` };
 		}
 
-		const taskDefinition = await getTaskDefinition(args.id);
+		const taskDefinition = getTaskDefinition(args.id);
 		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._tasksService);
 
 		if (!task) {
