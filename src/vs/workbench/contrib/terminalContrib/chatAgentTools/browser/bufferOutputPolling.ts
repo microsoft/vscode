@@ -87,10 +87,12 @@ export async function pollForOutputAndIdle(
 			noNewDataCount = 0;
 			lastBufferLength = currentBufferLength;
 		}
-		const isLikelyFinished = await assessOutputForFinishedState(buffer, execution, token, languageModelsService);
-		terminalExecutionIdleBeforeTimeout = isLikelyFinished && noNewDataCount >= PollingConsts.MinNoDataEvents;
-		if (terminalExecutionIdleBeforeTimeout) {
-			return { terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+
+		if (noNewDataCount >= PollingConsts.MinNoDataEvents) {
+			terminalExecutionIdleBeforeTimeout = await assessOutputForFinishedState(buffer, execution, token, languageModelsService);
+			if (terminalExecutionIdleBeforeTimeout) {
+				return { terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+			}
 		}
 	}
 	return { terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
