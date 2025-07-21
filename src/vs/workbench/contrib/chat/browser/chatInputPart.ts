@@ -475,7 +475,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private initSelectedModel() {
 		let persistedSelection = this.storageService.get(this.getSelectedModelStorageKey(), StorageScope.APPLICATION);
 		if (persistedSelection && persistedSelection.startsWith('github.copilot-chat/')) {
-			// Convert the persisted selection to makt it backwards comptabile with the old LM API. TODO @lramos15 - Remove this after a bit
+			// Convert the persisted selection to make it backwards comptabile with the old LM API. TODO @lramos15 - Remove this after a bit
 			persistedSelection = persistedSelection.replace('github.copilot-chat/', 'copilot/');
 			this.storageService.store(this.getSelectedModelStorageKey(), persistedSelection, StorageScope.APPLICATION, StorageTarget.USER);
 		}
