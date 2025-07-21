@@ -22,7 +22,7 @@ import { ITerminalLogService } from '../../../../../platform/terminal/common/ter
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { IChatService, type IChatTerminalToolInvocationData, type IChatTerminalToolInvocationData2 } from '../../../chat/common/chatService.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../chat/common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationContext, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../terminal/browser/xterm/xtermTerminal.js';
 import { ITerminalProfileResolverService } from '../../../terminal/common/terminal.js';
@@ -262,7 +262,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
 
 		const chatSessionId = invocation.context?.sessionId;
-		if (chatSessionId === undefined) {
+		if (!invocation.context || chatSessionId === undefined) {
 			throw new Error('A chat session ID is required for this tool');
 		}
 
@@ -321,35 +321,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				// Poll for output until the terminal is idle or some time has passed
 				outputAndIdle = await this._pollForOutputAndIdle(execution, false, token);
 				if (!outputAndIdle.idle) {
-					const chatModel = invocation.context?.sessionId && this._chatService.getSession(invocation.context?.sessionId);
-					if (chatModel instanceof ChatModel) {
-						const request = chatModel.getRequests().at(-1);
-						if (request) {
-							let requestMorePolling = false;
-							const waitPromise = new Promise<void>(resolve => {
-								const part = new ChatElicitationRequestPart(
-									new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for `{0}` to finish?", command)),
-									new MarkdownString(localize('poll.terminal.polling', "Copilot will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
-									'',
-									localize('poll.terminal.accept', 'Yes'),
-									localize('poll.terminal.reject', 'No'),
-									async () => {
-										requestMorePolling = true;
-										resolve();
-									},
-									async () => {
-										requestMorePolling = false;
-										resolve();
-									}
-								);
-								chatModel.acceptResponseProgress(request, part);
-							});
-							await waitPromise;
-							if (requestMorePolling) {
-								outputAndIdle = await this._pollForOutputAndIdle(execution, true, token);
-							}
-						}
-					}
+					// If the user rejects further polling or they lack a model or request, fallback to original
+					// value of outputAndIdle
+					outputAndIdle = await this._promptForMorePolling(command, execution, token, invocation.context) ?? outputAndIdle;
 				}
 				let resultText = (
 					didUserEditCommand
@@ -529,6 +503,39 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		}
 		return { idle: idleCount >= 2, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? 20000 : 0) };
+	}
+
+	private async _promptForMorePolling(command: string, execution: BackgroundTerminalExecution, token: CancellationToken, context: IToolInvocationContext): Promise<{ idle: boolean; output: string } | undefined> {
+		const chatModel = this._chatService.getSession(context.sessionId);
+		if (chatModel instanceof ChatModel) {
+			const request = chatModel.getRequests().at(-1);
+			if (request) {
+				let requestMorePolling = false;
+				const waitPromise = new Promise<void>(resolve => {
+					const part = new ChatElicitationRequestPart(
+						new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for `{0}` to finish?", command)),
+						new MarkdownString(localize('poll.terminal.polling', "Copilot will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
+						'',
+						localize('poll.terminal.accept', 'Yes'),
+						localize('poll.terminal.reject', 'No'),
+						async () => {
+							requestMorePolling = true;
+							resolve();
+						},
+						async () => {
+							requestMorePolling = false;
+							resolve();
+						}
+					);
+					chatModel.acceptResponseProgress(request, part);
+				});
+				await waitPromise;
+				if (requestMorePolling) {
+					return this._pollForOutputAndIdle(execution, true, token);
+				}
+			}
+		}
+		return;
 	}
 
 	private async _assessOutputForFinishedState(buffer: string, token: CancellationToken): Promise<boolean> {
