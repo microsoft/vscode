@@ -153,6 +153,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// Restore terminal associations from storage
 		this._restoreTerminalAssociations();
+		this._register(this._terminalService.onDidDisposeInstance(e => {
+			for (const [sessionId, toolTerminal] of this._sessionTerminalAssociations.entries()) {
+				if (e === toolTerminal.instance) {
+					this._sessionTerminalAssociations.delete(sessionId);
+				}
+			}
+		}));
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
