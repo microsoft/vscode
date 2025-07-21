@@ -576,7 +576,9 @@ export function registerChatActions() {
 								const menuActions = getContextMenuActions(actions, 'navigation');
 								ckey.reset();
 
-								const buttons = menuActions.primary.map(action => ({
+								// Use primary actions if available, otherwise fall back to secondary actions
+								const actionsToUse = menuActions.primary.length > 0 ? menuActions.primary : menuActions.secondary;
+								const buttons = actionsToUse.map(action => ({
 									id: action.id,
 									tooltip: action.tooltip,
 									iconClass: action.class || ThemeIcon.asClassName(Codicon.symbolClass),

@@ -552,6 +552,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.deleteWorktreeFromPalette",
+        "title": "%command.deleteWorktreeFromPalette%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.graph.deleteTag",
         "title": "%command.graphDeleteTag%",
         "category": "Git",
@@ -1308,6 +1314,10 @@
         {
           "command": "git.deleteWorktree",
           "when": "false"
+        },
+        {
+          "command": "git.deleteWorktreeFromPalette",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount > 1"
         },
         {
           "command": "git.deleteRemoteTag",

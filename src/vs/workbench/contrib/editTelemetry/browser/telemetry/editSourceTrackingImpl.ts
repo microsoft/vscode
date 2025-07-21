@@ -3,44 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { reverseOrder, compareBy, numberComparator, sumBy } from '../../../../base/common/arrays.js';
-import { IntervalTimer, TimeoutTimer } from '../../../../base/common/async.js';
-import { toDisposable, Disposable } from '../../../../base/common/lifecycle.js';
-import { mapObservableArrayCached, derived, IReader, IObservable, observableSignal, runOnChange, derivedObservableWithCache } from '../../../../base/common/observable.js';
-import { isDefined } from '../../../../base/common/types.js';
-import { URI } from '../../../../base/common/uri.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
-import { TextModelEditSource } from '../../../../editor/common/textModelEditSource.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { ISCMRepository, ISCMService } from '../../scm/common/scm.js';
+import { reverseOrder, compareBy, numberComparator, sumBy } from '../../../../../base/common/arrays.js';
+import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
+import { toDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
+import { mapObservableArrayCached, derived, IObservable, observableSignal, runOnChange } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { TextModelEditSource } from '../../../../../editor/common/textModelEditSource.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { ISCMRepository, ISCMService } from '../../../scm/common/scm.js';
+import { AnnotatedDocuments, AnnotatedDocument } from '../helpers/annotatedDocuments.js';
 import { ChatArcTelemetrySender, InlineEditArcTelemetrySender } from './arcTelemetrySender.js';
-import { CombineStreamedChanges, createDocWithJustReason, DocumentWithSourceAnnotatedEdits, EditSource, EditSourceData, IDocumentWithAnnotatedEdits, MinimizeEditsProcessor } from './documentWithAnnotatedEdits.js';
+import { createDocWithJustReason, EditSource } from '../helpers/documentWithAnnotatedEdits.js';
 import { DocumentEditSourceTracker, TrackedEdit } from './editTracker.js';
-import { ObservableWorkspace, IObservableDocument } from './observableWorkspace.js';
-import { sumByCategory } from './utils.js';
+import { sumByCategory } from '../helpers/utils.js';
 
 export class EditSourceTrackingImpl extends Disposable {
 	public readonly docsState;
 
 	constructor(
-		private readonly _workspace: ObservableWorkspace,
-		private readonly _docIsVisible: (doc: IObservableDocument, reader: IReader) => boolean,
 		private readonly _statsEnabled: IObservable<boolean>,
+		private readonly _annotatedDocuments: AnnotatedDocuments,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
 		const scmBridge = this._instantiationService.createInstance(ScmBridge);
-
-		const states = mapObservableArrayCached(this, this._workspace.documents, (doc, store) => {
-			const docIsVisible = derived(reader => this._docIsVisible(doc, reader));
-			const wasEverVisible = derivedObservableWithCache<boolean>(this, (reader, lastVal) => lastVal || docIsVisible.read(reader));
-			return wasEverVisible.map(v => v ? [doc, store.add(this._instantiationService.createInstance(TrackedDocumentInfo, doc, docIsVisible, scmBridge, this._statsEnabled))] as const : undefined);
+		const states = mapObservableArrayCached(this, this._annotatedDocuments.documents, (doc, store) => {
+			return [doc.document, store.add(this._instantiationService.createInstance(TrackedDocumentInfo, doc, scmBridge, this._statsEnabled))] as const;
 		});
+		this.docsState = states.map((entries) => new Map(entries));
 
-		this.docsState = states.map((entries, reader) => new Map(entries.map(e => e.read(reader)).filter(isDefined)))
-			.recomputeInitiallyAndOnChange(this._store);
+		this.docsState.recomputeInitiallyAndOnChange(this._store);
 	}
 }
 
@@ -51,8 +46,7 @@ class TrackedDocumentInfo extends Disposable {
 	private readonly _repo: Promise<ScmRepoBridge | undefined>;
 
 	constructor(
-		private readonly _doc: IObservableDocument,
-		docIsVisible: IObservable<boolean>,
+		private readonly _doc: AnnotatedDocument,
 		private readonly _scm: ScmBridge,
 		private readonly _statsEnabled: IObservable<boolean>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -60,14 +54,7 @@ class TrackedDocumentInfo extends Disposable {
 	) {
 		super();
 
-		// Use the listener service and special events from core to annotate where an edit came from (is async)
-		let processedDoc: IDocumentWithAnnotatedEdits<EditSourceData> = this._store.add(new DocumentWithSourceAnnotatedEdits(_doc));
-		// Combine streaming edits into one and make edit smaller
-		processedDoc = this._store.add(this._instantiationService.createInstance((CombineStreamedChanges<EditSourceData>), processedDoc));
-		// Remove common suffix and prefix from edits
-		processedDoc = this._store.add(new MinimizeEditsProcessor(processedDoc));
-
-		const docWithJustReason = createDocWithJustReason(processedDoc, this._store);
+		const docWithJustReason = createDocWithJustReason(_doc.documentWithAnnotations, this._store);
 
 		const longtermResetSignal = observableSignal('resetSignal');
 
@@ -95,7 +82,7 @@ class TrackedDocumentInfo extends Disposable {
 		}, 10 * 60 * 60 * 1000);
 
 		(async () => {
-			const repo = await this._scm.getRepo(_doc.uri);
+			const repo = await this._scm.getRepo(_doc.document.uri);
 			if (this._store.isDisposed) {
 				return;
 			}
@@ -113,8 +100,8 @@ class TrackedDocumentInfo extends Disposable {
 				}));
 			}
 
-			this._store.add(this._instantiationService.createInstance(InlineEditArcTelemetrySender, processedDoc, repo));
-			this._store.add(this._instantiationService.createInstance(ChatArcTelemetrySender, processedDoc, repo));
+			this._store.add(this._instantiationService.createInstance(InlineEditArcTelemetrySender, _doc.documentWithAnnotations, repo));
+			this._store.add(this._instantiationService.createInstance(ChatArcTelemetrySender, _doc.documentWithAnnotations, repo));
 		})();
 
 		const resetSignal = observableSignal('resetSignal');
@@ -122,7 +109,7 @@ class TrackedDocumentInfo extends Disposable {
 		this.windowedTracker = derived((reader) => {
 			if (!this._statsEnabled.read(reader)) { return undefined; }
 
-			if (!docIsVisible.read(reader)) {
+			if (!this._doc.isVisible.read(reader)) {
 				return undefined;
 			}
 			resetSignal.read(reader);
@@ -142,7 +129,7 @@ class TrackedDocumentInfo extends Disposable {
 			return t;
 		}).recomputeInitiallyAndOnChange(this._store);
 
-		this._repo = this._scm.getRepo(_doc.uri);
+		this._repo = this._scm.getRepo(_doc.document.uri);
 	}
 
 	async sendTelemetry(mode: 'longterm' | '5minWindow', trigger: string, t: DocumentEditSourceTracker) {
@@ -220,7 +207,7 @@ class TrackedDocumentInfo extends Disposable {
 				modelId: repr.props.$modelId,
 
 				trigger,
-				languageId: this._doc.languageId.get(),
+				languageId: this._doc.document.languageId.get(),
 				statsUuid: statsUuid,
 				modifiedCount: value,
 				deltaModifiedCount: m,
@@ -264,7 +251,7 @@ class TrackedDocumentInfo extends Disposable {
 			isTrackedByGit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Indicates if the document is tracked by git.' };
 		}>('editTelemetry.editSources.stats', {
 			mode,
-			languageId: this._doc.languageId.get(),
+			languageId: this._doc.document.languageId.get(),
 			statsUuid: statsUuid,
 			nesModifiedCount: data.nesModifiedCount,
 			inlineCompletionsCopilotModifiedCount: data.inlineCompletionsCopilotModifiedCount,
@@ -307,8 +294,8 @@ class TrackedDocumentInfo extends Disposable {
 			unknownModifiedCount: sums.unknown ?? 0,
 			externalModifiedCount: sums.external ?? 0,
 			totalModifiedCharactersInFinalState,
-			languageId: this._doc.languageId.get(),
-			isTrackedByGit: this._repo.then(async (repo) => !!repo && !await repo.isIgnored(this._doc.uri)),
+			languageId: this._doc.document.languageId.get(),
+			isTrackedByGit: this._repo.then(async (repo) => !!repo && !await repo.isIgnored(this._doc.document.uri)),
 		};
 	}
 }

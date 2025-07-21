@@ -7,7 +7,6 @@ import { equals as arraysEqual } from '../../../../base/common/arrays.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { decodeHex, encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -24,7 +23,6 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IInstallableMcpServer as IInstallableMcpServer, IGalleryMcpServer, IQueryOptions, IMcpServerManifest } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpDevModeConfig, IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
-import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkspaceFolder, IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchLocalMcpServer, IWorkbencMcpServerInstallOptions } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
@@ -662,7 +660,6 @@ export class McpServerContainers extends Disposable {
 export const McpServersGalleryEnabledContext = new RawContextKey<boolean>('mcpServersGalleryEnabled', false);
 export const HasInstalledMcpServersContext = new RawContextKey<boolean>('hasInstalledMcpServers', true);
 export const InstalledMcpServersViewId = 'workbench.views.mcp.installed';
-export const mcpServerIcon = registerIcon('mcp-server', Codicon.mcp, localize('mcpServer', 'Icon used for the MCP server.'));
 
 export namespace McpResourceURI {
 	export const scheme = 'mcp-resource';
