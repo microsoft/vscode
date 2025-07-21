@@ -18,6 +18,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	const logger = new VsCodeOutputLogger();
 	context.subscriptions.push(logger);
+
 	const engine = new MarkdownItEngine(contributions, githubSlugifier, logger);
 
 	const client = await startServer(context, engine);

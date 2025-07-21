@@ -35,9 +35,6 @@ export interface RenderedOutputPart extends IDisposable {
 	readonly onDidChangeHeight: Event<number>;
 }
 
-/**
- * Service for rendering chat output items with special MIME types using registered renderers from extensions.
- */
 export interface IChatOutputRendererService {
 	readonly _serviceBrand: undefined;
 
@@ -46,11 +43,6 @@ export interface IChatOutputRendererService {
 	renderOutputPart(mime: string, data: Uint8Array, parent: HTMLElement, token: CancellationToken): Promise<RenderedOutputPart>;
 }
 
-/**
- * Implementation of the IChatOutputItemRendererService.
- * This service connects with the MainThreadChatResponseOutputRenderer to render output parts
- * in chat responses using extension-provided renderers.
- */
 export class ChatOutputRendererService extends Disposable implements IChatOutputRendererService {
 	_serviceBrand: undefined;
 
