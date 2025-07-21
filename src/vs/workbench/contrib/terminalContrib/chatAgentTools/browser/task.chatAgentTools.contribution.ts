@@ -8,8 +8,8 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
-import { GetTaskOutputTool, GetTaskOutputToolData } from './getTaskOutputTool.js';
-import { RunTaskTool, RunTaskToolData } from './runTaskTool.js';
+import { GetTaskOutputTool, GetTaskOutputToolData } from './task/getTaskOutputTool.js';
+import { RunTaskTool, RunTaskToolData } from './task/runTaskTool.js';
 
 // #region Workbench contributions
 
