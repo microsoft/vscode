@@ -321,9 +321,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				// Poll for output until the terminal is idle or some time has passed
 				outputAndIdle = await this._pollForOutputAndIdle(execution, false, token);
 				if (!outputAndIdle.idle) {
-					// If the user rejects further polling or they lack a model or request, fallback to original
-					// value of outputAndIdle
-					outputAndIdle = await this._promptForMorePolling(command, execution, token, invocation.context) ?? outputAndIdle;
+					const extendPolling = await this._promptForMorePolling(command, execution, token, invocation.context);
+					if (extendPolling) {
+						outputAndIdle = await this._pollForOutputAndIdle(execution, true, token);
+					}
 				}
 				let resultText = (
 					didUserEditCommand
@@ -332,7 +333,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
 							: `Command is running in terminal with ID=${termId}`
 				);
-				resultText += outputAndIdle.idle ? `\n\nTerminal became idle with output:\n${outputAndIdle.output}` : `\n\nTerminal is still running, with output:\n${outputAndIdle.output}`;
+				resultText += outputAndIdle.idle ? `\n\ The command became idle with output:\n${outputAndIdle.output}` : `\n\ The command is still running, with output:\n${outputAndIdle.output}`;
 				return {
 					content: [{
 						kind: 'text',
@@ -347,8 +348,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				throw e;
 			} finally {
-				this._logService.trace('runInTerminalTool#outputLineCount, ', outputAndIdle?.output ? count(outputAndIdle.output, '\n') : 0);
-				this._logService.trace('runInTerminalTool#pollDurationMs, ', outputAndIdle?.pollDurationMs);
+				this._logService.debug(`RunInTerminalTool: Finished polling \`${outputAndIdle?.output.length}\` lines of output in \`${outputAndIdle?.pollDurationMs}\``);
 				const timingExecuteMs = Date.now() - timingStart;
 				this._sendTelemetry(toolTerminal.instance, {
 					didUserEditCommand,
@@ -505,13 +505,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return { idle: idleCount >= 2, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? 20000 : 0) };
 	}
 
-	private async _promptForMorePolling(command: string, execution: BackgroundTerminalExecution, token: CancellationToken, context: IToolInvocationContext): Promise<{ idle: boolean; output: string } | undefined> {
+	private async _promptForMorePolling(command: string, execution: BackgroundTerminalExecution, token: CancellationToken, context: IToolInvocationContext): Promise<boolean> {
 		const chatModel = this._chatService.getSession(context.sessionId);
 		if (chatModel instanceof ChatModel) {
 			const request = chatModel.getRequests().at(-1);
 			if (request) {
-				let requestMorePolling = false;
-				const waitPromise = new Promise<void>(resolve => {
+				const waitPromise = new Promise<boolean>(resolve => {
 					const part = new ChatElicitationRequestPart(
 						new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for `{0}` to finish?", command)),
 						new MarkdownString(localize('poll.terminal.polling', "Copilot will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
@@ -519,23 +518,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						localize('poll.terminal.accept', 'Yes'),
 						localize('poll.terminal.reject', 'No'),
 						async () => {
-							requestMorePolling = true;
-							resolve();
+							resolve(true);
 						},
 						async () => {
-							requestMorePolling = false;
-							resolve();
+							resolve(false);
 						}
 					);
 					chatModel.acceptResponseProgress(request, part);
 				});
-				await waitPromise;
-				if (requestMorePolling) {
-					return this._pollForOutputAndIdle(execution, true, token);
-				}
+				return waitPromise;
 			}
 		}
-		return;
+		return false; // Fallback to not waiting if we can't prompt the user
 	}
 
 	private async _assessOutputForFinishedState(buffer: string, token: CancellationToken): Promise<boolean> {
