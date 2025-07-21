@@ -3458,11 +3458,13 @@ export class CommandCenter {
 
 	@command('git.deleteWorktreeFromPalette')
 	async deleteWorktreeFromPalette(): Promise<void> {
-		const repositoryLength = this.model.repositories.length;
+		const mainRepository = this.model.repositories.find(repo =>
+			!repo.dotGit.commonPath
+		);
 
-		if (repositoryLength === 0) { return; }
-
-		const mainRepository = this.model.repositories[repositoryLength - 1];
+		if (!mainRepository) { 
+			return; 
+		}
 
 		const worktreePicks = async (): Promise<WorktreeDeleteItem[] | QuickPickItem[]> => {
 			const worktrees = await mainRepository.getWorktrees();
