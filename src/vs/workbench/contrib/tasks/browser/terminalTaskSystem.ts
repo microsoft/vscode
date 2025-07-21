@@ -277,9 +277,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	getTerminalForTask(task: Task): URI | undefined {
-		const terminalData = this._activeTasks[task.getMapKey()];
-		if (!terminalData?.terminal) {
-			return terminalData?.terminal?.resource;
+		for (const key in this._terminals) {
+			const value = this._terminals[key];
+			if (value.lastTask === task.getMapKey()) {
+				return value.terminal.resource;
+			}
 		}
 		return undefined;
 	}

@@ -44,9 +44,24 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		super();
 	}
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		const args = context.parameters as IGetTaskOutputInputParams;
+
+		const taskDefinition = await getTaskDefinition(args.id);
+		const tasks = await this._tasksService.tasks();
+		let task;
+		for (const t of tasks) {
+			if ((!t.type || taskDefinition.taskType === t.type) && taskDefinition.taskLabel === t._label) {
+				task = t;
+				break;
+			}
+		}
+		if (!task || !taskDefinition) {
+			return { invocationMessage: `Task not found: ${args.id}` };
+		}
+
 		return {
-			invocationMessage: localize('bg.progressive', "Checking task terminal output"),
-			pastTenseMessage: localize('bg.past', "Checked task terminal output"),
+			invocationMessage: localize('bg.progressive', "Checking terminal output for {0}", taskDefinition.taskLabel),
+			pastTenseMessage: localize('bg.past', "Checked terminal output for {0}", taskDefinition.taskLabel),
 		};
 	}
 
@@ -54,7 +69,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		const args = invocation.parameters as IGetTaskOutputInputParams;
 		const taskDefinition = await getTaskDefinition(args.id);
 		const task = (await this._tasksService.tasks()).find(t => {
-			return t.getDefinition() === taskDefinition?.task;
+			return (!t.type || t.type === taskDefinition?.taskType) && t._label === taskDefinition?.taskLabel;
 		});
 		if (!taskDefinition || !task) {
 			return { content: [], toolResultMessage: `Task not found: ${taskDefinition?.taskLabel}` };

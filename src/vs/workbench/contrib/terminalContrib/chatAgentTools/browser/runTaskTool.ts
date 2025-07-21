@@ -52,7 +52,7 @@ export class RunTaskTool implements IToolImpl {
 		}
 		const taskDefinition = await getTaskDefinition(args.id);
 		const task = (await this._tasksService.tasks()).find(t => {
-			return t.getDefinition() === taskDefinition?.task;
+			return (!t.type || t.type === taskDefinition?.taskType) && t._label === taskDefinition?.taskLabel;
 		});
 		if (!taskDefinition || !task) {
 			return { content: [], toolResultMessage: `Task not found: ${args.id}` };
@@ -68,7 +68,7 @@ export class RunTaskTool implements IToolImpl {
 		const resource = this._tasksService.getTerminalForTask(task);
 		const terminal = this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme);
 		if (!terminal) {
-			return { content: [], toolResultMessage: `Task started but no terminal found for task ${taskDefinition.taskLabel}` };
+			return { content: [], toolResultMessage: `Task started but no terminal was found for: ${taskDefinition.taskLabel}` };
 		}
 
 		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, false, token, this._languageModelsService);
@@ -106,9 +106,14 @@ export class RunTaskTool implements IToolImpl {
 		const args = context.parameters as IRunTaskToolInput;
 
 		const taskDefinition = await getTaskDefinition(args.id);
-		const task = (await this._tasksService.tasks()).find(t => {
-			return t.getDefinition() === taskDefinition?.task;
-		});
+		const tasks = await this._tasksService.tasks();
+		let task;
+		for (const t of tasks) {
+			if ((!t.type || taskDefinition.taskType === t.type) && taskDefinition.taskLabel === t._label) {
+				task = t;
+				break;
+			}
+		}
 		if (!task || !taskDefinition) {
 			return { invocationMessage: `Task not found: ${args.id}` };
 		}
