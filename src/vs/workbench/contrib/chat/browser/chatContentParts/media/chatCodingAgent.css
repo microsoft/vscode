@@ -62,8 +62,13 @@
 	height: 24px;
 }
 
+.chat-coding-agent-button.new-window-button .codicon {
+	font-size: 14px;
+}
+
 .chat-coding-agent-button:hover {
 	background: var(--vscode-button-secondaryHoverBackground);
+	transform: translateY(-1px);
 }
 
 .chat-coding-agent-button:focus {

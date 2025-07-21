@@ -1518,14 +1518,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (e.kind === 'setAgent') {
 				this._onDidChangeAgent.fire({ agent: e.agent, slashCommand: e.command });
 			}
-			// Handle coding agent locking on session begin
-			if (e.kind === 'addRequest' && e.request.response) {
-				this.viewModelDisposables.add(e.request.response.onDidChange(() => {
-					if (e.request.response) {
-						this.checkForCodingAgentLocking(e.request.response);
-					}
-				}));
-			}
 		}));
 
 		if (this.tree && this.visible) {
@@ -2146,40 +2138,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private updateCodingAgentVisualState(): void {
 		if (this._lockedToCodingAgent && this._prefixLockEnabled) {
 			this.container.classList.add('locked-to-coding-agent');
-			// Update placeholder text to indicate locked state
-			this.input.inputEditor.updateOptions({
-				placeholder: `Locked to ${this._lockedToCodingAgent.fullName || this._lockedToCodingAgent.name}. Type your message...`
-			});
 		} else {
 			this.container.classList.remove('locked-to-coding-agent');
-			// Reset placeholder
-			this.input.inputEditor.updateOptions({ placeholder: '' });
 		}
 	}
 
 	private removeExistingAgentPrefix(text: string): string {
 		// Remove any existing agent prefix (e.g., @agent) from the beginning
 		return text.replace(/^@\w+\s*/, '');
-	}
-
-	private checkForCodingAgentLocking(response: IChatResponseModel): void {
-		if (this.isLockedToCodingAgent) {
-			return; // Already locked
-		}
-
-		// Check for ICodingAgentHasBegun progress
-		const progressItems = response.response.value;
-		for (const item of progressItems) {
-			if (item.kind === 'codingAgentSessionBegin') {
-				// Auto-lock to the coding agent
-				const agents = this.chatAgentService.getAgents();
-				const agent = agents.find(agent => agent.id === item.agentId || agent.name === item.agentId);
-				if (agent && agent.isCodingAgent) {
-					this.lockToCodingAgent(agent);
-					break;
-				}
-			}
-		}
 	}
 }
 

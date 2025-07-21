@@ -12,6 +12,7 @@ import { localize } from '../../../../../nls.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { ICodingAgentSessionBegin } from '../../common/chatService.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 
 import './media/chatCodingAgent.css';
 
@@ -25,6 +26,7 @@ export class ChatCodingAgentContentPart extends Disposable implements IChatConte
 		private readonly session: ICodingAgentSessionBegin,
 		renderer: MarkdownRenderer,
 		context: IChatContentPartRenderContext,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -50,16 +52,20 @@ export class ChatCodingAgentContentPart extends Disposable implements IChatConte
 
 		// Open in new editor button
 		const openButton = dom.$('button.chat-coding-agent-button');
-		openButton.title = localize('openInNewEditor', 'Open in New Editor Window');
+		openButton.title = localize('openInNewEditor', 'Open in New Chat Window');
 		openButton.setAttribute('aria-label', openButton.title);
 		openButton.setAttribute('type', 'button');
-		const arrowIcon = dom.$('span.codicon.codicon-arrow-top-right');
+		openButton.classList.add('new-window-button');
+		const arrowIcon = dom.$('span.codicon.codicon-link-external');
 		openButton.appendChild(arrowIcon);
 		openButton.onclick = (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			// TODO: Implement open in new editor window logic
-			console.log('Open coding agent session in new editor window:', this.session);
+			// Open agent-specific chat editor with this part at the very top
+			this.commandService.executeCommand('workbench.action.openCodingAgentEditor', {
+				agentId: this.session.agentId,
+				jobId: this.session.jobId
+			});
 		};
 		headerContainer.appendChild(openButton);
 
@@ -67,14 +73,9 @@ export class ChatCodingAgentContentPart extends Disposable implements IChatConte
 		const contentContainer = dom.$('.chat-coding-agent-content');
 		this.domNode.appendChild(contentContainer);
 
-		const content = new MarkdownString()
-			.appendMarkdown(`**${session.title}**`)
-			.appendText(`\n\n`)
-			.appendText(session.description);
-
-		if (session.command) {
-			content.appendText('\n\n').appendMarkdown(`\`${session.command}\``);
-		}
+		const content = new MarkdownString(undefined, { isTrusted: true })
+			.appendMarkdown(`**${session.title}**\n\n`)
+			.appendMarkdown(session.description);
 
 		const result = this._register(renderer.render(content, {
 			asyncRenderCallback: () => {

@@ -167,7 +167,6 @@ class RemoteCodingAgentChatImplementation extends Disposable implements IChatAge
 			{ kind: 'QUESTION', text: 'Run unit tests?', detail: 'This will execute all tests in a GitHub Action and report the results', delay: 5000 },
 			{ kind: 'PROGRESS_MESSAGE', text: 'Deploying to Azure', delay: 5000 },
 			{ kind: 'MARKDOWN', text: '## Summary\n\n- JoshBot has successfully completed your task\n- Run unit tests\n - Deployed to Azure\n\n Thanks for using JoshBot!', delay: 2000 }
-
 		];
 
 		return new Promise((resolve) => {
