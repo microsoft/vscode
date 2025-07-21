@@ -11,10 +11,9 @@ import { IChatChangesSummaryPart, IChatRendererContent } from '../../common/chat
 import { ChatTreeItem } from '../chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatReferencesContentPart.js';
-import { IChatChangesSummary, IChatService, IChatUndoStop } from '../../common/chatService.js';
+import { IChatChangesSummary, IChatService } from '../../common/chatService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
-import { findLast } from '../../../../../base/common/arraysFind.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -94,15 +93,20 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 				if (!requestId) {
 					return;
 				}
-				const inUndoStop = (findLast(this.context.content, e => e.kind === 'undoStop', this.context.contentIndex) as IChatUndoStop | undefined)?.id;
-				const diffBetweenStops: IEditSessionEntryDiff | undefined = editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, requestId, inUndoStop)?.get();
-				if (!diffBetweenStops) {
-					return;
+				const undoStops = this.context.content.filter(e => e.kind === 'undoStop');
+				const undoStopsMapped = undoStops.map(e => e.id);
+				for (let i = undoStopsMapped.length - 1; i >= 0; i--) {
+					const specificUndoStop = undoStopsMapped[i];
+					const diffBetweenStops: IEditSessionEntryDiff | undefined = editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, requestId, specificUndoStop)?.get();
+					if (!diffBetweenStops) {
+						continue;
+					}
+					resources.push({
+						originalUri: diffBetweenStops.originalURI,
+						modifiedUri: diffBetweenStops.modifiedURI,
+					});
+					break;
 				}
-				resources.push({
-					originalUri: diffBetweenStops.originalURI,
-					modifiedUri: diffBetweenStops.modifiedURI,
-				});
 			});
 			commandService.executeCommand('chatEditing.viewFileChangesSummary', resources);
 		}));
@@ -186,15 +190,20 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 		if (!requestId) {
 			return;
 		}
-		const inUndoStop = (findLast(this.context.content, e => e.kind === 'undoStop', this.context.contentIndex) as IChatUndoStop | undefined)?.id;
-		const diffBetweenStops: IEditSessionEntryDiff | undefined = editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, requestId, inUndoStop)?.get();
-		if (!diffBetweenStops) {
-			return;
+		const undoStops = this.context.content.filter(e => e.kind === 'undoStop');
+		const undoStopsMapped = undoStops.map(e => e.id);
+		for (let i = undoStopsMapped.length - 1; i >= 0; i--) {
+			const specificUndoStop = undoStopsMapped[i];
+			const diffBetweenStops: IEditSessionEntryDiff | undefined = editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, requestId, specificUndoStop)?.get();
+			if (!diffBetweenStops) {
+				continue;
+			}
+			return {
+				insertions: diffBetweenStops.added,
+				deletions: diffBetweenStops.removed
+			};
 		}
-		return {
-			insertions: diffBetweenStops.added,
-			deletions: diffBetweenStops.removed
-		};
+		return;
 	}
 
 	private registerCollapseButtonListeners(collapseButton: ButtonWithIcon): void {
@@ -241,23 +250,27 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 				console.log('return 6');
 				return;
 			}
-			const inUndoStop = (findLast(this.context.content, e => e.kind === 'undoStop', this.context.contentIndex) as IChatUndoStop | undefined)?.id;
+			console.log('this.context.content : ', this.context.content);
+			console.log('this.context.contentIndex : ', this.context.contentIndex);
 			console.log('modifiedEntry.modifiedURI : ', modifiedEntry.modifiedURI);
 			console.log('requestId : ', requestId);
-			console.log('inUndoStop : ', inUndoStop);
-			const diffBetweenStops: IEditSessionEntryDiff | undefined = editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, requestId, inUndoStop)?.get();
-			if (!diffBetweenStops) {
-				console.log('return 7');
-				this.editorService.openEditor({ resource: uri });
-				return;
+
+			const undoStops = this.context.content.filter(e => e.kind === 'undoStop');
+			const undoStopsMapped = undoStops.map(e => e.id);
+			for (let i = undoStopsMapped.length - 1; i >= 0; i--) {
+				const specificUndoStop = undoStopsMapped[i];
+				const diffBetweenStops: IEditSessionEntryDiff | undefined = editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, requestId, specificUndoStop)?.get();
+				if (!diffBetweenStops) {
+					continue;
+				}
+				const input = {
+					original: { resource: diffBetweenStops.originalURI },
+					modified: { resource: diffBetweenStops.modifiedURI },
+					options: { transient: true },
+				};
+				return this.editorService.openEditor(input);
 			}
-			const input = {
-				original: { resource: diffBetweenStops.originalURI },
-				modified: { resource: diffBetweenStops.modifiedURI },
-				options: { transient: true },
-			};
-			console.log('input', input);
-			this.editorService.openEditor(input);
+			return this.editorService.openEditor({ resource: uri });
 		}));
 		this._register(list.onContextMenu(e => {
 			console.log('Context menu event:', e);

@@ -95,7 +95,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		super();
 
 		const element = context.element;
+		console.log('context.content : ', context.content);
+		console.log('context.contentIndex : ', context.contentIndex);
 		const inUndoStop = (findLast(context.content, e => e.kind === 'undoStop', context.contentIndex) as IChatUndoStop | undefined)?.id;
+		console.log('inUndoStop : ', inUndoStop);
 
 		// We release editors in order so that it's more likely that the same editor will be assigned if this element is re-rendered right away, like it often is during progressive rendering
 		const orderedDisposablesList: IDisposable[] = [];
@@ -522,10 +525,6 @@ export class CollapsedCodeBlock extends Disposable {
 			}
 
 			if (!diffBetweenStops) {
-				console.log('render');
-				console.log('modifiedEntry.modifiedURI : ', modifiedEntry?.modifiedURI);
-				console.log('this.requestId : ', this.requestId);
-				console.log('this.inUndoStop : ', this.inUndoStop);
 				diffBetweenStops = modifiedEntry && editSession
 					? editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, this.requestId, this.inUndoStop)
 					: undefined;
@@ -533,6 +532,11 @@ export class CollapsedCodeBlock extends Disposable {
 			}
 
 			if (!isStreaming && isComplete) {
+				console.log('render');
+				console.log('modifiedEntry.modifiedURI : ', modifiedEntry?.modifiedURI);
+				console.log('this.requestId : ', this.requestId);
+				console.log('this.inUndoStop : ', this.inUndoStop);
+				console.log('diffValue : ', diffValue);
 				renderDiff(diffValue);
 			}
 		}));

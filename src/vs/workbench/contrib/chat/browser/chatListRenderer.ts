@@ -744,6 +744,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const parts: IChatContentPart[] = [];
 
 		let inlineSlashCommandRendered = false;
+		console.log('content : ', content);
 		content.forEach((data, contentIndex) => {
 			const context: IChatContentPartRenderContext = {
 				element,
@@ -881,6 +882,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderChatContentDiff(partsToRender: ReadonlyArray<IChatRendererContent | null>, contentForThisTurn: ReadonlyArray<IChatRendererContent>, element: IChatResponseViewModel, elementIndex: number, templateData: IChatListItemTemplate): void {
 		const renderedParts = templateData.renderedParts ?? [];
 		templateData.renderedParts = renderedParts;
+		console.log('partsToRender : ', partsToRender);
 		partsToRender.forEach((partToRender, contentIndex) => {
 			if (!partToRender) {
 				// null=no change
