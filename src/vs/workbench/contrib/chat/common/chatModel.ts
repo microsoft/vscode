@@ -369,6 +369,10 @@ class AbstractResponse implements IResponse {
 					segment = { text: localize('editsSummary', "Made changes."), isBlock: true };
 					break;
 				case 'confirmation':
+					if (part.message instanceof MarkdownString) {
+						segment = { text: `${part.title}\n${part.message.value}`, isBlock: true };
+						break;
+					}
 					segment = { text: `${part.title}\n${part.message}`, isBlock: true };
 					break;
 				default:

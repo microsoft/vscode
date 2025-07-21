@@ -531,16 +531,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				const defaultProfile = (await this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority: this.remoteAuthority, os }));
 				this.shellLaunchConfig.executable = defaultProfile.path;
 				this.shellLaunchConfig.args = defaultProfile.args;
-				if (this.shellLaunchConfig.isExtensionOwnedTerminal) {
-					// Only use default icon and color and env if they are undefined in the SLC
-					this.shellLaunchConfig.icon ??= defaultProfile.icon;
-					this.shellLaunchConfig.color ??= defaultProfile.color;
-					this.shellLaunchConfig.env ??= defaultProfile.env;
-				} else {
-					this.shellLaunchConfig.icon = defaultProfile.icon;
-					this.shellLaunchConfig.color = defaultProfile.color;
-					this.shellLaunchConfig.env = defaultProfile.env;
-				}
+				// Only use default icon and color and env if they are undefined in the SLC
+				this.shellLaunchConfig.icon ??= defaultProfile.icon;
+				this.shellLaunchConfig.color ??= defaultProfile.color;
+				this.shellLaunchConfig.env ??= defaultProfile.env;
 			}
 
 			// Resolve the shell type ahead of time to allow features that depend upon it to work

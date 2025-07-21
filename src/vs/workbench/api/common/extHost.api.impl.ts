@@ -1273,11 +1273,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 				return extHostSCM.getLastInputBox(extension)!; // Strict null override - Deprecated api
 			},
-			createSourceControl(id: string, label: string, rootUri?: vscode.Uri, parent?: vscode.SourceControl): vscode.SourceControl {
-				if (parent) {
+			createSourceControl(id: string, label: string, rootUri?: vscode.Uri, iconPath?: vscode.IconPath, parent?: vscode.SourceControl): vscode.SourceControl {
+				if (iconPath || parent) {
 					checkProposedApiEnabled(extension, 'scmProviderOptions');
 				}
-				return extHostSCM.createSourceControl(extension, id, label, rootUri, parent);
+				return extHostSCM.createSourceControl(extension, id, label, rootUri, iconPath, parent);
 			}
 		};
 
@@ -1519,9 +1519,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidChangeChatModels: (listener, thisArgs?, disposables?) => {
 				return extHostLanguageModels.onDidChangeProviders(listener, thisArgs, disposables);
 			},
-			registerChatModelProvider: (id, provider, metadata) => {
+			registerChatModelProvider: (vendor, provider) => {
 				checkProposedApiEnabled(extension, 'chatProvider');
-				return extHostLanguageModels.registerLanguageModel(extension, id, provider, metadata);
+				return extHostLanguageModels.registerLanguageModelProvider(extension, vendor, provider);
 			},
 			// --- embeddings
 			get embeddingModels() {

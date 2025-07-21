@@ -62,6 +62,25 @@ function createEditSource<T extends Record<string, any>>(metadata: T): TextModel
 	return new TextModelEditSource(metadata as any, privateSymbol) as any;
 }
 
+export function isAiEdit(source: TextModelEditSource): boolean {
+	switch (source.metadata.source) {
+		case 'inlineCompletionAccept':
+		case 'inlineCompletionPartialAccept':
+		case 'inlineChat.applyEdits':
+		case 'Chat.applyEdits':
+			return true;
+	}
+	return false;
+}
+
+export function isUserEdit(source: TextModelEditSource): boolean {
+	switch (source.metadata.source) {
+		case 'cursor':
+			return source.metadata.kind === 'type';
+	}
+	return false;
+}
+
 export const EditSources = {
 	unknown(data: { name?: string | null }) {
 		return createEditSource({

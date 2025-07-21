@@ -58,20 +58,12 @@ suite('RunInTerminalTool', () => {
 		runInTerminalTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
 	});
 
-	/**
-	 * Sets up the configuration with allow and deny lists
-	 */
-	function setupConfiguration(allowList: string[] = [], denyList: string[] = []) {
-		const allowListObject: { [key: string]: boolean } = {};
-		for (const entry of allowList) {
-			allowListObject[entry] = true;
-		}
-		const denyListObject: { [key: string]: boolean } = {};
-		for (const entry of denyList) {
-			denyListObject[entry] = true;
-		}
-		setConfig(TerminalChatAgentToolsSettingId.AllowList, allowListObject);
-		setConfig(TerminalChatAgentToolsSettingId.DenyList, denyListObject);
+	function setAutoApprove(value: { [key: string]: boolean }) {
+		setConfig(TerminalChatAgentToolsSettingId.AutoApprove, value);
+	}
+
+	function setAutoApproveWithCommandLine(value: { [key: string]: { approve: boolean; matchCommandLine?: boolean } | boolean }) {
+		setConfig(TerminalChatAgentToolsSettingId.AutoApprove, value);
 	}
 
 	function setConfig(key: string, value: unknown) {
@@ -131,14 +123,18 @@ suite('RunInTerminalTool', () => {
 	suite('prepareToolInvocation - auto approval behavior', () => {
 
 		test('should auto-approve commands in allow list', async () => {
-			setupConfiguration(['echo']);
+			setAutoApprove({
+				echo: true
+			});
 
 			const result = await executeToolTest({ command: 'echo hello world' });
 			assertAutoApproved(result);
 		});
 
 		test('should require confirmation for commands not in allow list', async () => {
-			setupConfiguration(['ls']);
+			setAutoApprove({
+				ls: true
+			});
 
 			const result = await executeToolTest({
 				command: 'rm file.txt',
@@ -148,7 +144,10 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should require confirmation for commands in deny list even if in allow list', async () => {
-			setupConfiguration(['rm', 'echo'], ['rm']);
+			setAutoApprove({
+				rm: false,
+				echo: true
+			});
 
 			const result = await executeToolTest({
 				command: 'rm dangerous-file.txt',
@@ -158,7 +157,9 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should handle background commands with confirmation', async () => {
-			setupConfiguration(['ls']);
+			setAutoApprove({
+				ls: true
+			});
 
 			const result = await executeToolTest({
 				command: 'npm run watch',
@@ -169,7 +170,9 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should auto-approve background commands in allow list', async () => {
-			setupConfiguration(['npm']);
+			setAutoApprove({
+				npm: true
+			});
 
 			const result = await executeToolTest({
 				command: 'npm run watch',
@@ -180,28 +183,37 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should handle regex patterns in allow list', async () => {
-			setupConfiguration(['/^git (status|log)/']);
+			setAutoApprove({
+				'/^git (status|log)/': true
+			});
 
 			const result = await executeToolTest({ command: 'git status --porcelain' });
 			assertAutoApproved(result);
 		});
 
 		test('should handle complex command chains with sub-commands', async () => {
-			setupConfiguration(['echo', 'ls']);
+			setAutoApprove({
+				echo: true,
+				ls: true
+			});
 
 			const result = await executeToolTest({ command: 'echo "hello" && ls -la' });
 			assertAutoApproved(result);
 		});
 
 		test('should require confirmation when one sub-command is not approved', async () => {
-			setupConfiguration(['echo']);
+			setAutoApprove({
+				echo: true
+			});
 
 			const result = await executeToolTest({ command: 'echo "hello" && rm file.txt' });
 			assertConfirmationRequired(result);
 		});
 
 		test('should handle empty command strings', async () => {
-			setupConfiguration(['echo']);
+			setAutoApprove({
+				echo: true
+			});
 
 			const result = await executeToolTest({
 				command: '',
@@ -211,13 +223,30 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should handle commands with only whitespace', async () => {
-			setupConfiguration(['echo']);
+			setAutoApprove({
+				echo: true
+			});
 
 			const result = await executeToolTest({
 				command: '   \t\n   ',
 				explanation: 'Whitespace only command'
 			});
 			assertConfirmationRequired(result);
+		});
+
+		test('should handle matchCommandLine: true patterns', async () => {
+			setAutoApproveWithCommandLine({
+				"/dangerous/": { approve: false, matchCommandLine: true },
+				"echo": { approve: true, matchCommandLine: true }
+			});
+
+			// Command line pattern should be approved
+			const result1 = await executeToolTest({ command: 'echo hello world' });
+			assertAutoApproved(result1);
+
+			// Command line pattern should be denied due to dangerous content
+			const result2 = await executeToolTest({ command: 'echo this is a dangerous command' });
+			assertConfirmationRequired(result2);
 		});
 	});
 
@@ -489,6 +518,84 @@ suite('RunInTerminalTool', () => {
 					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, instance, 'cmd');
 
 					strictEqual(result, 'npm test');
+				});
+
+				test('should handle cd /d flag when directory matches cwd', async () => {
+					const testDir = 'C:\\test\\workspace';
+					const options = createRewriteParams(`cd /d ${testDir} && echo hello`, 'session-1');
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: testDir } }]
+					} as any);
+
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, undefined, 'pwsh');
+
+					strictEqual(result, 'echo hello');
+				});
+
+				test('should handle cd /d flag with quoted paths when directory matches cwd', async () => {
+					const testDir = 'C:\\test\\workspace';
+					const options = createRewriteParams(`cd /d "${testDir}" && echo hello`, 'session-1');
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: testDir } }]
+					} as any);
+
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, undefined, 'pwsh');
+
+					strictEqual(result, 'echo hello');
+				});
+
+				test('should handle cd /d flag with quoted paths from issue example', async () => {
+					const testDir = 'd:\\microsoft\\vscode';
+					const options = createRewriteParams(`cd /d "${testDir}" && .\\scripts\\test.bat`, 'session-1');
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: testDir } }]
+					} as any);
+
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, undefined, 'pwsh');
+
+					strictEqual(result, '.\\scripts\\test.bat');
+				});
+
+				test('should not rewrite cd /d when directory does not match cwd', async () => {
+					const testDir = 'C:\\test\\workspace';
+					const differentDir = 'C:\\different\\path';
+					const command = `cd /d ${differentDir} && echo hello`;
+					const options = createRewriteParams(command, 'session-1');
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: testDir } }]
+					} as any);
+
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, undefined, 'pwsh');
+
+					strictEqual(result, command);
+				});
+
+				test('should handle cd /d flag with instance priority', async () => {
+					const instanceDir = 'C:\\instance\\workspace';
+					const workspaceDir = 'C:\\workspace\\service';
+					const command = `cd /d ${instanceDir} && npm test`;
+					const parameters = createRewriteParams(command, 'session-1');
+
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: workspaceDir } }]
+					} as any);
+					const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
+
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, instance, 'pwsh');
+
+					strictEqual(result, 'npm test');
+				});
+
+				test('should handle cd /d flag with semicolon separator', async () => {
+					const testDir = 'C:\\test\\workspace';
+					const options = createRewriteParams(`cd /d ${testDir}; echo hello`, 'session-1');
+					workspaceService.setWorkspace({
+						folders: [{ uri: { fsPath: testDir } }]
+					} as any);
+
+					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, undefined, 'pwsh');
+
+					strictEqual(result, 'echo hello');
 				});
 			});
 		});

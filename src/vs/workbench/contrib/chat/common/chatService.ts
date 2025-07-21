@@ -220,7 +220,7 @@ export interface IChatNotebookEdit {
 
 export interface IChatConfirmation {
 	title: string;
-	message: string;
+	message: string | IMarkdownString;
 	data: any;
 	buttons?: string[];
 	isUsed?: boolean;

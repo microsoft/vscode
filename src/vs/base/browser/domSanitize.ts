@@ -153,7 +153,7 @@ function hookDomPurifyHrefAndSrcSanitizer(allowedLinkProtocols: readonly string[
 	return toDisposable(() => dompurify.removeHook('afterSanitizeAttributes'));
 }
 
-export interface SanitizeOptions {
+export interface DomSanitizerConfig {
 	/**
 	 * Configured the allowed html tags.
 	 */
@@ -209,7 +209,7 @@ const defaultDomPurifyConfig = Object.freeze({
  *
  * @returns A sanitized string of html.
  */
-export function sanitizeHtml(untrusted: string, config?: SanitizeOptions): TrustedHTML {
+export function sanitizeHtml(untrusted: string, config?: DomSanitizerConfig): TrustedHTML {
 	const store = new DisposableStore();
 	try {
 		const resolvedConfig: dompurify.Config = { ...defaultDomPurifyConfig };
@@ -258,6 +258,6 @@ export function sanitizeHtml(untrusted: string, config?: SanitizeOptions): Trust
 /**
  * Sanitizes the given `value` and reset the given `node` with it.
  */
-export function safeSetInnerHtml(node: HTMLElement, untrusted: string, config?: SanitizeOptions): void {
+export function safeSetInnerHtml(node: HTMLElement, untrusted: string, config?: DomSanitizerConfig): void {
 	node.innerHTML = sanitizeHtml(untrusted, config) as any;
 }

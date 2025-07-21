@@ -50,8 +50,8 @@ interface IStoredTerminalAssociation {
 }
 
 export const RunInTerminalToolData: IToolData = {
-	id: 'run_in_terminal2',
-	toolReferenceName: 'runInTerminal2',
+	id: 'run_in_terminal',
+	toolReferenceName: 'runInTerminal',
 	canBeReferencedInPrompt: true,
 	displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
 	modelDescription: [
@@ -96,7 +96,7 @@ export const RunInTerminalToolData: IToolData = {
 			},
 			isBackground: {
 				type: 'boolean',
-				description: 'Whether the command starts a background process. If true, the command will run in the background and you will not see the output. If false, the tool call will block on the command finishing, and then you will get the output. Examples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using get_terminal_output2.'
+				description: 'Whether the command starts a background process. If true, the command will run in the background and you will not see the output. If false, the tool call will block on the command finishing, and then you will get the output. Examples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using get_terminal_output.'
 			},
 		},
 		required: [
@@ -177,17 +177,33 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const subCommands = splitCommandLineIntoSubCommands(args.command, shell, os);
 			const inlineSubCommands = subCommands.map(e => Array.from(extractInlineSubCommands(e, shell, os))).flat();
 			const allSubCommands = [...subCommands, ...inlineSubCommands];
-			if (allSubCommands.every(e => this._commandLineAutoApprover.isAutoApproved(e, shell, os))) {
+			const subCommandResults = allSubCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
+			const autoApproveReasons: string[] = [...subCommandResults.map(e => e.reason)];
+
+			if (subCommandResults.every(e => e.isAutoApproved)) {
+				this._logService.info('autoApprove: All sub-commands auto-approved');
 				confirmationMessages = undefined;
 			} else {
-				confirmationMessages = {
-					title: args.isBackground
-						? localize('runInTerminal.background', "Run command in background terminal")
-						: localize('runInTerminal.foreground', "Run command in terminal"),
-					message: new MarkdownString(
-						args.explanation
-					),
-				};
+				this._logService.info('autoApprove: All sub-commands NOT auto-approved');
+				const commandLineResults = this._commandLineAutoApprover.isCommandLineAutoApproved(args.command);
+				autoApproveReasons.push(commandLineResults.reason);
+				if (commandLineResults.isAutoApproved) {
+					this._logService.info('autoApprove: Command line auto-approved');
+					confirmationMessages = undefined;
+				} else {
+					this._logService.info('autoApprove: Command line NOT auto-approved');
+					confirmationMessages = {
+						title: args.isBackground
+							? localize('runInTerminal.background', "Run command in background terminal")
+							: localize('runInTerminal.foreground', "Run command in terminal"),
+						message: new MarkdownString(args.explanation),
+					};
+				}
+			}
+
+			// TODO: Surface reason on tool part https://github.com/microsoft/vscode/pull/256793
+			for (const reason of autoApproveReasons) {
+				this._logService.info(`- ${reason}`);
 			}
 		}
 
@@ -556,7 +572,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const isPwsh = isPowerShell(shell, os);
 		const cdPrefixMatch = commandLine.match(
 			isPwsh
-				? /^(?:cd|Set-Location(?: -Path)?) (?<dir>[^\s]+) ?(?:&&|;)\s+(?<suffix>.+)$/i
+				? /^(?:cd(?: \/d)?|Set-Location(?: -Path)?) (?<dir>[^\s]+) ?(?:&&|;)\s+(?<suffix>.+)$/i
 				: /^cd (?<dir>[^\s]+) &&\s+(?<suffix>.+)$/
 		);
 		const cdDir = cdPrefixMatch?.groups?.dir;
