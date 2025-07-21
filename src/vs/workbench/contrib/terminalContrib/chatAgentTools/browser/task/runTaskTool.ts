@@ -121,10 +121,6 @@ export class RunTaskTool implements IToolImpl {
 			return { invocationMessage: new MarkdownString(localize('copilotChat.taskAlreadyActive', 'The task is already running.')) };
 		}
 
-		if (!task) {
-			return { invocationMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
-		}
-
 		if (await this._isTaskActive(task)) {
 			return {
 				invocationMessage: new MarkdownString(localize('copilotChat.taskIsAlreadyRunning', '`{0}` is already running.', taskDefinition.taskLabel ?? args.id)),
