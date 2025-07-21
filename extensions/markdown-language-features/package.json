@@ -15,11 +15,6 @@
   "categories": [
     "Programming Languages"
   ],
-  "enabledApiProposals": [
-    "chatParticipantAdditions",
-    "chatParticipantPrivate",
-    "chatOutputRenderer"
-  ],
   "activationEvents": [
     "onLanguage:markdown",
     "onLanguage:prompt",
@@ -27,8 +22,7 @@
     "onLanguage:chatmode",
     "onCommand:markdown.api.render",
     "onCommand:markdown.api.reloadPlugins",
-    "onWebviewPanel:markdown.preview",
-    "onChatOutputRenderer:application/vnd.test-output"
+    "onWebviewPanel:markdown.preview"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -41,28 +35,6 @@
     }
   },
   "contributes": {
-    "languageModelTools": [
-      {
-        "name": "renderMarkdown",
-        "displayName": "Markdown Renderer",
-        "toolReferenceName": "renderMarkdown",
-        "modelDescription": "Renders markdown to the output",
-        "userDescription": "Renders markdown to the output",
-        "canBeReferencedInPrompt": true,
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "markdown": {
-              "type": "string",
-              "description": "The markdown content to render."
-            }
-          },
-          "required": [
-            "markdown"
-          ]
-        }
-      }
-    ],
     "notebookRenderer": [
       {
         "id": "vscode.markdown-it-renderer",

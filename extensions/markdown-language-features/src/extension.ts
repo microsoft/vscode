@@ -19,12 +19,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	const logger = new VsCodeOutputLogger();
 	context.subscriptions.push(logger);
 	const engine = new MarkdownItEngine(contributions, githubSlugifier, logger);
-	registerTestOutputRenderer();
 
 	const client = await startServer(context, engine);
 	context.subscriptions.push(client);
 	activateShared(context, client, engine, logger, contributions);
-
 }
 
 function startServer(context: vscode.ExtensionContext, parser: IMdParser): Promise<MdLanguageClient> {
@@ -55,53 +53,3 @@ function startServer(context: vscode.ExtensionContext, parser: IMdParser): Promi
 		return new LanguageClient(id, name, serverOptions, clientOptions);
 	}, parser);
 }
-
-
-function registerTestOutputRenderer() {
-	vscode.lm.registerTool('renderMarkdown', {
-		invoke: (_options, _token) => {
-			const result = new vscode.ExtendedLanguageModelToolResult([]);
-
-			(result as vscode.ExtendedLanguageModelToolResult2).toolResultDetails2 = {
-				mime: 'application/vnd.test-output',
-				value: new Uint8Array(Buffer.from('This is a test <b>output</b> rendered by the test renderer.'))
-			};
-
-			return result;
-		},
-	});
-
-	vscode.chat.registerChatOutputRenderer('application/vnd.test-output', {
-		async renderChatOutput(data, webview, _token) {
-			const decodedData = new TextDecoder().decode(data);
-
-			webview.options = {
-				enableScripts: true,
-			};
-
-			webview.html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Document</title>
-</head>
-<body>
-	${decodedData}
-
-	<script>
-		setInterval(() => {
-			const el = document.createElement('div');
-			el.textContent = 'This is a test output rendered by the test renderer.';
-			el.style.color = 'blue';
-			document.body.appendChild(el);
-		}, 2000);
-	</script>
-</body>
-</html>`;
-
-
-		},
-	});
-}
-
