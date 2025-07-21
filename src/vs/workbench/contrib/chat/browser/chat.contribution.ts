@@ -223,6 +223,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.tools.autoApprove.description', "Controls whether tool use should be automatically approved. Allow all tools to run automatically without user confirmation, overriding any tool-specific settings such as terminal auto-approval. Use with caution: carefully review selected tools and be extra wary of possible sources of prompt injection!"),
 			markdownDescription: nls.localize('chat.tools.autoApprove.markdownDescription', "Controls whether tool use should be automatically approved.\n\nAllows _all_ tools to run automatically without user confirmation, overriding any tool-specific settings such as terminal auto-approval.\n\nUse with caution: carefully review selected tools and be extra wary of possible sources of prompt injection!"),
 			type: 'boolean',
+			scope: ConfigurationScope.MACHINE,
 			tags: ['experimental'],
 			policy: {
 				name: 'ChatToolsAutoApprove',
@@ -262,7 +263,7 @@ configurationRegistry.registerConfiguration({
 			default: 'inline',
 			tags: ['experimental'],
 			experiment: {
-				autoRefetch: false
+				allowAutoUpdate: false
 			}
 		},
 		'chat.emptyChatState.enabled': {
@@ -271,7 +272,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.emptyChatState', "Shows a modified empty chat state with hints in the input placeholder text."),
 			tags: ['experimental'],
 			experiment: {
-				autoRefetch: false
+				allowAutoUpdate: false
 			}
 		},
 		'chat.checkpoints.enabled': {
@@ -328,7 +329,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.edits2Enabled', "Enable the new Edits mode that is based on tool-calling. When this is enabled, models that don't support tool-calling are unavailable for Edits mode."),
 			default: true,
 			experiment: {
-				autoRefetch: false
+				allowAutoUpdate: false
 			}
 		},
 		[ChatConfiguration.ExtensionToolsEnabled]: {
@@ -346,7 +347,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agent.enabled.description', "Enable agent mode for {0}. When this is enabled, agent mode can be activated via the dropdown in the view.", 'Copilot Chat'),
 			default: true,
 			experiment: {
-				autoRefetch: false
+				allowAutoUpdate: false
 			},
 			policy: {
 				name: 'ChatAgentMode',
@@ -413,9 +414,7 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatPromptFiles',
 				minimumVersion: '1.99',
-				description: nls.localize('chat.promptFiles.policy', "Enables reusable prompt and instruction files in Chat sessions."),
-				defaultValue: false,
-				tags: [PolicyTag.Account, PolicyTag.Preview]
+				description: nls.localize('chat.promptFiles.policy', "Enables reusable prompt and instruction files in Chat sessions.")
 			}
 		},
 		[PromptsConfig.INSTRUCTIONS_LOCATION_KEY]: {
@@ -511,7 +510,7 @@ configurationRegistry.registerConfiguration({
 			default: 'default',
 			tags: ['experimental'],
 			experiment: {
-				autoRefetch: false
+				allowAutoUpdate: false
 			}
 		}
 	}
