@@ -3127,6 +3127,8 @@ export namespace ChatAgentResult {
 				return new types.LanguageModelToolResult(cloneAndChange(value.content, reviveMetadata));
 			} else if (value.$mid === MarshalledId.LanguageModelTextPart) {
 				return new types.LanguageModelTextPart(value.value);
+			} else if (value.$mid === MarshalledId.LanguageModelThinkingPart) {
+				return new types.LanguageModelThinkingPart(value.value, value.id, value.metadata);
 			} else if (value.$mid === MarshalledId.LanguageModelPromptTsxPart) {
 				return new types.LanguageModelPromptTsxPart(value.value);
 			}

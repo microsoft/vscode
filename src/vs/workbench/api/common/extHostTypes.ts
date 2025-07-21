@@ -5017,6 +5017,28 @@ export enum ChatImageMimeType {
 	BMP = 'image/bmp',
 }
 
+export class LanguageModelThinkingPart implements vscode.LanguageModelThinkingPart {
+	value: string;
+	id?: string;
+	metadata?: string;
+
+	constructor(value: string, id?: string, metadata?: string) {
+		this.value = value;
+		this.id = id;
+		this.metadata = metadata;
+	}
+
+	toJSON() {
+		return {
+			$mid: MarshalledId.LanguageModelThinkingPart,
+			value: this.value,
+			id: this.id,
+			metadata: this.metadata,
+		};
+	}
+}
+
+
 
 export class LanguageModelPromptTsxPart {
 	value: unknown;
