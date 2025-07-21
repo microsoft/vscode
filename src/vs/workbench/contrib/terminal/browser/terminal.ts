@@ -22,7 +22,7 @@ import { IEditableData } from '../../../common/views.js';
 import { ITerminalStatusList } from './terminalStatusList.js';
 import { XtermTerminal } from './xterm/xtermTerminal.js';
 import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfiguration, ITerminalFont, ITerminalProcessExtHostProxy, ITerminalProcessInfo } from '../common/terminal.js';
-import type { IMarker, ITheme, Terminal as RawXtermTerminal, IBufferRange } from '@xterm/xterm';
+import type { IMarker, ITheme, Terminal as RawXtermTerminal, IBufferRange, IMarker as IXtermMarker } from '@xterm/xterm';
 import { ScrollPosition } from './xterm/markNavigationAddon.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { GroupIdentifier } from '../../../common/editor.js';
@@ -774,6 +774,11 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	readonly xterm?: XtermTerminal;
 
 	/**
+	 * Resolves when the xterm.js instance for this terminal is ready.
+	 */
+	readonly xtermReadyPromise: Promise<XtermTerminal | undefined>;
+
+	/**
 	 * Returns an array of data events that have fired within the first 10 seconds. If this is
 	 * called 10 seconds after the terminal has existed the result will be undefined. This is useful
 	 * when objects that depend on the data events have delayed initialization, like extension
@@ -1218,6 +1223,12 @@ export interface IXtermTerminal extends IDisposable {
 	 * Returns a reverse iterator of buffer lines as strings
 	 */
 	getBufferReverseIterator(): IterableIterator<string>;
+
+	/**
+	 * Gets the contents of the buffer from a start marker (or line 0) to the end marker (or the
+	 * last line).
+	 */
+	getContentsAsText(startMarker?: IXtermMarker, endMarker?: IXtermMarker): string;
 
 	/**
 	 * Gets the buffer contents as HTML.

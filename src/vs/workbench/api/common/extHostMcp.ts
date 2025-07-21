@@ -16,7 +16,7 @@ import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionStat
 import { ExtHostMcpShape, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as Convert from './extHostTypeConverters.js';
-import { AUTH_SERVER_METADATA_DISCOVERY_PATH, getDefaultMetadataForUrl, getMetadataWithDefaultValues, getResourceServerBaseUrlFromDiscoveryUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
+import { AUTH_SERVER_METADATA_DISCOVERY_PATH, OPENID_CONNECT_DISCOVERY_PATH, getDefaultMetadataForUrl, getResourceServerBaseUrlFromDiscoveryUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
 import { URI } from '../../../base/common/uri.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { CancellationError } from '../../../base/common/errors.js';
@@ -215,16 +215,22 @@ class McpHTTPHandle extends Disposable {
 
 	async send(message: string) {
 		try {
-			await this._requestSequencer.queue(() => {
-				if (this._mode.value === HttpMode.SSE) {
-					return this._sendLegacySSE(this._mode.endpoint, message);
-				} else {
-					return this._sendStreamableHttp(message, this._mode.value === HttpMode.Http ? this._mode.sessionId : undefined);
-				}
-			});
+			if (this._mode.value === HttpMode.Unknown) {
+				await this._requestSequencer.queue(() => this._send(message));
+			} else {
+				await this._send(message);
+			}
 		} catch (err) {
 			const msg = `Error sending message to ${this._launch.uri}: ${String(err)}`;
 			this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: msg });
+		}
+	}
+
+	_send(message: string) {
+		if (this._mode.value === HttpMode.SSE) {
+			return this._sendLegacySSE(this._mode.endpoint, message);
+		} else {
+			return this._sendStreamableHttp(message, this._mode.value === HttpMode.Http ? this._mode.sessionId : undefined);
 		}
 	}
 
@@ -297,8 +303,7 @@ class McpHTTPHandle extends Disposable {
 			this._attachStreamableBackchannel();
 		}
 
-		// Not awaited, we don't need to block the sequencer while we read the response
-		this._handleSuccessfulStreamableHttp(res, message);
+		await this._handleSuccessfulStreamableHttp(res, message);
 	}
 
 	private async _sseFallbackWithMessage(message: string) {
@@ -347,10 +352,9 @@ class McpHTTPHandle extends Disposable {
 		}
 		try {
 			const serverMetadataResponse = await this._getAuthorizationServerMetadata(serverMetadataUrl, addtionalHeaders);
-			const serverMetadataWithDefaults = getMetadataWithDefaultValues(serverMetadataResponse);
 			this._authMetadata = {
 				authorizationServer: URI.parse(serverMetadataUrl),
-				serverMetadata: serverMetadataWithDefaults,
+				serverMetadata: serverMetadataResponse,
 				resourceMetadata: resource
 			};
 			return;
@@ -392,7 +396,8 @@ class McpHTTPHandle extends Disposable {
 		const body = await resourceMetadataResponse.json();
 		if (isAuthorizationProtectedResourceMetadata(body)) {
 			const resolvedResource = getResourceServerBaseUrlFromDiscoveryUrl(resourceMetadata);
-			if (body.resource !== resolvedResource) {
+			// Use URL constructor for normalization - it handles hostname case and trailing slashes
+			if (new URL(body.resource).toString() !== new URL(resolvedResource).toString()) {
 				throw new Error(`Protected Resource Metadata resource "${body.resource}" does not match MCP server resolved resource "${resolvedResource}". The MCP server must follow OAuth spec https://datatracker.ietf.org/doc/html/rfc9728#PRConfigurationValidation`);
 			}
 			return body;
@@ -417,22 +422,36 @@ class McpHTTPHandle extends Disposable {
 			}
 		});
 		if (authServerMetadataResponse.status !== 200) {
-			// Try fetching the other discovery URL. For the openid metadata discovery
-			// path, we _ADD_ the well known path after the existing path.
-			// https://datatracker.ietf.org/doc/html/rfc8414#section-3
-			authServerMetadataResponse = await this._fetch(
-				URI.joinPath(URI.parse(authorizationServer), '.well-known', 'openid-configuration').toString(true),
-				{
-					method: 'GET',
-					headers: {
-						...addtionalHeaders,
-						'Accept': 'application/json',
-						'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
-					}
+			// Try fetching the OpenID Connect Discovery with path insertion.
+			// For issuer URLs with path components, this inserts the well-known path
+			// after the origin and before the path.
+			const openidPathInsertionUrl = new URL(OPENID_CONNECT_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
+			authServerMetadataResponse = await this._fetch(openidPathInsertionUrl, {
+				method: 'GET',
+				headers: {
+					...addtionalHeaders,
+					'Accept': 'application/json',
+					'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
 				}
-			);
+			});
 			if (authServerMetadataResponse.status !== 200) {
-				throw new Error(`Failed to fetch authorization server metadata: ${authServerMetadataResponse.status} ${await this._getErrText(authServerMetadataResponse)}`);
+				// Try fetching the other discovery URL. For the openid metadata discovery
+				// path, we _ADD_ the well known path after the existing path.
+				// https://datatracker.ietf.org/doc/html/rfc8414#section-3
+				authServerMetadataResponse = await this._fetch(
+					URI.joinPath(URI.parse(authorizationServer), OPENID_CONNECT_DISCOVERY_PATH).toString(true),
+					{
+						method: 'GET',
+						headers: {
+							...addtionalHeaders,
+							'Accept': 'application/json',
+							'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
+						}
+					}
+				);
+				if (authServerMetadataResponse.status !== 200) {
+					throw new Error(`Failed to fetch authorization server metadata: ${authServerMetadataResponse.status} ${await this._getErrText(authServerMetadataResponse)}`);
+				}
 			}
 		}
 		const body = await authServerMetadataResponse.json();

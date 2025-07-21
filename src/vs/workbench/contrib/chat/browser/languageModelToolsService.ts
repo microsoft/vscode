@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderStringAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { encodeBase64 } from '../../../../base/common/buffer.js';
@@ -295,7 +295,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			} else {
 				const prepared = await this.prepareToolInvocation(tool, dto, token);
 				if (prepared?.confirmationMessages && !this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace)) {
-					const result = await this._dialogService.confirm({ message: renderStringAsPlaintext(prepared.confirmationMessages.title), detail: renderStringAsPlaintext(prepared.confirmationMessages.message) });
+					const result = await this._dialogService.confirm({ message: renderAsPlaintext(prepared.confirmationMessages.title), detail: renderAsPlaintext(prepared.confirmationMessages.message) });
 					if (!result.confirmed) {
 						throw new CancellationError();
 					}
@@ -363,7 +363,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			: undefined;
 
 		if (prepared?.confirmationMessages) {
-			if (prepared.toolSpecificData?.kind !== 'terminal' && typeof prepared.confirmationMessages.allowAutoConfirm !== 'boolean') {
+			if (prepared.toolSpecificData?.kind !== 'terminal' && prepared.toolSpecificData?.kind !== 'terminal2' && typeof prepared.confirmationMessages.allowAutoConfirm !== 'boolean') {
 				prepared.confirmationMessages.allowAutoConfirm = true;
 			}
 
@@ -492,11 +492,23 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	toToolAndToolSetEnablementMap(enabledToolOrToolSetNames: readonly string[] | undefined): Map<ToolSet | IToolData, boolean> {
 		const toolOrToolSetNames = enabledToolOrToolSetNames ? new Set(enabledToolOrToolSetNames) : undefined;
 		const result = new Map<ToolSet | IToolData, boolean>();
-		for (const tool of this._tools.values()) {
-			result.set(tool.data, tool.data.toolReferenceName !== undefined && (toolOrToolSetNames === undefined || toolOrToolSetNames.has(tool.data.toolReferenceName)));
+		for (const tool of this.getTools()) {
+			if (tool.canBeReferencedInPrompt) {
+				result.set(tool, toolOrToolSetNames === undefined || toolOrToolSetNames.has(tool.toolReferenceName ?? tool.displayName));
+			}
 		}
 		for (const toolSet of this._toolSets) {
-			result.set(toolSet, (toolOrToolSetNames === undefined || toolOrToolSetNames.has(toolSet.referenceName)));
+			const enabled = toolOrToolSetNames === undefined || toolOrToolSetNames.has(toolSet.referenceName);
+			result.set(toolSet, enabled);
+
+			// if a mcp toolset is enabled, all tools in it are enabled
+			if (enabled && toolSet.source.type === 'mcp') {
+				for (const tool of toolSet.getTools()) {
+					if (tool.canBeReferencedInPrompt) {
+						result.set(tool, enabled);
+					}
+				}
+			}
 		}
 		return result;
 	}

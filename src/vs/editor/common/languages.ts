@@ -757,6 +757,7 @@ export interface InlineCompletionContext {
 
 	readonly includeInlineEdits: boolean;
 	readonly includeInlineCompletions: boolean;
+	readonly requestIssuedDateTime: number;
 }
 
 export class SelectedSuggestionInfo {
@@ -992,6 +993,7 @@ export type LifetimeSummary = {
 	editorType: string;
 	viewKind: string | undefined;
 	error: string | undefined;
+	preceeded: boolean;
 	languageId: string;
 	requestReason: string;
 	cursorColumnDistance?: number;
@@ -1002,6 +1004,8 @@ export type LifetimeSummary = {
 	characterCountModified?: number;
 	disjointReplacements?: number;
 	sameShapeReplacements?: boolean;
+	typingInterval: number;
+	typingIntervalCharacterCount: number;
 };
 
 export interface CodeAction {
