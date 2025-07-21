@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { IStringDictionary } from '../../../../../base/common/collections.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/languageModelToolsService.js';
-import { ConfiguringTask } from '../../../tasks/common/tasks.js';
 import { ITaskService } from '../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { getOutput } from './bufferOutputPolling.js';
-import { getTaskDefinition } from './taskHelpers.js';
+import { getTaskDefinition, getTaskForTool } from './taskHelpers.js';
 
 export const GetTaskOutputToolData: IToolData = {
 	id: 'get_task_output',
@@ -49,73 +48,34 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IGetTaskOutputInputParams;
 
-		let task;
-		let index = 0;
 		const taskDefinition = await getTaskDefinition(args.id);
-		// TODO: fix hack with file://
-		const wTasks: IStringDictionary<ConfiguringTask> | undefined = (await this._tasksService.getWorkspaceTasks())?.get('file://' + args.workspaceFolder)?.configurations?.byIdentifier;
-		for (const workspaceTask of Object.values(wTasks ?? {})) {
-			if ((!workspaceTask.type || workspaceTask.type === taskDefinition?.taskType) && workspaceTask._label === taskDefinition?.taskLabel) {
-				task = workspaceTask;
-				break;
-			} else if (args.id === workspaceTask.type + ': ' + index) {
-				task = workspaceTask;
-				break;
-			}
-			index++;
-		}
-
-		// TODO: make these markdown too?
+		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._tasksService);
 		if (!task) {
-			return { invocationMessage: `Task not found: \`${args.id}\`` };
+			return { invocationMessage: new MarkdownString(`Task not found: \`${args.id}\``) };
 		}
-		const resolvedTask = await this._tasksService.tryResolveTask(task);
-		if (!resolvedTask) {
-			return { invocationMessage: `Task not found: \`${args.id}\`` };
-		}
-
 		const activeTasks = await this._tasksService.getActiveTasks();
-		if (activeTasks.includes(resolvedTask)) {
-			return { invocationMessage: `The task \`${taskDefinition.taskLabel}\` is already running.` };
+		if (activeTasks.includes(task)) {
+			return { invocationMessage: new MarkdownString(`The task \`${taskDefinition.taskLabel}\` is already running.`) };
 		}
 
 		return {
-			invocationMessage: `Checking terminal output for \`${taskDefinition.taskLabel}\``,
-			pastTenseMessage: `Checked terminal output for \`${taskDefinition.taskLabel}\``,
+			invocationMessage: new MarkdownString(`Checking terminal output for \`${taskDefinition.taskLabel}\``),
+			pastTenseMessage: new MarkdownString(`Checked terminal output for \`${taskDefinition.taskLabel}\``),
 		};
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const args = invocation.parameters as IGetTaskOutputInputParams;
-		let task;
-		let index = 0;
 		const taskDefinition = await getTaskDefinition(args.id);
-		// TODO: fix hack with file://
-		const wTasks: IStringDictionary<ConfiguringTask> | undefined = (await this._tasksService.getWorkspaceTasks())?.get('file://' + args.workspaceFolder)?.configurations?.byIdentifier;
-		for (const workspaceTask of Object.values(wTasks ?? {})) {
-			if ((!workspaceTask.type || workspaceTask.type === taskDefinition?.taskType) && workspaceTask._label === taskDefinition?.taskLabel) {
-				task = workspaceTask;
-				break;
-			} else if (args.id === workspaceTask.type + ': ' + index) {
-				task = workspaceTask;
-				break;
-			}
-			index++;
-		}
-
+		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._tasksService);
 		if (!task) {
-			return { content: [], toolResultMessage: `Task not found: \`${args.id}\`` };
-		}
-		const resolvedTask = await this._tasksService.tryResolveTask(task);
-		if (!resolvedTask) {
-			return { content: [], toolResultMessage: `Task not found: \`${args.id}\`` };
+			return { content: [], toolResultMessage: new MarkdownString(`Task not found: \`${args.id}\``) };
 		}
 
-
-		const resource = this._tasksService.getTerminalForTask(resolvedTask);
+		const resource = this._tasksService.getTerminalForTask(task);
 		const terminal = this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme);
 		if (!terminal) {
-			return { content: [], toolResultMessage: `Terminal not found for task \`${taskDefinition?.taskLabel}\`` };
+			return { content: [], toolResultMessage: new MarkdownString(`Terminal not found for task \`${taskDefinition?.taskLabel}\``) };
 		}
 		return {
 			content: [{
