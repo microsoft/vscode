@@ -3347,7 +3347,7 @@ export namespace LanguageModelToolResult2 {
 		}));
 	}
 
-	export function from(result: vscode.ExtendedLanguageModelToolResult, extension: IExtensionDescription): Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>> {
+	export function from(result: vscode.ExtendedLanguageModelToolResult2, extension: IExtensionDescription): Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>> {
 		if (result.toolResultMessage) {
 			checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 		}
@@ -3359,12 +3359,12 @@ export namespace LanguageModelToolResult2 {
 				return URI.isUri(detail) ? detail : Location.from(detail as vscode.Location);
 			});
 		} else {
-			if (result.toolResultDetails) {
+			if (result.toolResultDetails2) {
 				detailsDto = {
 					output: {
 						type: 'data',
-						mimeType: (result.toolResultDetails as { mime: string; value: Uint8Array }).mime,
-						value: VSBuffer.wrap((result.toolResultDetails as { mime: string; value: Uint8Array }).value),
+						mimeType: (result.toolResultDetails2 as vscode.ToolResultDataOutput).mime,
+						value: VSBuffer.wrap((result.toolResultDetails2 as vscode.ToolResultDataOutput).value),
 					}
 				} satisfies IToolResultOutputDetails;
 				hasBuffers = true;

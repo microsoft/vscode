@@ -27,7 +27,8 @@
     "onLanguage:chatmode",
     "onCommand:markdown.api.render",
     "onCommand:markdown.api.reloadPlugins",
-    "onWebviewPanel:markdown.preview"
+    "onWebviewPanel:markdown.preview",
+    "onChatOutputRenderer:application/vnd.test-output"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -42,9 +43,24 @@
   "contributes": {
     "languageModelTools": [
       {
-        "name": "test-renderer",
-        "displayName": "Test renderer",
-        "modelDescription": "Renders test data to the output"
+        "name": "renderMarkdown",
+        "displayName": "Markdown Renderer",
+        "toolReferenceName": "renderMarkdown",
+        "modelDescription": "Renders markdown to the output",
+        "userDescription": "Renders markdown to the output",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "markdown": {
+              "type": "string",
+              "description": "The markdown content to render."
+            }
+          },
+          "required": [
+            "markdown"
+          ]
+        }
       }
     ],
     "notebookRenderer": [

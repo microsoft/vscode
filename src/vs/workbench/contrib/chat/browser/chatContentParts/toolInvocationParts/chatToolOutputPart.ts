@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from '../../../common/chatService.js';
 import { IToolResultOutputDetails } from '../../../common/languageModelToolsService.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
 import { IChatOutputRendererService } from '../../chatOutputItemRenderer.js';
@@ -19,23 +20,40 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 
 	constructor(
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
-		output: IToolResultOutputDetails,
 		_context: IChatContentPartRenderContext,
 		@IChatOutputRendererService private readonly chatOutputItemRendererService: IChatOutputRendererService,
 	) {
 		super(toolInvocation);
 
-		this.domNode = this.createOutputPart(output);
+
+		const details: IToolResultOutputDetails = toolInvocation.kind === 'toolInvocation'
+			? toolInvocation.resultDetails as IToolResultOutputDetails
+			: {
+				output: {
+					type: 'data',
+					mimeType: (toolInvocation.resultDetails as IToolResultOutputDetailsSerialized).mimeType,
+					value: decodeBase64((toolInvocation.resultDetails as IToolResultOutputDetailsSerialized).base64Data),
+				},
+			};
+
+		this.domNode = this.createOutputPart(details);
 	}
 
-	private createOutputPart(detauls: IToolResultOutputDetails): HTMLElement {
+	private createOutputPart(details: IToolResultOutputDetails): HTMLElement {
+		// TODO: Show progress while rendering
+
 		const parent = dom.$('div.webview-output');
 		parent.style.maxHeight = '80vh';
 
-		this.chatOutputItemRendererService.renderOutputPart(detauls.output.mimeType, detauls.output.value.buffer, parent, CancellationToken.None).then((disposable) => {
-			this._register(disposable);
+		this.chatOutputItemRendererService.renderOutputPart(details.output.mimeType, details.output.value.buffer, parent, CancellationToken.None).then((renderedItem) => {
+			this._register(renderedItem);
+
 			this._onDidChangeHeight.fire();
+			this._register(renderedItem.onDidChangeHeight(() => {
+				this._onDidChangeHeight.fire();
+			}));
 		});
+
 		return parent;
 	}
 }

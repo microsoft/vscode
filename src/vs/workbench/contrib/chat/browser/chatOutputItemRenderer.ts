@@ -5,7 +5,9 @@
 
 import { getWindow } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import * as nls from '../../../../nls.js';
@@ -29,6 +31,10 @@ interface RegisterOptions {
 	};
 }
 
+export interface RenderedOutputPart extends IDisposable {
+	readonly onDidChangeHeight: Event<number>;
+}
+
 /**
  * Service for rendering chat output items with special MIME types using registered renderers from extensions.
  */
@@ -37,7 +43,7 @@ export interface IChatOutputRendererService {
 
 	registerRenderer(mime: string, renderer: IChatOutputItemRenderer, options: RegisterOptions): IDisposable;
 
-	renderOutputPart(mime: string, data: Uint8Array, parent: HTMLElement, token: CancellationToken): Promise<IDisposable>;
+	renderOutputPart(mime: string, data: Uint8Array, parent: HTMLElement, token: CancellationToken): Promise<RenderedOutputPart>;
 }
 
 /**
@@ -72,7 +78,7 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 		};
 	}
 
-	async renderOutputPart(mime: string, data: Uint8Array, parent: HTMLElement, token: CancellationToken): Promise<IDisposable> {
+	async renderOutputPart(mime: string, data: Uint8Array, parent: HTMLElement, token: CancellationToken): Promise<RenderedOutputPart> {
 		// Activate extensions that contribute to chatOutputRenderer for this mime type
 		await this._extensionService.activateByEvent(`onChatOutputRenderer:${mime}`);
 
@@ -81,7 +87,9 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 			throw new Error(`No renderer registered for mime type: ${mime}`);
 		}
 
-		const webview = this._webviewService.createWebviewElement({
+		const store = new DisposableStore();
+
+		const webview = store.add(this._webviewService.createWebviewElement({
 			title: '',
 			origin: generateUuid(),
 			options: {
@@ -91,15 +99,24 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 			},
 			contentOptions: {},
 			extension: rendererData.options.extension ? rendererData.options.extension : undefined,
-		});
+		}));
+
+		const onDidChangeHeight = store.add(new Emitter<number>());
+		store.add(autorun(reader => {
+			const height = reader.readObservable(webview.intrinsicContentSize);
+			if (height) {
+				onDidChangeHeight.fire(height.height);
+				parent.style.height = `${height.height}px`;
+			}
+		}));
 
 		webview.mountTo(parent, getWindow(parent));
-
 		await rendererData.renderer.renderOutputPart(mime, data, webview, token);
 
 		return {
+			onDidChangeHeight: onDidChangeHeight.event,
 			dispose: () => {
-				webview.dispose();
+				store.dispose();
 			}
 		};
 	}

@@ -101,6 +101,10 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			return this.instantiationService.createInstance(ChatResultListSubPart, this.toolInvocation, this.context, this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage, this.toolInvocation.resultDetails, this.listPool);
 		}
 
+		if (isToolResultOutputDetails(this.toolInvocation.resultDetails)) {
+			return this.instantiationService.createInstance(ChatToolOutputSubPart, this.toolInvocation, this.context);
+		}
+
 		if (isToolResultInputOutputDetails(this.toolInvocation.resultDetails)) {
 			return this.instantiationService.createInstance(
 				ChatInputOutputMarkdownProgressPart,
@@ -131,10 +135,6 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				false,
 				this.currentWidthDelegate
 			);
-		}
-
-		if (isToolResultOutputDetails(this.toolInvocation.resultDetails)) {
-			return this.instantiationService.createInstance(ChatToolOutputSubPart, this.toolInvocation, this.toolInvocation.resultDetails, this.context);
 		}
 
 		return this.instantiationService.createInstance(ChatToolProgressSubPart, this.toolInvocation, this.context, this.renderer);

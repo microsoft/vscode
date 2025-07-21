@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { encodeBase64 } from '../../../../../base/common/buffer.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IChatExtensionsContent, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, type IChatTerminalToolInvocationData2 } from '../chatService.js';
-import { IPreparedToolInvocation, IToolConfirmationMessages, IToolData, IToolProgressStep, IToolResult } from '../languageModelToolsService.js';
+import { IPreparedToolInvocation, isToolResultOutputDetails, IToolConfirmationMessages, IToolData, IToolProgressStep, IToolResult } from '../languageModelToolsService.js';
 
 export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly kind: 'toolInvocation' = 'toolInvocation';
@@ -82,18 +83,6 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		}
 
 		this._resultDetails = result?.toolResultDetails;
-
-		// Hack to convert data part over
-		const data = result?.content.find((part) => part.kind === 'data');
-		if (data) {
-			this._resultDetails = {
-				output: {
-					type: 'data',
-					mimeType: data.value.mimeType,
-					value: data.value.data,
-				}
-			};
-		}
 		this._isCompleteDeferred.complete();
 	}
 
@@ -118,7 +107,9 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			originMessage: this.originMessage,
 			isConfirmed: this._isConfirmed,
 			isComplete: this._isComplete,
-			resultDetails: this._resultDetails,
+			resultDetails: isToolResultOutputDetails(this._resultDetails)
+				? { type: 'data', mimeType: this._resultDetails.output.mimeType, base64Data: encodeBase64(this._resultDetails.output.value) }
+				: this._resultDetails,
 			toolSpecificData: this.toolSpecificData,
 			toolCallId: this.toolCallId,
 			toolId: this.toolId,
