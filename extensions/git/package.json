@@ -1049,13 +1049,11 @@
         },
         {
           "command": "git.openWorktree",
-          "group": "navigation@3",
-          "when": "scmProvider == git && gitOpenRepositoryCount > 1"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount > 1"
         },
         {
           "command": "git.openWorktreeInNewWindow",
-          "group": "navigation@4",
-          "when": "scmProvider == git && gitOpenRepositoryCount > 1"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount > 1"
         },
         {
           "command": "git.refresh",
@@ -1688,6 +1686,16 @@
         {
           "command": "git.closeOtherRepositories",
           "group": "navigation@2",
+          "when": "scmProvider == git && gitOpenRepositoryCount > 1"
+        },
+        {
+          "command": "git.openWorktree",
+          "group": "worktree@1",
+          "when": "scmProvider == git && gitOpenRepositoryCount > 1"
+        },
+        {
+          "command": "git.openWorktreeInNewWindow",
+          "group": "worktree@2",
           "when": "scmProvider == git && gitOpenRepositoryCount > 1"
         }
       ],
@@ -2597,6 +2605,16 @@
         }
       ],
       "git.worktrees": [
+        {
+          "when": "scmProviderContext == worktree",
+          "command": "git.openWorktree",
+          "group": "openWorktrees@1"
+        },
+        {
+          "when": "scmProviderContext == worktree",
+          "command": "git.openWorktreeInNewWindow",
+          "group": "openWorktrees@2"
+        },
         {
           "when": "scmProviderContext == repository",
           "command": "git.createWorktree",
