@@ -57,16 +57,16 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		const taskDefinition = await getTaskDefinition(args.id);
 		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._tasksService);
 		if (!task) {
-			return { invocationMessage: new MarkdownString(`Task not found: \`${args.id}\``) };
+			return { invocationMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
 		}
 		const activeTasks = await this._tasksService.getActiveTasks();
 		if (activeTasks.includes(task)) {
-			return { invocationMessage: new MarkdownString(`The task \`${taskDefinition.taskLabel}\` is already running.`) };
+			return { invocationMessage: new MarkdownString(localize('copilotChat.taskAlreadyRunning', 'The task `{0}` is already running.', taskDefinition.taskLabel)) };
 		}
 
 		return {
-			invocationMessage: new MarkdownString(`Checking terminal output for \`${taskDefinition.taskLabel}\``),
-			pastTenseMessage: new MarkdownString(`Checked terminal output for \`${taskDefinition.taskLabel}\``),
+			invocationMessage: new MarkdownString(localize('copilotChat.checkingTerminalOutput', 'Checking terminal output for `{0}`', taskDefinition.taskLabel)),
+			pastTenseMessage: new MarkdownString(localize('copilotChat.checkedTerminalOutput', 'Checked terminal output for `{0}`', taskDefinition.taskLabel)),
 		};
 	}
 
@@ -75,18 +75,18 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		const taskDefinition = await getTaskDefinition(args.id);
 		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._tasksService);
 		if (!task) {
-			return { content: [], toolResultMessage: new MarkdownString(`Task not found: \`${args.id}\``) };
+			return { content: [], toolResultMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
 		}
 
 		const resource = this._tasksService.getTerminalForTask(task);
 		const terminal = this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme);
 		if (!terminal) {
-			return { content: [], toolResultMessage: new MarkdownString(`Terminal not found for task \`${taskDefinition?.taskLabel}\``) };
+			return { content: [], toolResultMessage: new MarkdownString(localize('copilotChat.terminalNotFound', 'Terminal not found for task `{0}`', taskDefinition?.taskLabel)) };
 		}
 		return {
 			content: [{
 				kind: 'text',
-				value: `Output of task \`${taskDefinition.taskLabel}\`:\n${getOutput(terminal)}`
+				value: localize('copilotChat.taskOutput', 'Output of task `{0}`:\n{1}', taskDefinition.taskLabel, getOutput(terminal))
 			}]
 		};
 	}
