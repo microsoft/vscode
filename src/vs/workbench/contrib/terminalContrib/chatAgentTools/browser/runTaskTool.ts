@@ -66,8 +66,8 @@ export class RunTaskTool implements IToolImpl {
 		const raceResult = await Promise.race([this._tasksService.run(task), timeout(3000)]);
 		const result: ITaskSummary | undefined = raceResult && typeof raceResult === 'object' ? raceResult as ITaskSummary : undefined;
 
-		const sessionId = this._tasksService.getTerminalSessionIdForTask(task);
-		const terminal = this._terminalService.instances.find(t => t.sessionId === sessionId);
+		const resource = this._tasksService.getTerminalForTask(task);
+		const terminal = this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme);
 		if (!terminal) {
 			return { content: [], toolResultMessage: `Task started but no terminal found for task ${taskDefinition.taskLabel}` };
 		}
