@@ -10,6 +10,8 @@
 	"command.reopenClosedRepositories": "Reopen Closed Repositories...",
 	"command.close": "Close Repository",
 	"command.closeOtherRepositories": "Close Other Repositories",
+	"command.openWorktree": "Open Worktree in Current Window",
+	"command.openWorktreeInNewWindow": "Open Worktree in New Window",
 	"command.refresh": "Refresh",
 	"command.openChange": "Open Changes",
 	"command.openAllChanges": "Open All Changes",
