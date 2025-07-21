@@ -56,5 +56,5 @@ export async function getTaskForTool(id: string, taskDefinition: { taskLabel?: s
 	if (task) {
 		return taskService.tryResolveTask(task);
 	}
-	return;
+	return undefined;
 }
