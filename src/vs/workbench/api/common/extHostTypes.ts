@@ -4588,11 +4588,11 @@ export class ChatResponseMarkdownWithVulnerabilitiesPart {
 
 export class ChatResponseConfirmationPart {
 	title: string;
-	message: string;
+	message: string | vscode.MarkdownString;
 	data: any;
 	buttons?: string[];
 
-	constructor(title: string, message: string, data: any, buttons?: string[]) {
+	constructor(title: string, message: string | vscode.MarkdownString, data: any, buttons?: string[]) {
 		this.title = title;
 		this.message = message;
 		this.data = data;
