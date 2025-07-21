@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { ConfiguringTask, Task } from '../../../../tasks/common/tasks.js';
 import { ITaskService } from '../../../../tasks/common/taskService.js';
 
@@ -39,8 +40,8 @@ export function getTaskRepresentation(task: Task): string {
 export async function getTaskForTool(id: string, taskDefinition: { taskLabel?: string; taskType?: string }, workspaceFolder: string, taskService: ITaskService): Promise<Task | undefined> {
 	let index = 0;
 	let task;
-	const wTasks: IStringDictionary<ConfiguringTask> | undefined = (await taskService.getWorkspaceTasks())?.get('file://' + workspaceFolder)?.configurations?.byIdentifier;
-	for (const workspaceTask of Object.values(wTasks ?? {})) {
+	const workspaceTasks: IStringDictionary<ConfiguringTask> | undefined = (await taskService.getWorkspaceTasks())?.get(URI.file(workspaceFolder).toString())?.configurations?.byIdentifier;
+	for (const workspaceTask of Object.values(workspaceTasks ?? {})) {
 		if ((!workspaceTask.type || workspaceTask.type === taskDefinition?.taskType) &&
 			((workspaceTask._label === taskDefinition?.taskLabel)
 				|| (id === workspaceTask._label))) {
