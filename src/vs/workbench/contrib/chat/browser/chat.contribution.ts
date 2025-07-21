@@ -262,7 +262,7 @@ configurationRegistry.registerConfiguration({
 			default: 'inline',
 			tags: ['experimental'],
 			experiment: {
-				autoRefetch: false
+				allowAutoUpdate: false
 			}
 		},
 		'chat.emptyChatState.enabled': {
@@ -271,7 +271,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.emptyChatState', "Shows a modified empty chat state with hints in the input placeholder text."),
 			tags: ['experimental'],
 			experiment: {
-				autoRefetch: false
+				allowAutoUpdate: false
 			}
 		},
 		'chat.checkpoints.enabled': {
@@ -328,7 +328,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.edits2Enabled', "Enable the new Edits mode that is based on tool-calling. When this is enabled, models that don't support tool-calling are unavailable for Edits mode."),
 			default: true,
 			experiment: {
-				autoRefetch: false
+				allowAutoUpdate: false
 			}
 		},
 		[ChatConfiguration.ExtensionToolsEnabled]: {
@@ -346,7 +346,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agent.enabled.description', "Enable agent mode for {0}. When this is enabled, agent mode can be activated via the dropdown in the view.", 'Copilot Chat'),
 			default: true,
 			experiment: {
-				autoRefetch: false
+				allowAutoUpdate: false
 			},
 			policy: {
 				name: 'ChatAgentMode',
@@ -511,7 +511,7 @@ configurationRegistry.registerConfiguration({
 			default: 'default',
 			tags: ['experimental'],
 			experiment: {
-				autoRefetch: false
+				allowAutoUpdate: false
 			}
 		}
 	}

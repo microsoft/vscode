@@ -273,7 +273,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 				}
 				if (propertyConfiguration.tags?.some(tag => tag.toLowerCase() === 'onexp')) {
 					propertyConfiguration.experiment = {
-						autoRefetch: false
+						allowAutoUpdate: false
 					};
 				}
 				seenProperties.add(key);
