@@ -46,8 +46,16 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 				throw new CancellationError();
 			}
 
+			// Record where the command started. If the marker gets disposed, re-created it where
+			// the cursor is. This can happen in prompts where they clear the line and rerender it
+			// like powerlevel10k's transient prompt
+			let startMarker = store.add(xterm.raw.registerMarker());
+			store.add(startMarker.onDispose(() => {
+				this._logService.debug(`RunInTerminalTool#Rich: Start marker was disposed, recreating`);
+				startMarker = xterm.raw.registerMarker();
+			}));
+
 			// Execute the command
-			const startMarker = store.add(xterm.raw.registerMarker());
 			this._logService.debug(`RunInTerminalTool#None: Executing command line \`${commandLine}\``);
 			this._instance.runCommand(commandLine, true);
 
@@ -60,8 +68,16 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 			const endMarker = store.add(xterm.raw.registerMarker());
 
 			// Assemble final result - exit code is not available without shell integration
+			let result: string;
+			try {
+				result = xterm.getContentsAsText(startMarker, endMarker);
+				this._logService.debug('RunInTerminalTool#None: Fetched output via markers');
+			} catch {
+				this._logService.debug('RunInTerminalTool#None: Failed to fetch output via markers');
+				result = 'Failed to retrieve command output';
+			}
 			return {
-				result: xterm.getContentsAsText(startMarker, endMarker),
+				result,
 				exitCode: undefined,
 			};
 		} finally {
