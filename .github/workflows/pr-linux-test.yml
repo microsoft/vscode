@@ -64,6 +64,23 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit == 'true'
         run: tar -xzf .build/node_modules_cache/cache.tgz
 
+      - name: Install build dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        working-directory: build
+        run: |
+          set -e
+
+          for i in {1..5}; do # try 5 times
+            npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "Npm install failed too many times" >&2
+              exit 1
+            fi
+            echo "Npm install failed $i, trying again..."
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: |
