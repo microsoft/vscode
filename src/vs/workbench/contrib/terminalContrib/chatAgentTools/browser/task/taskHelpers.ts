@@ -37,15 +37,16 @@ export function getTaskRepresentation(task: Task): string {
 }
 
 export async function getTaskForTool(id: string, taskDefinition: { taskLabel?: string; taskType?: string }, workspaceFolder: string, taskService: ITaskService): Promise<Task | undefined> {
-	// TODO: fix hack with file://
 	let index = 0;
 	let task;
 	const wTasks: IStringDictionary<ConfiguringTask> | undefined = (await taskService.getWorkspaceTasks())?.get('file://' + workspaceFolder)?.configurations?.byIdentifier;
 	for (const workspaceTask of Object.values(wTasks ?? {})) {
-		if ((!workspaceTask.type || workspaceTask.type === taskDefinition?.taskType) && workspaceTask._label === taskDefinition?.taskLabel) {
+		if ((!workspaceTask.type || workspaceTask.type === taskDefinition?.taskType) &&
+			((workspaceTask._label === taskDefinition?.taskLabel)
+				|| (id === workspaceTask._label))) {
 			task = workspaceTask;
 			break;
-		} else if (id === workspaceTask.type + ': ' + index) {
+		} else if (id === `${workspaceTask.type}: ${index}`) {
 			task = workspaceTask;
 			break;
 		}
