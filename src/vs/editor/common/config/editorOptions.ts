@@ -4468,14 +4468,20 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				'editor.inlineSuggest.experimental.suppressInlineSuggestions': {
 					type: 'string',
 					default: defaults.experimental.suppressInlineSuggestions,
-					tags: ['experimental', 'onExp'],
-					description: nls.localize('inlineSuggest.suppressInlineSuggestions', "Suppresses inline completions for specified extension IDs -- comma separated.")
+					tags: ['experimental'],
+					description: nls.localize('inlineSuggest.suppressInlineSuggestions', "Suppresses inline completions for specified extension IDs -- comma separated."),
+					experiment: {
+						autoRefetch: false
+					}
 				},
 				'editor.inlineSuggest.experimental.triggerCommandOnProviderChange': {
 					type: 'boolean',
 					default: defaults.experimental.triggerCommandOnProviderChange,
-					tags: ['experimental', 'onExp'],
-					description: nls.localize('inlineSuggest.triggerCommandOnProviderChange', "Controls whether to trigger a command when the inline suggestion provider changes.")
+					tags: ['experimental'],
+					description: nls.localize('inlineSuggest.triggerCommandOnProviderChange', "Controls whether to trigger a command when the inline suggestion provider changes."),
+					experiment: {
+						autoRefetch: false
+					}
 				},
 				'editor.inlineSuggest.fontFamily': {
 					type: 'string',
@@ -6328,7 +6334,9 @@ export const EditorOptions = {
 		10, 0, Constants.MAX_SAFE_SMALL_INTEGER,
 		{
 			description: nls.localize('quickSuggestionsDelay', "Controls the delay in milliseconds after which quick suggestions will show up."),
-			tags: ['onExP']
+			experiment: {
+				autoRefetch: false
+			}
 		}
 	)),
 	readOnly: register(new EditorBooleanOption(
