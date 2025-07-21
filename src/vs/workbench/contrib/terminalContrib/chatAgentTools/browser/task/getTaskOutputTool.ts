@@ -72,7 +72,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const args = invocation.parameters as IGetTaskOutputInputParams;
-		const taskDefinition = await getTaskDefinition(args.id);
+		const taskDefinition = getTaskDefinition(args.id);
 		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._tasksService);
 		if (!task) {
 			return { content: [], toolResultMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
