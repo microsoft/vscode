@@ -55,11 +55,11 @@ export class RunTaskTool implements IToolImpl {
 			return (!t.type || t.type === taskDefinition?.taskType) && t._label === taskDefinition?.taskLabel;
 		});
 		if (!taskDefinition || !task) {
-			return { content: [], toolResultMessage: `Task not found: ${args.id}` };
+			return { content: [], toolResultMessage: `Task not found: \`${args.id}\`` };
 		}
 		const activeTasks = await this._tasksService.getActiveTasks();
 		if (activeTasks.includes(task)) {
-			return { content: [], toolResultMessage: `The task is already running.` };
+			return { content: [], toolResultMessage: `The task \`${taskDefinition.taskLabel}\` is already running.` };
 		}
 
 		const raceResult = await Promise.race([this._tasksService.run(task), timeout(3000)]);
@@ -68,16 +68,16 @@ export class RunTaskTool implements IToolImpl {
 		const resource = this._tasksService.getTerminalForTask(task);
 		const terminal = this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme);
 		if (!terminal) {
-			return { content: [], toolResultMessage: `Task started but no terminal was found for: ${taskDefinition.taskLabel}` };
+			return { content: [], toolResultMessage: `Task started but no terminal was found for: \`${taskDefinition.taskLabel}\`` };
 		}
 
-		_progress.report({ message: `Checking output for ${taskDefinition.taskLabel}` });
+		_progress.report({ message: `Checking output for \`${taskDefinition.taskLabel}\`` });
 
 		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, false, token, this._languageModelsService);
 		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 			const extendPolling = await promptForMorePolling(taskDefinition.taskLabel, invocation.context, this._chatService);
 			if (extendPolling) {
-				_progress.report({ message: `Checking output for ${taskDefinition.taskLabel}` });
+				_progress.report({ message: `Checking output for \`${taskDefinition.taskLabel}\`` });
 				outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService);
 			}
 		}
@@ -86,9 +86,9 @@ export class RunTaskTool implements IToolImpl {
 			output = `Task failed with exit code.`;
 		} else {
 			if (outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-				output += ` Task finished`;
+				output += `Task finished`;
 			} else {
-				output += ` Task started and will continue to run in the background.`;
+				output += `Task started and will continue to run in the background.`;
 			}
 		}
 		this._telemetryService.publicLog2?.<RunTaskToolEvent, RunTaskToolClassification>('copilotChat.runTaskTool.run', {
