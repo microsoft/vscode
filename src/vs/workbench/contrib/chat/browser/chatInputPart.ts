@@ -473,8 +473,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private initSelectedModel() {
-		const persistedSelection = this.storageService.get(this.getSelectedModelStorageKey(), StorageScope.APPLICATION);
-		const persistedAsDefault = this.storageService.getBoolean(this.getSelectedModelIsDefaultStorageKey(), StorageScope.APPLICATION, persistedSelection === 'github.copilot-chat/gpt-4o');
+		let persistedSelection = this.storageService.get(this.getSelectedModelStorageKey(), StorageScope.APPLICATION);
+		if (persistedSelection && persistedSelection.startsWith('github.copilot-chat/')) {
+			// Convert the persisted selection to make it backwards comptabile with the old LM API. TODO @lramos15 - Remove this after a bit
+			persistedSelection = persistedSelection.replace('github.copilot-chat/', 'copilot/');
+			this.storageService.store(this.getSelectedModelStorageKey(), persistedSelection, StorageScope.APPLICATION, StorageTarget.USER);
+		}
+		const persistedAsDefault = this.storageService.getBoolean(this.getSelectedModelIsDefaultStorageKey(), StorageScope.APPLICATION, persistedSelection === 'copilot/gpt-4.1');
 
 		if (persistedSelection) {
 			const model = this.languageModelsService.lookupLanguageModel(persistedSelection);
