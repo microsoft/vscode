@@ -49,6 +49,14 @@ interface IStoredTerminalAssociation {
 	isBackground?: boolean;
 }
 
+const enum PollingConsts {
+	MinNoDataEvents = 2, // Minimum number of no data checks before considering the terminal idle
+	MinPollingDuration = 500,
+	FirstPollingMaxDuration = 20000, // 20 seconds
+	ExtendedPollingMaxDuration = 120000, // 2 minutes
+	MaxPollingIntervalDuration = 2000, // 2 seconds
+}
+
 export const RunInTerminalToolData: IToolData = {
 	id: 'run_in_terminal',
 	toolReferenceName: 'runInTerminal',
@@ -459,15 +467,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		extendedPolling: boolean,
 		token: CancellationToken
 	): Promise<{ idle: boolean; output: string; pollDurationMs?: number }> {
-		const maxWaitMs = extendedPolling ? 120000 : 20000;
-		const maxInterval = 2000;
-		let currentInterval = 500;
+		const maxWaitMs = extendedPolling ? PollingConsts.ExtendedPollingMaxDuration : PollingConsts.FirstPollingMaxDuration;
+		const maxInterval = PollingConsts.MaxPollingIntervalDuration;
+		let currentInterval = PollingConsts.MinPollingDuration;
 		const pollStartTime = Date.now();
 
 		let lastBufferLength = 0;
 		let noNewDataCount = 0;
 		let buffer = '';
-		let isLikelyFinished = false;
+		let idle = false;
 
 		while (true) {
 			if (token.isCancellationRequested) {
@@ -501,12 +509,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				noNewDataCount = 0;
 				lastBufferLength = currentBufferLength;
 			}
-			isLikelyFinished = await this._assessOutputForFinishedState(buffer, token);
-			if (isLikelyFinished && noNewDataCount >= 2) {
-				return { idle: true, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? 20000 : 0) };
+			const isLikelyFinished = await this._assessOutputForFinishedState(buffer, token);
+			idle = isLikelyFinished && noNewDataCount >= PollingConsts.MinNoDataEvents;
+			if (idle) {
+				return { idle, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 			}
 		}
-		return { idle: noNewDataCount >= 2 && isLikelyFinished, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? 20000 : 0) };
+		return { idle, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 	}
 
 	private async _promptForMorePolling(command: string, execution: BackgroundTerminalExecution, token: CancellationToken, context: IToolInvocationContext): Promise<boolean> {
