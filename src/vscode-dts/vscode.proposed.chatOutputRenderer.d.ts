@@ -49,9 +49,18 @@ declare module 'vscode' {
 		/**
 		 * Registers a new renderer for a given mime type.
 		 *
-		 * Note: make sure to use the `onChatOutputRenderer:mime` activation event in your extension's `package.json` to ensure that the renderer is registered.
+		 * Note: To use this API, you should also add a contribution point in your extension's
+		 * package.json:
 		 *
-		 * TODO:should this be a contribution instead?
+		 * ```json
+		 * "contributes": {
+		 *   "chatOutputRenderer": [
+		 *     {
+		 *       "mimeTypes": ["application/your-mime-type"]
+		 *     }
+		 *   ]
+		 * }
+		 * ```
 		 *
 		 * @param mime The MIME type of the output that this renderer can handle.
 		 * @param renderer The renderer to register.

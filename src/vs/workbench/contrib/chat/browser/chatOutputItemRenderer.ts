@@ -13,7 +13,6 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import * as nls from '../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWebview, IWebviewService, WebviewContentPurpose } from '../../../contrib/webview/browser/webview.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
@@ -52,17 +51,14 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 	}>();
 
 	constructor(
-		@ILogService private readonly _logService: ILogService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 	) {
 		super();
-		this._logService.debug('ChatOutputItemRendererService: Created');
 	}
 
 	registerRenderer(mime: string, renderer: IChatOutputItemRenderer, options: RegisterOptions): IDisposable {
 		this._renderers.set(mime, { renderer, options });
-		this._logService.debug(`ChatOutputItemRendererService: Registered renderer for MIME type ${mime}`);
 		return {
 			dispose: () => {
 				this._renderers.delete(mime);
@@ -120,6 +116,13 @@ interface IChatOutputRendererContribution {
 
 ExtensionsRegistry.registerExtensionPoint<IChatOutputRendererContribution[]>({
 	extensionPoint: 'chatOutputRenderer',
+	activationEventsGenerator: (contributions: IChatOutputRendererContribution[], result) => {
+		for (const contrib of contributions) {
+			for (const mime of contrib.mimeTypes) {
+				result.push(`onChatOutputRenderer:${mime}`);
+			}
+		}
+	},
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.chatOutputRenderer', 'Contributes a renderer for specific MIME types in chat outputs'),
 		type: 'array',
@@ -139,5 +142,3 @@ ExtensionsRegistry.registerExtensionPoint<IChatOutputRendererContribution[]>({
 		}
 	}
 });
-
-
