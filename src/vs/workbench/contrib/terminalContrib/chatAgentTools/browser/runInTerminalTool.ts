@@ -465,8 +465,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const pollStartTime = Date.now();
 
 		let lastBufferLength = 0;
-		let idleCount = 0;
+		let noNewDataCount = 0;
 		let buffer = '';
+		let isLikelyFinished = false;
 
 		while (true) {
 			if (token.isCancellationRequested) {
@@ -495,17 +496,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const currentBufferLength = buffer.length;
 
 			if (currentBufferLength === lastBufferLength) {
-				idleCount++;
+				noNewDataCount++;
 			} else {
-				idleCount = 0;
+				noNewDataCount = 0;
 				lastBufferLength = currentBufferLength;
 			}
-			const isLikelyFinished = await this._assessOutputForFinishedState(buffer, token);
-			if (isLikelyFinished && idleCount >= 2) {
+			isLikelyFinished = await this._assessOutputForFinishedState(buffer, token);
+			if (isLikelyFinished && noNewDataCount >= 2) {
 				return { idle: true, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? 20000 : 0) };
 			}
 		}
-		return { idle: idleCount >= 2, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? 20000 : 0) };
+		return { idle: noNewDataCount >= 2 && isLikelyFinished, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? 20000 : 0) };
 	}
 
 	private async _promptForMorePolling(command: string, execution: BackgroundTerminalExecution, token: CancellationToken, context: IToolInvocationContext): Promise<boolean> {
