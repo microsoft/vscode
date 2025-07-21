@@ -340,6 +340,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	async showForTurn(resources: { originalUri: URI | undefined; modifiedUri: URI | undefined; goToFileUri: URI | undefined }[]): Promise<void> {
+		console.log('resources : ', resources);
 		const multiDiffSource = URI.parse(`multi-diff-editor:${new Date().getMilliseconds().toString() + Math.random().toString()}`);
 		const input = this._instantiationService.createInstance(
 			MultiDiffEditorInput,
@@ -354,6 +355,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			}),
 			false
 		);
+		console.log('input : ', input);
 		this._editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE });
 	}
 

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from '../../../../../base/browser/dom.js';
 import { $ } from '../../../../../base/browser/dom.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -130,6 +131,13 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 
 		this.registerCollapseButtonListeners(collapseButton);
 		this.registerListListeners(list);
+		this.registerContextMenuListener(innerDomNode);
+	}
+
+	private registerContextMenuListener(domNode: HTMLElement): void {
+		this._register(dom.addDisposableListener(domNode, dom.EventType.CONTEXT_MENU, domEvent => {
+			dom.EventHelper.stop(domEvent, true);
+		}));
 	}
 
 	private getChatCollapsibleItems(changes: readonly IChatChangesSummary[]): IChatCollapsibleListItem[] {
@@ -204,39 +212,52 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 	private registerListListeners(list: WorkbenchList<IChatCollapsibleListItem>): void {
 		this._register(list.onDidOpen((e) => {
 			if (e.element?.kind !== 'changesSummary') {
+				console.log('return 1');
 				return;
 			}
 			const sessionId = e.element.sessionId;
 			if (!sessionId) {
+				console.log('return 2');
 				return;
 			}
 			const session = this.chatService.getSession(sessionId);
 			if (!session || !session.editingSessionObs) {
+				console.log('return 3');
 				return;
 			}
 			const editSession = session.editingSessionObs.promiseResult.get()?.data;
 			if (!editSession) {
+				console.log('return 4');
 				return;
 			}
 			const uri = e.element.reference;
 			const modifiedEntry = editSession.getEntry(uri);
 			if (!modifiedEntry) {
+				console.log('return 5');
 				return;
 			}
 			const requestId = e.element.requestId;
 			if (!requestId) {
+				console.log('return 6');
 				return;
 			}
 			const inUndoStop = (findLast(this.context.content, e => e.kind === 'undoStop', this.context.contentIndex) as IChatUndoStop | undefined)?.id;
+			console.log('modifiedEntry.modifiedURI : ', modifiedEntry.modifiedURI);
+			console.log('requestId : ', requestId);
+			console.log('inUndoStop : ', inUndoStop);
 			const diffBetweenStops: IEditSessionEntryDiff | undefined = editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, requestId, inUndoStop)?.get();
 			if (!diffBetweenStops) {
+				console.log('return 7');
+				this.editorService.openEditor({ resource: uri });
 				return;
 			}
-			this.editorService.openEditor({
+			const input = {
 				original: { resource: diffBetweenStops.originalURI },
 				modified: { resource: diffBetweenStops.modifiedURI },
 				options: { transient: true },
-			});
+			};
+			console.log('input', input);
+			this.editorService.openEditor(input);
 		}));
 		this._register(list.onContextMenu(e => {
 			console.log('Context menu event:', e);

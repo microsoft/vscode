@@ -476,6 +476,9 @@ class ChatEditingMultiDiffSource implements IResolvedMultiDiffSource {
 		const entries = currentSession.entries.read(reader);
 		return entries.map((entry) => {
 			if (this._showPreviousChanges) {
+				console.log('_resources');
+				console.log('entry.modifiedURI : ', entry.modifiedURI);
+
 				const entryDiffObs = currentSession.getEntryDiffBetweenStops(entry.modifiedURI, undefined, undefined);
 				const entryDiff = entryDiffObs?.read(reader);
 				if (entryDiff) {

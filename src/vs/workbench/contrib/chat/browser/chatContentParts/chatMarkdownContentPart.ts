@@ -431,13 +431,17 @@ export class CollapsedCodeBlock extends Disposable {
 	}
 
 	private _showDiff(): void {
+		console.group('this._currentDiff : ', this._currentDiff);
 		if (this._currentDiff) {
+			console.log('original : ', this._currentDiff.originalURI);
+			console.log('modified : ', this._currentDiff.modifiedURI);
 			this.editorService.openEditor({
 				original: { resource: this._currentDiff.originalURI },
 				modified: { resource: this._currentDiff.modifiedURI },
 				options: { transient: true },
 			});
 		} else if (this.uri) {
+			console.log('this.uri : ', this.uri);
 			this.editorService.openEditor({ resource: this.uri });
 		}
 	}
@@ -518,6 +522,10 @@ export class CollapsedCodeBlock extends Disposable {
 			}
 
 			if (!diffBetweenStops) {
+				console.log('render');
+				console.log('modifiedEntry.modifiedURI : ', modifiedEntry?.modifiedURI);
+				console.log('this.requestId : ', this.requestId);
+				console.log('this.inUndoStop : ', this.inUndoStop);
 				diffBetweenStops = modifiedEntry && editSession
 					? editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, this.requestId, this.inUndoStop)
 					: undefined;
