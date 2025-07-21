@@ -673,8 +673,13 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 				}
 
 				if (property.experiment) {
-					property.tags = property.tags ?? [];
-					property.tags.push('onExP');
+					if (!property.tags?.some(tag => tag.toLowerCase() === 'onexp')) {
+						property.tags = property.tags ?? [];
+						property.tags.push('onExP');
+					}
+				} else if (property.tags?.some(tag => tag.toLowerCase() === 'onexp')) {
+					console.error(`Invalid tag 'onExP' found for property '${key}'. Please use 'experiment' property instead.`);
+					property.experiment = { allowAutoUpdate: false };
 				}
 
 				const excluded = properties[key].hasOwnProperty('included') && !properties[key].included;
