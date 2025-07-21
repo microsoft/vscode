@@ -75,6 +75,10 @@ function registerTestOutputRenderer() {
 		async renderChatOutput(data, webview, _token) {
 			const decodedData = new TextDecoder().decode(data);
 
+			webview.options = {
+				enableScripts: true,
+			};
+
 			webview.html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -84,6 +88,15 @@ function registerTestOutputRenderer() {
 </head>
 <body>
 	${decodedData}
+
+	<script>
+		setInterval(() => {
+			const el = document.createElement('div');
+			el.textContent = 'This is a test output rendered by the test renderer.';
+			el.style.color = 'blue';
+			document.body.appendChild(el);
+		}, 2000);
+	</script>
 </body>
 </html>`;
 

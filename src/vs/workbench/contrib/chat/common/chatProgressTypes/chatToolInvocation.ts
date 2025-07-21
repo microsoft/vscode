@@ -108,7 +108,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			isConfirmed: this._isConfirmed,
 			isComplete: this._isComplete,
 			resultDetails: isToolResultOutputDetails(this._resultDetails)
-				? { type: 'data', mimeType: this._resultDetails.output.mimeType, base64Data: encodeBase64(this._resultDetails.output.value) }
+				? { output: { type: 'data', mimeType: this._resultDetails.output.mimeType, base64Data: encodeBase64(this._resultDetails.output.value) } }
 				: this._resultDetails,
 			toolSpecificData: this.toolSpecificData,
 			toolCallId: this.toolCallId,

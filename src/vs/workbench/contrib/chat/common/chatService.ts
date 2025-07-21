@@ -282,9 +282,11 @@ export interface IChatToolInvocation {
 }
 
 export interface IToolResultOutputDetailsSerialized {
-	type: 'data';
-	mimeType: string;
-	base64Data: string;
+	output: {
+		type: 'data';
+		mimeType: string;
+		base64Data: string;
+	};
 }
 
 /**

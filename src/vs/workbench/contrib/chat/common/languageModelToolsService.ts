@@ -157,7 +157,7 @@ export function isToolResultInputOutputDetails(obj: any): obj is IToolResultInpu
 }
 
 export function isToolResultOutputDetails(obj: any): obj is IToolResultOutputDetails {
-	return typeof obj === 'object' && typeof obj?.mimeType === 'string' && obj?.type === 'data';
+	return typeof obj === 'object' && typeof obj?.output === 'object' && typeof obj?.output?.mimeType === 'string' && obj?.output?.type === 'data';
 }
 
 export interface IToolResult {
