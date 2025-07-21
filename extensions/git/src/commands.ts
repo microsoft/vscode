@@ -3395,6 +3395,10 @@ export class CommandCenter {
 		dispose(disposables);
 		inputBox.dispose();
 
+		if (!worktreeName) {
+			return;
+		}
+
 		// Default to view parent directory of repository root
 		const defaultUri = Uri.file(path.dirname(repository.root));
 
