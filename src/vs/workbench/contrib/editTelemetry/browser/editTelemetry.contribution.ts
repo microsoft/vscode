@@ -37,7 +37,7 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['experimental'],
 			experiment: {
-				allowAutoUpdate: false
+				mode: 'startup'
 			}
 		},
 		[EDIT_TELEMETRY_SHOW_STATUS_BAR]: {

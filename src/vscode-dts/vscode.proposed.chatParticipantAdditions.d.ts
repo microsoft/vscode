@@ -66,10 +66,10 @@ declare module 'vscode' {
 
 	export class ChatResponseConfirmationPart {
 		title: string;
-		message: string;
+		message: string | MarkdownString;
 		data: any;
 		buttons?: string[];
-		constructor(title: string, message: string, data: any, buttons?: string[]);
+		constructor(title: string, message: string | MarkdownString, data: any, buttons?: string[]);
 	}
 
 	export class ChatResponseCodeCitationPart {
@@ -205,7 +205,7 @@ declare module 'vscode' {
 		 * TODO@API should this be MarkdownString?
 		 * TODO@API should actually be a more generic function that takes an array of buttons
 		 */
-		confirmation(title: string, message: string, data: any, buttons?: string[]): void;
+		confirmation(title: string, message: string | MarkdownString, data: any, buttons?: string[]): void;
 
 		/**
 		 * Push a warning to this stream. Short-hand for

@@ -4471,7 +4471,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					tags: ['experimental'],
 					description: nls.localize('inlineSuggest.suppressInlineSuggestions', "Suppresses inline completions for specified extension IDs -- comma separated."),
 					experiment: {
-						allowAutoUpdate: false
+						mode: 'startup'
 					}
 				},
 				'editor.inlineSuggest.experimental.triggerCommandOnProviderChange': {
@@ -4480,7 +4480,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					tags: ['experimental'],
 					description: nls.localize('inlineSuggest.triggerCommandOnProviderChange', "Controls whether to trigger a command when the inline suggestion provider changes."),
 					experiment: {
-						allowAutoUpdate: false
+						mode: 'startup'
 					}
 				},
 				'editor.inlineSuggest.fontFamily': {
@@ -6335,7 +6335,7 @@ export const EditorOptions = {
 		{
 			description: nls.localize('quickSuggestionsDelay', "Controls the delay in milliseconds after which quick suggestions will show up."),
 			experiment: {
-				allowAutoUpdate: false
+				mode: 'startup'
 			}
 		}
 	)),
