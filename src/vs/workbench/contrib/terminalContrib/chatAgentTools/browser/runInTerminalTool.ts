@@ -469,6 +469,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		let buffer = '';
 
 		while (true) {
+			if (token.isCancellationRequested) {
+				break;
+			}
 			const now = Date.now();
 			const elapsed = now - pollStartTime;
 			const timeLeft = maxWaitMs - elapsed;
