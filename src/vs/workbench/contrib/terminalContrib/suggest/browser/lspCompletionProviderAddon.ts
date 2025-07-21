@@ -13,6 +13,7 @@ import { Position } from '../../../../../editor/common/core/position.js';
 import { CompletionItemLabel, CompletionItemProvider, CompletionTriggerKind } from '../../../../../editor/common/languages.js';
 import { LspTerminalModelContentProvider } from './lspTerminalModelContentProvider.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 
 export class LspCompletionProviderAddon extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
 	readonly id = 'lsp';
@@ -21,17 +22,20 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 	private _provider: CompletionItemProvider;
 	private _textVirtualModel: IReference<IResolvedTextEditorModel>;
 	private _lspTerminalModelContentProvider: LspTerminalModelContentProvider;
+	private _logService: ITerminalLogService;
 
 	constructor(
 		provider: CompletionItemProvider,
 		textVirtualModel: IReference<IResolvedTextEditorModel>,
 		lspTerminalModelContentProvider: LspTerminalModelContentProvider,
+		@ITerminalLogService logService: ITerminalLogService,
 	) {
 		super();
 		this._provider = provider;
 		this._textVirtualModel = textVirtualModel;
 		this._lspTerminalModelContentProvider = lspTerminalModelContentProvider;
 		this.triggerCharacters = provider.triggerCharacters ? [...provider.triggerCharacters, ' '] : [' '];
+		this._logService = logService;
 	}
 
 	activate(terminal: Terminal): void {
@@ -51,13 +55,10 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		const lineNum = this._textVirtualModel.object.textEditorModel.getLineCount();
 		const positionVirtualDocument = new Position(lineNum, column);
 
-		// TODO: Scan back to start of nearest word like other providers? Is this needed for `ILanguageFeaturesService`?
 		const completions: ITerminalCompletion[] = [];
 		if (this._provider && this._provider._debugDisplayName !== 'wordbasedCompletions') {
 
 			const result = await this._provider.provideCompletionItems(this._textVirtualModel.object.textEditorModel, positionVirtualDocument, { triggerKind: CompletionTriggerKind.TriggerCharacter }, token);
-
-			// Process and resolve completions
 			const completionPromises = (result?.suggestions || []).map(async (item: any) => {
 				let resolvedItem = item;
 
@@ -69,8 +70,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 							resolvedItem = resolved;
 						}
 					} catch (error) {
-						console.error('Failed to resolve completion item:', error);
-						// Fall back to the original item if resolution fails
+						this._logService.warn(`Failed to resolve completion item from lsp provider ${this._provider._debugDisplayName}`, error);
 					}
 				}
 
@@ -89,7 +89,6 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 				};
 			});
 
-			// Wait for all completions to be resolved
 			const resolvedCompletions = await Promise.all(completionPromises);
 			completions.push(...resolvedCompletions);
 		}

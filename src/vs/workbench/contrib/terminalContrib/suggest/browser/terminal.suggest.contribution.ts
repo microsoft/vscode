@@ -190,6 +190,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		this.add(textVirtualModel);
 
 		const virtualProviders = this._languageFeaturesService.completionProvider.all(textVirtualModel.object.textEditorModel);
+		// TODO: Remove hard-coded filter for Python REPL.
 		const provider = virtualProviders.find(p => p._debugDisplayName === PYLANCE_DEBUG_DISPLAY_NAME || p._debugDisplayName === `ms-python.vscode-pylance(.["')`);
 
 		if (provider) {
