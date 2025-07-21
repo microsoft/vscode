@@ -1,30 +1,30 @@
 {
-	"nameShort": "Code - OSS",
-	"nameLong": "Code - OSS",
-	"applicationName": "code-oss",
-	"dataFolderName": ".vscode-oss",
-	"win32MutexName": "vscodeoss",
+	"nameShort": "CodeHustler",
+	"nameLong": "CodeHustler",
+	"applicationName": "codehustler",
+	"dataFolderName": ".codehustler",
+	"win32MutexName": "codehustler",
 	"licenseName": "MIT",
 	"licenseUrl": "https://github.com/microsoft/vscode/blob/main/LICENSE.txt",
 	"serverLicenseUrl": "https://github.com/microsoft/vscode/blob/main/LICENSE.txt",
 	"serverGreeting": [],
 	"serverLicense": [],
 	"serverLicensePrompt": "",
-	"serverApplicationName": "code-server-oss",
-	"serverDataFolderName": ".vscode-server-oss",
-	"tunnelApplicationName": "code-tunnel-oss",
-	"win32DirName": "Microsoft Code OSS",
-	"win32NameVersion": "Microsoft Code OSS",
-	"win32RegValueName": "CodeOSS",
+	"serverApplicationName": "codehustler-server",
+	"serverDataFolderName": ".codehustler-server",
+	"tunnelApplicationName": "codehustler-tunnel",
+	"win32DirName": "CodeHustler",
+	"win32NameVersion": "CodeHustler",
+	"win32RegValueName": "CodeHustler",
 	"win32x64AppId": "{{D77B7E06-80BA-4137-BCF4-654B95CCEBC5}",
 	"win32arm64AppId": "{{D1ACE434-89C5-48D1-88D3-E2991DF85475}",
 	"win32x64UserAppId": "{{CC6B787D-37A0-49E8-AE24-8559A032BE0C}",
 	"win32arm64UserAppId": "{{3AEBF0C8-F733-4AD4-BADE-FDB816D53D7B}",
-	"win32AppUserModelId": "Microsoft.CodeOSS",
-	"win32ShellNameShort": "C&ode - OSS",
-	"win32TunnelServiceMutex": "vscodeoss-tunnelservice",
-	"win32TunnelMutex": "vscodeoss-tunnel",
-	"darwinBundleIdentifier": "com.visualstudio.code.oss",
+	"win32AppUserModelId": "CodeHustler.CodeHustler",
+	"win32ShellNameShort": "C&odeHustler",
+	"win32TunnelServiceMutex": "codehustler-tunnelservice",
+	"win32TunnelMutex": "codehustler-tunnel",
+	"darwinBundleIdentifier": "com.codehustler.codehustler",
 	"darwinProfileUUID": "47827DD9-4734-49A0-AF80-7E19B11495CC",
 	"darwinProfilePayloadUUID": "CF808BE7-53F3-46C6-A7E2-7EDB98A5E959",
 	"linuxIconName": "code-oss",
@@ -80,6 +80,21 @@
 					"flags": "verified"
 				},
 				"publisherDisplayName": "Microsoft"
+			}
+		},
+		{
+			"name": "kilo-code",
+			"version": "4.60.0",
+			"repo": "https://github.com/Kilo-Org/kilocode",
+			"metadata": {
+				"id": "kilo-code-extension-id",
+				"publisherId": {
+					"publisherId": "kilocode-publisher-id",
+					"publisherName": "kilocode",
+					"displayName": "Kilo Code",
+					"flags": "verified"
+				},
+				"publisherDisplayName": "Kilo Code"
 			}
 		}
 	]

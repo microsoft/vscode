@@ -263,7 +263,7 @@
 				"--disable-features=CalculateNativeWinOcclusion",
 				"--disable-extension=vscode.vscode-api-tests"
 			],
-			"userDataDir": "${userHome}/.vscode-oss-dev",
+			"userDataDir": "${userHome}/.codehustler-dev",
 			"webRoot": "${workspaceFolder}",
 			"cascadeTerminateToConfigurations": [
 				"Attach to Extension Host"
@@ -307,7 +307,7 @@
 				"--disable-features=CalculateNativeWinOcclusion",
 				"--disable-extension=vscode.vscode-api-tests"
 			],
-			"userDataDir": "${userHome}/.vscode-oss-dev",
+			"userDataDir": "${userHome}/.codehustler-dev",
 			"webRoot": "${workspaceFolder}",
 			"cascadeTerminateToConfigurations": [
 				"Attach to Extension Host"
