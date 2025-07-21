@@ -60,8 +60,8 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		}
 
 		return {
-			invocationMessage: localize('bg.progressive', "Checking terminal output for {0}", taskDefinition.taskLabel),
-			pastTenseMessage: localize('bg.past', "Checked terminal output for {0}", taskDefinition.taskLabel),
+			invocationMessage: `Checking terminal output for \`${taskDefinition.taskLabel}\``,
+			pastTenseMessage: `Checked terminal output for \`${taskDefinition.taskLabel}\``,
 		};
 	}
 
@@ -72,17 +72,17 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 			return (!t.type || t.type === taskDefinition?.taskType) && t._label === taskDefinition?.taskLabel;
 		});
 		if (!taskDefinition || !task) {
-			return { content: [], toolResultMessage: `Task not found: ${taskDefinition?.taskLabel}` };
+			return { content: [], toolResultMessage: `Task not found: \`${taskDefinition?.taskLabel}\`` };
 		}
 		const resource = this._tasksService.getTerminalForTask(task);
 		const terminal = this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme);
 		if (!terminal) {
-			return { content: [], toolResultMessage: `Terminal not found for task ${taskDefinition?.taskLabel}` };
+			return { content: [], toolResultMessage: `Terminal not found for task \`${taskDefinition?.taskLabel}\`` };
 		}
 		return {
 			content: [{
 				kind: 'text',
-				value: `Output of task ${taskDefinition.taskLabel}:\n${getOutput(terminal)}`
+				value: `Output of task \`${taskDefinition.taskLabel}\`:\n${getOutput(terminal)}`
 			}]
 		};
 	}

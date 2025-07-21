@@ -71,21 +71,24 @@ export class RunTaskTool implements IToolImpl {
 			return { content: [], toolResultMessage: `Task started but no terminal was found for: ${taskDefinition.taskLabel}` };
 		}
 
+		_progress.report({ message: `Checking output for ${taskDefinition.taskLabel}` });
+
 		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, false, token, this._languageModelsService);
 		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 			const extendPolling = await promptForMorePolling(taskDefinition.taskLabel, invocation.context, this._chatService);
 			if (extendPolling) {
+				_progress.report({ message: `Checking output for ${taskDefinition.taskLabel}` });
 				outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService);
 			}
 		}
 		let output = '';
 		if (result?.exitCode) {
-			output = `Task finished with exit code ${result.exitCode}.`;
+			output = `Task failed with exit code.`;
 		} else {
 			if (outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-				output += ` Task finished with output: ${outputAndIdle.output}`;
+				output += ` Task finished`;
 			} else {
-				output += ` Task started and will continue to run in the background with current output: ${outputAndIdle.output}.`;
+				output += ` Task started and will continue to run in the background.`;
 			}
 		}
 		this._telemetryService.publicLog2?.<RunTaskToolEvent, RunTaskToolClassification>('copilotChat.runTaskTool.run', {
@@ -93,7 +96,7 @@ export class RunTaskTool implements IToolImpl {
 			bufferLength: outputAndIdle.output.length,
 			pollDurationMs: outputAndIdle?.pollDurationMs ?? 0,
 		});
-		return { content: [], toolResultMessage: output };
+		return { content: [{ kind: 'text', value: `The output was ${outputAndIdle.output}` }], toolResultMessage: output };
 	}
 
 
@@ -115,7 +118,7 @@ export class RunTaskTool implements IToolImpl {
 			}
 		}
 		if (!task || !taskDefinition) {
-			return { invocationMessage: `Task not found: ${args.id}` };
+			return { invocationMessage: `Task not found: \`${args.id}\`` };
 		}
 
 		const activeTasks = await this._tasksService.getActiveTasks();
@@ -124,7 +127,7 @@ export class RunTaskTool implements IToolImpl {
 		}
 
 		if (!task) {
-			return { invocationMessage: `Task not found: ${args.id}` };
+			return { invocationMessage: `Task not found: \`${args.id}\`` };
 		}
 
 		// const position = workspaceFolder && task && await this._tasksService.getTaskConfigPosition(workspaceFolder, task);
@@ -138,17 +141,17 @@ export class RunTaskTool implements IToolImpl {
 		if (await this._isTaskActive(task)) {
 			return {
 				// TODO: do these have to be localized?
-				invocationMessage: `${(taskDefinition.taskLabel ?? args.id)} is already running.`,
-				pastTenseMessage: `${(taskDefinition.taskLabel ?? args.id)} was already running.`,
+				invocationMessage: `\`${(taskDefinition.taskLabel ?? args.id)}\` is already running.`,
+				pastTenseMessage: `\`${(taskDefinition.taskLabel ?? args.id)}\` was already running.`,
 				confirmationMessages: undefined
 			};
 		}
 
 		return {
-			invocationMessage: `Running ${taskDefinition.taskLabel}`,
-			pastTenseMessage: task?.configurationProperties.isBackground ? `Started ${taskDefinition.taskLabel}` : `Ran ${taskDefinition.taskLabel}`,
+			invocationMessage: `Running \`${taskDefinition.taskLabel}\``,
+			pastTenseMessage: task?.configurationProperties.isBackground ? `Started \`${taskDefinition.taskLabel}\`` : `Ran \`${taskDefinition.taskLabel}\``,
 			confirmationMessages: task
-				? { title: `Allow task run?`, message: `Allow Copilot to run the task ${taskDefinition.taskLabel}?` }
+				? { title: `Allow task run?`, message: `Allow Copilot to run the task \`${taskDefinition.taskLabel}\`?` }
 				: undefined
 		};
 	}
