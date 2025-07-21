@@ -56,7 +56,7 @@
 
 /** Styles for each row in the list element **/
 .action-widget .monaco-list .monaco-list-row {
-	padding: 0 10px;
+	padding: 0 0 0 8px;
 	white-space: nowrap;
 	cursor: pointer;
 	touch-action: none;
@@ -79,6 +79,26 @@
 
 .action-widget .monaco-list-row.group-header:not(:first-of-type) {
 	margin-top: 2px;
+}
+
+.action-widget .monaco-list-row.separator {
+	border-top: 1px solid var(--vscode-editorHoverWidget-border);
+	color: var(--vscode-descriptionForeground) !important;
+	font-size: 12px;
+	padding: 0;
+	margin: 2px 0 0 0;
+	cursor: default !important;
+	-webkit-touch-callout: none;
+	-webkit-user-select: none;
+	user-select: none;
+	background-color: transparent !important;
+	outline: 0 solid !important;
+	border-radius: 0 !important;
+}
+
+.action-widget .monaco-list-row.separator:first-of-type {
+	border-top: none;
+	margin-top: 0;
 }
 
 .action-widget .monaco-list .group-header,
