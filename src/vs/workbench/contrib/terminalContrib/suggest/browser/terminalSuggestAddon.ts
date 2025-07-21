@@ -753,6 +753,21 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				}
 			}
 			));
+
+			this._register(this._suggestWidget.onDidFocus(async e => {
+				const focusedItem = e.item;
+
+				if (focusedItem && !focusedItem.completion.detail && !focusedItem.completion.documentation) {
+					await focusedItem.resolve(this._cancellationTokenSource?.token ?? CancellationToken.None);
+
+					// Question/blocked: rendering isnt updated at the moment we land on completion item when scrolling down
+					// It gets updated when until scrolling up and down again.
+
+					// this._suggestWidget?.forceRenderingAbove(); ---> Doesnt work
+
+				}
+			}));
+
 			const element = this._terminal?.element?.querySelector('.xterm-helper-textarea');
 			if (element) {
 				this._register(dom.addDisposableListener(dom.getActiveDocument(), 'click', (event) => {

@@ -13,7 +13,6 @@ import { Position } from '../../../../../editor/common/core/position.js';
 import { CompletionItemLabel, CompletionItemProvider, CompletionTriggerKind } from '../../../../../editor/common/languages.js';
 import { LspTerminalModelContentProvider } from './lspTerminalModelContentProvider.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 
 export class LspCompletionProviderAddon extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
 	readonly id = 'lsp';
@@ -27,7 +26,6 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		provider: CompletionItemProvider,
 		textVirtualModel: IReference<IResolvedTextEditorModel>,
 		lspTerminalModelContentProvider: LspTerminalModelContentProvider,
-		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 		super();
 		this._provider = provider;
@@ -57,39 +55,28 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		if (this._provider && this._provider._debugDisplayName !== 'wordbasedCompletions') {
 
 			const result = await this._provider.provideCompletionItems(this._textVirtualModel.object.textEditorModel, positionVirtualDocument, { triggerKind: CompletionTriggerKind.TriggerCharacter }, token);
-			const completionPromises = (result?.suggestions || []).map(async (item) => {
-				let resolvedItem = item;
-
-				// Only resolve if we're missing detail or documentation and the provider supports it
-				if (this._provider.resolveCompletionItem && (!item.detail || !item.documentation)) {
-					try {
-						const resolved = await this._provider.resolveCompletionItem(item, token);
-						if (resolved) {
-							resolvedItem = resolved;
-						}
-					} catch (error) {
-						this._logService.warn(`Failed to resolve completion item from lsp provider ${this._provider._debugDisplayName}`, error);
-					}
-				}
-
+			for (const item of (result?.suggestions || [])) {
 				// TODO: Support more terminalCompletionItemKind for [different LSP providers](https://github.com/microsoft/vscode/issues/249479)
-				const convertedKind = resolvedItem.kind ? mapLspKindToTerminalKind(resolvedItem.kind) : TerminalCompletionItemKind.Method;
+				const convertedKind = item.kind ? mapLspKindToTerminalKind(item.kind) : TerminalCompletionItemKind.Method;
 				const completionItemTemp = createCompletionItemPython(cursorPosition, textBeforeCursor, convertedKind, 'lspCompletionItem', undefined);
-
 				const terminalCompletion: ITerminalCompletion = {
-					label: resolvedItem.insertText || resolvedItem.label,
+					label: item.label,
 					provider: `lsp:${this._provider._debugDisplayName}`,
-					detail: resolvedItem.detail,
-					documentation: resolvedItem.documentation,
+					detail: item.detail,
+					documentation: item.documentation,
 					kind: convertedKind,
 					replacementIndex: completionItemTemp.replacementIndex,
 					replacementLength: completionItemTemp.replacementLength,
 				};
-				return terminalCompletion;
-			});
 
-			const resolvedCompletions = await Promise.all(completionPromises);
-			completions.push(...resolvedCompletions);
+				// Store unresolved item and provider for lazy resolution if needed
+				if (this._provider.resolveCompletionItem && (!item.detail || !item.documentation)) {
+					terminalCompletion._unresolvedItem = item;
+					terminalCompletion._resolveProvider = this._provider;
+				}
+
+				completions.push(terminalCompletion);
+			}
 		}
 
 		return completions;
