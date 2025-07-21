@@ -59,7 +59,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		if (this._provider && this._provider._debugDisplayName !== 'wordbasedCompletions') {
 
 			const result = await this._provider.provideCompletionItems(this._textVirtualModel.object.textEditorModel, positionVirtualDocument, { triggerKind: CompletionTriggerKind.TriggerCharacter }, token);
-			const completionPromises = (result?.suggestions || []).map(async (item: any) => {
+			const completionPromises = (result?.suggestions || []).map(async (item) => {
 				let resolvedItem = item;
 
 				// Only resolve if we're missing detail or documentation and the provider supports it
@@ -78,7 +78,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 				const convertedKind = resolvedItem.kind ? mapLspKindToTerminalKind(resolvedItem.kind) : TerminalCompletionItemKind.Method;
 				const completionItemTemp = createCompletionItemPython(cursorPosition, textBeforeCursor, convertedKind, 'lspCompletionItem', undefined);
 
-				return {
+				const terminalCompletion: ITerminalCompletion = {
 					label: resolvedItem.insertText || resolvedItem.label,
 					provider: `lsp:${this._provider._debugDisplayName}`,
 					detail: resolvedItem.detail,
@@ -87,6 +87,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 					replacementIndex: completionItemTemp.replacementIndex,
 					replacementLength: completionItemTemp.replacementLength,
 				};
+				return terminalCompletion;
 			});
 
 			const resolvedCompletions = await Promise.all(completionPromises);
