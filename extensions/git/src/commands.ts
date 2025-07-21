@@ -3481,6 +3481,18 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.openWorktree', { repository: true })
+	async openWorktreeInCurrentWindow(repository: Repository): Promise<void> {
+		const uri = Uri.file(repository.root);
+		await commands.executeCommand('vscode.openFolder', uri, { forceReuseWindow: true });
+	}
+
+	@command('git.openWorktreeInNewWindow', { repository: true })
+	async openWorktreeInNewWindow(repository: Repository): Promise<void> {
+		const uri = Uri.file(repository.root);
+		await commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
+	}
+
 
 	@command('git.graph.deleteTag', { repository: true })
 	async deleteTag2(repository: Repository, historyItem?: SourceControlHistoryItem, historyItemRefId?: string): Promise<void> {

@@ -118,6 +118,18 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.openWorktree",
+        "title": "%command.openWorktree%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.openWorktreeInNewWindow",
+        "title": "%command.openWorktreeInNewWindow%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.refresh",
         "title": "%command.refresh%",
         "category": "Git",
@@ -1034,6 +1046,16 @@
         {
           "command": "git.closeOtherRepositories",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount > 1"
+        },
+        {
+          "command": "git.openWorktree",
+          "group": "navigation@3",
+          "when": "scmProvider == git && gitOpenRepositoryCount > 1"
+        },
+        {
+          "command": "git.openWorktreeInNewWindow",
+          "group": "navigation@4",
+          "when": "scmProvider == git && gitOpenRepositoryCount > 1"
         },
         {
           "command": "git.refresh",
