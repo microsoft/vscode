@@ -3351,9 +3351,17 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.createWorktree', { repository: true })
-	async createWorktree(repository: Repository): Promise<void> {
-		await this._createWorktree(repository, undefined, undefined);
+	@command('git.createWorktree')
+	async createWorktree(): Promise<void> {
+		const mainRepository = this.model.repositories.find(repo =>
+			!repo.dotGit.commonPath
+		);
+
+		if (!mainRepository) {
+			return;
+		}
+
+		await this._createWorktree(mainRepository, undefined, undefined);
 	}
 
 	private async _createWorktree(repository: Repository, worktreePath?: string, name?: string): Promise<void> {
@@ -3420,10 +3428,7 @@ export class CommandCenter {
 
 		worktreePath = path.join(uris[0].fsPath, worktreeName);
 
-		await repository.worktree({
-			name: name,
-			path: worktreePath,
-		});
+		await repository.worktree({ name: name, path: worktreePath });
 	}
 
 	@command('git.deleteWorktree', { repository: true })
