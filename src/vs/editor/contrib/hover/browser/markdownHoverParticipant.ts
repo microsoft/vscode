@@ -30,12 +30,12 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ClickAction, HoverPosition, KeyDownAction } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
-import { AsyncIterableObject } from '../../../../base/common/async.js';
 import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
 import { getHoverProviderResultsAsAsyncIterable } from './getHover.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { HoverStartSource } from './hoverOperation.js';
 import { ScrollEvent } from '../../../../base/common/scrollable.js';
+import { AsyncIterableProducer } from '../../../../base/common/async.js';
 
 const $ = dom.$;
 const increaseHoverVerbosityIcon = registerIcon('hover-increase-verbosity', Codicon.add, nls.localize('increaseHoverVerbosity', 'Icon for increaseing hover verbosity.'));
@@ -153,22 +153,22 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return result;
 	}
 
-	public computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], source: HoverStartSource, token: CancellationToken): AsyncIterableObject<MarkdownHover> {
+	public computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], source: HoverStartSource, token: CancellationToken): AsyncIterableProducer<MarkdownHover> {
 		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
-			return AsyncIterableObject.EMPTY;
+			return AsyncIterableProducer.EMPTY;
 		}
 
 		const model = this._editor.getModel();
 
 		const hoverProviderRegistry = this._languageFeaturesService.hoverProvider;
 		if (!hoverProviderRegistry.has(model)) {
-			return AsyncIterableObject.EMPTY;
+			return AsyncIterableProducer.EMPTY;
 		}
 		const markdownHovers = this._getMarkdownHovers(hoverProviderRegistry, model, anchor, token);
 		return markdownHovers;
 	}
 
-	private _getMarkdownHovers(hoverProviderRegistry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, anchor: HoverRangeAnchor, token: CancellationToken): AsyncIterableObject<MarkdownHover> {
+	private _getMarkdownHovers(hoverProviderRegistry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, anchor: HoverRangeAnchor, token: CancellationToken): AsyncIterableProducer<MarkdownHover> {
 		const position = anchor.range.getStartPosition();
 		const hoverProviderResults = getHoverProviderResultsAsAsyncIterable(hoverProviderRegistry, model, position, token);
 		const markdownHovers = hoverProviderResults.filter(item => !isEmptyMarkdownString(item.hover.contents))
