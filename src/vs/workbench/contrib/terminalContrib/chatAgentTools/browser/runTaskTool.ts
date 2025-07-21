@@ -10,12 +10,11 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IChatService } from '../../../chat/common/chatService.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../chat/common/languageModelToolsService.js';
-import { TaskDefinitionRegistry } from '../../../tasks/common/taskDefinitionRegistry.js';
-import { ITaskDefinition } from '../../../tasks/common/tasks.js';
 import { ITaskService, ITaskSummary, Task } from '../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { pollForOutputAndIdle, promptForMorePolling } from './bufferOutputPolling.js';
 import { getOutput } from './outputHelpers.js';
+import { getTaskDefinition } from './taskHelpers.js';
 
 type RunTaskToolClassification = {
 	taskId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the task.' };
@@ -51,7 +50,7 @@ export class RunTaskTool implements IToolImpl {
 		if (!invocation.context) {
 			return { content: [], toolResultMessage: `No invocation context` };
 		}
-		const taskDefinition = await this._getTaskDefinition(args);
+		const taskDefinition = await getTaskDefinition(args.id);
 		const task = (await this._tasksService.tasks()).find(t => {
 			return t.getDefinition() === taskDefinition?.task;
 		});
@@ -106,7 +105,7 @@ export class RunTaskTool implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IRunTaskToolInput;
 
-		const taskDefinition = (await this._getTaskDefinition(args));
+		const taskDefinition = await getTaskDefinition(args.id);
 		const task = (await this._tasksService.tasks()).find(t => {
 			return t.getDefinition() === taskDefinition?.task;
 		});
@@ -148,48 +147,7 @@ export class RunTaskTool implements IToolImpl {
 				: undefined
 		};
 	}
-
-	private async _getTaskDefinition(input: IRunTaskToolInput) {
-		const idx = input.id.indexOf(': ');
-		const taskType = input.id.substring(0, idx);
-		let taskLabel = input.id.substring(idx + 2);
-
-		let foundTask: ITaskDefinition | undefined;
-		TaskDefinitionRegistry.all()?.forEach((t: ITaskDefinition, i) => {
-			if (t.taskType === taskType && (t.properties?.label || String(i)) === taskLabel) {
-				foundTask = t;
-			}
-		});
-		if (foundTask) {
-			try {
-				if (typeof parseInt(taskLabel) === 'number') {
-					taskLabel = input.id;
-				}
-			} catch { }
-			return { task: foundTask, taskLabel };
-		}
-		return undefined;
-	}
 }
-
-// ToolRegistry.registerTool(RunTaskTool);
-
-
-export function getTaskRepresentation(task: Task): string {
-	const taskDefinition = task.getDefinition(true);
-	if (!taskDefinition) {
-		return '';
-	}
-	if ('label' in taskDefinition) {
-		return taskDefinition.label;
-	} else if ('script' in taskDefinition) {
-		return taskDefinition.script;
-	} else if ('command' in taskDefinition) {
-		return taskDefinition.command;
-	}
-	return '';
-}
-
 
 export const RunTaskToolData: IToolData = {
 	id: 'run_task2',

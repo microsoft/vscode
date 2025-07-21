@@ -8,6 +8,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
+import { GetTaskOutputTool, GetTaskOutputToolData } from './getTaskOutputTool.js';
 import { RunTaskTool, RunTaskToolData } from './runTaskTool.js';
 
 // #region Workbench contributions
@@ -28,9 +29,9 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		this._register(toolsService.registerToolImplementation(RunTaskToolData.id, runTaskTool));
 
 		// TODO: task output tool
-		// const getTaskOutputTool = instantiationService.createInstance(GetTaskOutputTool);
-		// this._register(toolsService.registerToolData(GetTaskOutputToolData));
-		// this._register(toolsService.registerToolImplementation(GetTaskOutputToolData.id, getTaskOutputTool));
+		const getTaskOutputTool = instantiationService.createInstance(GetTaskOutputTool);
+		this._register(toolsService.registerToolData(GetTaskOutputToolData));
+		this._register(toolsService.registerToolImplementation(GetTaskOutputToolData.id, getTaskOutputTool));
 	}
 }
 registerWorkbenchContribution2(ChatAgentToolsContribution.ID, ChatAgentToolsContribution, WorkbenchPhase.AfterRestored);
