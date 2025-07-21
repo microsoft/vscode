@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservableWithChange, derivedHandleChanges, derivedWithStore, observableValue, autorunWithStore, runOnChange, IObservable } from '../../../../base/common/observable.js';
-import { URI } from '../../../../base/common/uri.js';
-import { StringEdit } from '../../../../editor/common/core/edits/stringEdit.js';
-import { StringText } from '../../../../editor/common/core/text/abstractText.js';
-import { TextModelEditSource } from '../../../../editor/common/textModelEditSource.js';
+import { IObservableWithChange, derivedHandleChanges, derivedWithStore, observableValue, autorunWithStore, runOnChange, IObservable } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
+import { StringText } from '../../../../../editor/common/core/text/abstractText.js';
+import { TextModelEditSource } from '../../../../../editor/common/textModelEditSource.js';
 
 export abstract class ObservableWorkspace {
 	abstract get documents(): IObservableWithChange<readonly IObservableDocument[]>;
