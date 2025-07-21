@@ -154,7 +154,7 @@ export class RunTaskTool implements IToolImpl {
 }
 
 export const RunTaskToolData: IToolData = {
-	id: 'run_task2',
+	id: 'run_task',
 	toolReferenceName: 'runTask2',
 	canBeReferencedInPrompt: true,
 	displayName: localize('runInTerminalTool.displayName', 'Run Task'),
