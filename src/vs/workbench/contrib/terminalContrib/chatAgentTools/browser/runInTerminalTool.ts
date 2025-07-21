@@ -316,10 +316,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
-				// Poll for output until the terminal is idle or some time has passed
+
 				outputAndIdle = await pollForOutputAndIdle(execution, false, token, this._languageModelsService);
 				if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-					const extendPolling = await promptForMorePolling(command, execution, token, invocation.context, this._chatService);
+					const extendPolling = await promptForMorePolling(command, invocation.context, this._chatService);
 					if (extendPolling) {
 						outputAndIdle = await pollForOutputAndIdle(execution, true, token, this._languageModelsService);
 					}
