@@ -53,9 +53,17 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 				}),
 			]);
 
+			// Record where the command started. If the marker gets disposed, re-created it where
+			// the cursor is. This can happen in prompts where they clear the line and rerender it
+			// like powerlevel10k's transient prompt
+			let startMarker = store.add(xterm.raw.registerMarker());
+			store.add(startMarker.onDispose(() => {
+				this._logService.debug(`RunInTerminalTool#Rich: Start marker was disposed, recreating`);
+				startMarker = xterm.raw.registerMarker();
+			}));
+
 			// Execute the command
 			this._logService.debug(`RunInTerminalTool#Rich: Executing command line \`${commandLine}\``);
-			const startMarker = store.add(xterm.raw.registerMarker());
 			this._instance.runCommand(commandLine, true);
 
 			this._logService.debug(`RunInTerminalTool#Rich: Waiting for done event`);
@@ -74,8 +82,13 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 				}
 			}
 			if (result === undefined) {
-				this._logService.debug('RunInTerminalTool#Rich: Fetched output via markers');
-				result = xterm.getContentsAsText(startMarker, endMarker);
+				try {
+					result = xterm.getContentsAsText(startMarker, endMarker);
+					this._logService.debug('RunInTerminalTool#Rich: Fetched output via markers');
+				} catch {
+					this._logService.debug('RunInTerminalTool#Basic: Failed to fetch output via markers');
+					result = 'Failed to retrieve command output';
+				}
 			}
 
 			if (result.trim().length === 0) {

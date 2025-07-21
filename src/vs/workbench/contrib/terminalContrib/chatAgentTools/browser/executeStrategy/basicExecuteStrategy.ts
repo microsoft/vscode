@@ -7,6 +7,7 @@ import type { CancellationToken } from '../../../../../../base/common/cancellati
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { isNumber } from '../../../../../../base/common/types.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
@@ -80,14 +81,22 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 			this._logService.debug('RunInTerminalTool#Basic: Waiting for idle');
 			await waitForIdle(this._instance.onData, 1000);
 
+			// Record where the command started. If the marker gets disposed, re-created it where
+			// the cursor is. This can happen in prompts where they clear the line and rerender it
+			// like powerlevel10k's transient prompt
+			let startMarker = store.add(xterm.raw.registerMarker());
+			store.add(startMarker.onDispose(() => {
+				this._logService.debug(`RunInTerminalTool#Basic: Start marker was disposed, recreating`);
+				startMarker = xterm.raw.registerMarker();
+			}));
+
 			// Execute the command
-			const startMarker = store.add(xterm.raw.registerMarker());
 			this._logService.debug(`RunInTerminalTool#Basic: Executing command line \`${commandLine}\``);
 			this._instance.runCommand(commandLine, true);
 
 			// Wait for the next end execution event - note that this may not correspond to the actual
 			// execution requested
-			const doneData = await onDone;
+			const finishedCommand = await onDone;
 
 			// Wait for the terminal to idle
 			this._logService.debug('RunInTerminalTool#Basic: Waiting for idle');
@@ -98,13 +107,36 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 			const endMarker = store.add(xterm.raw.registerMarker());
 
 			// Assemble final result
-			let result = xterm.getContentsAsText(startMarker, endMarker);
-			if (doneData && typeof doneData.exitCode === 'number' && doneData.exitCode > 0) {
-				result += `\n\nCommand exited with code ${doneData.exitCode}`;
+			let result: string | undefined;
+			if (finishedCommand) {
+				const commandOutput = finishedCommand?.getOutput();
+				if (commandOutput !== undefined) {
+					this._logService.debug('RunInTerminalTool#Basic: Fetched output via finished command');
+					result = commandOutput;
+				}
 			}
+			if (result === undefined) {
+				try {
+					result = xterm.getContentsAsText(startMarker, endMarker);
+					this._logService.debug('RunInTerminalTool#Basic: Fetched output via markers');
+				} catch {
+					this._logService.debug('RunInTerminalTool#Basic: Failed to fetch output via markers');
+					result = 'Failed to retrieve command output';
+				}
+			}
+
+			if (result.trim().length === 0) {
+				result = 'Command produced no output';
+			}
+
+			const exitCode = finishedCommand?.exitCode;
+			if (isNumber(exitCode) && exitCode > 0) {
+				result += `\n\nCommand exited with code ${exitCode}`;
+			}
+
 			return {
 				result,
-				exitCode: doneData?.exitCode,
+				exitCode,
 			};
 		} finally {
 			store.dispose();
