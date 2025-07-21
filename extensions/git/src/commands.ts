@@ -3462,8 +3462,8 @@ export class CommandCenter {
 			!repo.dotGit.commonPath
 		);
 
-		if (!mainRepository) { 
-			return; 
+		if (!mainRepository) {
+			return;
 		}
 
 		const worktreePicks = async (): Promise<WorktreeDeleteItem[] | QuickPickItem[]> => {
