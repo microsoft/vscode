@@ -65,7 +65,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'boolean',
 			tags: ['preview'],
 			experiment: {
-				allowAutoUpdate: false
+				mode: 'startup'
 			}
 		},
 		[InlineChatConfigKeys.HideOnRequest]: {
@@ -74,7 +74,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'boolean',
 			tags: ['preview'],
 			experiment: {
-				allowAutoUpdate: false
+				mode: 'startup'
 			}
 		},
 	}

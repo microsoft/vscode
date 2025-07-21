@@ -43,7 +43,7 @@ Registry.as<IConfigurationRegistry>(ConfigExt.Configuration).registerConfigurati
 			tags: ['experimental'],
 			markdownDescription: localize('experimental.rendererProfiling', "When enabled, slow renderers are automatically profiled."),
 			experiment: {
-				allowAutoUpdate: false
+				mode: 'startup'
 			}
 		}
 	}
