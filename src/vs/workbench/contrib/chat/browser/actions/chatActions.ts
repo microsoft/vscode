@@ -791,7 +791,16 @@ export function registerChatActions() {
 						);
 						return;
 					} else if ((item as ICodingAgentPickerItem).uri !== undefined) {
-						// TODO: handle click
+						// TODO: This is a temporary change that will be replaced by opening a new chat instance
+						if (item.buttons && item.buttons.length > 0) {
+							const pickedItem = (item.buttons[0] as ICodingAgentPickerItem);
+							if (pickedItem.id) {
+								commandService.executeCommand(pickedItem.id, {
+									uri: (item as ICodingAgentPickerItem).uri,
+									$mid: MarshalledId.ChatSessionContext
+								});
+							}
+						}
 						return;
 					}
 
