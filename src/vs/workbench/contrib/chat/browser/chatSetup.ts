@@ -329,14 +329,20 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private whenLanguageModelReady(languageModelsService: ILanguageModelsService): Promise<unknown> | void {
-		for (const id of languageModelsService.getLanguageModelIds()) {
-			const model = languageModelsService.lookupLanguageModel(id);
-			if (model && model.isDefault) {
-				return; // we have language models!
+		const hasDefaultModel = () => {
+			for (const id of languageModelsService.getLanguageModelIds()) {
+				const model = languageModelsService.lookupLanguageModel(id);
+				if (model && model.isDefault) {
+					return true; // we have language models!
+				}
 			}
+			return false;
+		};
+		if (hasDefaultModel()) {
+			return; // we have language models!
 		}
 
-		return Event.toPromise(Event.filter(languageModelsService.onDidChangeLanguageModels, e => e.added?.some(added => added.metadata.isDefault) ?? false));
+		return Event.toPromise(Event.filter(languageModelsService.onDidChangeLanguageModels, () => hasDefaultModel() ?? false));
 	}
 
 	private whenToolsModelReady(languageModelToolsService: ILanguageModelToolsService, requestModel: IChatRequestModel): Promise<unknown> | void {

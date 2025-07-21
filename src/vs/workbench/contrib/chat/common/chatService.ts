@@ -220,7 +220,7 @@ export interface IChatNotebookEdit {
 
 export interface IChatConfirmation {
 	title: string;
-	message: string;
+	message: string | IMarkdownString;
 	data: any;
 	buttons?: string[];
 	isUsed?: boolean;
@@ -231,6 +231,8 @@ export interface IChatElicitationRequest {
 	kind: 'elicitation';
 	title: string | IMarkdownString;
 	message: string | IMarkdownString;
+	acceptButtonLabel: string;
+	rejectButtonLabel: string;
 	originMessage?: string | IMarkdownString;
 	state: 'pending' | 'accepted' | 'rejected';
 	acceptedResult?: Record<string, unknown>;

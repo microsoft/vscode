@@ -106,7 +106,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._editContext = EditContext.create(window);
 		this.setEditContextOnDomNode();
 
-		this._screenReaderSupport = instantiationService.createInstance(ScreenReaderSupport, this.domNode, context, this._viewController);
+		this._screenReaderSupport = this._register(instantiationService.createInstance(ScreenReaderSupport, this.domNode, context, this._viewController));
 
 		this._register(addDisposableListener(this.domNode.domNode, 'copy', (e) => this._ensureClipboardGetsEditorSelection(e)));
 		this._register(addDisposableListener(this.domNode.domNode, 'cut', (e) => {
@@ -210,6 +210,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 	public override dispose(): void {
 		// Force blue the dom node so can write in pane with no native edit context after disposal
+		this.domNode.domNode.editContext = undefined;
 		this.domNode.domNode.blur();
 		this.domNode.domNode.remove();
 		this._imeTextArea.domNode.remove();

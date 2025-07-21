@@ -2378,7 +2378,7 @@ class ProducerConsumer<T> {
 export class AsyncIterableProducer<T> implements AsyncIterable<T> {
 	private readonly _producerConsumer = new ProducerConsumer<IteratorResult<T>>();
 
-	constructor(executor: AsyncIterableExecutor<T>) {
+	constructor(executor: AsyncIterableExecutor<T>, private readonly _onReturn?: () => void) {
 		queueMicrotask(async () => {
 			const p = executor({
 				emitOne: value => this._producerConsumer.produce({ ok: true, value: { done: false, value: value } }),
@@ -2411,6 +2411,10 @@ export class AsyncIterableProducer<T> implements AsyncIterable<T> {
 
 	private readonly _iterator: AsyncIterator<T, void, void> = {
 		next: () => this._producerConsumer.consume(),
+		return: () => {
+			this._onReturn?.();
+			return Promise.resolve({ done: true, value: undefined });
+		},
 		throw: async (e) => {
 			this._finishError(e);
 			return { done: true, value: undefined };

@@ -2583,7 +2583,7 @@ export namespace ChatResponseConfirmationPart {
 		return {
 			kind: 'confirmation',
 			title: part.title,
-			message: part.message,
+			message: MarkdownString.from(part.message),
 			data: part.data,
 			buttons: part.buttons
 		};
