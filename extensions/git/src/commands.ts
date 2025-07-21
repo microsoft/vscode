@@ -3428,7 +3428,40 @@ export class CommandCenter {
 
 		worktreePath = path.join(uris[0].fsPath, worktreeName);
 
-		await repository.worktree({ name: name, path: worktreePath });
+		try {
+			await repository.worktree({ name: name, path: worktreePath });
+		} catch (err) {
+			if (err.gitErrorCode === GitErrorCodes.WorktreeAlreadyExists) {
+				const errorMessage = err.stderr;
+				const match = errorMessage.match(/worktree at '([^']+)'/) || errorMessage.match(/'([^']+)'/);
+				const path = match ? match[1] : undefined;
+
+				if (!path) {
+					return;
+				}
+
+				const openWorktree = l10n.t('Open in current window');
+				const openWorktreeInNewWindow = l10n.t('Open in new window');
+				const message = l10n.t(errorMessage || 'A worktree for branch \'{0}\' already exists at \'{1}\'.', name, path);
+				const choice = await window.showWarningMessage(message, { modal: true }, openWorktree, openWorktreeInNewWindow);
+
+				const worktreeRepository = this.model.getRepository(path) || this.model.getRepository(Uri.file(path));
+
+				if (!worktreeRepository) {
+					return;
+				}
+
+				if (choice === openWorktree) {
+					await this.openWorktreeInCurrentWindow(worktreeRepository);
+				} else if (choice === openWorktreeInNewWindow) {
+					await this.openWorktreeInNewWindow(worktreeRepository);
+				}
+
+				return;
+			}
+
+			throw err;
+		}
 	}
 
 	@command('git.deleteWorktree', { repository: true })
