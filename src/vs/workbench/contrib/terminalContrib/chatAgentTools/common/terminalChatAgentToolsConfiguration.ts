@@ -6,7 +6,7 @@
 import type { IStringDictionary } from '../../../../../base/common/collections.js';
 import type { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { localize } from '../../../../../nls.js';
-import type { IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, type IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 
 export const enum TerminalChatAgentToolsSettingId {
 	AutoApprove = 'chat.agent.terminal.autoApprove',
@@ -51,6 +51,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			].join('\n')
 		].join('\n\n'),
 		type: 'object',
+		scope: ConfigurationScope.MACHINE,
 		additionalProperties: {
 			anyOf: [
 				autoApproveBoolean,
