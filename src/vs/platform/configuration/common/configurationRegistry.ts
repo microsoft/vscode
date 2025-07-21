@@ -223,9 +223,11 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 */
 	experiment?: {
 		/**
-		 * Whether to automatically update the setting default value when the experiment value changes.
+		 * The mode of the experiment.
+		 * - `startup`: The setting value is updated to the experiment value only on startup.
+		 * - `auto`: The setting value is updated to the experiment value automatically (whenever the experiment value changes).
 		 */
-		allowAutoUpdate: boolean;
+		mode: 'startup' | 'auto';
 
 		/**
 		 * The name of the experiment. By default, this is `config.${settingId}`
@@ -679,7 +681,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 					}
 				} else if (property.tags?.some(tag => tag.toLowerCase() === 'onexp')) {
 					console.error(`Invalid tag 'onExP' found for property '${key}'. Please use 'experiment' property instead.`);
-					property.experiment = { allowAutoUpdate: false };
+					property.experiment = { mode: 'startup' };
 				}
 
 				const excluded = properties[key].hasOwnProperty('included') && !properties[key].included;
