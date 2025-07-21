@@ -223,10 +223,9 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 */
 	experiment?: {
 		/**
-		 * Whether to automatically refetch the experiment data and
-		 * update the configuration.
+		 * Whether to automatically update the setting default value when the experiment value changes.
 		 */
-		autoRefetch: boolean;
+		allowAutoUpdate: boolean;
 
 		/**
 		 * The name of the experiment. By default, this is `config.${settingId}`
