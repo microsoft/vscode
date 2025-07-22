@@ -3525,18 +3525,10 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.deleteWorktreeFromPalette')
-	async deleteWorktreeFromPalette(): Promise<void> {
-		const mainRepository = this.model.repositories.find(repo =>
-			!repo.dotGit.commonPath
-		);
-
-		if (!mainRepository) {
-			return;
-		}
-
+	@command('git.deleteWorktreeFromPalette', { repository: true, repositoryFilter: ['repository', 'submodule'] })
+	async deleteWorktreeFromPalette(repository: Repository): Promise<void> {
 		const worktreePicks = async (): Promise<WorktreeDeleteItem[] | QuickPickItem[]> => {
-			const worktrees = await mainRepository.getWorktrees();
+			const worktrees = await repository.getWorktrees();
 			return worktrees.length === 0
 				? [{ label: l10n.t('$(info) This repository has no worktrees.') }]
 				: worktrees.map(worktree => new WorktreeDeleteItem(worktree));
@@ -3546,7 +3538,7 @@ export class CommandCenter {
 		const choice = await this.pickRef<WorktreeDeleteItem | QuickPickItem>(worktreePicks(), placeHolder);
 
 		if (choice instanceof WorktreeDeleteItem) {
-			await choice.run(mainRepository);
+			await choice.run(repository);
 		}
 	}
 
