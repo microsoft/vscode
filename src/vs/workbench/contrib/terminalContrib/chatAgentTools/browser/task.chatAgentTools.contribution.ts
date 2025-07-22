@@ -9,6 +9,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ILanguageModelToolsService, ToolDataSource } from '../../../chat/common/languageModelToolsService.js';
+import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 import { GetTaskOutputTool, GetTaskOutputToolData } from './task/getTaskOutputTool.js';
 import { RunTaskTool, RunTaskToolData } from './task/runTaskTool.js';
 
@@ -24,19 +25,21 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
 	) {
 		super();
-		const runTaskTool = instantiationService.createInstance(RunTaskTool);
-		this._register(toolsService.registerToolData(RunTaskToolData));
-		this._register(toolsService.registerToolImplementation(RunTaskToolData.id, runTaskTool));
+		if (configurationService.getValue(TerminalChatAgentToolsSettingId.NewTaskToolsEnabled)) {
+			const runTaskTool = instantiationService.createInstance(RunTaskTool);
+			this._register(toolsService.registerToolData(RunTaskToolData));
+			this._register(toolsService.registerToolImplementation(RunTaskToolData.id, runTaskTool));
 
-		const getTaskOutputTool = instantiationService.createInstance(GetTaskOutputTool);
-		this._register(toolsService.registerToolData(GetTaskOutputToolData));
-		this._register(toolsService.registerToolImplementation(GetTaskOutputToolData.id, getTaskOutputTool));
+			const getTaskOutputTool = instantiationService.createInstance(GetTaskOutputTool);
+			this._register(toolsService.registerToolData(GetTaskOutputToolData));
+			this._register(toolsService.registerToolImplementation(GetTaskOutputToolData.id, getTaskOutputTool));
 
-		const toolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'runTaskGetOutput', 'runTaskGetOutput', {
-			description: localize('toolset.runTaskGetOutput', 'Runs tasks and gets their output for your workspace')
-		}));
-		toolSet.addTool(RunTaskToolData);
-		toolSet.addTool(GetTaskOutputToolData);
+			const toolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'runTaskGetOutput', 'runTaskGetOutput', {
+				description: localize('toolset.runTaskGetOutput', 'Runs tasks and gets their output for your workspace')
+			}));
+			toolSet.addTool(RunTaskToolData);
+			toolSet.addTool(GetTaskOutputToolData);
+		}
 	}
 }
 registerWorkbenchContribution2(ChatAgentToolsContribution.ID, ChatAgentToolsContribution, WorkbenchPhase.AfterRestored);
