@@ -57,7 +57,7 @@ export async function getTaskForTool(id: string, taskDefinition: { taskLabel?: s
 	const configuredTask: ConfiguringTask | undefined = Object.values(configuringTasks ?? {}).find(t => {
 		return t.type === task.type && (t._label === getTaskRepresentation(task) || t._label === `${task.type}: ${getTaskRepresentation(task)}`);
 	});
-	let resolvedTask: Task | undefined = undefined;
+	let resolvedTask: Task | undefined;
 	if (configuredTask) {
 		resolvedTask = await taskService.tryResolveTask(configuredTask);
 	}
