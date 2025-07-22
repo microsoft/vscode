@@ -509,7 +509,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'hover',
 					title: localize('gettingStarted.hover.title', "Access the hover in the editor to get more information on a variable or symbol"),
-					description: localize('gettingStarted.hover.description.interpolated', "While focus is in the editor on a variable or symbol, a hover can be can be focused with the Show or Open Hover command.\n{0}", Button(localize('showOrFocusHover', "Show or Focus Hover"), 'command:editor.action.showHover')),
+					description: localize('gettingStarted.hover.description.interpolated', "While focus is in the editor on a variable or symbol, a hover can be focused with the Show or Open Hover command.\n{0}", Button(localize('showOrFocusHover', "Show or Focus Hover"), 'command:editor.action.showHover')),
 					media: {
 						type: 'markdown', path: 'empty'
 					}

@@ -562,7 +562,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			this.editedCells.clear();
 		};
 
-		this._applyEdits(async () => {
+		await this._applyEdits(async () => {
 			await Promise.all(edits.map(async (edit, idx) => {
 				const last = isLastEdits && idx === edits.length - 1;
 				if (TextEdit.isTextEdit(edit)) {
