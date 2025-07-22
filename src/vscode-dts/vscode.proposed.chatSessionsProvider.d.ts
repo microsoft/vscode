@@ -9,6 +9,11 @@ declare module 'vscode' {
 	 */
 	export interface ChatSessionItemProvider {
 		/**
+		 * Label of the extension that registers the provider.
+		 */
+		readonly label: string;
+
+		/**
 		 * Event that the provider can fire to signal that chat sessions have changed.
 		 */
 		readonly onDidChangeChatSessionItems: Event<void>;
