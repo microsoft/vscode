@@ -658,9 +658,9 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 	}
 }
 
-export class QuickInputTree extends Disposable {
+export class QuickInputList extends Disposable {
 
-	//#region QuickInputTree Events
+	//#region QuickInputList Events
 
 	private readonly _onKeyDown = new Emitter<StandardKeyboardEvent>();
 	/**
