@@ -325,6 +325,8 @@ export class ExtensionEditor extends EditorPane {
 
 		const installAction = this.instantiationService.createInstance(InstallDropdownAction);
 		const actions = [
+			// Install button should be first tab stop for accessibility
+			installAction,
 			this.instantiationService.createInstance(ExtensionRuntimeStateAction),
 			this.instantiationService.createInstance(ExtensionStatusLabelAction),
 			this.instantiationService.createInstance(UpdateAction, true),
@@ -339,7 +341,6 @@ export class ExtensionEditor extends EditorPane {
 			this.instantiationService.createInstance(RemoteInstallAction, false),
 			this.instantiationService.createInstance(LocalInstallAction),
 			this.instantiationService.createInstance(WebInstallAction),
-			installAction,
 			this.instantiationService.createInstance(InstallingLabelAction),
 			this.instantiationService.createInstance(ButtonWithDropDownExtensionAction, 'extensions.uninstall', UninstallAction.UninstallClass, [
 				[
