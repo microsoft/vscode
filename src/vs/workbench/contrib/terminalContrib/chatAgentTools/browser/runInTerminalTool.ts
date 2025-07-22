@@ -239,32 +239,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const args = invocation.parameters as IRunInTerminalInputParams;
 
-		// Tool specific data is not provided when the invocation is auto-approved. Re-calculate it
-		// if needed
-		let toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | IChatTerminalToolInvocationData2 | undefined;
-		if (toolSpecificData === undefined) {
-			const os = await this._osBackend;
-			const shell = await this._terminalProfileResolverService.getDefaultShell({
-				os,
-				remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority
-			});
-			const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
-			const instance = invocation.context?.sessionId ? this._sessionTerminalAssociations.get(invocation.context!.sessionId)?.instance : undefined;
-			let toolEditedCommand: string | undefined = await this._rewriteCommandIfNeeded(args, instance, shell);
-			if (toolEditedCommand === args.command) {
-				toolEditedCommand = undefined;
-			}
-			toolSpecificData = {
-				kind: 'terminal2',
-				commandLine: {
-					original: args.command,
-					toolEdited: toolEditedCommand
-				},
-				language
-			};
-		}
-
 		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
+
+		const toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | IChatTerminalToolInvocationData2 | undefined;
+		if (!toolSpecificData) {
+			throw new Error('toolSpecificData must be provided for this tool');
+		}
 
 		const chatSessionId = invocation.context?.sessionId;
 		if (!invocation.context || chatSessionId === undefined) {
