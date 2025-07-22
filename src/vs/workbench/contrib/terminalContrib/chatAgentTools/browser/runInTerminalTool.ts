@@ -346,7 +346,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					}]
 				};
 			} catch (e) {
-				error = 'threw';
+				error = e instanceof CancellationError ? 'canceled' : 'exception';
 				if (termId) {
 					RunInTerminalTool._backgroundExecutions.get(termId)?.dispose();
 					RunInTerminalTool._backgroundExecutions.delete(termId);
@@ -432,7 +432,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			} catch (e) {
 				this._logService.debug(`RunInTerminalTool: Threw exception`);
 				toolTerminal.instance.dispose();
-				error = 'threw';
+				error = e instanceof CancellationError ? 'canceled' : 'exception';
 				throw e;
 			} finally {
 				store.dispose();
