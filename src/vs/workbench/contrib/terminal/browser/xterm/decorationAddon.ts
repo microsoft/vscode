@@ -237,6 +237,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 					if (match) {
 						match.decoration.dispose();
 						dispose(match.disposables);
+						this._decorations.delete(id);
 					}
 				}
 			}
@@ -245,7 +246,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		commandDetectionListeners.push(capability.onCurrentCommandInvalidated((request) => {
 			if (request.reason === CommandInvalidationReason.NoProblemsReported) {
 				const lastDecoration = Array.from(this._decorations.entries())[this._decorations.size - 1];
-				lastDecoration?.[1].decoration.dispose();
+				if (lastDecoration) {
+					lastDecoration[1].decoration.dispose();
+					this._decorations.delete(lastDecoration[0]);
+				}
 			} else if (request.reason === CommandInvalidationReason.Windows) {
 				this._clearPlaceholder();
 			}
