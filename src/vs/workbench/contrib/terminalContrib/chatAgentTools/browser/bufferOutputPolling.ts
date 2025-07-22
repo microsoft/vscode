@@ -90,6 +90,8 @@ export async function pollForOutputAndIdle(
 
 		if (noNewDataCount >= PollingConsts.MinNoDataEvents) {
 			if (execution.isActive && ((await execution.isActive()) === true)) {
+				noNewDataCount = 0; // Reset if the execution is still active
+				lastBufferLength = currentBufferLength; // Update lastBufferLength to the current length
 				continue; // If the execution is still active, we don't consider it idle
 			}
 			terminalExecutionIdleBeforeTimeout = true;
