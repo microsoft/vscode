@@ -5,30 +5,30 @@
 
 declare module 'vscode' {
 	/**
-	 * Provides a list of chat sessions
+	 * Provides a list of information about chat sessions.
 	 */
-	export interface ChatSessionsProvider extends Disposable {
+	export interface ChatSessionItemProvider {
 		/**
-		 * Type to identify providers.
+		 * Label of the extension that registers the provider.
 		 */
-		readonly chatSessionType: string;
+		readonly label: string;
 
 		/**
-		 * Fired when chat sessions change.
+		 * Event that the provider can fire to signal that chat sessions have changed.
 		 */
-		readonly onDidChangeChatSessionContent: Event<void>;
+		readonly onDidChangeChatSessionItems: Event<void>;
 
 		/**
-		 * Provide a list of chat sessions.
-		 * */
-		provideChatSessions(token: CancellationToken): Thenable<ChatSessionContent[]>;
+		 * Provides a list of chat sessions.
+		 */
+		provideChatSessionItems(token: CancellationToken): ProviderResult<ChatSessionItem[]>;
 	}
 
-	export interface ChatSessionContent {
+	export interface ChatSessionItem {
 		/**
-		 * Identifies the session
-		 *		 */
-		uri: Uri;
+		 * Unique identifier for the chat session.
+		 */
+		id: string;
 
 		/**
 		 * Human readable name of the session shown in the UI
@@ -42,6 +42,6 @@ declare module 'vscode' {
 	}
 
 	export namespace chat {
-		export function registerChatSessionsProvider(provider: ChatSessionsProvider): Disposable;
+		export function registerChatSessionItemProvider(chatSessionType: string, provider: ChatSessionItemProvider): Disposable;
 	}
 }

@@ -40,7 +40,7 @@ export function getOutput(instance: ITerminalInstance, startMarker?: IXtermMarke
 }
 
 export async function pollForOutputAndIdle(
-	execution: { getOutput: () => string },
+	execution: { getOutput: () => string; isActive?: () => Promise<boolean> },
 	extendedPolling: boolean,
 	token: CancellationToken,
 	languageModelsService: ILanguageModelsService,
@@ -87,16 +87,18 @@ export async function pollForOutputAndIdle(
 			noNewDataCount = 0;
 			lastBufferLength = currentBufferLength;
 		}
-		const isLikelyFinished = await assessOutputForFinishedState(buffer, token, languageModelsService);
-		terminalExecutionIdleBeforeTimeout = isLikelyFinished && noNewDataCount >= PollingConsts.MinNoDataEvents;
-		if (terminalExecutionIdleBeforeTimeout) {
-			return { terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+
+		if (noNewDataCount >= PollingConsts.MinNoDataEvents) {
+			terminalExecutionIdleBeforeTimeout = await assessOutputForFinishedState(buffer, execution, token, languageModelsService);
+			if (terminalExecutionIdleBeforeTimeout) {
+				return { terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+			}
 		}
 	}
 	return { terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 }
 
-export async function promptForMorePolling(command: string, execution: { getOutput: () => string }, token: CancellationToken, context: IToolInvocationContext, chatService: IChatService): Promise<boolean> {
+export async function promptForMorePolling(command: string, context: IToolInvocationContext, chatService: IChatService): Promise<boolean> {
 	const chatModel = chatService.getSession(context.sessionId);
 	if (chatModel instanceof ChatModel) {
 		const request = chatModel.getRequests().at(-1);
@@ -123,7 +125,10 @@ export async function promptForMorePolling(command: string, execution: { getOutp
 	return false; // Fallback to not waiting if we can't prompt the user
 }
 
-export async function assessOutputForFinishedState(buffer: string, token: CancellationToken, languageModelsService: ILanguageModelsService): Promise<boolean> {
+export async function assessOutputForFinishedState(buffer: string, execution: { getOutput: () => string; isActive?: () => Promise<boolean> }, token: CancellationToken, languageModelsService: ILanguageModelsService): Promise<boolean> {
+	if (execution.isActive && ((await execution.isActive()) === false)) {
+		return true;
+	}
 	const models = await languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
 	if (!models.length) {
 		return false;

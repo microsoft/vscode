@@ -16,7 +16,7 @@ import { ContextKeyExpression } from '../../../../platform/contextkey/common/con
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProgress } from '../../../../platform/progress/common/progress.js';
-import { IChatExtensionsContent, IChatTerminalToolInvocationData, IChatToolInputInvocationData, type IChatTerminalToolInvocationData2 } from './chatService.js';
+import { IChatExtensionsContent, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatTasksContent, type IChatTerminalToolInvocationData2 } from './chatService.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { derived, IObservable, IReader, ITransaction, ObservableSet } from '../../../../base/common/observable.js';
@@ -113,7 +113,7 @@ export interface IToolInvocation {
 	context: IToolInvocationContext | undefined;
 	chatRequestId?: string;
 	chatInteractionId?: string;
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatTerminalToolInvocationData2 | IChatToolInputInvocationData | IChatExtensionsContent;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatTerminalToolInvocationData2 | IChatToolInputInvocationData | IChatExtensionsContent | IChatTasksContent;
 	modelId?: string;
 }
 
@@ -132,19 +132,27 @@ export interface IToolInvocationPreparationContext {
 	chatInteractionId?: string;
 }
 
+export type ToolInputOutputBase = {
+	/** Mimetype of the value, optional */
+	mimeType?: string;
+	/** URI of the resource on the MCP server. */
+	uri?: URI;
+	/** If true, this part came in as a resource reference rather than direct data. */
+	asResource?: boolean;
+};
+
+export type ToolInputOutputEmbedded = ToolInputOutputBase & {
+	type: 'embed';
+	value: string;
+	/** If true, value is text. If false or not given, value is base64 */
+	isText?: boolean;
+};
+
+export type ToolInputOutputReference = ToolInputOutputBase & { type: 'ref'; uri: URI };
+
 export interface IToolResultInputOutputDetails {
 	readonly input: string;
-	readonly output: ({
-		value: string;
-		/** If true, value is text. If false or not given, value is base64 */
-		isText?: boolean;
-		/** Mimetype of the value, optional */
-		mimeType?: string;
-		/** URI of the resource on the MCP server. */
-		uri?: URI;
-		/** If true, this part came in as a resource reference rather than direct data. */
-		asResource?: boolean;
-	})[];
+	readonly output: (ToolInputOutputEmbedded | ToolInputOutputReference)[];
 	readonly isError?: boolean;
 }
 
@@ -198,7 +206,7 @@ export interface IPreparedToolInvocation {
 	originMessage?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
 	presentation?: 'hidden' | undefined;
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatTerminalToolInvocationData2 | IChatToolInputInvocationData | IChatExtensionsContent;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatTerminalToolInvocationData2 | IChatToolInputInvocationData | IChatExtensionsContent | IChatTasksContent;
 }
 
 export interface IToolImpl {
