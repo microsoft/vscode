@@ -6,13 +6,12 @@
 import type * as vscode from 'vscode';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
-import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostChatSessionsShape, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
 import { ExtHostCommands } from './extHostCommands.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
-import { IChatSessionContent } from '../../contrib/chat/common/chatSessionsService.js';
+import { IChatSessionDefinition as IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
 
 export class ExtHostChatSessions extends Disposable implements ExtHostChatSessionsShape {
 
@@ -32,12 +31,12 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		commands.registerArgumentProcessor({
 			processArgument: (arg) => {
 				if (arg && arg.$mid === MarshalledId.ChatSessionContext) {
-					const id = this.uriToId(arg.uri);
+					const id = arg.id;
 					const sessionContent = this._sessionMap.get(id);
 					if (sessionContent) {
 						return sessionContent;
 					} else {
-						this._logService.warn(`No chat session found for URI: ${id}`);
+						this._logService.warn(`No chat session found for ID: ${id}`);
 						return arg;
 					}
 				}
@@ -52,18 +51,18 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		const disposables = new DisposableStore();
 
 		this._statusProviders.set(handle, { provider, disposable: disposables });
-		this._proxy.$registerChatSessionsProvider(handle, chatSessionType);
+		this._proxy.$registerChatSessionItemProvider(handle, chatSessionType);
 
 		return {
 			dispose: () => {
 				this._statusProviders.delete(handle);
 				disposables.dispose();
-				this._proxy.$unregisterChatSessionsProvider(handle);
+				this._proxy.$unregisterChatSessionItemProvider(handle);
 			}
 		};
 	}
 
-	async $provideChatSessions(handle: number, token: vscode.CancellationToken): Promise<IChatSessionContent[]> {
+	async $provideChatSessionItems(handle: number, token: vscode.CancellationToken): Promise<IChatSessionItem[]> {
 		const entry = this._statusProviders.get(handle);
 		if (!entry) {
 			this._logService.error(`No provider registered for handle ${handle}`);
@@ -75,24 +74,20 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			return [];
 		}
 
-		const response: IChatSessionContent[] = [];
+		const response: IChatSessionItem[] = [];
 		for (const sessionContent of sessions) {
-			if (sessionContent.uri) {
+			if (sessionContent.id) {
 				this._sessionMap.set(
-					this.uriToId(sessionContent.uri),
+					sessionContent.id,
 					sessionContent
 				);
 				response.push({
-					uri: sessionContent.uri,
+					id: sessionContent.id,
 					label: sessionContent.label,
 					iconPath: sessionContent.iconPath
 				});
 			}
 		}
 		return response;
-	}
-
-	private uriToId(uri: URI): string {
-		return `${uri.scheme}+${uri.authority}+${uri.path}`;
 	}
 }
