@@ -9,13 +9,14 @@ import { revive } from '../../../base/common/marshalling.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IChatProgress } from '../../contrib/chat/common/chatService.js';
-import { ChatSession, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
+import { ChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadChatSessions)
 export class MainThreadChatSessions extends Disposable implements MainThreadChatSessionsShape {
-	private readonly _registrations = this._register(new DisposableMap<number>());
+	private readonly _itemProvidersRegistrations = this._register(new DisposableMap<number>());
+	private readonly _contentProvidersRegisterations = this._register(new DisposableMap<number>());
 
 	constructor(
 		private readonly _extHostContext: IExtHostContext,
@@ -29,10 +30,9 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		// Register the provider handle - this tracks that a provider exists
 		const provider: IChatSessionItemProvider = {
 			chatSessionType,
-			provideChatSessionItems: (token) => this._provideChatSessionItems(handle, token),
-			provideChatSessionContent: (id, token) => this._provideChatSessionContent(handle, id, token)
+			provideChatSessionItems: (token) => this._provideChatSessionItems(handle, token)
 		};
-		this._registrations.set(handle, this._chatSessionsService.registerChatSessionItemProvider(handle, provider));
+		this._itemProvidersRegistrations.set(handle, this._chatSessionsService.registerChatSessionItemProvider(handle, provider));
 	}
 
 	private async _provideChatSessionItems(handle: number, token: CancellationToken): Promise<IChatSessionItem[]> {
@@ -77,9 +77,21 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	}
 
 	$unregisterChatSessionItemProvider(handle: number): void {
-		this._registrations.deleteAndDispose(handle);
+		this._itemProvidersRegistrations.deleteAndDispose(handle);
 	}
 
+	$registerChatSessionContentProvider(handle: number, chatSessionType: string): void {
+		const provider: IChatSessionContentProvider = {
+			chatSessionType,
+			provideChatSessionContent: (id, token) => this._provideChatSessionContent(handle, id, token)
+		};
+
+		this._contentProvidersRegisterations.set(handle, this._chatSessionsService.registerChatSessionContentProvider(handle, provider));
+	}
+
+	$unregisterChatSessionContentProvider(handle: number): void {
+		this._contentProvidersRegisterations.deleteAndDispose(handle);
+	}
 
 	private _reviveIconPath(
 		iconPath: UriComponents | { light: UriComponents; dark: UriComponents } | { id: string; color?: { id: string } | undefined })

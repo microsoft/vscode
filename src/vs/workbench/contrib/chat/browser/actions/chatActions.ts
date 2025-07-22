@@ -806,7 +806,7 @@ export function registerChatActions() {
 						// TODO: This is a temporary change that will be replaced by opening a new chat instance
 						const codingAgentItem = item as ICodingAgentPickerItem;
 						if (codingAgentItem.session) {
-							await this.showChatSessionInEditor(codingAgentItem.session.provider, codingAgentItem.session.session, editorService, chatWidgetService);
+							await this.showChatSessionInEditor(chatSessionsService, codingAgentItem.session.provider, codingAgentItem.session.session, editorService, chatWidgetService);
 						}
 					}
 
@@ -869,14 +869,14 @@ export function registerChatActions() {
 			}
 		}
 
-		private async showChatSessionInEditor(provider: IChatSessionItemProvider, session: IChatSessionItem, editorService: IEditorService, chatWidgetService: IChatWidgetService) {
+		private async showChatSessionInEditor(chatSessionService: IChatSessionsService, provider: IChatSessionItemProvider, session: IChatSessionItem, editorService: IEditorService, chatWidgetService: IChatWidgetService) {
 			// Open the chat editor
 			await editorService.openEditor({
 				resource: ChatEditorInput.getNewEditorUri(),
 				options: {} satisfies IChatEditorOptions
 			});
 
-			const content = await provider.provideChatSessionContent(session.id, CancellationToken.None);
+			const content = await chatSessionService.provideChatSessionContent(provider.chatSessionType, session.id, CancellationToken.None);
 
 			// Wait a bit for the editor to be ready, then get the widget
 			setTimeout(() => {

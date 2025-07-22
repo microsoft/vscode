@@ -1509,6 +1509,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatSessionsProvider');
 				return extHostChatSessions.registerChatSessionItemProvider(chatSessionType, provider);
 			},
+			registerChatSessionContentProvider(chatSessionType: string, provider: vscode.ChatSessionContentProvider) {
+				checkProposedApiEnabled(extension, 'chatSessionsProvider');
+				return extHostChatSessions.registerChatSessionContentProvider(chatSessionType, provider);
+			}
 		};
 
 		// namespace: lm

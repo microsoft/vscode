@@ -22,8 +22,6 @@ declare module 'vscode' {
 		 * Provides a list of chat sessions.
 		 */
 		provideChatSessionItems(token: CancellationToken): ProviderResult<ChatSessionItem[]>;
-
-		provideChatSessionContent(id: string, token: CancellationToken): Thenable<ChatSession>;
 	}
 
 	export interface ChatSessionItem {
@@ -98,7 +96,23 @@ declare module 'vscode' {
 		readonly requestHandler: ChatRequestHandler | undefined;
 	}
 
+	export interface ChatSessionContentProvider {
+		/**
+		 * Resolves a chat session into a full `ChatSession` object.
+		 *
+		 * @param uri The URI of the chat session to open. Uris as structured as `vscode-chat-session:<chatSessionType>/id`
+		 * @param token A cancellation token that can be used to cancel the operation.
+		 */
+		provideChatSessionContent(id: string, token: CancellationToken): Thenable<ChatSession>;
+	}
+
 	export namespace chat {
 		export function registerChatSessionItemProvider(chatSessionType: string, provider: ChatSessionItemProvider): Disposable;
+
+		/**
+		 * @param chatSessionType A unique identifier for the chat session type. This is used to differentiate between different chat session providers.
+		 */
+		export function registerChatSessionContentProvider(chatSessionType: string, provider: ChatSessionContentProvider): Disposable;
+
 	}
 }

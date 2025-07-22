@@ -32,21 +32,28 @@ export interface ChatSession {
 export interface IChatSessionItemProvider {
 	readonly chatSessionType: string;
 	provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]>;
+}
+
+export interface IChatSessionContentProvider {
+	readonly chatSessionType: string;
 	provideChatSessionContent(id: string, token: CancellationToken): Promise<ChatSession>;
 }
 
 export interface IChatSessionsService {
 	readonly _serviceBrand: undefined;
 	registerChatSessionItemProvider(handle: number, provider: IChatSessionItemProvider): IDisposable;
+	registerChatSessionContentProvider(handle: number, provider: IChatSessionContentProvider): IDisposable;
 	hasChatSessionItemProviders: boolean;
 	provideChatSessionItems(token: CancellationToken): Promise<{ provider: IChatSessionItemProvider; session: IChatSessionItem }[]>;
+	provideChatSessionContent(chatSessionType: string, id: string, token: CancellationToken): Promise<ChatSession>;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
 
 export class ChatSessionsService extends Disposable implements IChatSessionsService {
 	readonly _serviceBrand: undefined;
-	private _providers: Map<number, IChatSessionItemProvider> = new Map();
+	private _itemsProviders: Map<number, IChatSessionItemProvider> = new Map();
+	private _contentProviders: Map<number, IChatSessionContentProvider> = new Map();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -58,7 +65,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const results: { provider: IChatSessionItemProvider; session: IChatSessionItem }[] = [];
 
 		// Iterate through all registered providers and collect their results
-		for (const [handle, provider] of this._providers) {
+		for (const [handle, provider] of this._itemsProviders) {
 			try {
 				if (provider.provideChatSessionItems) {
 					const sessions = await provider.provideChatSessionItems(token);
@@ -76,16 +83,35 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	public registerChatSessionItemProvider(handle: number, provider: IChatSessionItemProvider): IDisposable {
-		this._providers.set(handle, provider);
+		this._itemsProviders.set(handle, provider);
 		return {
 			dispose: () => {
-				this._providers.delete(handle);
+				this._itemsProviders.delete(handle);
 			}
 		};
 	}
 
+	registerChatSessionContentProvider(handle: number, provider: IChatSessionContentProvider): IDisposable {
+		this._contentProviders.set(handle, provider);
+		return {
+			dispose: () => {
+				this._contentProviders.delete(handle);
+			}
+		};
+	}
+
+	public async provideChatSessionContent(chatSessionType: string, id: string, token: CancellationToken): Promise<ChatSession> {
+		for (const provider of this._contentProviders.values()) {
+			if (provider.chatSessionType === chatSessionType) {
+				return provider.provideChatSessionContent(id, token);
+			}
+		}
+
+		throw new Error(`No chat session content provider found for type: ${chatSessionType}`);
+	}
+
 	public get hasChatSessionItemProviders(): boolean {
-		return this._providers.size > 0;
+		return this._itemsProviders.size > 0;
 	}
 }
 
