@@ -14,7 +14,7 @@ import { IChatProgress, IChatService } from './chatService.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
+import { IExtensionService, nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
 
@@ -54,26 +54,29 @@ export interface IChatSessionContentProvider {
 
 export interface IChatSessionsService {
 	readonly _serviceBrand: undefined;
-	registerChatSessionItemProvider(handle: number, provider: IChatSessionItemProvider): IDisposable;
-	registerChatSessionContentProvider(handle: number, provider: IChatSessionContentProvider): IDisposable;
+	registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable;
+	registerChatSessionContentProvider(provider: IChatSessionContentProvider): IDisposable;
 	hasChatSessionItemProviders: boolean;
-	provideChatSessionItems(token: CancellationToken): Promise<{ provider: IChatSessionItemProvider; session: IChatSessionItem }[]>;
+	provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]>;
 	provideChatSessionContent(chatSessionType: string, id: string, token: CancellationToken): Promise<ChatSession>;
 	registerContribution(contribution: IChatSessionsExtensionPoint): IDisposable;
+	getChatSessionProviders(): IChatSessionsExtensionPoint[];
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
 
 export class ChatSessionsService extends Disposable implements IChatSessionsService {
 	readonly _serviceBrand: undefined;
-	private _itemsProviders: Map<number, IChatSessionItemProvider> = new Map();
-	private _contentProviders: Map<number, IChatSessionContentProvider> = new Map();
+	private _itemsProviders: Map<string, IChatSessionItemProvider> = new Map();
+	private _contentProviders: Map<string, IChatSessionContentProvider> = new Map();
 	private _contributions: Map<string, IChatSessionsExtensionPoint> = new Map();
+
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IChatAgentService private readonly _chatAgentService: IChatAgentService
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
 	) {
 		super();
 	}
@@ -121,43 +124,50 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return disposable;
 	}
 
-	public async provideChatSessionItems(token: CancellationToken): Promise<{ provider: IChatSessionItemProvider; session: IChatSessionItem }[]> {
-		const results: { provider: IChatSessionItemProvider; session: IChatSessionItem }[] = [];
-
-		// TODO: Use static contributions to activate extension and return just correct set
-
-		// Iterate through all registered providers and collect their results
-		for (const [handle, provider] of this._itemsProviders) {
-			try {
-				if (provider.provideChatSessionItems) {
-					const sessions = await provider.provideChatSessionItems(token);
-					results.push(...sessions.map(session => ({ provider, session })));
-				}
-			} catch (error) {
-				this._logService.error(`Error getting chat sessions from provider ${handle}:`, error);
-			}
-			if (token.isCancellationRequested) {
-				break;
-			}
-		}
-
-		return results;
+	getChatSessionProviders(): IChatSessionsExtensionPoint[] {
+		return Array.from(this._contributions.values());
 	}
 
-	public registerChatSessionItemProvider(handle: number, provider: IChatSessionItemProvider): IDisposable {
-		this._itemsProviders.set(handle, provider);
+	async canResolve(chatViewType: string) {
+		if (this._itemsProviders.has(chatViewType)) {
+			return true;
+		}
+
+		await this._extensionService.whenInstalledExtensionsRegistered();
+		await this._extensionService.activateByEvent(`onChatSession:${chatViewType}`);
+
+		return this._itemsProviders.has(chatViewType);
+	}
+
+	public async provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]> {
+		if (!(await this.canResolve(chatSessionType))) {
+			throw Error(`Can not find provider for ${chatSessionType}`);
+		}
+
+		const provider = this._itemsProviders.get(chatSessionType);
+
+		if (provider?.provideChatSessionItems) {
+			const sessions = await provider.provideChatSessionItems(token);
+			return sessions;
+		}
+
+		return [];
+	}
+
+	public registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable {
+		this._itemsProviders.set(provider.chatSessionType, provider);
 		return {
 			dispose: () => {
-				this._itemsProviders.delete(handle);
+				this._itemsProviders.delete(provider.chatSessionType);
 			}
 		};
 	}
 
-	registerChatSessionContentProvider(handle: number, provider: IChatSessionContentProvider): IDisposable {
-		this._contentProviders.set(handle, provider);
+	registerChatSessionContentProvider(provider: IChatSessionContentProvider): IDisposable {
+		this._contentProviders.set(provider.chatSessionType, provider);
 		return {
 			dispose: () => {
-				this._contentProviders.delete(handle);
+				this._contentProviders.delete(provider.chatSessionType);
 			}
 		};
 	}

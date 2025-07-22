@@ -59,7 +59,7 @@ import { IChatRequestModel } from '../../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { ChatRequestTextPart, extractAgentAndCommand, IParsedChatRequest } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatProgress, IChatService } from '../../common/chatService.js';
-import { IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatSessionItem, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
@@ -509,7 +509,7 @@ export function registerChatActions() {
 
 			interface ICodingAgentPickerItem extends IChatPickerItem {
 				id?: string;
-				session?: { provider: IChatSessionItemProvider; session: IChatSessionItem };
+				session?: { providerType: string; session: IChatSessionItem };
 				uri?: URI;
 			}
 
@@ -567,15 +567,19 @@ export function registerChatActions() {
 
 						// Use the new Promise-based API to get chat sessions
 						const cancellationToken = new CancellationTokenSource();
-
 						try {
-							const sessions = await chatSessionsService.provideChatSessionItems(cancellationToken.token);
+							const providers = chatSessionsService.getChatSessionProviders();
+							const providerNSessions: { providerType: string; session: IChatSessionItem }[] = [];
 
-							for (const session of sessions) {
+							for (const provider of providers) {
+								const sessions = await chatSessionsService.provideChatSessionItems(provider.id, cancellationToken.token);
+								providerNSessions.push(...sessions.map(session => ({ providerType: provider.id, session })));
+							}
+
+							for (const session of providerNSessions) {
 								const sessionContent = session.session;
-								const provider = session.provider;
 
-								const ckey = contextKeyService.createKey('chatSessionType', provider.chatSessionType);
+								const ckey = contextKeyService.createKey('chatSessionType', session.providerType);
 								const actions = menuService.getMenuActions(MenuId.ChatSessionsMenu, contextKeyService);
 								const menuActions = getContextMenuActions(actions, 'navigation');
 								ckey.reset();
@@ -591,7 +595,7 @@ export function registerChatActions() {
 								const agentPick: ICodingAgentPickerItem = {
 									label: sessionContent.label,
 									description: '',
-									session: session,
+									session: { providerType: session.providerType, session: sessionContent },
 									chat: {
 										sessionId: sessionContent.id,
 										title: sessionContent.label,
@@ -627,7 +631,7 @@ export function registerChatActions() {
 								currentPicks.push(...agentPicks);
 
 								// Add "Show more..." if needed and not showing all agents
-								if (!showAllAgents && sessions.length > 5) {
+								if (!showAllAgents && providerNSessions.length > 5) {
 									currentPicks.push({
 										label: localize('chat.history.showMoreAgents', 'Show more...'),
 										description: '',
@@ -806,7 +810,7 @@ export function registerChatActions() {
 						// TODO: This is a temporary change that will be replaced by opening a new chat instance
 						const codingAgentItem = item as ICodingAgentPickerItem;
 						if (codingAgentItem.session) {
-							await this.showChatSessionInEditor(chatSessionsService, codingAgentItem.session.provider, codingAgentItem.session.session, editorService, chatWidgetService);
+							await this.showChatSessionInEditor(chatSessionsService, codingAgentItem.session.providerType, codingAgentItem.session.session, editorService, chatWidgetService);
 						}
 					}
 
@@ -869,20 +873,20 @@ export function registerChatActions() {
 			}
 		}
 
-		private async showChatSessionInEditor(chatSessionService: IChatSessionsService, provider: IChatSessionItemProvider, session: IChatSessionItem, editorService: IEditorService, chatWidgetService: IChatWidgetService) {
+		private async showChatSessionInEditor(chatSessionService: IChatSessionsService, providerType: string, session: IChatSessionItem, editorService: IEditorService, chatWidgetService: IChatWidgetService) {
 			// Open the chat editor
 			await editorService.openEditor({
 				resource: ChatEditorInput.getNewEditorUri(),
 				options: {} satisfies IChatEditorOptions
 			});
 
-			const content = await chatSessionService.provideChatSessionContent(provider.chatSessionType, session.id, CancellationToken.None);
+			const content = await chatSessionService.provideChatSessionContent(providerType, session.id, CancellationToken.None);
 
 			// Wait a bit for the editor to be ready, then get the widget
 			setTimeout(() => {
 				const widget = chatWidgetService.lastFocusedWidget;
 				if (widget) {
-					const agentMessage = `@${provider.chatSessionType} `;
+					const agentMessage = `@${providerType} `;
 					widget.setInput(agentMessage);
 
 					const model = widget.viewModel?.model;

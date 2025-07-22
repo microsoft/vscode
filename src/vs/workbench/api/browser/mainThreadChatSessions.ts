@@ -32,7 +32,8 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			chatSessionType,
 			provideChatSessionItems: (token) => this._provideChatSessionItems(handle, token)
 		};
-		this._itemProvidersRegistrations.set(handle, this._chatSessionsService.registerChatSessionItemProvider(handle, provider));
+
+		this._itemProvidersRegistrations.set(handle, this._chatSessionsService.registerChatSessionItemProvider(provider));
 	}
 
 	private async _provideChatSessionItems(handle: number, token: CancellationToken): Promise<IChatSessionItem[]> {
@@ -86,7 +87,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			provideChatSessionContent: (id, token) => this._provideChatSessionContent(handle, id, token)
 		};
 
-		this._contentProvidersRegisterations.set(handle, this._chatSessionsService.registerChatSessionContentProvider(handle, provider));
+		this._contentProvidersRegisterations.set(handle, this._chatSessionsService.registerChatSessionContentProvider(provider));
 	}
 
 	$unregisterChatSessionContentProvider(handle: number): void {

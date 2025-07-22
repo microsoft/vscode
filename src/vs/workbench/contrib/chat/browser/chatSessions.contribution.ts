@@ -44,6 +44,11 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 			},
 			required: ['id', 'name', 'displayName', 'description'],
 		}
+	},
+	activationEventsGenerator: (contribs, results) => {
+		for (const contrib of contribs) {
+			results.push(`onChatSession:${contrib.id}`);
+		}
 	}
 });
 
