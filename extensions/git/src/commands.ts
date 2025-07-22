@@ -3482,16 +3482,18 @@ export class CommandCenter {
 			return;
 		}
 
-		const openWorktree = l10n.t('Open in current window');
-		const openWorktreeInNewWindow = l10n.t('Open in new window');
-		const message = l10n.t(errorMessage);
-		const choice = await window.showWarningMessage(message, { modal: true }, openWorktree, openWorktreeInNewWindow);
-
 		const worktreeRepository = this.model.getRepository(path) || this.model.getRepository(Uri.file(path));
 
 		if (!worktreeRepository) {
 			return;
 		}
+
+		const openWorktree = l10n.t('Open in current window');
+		const openWorktreeInNewWindow = l10n.t('Open in new window');
+		const message = l10n.t(errorMessage);
+		const choice = await window.showWarningMessage(message, { modal: true }, openWorktree, openWorktreeInNewWindow);
+
+
 
 		if (choice === openWorktree) {
 			await this.openWorktreeInCurrentWindow(worktreeRepository);
