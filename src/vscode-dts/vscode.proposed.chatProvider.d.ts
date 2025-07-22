@@ -120,10 +120,10 @@ declare module 'vscode' {
 	export interface LanguageModelChatProvider2<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
 
 		// signals a change from the provider to the editor so that prepareLanguageModelChat is called again
-		onDidChange?: Event<void>;
+		onDidChangeLanguageModelInformation?: Event<void>;
 
 		// NOT cacheable (between reloads)
-		prepareLanguageModelChat(options: { silent: boolean }, token: CancellationToken): ProviderResult<T[]>;
+		prepareLanguageModelChatInformation(options: PrepareLMChatModelOptions, token: CancellationToken): ProviderResult<T[]>;
 
 		provideLanguageModelChatResponse(model: T, messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: LanguageModelChatRequestHandleOptions, progress: Progress<ChatResponseFragment2>, token: CancellationToken): Thenable<any>;
 
@@ -132,7 +132,11 @@ declare module 'vscode' {
 
 	export namespace lm {
 
-		export function registerChatModelProvider(vendor: string, provider: LanguageModelChatProvider2): Disposable;
+		export function registerLanguageModelChatProvider(vendor: string, provider: LanguageModelChatProvider2): Disposable;
+	}
+
+	export interface PrepareLMChatModelOptions {
+		silent: boolean;
 	}
 
 
