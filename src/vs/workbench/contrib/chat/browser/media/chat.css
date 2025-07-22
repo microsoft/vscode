@@ -1545,6 +1545,48 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: none;
 }
 
+.interactive-session .chat-file-changes-summary {
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-radius: 4px;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+}
+
+.interactive-session .chat-file-changes-summary .container-file-changes-summary {
+	padding: 3px 3px;
+	width: 100%;
+	box-sizing: border-box;
+}
+
+.interactive-session .chat-file-changes-summary .container-file-changes-summary .monaco-button-mdlabel {
+	display: flex;
+	width: 100%;
+	text-align: left;
+	align-items: center;
+}
+
+.interactive-session .chat-file-changes-summary .container-file-changes-summary .chat-used-context-label {
+	width: 100%;
+}
+
+.interactive-session .chat-file-changes-summary .container-file-changes-summary .chat-used-context-label .monaco-button {
+	width: 100%;
+	font-size: 13px;
+}
+
+.interactive-session .chat-file-changes-summary .container-file-changes-summary .chat-used-context-label .monaco-button .codicon {
+	font-size: 16px;
+}
+
+.interactive-session .chat-file-changes-summary .chat-used-context-list {
+	width: 100%;
+	max-width: 100%;
+	box-sizing: border-box;
+	padding: 0px;
+	margin-bottom: 0px;
+}
+
 .interactive-session .chat-file-changes-summary .insertions {
 	color: var(--vscode-chat-linesAddedForeground);;
 	font-weight: bold;
