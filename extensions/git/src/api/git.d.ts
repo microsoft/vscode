@@ -441,5 +441,6 @@ export const enum GitErrorCodes {
 	TagConflict = 'TagConflict',
 	CherryPickEmpty = 'CherryPickEmpty',
 	CherryPickConflict = 'CherryPickConflict',
-	WorktreeContainsChanges = 'WorktreeContainsChanges'
+	WorktreeContainsChanges = 'WorktreeContainsChanges',
+	WorktreeAlreadyExists = 'WorktreeAlreadyExists'
 }
