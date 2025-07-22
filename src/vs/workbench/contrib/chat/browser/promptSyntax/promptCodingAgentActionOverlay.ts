@@ -13,6 +13,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { getPromptCommandName } from '../../common/promptSyntax/service/promptsServiceImpl.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 import { $ } from '../../../../../base/browser/dom.js';
+import { IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 
 export class PromptCodingAgentActionOverlayWidget extends Disposable implements IOverlayWidget {
 

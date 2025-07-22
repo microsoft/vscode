@@ -20,7 +20,6 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/cont
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 import { IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
@@ -29,7 +28,7 @@ import { toChatHistoryContent } from '../../common/chatModel.js';
 import { IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { chatVariableLeader } from '../../common/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
-import { IChatMarkdownContent, IChatProgress, IChatService, ICodingAgentSessionBegin } from '../../common/chatService.js';
+import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
@@ -511,7 +510,6 @@ class SubmitWithoutDispatchingAction extends Action2 {
 		widget?.acceptInput(context?.inputValue, { noCommandDetection: true });
 	}
 }
-
 export class CreateRemoteAgentJobAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.createRemoteAgentJob';
 
@@ -543,10 +541,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				id: MenuId.ChatExecute,
 				group: 'navigation',
 				order: 3.4,
-				when: ContextKeyExpr.and(
-					ChatContextKeys.hasRemoteCodingAgent,
-					ChatContextKeys.lockedToCodingAgent.negate()
-				)
+				when: ChatContextKeys.hasRemoteCodingAgent
 			}
 		});
 	}
@@ -562,7 +557,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			const commandService = accessor.get(ICommandService);
 			const widgetService = accessor.get(IChatWidgetService);
 			const chatAgentService = accessor.get(IChatAgentService);
-			const quickInputService = accessor.get(IQuickInputService);
 
 			const widget = widgetService.lastFocusedWidget;
 			if (!widget) {
@@ -596,29 +590,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			const requestParser = instantiationService.createInstance(ChatRequestParser);
 			const parsedRequest = requestParser.parseChatRequest(session, userPrompt, ChatAgentLocation.Panel);
 
-			const codingAgents = remoteCodingAgent.getAvailableAgents();
-			if (!codingAgents.length) {
-				return;
-			}
-
-			const quickPickItems = codingAgents.map(agent => ({
-				label: agent.displayName || agent.id,
-				description: agent.description,
-				detail: `@${agent.id}`,
-				agent: agent
-			}));
-
-			const picked = await quickInputService.pick(quickPickItems, {
-				title: localize('selectCodingAgent', "Select Coding Agent"),
-				placeHolder: localize('selectCodingAgentPlaceholder', "Select your coding agent")
-			});
-
-			if (!picked) {
-				return; // User cancelled
-			}
-
-			const { agent } = picked;
-
 			// Add the request to the model first
 			const addedRequest = chatModel.addRequest(
 				parsedRequest,
@@ -627,7 +598,14 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				defaultAgent,
 			);
 
+			const agents = remoteCodingAgent.getAvailableAgents();
+			const agent = agents[0]; // TODO: We just pick the first one for now
+			if (!agent) {
+				return;
+			}
+
 			let summary: string | undefined;
+			let followup: string | undefined;
 			if (defaultAgent && chatRequests.length > 0) {
 				chatModel.acceptResponseProgress(addedRequest, {
 					kind: 'progressMessage',
@@ -636,6 +614,15 @@ export class CreateRemoteAgentJobAction extends Action2 {
 						CreateRemoteAgentJobAction.markdownStringTrustedOptions
 					)
 				});
+
+				// Forward useful metadata about conversation to the implementing extension
+				if (agent.followUpRegex) {
+					const regex = new RegExp(agent.followUpRegex);
+					followup = chatRequests
+						.map(req => req.response?.response.toString() ?? '')
+						.reverse()
+						.find(text => regex.test(text));
+				}
 
 				const historyEntries: IChatAgentHistoryEntry[] = chatRequests
 					.map(req => ({
@@ -665,38 +652,38 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				)
 			});
 
-			const resultMarkdown = 'JoshBot will continue your work in [#256541](https://github.com/microsoft/vscode/pull/256541)';
-			let part: IChatProgress;
-			if (resultMarkdown) {
-				const codingAgentBeginPart: ICodingAgentSessionBegin = {
-					kind: 'codingAgentSessionBegin',
-					agentDisplayName: agent.displayName,
-					agentId: agent.id,
-					jobId: '1111',
-					title: localize('codingAgentSession.title', '@{0} is continuing your work', agent.id),
-					description: resultMarkdown || 'none',
-					//command: 'blah',
-				};
-				part = codingAgentBeginPart;
-			} else {
-				const errorPart: IChatMarkdownContent = {
-					kind: 'markdownContent',
-					content: new MarkdownString(
-						localize('remoteAgentError', "Coding agent session cancelled."),
-						CreateRemoteAgentJobAction.markdownStringTrustedOptions
-					)
-				};
-				part = errorPart;
+			// Execute the remote command
+			const resultMarkdown: string | undefined = await commandService.executeCommand(agent.command, {
+				userPrompt,
+				summary: summary || userPrompt,
+				followup,
+			});
+
+			let content = new MarkdownString(
+				resultMarkdown,
+				CreateRemoteAgentJobAction.markdownStringTrustedOptions
+			);
+			if (!resultMarkdown) {
+				content = new MarkdownString(
+					localize('remoteAgentError', "Coding agent session cancelled."),
+					CreateRemoteAgentJobAction.markdownStringTrustedOptions
+				);
 			}
 
-			chatModel.acceptResponseProgress(addedRequest, part);
+			chatModel.acceptResponseProgress(addedRequest, { content, kind: 'markdownContent' });
 			chatModel.setResponse(addedRequest, {});
 			chatModel.completeResponse(addedRequest);
+
+			// Clear chat (start a new chat)
+			if (resultMarkdown) {
+				widget.clear();
+			}
 		} finally {
 			remoteJobCreatingKey.set(false);
 		}
 	}
 }
+
 
 export class ChatSubmitWithCodebaseAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.submitWithCodebase';
