@@ -22,14 +22,14 @@ export function getTaskDefinition(id: string) {
 
 }
 
-export function getTaskRepresentation(task: { [key: string]: any }): string {
-	if ('label' in task) {
+export function getTaskRepresentation(task: ITaskRepresentation): string {
+	if (task.label) {
 		return task.label;
-	} else if ('_label' in task) {
+	} else if (task._label) {
 		return task._label;
-	} else if ('script' in task) {
+	} else if (task.script) {
 		return task.script;
-	} else if ('command' in task) {
+	} else if (task.command) {
 		return task.command;
 	}
 	return '';
