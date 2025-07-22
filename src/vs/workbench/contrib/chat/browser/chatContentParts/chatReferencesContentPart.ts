@@ -393,9 +393,15 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 					range: 'range' in reference ? reference.range : undefined,
 					title: data.options?.status?.description ?? data.title,
 					strikethrough: data.excluded,
-					extraClasses,
-					additionalData: 'additionalData' in data ? data.additionalData : undefined
+					extraClasses
 				});
+				if ('additionalData' in data && data.additionalData) {
+					console.log('data.additionalData : ', data.additionalData);
+					data.additionalData.forEach(additionalData => {
+						const element = templateData.label.element.appendChild($(`.${additionalData.className}`));
+						element.textContent = additionalData.description;
+					});
+				}
 			}
 		}
 

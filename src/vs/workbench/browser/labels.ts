@@ -67,18 +67,12 @@ export interface IResourceLabelOptions extends IIconLabelValueOptions {
 	 * Uses the provided icon instead of deriving a resource icon.
 	 */
 	readonly icon?: ThemeIcon | URI;
-
-	/**
-	 * Additional label to add after the resource label.
-	 */
-	readonly additionalData?: { description: string; className: string }[];
 }
 
 export interface IFileLabelOptions extends IResourceLabelOptions {
 	hideLabel?: boolean;
 	hidePath?: boolean;
 	range?: IRange;
-	additionalData?: { description: string; className: string }[];
 }
 
 export interface IResourceLabel extends IDisposable {
@@ -297,7 +291,6 @@ class ResourceLabelWidget extends IconLabel {
 	readonly onDidRender = this._onDidRender.event;
 
 	private label: IResourceLabelProps | undefined = undefined;
-	private additionalData: { description: string; className: string }[] | undefined = undefined;
 	private readonly decoration = this._register(new MutableDisposable<IDecoration>());
 	private options: IResourceLabelOptions | undefined = undefined;
 
@@ -536,7 +529,6 @@ class ResourceLabelWidget extends IconLabel {
 
 		this.label = label;
 		this.options = options;
-		this.additionalData = options.additionalData;
 
 		if (hasResourceChanged) {
 			this.computedLanguageId = undefined; // reset computed language since resource changed
@@ -701,7 +693,7 @@ class ResourceLabelWidget extends IconLabel {
 				`:${this.label.range.startLineNumber}`;
 		}
 
-		this.setLabel(this.label.name ?? '', this.label.description, iconLabelOptions, this.additionalData);
+		this.setLabel(this.label.name ?? '', this.label.description, iconLabelOptions);
 
 		this._onDidRender.fire();
 

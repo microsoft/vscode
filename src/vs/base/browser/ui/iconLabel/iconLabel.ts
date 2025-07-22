@@ -9,7 +9,7 @@ import * as css from '../../cssValue.js';
 import { HighlightedLabel } from '../highlightedlabel/highlightedLabel.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { IMatch } from '../../../common/filters.js';
-import { Disposable, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../common/lifecycle.js';
 import { equals } from '../../../common/objects.js';
 import { Range } from '../../../common/range.js';
 import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
@@ -97,7 +97,6 @@ export class IconLabel extends Disposable {
 	private readonly nameNode: Label | LabelWithHighlights;
 
 	private descriptionNode: FastLabelNode | HighlightedLabel | undefined;
-	private additionalNodes: HTMLElement[] = [];
 	private suffixNode: FastLabelNode | undefined;
 
 	private readonly labelContainer: HTMLElement;
@@ -128,7 +127,7 @@ export class IconLabel extends Disposable {
 		return this.domNode.element;
 	}
 
-	setLabel(label: string | string[], description?: string, options?: IIconLabelValueOptions, additionalData?: { description: string; className: string }[]): void {
+	setLabel(label: string | string[], description?: string, options?: IIconLabelValueOptions): void {
 		const labelClasses = ['monaco-icon-label'];
 		const containerClasses = ['monaco-icon-label-container'];
 		let ariaLabel: string = '';
@@ -194,12 +193,6 @@ export class IconLabel extends Disposable {
 				descriptionNode.empty = !description;
 			}
 		}
-		if (additionalData) {
-			this.additionalNodes.forEach(node => node.remove());
-			for (const data of additionalData) {
-				this.additionalNodes.push(this.rereateAdditionalDataNode(data));
-			}
-		}
 
 		if (options?.suffix || this.suffixNode) {
 			const suffixNode = this.getOrCreateSuffixNode();
@@ -261,15 +254,6 @@ export class IconLabel extends Disposable {
 		}
 
 		return this.descriptionNode;
-	}
-
-	private rereateAdditionalDataNode(data: { description: string; className: string }): HTMLElement {
-		const element = dom.append(this.labelContainer, dom.$(`.${data.className}`));
-		element.textContent = data.description;
-		this._register(toDisposable(() => {
-			element.remove();
-		}));
-		return element;
 	}
 }
 
