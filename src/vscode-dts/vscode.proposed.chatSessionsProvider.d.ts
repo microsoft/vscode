@@ -64,9 +64,6 @@ declare module 'vscode' {
 		 */
 		readonly command?: string;
 
-		/**
-		 * @hidden
-		 */
 		constructor(response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart | ExtendedChatResponsePart>, result: ChatResult, participant: string);
 	}
 
