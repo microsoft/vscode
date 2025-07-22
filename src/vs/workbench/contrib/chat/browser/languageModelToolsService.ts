@@ -276,6 +276,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 				model.acceptResponseProgress(request, toolInvocation);
 
+				dto.toolSpecificData = toolInvocation?.toolSpecificData;
+
 				if (prepared?.confirmationMessages) {
 					if (!toolInvocation.isConfirmed && !autoConfirmed) {
 						this.playAccessibilitySignal([toolInvocation]);
@@ -284,8 +286,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					if (!userConfirmed) {
 						throw new CancellationError();
 					}
-
-					dto.toolSpecificData = toolInvocation?.toolSpecificData;
 
 					if (dto.toolSpecificData?.kind === 'input') {
 						dto.parameters = dto.toolSpecificData.rawInput;
