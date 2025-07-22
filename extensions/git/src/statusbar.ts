@@ -48,7 +48,7 @@ class CheckoutStatusBar {
 		];
 
 		const rebasing = !!this.repository.rebaseCommit;
-		const label = operationData[0]?.refLabel ?? `${this.repository.headLabel}${rebasing ? ` (${l10n.t('Rebasing')})` : ''}`;
+		const label = operationData[0]?.refLabel ?? `${this.repository.headLabel}${rebasing ? ` (${l10n.t('Rebasing - Replaying Your Commits')})` : ''}`;
 		const command = (this.state.isCheckoutRunning || this.state.isCommitRunning || this.state.isSyncRunning) ? '' : 'git.checkout';
 
 		return {
