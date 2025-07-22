@@ -69,6 +69,20 @@ export async function getTaskForTool(id: string, taskDefinition: { taskLabel?: s
 	return resolvedTask;
 }
 
+/**
+ * Represents a configured task in the system.
+ * 
+ * This interface is used to define tasks that can be executed within the workspace.
+ * It includes optional properties for identifying and describing the task.
+ * 
+ * Properties:
+ * - `type`: (optional) The type of the task, which categorizes it (e.g., "build", "test").
+ * - `label`: (optional) A user-facing label for the task, typically used for display purposes.
+ * - `_label`: (optional) An internal label for the task, used for unique identification.
+ * 
+ * Note: The `label` property is prioritized for user-facing representations, while `_label`
+ * is used internally for task resolution and matching.
+ */
 interface IConfiguredTask {
 	type?: string;
 	label?: string;
