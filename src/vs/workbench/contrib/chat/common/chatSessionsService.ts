@@ -6,11 +6,17 @@
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IChatProgress } from './chatService.js';
+import { IChatProgress, IChatService } from './chatService.js';
+import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
+import { ChatAgentLocation, ChatModeKind } from './constants.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { localize } from '../../../../nls.js';
 
 export interface IChatSessionsExtensionPoint {
 	id: string;
@@ -18,10 +24,6 @@ export interface IChatSessionsExtensionPoint {
 	displayName: string;
 	description: string;
 	when?: string;
-}
-
-export interface IChatSessionDynamicAgentHandler {
-	registerDynamicChatAgent(extPoint: IChatSessionsExtensionPoint): void;
 }
 export interface IChatSessionItem {
 	id: string;
@@ -66,25 +68,57 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	readonly _serviceBrand: undefined;
 	private _itemsProviders: Map<number, IChatSessionItemProvider> = new Map();
 	private _contentProviders: Map<number, IChatSessionContentProvider> = new Map();
-
 	private _contributions: Map<string, IChatSessionsExtensionPoint> = new Map();
+
 	constructor(
 		@ILogService private readonly _logService: ILogService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService
 	) {
 		super();
 	}
-
-	registerContribution(contribution: IChatSessionsExtensionPoint): IDisposable {
+	public registerContribution(contribution: IChatSessionsExtensionPoint): IDisposable {
 		if (this._contributions.has(contribution.id)) {
 			this._logService.warn(`Chat session contribution with id '${contribution.id}' is already registered.`);
 			return { dispose: () => { } };
 		}
 		this._contributions.set(contribution.id, contribution);
+		const dynamicAgentDisposable = this.registerDynamicAgent(contribution);
 		return {
 			dispose: () => {
 				this._contributions.delete(contribution.id);
+				dynamicAgentDisposable.dispose();
 			}
 		};
+	}
+
+	private registerDynamicAgent(contribution: IChatSessionsExtensionPoint): IDisposable {
+		const { id, name, displayName, description } = contribution;
+		const agentData: IChatAgentData = {
+			id,
+			name,
+			fullName: displayName,
+			description: description,
+			isDefault: false,
+			isCore: false,
+			isDynamic: true,
+			isCodingAgent: true, // TODO: Influences chat UI (eg: locks chat to participant, hides UX elements, etc...)
+			slashCommands: [],
+			locations: [ChatAgentLocation.Panel],
+			modes: [ChatModeKind.Agent, ChatModeKind.Ask],
+			disambiguation: [],
+			metadata: {
+				themeIcon: Codicon.sendToRemoteAgent,
+				isSticky: true,
+			},
+			extensionId: nullExtensionDescription.identifier,
+			extensionDisplayName: nullExtensionDescription.name,
+			extensionPublisherId: nullExtensionDescription.publisher,
+		};
+
+		const agentImpl = this._instantiationService.createInstance(CodingAgentChatImplementation, contribution);
+		const disposable = this._chatAgentService.registerDynamicAgent(agentData, agentImpl);
+		return disposable;
 	}
 
 	public async provideChatSessionItems(token: CancellationToken): Promise<{ provider: IChatSessionItemProvider; session: IChatSessionItem }[]> {
@@ -145,3 +179,53 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 registerSingleton(IChatSessionsService, ChatSessionsService, InstantiationType.Delayed);
 
+
+/**
+ * Implementation for individual remote coding agent chat functionality
+ */
+class CodingAgentChatImplementation extends Disposable implements IChatAgentImplementation {
+
+	constructor(
+		private readonly chatSession: IChatSessionsExtensionPoint,
+		@IChatService private readonly chatService: IChatService
+	) {
+		super();
+	}
+
+	async invoke(request: IChatAgentRequest, progress: (progress: IChatProgress[]) => void, history: any[], token: CancellationToken): Promise<IChatAgentResult> {
+		const message = request.message.trim();
+		try {
+			if (history.length === 0) {
+				return this.handleNew(request, message, progress, token);
+			} else {
+				return this.handleExisting(request, message, progress, token);
+			}
+		} catch (error) {
+			progress([{
+				kind: 'markdownContent',
+				content: new MarkdownString(localize('remoteCodingAgent.error', 'Error: {0}', error instanceof Error ? error.message : String(error)))
+			}]);
+			return { errorDetails: { message: String(error) } };
+		}
+	}
+
+	private async handleExisting(request: IChatAgentRequest, message: string, progress: (progress: IChatProgress[]) => void, token: CancellationToken): Promise<IChatAgentResult> {
+		const { displayName } = this.chatSession;
+		progress([{
+			kind: 'progressMessage',
+			content: new MarkdownString(localize('chatAgent.working', '{0} queued your request', displayName))
+		}]);
+		await new Promise(resolve => setTimeout(resolve, 1000));
+		return {};
+	}
+
+	private async handleNew(request: IChatAgentRequest, message: string, progress: (progress: IChatProgress[]) => void, token: CancellationToken): Promise<IChatAgentResult> {
+
+		// Get the chat model for this session so we can add requests over time
+		const chatModel = this.chatService.getSession(request.sessionId);
+		if (!chatModel) {
+			throw new Error(`Chat session ${request.sessionId} not found`);
+		}
+		return {};
+	}
+}
