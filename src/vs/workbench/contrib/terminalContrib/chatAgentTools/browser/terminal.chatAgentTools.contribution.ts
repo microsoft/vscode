@@ -7,7 +7,6 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ILanguageModelToolsService, ToolDataSource } from '../../../chat/common/languageModelToolsService.js';
@@ -21,12 +20,10 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 	static readonly ID = 'terminal.chatAgentTools';
 
 	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
 	) {
 		super();
-
 		const runInTerminalTool = instantiationService.createInstance(RunInTerminalTool);
 		this._register(toolsService.registerToolData(RunInTerminalToolData));
 		this._register(toolsService.registerToolImplementation(RunInTerminalToolData.id, runInTerminalTool));
