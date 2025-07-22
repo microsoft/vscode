@@ -33,7 +33,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { Platform, platform } from '../../../base/common/platform.js';
 import { getWindowControlsStyle, WindowControlsStyle } from '../../window/common/window.js';
 import { getZoomFactor } from '../../../base/browser/browser.js';
-import { Checkbox } from '../../../base/browser/ui/toggle/toggle.js';
+import { TriStateCheckbox } from '../../../base/browser/ui/toggle/toggle.js';
 import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
 
 const $ = dom.$;
@@ -154,11 +154,11 @@ export class QuickInputController extends Disposable {
 
 		const headerContainer = dom.append(container, $('.quick-input-header'));
 
-		const checkAll = this._register(new Checkbox(localize('quickInput.checkAll', "Toggle all checkboxes"), false, { ...defaultCheckboxStyles, size: 15 }));
+		const checkAll = this._register(new TriStateCheckbox(localize('quickInput.checkAll', "Toggle all checkboxes"), false, { ...defaultCheckboxStyles, size: 15 }));
 		dom.append(headerContainer, checkAll.domNode);
 		this._register(checkAll.onChange(() => {
 			const checked = checkAll.checked;
-			list.setAllVisibleChecked(checked);
+			list.setAllVisibleChecked(checked === true);
 		}));
 		this._register(dom.addDisposableListener(checkAll.domNode, dom.EventType.CLICK, e => {
 			if (e.x || e.y) { // Avoid 'click' triggered by 'space'...
@@ -218,6 +218,7 @@ export class QuickInputController extends Disposable {
 			}
 		}));
 		this._register(list.onChangedAllVisibleChecked(checked => {
+			// TODO: Support tri-state checkbox when we remove the .indent property that is faking tree structure.
 			checkAll.checked = checked;
 		}));
 		this._register(list.onChangedVisibleCount(c => {
