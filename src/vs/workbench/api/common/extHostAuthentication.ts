@@ -320,6 +320,8 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 			: stringifiedServer;
 		// Auth Provider label is just the resource name if provided, otherwise the authority of the authorization server.
 		this.label = _resourceMetadata?.resource_name ?? this.authorizationServer.authority;
+		this._clientId = _clientId;
+		this._clientSecret = _clientSecret;
 
 		this._logger = loggerService.createLogger(this.id, { name: this.label });
 		this._disposable = new DisposableStore();
