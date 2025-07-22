@@ -20,19 +20,21 @@ export function activate(context: vscode.ExtensionContext) {
 	const sessionManager = JoshBotSessionManager.getInstance();
 	sessionManager.initialize(context);
 
+	const provider = new class implements vscode.ChatSessionItemProvider, vscode.ChatSessionContentProvider {
+		label = vscode.l10n.t('JoshBot');
+		provideChatSessionItems = async (_token: vscode.CancellationToken) => {
+			return await sessionManager.getSessionItems(_token);
+		};
+		provideChatSessionContent = async (id: string, token: vscode.CancellationToken) => {
+			return await getSessionContent(id, token);
+		};
+		// Events not used yet, but required by interface.
+		onDidChangeChatSessionItems = new vscode.EventEmitter<void>().event;
+	};
+
 	context.subscriptions.push(vscode.chat.registerChatSessionItemProvider(
 		'joshbot',
-		{
-			label: vscode.l10n.t('JoshBot'),
-			provideChatSessionItems: async (_token: vscode.CancellationToken) => {
-				return await sessionManager.getSessionItems(_token);
-			},
-			provideChatSessionContent: async (id: string, token: vscode.CancellationToken) => {
-				return await getSessionContent(id, token);
-			},
-			// Events not used yet, but required by interface.
-			onDidChangeChatSessionItems: new vscode.EventEmitter<void>().event,
-		}
+		provider
 	));
 
 	context.subscriptions.push(disposable);

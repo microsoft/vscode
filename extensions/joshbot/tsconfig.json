@@ -16,6 +16,8 @@
 		"src/**/*",
 		"src/completions/index.d.ts",
 		"../../src/vscode-dts/vscode.d.ts",
+		"../../src/vscode-dts/vscode.proposed.chatParticipantAdditions.d.ts",
+		"../../src/vscode-dts/vscode.proposed.chatParticipantPrivate.d.ts",
 		"../../src/vscode-dts/vscode.proposed.chatSessionsProvider.d.ts",
 	]
 }

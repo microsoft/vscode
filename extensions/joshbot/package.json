@@ -9,7 +9,9 @@
     "vscode": "^1.70.0"
   },
   "enabledApiProposals": [
-    "chatSessionsProvider"
+    "chatSessionsProvider",
+    "chatParticipantAdditions",
+		"chatParticipantPrivate"
   ],
   "main": "./out/extension.js",
   "browser": "./dist/browser/extension.js",
@@ -20,7 +22,9 @@
     "ui",
     "workspace"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onChatSession:josh-bot"
+  ],
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {
