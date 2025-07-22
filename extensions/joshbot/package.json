@@ -1,0 +1,49 @@
+{
+  "name": "joshbot",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "main": "./out/extension.js",
+  "browser": "./dist/browser/extension.js",
+  "categories": [
+    "Other"
+  ],
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "activationEvents": [],
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "joshbot.hello",
+        "title": "Hello",
+        "category": "JoshBot"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "gulp compile-extension:joshbot",
+    "watch": "gulp watch-extension:joshbot",
+    "compile-web": "webpack --config extension-browser.webpack.config.js",
+    "watch-web": "webpack --watch --config extension-browser.webpack.config.js"
+  },
+  "dependencies": {},
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

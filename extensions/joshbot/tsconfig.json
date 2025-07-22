@@ -1,0 +1,11 @@
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"outDir": "out",
+		"rootDir": "src",
+		"lib": ["es2020", "dom"],
+		"strict": true,
+		"sourceMap": true
+	},
+	"include": ["src/**/*", "../../src/vscode-dts/vscode.d.ts"]
+}

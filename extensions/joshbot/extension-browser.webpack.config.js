@@ -1,0 +1,31 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+//@ts-check
+
+'use strict';
+
+const path = require('path');
+const withBrowserDefaults = require('../shared.webpack.config').browser;
+
+const config = withBrowserDefaults({
+	context: __dirname,
+	entry: {
+		extension: './src/extension.ts',
+	},
+	output: {
+		filename: '[name].js',
+		path: path.join(__dirname, 'dist', 'browser'),
+	},
+	resolve: {
+		alias: {},
+		fallback: {
+			'path': require.resolve('path-browserify'),
+			'util': require.resolve('util')
+		}
+	}
+});
+
+module.exports = config;
