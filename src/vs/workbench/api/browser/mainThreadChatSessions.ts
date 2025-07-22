@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { IChatSessionDefinition, IChatSessionDefinitionProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
+import { IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
 
@@ -25,14 +25,14 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 	$registerChatSessionItemProvider(handle: number, chatSessionType: string): void {
 		// Register the provider handle - this tracks that a provider exists
-		const provider: IChatSessionDefinitionProvider = {
+		const provider: IChatSessionItemProvider = {
 			chatSessionType,
-			provideChatSessionDefinitions: (token) => this._provideChatSessionsInformation(handle, token)
+			provideChatSessionItems: (token) => this._provideChatSessionItems(handle, token)
 		};
-		this._registrations.set(handle, this._chatSessionsService.registerChatSessionDefinitionProvider(handle, provider));
+		this._registrations.set(handle, this._chatSessionsService.registerChatSessionItemProvider(handle, provider));
 	}
 
-	private async _provideChatSessionsInformation(handle: number, token: CancellationToken): Promise<IChatSessionDefinition[]> {
+	private async _provideChatSessionItems(handle: number, token: CancellationToken): Promise<IChatSessionItem[]> {
 		const proxy = this._extHostContext.getProxy(ExtHostContext.ExtHostChatSessions);
 
 		try {
@@ -56,7 +56,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 	private _reviveIconPath(
 		iconPath: UriComponents | { light: UriComponents; dark: UriComponents } | { id: string; color?: { id: string } | undefined })
-		: IChatSessionDefinition['iconPath'] {
+		: IChatSessionItem['iconPath'] {
 		if (!iconPath) {
 			return undefined;
 		}

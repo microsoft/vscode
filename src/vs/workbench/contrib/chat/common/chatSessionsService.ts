@@ -11,7 +11,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 
-export interface IChatSessionDefinition {
+export interface IChatSessionItem {
 	id: string;
 	label: string;
 	iconPath?: URI | {
@@ -20,23 +20,23 @@ export interface IChatSessionDefinition {
 	} | ThemeIcon;
 }
 
-export interface IChatSessionDefinitionProvider {
+export interface IChatSessionItemProvider {
 	readonly chatSessionType: string;
-	provideChatSessionDefinitions(token: CancellationToken): Promise<IChatSessionDefinition[]>;
+	provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]>;
 }
 
 export interface IChatSessionsService {
 	readonly _serviceBrand: undefined;
-	registerChatSessionDefinitionProvider(handle: number, provider: IChatSessionDefinitionProvider): IDisposable;
-	hasChatSessionDefinitionProviders: boolean;
-	provideChatSessionDefinitions(token: CancellationToken): Promise<{ provider: IChatSessionDefinitionProvider; session: IChatSessionDefinition }[]>;
+	registerChatSessionItemProvider(handle: number, provider: IChatSessionItemProvider): IDisposable;
+	hasChatSessionItemProviders: boolean;
+	provideChatSessionItems(token: CancellationToken): Promise<{ provider: IChatSessionItemProvider; session: IChatSessionItem }[]>;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
 
 export class ChatSessionsService extends Disposable implements IChatSessionsService {
 	readonly _serviceBrand: undefined;
-	private _providers: Map<number, IChatSessionDefinitionProvider> = new Map();
+	private _providers: Map<number, IChatSessionItemProvider> = new Map();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -44,14 +44,14 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		super();
 	}
 
-	public async provideChatSessionDefinitions(token: CancellationToken): Promise<{ provider: IChatSessionDefinitionProvider; session: IChatSessionDefinition }[]> {
-		const results: { provider: IChatSessionDefinitionProvider; session: IChatSessionDefinition }[] = [];
+	public async provideChatSessionItems(token: CancellationToken): Promise<{ provider: IChatSessionItemProvider; session: IChatSessionItem }[]> {
+		const results: { provider: IChatSessionItemProvider; session: IChatSessionItem }[] = [];
 
 		// Iterate through all registered providers and collect their results
 		for (const [handle, provider] of this._providers) {
 			try {
-				if (provider.provideChatSessionDefinitions) {
-					const sessions = await provider.provideChatSessionDefinitions(token);
+				if (provider.provideChatSessionItems) {
+					const sessions = await provider.provideChatSessionItems(token);
 					results.push(...sessions.map(session => ({ provider, session })));
 				}
 			} catch (error) {
@@ -65,7 +65,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return results;
 	}
 
-	public registerChatSessionDefinitionProvider(handle: number, provider: IChatSessionDefinitionProvider): IDisposable {
+	public registerChatSessionItemProvider(handle: number, provider: IChatSessionItemProvider): IDisposable {
 		this._providers.set(handle, provider);
 		return {
 			dispose: () => {
@@ -74,7 +74,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		};
 	}
 
-	public get hasChatSessionDefinitionProviders(): boolean {
+	public get hasChatSessionItemProviders(): boolean {
 		return this._providers.size > 0;
 	}
 }

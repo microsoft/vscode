@@ -11,7 +11,7 @@ import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostChatSessionsShape, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
 import { ExtHostCommands } from './extHostCommands.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
-import { IChatSessionDefinition as IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
+import { IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
 
 export class ExtHostChatSessions extends Disposable implements ExtHostChatSessionsShape {
 
