@@ -8,7 +8,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
 import { count } from '../../../../../base/common/strings.js';
 import type { URI } from '../../../../../base/common/uri.js';
@@ -21,7 +21,7 @@ import { TerminalCapability } from '../../../../../platform/terminal/common/capa
 import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
-import type { IChatTerminalToolInvocationData, IChatTerminalToolInvocationData2 } from '../../../chat/common/chatService.js';
+import { IChatService, type IChatTerminalToolInvocationData, type IChatTerminalToolInvocationData2 } from '../../../chat/common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../terminal/browser/xterm/xtermTerminal.js';
@@ -35,6 +35,8 @@ import { RichExecuteStrategy } from './executeStrategy/richExecuteStrategy.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from './subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from './toolTerminalCreator.js';
+import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
+import { getOutput, pollForOutputAndIdle, promptForMorePolling } from './bufferOutputPolling.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -140,7 +142,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@IChatService private readonly _chatService: IChatService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService
 	) {
 		super();
 
@@ -149,6 +153,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// Restore terminal associations from storage
 		this._restoreTerminalAssociations();
+		this._register(this._terminalService.onDidDisposeInstance(e => {
+			for (const [sessionId, toolTerminal] of this._sessionTerminalAssociations.entries()) {
+				if (e === toolTerminal.instance) {
+					this._sessionTerminalAssociations.delete(sessionId);
+				}
+			}
+		}));
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -256,7 +267,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
 
 		const chatSessionId = invocation.context?.sessionId;
-		if (chatSessionId === undefined) {
+		if (!invocation.context || chatSessionId === undefined) {
 			throw new Error('A chat session ID is required for this tool');
 		}
 
@@ -290,6 +301,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const termId = generateUuid();
 
 		if (args.isBackground) {
+			let outputAndIdle: { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number } | undefined = undefined;
+
 			this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
 			const toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(token);
 			this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
@@ -310,13 +323,22 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
-				const resultText = (
+
+				outputAndIdle = await pollForOutputAndIdle(execution, false, token, this._languageModelsService);
+				if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
+					const extendPolling = await promptForMorePolling(command, invocation.context, this._chatService);
+					if (extendPolling) {
+						outputAndIdle = await pollForOutputAndIdle(execution, true, token, this._languageModelsService);
+					}
+				}
+				let resultText = (
 					didUserEditCommand
 						? `Note: The user manually edited the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
 						: didToolEditCommand
 							? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
 							: `Command is running in terminal with ID=${termId}`
 				);
+				resultText += outputAndIdle.terminalExecutionIdleBeforeTimeout ? `\n\ The command became idle with output:\n${outputAndIdle.output}` : `\n\ The command is still running, with output:\n${outputAndIdle.output}`;
 				return {
 					content: [{
 						kind: 'text',
@@ -331,18 +353,22 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				throw e;
 			} finally {
+				this._logService.debug(`RunInTerminalTool: Finished polling \`${outputAndIdle?.output.length}\` lines of output in \`${outputAndIdle?.pollDurationMs}\``);
 				const timingExecuteMs = Date.now() - timingStart;
 				this._sendTelemetry(toolTerminal.instance, {
 					didUserEditCommand,
 					didToolEditCommand,
+					didAcceptUserInput: false,
 					shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
 					isBackground: true,
 					error,
-					outputLineCount: -1,
 					exitCode: undefined,
 					isNewSession: true,
 					timingExecuteMs,
 					timingConnectMs,
+					terminalExecutionIdleBeforeTimeout: outputAndIdle?.terminalExecutionIdleBeforeTimeout,
+					outputLineCount: outputAndIdle?.output ? count(outputAndIdle.output, '\n') : 0,
+					pollDurationMs: outputAndIdle?.pollDurationMs,
 				});
 			}
 		} else {
@@ -364,6 +390,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._terminalService.setActiveInstance(toolTerminal.instance);
 
 			const timingConnectMs = Date.now() - timingStart;
+
+			const store = new DisposableStore();
+			let didAcceptUserInput = false;
+			const xterm = await toolTerminal.instance.xtermReadyPromise;
+			if (xterm) {
+				store.add(xterm.raw.onData(() => didAcceptUserInput = true));
+			}
 
 			let terminalResult = '';
 			let outputLineCount = -1;
@@ -402,10 +435,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				error = 'threw';
 				throw e;
 			} finally {
+				store.dispose();
 				const timingExecuteMs = Date.now() - timingStart;
 				this._sendTelemetry(toolTerminal.instance, {
 					didUserEditCommand,
 					didToolEditCommand,
+					didAcceptUserInput,
 					isBackground: false,
 					shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
 					error,
@@ -574,12 +609,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private _sendTelemetry(instance: ITerminalInstance, state: {
 		didUserEditCommand: boolean;
 		didToolEditCommand: boolean;
+		didAcceptUserInput: boolean;
 		error: string | undefined;
 		isBackground: boolean;
 		isNewSession: boolean;
 		shellIntegrationQuality: ShellIntegrationQuality;
 		outputLineCount: number;
 		timingConnectMs: number;
+		pollDurationMs?: number;
+		terminalExecutionIdleBeforeTimeout?: boolean;
 		timingExecuteMs: number;
 		exitCode: number | undefined;
 	}) {
@@ -590,12 +628,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			strategy: 0 | 1 | 2;
 			userEditedCommand: 0 | 1;
 			toolEditedCommand: 0 | 1;
+			acceptedUserInput: 0 | 1;
 			isBackground: 0 | 1;
 			isNewSession: 0 | 1;
 			outputLineCount: number;
 			nonZeroExitCode: -1 | 0 | 1;
 			timingConnectMs: number;
-			timingExecuteMs: number;
+			pollDurationMs: number;
+			terminalExecutionIdleBeforeTimeout: boolean;
 		};
 		type TelemetryClassification = {
 			owner: 'tyriar';
@@ -607,12 +647,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			strategy: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'What strategy was used to execute the command (0=none, 1=basic, 2=rich)' };
 			userEditedCommand: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user edited the command' };
 			toolEditedCommand: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the tool edited the command' };
+			acceptedUserInput: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the terminal accepted user input during the execution' };
 			isBackground: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command is a background command' };
 			isNewSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether this was the first execution for the terminal session' };
 			outputLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How many lines of output were produced, this is -1 when isBackground is true or if there\'s an error' };
 			nonZeroExitCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command exited with a non-zero code (-1=error/unknown, 0=zero exit code, 1=non-zero)' };
 			timingConnectMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the terminal took to start up and connect to' };
-			timingExecuteMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the command took to execute' };
+			pollDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the tool polled for output, this is undefined when isBackground is true or if there\'s an error' };
+			terminalExecutionIdleBeforeTimeout: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates whether a terminal became idle before the run-in-terminal tool timed out or was cancelled by the user. This occurs when no data events are received twice consecutively and the model determines, based on terminal output, that the command has completed.' };
 		};
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal', {
 			terminalSessionId: instance.sessionId,
@@ -620,12 +662,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			strategy: state.shellIntegrationQuality === ShellIntegrationQuality.Rich ? 2 : state.shellIntegrationQuality === ShellIntegrationQuality.Basic ? 1 : 0,
 			userEditedCommand: state.didUserEditCommand ? 1 : 0,
 			toolEditedCommand: state.didToolEditCommand ? 1 : 0,
+			acceptedUserInput: state.didAcceptUserInput ? 1 : 0,
 			isBackground: state.isBackground ? 1 : 0,
 			isNewSession: state.isNewSession ? 1 : 0,
 			outputLineCount: state.outputLineCount,
 			nonZeroExitCode: state.exitCode === undefined ? -1 : state.exitCode === 0 ? 0 : 1,
 			timingConnectMs: state.timingConnectMs,
-			timingExecuteMs: state.timingExecuteMs,
+			pollDurationMs: state.pollDurationMs ?? 0,
+			terminalExecutionIdleBeforeTimeout: state.terminalExecutionIdleBeforeTimeout ?? false
 		});
 	}
 }
@@ -643,16 +687,7 @@ class BackgroundTerminalExecution extends Disposable {
 		this._startMarker = this._register(this._xterm.raw.registerMarker());
 		this._instance.runCommand(this._commandLine, true);
 	}
-
 	getOutput(): string {
-		const lines: string[] = [];
-		for (let y = Math.min(this._startMarker?.line ?? 0, 0); y < this._xterm.raw.buffer.active.length; y++) {
-			const line = this._xterm.raw.buffer.active.getLine(y);
-			if (!line) {
-				continue;
-			}
-			lines.push(line.translateToString(true));
-		}
-		return lines.join('\n');
+		return getOutput(this._instance, this._startMarker);
 	}
 }

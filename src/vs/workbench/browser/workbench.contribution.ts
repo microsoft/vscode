@@ -538,7 +538,9 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['hidden', 'visibleInWorkspace', 'visible', 'maximizedInWorkspace', 'maximized'],
 				'default': 'hidden',
-				'tags': ['onExp'],
+				'experiment': {
+					mode: 'startup'
+				},
 				'description': localize('secondarySideBarDefaultVisibility', "Controls the default visibility of the secondary side bar in workspaces or empty windows opened for the first time."),
 				'enumDescriptions': [
 					localize('workbench.secondarySideBar.defaultVisibility.hidden', "The secondary side bar is hidden by default."),
@@ -626,7 +628,10 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'default': product.quality !== 'stable',
 				'description': localize('settings.showAISearchToggle', "Controls whether the AI search results toggle is shown in the search bar in the Settings editor after doing a search and once AI search results are available."),
-				'tags': ['experimental', 'onExP']
+				'tags': ['experimental'],
+				'experiment': {
+					mode: 'startup'
+				}
 			},
 			'workbench.hover.delay': {
 				'type': 'number',
