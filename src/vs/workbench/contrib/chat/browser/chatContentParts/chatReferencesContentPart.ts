@@ -40,7 +40,7 @@ import { SETTINGS_AUTHORITY } from '../../../../services/preferences/common/pref
 import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
 import { ExplorerFolderContext } from '../../../files/common/files.js';
 import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { ChatResponseReferencePartStatusKind, IChatChangesSummary, IChatContentReference, IChatWarningMessage } from '../../common/chatService.js';
+import { ChatResponseReferencePartStatusKind, IChatContentReference, IChatWarningMessage } from '../../common/chatService.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../common/chatViewModel.js';
 import { ChatTreeItem, IChatWidgetService } from '../chat.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
@@ -56,15 +56,7 @@ export interface IChatReferenceListItem extends IChatContentReference {
 	excluded?: boolean;
 }
 
-export interface IChatChangesSummaryItem extends IChatChangesSummary {
-	title?: string;
-	description?: string;
-	state?: ModifiedFileEntryState;
-	additionalData?: { description: string; className: string }[];
-	excluded?: boolean;
-}
-
-export type IChatCollapsibleListItem = IChatReferenceListItem | IChatWarningMessage | IChatChangesSummaryItem;
+export type IChatCollapsibleListItem = IChatReferenceListItem | IChatWarningMessage;
 
 export class ChatCollapsibleListContentPart extends ChatCollapsibleContentPart {
 
@@ -330,7 +322,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 	}
 
 
-	private getReferenceIcon(data: IChatContentReference | IChatChangesSummary): URI | ThemeIcon | undefined {
+	private getReferenceIcon(data: IChatContentReference): URI | ThemeIcon | undefined {
 		if (ThemeIcon.isThemeIcon(data.iconPath)) {
 			return data.iconPath;
 		} else {
@@ -395,12 +387,6 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 					strikethrough: data.excluded,
 					extraClasses
 				});
-				if ('additionalData' in data && data.additionalData) {
-					data.additionalData.forEach(additionalData => {
-						const element = templateData.label.element.appendChild($(`.${additionalData.className}`));
-						element.textContent = additionalData.description;
-					});
-				}
 			}
 		}
 

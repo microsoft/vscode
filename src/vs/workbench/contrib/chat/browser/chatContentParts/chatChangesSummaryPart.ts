@@ -5,27 +5,39 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { $ } from '../../../../../base/browser/dom.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatChangesSummaryPart, IChatRendererContent } from '../../common/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { CollapsibleListPool, IChatCollapsibleListItem } from './chatReferencesContentPart.js';
 import { IChatChangesSummary, IChatService } from '../../common/chatService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
+import { IEditSessionEntryDiff, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { IDisposableReference, ResourcePool } from './chatCollections.js';
+import { IListOptions } from '../../../../../base/browser/ui/list/listWidget.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
+import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
+import { localize } from '../../../../../nls.js';
+import { Event } from '../../../../../base/common/event.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { FileKind } from '../../../../../platform/files/common/files.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 
 export class ChatChangesSummaryContentPart extends Disposable implements IChatContentPart {
 
 	public readonly domNode: HTMLElement;
 
-	private listPool: CollapsibleListPool | undefined;
+	private listPool: CollapsibleChangesSummaryListPool | undefined;
 	private changes: ReadonlyArray<IChatChangesSummary> = [];
 
 	private _isExpanded: boolean = false;
@@ -108,7 +120,7 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 		fileChangesSummary.style.justifyContent = 'space-between';
 
 		this.changes = content.changes;
-		this.listPool = this._register(instantiationService.createInstance(CollapsibleListPool, () => Disposable.None, undefined, undefined));
+		this.listPool = this._register(instantiationService.createInstance(CollapsibleChangesSummaryListPool, () => Disposable.None, undefined, undefined));
 		const list = this.listPool.get().object;
 		list.splice(0, list.length, this.changes);
 
@@ -141,8 +153,8 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 		}));
 	}
 
-	private getChatCollapsibleItems(changes: readonly IChatChangesSummary[]): IChatCollapsibleListItem[] {
-		const items: IChatCollapsibleListItem[] = [];
+	private getChatCollapsibleItems(changes: readonly IChatChangesSummary[]): IChatChangesSummaryItem[] {
+		const items: IChatChangesSummaryItem[] = [];
 		for (const change of changes) {
 			const insertionsAndDeletions = this.getInsertionsAndDeletions(change);
 			const additionalData: { description: string; className: string }[] = [];
@@ -156,7 +168,7 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 					className: 'deletions',
 				});
 			}
-			const modifiedChange: IChatCollapsibleListItem = {
+			const modifiedChange: IChatChangesSummaryItem = {
 				...change,
 				additionalData
 			};
@@ -229,7 +241,7 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 		setExpanded();
 	}
 
-	private registerListListeners(list: WorkbenchList<IChatCollapsibleListItem>): void {
+	private registerListListeners(list: WorkbenchList<IChatChangesSummaryItem>): void {
 		this._register(list.onDidOpen((e) => {
 			if (e.element?.kind !== 'changesSummary') {
 				console.log('return 1');
@@ -290,5 +302,143 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
 		return other.kind === 'changesSummary' && other.changes.length === this.changes.length;
+	}
+}
+
+export interface IChatChangesSummaryItem extends IChatChangesSummary {
+	title?: string;
+	description?: string;
+	state?: ModifiedFileEntryState;
+	additionalData?: { description: string; className: string }[];
+	excluded?: boolean;
+}
+
+export class CollapsibleChangesSummaryListPool extends Disposable {
+
+	private _pool: ResourcePool<WorkbenchList<IChatChangesSummaryItem>>;
+
+	public get inUse(): ReadonlySet<WorkbenchList<IChatChangesSummaryItem>> {
+		return this._pool.inUse;
+	}
+
+	constructor(
+		private _onDidChangeVisibility: Event<boolean>,
+		private readonly menuId: MenuId | undefined,
+		private readonly listOptions: IListOptions<IChatChangesSummaryItem> | undefined,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IThemeService private readonly themeService: IThemeService
+	) {
+		super();
+		this._pool = this._register(new ResourcePool(() => this.listFactory()));
+	}
+
+	private listFactory(): WorkbenchList<IChatChangesSummaryItem> {
+		const resourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility }));
+
+		const container = $('.chat-used-context-list');
+		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
+
+		const list = this.instantiationService.createInstance(
+			WorkbenchList<IChatChangesSummaryItem>,
+			'ChatListRenderer',
+			container,
+			new CollapsibleListDelegate(),
+			[this.instantiationService.createInstance(CollapsibleChangesSummaryListRenderer, resourceLabels, this.menuId)],
+			{
+				...this.listOptions,
+				alwaysConsumeMouseWheel: false,
+				accessibilityProvider: {
+					getAriaLabel: (element: IChatChangesSummaryItem) => {
+						return '';
+					},
+
+					getWidgetAriaLabel: () => localize('chatCollapsibleList', "Collapsible Chat References List")
+				}
+			});
+
+		return list;
+	}
+
+	get(): IDisposableReference<WorkbenchList<IChatChangesSummaryItem>> {
+		const object = this._pool.get();
+		let stale = false;
+		return {
+			object,
+			isStale: () => stale,
+			dispose: () => {
+				stale = true;
+				this._pool.release(object);
+			}
+		};
+	}
+}
+
+interface ICollapsibleListTemplate {
+	readonly contextKeyService?: IContextKeyService;
+	readonly label: IResourceLabel;
+	readonly templateDisposables: DisposableStore;
+	toolbar: MenuWorkbenchToolBar | undefined;
+	actionBarContainer?: HTMLElement;
+}
+
+class CollapsibleListDelegate implements IListVirtualDelegate<IChatChangesSummaryItem> {
+	getHeight(element: IChatChangesSummaryItem): number {
+		return 22;
+	}
+
+	getTemplateId(element: IChatChangesSummaryItem): string {
+		return CollapsibleChangesSummaryListRenderer.TEMPLATE_ID;
+	}
+}
+
+class CollapsibleChangesSummaryListRenderer implements IListRenderer<IChatChangesSummaryItem, ICollapsibleListTemplate> {
+	static TEMPLATE_ID = 'chatCollapsibleListRenderer';
+	readonly templateId: string = CollapsibleChangesSummaryListRenderer.TEMPLATE_ID;
+
+	constructor(
+		private labels: ResourceLabels,
+		private menuId: MenuId | undefined,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+	) { }
+
+	renderTemplate(container: HTMLElement): ICollapsibleListTemplate {
+		const templateDisposables = new DisposableStore();
+		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true, supportIcons: true }));
+
+		let toolbar;
+		let actionBarContainer;
+		let contextKeyService;
+		if (this.menuId) {
+			actionBarContainer = $('.chat-collapsible-list-action-bar');
+			contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(actionBarContainer));
+			const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
+			toolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, this.menuId, { menuOptions: { shouldForwardArgs: true, arg: undefined } }));
+			label.element.appendChild(actionBarContainer);
+		}
+
+		return { templateDisposables, label, toolbar, actionBarContainer, contextKeyService };
+	}
+
+	renderElement(data: IChatChangesSummaryItem, index: number, templateData: ICollapsibleListTemplate): void {
+		templateData.label.element.style.display = 'flex';
+		templateData.label.setFile(data.reference, {
+			fileKind: FileKind.FILE,
+			// Should not have this live-updating data on a historical reference
+			fileDecorations: undefined,
+			range: undefined,
+			title: data.options?.status?.description,
+			strikethrough: false
+		});
+		if ('additionalData' in data && data.additionalData) {
+			data.additionalData.forEach(additionalData => {
+				const element = templateData.label.element.appendChild($(`.${additionalData.className}`));
+				element.textContent = additionalData.description;
+			});
+		}
+	}
+
+	disposeTemplate(templateData: ICollapsibleListTemplate): void {
+		templateData.templateDisposables.dispose();
 	}
 }
