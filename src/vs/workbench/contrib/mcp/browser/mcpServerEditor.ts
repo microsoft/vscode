@@ -38,7 +38,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IMcpServerContainer, IMcpServerEditorOptions, IMcpWorkbenchService, IWorkbenchMcpServer, McpServerContainers, McpServerInstallState } from '../common/mcpTypes.js';
-import { InstallCountWidget, McpServerIconWidget, McpServerStatusWidget, McpServerWidget, onClick, PublisherWidget, RatingsWidget } from './mcpServerWidgets.js';
+import { InstallCountWidget, McpServerIconWidget, McpServerStatusWidget, McpServerWidget, onClick, PublisherWidget, RatingsWidget, McpServerScopeBadgeWidget } from './mcpServerWidgets.js';
 import { DropDownAction, InstallAction, InstallingLabelAction, ManageMcpServerAction, McpServerStatusAction, UninstallAction } from './mcpServerActions.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
 import { ILocalMcpServer, IMcpServerManifest, IMcpServerPackage, PackageType } from '../../../../platform/mcp/common/mcpManagement.js';
@@ -208,6 +208,7 @@ export class McpServerEditor extends EditorPane {
 
 		const iconContainer = append(header, $('.icon-container'));
 		const iconWidget = this.instantiationService.createInstance(McpServerIconWidget, iconContainer);
+		const scopeWidget = this.instantiationService.createInstance(McpServerScopeBadgeWidget, iconContainer);
 
 		const details = append(header, $('.details'));
 		const title = append(details, $('.title'));
@@ -229,11 +230,13 @@ export class McpServerEditor extends EditorPane {
 		subTitleEntryContainers.push(ratingsContainer);
 		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, ratingsContainer, false);
 
+
 		const widgets: McpServerWidget[] = [
 			iconWidget,
 			publisherWidget,
 			installCountWidget,
 			ratingsWidget,
+			scopeWidget,
 		];
 
 		const description = append(details, $('.description'));

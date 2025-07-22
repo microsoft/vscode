@@ -10,10 +10,10 @@ import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation,
 import { RunInTerminalTool } from './runInTerminalTool.js';
 
 export const GetTerminalOutputToolData: IToolData = {
-	id: 'get_terminal_output2',
-	toolReferenceName: 'getTerminalOutput2',
+	id: 'get_terminal_output',
+	toolReferenceName: 'getTerminalOutput',
 	displayName: localize('getTerminalOutputTool.displayName', 'Get Terminal Output'),
-	modelDescription: 'Get the output of a terminal command previously started with run_in_terminal2',
+	modelDescription: 'Get the output of a terminal command previously started with run_in_terminal',
 	source: ToolDataSource.Internal,
 	inputSchema: {
 		type: 'object',

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncIterableObject, raceCancellationError, Sequencer } from '../../../../base/common/async.js';
+import { AsyncIterableProducer, raceCancellationError, Sequencer } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import * as json from '../../../../base/common/json.js';
@@ -441,7 +441,7 @@ export class McpServer extends Disposable implements IMcpServer {
 
 	public resources(token?: CancellationToken): AsyncIterable<IMcpResource[]> {
 		const cts = new CancellationTokenSource(token);
-		return new AsyncIterableObject<IMcpResource[]>(async emitter => {
+		return new AsyncIterableProducer<IMcpResource[]>(async emitter => {
 			await McpServer.callOn(this, async (handler) => {
 				for await (const resource of handler.listResourcesIterable({}, cts.token)) {
 					emitter.emitOne(resource.map(r => new McpResource(this, r)));

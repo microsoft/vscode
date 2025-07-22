@@ -349,6 +349,8 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.DirtyWorkTree;
 	} else if (/detected dubious ownership in repository at/.test(stderr)) {
 		return GitErrorCodes.NotASafeGitRepository;
+	} else if (/contains modified or untracked files|use --force to delete it/.test(stderr)) {
+		return GitErrorCodes.WorktreeContainsChanges;
 	}
 
 	return undefined;
@@ -2038,8 +2040,14 @@ export class Repository {
 		await this.exec(args);
 	}
 
-	async deleteWorktree(path: string): Promise<void> {
-		const args = ['worktree', 'remove', path];
+	async deleteWorktree(path: string, options?: { force?: boolean }): Promise<void> {
+		const args = ['worktree', 'remove'];
+
+		if (options?.force) {
+			args.push('--force');
+		}
+
+		args.push(path);
 		await this.exec(args);
 	}
 

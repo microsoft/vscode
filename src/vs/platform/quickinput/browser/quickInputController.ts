@@ -213,7 +213,9 @@ export class QuickInputController extends Disposable {
 		const list = this._register(this.instantiationService.createInstance(QuickInputTree, container, this.options.hoverDelegate, this.options.linkOpenerDelegate, listId));
 		inputBox.setAttribute('aria-controls', listId);
 		this._register(list.onDidChangeFocus(() => {
-			inputBox.setAttribute('aria-activedescendant', list.getActiveDescendant() ?? '');
+			if (inputBox.hasFocus()) {
+				inputBox.setAttribute('aria-activedescendant', list.getActiveDescendant() ?? '');
+			}
 		}));
 		this._register(list.onChangedAllVisibleChecked(checked => {
 			checkAll.checked = checked;

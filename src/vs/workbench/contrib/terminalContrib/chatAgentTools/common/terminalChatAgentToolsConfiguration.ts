@@ -4,79 +4,102 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IStringDictionary } from '../../../../../base/common/collections.js';
+import type { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { localize } from '../../../../../nls.js';
-import type { IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, type IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 
 export const enum TerminalChatAgentToolsSettingId {
-	CoreToolsEnabled = 'chat.agent.terminal.coreToolsEnabled',
-	AllowList = 'chat.agent.terminal.allowList',
-	DenyList = 'chat.agent.terminal.denyList',
+	AutoApprove = 'chat.agent.terminal.autoApprove',
+	NewTaskToolsEnabled = 'chat.agent.terminal.newTaskToolsEnabled',
 }
 
 export interface ITerminalChatAgentToolsConfiguration {
-	coreToolsEnabled: boolean;
-	allowList: { [key: string]: string };
-	denyList: { [key: string]: string };
+	autoApprove: { [key: string]: boolean };
+	newTaskToolsEnabled: boolean;
 }
 
+const autoApproveBoolean: IJSONSchema = {
+	type: 'boolean',
+	enum: [
+		true,
+		false,
+	],
+	enumDescriptions: [
+		localize('autoApprove.true', "Automatically approve the pattern."),
+		localize('autoApprove.false', "Require explicit approval for the pattern."),
+	],
+	description: localize('autoApprove.key', "The start of a command to match against. A regular expression can be provided by wrapping the string in `/` characters."),
+};
+
 export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
-	[TerminalChatAgentToolsSettingId.CoreToolsEnabled]: {
-		description: localize('coreToolsEnabled', "Whether the experimental core tools are enabled. This required VS Code to be restarted."),
+	[TerminalChatAgentToolsSettingId.NewTaskToolsEnabled]: {
+		markdownDescription: localize('newTaskToolsEnabled.description', "Whether the new task tools are enabled."),
 		type: 'boolean',
-		tags: [
-			'experimental'
-		],
-		default: true,
+		default: false
 	},
-	[TerminalChatAgentToolsSettingId.AllowList]: {
-		markdownDescription: localize('allowList', "A list of commands or regular expressions that allow the run in terminal tool commands to run without explicit approval. These will be matched against the start of a command. A regular expression can be provided by wrapping the string in `/` characters.\n\nExamples:\n- `\"mkdir\"` Will allow all command lines starting with `mkdir`\n- `\"npm run build\"` Will allow all command lines starting with `npm run build`\n- `\"/^git (status|show\\b.*)$/\"` will allow `git status` and all command lines starting with `git show`\n- `\"/.*/\"` will allow all command lines\n\nThis will be overridden by anything that matches an entry in `#chat.agent.terminal.denyList#`."),
+	[TerminalChatAgentToolsSettingId.AutoApprove]: {
+		markdownDescription: [
+			localize('autoApprove.description.intro', "A list of commands or regular expressions that control whether the run in terminal tool commands require explicit approval. These will be matched against the start of a command. A regular expression can be provided by wrapping the string in {0} characters followed by optional flags such as {1} for case-insensitivity.", '`/`', '`i`'),
+			localize('autoApprove.description.values', "Set to {0} to automatically approve commands, {1} to always require explicit approval or {2} to unset the value.", '`true`', '`false`', '`null`'),
+			localize('autoApprove.description.subCommands', "Note that these commands and regular expressions are evaluated for every _sub-command_ within the full _command line_, so {0} for example will need both {1} and {2} to match a {3} entry and must not match a {4} entry in order to auto approve. Inline commands are also detected so {5} will need both {5} and {6} to pass.", '`foo && bar`', '`foo`', '`bar`', '`true`', '`false`', '`echo $(rm file)`', '`rm file`'),
+			localize('autoApprove.description.commandLine', "An object can be used to match against the full command line instead of matching sub-commands and inline commands, for example {0}. This will be checked _after_ sub-commands are checked, taking precedence over even denied sub-commands.", '`{ approve: false, matchCommandLine: true }`'),
+			[
+				localize('autoApprove.description.examples.title', 'Examples:'),
+				`|${localize('autoApprove.description.examples.value', "Value")}|${localize('autoApprove.description.examples.description', "Description")}|`,
+				'|---|---|',
+				'| `\"mkdir\": true` | ' + localize('autoApprove.description.examples.mkdir', "Allow all commands starting with {0}", '`mkdir`'),
+				'| `\"npm run build\": true` | ' + localize('autoApprove.description.examples.npmRunBuild', "Allow all commands starting with {0}", '`npm run build`'),
+				'| `\"/^git (status\\|show\\b.*)$/\": true` | ' + localize('autoApprove.description.examples.regexGit', "Allow {0} and all commands starting with {1}", '`git status`', '`git show`'),
+				'| `\"/^Get-ChildItem\\b/i\": true` | ' + localize('autoApprove.description.examples.regexCase', "will allow {0} commands regardless of casing", '`Get-ChildItem`'),
+				'| `\"/.*/\": true` | ' + localize('autoApprove.description.examples.regexAll', "Allow all commands (denied commands still require approval)"),
+				'| `\"rm\": false` | ' + localize('autoApprove.description.examples.rm', "Require explicit approval for all commands starting with {0}", '`rm`'),
+				'| `\"/\.ps1/i\": { approve: false, matchCommandLine: true }` | ' + localize('autoApprove.description.examples.ps1', "Require explicit approval for any _command line_ that contains {0} regardless of casing", '`".ps1"`'),
+				'| `\"rm\": null` | ' + localize('autoApprove.description.examples.rmUnset', "Unset the default {0} value for {1}", '`false`', '`rm`'),
+			].join('\n')
+		].join('\n\n'),
 		type: 'object',
+		scope: ConfigurationScope.MACHINE,
 		additionalProperties: {
-			type: 'boolean',
-			enum: [
-				true,
-				false,
-			],
-			enumDescriptions: [
-				localize('allowList.true', "Allow the pattern."),
-				localize('allowList.false', "Do not allow the pattern."),
-			],
-			description: localize('allowList.key', "The start of a command to match against. A regular expression can be provided by wrapping the string in `/` characters."),
-		},
-		tags: [
-			'experimental'
-		],
-		default: {},
-	},
-	[TerminalChatAgentToolsSettingId.DenyList]: {
-		markdownDescription: localize('denyList', "A list of commands or regular expressions that override matches in `#chat.agent.terminal.allowList#` and force a command line to require explicit approval. This will be matched against the start of a command. A regular expression can be provided by wrapping the string in `/` characters.\n\nExamples:\n- `\"rm\"` will require explicit approval for any command starting with `rm`\n- `\"/^git (push|pull)/\"` will require explicit approval for any command starting with `git push` or `git pull` \n\nThis provides basic protection by preventing certain commands from running automatically, especially those a user would likely want to approve first. It is not intended as a comprehensive security measure or a defense against prompt injection."),
-		type: 'object',
-		additionalProperties: {
-			type: 'boolean',
-			enum: [
-				true,
-				false
-			],
-			enumDescriptions: [
-				localize('denyList.value.true', "Deny the pattern."),
-				localize('denyList.value.false', "Do not deny the pattern."),
-			],
-			description: localize('denyList.key', "The start of a command to match against. A regular expression can be provided by wrapping the string in `/` characters.")
+			anyOf: [
+				autoApproveBoolean,
+				{
+					type: 'object',
+					properties: {
+						approve: autoApproveBoolean,
+						matchCommandLine: {
+							type: 'boolean',
+							enum: [
+								true,
+								false,
+							],
+							enumDescriptions: [
+								localize('autoApprove.matchCommandLine.true', "Match against the full command line, eg. `foo && bar`."),
+								localize('autoApprove.matchCommandLine.false', "Match against sub-commands and inline commands, eg. `foo && bar` will need both `foo` and `bar` to match."),
+							],
+							description: localize('autoApprove.matchCommandLine', "Whether to match against the full command line, as opposed to splitting by sub-commands and inline commands."),
+						}
+					}
+				},
+				{
+					type: 'null',
+					description: localize('autoApprove.null', "Ignore the pattern, this is useful for unsetting the same pattern set at a higher scope."),
+				},
+			]
 		},
 		tags: [
 			'experimental'
 		],
 		default: {
-			rm: true,
-			rmdir: true,
-			del: true,
-			kill: true,
-			curl: true,
-			wget: true,
-			eval: true,
-			chmod: true,
-			chown: true,
-			'Remove-Item': true,
+			rm: false,
+			rmdir: false,
+			del: false,
+			kill: false,
+			curl: false,
+			wget: false,
+			eval: false,
+			chmod: false,
+			chown: false,
+			'/^Remove-Item\\b/i': false,
 		},
 	}
 };

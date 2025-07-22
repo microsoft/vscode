@@ -229,12 +229,27 @@ class RemoteTagDeleteItem extends RefItem {
 }
 
 class WorktreeDeleteItem extends WorktreeItem {
-	async run(repository: Repository): Promise<void> {
-		if (this.worktree.path) {
-			await repository.deleteWorktree(this.worktree.path);
+	async run(mainRepository: Repository): Promise<void> {
+		if (!this.worktree.path) {
+			return;
+		}
+
+		try {
+			await mainRepository.deleteWorktree(this.worktree.path);
+		} catch (err) {
+			if (err.gitErrorCode === GitErrorCodes.WorktreeContainsChanges) {
+				const forceDelete = l10n.t('Force Delete');
+				const message = l10n.t('The worktree contains modified or untracked files. Do you want to force delete?');
+				const choice = await window.showWarningMessage(message, { modal: true }, forceDelete);
+
+				if (choice === forceDelete) {
+					await mainRepository.deleteWorktree(this.worktree.path, { force: true });
+				}
+			}
 		}
 	}
 }
+
 
 class MergeItem extends BranchItem {
 
@@ -3409,8 +3424,50 @@ export class CommandCenter {
 
 	@command('git.deleteWorktree', { repository: true })
 	async deleteWorktree(repository: Repository): Promise<void> {
+		if (!repository.dotGit.commonPath) {
+			return;
+		}
+
+		const mainRepository = this.model.getRepository(path.dirname(repository.dotGit.commonPath));
+		if (!mainRepository) {
+			return;
+		}
+
+		// Dispose worktree repository
+		this.model.disposeRepository(repository);
+
+		try {
+			await mainRepository.deleteWorktree(repository.root);
+		} catch (err) {
+			if (err.gitErrorCode === GitErrorCodes.WorktreeContainsChanges) {
+				const forceDelete = l10n.t('Force Delete');
+				const message = l10n.t('The worktree contains modified or untracked files. Do you want to force delete?');
+				const choice = await window.showWarningMessage(message, { modal: true }, forceDelete);
+				if (choice === forceDelete) {
+					await mainRepository.deleteWorktree(repository.root, { force: true });
+				} else {
+					await this.model.openRepository(repository.root);
+				}
+
+				return;
+			}
+
+			throw err;
+		}
+	}
+
+	@command('git.deleteWorktreeFromPalette')
+	async deleteWorktreeFromPalette(): Promise<void> {
+		const mainRepository = this.model.repositories.find(repo =>
+			!repo.dotGit.commonPath
+		);
+
+		if (!mainRepository) {
+			return;
+		}
+
 		const worktreePicks = async (): Promise<WorktreeDeleteItem[] | QuickPickItem[]> => {
-			const worktrees = await repository.getWorktrees();
+			const worktrees = await mainRepository.getWorktrees();
 			return worktrees.length === 0
 				? [{ label: l10n.t('$(info) This repository has no worktrees.') }]
 				: worktrees.map(worktree => new WorktreeDeleteItem(worktree));
@@ -3420,8 +3477,28 @@ export class CommandCenter {
 		const choice = await this.pickRef<WorktreeDeleteItem | QuickPickItem>(worktreePicks(), placeHolder);
 
 		if (choice instanceof WorktreeDeleteItem) {
-			await choice.run(repository);
+			await choice.run(mainRepository);
 		}
+	}
+
+	@command('git.openWorktree', { repository: true })
+	async openWorktreeInCurrentWindow(repository: Repository): Promise<void> {
+		if (!repository) {
+			return;
+		}
+
+		const uri = Uri.file(repository.root);
+		await commands.executeCommand('vscode.openFolder', uri, { forceReuseWindow: true });
+	}
+
+	@command('git.openWorktreeInNewWindow', { repository: true })
+	async openWorktreeInNewWindow(repository: Repository): Promise<void> {
+		if (!repository) {
+			return;
+		}
+
+		const uri = Uri.file(repository.root);
+		await commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
 	}
 
 	@command('git.graph.deleteTag', { repository: true })
