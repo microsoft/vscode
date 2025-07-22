@@ -24,8 +24,8 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 
 	public readonly domNode: HTMLElement;
 
-	private readonly listPool: CollapsibleListPool;
-	private readonly changes: ReadonlyArray<IChatChangesSummary>;
+	private listPool: CollapsibleListPool | undefined;
+	private changes: ReadonlyArray<IChatChangesSummary> = [];
 
 	private _isExpanded: boolean = false;
 
@@ -38,6 +38,11 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+
+		if (content.changes.length === 0) {
+			this.domNode = $('.chat-file-changes-summary');
+			return;
+		}
 
 		console.log('ChatChangesSummaryContentPart constructor');
 		console.log('this.changes', content.changes);
@@ -120,7 +125,11 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 		list.splice(0, list.length, this.changes);
 
 		this.domNode = $('.chat-file-changes-summary', undefined, fileChangesSummary);
-		collapseButton.label = 'File Changes';
+		if (this.changes.length === 1) {
+			collapseButton.label = `Changed 1 file`;
+		} else {
+			collapseButton.label = `Changed ${this.changes.length} files`;
+		}
 		viewAllFileChangesButton.icon = Codicon.diffMultiple;
 
 		const maxItemsShown = 6;
