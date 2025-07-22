@@ -89,18 +89,19 @@ export async function pollForOutputAndIdle(
 		}
 
 		if (noNewDataCount >= PollingConsts.MinNoDataEvents) {
-			terminalExecutionIdleBeforeTimeout = true;
 			if (execution.isActive && ((await execution.isActive()) === true)) {
 				continue; // If the execution is still active, we don't consider it idle
 			}
-			const modelOutputEvalResponse = await assessOutputForFinishedState(buffer, token, languageModelsService);
+			terminalExecutionIdleBeforeTimeout = true;
+			const modelOutputEvalResponse =
+				await assessOutputForFinishedState(buffer, token, languageModelsService);
 			return { modelOutputEvalResponse, terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 		}
 	}
 	return { terminalExecutionIdleBeforeTimeout: false, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 }
 
-export async function promptForMorePolling(command: string, context: IToolInvocationContext, chatService: IChatService, token: CancellationToken): Promise<boolean> {
+export async function promptForMorePolling(command: string, context: IToolInvocationContext, chatService: IChatService): Promise<boolean> {
 	const chatModel = chatService.getSession(context.sessionId);
 	if (chatModel instanceof ChatModel) {
 		const request = chatModel.getRequests().at(-1);

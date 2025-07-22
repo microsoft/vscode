@@ -80,7 +80,7 @@ export class RunTaskTool implements IToolImpl {
 
 		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, false, token, this._languageModelsService);
 		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-			const extendPolling = await promptForMorePolling(taskDefinition.taskLabel, invocation.context, this._chatService, token);
+			const extendPolling = await promptForMorePolling(taskDefinition.taskLabel, invocation.context, this._chatService);
 			if (extendPolling) {
 				_progress.report({ message: new MarkdownString(`Checking output for \`${taskDefinition.taskLabel}\``) });
 				outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService);

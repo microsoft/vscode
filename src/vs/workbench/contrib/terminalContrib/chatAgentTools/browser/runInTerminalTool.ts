@@ -306,7 +306,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 				outputAndIdle = await pollForOutputAndIdle(execution, false, token, this._languageModelsService);
 				if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-					const extendPolling = await promptForMorePolling(command, invocation.context, this._chatService, token);
+					const extendPolling = await promptForMorePolling(command, invocation.context, this._chatService);
 					if (extendPolling) {
 						outputAndIdle = await pollForOutputAndIdle(execution, true, token, this._languageModelsService);
 					}
