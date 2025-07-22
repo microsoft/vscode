@@ -3400,6 +3400,8 @@ export class CommandCenter {
 		const config = workspace.getConfiguration('git');
 		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
 
+		const createBranch = new CreateBranchItem();
+
 		if (!name) {
 			const getBranchPicks = async () => {
 				const refs = await repository.getRefs({
@@ -3408,16 +3410,27 @@ export class CommandCenter {
 				});
 				const processors = [new RefProcessor(RefType.Head, BranchItem)];
 				const itemsProcessor = new RefItemsProcessor(repository, processors);
-				return itemsProcessor.processRefs(refs);
+				const branchItems = itemsProcessor.processRefs(refs);
+				return [createBranch, ...branchItems];
 			};
 
 			const placeHolder = l10n.t('Select a branch to create the new worktree from');
 			const choice = await this.pickRef(getBranchPicks(), placeHolder);
 
-			if (!(choice instanceof BranchItem) || !choice.refName) {
+			if (choice === createBranch) {
+				const branchName = await this.promptForBranchName(repository);
+
+				if (!branchName) {
+					return;
+				}
+
+				await repository.branch(branchName, false, 'HEAD');
+				name = branchName;
+			} else if (choice instanceof BranchItem && choice.refName) {
+				name = choice.refName;
+			} else {
 				return;
 			}
-			name = choice.refName;
 		}
 
 		const disposables: Disposable[] = [];
