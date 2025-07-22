@@ -74,7 +74,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 					const message = typeof toolInvocation.confirmationMessages.message === 'string' ? toolInvocation.confirmationMessages.message : stripIcons(renderAsPlaintext(toolInvocation.confirmationMessages.message));
 					let input = '';
 					if (toolInvocation.toolSpecificData) {
-						input = toolInvocation.toolSpecificData?.kind === 'terminal2'
+						input = toolInvocation.toolSpecificData?.kind === 'terminal'
 							? toolInvocation.toolSpecificData.commandLine.userEdited ?? toolInvocation.toolSpecificData.commandLine.toolEdited ?? toolInvocation.toolSpecificData.commandLine.original
 							: toolInvocation.toolSpecificData?.kind === 'extensions'
 								? JSON.stringify(toolInvocation.toolSpecificData.extensions)
