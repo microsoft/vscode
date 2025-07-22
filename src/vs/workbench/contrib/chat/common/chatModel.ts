@@ -369,6 +369,10 @@ class AbstractResponse implements IResponse {
 					segment = { text: localize('editsSummary', "Made changes."), isBlock: true };
 					break;
 				case 'confirmation':
+					if (part.message instanceof MarkdownString) {
+						segment = { text: `${part.title}\n${part.message.value}`, isBlock: true };
+						break;
+					}
 					segment = { text: `${part.title}\n${part.message}`, isBlock: true };
 					break;
 				default:
@@ -901,7 +905,7 @@ export interface IChatRequestDisablement {
 	afterUndoStop?: string;
 }
 
-export interface IChatModel {
+export interface IChatModel extends IDisposable {
 	readonly onDidDispose: Event<void>;
 	readonly onDidChange: Event<IChatChangeEvent>;
 	readonly sessionId: string;
@@ -1169,7 +1173,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		const message = typeof firstRequestMessage === 'string' ?
 			firstRequestMessage :
 			firstRequestMessage.text;
-		return message.split('\n')[0].substring(0, 50);
+		return message.split('\n')[0].substring(0, 200);
 	}
 
 	private readonly _onDidDispose = this._register(new Emitter<void>());

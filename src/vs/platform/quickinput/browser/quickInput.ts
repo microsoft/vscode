@@ -13,7 +13,7 @@ import { IInputBoxStyles } from '../../../base/browser/ui/inputbox/inputBox.js';
 import { IKeybindingLabelStyles } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListStyles } from '../../../base/browser/ui/list/listWidget.js';
 import { IProgressBarStyles, ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
-import { Checkbox, IToggleStyles, Toggle } from '../../../base/browser/ui/toggle/toggle.js';
+import { IToggleStyles, Toggle, TriStateCheckbox } from '../../../base/browser/ui/toggle/toggle.js';
 import { equals } from '../../../base/common/arrays.js';
 import { TimeoutTimer } from '../../../base/common/async.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -30,7 +30,7 @@ import { QuickInputBox } from './quickInputBox.js';
 import { quickInputButtonToAction, renderQuickInputDescription } from './quickInputUtils.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../hover/browser/hover.js';
-import { QuickInputTree } from './quickInputTree.js';
+import { QuickInputList } from './quickInputList.js';
 import type { IHoverOptions } from '../../../base/browser/ui/hover/hover.js';
 import { ContextKeyExpr, RawContextKey } from '../../contextkey/common/contextkey.js';
 
@@ -103,7 +103,7 @@ export interface QuickInputUI {
 	widget: HTMLElement;
 	rightActionBar: ActionBar;
 	inlineActionBar: ActionBar;
-	checkAll: Checkbox;
+	checkAll: TriStateCheckbox;
 	inputContainer: HTMLElement;
 	filterContainer: HTMLElement;
 	inputBox: QuickInputBox;
@@ -117,7 +117,7 @@ export interface QuickInputUI {
 	customButtonContainer: HTMLElement;
 	customButton: Button;
 	progressBar: ProgressBar;
-	list: QuickInputTree;
+	list: QuickInputList;
 	onDidAccept: Event<void>;
 	onDidCustom: Event<void>;
 	onDidTriggerButton: Event<IQuickInputButton>;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderStringAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { encodeBase64 } from '../../../../base/common/buffer.js';
@@ -276,6 +276,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 				model.acceptResponseProgress(request, toolInvocation);
 
+				dto.toolSpecificData = toolInvocation?.toolSpecificData;
+
 				if (prepared?.confirmationMessages) {
 					if (!toolInvocation.isConfirmed && !autoConfirmed) {
 						this.playAccessibilitySignal([toolInvocation]);
@@ -285,8 +287,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 						throw new CancellationError();
 					}
 
-					dto.toolSpecificData = toolInvocation?.toolSpecificData;
-
 					if (dto.toolSpecificData?.kind === 'input') {
 						dto.parameters = dto.toolSpecificData.rawInput;
 						dto.toolSpecificData = undefined;
@@ -295,7 +295,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			} else {
 				const prepared = await this.prepareToolInvocation(tool, dto, token);
 				if (prepared?.confirmationMessages && !this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace)) {
-					const result = await this._dialogService.confirm({ message: renderStringAsPlaintext(prepared.confirmationMessages.title), detail: renderStringAsPlaintext(prepared.confirmationMessages.message) });
+					const result = await this._dialogService.confirm({ message: renderAsPlaintext(prepared.confirmationMessages.title), detail: renderAsPlaintext(prepared.confirmationMessages.message) });
 					if (!result.confirmed) {
 						throw new CancellationError();
 					}
@@ -339,7 +339,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			toolResult ??= { content: [] };
 			toolResult.toolResultError = err instanceof Error ? err.message : String(err);
 			if (tool.data.alwaysDisplayInputOutput) {
-				toolResult.toolResultDetails = { input: this.formatToolInput(dto), output: [{ isText: true, value: String(err) }], isError: true };
+				toolResult.toolResultDetails = { input: this.formatToolInput(dto), output: [{ type: 'embed', isText: true, value: String(err) }], isError: true };
 			}
 
 			throw err;
@@ -363,7 +363,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			: undefined;
 
 		if (prepared?.confirmationMessages) {
-			if (prepared.toolSpecificData?.kind !== 'terminal' && typeof prepared.confirmationMessages.allowAutoConfirm !== 'boolean') {
+			if (prepared.toolSpecificData?.kind !== 'terminal' && prepared.toolSpecificData?.kind !== 'terminal2' && typeof prepared.confirmationMessages.allowAutoConfirm !== 'boolean') {
 				prepared.confirmationMessages.allowAutoConfirm = true;
 			}
 
@@ -410,11 +410,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private toolResultToIO(toolResult: IToolResult): IToolResultInputOutputDetails['output'] {
 		return toolResult.content.map(part => {
 			if (part.kind === 'text') {
-				return { isText: true, value: part.value };
+				return { type: 'embed', isText: true, value: part.value };
 			} else if (part.kind === 'promptTsx') {
-				return { isText: true, value: stringifyPromptTsxPart(part) };
+				return { type: 'embed', isText: true, value: stringifyPromptTsxPart(part) };
 			} else if (part.kind === 'data') {
-				return { value: encodeBase64(part.value.data), mimeType: part.value.mimeType };
+				return { type: 'embed', value: encodeBase64(part.value.data), mimeType: part.value.mimeType };
 			} else {
 				assertNever(part);
 			}
@@ -484,13 +484,31 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return result;
 	}
 
-	toToolAndToolSetEnablementMap(toolOrToolSetNames: Set<string>): Map<ToolSet | IToolData, boolean> {
+	/**
+	 * Create a map that contains all tools and toolsets with their enablement state.
+	 * @param toolOrToolSetNames A list of tool or toolset names to check for enablement. If undefined, all tools and toolsets are enabled.
+	 * @returns A map of tool or toolset instances to their enablement state.
+	 */
+	toToolAndToolSetEnablementMap(enabledToolOrToolSetNames: readonly string[] | undefined): Map<ToolSet | IToolData, boolean> {
+		const toolOrToolSetNames = enabledToolOrToolSetNames ? new Set(enabledToolOrToolSetNames) : undefined;
 		const result = new Map<ToolSet | IToolData, boolean>();
-		for (const tool of this._tools.values()) {
-			result.set(tool.data, tool.data.toolReferenceName !== undefined && toolOrToolSetNames.has(tool.data.toolReferenceName));
+		for (const tool of this.getTools()) {
+			if (tool.canBeReferencedInPrompt) {
+				result.set(tool, toolOrToolSetNames === undefined || toolOrToolSetNames.has(tool.toolReferenceName ?? tool.displayName));
+			}
 		}
 		for (const toolSet of this._toolSets) {
-			result.set(toolSet, toolOrToolSetNames.has(toolSet.referenceName));
+			const enabled = toolOrToolSetNames === undefined || toolOrToolSetNames.has(toolSet.referenceName);
+			result.set(toolSet, enabled);
+
+			// if a mcp toolset is enabled, all tools in it are enabled
+			if (enabled && toolSet.source.type === 'mcp') {
+				for (const tool of toolSet.getTools()) {
+					if (tool.canBeReferencedInPrompt) {
+						result.set(tool, enabled);
+					}
+				}
+			}
 		}
 		return result;
 	}

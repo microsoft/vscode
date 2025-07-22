@@ -142,7 +142,7 @@ export function registerChatTitleActions() {
 				menu: [{
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
-					order: 3,
+					order: 4,
 					when: ContextKeyExpr.and(ChatContextKeys.responseSupportsIssueReporting, ChatContextKeys.isResponse, ContextKeyExpr.has(enableFeedbackConfig))
 				}, {
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
@@ -262,9 +262,8 @@ export function registerChatTitleActions() {
 
 			chatService.resendRequest(request!, {
 				userSelectedModelId: languageModelId,
-				userSelectedTools: widget?.getUserSelectedTools(),
 				attempt: (request?.attempt ?? -1) + 1,
-				mode: widget?.input.currentModeKind,
+				...widget?.getModeRequestOptions(),
 			});
 		}
 	});

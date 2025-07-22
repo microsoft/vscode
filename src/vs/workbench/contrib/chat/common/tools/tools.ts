@@ -8,6 +8,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { EditTool, EditToolData } from './editFileTool.js';
+import { ManageTasksTool, ManageTasksToolData } from './manageTasksTool.js';
 
 export class BuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -22,6 +23,10 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		const editTool = instantiationService.createInstance(EditTool);
 		this._register(toolsService.registerToolData(EditToolData));
 		this._register(toolsService.registerToolImplementation(EditToolData.id, editTool));
+
+		const manageTasksTool = instantiationService.createInstance(ManageTasksTool);
+		this._register(toolsService.registerToolData(ManageTasksToolData));
+		this._register(toolsService.registerToolImplementation(ManageTasksToolData.id, manageTasksTool));
 	}
 }
 

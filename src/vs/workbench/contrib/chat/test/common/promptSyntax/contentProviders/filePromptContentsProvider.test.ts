@@ -70,7 +70,7 @@ suite('FilePromptContentsProvider', () => {
 		const contentsProvider = testDisposables.add(instantiationService.createInstance(
 			FilePromptContentProvider,
 			fileUri,
-			{ allowNonPromptFiles: true, languageId: undefined },
+			{ allowNonPromptFiles: true, languageId: undefined, updateOnChange: true },
 		));
 
 		let streamOrError: ReadableStream<VSBuffer> | Error | undefined;
@@ -128,7 +128,7 @@ suite('FilePromptContentsProvider', () => {
 				const contentsProvider = testDisposables.add(instantiationService.createInstance(
 					FilePromptContentProvider,
 					fileUri,
-					{ allowNonPromptFiles: true, languageId: undefined },
+					{ allowNonPromptFiles: true, languageId: undefined, updateOnChange: true },
 				));
 
 				let streamOrError: ReadableStream<VSBuffer> | Error | undefined;
@@ -184,7 +184,7 @@ suite('FilePromptContentsProvider', () => {
 				const contentsProvider = testDisposables.add(instantiationService.createInstance(
 					FilePromptContentProvider,
 					fileUri,
-					{ allowNonPromptFiles: false, languageId: undefined },
+					{ allowNonPromptFiles: false, languageId: undefined, updateOnChange: true },
 				));
 
 				let streamOrError: ReadableStream<VSBuffer> | Error | undefined;

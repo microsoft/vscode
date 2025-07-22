@@ -37,11 +37,10 @@ import { IWebview, IWebviewService } from '../../webview/browser/webview.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IWorkbenchMcpServer, McpServerContainers } from '../common/mcpTypes.js';
-import { InstallCountWidget, McpServerIconWidget, McpServerWidget, onClick, PublisherWidget, RatingsWidget } from './mcpServerWidgets.js';
-import { DropDownAction, InstallAction, ManageMcpServerAction, UninstallAction } from './mcpServerActions.js';
+import { IMcpServerContainer, IMcpServerEditorOptions, IMcpWorkbenchService, IWorkbenchMcpServer, McpServerContainers, McpServerInstallState } from '../common/mcpTypes.js';
+import { InstallCountWidget, McpServerIconWidget, McpServerStatusWidget, McpServerWidget, onClick, PublisherWidget, RatingsWidget, McpServerScopeBadgeWidget } from './mcpServerWidgets.js';
+import { DropDownAction, InstallAction, InstallingLabelAction, ManageMcpServerAction, McpServerStatusAction, UninstallAction } from './mcpServerActions.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
-import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ILocalMcpServer, IMcpServerManifest, IMcpServerPackage, PackageType } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -74,16 +73,31 @@ class NavBar extends Disposable {
 		this.actionbar = this._register(new ActionBar(element));
 	}
 
-	push(id: string, label: string, tooltip: string): void {
+	push(id: string, label: string, tooltip: string, index?: number): void {
 		const action = new Action(id, label, undefined, true, () => this.update(id, true));
 
 		action.tooltip = tooltip;
 
-		this.actions.push(action);
-		this.actionbar.push(action);
+		if (typeof index === 'number') {
+			this.actions.splice(index, 0, action);
+		} else {
+			this.actions.push(action);
+		}
+		this.actionbar.push(action, { index });
 
 		if (this.actions.length === 1) {
 			this.update(id);
+		}
+	}
+
+	remove(id: string): void {
+		const index = this.actions.findIndex(action => action.id === id);
+		if (index !== -1) {
+			this.actions.splice(index, 1);
+			this.actionbar.pull(index);
+			if (this._currentId === id) {
+				this.switch(this.actions[0]?.id);
+			}
 		}
 	}
 
@@ -99,6 +113,10 @@ class NavBar extends Disposable {
 			return true;
 		}
 		return false;
+	}
+
+	has(id: string): boolean {
+		return this.actions.some(action => action.id === id);
 	}
 
 	private update(id: string, focus?: boolean): void {
@@ -166,6 +184,7 @@ export class McpServerEditor extends EditorPane {
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(McpServerEditor.ID, group, telemetryService, themeService, storageService);
@@ -189,6 +208,7 @@ export class McpServerEditor extends EditorPane {
 
 		const iconContainer = append(header, $('.icon-container'));
 		const iconWidget = this.instantiationService.createInstance(McpServerIconWidget, iconContainer);
+		const scopeWidget = this.instantiationService.createInstance(McpServerScopeBadgeWidget, iconContainer);
 
 		const details = append(header, $('.details'));
 		const title = append(details, $('.title'));
@@ -210,17 +230,20 @@ export class McpServerEditor extends EditorPane {
 		subTitleEntryContainers.push(ratingsContainer);
 		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, ratingsContainer, false);
 
+
 		const widgets: McpServerWidget[] = [
 			iconWidget,
 			publisherWidget,
 			installCountWidget,
 			ratingsWidget,
+			scopeWidget,
 		];
 
 		const description = append(details, $('.description'));
 
 		const actions = [
-			this.instantiationService.createInstance(InstallAction),
+			this.instantiationService.createInstance(InstallAction, true),
+			this.instantiationService.createInstance(InstallingLabelAction),
 			this.instantiationService.createInstance(UninstallAction),
 			this.instantiationService.createInstance(ManageMcpServerAction, true),
 		];
@@ -244,8 +267,23 @@ export class McpServerEditor extends EditorPane {
 			actionBar.setFocusable(true);
 		}));
 
-		const mcpServerContainers: McpServerContainers = this.instantiationService.createInstance(McpServerContainers, [...actions, ...widgets]);
-		for (const disposable of [...actions, ...widgets, mcpServerContainers]) {
+		const otherContainers: IMcpServerContainer[] = [];
+		const mcpServerStatusAction = this.instantiationService.createInstance(McpServerStatusAction);
+		const mcpServerStatusWidget = this._register(this.instantiationService.createInstance(McpServerStatusWidget, append(actionsAndStatusContainer, $('.status')), mcpServerStatusAction));
+		this._register(Event.any(mcpServerStatusWidget.onDidRender)(() => {
+			if (this.dimension) {
+				this.layout(this.dimension);
+			}
+		}));
+
+		otherContainers.push(mcpServerStatusAction, new class extends McpServerWidget {
+			render() {
+				actionsAndStatusContainer.classList.toggle('list-layout', this.mcpServer?.installState === McpServerInstallState.Installed);
+			}
+		}());
+
+		const mcpServerContainers: McpServerContainers = this.instantiationService.createInstance(McpServerContainers, [...actions, ...widgets, ...otherContainers]);
+		for (const disposable of [...actions, ...widgets, ...otherContainers, mcpServerContainers]) {
 			this._register(disposable);
 		}
 
@@ -286,7 +324,7 @@ export class McpServerEditor extends EditorPane {
 		};
 	}
 
-	override async setInput(input: McpServerEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: McpServerEditorInput, options: IMcpServerEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		if (this.template) {
 			await this.render(input.mcpServer, this.template, !!options?.preserveFocus);
@@ -313,6 +351,13 @@ export class McpServerEditor extends EditorPane {
 		this.renderNavbar(mcpServer, template, preserveFocus);
 	}
 
+	override setOptions(options: IMcpServerEditorOptions | undefined): void {
+		super.setOptions(options);
+		if (options?.tab) {
+			this.template?.navbar.switch(options.tab);
+		}
+	}
+
 	private renderNavbar(extension: IWorkbenchMcpServer, template: IExtensionEditorTemplate, preserveFocus: boolean): void {
 		template.content.innerText = '';
 		template.navbar.clear();
@@ -322,7 +367,7 @@ export class McpServerEditor extends EditorPane {
 			this.currentIdentifier = extension.id;
 		}
 
-		if (extension.hasReadme()) {
+		if (extension.readmeUrl) {
 			template.navbar.push(McpServerEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
 		}
 
@@ -332,6 +377,21 @@ export class McpServerEditor extends EditorPane {
 
 		if (extension.gallery || extension.local?.manifest) {
 			template.navbar.push(McpServerEditorTab.Manifest, localize('manifest', "Manifest"), localize('manifesttooltip', "Server manifest details"));
+		}
+
+		this.transientDisposables.add(this.mcpWorkbenchService.onChange(e => {
+			if (e === extension) {
+				if (e.config && !template.navbar.has(McpServerEditorTab.Configuration)) {
+					template.navbar.push(McpServerEditorTab.Configuration, localize('configuration', "Configuration"), localize('configurationtooltip', "Server configuration details"), extension.readmeUrl ? 1 : 0);
+				}
+				if (!e.config && template.navbar.has(McpServerEditorTab.Configuration)) {
+					template.navbar.remove(McpServerEditorTab.Configuration);
+				}
+			}
+		}));
+
+		if ((<IMcpServerEditorOptions | undefined>this.options)?.tab) {
+			template.navbar.switch((<IMcpServerEditorOptions>this.options).tab!);
 		}
 
 		if (template.navbar.currentId) {
@@ -558,7 +618,7 @@ export class McpServerEditor extends EditorPane {
 
 	private async openConfiguration(mcpServer: IWorkbenchMcpServer, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		const configContainer = append(template.content, $('.configuration'));
-		const content = $('div', { class: 'configuration-content', tabindex: '0' });
+		const content = $('div', { class: 'configuration-content' });
 
 		this.renderConfigurationDetails(content, mcpServer);
 
@@ -573,7 +633,7 @@ export class McpServerEditor extends EditorPane {
 
 	private async openManifest(mcpServer: IWorkbenchMcpServer, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		const manifestContainer = append(template.content, $('.manifest'));
-		const content = $('div', { class: 'manifest-content', tabindex: '0' });
+		const content = $('div', { class: 'manifest-content' });
 
 		try {
 			const manifest = await this.loadContents(() => this.mcpServerManifest!.get(), content);

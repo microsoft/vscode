@@ -8,7 +8,7 @@ import { DeferredPromise, RunOnceScheduler, timeout, Delayer } from '../../../ba
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { getMarks, mark } from '../../../base/common/performance.js';
 import { isBigSurOrNewer, isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
@@ -84,6 +84,29 @@ const enum ReadyState {
 	READY
 }
 
+class DockBadgeManager {
+
+	static readonly INSTANCE = new DockBadgeManager();
+
+	private readonly windows = new Set<number>();
+
+	acquireBadge(window: IBaseWindow): IDisposable {
+		this.windows.add(window.id);
+
+		electron.app.setBadgeCount(isLinux ? 1 /* only numbers supported */ : undefined /* generic dot */);
+
+		return {
+			dispose: () => {
+				this.windows.delete(window.id);
+
+				if (this.windows.size === 0) {
+					electron.app.setBadgeCount(0);
+				}
+			}
+		};
+	}
+}
+
 export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	//#region Events
@@ -150,7 +173,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			this.dispose();
 		}));
 		this._register(Event.fromNodeEventEmitter(win, 'focus')(() => {
-			this.clearFocusNotificationBadge();
+			this.clearNotifyFocus();
 
 			this._lastFocusTime = Date.now();
 		}));
@@ -324,23 +347,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				break;
 
 			case FocusMode.Notify:
-				if (isMacintosh) {
-					this.setFocusNotificationBadge(undefined /* generic dot */);
-
-					// On macOS we have direct API to bounce the dock icon
-					electron.app.dock?.bounce('informational');
-				} else if (isWindows) {
-					this.setFocusNotificationBadge(undefined /* generic dot */);
-
-					// On Windows, calling focus() will bounce the taskbar icon
-					// https://github.com/electron/electron/issues/2867
-					this.win?.focus();
-				} else if (isLinux) {
-					this.setFocusNotificationBadge(1 /* only number supported */);
-
-					// On Linux, there seems to be no way to bounce the taskbar icon
-					// as calling focus() will actually steal focus away.
-				}
+				this.showNotifyFocus();
 				break;
 
 			case FocusMode.Force:
@@ -352,18 +359,26 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}
 	}
 
-	private hasFocusNotificationBadge = false;
+	private readonly notifyFocusDisposable = this._register(new MutableDisposable());
 
-	private setFocusNotificationBadge(count?: number): void {
-		electron.app.setBadgeCount(count);
-		this.hasFocusNotificationBadge = true;
+	private showNotifyFocus(): void {
+		const disposables = new DisposableStore();
+		this.notifyFocusDisposable.value = disposables;
+
+		// Badge
+		disposables.add(DockBadgeManager.INSTANCE.acquireBadge(this));
+
+		// Flash/Bounce
+		if (isWindows || isLinux) {
+			this.win?.flashFrame(true);
+			disposables.add(toDisposable(() => this.win?.flashFrame(false)));
+		} else if (isMacintosh) {
+			electron.app.dock?.bounce('informational');
+		}
 	}
 
-	private clearFocusNotificationBadge(): void {
-		if (this.hasFocusNotificationBadge) {
-			electron.app.setBadgeCount(0);
-			this.hasFocusNotificationBadge = false;
-		}
+	private clearNotifyFocus(): void {
+		this.notifyFocusDisposable.clear();
 	}
 
 	private doFocusWindow() {

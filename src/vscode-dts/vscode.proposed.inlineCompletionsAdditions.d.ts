@@ -154,6 +154,8 @@ declare module 'vscode' {
 		readonly userPrompt?: string;
 
 		readonly requestUuid: string;
+
+		readonly requestIssuedDateTime: number;
 	}
 
 	export interface PartialAcceptInfo {

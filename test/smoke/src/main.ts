@@ -365,7 +365,7 @@ before(async function () {
 		verbose: opts.verbose,
 		remote: opts.remote,
 		web: opts.web,
-		tracing: opts.tracing,
+		tracing: opts.tracing || process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE,
 		headless: opts.headless,
 		browser: opts.browser,
 		extraArgs: (opts.electronArgs || '').split(' ').map(arg => arg.trim()).filter(arg => !!arg)

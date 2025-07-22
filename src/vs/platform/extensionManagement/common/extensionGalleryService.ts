@@ -30,7 +30,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { format2 } from '../../../base/common/strings.js';
 import { IAssignmentService } from '../../assignment/common/assignment.js';
-import { ExtensionGalleryResourceType, Flag, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService } from './extensionGalleryManifest.js';
+import { ExtensionGalleryResourceType, Flag, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService, ExtensionGalleryManifestStatus } from './extensionGalleryManifest.js';
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 
 const CURRENT_TARGET_PLATFORM = isWeb ? TargetPlatform.WEB : getTargetPlatform(platform, arch);
@@ -540,6 +540,7 @@ interface IRawExtensionsControlManifest {
 		additionalInfo?: string;
 	}>;
 	search?: ISearchPrefferedResults[];
+	autoUpdate?: IStringDictionary<string>;
 }
 
 export abstract class AbstractExtensionGalleryService implements IExtensionGalleryService {
@@ -579,7 +580,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 	}
 
 	isEnabled(): boolean {
-		return this.extensionGalleryManifestService.isEnabled();
+		return this.extensionGalleryManifestService.extensionGalleryManifestStatus === ExtensionGalleryManifestStatus.Available;
 	}
 
 	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, token: CancellationToken): Promise<IGalleryExtension[]>;
@@ -593,7 +594,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		const options = CancellationToken.isCancellationToken(arg1) ? {} : arg1 as IExtensionQueryOptions;
 		const token = CancellationToken.isCancellationToken(arg1) ? arg1 : arg2 as CancellationToken;
 
-		const resourceApi = await this.getResourceApi(extensionGalleryManifest, !!options.updateCheck);
+		const resourceApi = await this.getResourceApi(extensionGalleryManifest);
 		const result = resourceApi
 			? await this.getExtensionsUsingResourceApi(extensionInfos, options, resourceApi, extensionGalleryManifest, token)
 			: await this.getExtensionsUsingQueryApi(extensionInfos, options, extensionGalleryManifest, token);
@@ -625,35 +626,23 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		return result;
 	}
 
-	private async getResourceApi(extensionGalleryManifest: IExtensionGalleryManifest, updateCheck: boolean): Promise<{ uri: string; fallback?: string } | undefined> {
-		const latestVersionResource = getExtensionGalleryManifestResourceUri(extensionGalleryManifest, ExtensionGalleryResourceType.ExtensionLatestVersionUri);
-		if (!latestVersionResource) {
-			return undefined;
-		}
-
-		if (this.productService.quality !== 'stable') {
-			return {
-				uri: latestVersionResource,
-				fallback: this.unpkgResourceApi
-			};
-		}
-
-		const value = updateCheck
-			? await this.assignmentService?.getTreatment<'unpkg' | 'marketplace' | 'none'>('extensions.gallery.useResourceApi') ?? 'marketplace'
-			: await this.assignmentService?.getTreatment<'unpkg' | 'marketplace' | 'none'>('extensions.gallery.useLatestApi') ?? 'unpkg';
-
-		if (value === 'marketplace') {
-			return {
-				uri: latestVersionResource,
-				fallback: this.unpkgResourceApi
-			};
-		}
+	private async getResourceApi(extensionGalleryManifest: IExtensionGalleryManifest): Promise<{ uri: string; fallback?: string } | undefined> {
+		const value = await this.assignmentService?.getTreatment<'unpkg' | 'marketplace'>('extensions.gallery.useResourceApi') ?? 'marketplace';
 
 		if (value === 'unpkg' && this.unpkgResourceApi) {
 			return { uri: this.unpkgResourceApi };
 		}
 
+		const latestVersionResource = getExtensionGalleryManifestResourceUri(extensionGalleryManifest, ExtensionGalleryResourceType.ExtensionLatestVersionUri);
+		if (latestVersionResource) {
+			return {
+				uri: latestVersionResource,
+				fallback: this.unpkgResourceApi
+			};
+		}
+
 		return undefined;
+
 	}
 
 	private async getExtensionsUsingQueryApi(extensionInfos: ReadonlyArray<IExtensionInfo>, options: IExtensionQueryOptions, extensionGalleryManifest: IExtensionGalleryManifest, token: CancellationToken): Promise<IGalleryExtension[]> {
@@ -1793,7 +1782,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		}
 
 		if (!this.extensionsControlUrl) {
-			return { malicious: [], deprecated: {}, search: [] };
+			return { malicious: [], deprecated: {}, search: [], autoUpdate: {} };
 		}
 
 		const context = await this.requestService.request({
@@ -1810,6 +1799,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		const malicious: Array<MaliciousExtensionInfo> = [];
 		const deprecated: IStringDictionary<IDeprecationInfo> = {};
 		const search: ISearchPrefferedResults[] = [];
+		const autoUpdate: IStringDictionary<string> = result?.autoUpdate ?? {};
 		if (result) {
 			for (const id of result.malicious) {
 				if (!isString(id)) {
@@ -1847,7 +1837,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			}
 		}
 
-		return { malicious, deprecated, search };
+		return { malicious, deprecated, search, autoUpdate };
 	}
 
 }

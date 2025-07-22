@@ -60,7 +60,7 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { editorErrorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { TextModelEditReason, EditReasons } from '../../../common/textModelEditReason.js';
+import { TextModelEditSource, EditSources } from '../../../common/textModelEditSource.js';
 import { TextEdit } from '../../../common/core/edits/textEdit.js';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
@@ -607,8 +607,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return -1;
 		}
 		const viewModel = this._modelData.viewModel;
-		if (viewModel.coordinatesConverter.modelPositionIsVisible(Position.lift(position))) {
-			return viewModel.viewLayout.getLineHeightForLineNumber(position.lineNumber);
+		const coordinatesConverter = viewModel.coordinatesConverter;
+		const pos = Position.lift(position);
+		if (coordinatesConverter.modelPositionIsVisible(pos)) {
+			const viewPosition = coordinatesConverter.convertModelPositionToViewPosition(pos);
+			return viewModel.viewLayout.getLineHeightForLineNumber(viewPosition.lineNumber);
 		}
 		return 0;
 	}
@@ -1244,11 +1247,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return true;
 	}
 
-	public edit(edit: TextEdit, reason: TextModelEditReason): boolean {
+	public edit(edit: TextEdit, reason: TextModelEditSource): boolean {
 		return this.executeEdits(reason, edit.replacements.map<IIdentifiedSingleEditOperation>(e => ({ range: e.range, text: e.text })), undefined);
 	}
 
-	public executeEdits(source: string | null | undefined | TextModelEditReason, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean {
+	public executeEdits(source: string | null | undefined | TextModelEditSource, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean {
 		if (!this._modelData) {
 			return false;
 		}
@@ -1267,13 +1270,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		let sourceStr: string | undefined | null;
-		let reason: TextModelEditReason;
+		let reason: TextModelEditSource;
 
-		if (source instanceof TextModelEditReason) {
+		if (source instanceof TextModelEditSource) {
 			reason = source;
 			sourceStr = source.metadata.source;
 		} else {
-			reason = EditReasons.unknown({ name: sourceStr });
+			reason = EditSources.unknown({ name: sourceStr });
 			sourceStr = source;
 		}
 

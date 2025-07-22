@@ -6,7 +6,6 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableFromEvent, ObservableMap } from '../../../../base/common/observable.js';
-import { isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ObservableMemento, observableMemento } from '../../../../platform/observable/common/observableMemento.js';
@@ -37,7 +36,7 @@ export enum ToolsScope {
 
 export class ChatSelectedTools extends Disposable {
 
-	private readonly _selectedTools: ObservableMemento<IToolAndToolSetEnablementMap>;
+	private readonly _selectedTools: ObservableMemento<StoredData>;
 
 	private readonly _sessionStates = new ObservableMap<string, IToolAndToolSetEnablementMap | undefined>();
 
@@ -64,48 +63,8 @@ export class ChatSelectedTools extends Disposable {
 	) {
 		super();
 
-		const storedTools = observableMemento<IToolAndToolSetEnablementMap>({
-			defaultValue: new Map(),
-			toStorage: (value) => {
-				const data = {
-					disabledToolSets: [] as string[],
-					disabledTools: [] as string[],
-				};
-				for (const [item, enabled] of value) {
-					if (!enabled) {
-						if (item instanceof ToolSet) {
-							data.disabledToolSets.push(item.id);
-						} else {
-							data.disabledTools.push(item.id);
-						}
-					}
-				}
-				return JSON.stringify(data);
-			},
-			fromStorage: (value) => {
-				const obj = JSON.parse(value) as StoredData;
-				const map = new Map<IToolData | ToolSet, boolean>();
-				if (!obj || !isObject(obj)) {
-					return map;
-				}
-				if (Array.isArray(obj.disabledToolSets)) {
-					for (const toolSetId of obj.disabledToolSets) {
-						const toolset = this._toolsService.getToolSet(toolSetId);
-						if (toolset) {
-							map.set(toolset, false);
-						}
-					}
-				}
-				if (Array.isArray(obj.disabledTools)) {
-					for (const toolId of obj.disabledTools) {
-						const tool = this._toolsService.getTool(toolId);
-						if (tool) {
-							map.set(tool, false);
-						}
-					}
-				}
-				return map;
-			},
+		const storedTools = observableMemento<StoredData>({
+			defaultValue: { disabledToolSets: [], disabledTools: [] },
 			key: 'chat/selectedTools',
 		});
 
@@ -119,27 +78,37 @@ export class ChatSelectedTools extends Disposable {
 	 */
 	get entriesMap(): IObservable<IToolAndToolSetEnablementMap> {
 		return derived(r => {
+			const map = new Map<IToolData | ToolSet, boolean>();
+
 			const currentMode = this._mode.read(r);
 
 			let currentMap = this._sessionStates.get(currentMode.id);
-			let defaultEnablement = false;
-			if (!currentMap && currentMode.kind === ChatModeKind.Agent && currentMode.customTools) {
-				currentMap = this._toolsService.toToolAndToolSetEnablementMap(new Set(currentMode.customTools.read(r)));
+			const modeTools = currentMode.customTools?.read(r);
+			if (!currentMap && currentMode.kind === ChatModeKind.Agent && modeTools) {
+				currentMap = this._toolsService.toToolAndToolSetEnablementMap(modeTools);
 			}
-			if (!currentMap) {
-				currentMap = this._selectedTools.read(r);
-				defaultEnablement = true;
-			}
+			if (currentMap) {
+				for (const tool of this._allTools.read(r)) {
+					if (tool.canBeReferencedInPrompt) {
+						map.set(tool, currentMap.get(tool) === true); // false if not present
+					}
+				}
+				for (const toolSet of this._toolsService.toolSets.read(r)) {
+					map.set(toolSet, currentMap.get(toolSet) === true); // false if not present
+				}
+			} else {
+				const currData = this._selectedTools.read(r);
+				const disabledToolSets = new Set(currData.disabledToolSets ?? []);
+				const disabledTools = new Set(currData.disabledTools ?? []);
 
-			// create a complete map of all tools and tool sets
-			const map = new Map<IToolData | ToolSet, boolean>();
-			const tools = this._allTools.read(r).filter(t => t.canBeReferencedInPrompt);
-			for (const tool of tools) {
-				map.set(tool, currentMap.get(tool) ?? defaultEnablement);
-			}
-			const toolSets = this._toolsService.toolSets.read(r);
-			for (const toolSet of toolSets) {
-				map.set(toolSet, currentMap.get(toolSet) ?? defaultEnablement);
+				for (const tool of this._allTools.read(r)) {
+					if (tool.canBeReferencedInPrompt) {
+						map.set(tool, !disabledTools.has(tool.id));
+					}
+				}
+				for (const toolSet of this._toolsService.toolSets.read(r)) {
+					map.set(toolSet, !disabledToolSets.has(toolSet.id));
+				}
 			}
 			return map;
 		});
@@ -150,7 +119,7 @@ export class ChatSelectedTools extends Disposable {
 		if (this._sessionStates.has(mode.id)) {
 			return ToolsScope.Session;
 		}
-		if (mode.kind === ChatModeKind.Agent && mode.customTools && mode.uri) {
+		if (mode.kind === ChatModeKind.Agent && mode.customTools?.get() && mode.uri) {
 			return ToolsScope.Mode;
 		}
 		return ToolsScope.Global;
@@ -175,21 +144,30 @@ export class ChatSelectedTools extends Disposable {
 			this._sessionStates.set(mode.id, enablementMap);
 			return;
 		}
-		if (mode.kind === ChatModeKind.Agent && mode.customTools && mode.uri) {
+		if (mode.kind === ChatModeKind.Agent && mode.customTools?.get() && mode.uri) {
 			// apply directly to mode file.
 			this.updateCustomModeTools(mode.uri.get(), enablementMap);
 			return;
 		}
-		this._selectedTools.set(enablementMap, undefined);
+		const storedData = { disabledToolSets: [] as string[], disabledTools: [] as string[] };
+		for (const [item, enabled] of enablementMap) {
+			if (!enabled) {
+				if (item instanceof ToolSet) {
+					storedData.disabledToolSets.push(item.id);
+				} else {
+					storedData.disabledTools.push(item.id);
+				}
+			}
+		}
+		this._selectedTools.set(storedData, undefined);
 	}
 
 	async updateCustomModeTools(uri: URI, enablementMap: IToolAndToolSetEnablementMap): Promise<void> {
 		await this._instantiationService.createInstance(PromptFileRewriter).openAndRewriteTools(uri, enablementMap, CancellationToken.None);
 	}
 
-	asEnablementMap(): Map<IToolData, boolean> {
+	public readonly enablementMap: IObservable<ReadonlyMap<IToolData, boolean>> = this.entriesMap.map((map, r) => {
 		const result = new Map<IToolData, boolean>();
-		const map = this.entriesMap.get();
 
 		const _set = (tool: IToolData, enabled: boolean) => {
 			// ONLY disable a tool that isn't enabled yet
@@ -201,7 +179,7 @@ export class ChatSelectedTools extends Disposable {
 
 		for (const [item, enabled] of map) {
 			if (item instanceof ToolSet) {
-				for (const tool of item.getTools()) {
+				for (const tool of item.getTools(r)) {
 					// Tools from an mcp tool set are explicitly enabled/disabled under the tool set.
 					// Other toolsets don't show individual tools under the tool set and enablement just follows the toolset.
 					const toolEnabled = item.source.type === 'mcp' ?
@@ -216,5 +194,5 @@ export class ChatSelectedTools extends Disposable {
 			}
 		}
 		return result;
-	}
+	});
 }

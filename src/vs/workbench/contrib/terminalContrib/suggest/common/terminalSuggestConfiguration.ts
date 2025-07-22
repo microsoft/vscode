@@ -5,7 +5,8 @@
 
 import type { IStringDictionary } from '../../../../../base/common/collections.js';
 import { localize } from '../../../../../nls.js';
-import type { IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationPropertySchema, IConfigurationNode, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 import product from '../../../../../platform/product/common/product.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 
@@ -54,10 +55,7 @@ export interface ITerminalSuggestConfiguration {
 	suggestOnTriggerCharacters: boolean;
 	runOnEnter: 'never' | 'exactMatch' | 'exactMatchIgnoreExtension' | 'always';
 	windowsExecutableExtensions: { [key: string]: boolean };
-	providers: {
-		'terminal-suggest': boolean;
-		'pwsh-shell-integration': boolean;
-	};
+	providers: { [key: string]: boolean };
 	showStatusBar: boolean;
 	cdPath: 'off' | 'relative' | 'absolute';
 	inlineSuggestion: 'off' | 'alwaysOnTopExceptExactMatch' | 'alwaysOnTop';
@@ -77,9 +75,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		type: 'object',
 		properties: {},
 		default: {
-			'terminal-suggest': true,
-			'pwsh-shell-integration': true,
-			'lsp': true,
+			'pwsh-shell-integration': false,
 		},
 		tags: ['preview'],
 	},
@@ -135,10 +131,10 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		markdownDescription: localize('terminal.integrated.selectionMode', "Controls how suggestion selection works in the integrated terminal."),
 		type: 'string',
 		enum: ['partial', 'always', 'never'],
-		enumDescriptions: [
-			localize('terminal.integrated.selectionMode.partial', "Will show a border and only insert the suggestion via Tab until navigation has occurred. After that, it will show selection and insert via Enter or Tab."),
-			localize('terminal.integrated.selectionMode.always', "Always select."),
-			localize('terminal.integrated.selectionMode.never', "No selection will occur until the user explicitly navigates the suggestions."),
+		markdownEnumDescriptions: [
+			localize('terminal.integrated.selectionMode.partial', "Partially select a suggestion when automatically triggering IntelliSense. `Tab` can be used to accept the first suggestion, only after navigating the suggestions via `Down` will `Enter` also accept the active suggestion."),
+			localize('terminal.integrated.selectionMode.always', "Always select a suggestion when automatically triggering IntelliSense. `Enter` or `Tab` can be used to accept the first suggestion."),
+			localize('terminal.integrated.selectionMode.never', "Never select a suggestion when automatically triggering IntelliSense. The list must be navigated via `Down` before `Enter` or `Tab` can be used to accept the active suggestion."),
 		],
 		default: 'partial',
 		tags: ['preview']
@@ -194,5 +190,60 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 	},
 
 };
+
+let terminalSuggestProvidersConfiguration: IConfigurationNode | undefined;
+
+export function registerTerminalSuggestProvidersConfiguration(availableProviders?: string[]) {
+	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
+	const oldProvidersConfiguration = terminalSuggestProvidersConfiguration;
+
+	// Create properties for the providers setting dynamically
+	const providersProperties: IStringDictionary<IConfigurationPropertySchema> = {};
+	const defaultValue: IStringDictionary<boolean> = {
+		// Always include known built-in providers as defaults even if not yet registered
+		'terminal-suggest': true,
+		'pwsh-shell-integration': false,
+		'lsp': true
+	};
+
+	if (availableProviders) {
+		for (const providerId of availableProviders) {
+			providersProperties[providerId] = {
+				type: 'boolean',
+				description: localize('suggest.provider.description', "Enable or disable the '{0}' terminal suggestion provider.", providerId),
+				default: true
+			};
+			defaultValue[providerId] = defaultValue[providerId] ?? true;
+		}
+	}
+
+	// Create the configuration node with dynamic properties
+	terminalSuggestProvidersConfiguration = {
+		id: 'terminalSuggestProviders',
+		order: 100,
+		title: localize('terminalSuggestProvidersConfigurationTitle', "Terminal Suggest Providers"),
+		type: 'object',
+		properties: {
+			[TerminalSuggestSettingId.Providers]: {
+				restricted: true,
+				markdownDescription: localize('suggest.providers', "Providers are enabled by default. Omit them by setting the id of the provider to `false`."),
+				type: 'object',
+				properties: providersProperties,
+				default: defaultValue,
+				tags: ['preview'],
+			}
+		}
+	};
+
+	// Update the registry with the new configuration
+	registry.updateConfigurations({
+		add: [terminalSuggestProvidersConfiguration],
+		remove: oldProvidersConfiguration ? [oldProvidersConfiguration] : []
+	});
+}
+
+// Initial registration with default providers to ensure the setting appears in UI
+registerTerminalSuggestProvidersConfiguration(['terminal-suggest', 'builtinPwsh', 'lsp']);
 
 
