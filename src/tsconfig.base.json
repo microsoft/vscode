@@ -19,7 +19,8 @@
 			"ES2022",
 			"DOM",
 			"DOM.Iterable",
-			"WebWorker.ImportScripts"
+			"WebWorker.ImportScripts",
+			"ESNext.Array"
 		],
 		"allowSyntheticDefaultImports": true
 	}
