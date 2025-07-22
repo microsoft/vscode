@@ -39,12 +39,6 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 	) {
 		super();
 
-		if (content.changes.length === 0) {
-			this.domNode = $('.chat-file-changes-summary');
-			return;
-		}
-
-		console.log('ChatChangesSummaryContentPart constructor');
 		console.log('this.changes', content.changes);
 
 		const buttonElement = $('.chat-used-context-label', undefined);
@@ -174,33 +168,43 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 			};
 			items.push(modifiedChange);
 		}
+		console.log('items : ', items);
 		return items;
 	}
 
 	private getInsertionsAndDeletions(change: IChatChangesSummary): { insertions: number; deletions: number } | undefined {
+		console.log('getInsertionsAndDeletions change : ', change);
 		const sessionId = change.sessionId;
 		if (!sessionId) {
+			console.log('return 1');
 			return;
 		}
 		const session = this.chatService.getSession(sessionId);
 		if (!session || !session.editingSessionObs) {
+			console.log('return 2');
 			return;
 		}
+		console.log('session : ', session);
 		const editSession = session.editingSessionObs.promiseResult.get()?.data;
+		console.log('editSession : ', editSession);
 		if (!editSession) {
+			console.log('return 3');
 			return;
 		}
 		const uri = change.reference;
 		const modifiedEntry = editSession.getEntry(uri);
 		if (!modifiedEntry) {
+			console.log('return 4');
 			return;
 		}
 		const requestId = change.requestId;
 		if (!requestId) {
+			console.log('return 5');
 			return;
 		}
 		const undoStops = this.context.content.filter(e => e.kind === 'undoStop');
 		const undoStopsMapped = undoStops.map(e => e.id);
+		console.log('undoStopsMapped : ', undoStopsMapped);
 		for (let i = undoStopsMapped.length - 1; i >= 0; i--) {
 			const specificUndoStop = undoStopsMapped[i];
 			const diffBetweenStops: IEditSessionEntryDiff | undefined = editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, requestId, specificUndoStop)?.get();

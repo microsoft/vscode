@@ -25,6 +25,7 @@ export interface IChatEditorConfiguration {
 	readonly foreground: Color | undefined;
 	readonly inputEditor: IChatInputEditorOptions;
 	readonly resultEditor: IChatResultEditorOptions;
+	readonly showFileChanges: boolean;
 }
 
 export interface IChatInputEditorOptions {
@@ -65,6 +66,7 @@ export class ChatEditorOptions extends Disposable {
 		'chat.editor.fontFamily',
 		'chat.editor.fontWeight',
 		'chat.editor.wordWrap',
+		'chat.checkpoints.showFileChanges',
 		'editor.cursorBlinking',
 		'editor.fontLigatures',
 		'editor.accessibilitySupport',
@@ -121,7 +123,8 @@ export class ChatEditorOptions extends Disposable {
 				},
 				wordWrap: chatEditorConfig.wordWrap,
 				fontLigatures: editorConfig.fontLigatures,
-			}
+			},
+			showFileChanges: this.configurationService.getValue<boolean>('chat.checkpoints.showFileChanges'),
 
 		};
 		this._onDidChange.fire();

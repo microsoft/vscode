@@ -274,6 +274,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.checkpoints.enabled', "Enables checkpoints in chat. Checkpoints allow you to restore the chat to a previous state."),
 			tags: ['experimental'],
 		},
+		'chat.checkpoints.showFileChanges': {
+			type: 'boolean',
+			description: nls.localize('chat.checkpoints.showFileChanges', "Controls whether to show chat checkpoint file changes."),
+			default: false
+		},
 		[mcpEnabledConfig]: {
 			type: 'boolean',
 			description: nls.localize('chat.mcp.enabled', "Enables integration with Model Context Protocol servers to provide additional tools and functionality."),

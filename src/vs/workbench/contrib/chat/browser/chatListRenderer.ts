@@ -177,6 +177,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly _diffEditorPool: DiffEditorPool;
 	private readonly _treePool: TreePool;
 	private readonly _contentReferencesListPool: CollapsibleListPool;
+	private readonly _options: ChatEditorOptions;
 
 	private _currentLayoutWidth: number = 0;
 	private _isVisible = true;
@@ -207,6 +208,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	) {
 		super();
 
+		this._options = editorOptions;
 		this.renderer = this.instantiationService.createInstance(ChatMarkdownRenderer, undefined);
 		this.markdownDecorationsRenderer = this.instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, editorOptions, delegate, overflowWidgetsDomNode, false));
@@ -682,7 +684,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (element.model.response === element.model.entireResponse && element.errorDetails?.message && element.errorDetails.message !== canceledName) {
 			content.push({ kind: 'errorDetails', errorDetails: element.errorDetails, isLast: index === this.delegate.getListLength() - 1 });
 		}
-		if (element.isComplete) {
+		if (element.isComplete && this._options.configuration.showFileChanges) {
 			const changes: IChatChangesSummary[] = [];
 			element.model.entireResponse.value.forEach(part => {
 				if (part.kind === 'textEditGroup') {
@@ -696,7 +698,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					});
 				}
 			});
-			content.push({ kind: 'changesSummary', changes });
+			if (changes.length) {
+				content.push({ kind: 'changesSummary', changes });
+			}
 		}
 
 		const diff = this.diff(templateData.renderedParts ?? [], content, element);
@@ -1007,7 +1011,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const isPaused = element.model.isPaused.get();
 			partsToRender.push({ kind: 'working', isPaused, setPaused: p => element.model.setPaused(p) });
 		}
-		if (element.isComplete) {
+		console.log('this._options.configuration.showFileChanges : ', this._options.configuration.showFileChanges);
+		if (element.isComplete && this._options.configuration.showFileChanges) {
 			const changes: IChatChangesSummary[] = [];
 			element.model.entireResponse.value.forEach(part => {
 				if (part.kind === 'textEditGroup') {
@@ -1021,7 +1026,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					});
 				}
 			});
-			partsToRender.push({ kind: 'changesSummary', changes });
+			if (changes.length > 0) {
+				partsToRender.push({ kind: 'changesSummary', changes });
+			}
 		}
 
 		return { content: partsToRender, moreContentAvailable };
