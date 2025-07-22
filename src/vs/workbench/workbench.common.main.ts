@@ -375,8 +375,8 @@ import './contrib/userDataProfile/browser/userDataProfile.contribution.js';
 // Continue Edit Session
 import './contrib/editSessions/browser/editSessions.contribution.js';
 
-// Remote Coding Agents
-import './contrib/remoteCodingAgents/browser/remoteCodingAgents.contribution.js';
+// Chat Sessions
+import './contrib/chat/browser/chatSessions.contribution.js';
 
 // Code Actions
 import './contrib/codeActions/browser/codeActions.contribution.js';

@@ -12,6 +12,17 @@ import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IChatProgress } from './chatService.js';
 
+export interface IChatSessionsExtensionPoint {
+	id: string;
+	name: string;
+	displayName: string;
+	description: string;
+	when?: string;
+}
+
+export interface IChatSessionDynamicAgentHandler {
+	registerDynamicChatAgent(extPoint: IChatSessionsExtensionPoint): void;
+}
 export interface IChatSessionItem {
 	id: string;
 	label: string;
@@ -46,6 +57,7 @@ export interface IChatSessionsService {
 	hasChatSessionItemProviders: boolean;
 	provideChatSessionItems(token: CancellationToken): Promise<{ provider: IChatSessionItemProvider; session: IChatSessionItem }[]>;
 	provideChatSessionContent(chatSessionType: string, id: string, token: CancellationToken): Promise<ChatSession>;
+	registerContribution(contribution: IChatSessionsExtensionPoint): IDisposable;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
@@ -55,14 +67,30 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private _itemsProviders: Map<number, IChatSessionItemProvider> = new Map();
 	private _contentProviders: Map<number, IChatSessionContentProvider> = new Map();
 
+	private _contributions: Map<string, IChatSessionsExtensionPoint> = new Map();
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 	}
 
+	registerContribution(contribution: IChatSessionsExtensionPoint): IDisposable {
+		if (this._contributions.has(contribution.id)) {
+			this._logService.warn(`Chat session contribution with id '${contribution.id}' is already registered.`);
+			return { dispose: () => { } };
+		}
+		this._contributions.set(contribution.id, contribution);
+		return {
+			dispose: () => {
+				this._contributions.delete(contribution.id);
+			}
+		};
+	}
+
 	public async provideChatSessionItems(token: CancellationToken): Promise<{ provider: IChatSessionItemProvider; session: IChatSessionItem }[]> {
 		const results: { provider: IChatSessionItemProvider; session: IChatSessionItem }[] = [];
+
+		// TODO: Use static contributions to activate extension and return just correct set
 
 		// Iterate through all registered providers and collect their results
 		for (const [handle, provider] of this._itemsProviders) {

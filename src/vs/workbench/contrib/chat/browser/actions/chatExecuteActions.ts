@@ -628,7 +628,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			);
 
 			let summary: string | undefined;
-			let followup: string | undefined;
 			if (defaultAgent && chatRequests.length > 0) {
 				chatModel.acceptResponseProgress(addedRequest, {
 					kind: 'progressMessage',
@@ -637,15 +636,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 						CreateRemoteAgentJobAction.markdownStringTrustedOptions
 					)
 				});
-
-				// Forward useful metadata about conversation to the implementing extension
-				if (agent.followUpRegex) {
-					const regex = new RegExp(agent.followUpRegex);
-					followup = chatRequests
-						.map(req => req.response?.response.toString() ?? '')
-						.reverse()
-						.find(text => regex.test(text));
-				}
 
 				const historyEntries: IChatAgentHistoryEntry[] = chatRequests
 					.map(req => ({
@@ -675,21 +665,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				)
 			});
 
-			let resultMarkdown: string | undefined;
-
-
-			//Execute the remote command
-			if (!!false) { // TODO:  Disabled for testing only. Remove 'if'
-				resultMarkdown = await commandService.executeCommand(agent.command, {
-					userPrompt,
-					summary: summary || userPrompt,
-					followup,
-				});
-			} else {
-				// TODO: Testing only
-				resultMarkdown = 'JoshBot will continue your work in [#256541](https://github.com/microsoft/vscode/pull/256541)';
-			}
-
+			const resultMarkdown = 'JoshBot will continue your work in [#256541](https://github.com/microsoft/vscode/pull/256541)';
 			let part: IChatProgress;
 			if (resultMarkdown) {
 				const codingAgentBeginPart: ICodingAgentSessionBegin = {

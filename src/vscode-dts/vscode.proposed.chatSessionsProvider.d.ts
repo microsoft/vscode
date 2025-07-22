@@ -18,6 +18,11 @@ declare module 'vscode' {
 		 */
 		readonly onDidChangeChatSessionItems: Event<void>;
 
+		// /**
+		//  * Create a new chat session item
+		//  */
+		// createChatSessionItem(prompt: string, context: ChatContext): any;
+
 		/**
 		 * Provides a list of chat sessions.
 		 */
