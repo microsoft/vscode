@@ -132,19 +132,27 @@ export interface IToolInvocationPreparationContext {
 	chatInteractionId?: string;
 }
 
+export type ToolInputOutputBase = {
+	/** Mimetype of the value, optional */
+	mimeType?: string;
+	/** URI of the resource on the MCP server. */
+	uri?: URI;
+	/** If true, this part came in as a resource reference rather than direct data. */
+	asResource?: boolean;
+};
+
+export type ToolInputOutputEmbedded = ToolInputOutputBase & {
+	type: 'embed';
+	value: string;
+	/** If true, value is text. If false or not given, value is base64 */
+	isText?: boolean;
+};
+
+export type ToolInputOutputReference = ToolInputOutputBase & { type: 'ref'; uri: URI };
+
 export interface IToolResultInputOutputDetails {
 	readonly input: string;
-	readonly output: ({
-		value: string;
-		/** If true, value is text. If false or not given, value is base64 */
-		isText?: boolean;
-		/** Mimetype of the value, optional */
-		mimeType?: string;
-		/** URI of the resource on the MCP server. */
-		uri?: URI;
-		/** If true, this part came in as a resource reference rather than direct data. */
-		asResource?: boolean;
-	})[];
+	readonly output: (ToolInputOutputEmbedded | ToolInputOutputReference)[];
 	readonly isError?: boolean;
 }
 

@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { IChatSessionContent, IChatSessionsProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
+import { IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
 
@@ -23,24 +23,24 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		super();
 	}
 
-	$registerChatSessionsProvider(handle: number, chatSessionType: string): void {
+	$registerChatSessionItemProvider(handle: number, chatSessionType: string): void {
 		// Register the provider handle - this tracks that a provider exists
-		const provider: IChatSessionsProvider = {
+		const provider: IChatSessionItemProvider = {
 			chatSessionType,
-			provideChatSessions: (token) => this._provideChatSessionsInformation(handle, token)
+			provideChatSessionItems: (token) => this._provideChatSessionItems(handle, token)
 		};
-		this._registrations.set(handle, this._chatSessionsService.registerChatSessionsProvider(handle, provider));
+		this._registrations.set(handle, this._chatSessionsService.registerChatSessionItemProvider(handle, provider));
 	}
 
-	private async _provideChatSessionsInformation(handle: number, token: CancellationToken): Promise<IChatSessionContent[]> {
+	private async _provideChatSessionItems(handle: number, token: CancellationToken): Promise<IChatSessionItem[]> {
 		const proxy = this._extHostContext.getProxy(ExtHostContext.ExtHostChatSessions);
 
 		try {
 			// Get all results as an array from the RPC call
-			const sessions = await proxy.$provideChatSessions(handle, token);
+			const sessions = await proxy.$provideChatSessionItems(handle, token);
 			return sessions.map(session => ({
 				...session,
-				uri: URI.revive(session.uri),
+				id: session.id,
 				iconPath: session.iconPath ? this._reviveIconPath(session.iconPath) : undefined
 			}));
 		} catch (error) {
@@ -49,14 +49,14 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		return [];
 	}
 
-	$unregisterChatSessionsProvider(handle: number): void {
+	$unregisterChatSessionItemProvider(handle: number): void {
 		this._registrations.deleteAndDispose(handle);
 	}
 
 
 	private _reviveIconPath(
 		iconPath: UriComponents | { light: UriComponents; dark: UriComponents } | { id: string; color?: { id: string } | undefined })
-		: IChatSessionContent['iconPath'] {
+		: IChatSessionItem['iconPath'] {
 		if (!iconPath) {
 			return undefined;
 		}
