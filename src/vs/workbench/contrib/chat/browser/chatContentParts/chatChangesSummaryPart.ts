@@ -216,15 +216,19 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 	}
 
 	private registerCollapseButtonListeners(collapseButton: ButtonWithIcon): void {
-		const definingIcon = () => {
-			this._isExpanded = !this._isExpanded;
+		const setExpanded = () => {
 			collapseButton.icon = this._isExpanded ? Codicon.chevronDown : Codicon.chevronRight;
 			this.domNode.classList.toggle('chat-used-context-collapsed', !this._isExpanded);
+		};
+		const definingIcon = () => {
+			this._isExpanded = !this._isExpanded;
+			console.log('!this._isExpanded : ', !this._isExpanded);
+			setExpanded();
 		};
 		this._register(collapseButton.onDidClick(() => {
 			definingIcon();
 		}));
-		definingIcon();
+		setExpanded();
 	}
 
 	private registerListListeners(list: WorkbenchList<IChatCollapsibleListItem>): void {
