@@ -16,6 +16,7 @@ import { pollForOutputAndIdle, promptForMorePolling } from '../bufferOutputPolli
 import { getOutput } from '../outputHelpers.js';
 import { getTaskDefinition, getTaskForTool } from './taskHelpers.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 
 type RunTaskToolClassification = {
 	taskId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the task.' };
@@ -43,6 +44,7 @@ export class RunTaskTool implements IToolImpl {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IChatService private readonly _chatService: IChatService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
@@ -53,7 +55,8 @@ export class RunTaskTool implements IToolImpl {
 		}
 
 		const taskDefinition = getTaskDefinition(args.id);
-		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._tasksService);
+
+		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._configurationService, this._tasksService);
 
 		if (!task) {
 			return { content: [], toolResultMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
@@ -109,9 +112,9 @@ export class RunTaskTool implements IToolImpl {
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IRunTaskToolInput;
-
 		const taskDefinition = getTaskDefinition(args.id);
-		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._tasksService);
+
+		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._configurationService, this._tasksService);
 		if (!task) {
 			return { invocationMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
 		}
