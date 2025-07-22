@@ -565,7 +565,7 @@ export function registerChatActions() {
 						const cancellationToken = new CancellationTokenSource();
 
 						try {
-							const sessions = await chatSessionsService.provideChatSessionDefinitions(cancellationToken.token);
+							const sessions = await chatSessionsService.provideChatSessionItems(cancellationToken.token);
 
 							for (const session of sessions) {
 								const sessionContent = session.session;
@@ -845,7 +845,7 @@ export function registerChatActions() {
 			}
 
 			const showAgentSessionsMenuConfig = configurationService.getValue<string>(ChatConfiguration.AgentSessionsViewLocation);
-			if (showAgentSessionsMenuConfig === 'showChatsMenu' && chatSessionsService.hasChatSessionDefinitionProviders) {
+			if (showAgentSessionsMenuConfig === 'showChatsMenu' && chatSessionsService.hasChatSessionItemProviders) {
 				await this.showIntegratedPicker(
 					chatService,
 					quickInputService,
