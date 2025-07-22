@@ -48,6 +48,6 @@ export class ExtHostChatOutputRenderer implements ExtHostChatOutputRendererShape
 		}
 
 		const webview = this.webviews.createNewWebview(webviewHandle, {}, entry.extension);
-		return entry.renderer.renderChatOutput(valueData.buffer, webview, token);
+		return entry.renderer.renderChatOutput(valueData.buffer, webview, {}, token);
 	}
 }

@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
@@ -18,10 +18,13 @@ import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatCustomProgressPart } from '../chatProgressContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
+// TODO: see if we can reuse existing types instead of adding ChatToolOutputSubPart
 export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
 
 	public override readonly codeblocks: IChatCodeBlockInfo[] = [];
+
+	private readonly _disposeCts = this._register(new CancellationTokenSource());
 
 	constructor(
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
@@ -44,6 +47,11 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 		this.domNode = this.createOutputPart(details);
 	}
 
+	public override dispose(): void {
+		this._disposeCts.dispose(true);
+		super.dispose();
+	}
+
 	private createOutputPart(details: IToolResultOutputDetails): HTMLElement {
 		const parent = dom.$('div.webview-output');
 		parent.style.maxHeight = '80vh';
@@ -53,7 +61,12 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 		const progressPart = this.instantiationService.createInstance(ChatCustomProgressPart, progressMessage, ThemeIcon.modify(Codicon.loading, 'spin'));
 		parent.appendChild(progressPart.domNode);
 
-		this.chatOutputItemRendererService.renderOutputPart(details.output.mimeType, details.output.value.buffer, parent, CancellationToken.None).then((renderedItem) => {
+		// TODO: we also need to show the tool output in the UI
+		this.chatOutputItemRendererService.renderOutputPart(details.output.mimeType, details.output.value.buffer, parent, this._disposeCts.token).then((renderedItem) => {
+			if (this._disposeCts.token.isCancellationRequested) {
+				return;
+			}
+
 			this._register(renderedItem);
 
 			progressPart.domNode.remove();
@@ -62,6 +75,9 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 			this._register(renderedItem.onDidChangeHeight(() => {
 				this._onDidChangeHeight.fire();
 			}));
+		}, (error) => {
+			// TODO: show error in UI too
+			console.error('Error rendering tool output:', error);
 		});
 
 		return parent;

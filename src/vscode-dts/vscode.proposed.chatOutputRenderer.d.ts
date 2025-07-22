@@ -24,6 +24,7 @@ declare module 'vscode' {
 
 	export interface ExtendedLanguageModelToolResult2 extends ExtendedLanguageModelToolResult {
 		// Temporary to allow `toolResultDetails` to return a ToolResultDataOutput
+		// TODO: Should this live here? Or should we be able to mark each `content` items as user/lm specific?
 		// TODO: Should we allow multiple per tool result?
 		toolResultDetails2?: Array<Uri | Location> | ToolResultDataOutput;
 	}
@@ -32,8 +33,10 @@ declare module 'vscode' {
 		/**
 		 * Given an output, render it into the provided webview.
 		 *
-		 * TODO: Should we make this more generic so that we could support inputs besides tool outputs?
-		 * For example, a generic `ChatResponseDataPart` type.
+		 * TODO:Should this take an object instead of Uint8Array? That would let you get the original mime. Useful
+		 * if we ever support registering for multiple mime types or using image/*.
+		 *
+		 * TODO: Figure out what to pass as context?
 		 *
 		 * @param data The data to render.
 		 * @param webview The webview to render the data into.
@@ -42,7 +45,7 @@ declare module 'vscode' {
 		 *
 		 * @returns A promise that resolves when the webview has been initialized and is ready to be presented to the user.
 		 */
-		renderChatOutput(data: Uint8Array, webview: Webview, token: CancellationToken): Thenable<void>;
+		renderChatOutput(data: Uint8Array, webview: Webview, ctx: {}, token: CancellationToken): Thenable<void>;
 	}
 
 	export namespace chat {

@@ -3335,12 +3335,11 @@ export namespace LanguageModelToolResult2 {
 			if (item.kind === 'text') {
 				return new types.LanguageModelTextPart(item.value);
 			} else if (item.kind === 'data') {
-				// TODO: make sure we can remove this
-				// const mimeType = Object.values(types.ChatImageMimeType).includes(item.value.mimeType as types.ChatImageMimeType) ? item.value.mimeType as types.ChatImageMimeType : undefined;
-				// // if (!mimeType) {
-				// // 	throw new Error('Invalid MIME type');
-				// // }
-				return new types.LanguageModelDataPart(item.value.data.buffer, item.value.mimeType);
+				const mimeType = Object.values(types.ChatImageMimeType).includes(item.value.mimeType as types.ChatImageMimeType) ? item.value.mimeType as types.ChatImageMimeType : undefined;
+				if (!mimeType) {
+					throw new Error('Invalid MIME type');
+				}
+				return new types.LanguageModelDataPart(item.value.data.buffer, mimeType);
 			} else {
 				return new types.LanguageModelPromptTsxPart(item.value);
 			}
