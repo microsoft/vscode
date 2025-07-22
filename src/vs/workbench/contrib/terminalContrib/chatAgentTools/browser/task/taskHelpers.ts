@@ -37,7 +37,7 @@ export function getTaskRepresentation(task: { [key: string]: any }): string {
 
 export async function getTaskForTool(id: string, taskDefinition: { taskLabel?: string; taskType?: string }, workspaceFolder: string, configurationService: IConfigurationService, taskService: ITaskService): Promise<Task | undefined> {
 	let index = 0;
-	let task: IConfiguredTask | undefined = undefined;
+	let task: IConfiguredTask | undefined;
 	const configTasks: IConfiguredTask[] = (configurationService.getValue('tasks') as { tasks: IConfiguredTask[] }).tasks ?? [];
 	for (const configTask of configTasks) {
 		if ((configTask.type && taskDefinition.taskType ? configTask.type === taskDefinition.taskType : true) &&
