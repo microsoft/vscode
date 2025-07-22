@@ -17,7 +17,7 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
-import { IChatToolInvocation, type IChatTerminalToolInvocationData2 } from '../../../common/chatService.js';
+import { IChatToolInvocation, type IChatTerminalToolInvocationData } from '../../../common/chatService.js';
 import { CancelChatActionId } from '../../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
@@ -33,7 +33,7 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 
 	constructor(
 		toolInvocation: IChatToolInvocation,
-		terminalData: IChatTerminalToolInvocationData2,
+		terminalData: IChatTerminalToolInvocationData,
 		private readonly context: IChatContentPartRenderContext,
 		private readonly renderer: MarkdownRenderer,
 		private readonly editorPool: EditorPool,

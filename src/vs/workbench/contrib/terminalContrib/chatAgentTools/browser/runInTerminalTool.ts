@@ -21,7 +21,7 @@ import { TerminalCapability } from '../../../../../platform/terminal/common/capa
 import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
-import { IChatService, type IChatTerminalToolInvocationData2 } from '../../../chat/common/chatService.js';
+import { IChatService, type IChatTerminalToolInvocationData } from '../../../chat/common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../terminal/browser/xterm/xtermTerminal.js';
@@ -221,7 +221,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			confirmationMessages,
 			presentation,
 			toolSpecificData: {
-				kind: 'terminal2',
+				kind: 'terminal',
 				commandLine: {
 					original: args.command,
 					toolEdited: toolEditedCommand
@@ -240,7 +240,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// Tool specific data is not provided when the invocation is auto-approved. Re-calculate it
 		// if needed
-		let toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData2 | undefined;
+		let toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined;
 		if (toolSpecificData === undefined) {
 			const os = await this._osBackend;
 			const shell = await this._terminalProfileResolverService.getDefaultShell({
@@ -254,7 +254,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				toolEditedCommand = undefined;
 			}
 			toolSpecificData = {
-				kind: 'terminal2',
+				kind: 'terminal',
 				commandLine: {
 					original: args.command,
 					toolEdited: toolEditedCommand
