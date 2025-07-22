@@ -114,6 +114,7 @@ import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './chatAttachmentResolveService.js';
 import { registerLanguageModelActions } from './actions/chatLanguageModelActions.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
+import { ChatTaskServiceImpl, IChatTasksService } from '../common/chatTasksService.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -512,6 +513,13 @@ configurationRegistry.registerConfiguration({
 			experiment: {
 				mode: 'startup'
 			}
+		},
+		'chat.manageTasksTool.enabled': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.manageTasksTool.enabled', "Enables manageTasksTool in chat. This tool allows you to use task lists in chat."),
+			tags: ['experimental'],
+			included: false,
 		}
 	}
 });
@@ -794,6 +802,7 @@ registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
 registerSingleton(IChatContextPickService, ChatContextPickService, InstantiationType.Delayed);
 registerSingleton(IChatModeService, ChatModeService, InstantiationType.Delayed);
 registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, InstantiationType.Delayed);
+registerSingleton(IChatTasksService, ChatTaskServiceImpl, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);
 
