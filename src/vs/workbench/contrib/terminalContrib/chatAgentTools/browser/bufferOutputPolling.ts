@@ -94,7 +94,7 @@ export async function pollForOutputAndIdle(
 			}
 			terminalExecutionIdleBeforeTimeout = true;
 			const modelOutputEvalResponse =
-				await assessOutputForFinishedState(buffer, token, languageModelsService);
+				await assessOutputForErrors(buffer, token, languageModelsService);
 			return { modelOutputEvalResponse, terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 		}
 	}
@@ -128,13 +128,13 @@ export async function promptForMorePolling(command: string, context: IToolInvoca
 	return false; // Fallback to not waiting if we can't prompt the user
 }
 
-export async function assessOutputForFinishedState(buffer: string, token: CancellationToken, languageModelsService: ILanguageModelsService): Promise<string> {
+export async function assessOutputForErrors(buffer: string, token: CancellationToken, languageModelsService: ILanguageModelsService): Promise<string> {
 	const models = await languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
 	if (!models.length) {
 		return 'No models available';
 	}
 
-	const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('Github.copilot-chat'), [{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: `Evaluate this terminal output to determine if the command is finished for now or still in process: ${buffer}. Return the word true if finished for now and false if still in process.` }] }], {}, token);
+	const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('Github.copilot-chat'), [{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: `Evaluate this terminal output to determine if there were errors or if the command ran successfully: ${buffer}.` }] }], {}, token);
 
 	let responseText = '';
 
