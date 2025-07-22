@@ -7,11 +7,9 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ILanguageModelToolsService, ToolDataSource } from '../../../chat/common/languageModelToolsService.js';
-import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 import { GetTerminalOutputTool, GetTerminalOutputToolData } from './getTerminalOutputTool.js';
 import { RunInTerminalTool, RunInTerminalToolData } from './runInTerminalTool.js';
 
@@ -22,27 +20,24 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 	static readonly ID = 'terminal.chatAgentTools';
 
 	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
 	) {
 		super();
-		if (configurationService.getValue(TerminalChatAgentToolsSettingId.NewTaskToolsEnabled)) {
-			const runInTerminalTool = instantiationService.createInstance(RunInTerminalTool);
-			this._register(toolsService.registerToolData(RunInTerminalToolData));
-			this._register(toolsService.registerToolImplementation(RunInTerminalToolData.id, runInTerminalTool));
+		const runInTerminalTool = instantiationService.createInstance(RunInTerminalTool);
+		this._register(toolsService.registerToolData(RunInTerminalToolData));
+		this._register(toolsService.registerToolImplementation(RunInTerminalToolData.id, runInTerminalTool));
 
-			const getTerminalOutputTool = instantiationService.createInstance(GetTerminalOutputTool);
-			this._register(toolsService.registerToolData(GetTerminalOutputToolData));
-			this._register(toolsService.registerToolImplementation(GetTerminalOutputToolData.id, getTerminalOutputTool));
+		const getTerminalOutputTool = instantiationService.createInstance(GetTerminalOutputTool);
+		this._register(toolsService.registerToolData(GetTerminalOutputToolData));
+		this._register(toolsService.registerToolImplementation(GetTerminalOutputToolData.id, getTerminalOutputTool));
 
-			const toolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'runCommands', 'runCommands', {
-				icon: ThemeIcon.fromId(Codicon.terminal.id),
-				description: localize('toolset.runCommands', 'Runs commands in the terminal')
-			}));
-			toolSet.addTool(RunInTerminalToolData);
-			toolSet.addTool(GetTerminalOutputToolData);
-		}
+		const toolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'runCommands', 'runCommands', {
+			icon: ThemeIcon.fromId(Codicon.terminal.id),
+			description: localize('toolset.runCommands', 'Runs commands in the terminal')
+		}));
+		toolSet.addTool(RunInTerminalToolData);
+		toolSet.addTool(GetTerminalOutputToolData);
 	}
 }
 registerWorkbenchContribution2(ChatAgentToolsContribution.ID, ChatAgentToolsContribution, WorkbenchPhase.AfterRestored);
