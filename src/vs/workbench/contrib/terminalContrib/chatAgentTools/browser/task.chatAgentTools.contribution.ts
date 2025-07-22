@@ -9,7 +9,6 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ILanguageModelToolsService, ToolDataSource } from '../../../chat/common/languageModelToolsService.js';
-import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 import { GetTaskOutputTool, GetTaskOutputToolData } from './task/getTaskOutputTool.js';
 import { RunTaskTool, RunTaskToolData } from './task/runTaskTool.js';
 
