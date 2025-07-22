@@ -240,12 +240,6 @@ export interface IChatElicitationRequest {
 	reject(): Promise<void>;
 }
 
-export interface IChatTerminalToolInvocationData {
-	kind: 'terminal';
-	command: string;
-	language: string;
-}
-
 export interface IChatTerminalToolInvocationData2 {
 	kind: 'terminal2';
 	commandLine: {
@@ -263,7 +257,7 @@ export interface IChatToolInputInvocationData {
 
 export interface IChatToolInvocation {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatTerminalToolInvocationData2 | IChatToolInputInvocationData | IChatExtensionsContent | IChatTasksContent;
+	toolSpecificData?: IChatTerminalToolInvocationData2 | IChatToolInputInvocationData | IChatExtensionsContent | IChatTasksContent;
 	/** Presence of this property says that confirmation is required */
 	confirmationMessages?: IToolConfirmationMessages;
 	confirmed: DeferredPromise<boolean>;
@@ -288,7 +282,7 @@ export interface IChatToolInvocation {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatTerminalToolInvocationData2 | IChatToolInputInvocationData | IChatExtensionsContent | IChatTasksContent;
+	toolSpecificData?: IChatTerminalToolInvocationData2 | IChatToolInputInvocationData | IChatExtensionsContent | IChatTasksContent;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;

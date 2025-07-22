@@ -184,10 +184,6 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			options.chatRequestId = dto.chatRequestId;
 			options.chatInteractionId = dto.chatInteractionId;
 			options.chatSessionId = dto.context?.sessionId;
-
-			if (dto.toolSpecificData?.kind === 'terminal') {
-				options.terminalCommand = dto.toolSpecificData.command;
-			}
 		}
 
 		if (isProposedApiEnabled(item.extension, 'chatParticipantAdditions') && dto.modelId) {
@@ -251,25 +247,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			chatSessionId: context.chatSessionId,
 			chatInteractionId: context.chatInteractionId
 		};
-		if (isProposedApiEnabled(item.extension, 'chatParticipantPrivate') && item.tool.prepareInvocation2) {
-			const result = await item.tool.prepareInvocation2(options, token);
-			if (!result) {
-				return undefined;
-			}
-
-			return {
-				confirmationMessages: result.confirmationMessages ? {
-					title: typeof result.confirmationMessages.title === 'string' ? result.confirmationMessages.title : typeConvert.MarkdownString.from(result.confirmationMessages.title),
-					message: typeof result.confirmationMessages.message === 'string' ? result.confirmationMessages.message : typeConvert.MarkdownString.from(result.confirmationMessages.message),
-				} : undefined,
-				toolSpecificData: {
-					kind: 'terminal',
-					language: result.language,
-					command: result.command,
-				},
-				presentation: result.presentation
-			};
-		} else if (item.tool.prepareInvocation) {
+		if (item.tool.prepareInvocation) {
 			const result = await item.tool.prepareInvocation(options, token);
 			if (!result) {
 				return undefined;

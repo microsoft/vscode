@@ -27,9 +27,7 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 	const titles: string[] = toolInvocation.filter(t => t.confirmationMessages?.title).map(v => {
 		let input = '';
 		if (v.toolSpecificData) {
-			if (v.toolSpecificData.kind === 'terminal') {
-				input = v.toolSpecificData.command;
-			} else if (v.toolSpecificData.kind === 'terminal2') {
+			if (v.toolSpecificData.kind === 'terminal2') {
 				input = v.toolSpecificData.commandLine.toolEdited ?? v.toolSpecificData.commandLine.original;
 			} else if (v.toolSpecificData.kind === 'extensions') {
 				input = JSON.stringify(v.toolSpecificData.extensions);

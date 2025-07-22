@@ -21,7 +21,7 @@ import { TerminalCapability } from '../../../../../platform/terminal/common/capa
 import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
-import { IChatService, type IChatTerminalToolInvocationData, type IChatTerminalToolInvocationData2 } from '../../../chat/common/chatService.js';
+import { IChatService, type IChatTerminalToolInvocationData2 } from '../../../chat/common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../terminal/browser/xterm/xtermTerminal.js';
@@ -122,7 +122,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	// HACK: Per-tool call state, saved globally
 	// TODO: These should not be part of the state as different sessions could get confused https://github.com/microsoft/vscode/issues/255889
 	private _alternativeRecommendation?: IToolResult;
-	private _rewrittenCommand?: string;
 
 	private static readonly _backgroundExecutions = new Map<string, BackgroundTerminalExecution>();
 	public static getBackgroundOutput(id: string): string {
@@ -241,7 +240,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// Tool specific data is not provided when the invocation is auto-approved. Re-calculate it
 		// if needed
-		let toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | IChatTerminalToolInvocationData2 | undefined;
+		let toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData2 | undefined;
 		if (toolSpecificData === undefined) {
 			const os = await this._osBackend;
 			const shell = await this._terminalProfileResolverService.getDefaultShell({
@@ -271,25 +270,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			throw new Error('A chat session ID is required for this tool');
 		}
 
-		let command: string | undefined;
-		let didUserEditCommand: boolean;
-		let didToolEditCommand: boolean;
-		if (toolSpecificData.kind === 'terminal') {
-			command = toolSpecificData.command ?? this._rewrittenCommand ?? args.command;
-			didUserEditCommand = typeof toolSpecificData?.command === 'string' && toolSpecificData.command !== args.command;
-			didToolEditCommand = !didUserEditCommand && this._rewrittenCommand !== undefined;
-		} else {
-			command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
-			didUserEditCommand = (
-				toolSpecificData.commandLine.userEdited !== undefined &&
-				toolSpecificData.commandLine.userEdited !== toolSpecificData.commandLine.original
-			);
-			didToolEditCommand = (
-				!didUserEditCommand &&
-				toolSpecificData.commandLine.toolEdited !== undefined &&
-				toolSpecificData.commandLine.toolEdited !== toolSpecificData.commandLine.original
-			);
-		}
+		const command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
+		const didUserEditCommand = (
+			toolSpecificData.commandLine.userEdited !== undefined &&
+			toolSpecificData.commandLine.userEdited !== toolSpecificData.commandLine.original
+		);
+		const didToolEditCommand = (
+			!didUserEditCommand &&
+			toolSpecificData.commandLine.toolEdited !== undefined &&
+			toolSpecificData.commandLine.toolEdited !== toolSpecificData.commandLine.original
+		);
 
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
