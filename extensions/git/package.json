@@ -3079,7 +3079,7 @@
         "git.detectWorktrees": {
           "type": "boolean",
           "scope": "resource",
-          "default": false,
+          "default": true,
           "description": "%config.detectWorktrees%"
         },
         "git.detectWorktreesLimit": {
