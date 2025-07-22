@@ -63,6 +63,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IChatAttachmentResolveService } from '../../chat/browser/chatAttachmentResolveService.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
+import { InlineNotebookChatZoneWidget } from './inlineNotebookChatZoneWidget.js';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -1260,18 +1261,29 @@ export class InlineChatController2 implements IEditorContribution {
 
 			// inline chat in notebooks
 			// check if this editor is part of a notebook editor
-			// and iff so, use the notebook location but keep the resolveData
-			// talk about editor data
+			// if so, update the location and use the notebook specific widget
+			let inlineNotebookWidget: InlineChatZoneWidget | undefined;
 			for (const notebookEditor of this._notebookEditorService.listNotebookEditors()) {
 				for (const [, codeEditor] of notebookEditor.codeEditors) {
 					if (codeEditor === this._editor) {
 						location.location = ChatAgentLocation.Notebook;
+						inlineNotebookWidget = this._instaService.createInstance(InlineNotebookChatZoneWidget,
+							location,
+							{
+								enableWorkingSet: 'implicit',
+								rendererOptions: {
+									renderTextEditsAsSummary: _uri => true
+								}
+							},
+							this._editor,
+							notebookEditor
+						);
 						break;
 					}
 				}
 			}
 
-			const result = this._instaService.createInstance(InlineChatZoneWidget,
+			const result = inlineNotebookWidget ?? this._instaService.createInstance(InlineChatZoneWidget,
 				location,
 				{
 					enableWorkingSet: 'implicit',

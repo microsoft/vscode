@@ -163,9 +163,13 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		this.widget.layout(this._dimension);
 	}
 
+	protected getEditorHeight() {
+		return this.editor.getLayoutInfo().height;
+	}
+
 	private _computeHeight(): { linesValue: number; pixelsValue: number } {
 		const chatContentHeight = this.widget.contentHeight;
-		const editorHeight = this.editor.getLayoutInfo().height;
+		const editorHeight = this.getEditorHeight();
 
 		const contentHeight = this._decoratingElementsHeight() + Math.min(chatContentHeight, Math.max(this.widget.minHeight, editorHeight * 0.42));
 		const heightInLines = contentHeight / this.editor.getOption(EditorOption.lineHeight);
