@@ -63,7 +63,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IChatAttachmentResolveService } from '../../chat/browser/chatAttachmentResolveService.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
-import { InlineNotebookChatZoneWidget } from './inlineNotebookChatZoneWidget.js';
+import { INotebookEditor } from '../../notebook/browser/notebookBrowser.js';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -243,16 +243,18 @@ export class InlineChatController1 implements IEditorContribution {
 			// check if this editor is part of a notebook editor
 			// and iff so, use the notebook location but keep the resolveData
 			// talk about editor data
-			for (const notebookEditor of notebookEditorService.listNotebookEditors()) {
-				for (const [, codeEditor] of notebookEditor.codeEditors) {
+			let notebookEditor: INotebookEditor | undefined;
+			for (const editor of notebookEditorService.listNotebookEditors()) {
+				for (const [, codeEditor] of editor.codeEditors) {
 					if (codeEditor === this._editor) {
+						notebookEditor = editor;
 						location.location = ChatAgentLocation.Notebook;
 						break;
 					}
 				}
 			}
 
-			const zone = _instaService.createInstance(InlineChatZoneWidget, location, undefined, this._editor);
+			const zone = _instaService.createInstance(InlineChatZoneWidget, location, undefined, { editor: this._editor, notebookEditor });
 			this._store.add(zone);
 			this._store.add(zone.widget.chatWidget.onDidClear(async () => {
 				const r = this.joinCurrentRun();
@@ -1262,28 +1264,18 @@ export class InlineChatController2 implements IEditorContribution {
 			// inline chat in notebooks
 			// check if this editor is part of a notebook editor
 			// if so, update the location and use the notebook specific widget
-			let inlineNotebookWidget: InlineChatZoneWidget | undefined;
-			for (const notebookEditor of this._notebookEditorService.listNotebookEditors()) {
-				for (const [, codeEditor] of notebookEditor.codeEditors) {
+			let notebookEditor: INotebookEditor | undefined;
+			for (const editor of this._notebookEditorService.listNotebookEditors()) {
+				for (const [, codeEditor] of editor.codeEditors) {
 					if (codeEditor === this._editor) {
 						location.location = ChatAgentLocation.Notebook;
-						inlineNotebookWidget = this._instaService.createInstance(InlineNotebookChatZoneWidget,
-							location,
-							{
-								enableWorkingSet: 'implicit',
-								rendererOptions: {
-									renderTextEditsAsSummary: _uri => true
-								}
-							},
-							this._editor,
-							notebookEditor
-						);
+						notebookEditor = editor;
 						break;
 					}
 				}
 			}
 
-			const result = inlineNotebookWidget ?? this._instaService.createInstance(InlineChatZoneWidget,
+			const result = this._instaService.createInstance(InlineChatZoneWidget,
 				location,
 				{
 					enableWorkingSet: 'implicit',
@@ -1291,7 +1283,7 @@ export class InlineChatController2 implements IEditorContribution {
 						renderTextEditsAsSummary: _uri => true
 					}
 				},
-				this._editor
+				{ editor: this._editor, notebookEditor },
 			);
 
 			result.domNode.classList.add('inline-chat-2');
