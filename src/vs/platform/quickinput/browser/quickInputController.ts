@@ -23,7 +23,7 @@ import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPi
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { QuickInputTree } from './quickInputTree.js';
+import { QuickInputList } from './quickInputList.js';
 import { IContextKey, IContextKeyService } from '../../contextkey/common/contextkey.js';
 import './quickInputActions.js';
 import { autorun, observableValue } from '../../../base/common/observable.js';
@@ -210,7 +210,7 @@ export class QuickInputController extends Disposable {
 		const description1 = dom.append(container, $('.quick-input-description'));
 
 		const listId = this.idPrefix + 'list';
-		const list = this._register(this.instantiationService.createInstance(QuickInputTree, container, this.options.hoverDelegate, this.options.linkOpenerDelegate, listId));
+		const list = this._register(this.instantiationService.createInstance(QuickInputList, container, this.options.hoverDelegate, this.options.linkOpenerDelegate, listId));
 		inputBox.setAttribute('aria-controls', listId);
 		this._register(list.onDidChangeFocus(() => {
 			if (inputBox.hasFocus()) {

@@ -30,7 +30,7 @@ import { QuickInputBox } from './quickInputBox.js';
 import { quickInputButtonToAction, renderQuickInputDescription } from './quickInputUtils.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../hover/browser/hover.js';
-import { QuickInputTree } from './quickInputTree.js';
+import { QuickInputList } from './quickInputList.js';
 import type { IHoverOptions } from '../../../base/browser/ui/hover/hover.js';
 import { ContextKeyExpr, RawContextKey } from '../../contextkey/common/contextkey.js';
 
@@ -117,7 +117,7 @@ export interface QuickInputUI {
 	customButtonContainer: HTMLElement;
 	customButton: Button;
 	progressBar: ProgressBar;
-	list: QuickInputTree;
+	list: QuickInputList;
 	onDidAccept: Event<void>;
 	onDidCustom: Event<void>;
 	onDidTriggerButton: Event<IQuickInputButton>;
