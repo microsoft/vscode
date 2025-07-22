@@ -7,7 +7,7 @@ import { isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
 import { toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { timeout } from '../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNowByDay, safeIntl } from '../../../../../base/common/date.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -21,6 +21,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorAction2 } from '../../../../../editor/browser/editorExtensions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
+import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
@@ -54,10 +55,11 @@ import { IChatAgentData, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
+import { IChatRequestModel } from '../../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
-import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
+import { ChatRequestTextPart, extractAgentAndCommand, IParsedChatRequest } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatProgress, IChatService } from '../../common/chatService.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
@@ -475,6 +477,7 @@ export function registerChatActions() {
 			quickInputService: IQuickInputService,
 			commandService: ICommandService,
 			editorService: IEditorService,
+			chatWidgetService: IChatWidgetService,
 			view: ChatViewPane,
 			chatSessionsService: IChatSessionsService,
 			contextKeyService: IContextKeyService,
@@ -506,6 +509,7 @@ export function registerChatActions() {
 
 			interface ICodingAgentPickerItem extends IChatPickerItem {
 				id?: string;
+				session?: { provider: IChatSessionItemProvider; session: IChatSessionItem };
 				uri?: URI;
 			}
 
@@ -587,6 +591,7 @@ export function registerChatActions() {
 								const agentPick: ICodingAgentPickerItem = {
 									label: sessionContent.label,
 									description: '',
+									session: session,
 									chat: {
 										sessionId: sessionContent.id,
 										title: sessionContent.label,
@@ -734,6 +739,7 @@ export function registerChatActions() {
 						quickInputService,
 						commandService,
 						editorService,
+						chatWidgetService,
 						view,
 						chatSessionsService,
 						contextKeyService,
@@ -746,9 +752,13 @@ export function registerChatActions() {
 					if (buttonItem.id) {
 						const contextItem = context.item as ICodingAgentPickerItem;
 						commandService.executeCommand(buttonItem.id, {
-							id: contextItem.id,
+							uri: contextItem.uri,
+							session: contextItem.session,
 							$mid: MarshalledId.ChatSessionContext
 						});
+
+						// dismiss quick picker
+						picker.hide();
 					}
 				}
 			}));
@@ -766,6 +776,7 @@ export function registerChatActions() {
 							quickInputService,
 							commandService,
 							editorService,
+							chatWidgetService,
 							view,
 							chatSessionsService,
 							contextKeyService,
@@ -782,6 +793,7 @@ export function registerChatActions() {
 							quickInputService,
 							commandService,
 							editorService,
+							chatWidgetService,
 							view,
 							chatSessionsService,
 							contextKeyService,
@@ -792,16 +804,10 @@ export function registerChatActions() {
 						return;
 					} else if ((item as ICodingAgentPickerItem).id !== undefined) {
 						// TODO: This is a temporary change that will be replaced by opening a new chat instance
-						if (item.buttons && item.buttons.length > 0) {
-							const pickedItem = (item.buttons[0] as ICodingAgentPickerItem);
-							if (pickedItem.id) {
-								commandService.executeCommand(pickedItem.id, {
-									id: (item as ICodingAgentPickerItem).id,
-									$mid: MarshalledId.ChatSessionContext
-								});
-							}
+						const codingAgentItem = item as ICodingAgentPickerItem;
+						if (codingAgentItem.session) {
+							await this.showChatSessionInEditor(codingAgentItem.session.provider, codingAgentItem.session.session, editorService, chatWidgetService);
 						}
-						return;
 					}
 
 					await view.loadSession(sessionId);
@@ -819,6 +825,7 @@ export function registerChatActions() {
 			const quickInputService = accessor.get(IQuickInputService);
 			const viewsService = accessor.get(IViewsService);
 			const editorService = accessor.get(IEditorService);
+			const chatWidgetService = accessor.get(IChatWidgetService);
 			const dialogService = accessor.get(IDialogService);
 			const commandService = accessor.get(ICommandService);
 			const chatSessionsService = accessor.get(IChatSessionsService);
@@ -851,6 +858,7 @@ export function registerChatActions() {
 					quickInputService,
 					commandService,
 					editorService,
+					chatWidgetService,
 					view,
 					chatSessionsService,
 					contextKeyService,
@@ -859,6 +867,64 @@ export function registerChatActions() {
 			} else {
 				await this.showLegacyPicker(chatService, quickInputService, commandService, editorService, view);
 			}
+		}
+
+		private async showChatSessionInEditor(provider: IChatSessionItemProvider, session: IChatSessionItem, editorService: IEditorService, chatWidgetService: IChatWidgetService) {
+			const content = await provider.provideChatSessionContent(session.id, CancellationToken.None);
+
+			// Open the chat editor
+			await editorService.openEditor({
+				resource: ChatEditorInput.getNewEditorUri(),
+				options: { pinned: true, sticky: true } satisfies IChatEditorOptions
+			});
+
+			// Wait a bit for the editor to be ready, then get the widget
+			setTimeout(() => {
+				const widget = chatWidgetService.lastFocusedWidget;
+				if (widget) {
+					const agentMessage = `@${provider.chatSessionType} `;
+					widget.setInput(agentMessage);
+
+					const model = widget.viewModel?.model;
+
+					if (!model) {
+						return;
+					}
+
+					let lastRequest: IChatRequestModel;
+					content.history.forEach(message => {
+						if (message.type === 'request') {
+							const requestText = message.prompt;
+
+							const parsedRequest: IParsedChatRequest = {
+								text: requestText,
+								parts: [new ChatRequestTextPart(
+									new OffsetRange(0, requestText.length),
+									{ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: requestText.length + 1 },
+									requestText
+								)]
+							};
+							lastRequest = model.addRequest(parsedRequest,
+								{ variables: [] }, // variableData
+								0, // attempt
+								undefined, // chatAgent - will use default
+								undefined, // slashCommand
+								undefined, // confirmation
+								undefined, // locationData
+								undefined, // attachments
+								true // isCompleteAddedRequest - this indicates it's a complete request, not user input
+							);
+						} else {
+							// response
+							message.parts.forEach(part => {
+								model.acceptResponseProgress(lastRequest, part);
+							});
+						}
+					});
+
+					// widget.lockToCodingAgent(selectedAgent);
+				}
+			}, 100);
 		}
 	});
 

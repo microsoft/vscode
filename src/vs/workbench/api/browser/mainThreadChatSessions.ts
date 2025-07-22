@@ -5,9 +5,11 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
+import { revive } from '../../../base/common/marshalling.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
+import { IChatProgress } from '../../contrib/chat/common/chatService.js';
+import { ChatSession, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
 
@@ -27,7 +29,8 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		// Register the provider handle - this tracks that a provider exists
 		const provider: IChatSessionItemProvider = {
 			chatSessionType,
-			provideChatSessionItems: (token) => this._provideChatSessionItems(handle, token)
+			provideChatSessionItems: (token) => this._provideChatSessionItems(handle, token),
+			provideChatSessionContent: (id, token) => this._provideChatSessionContent(handle, id, token)
 		};
 		this._registrations.set(handle, this._chatSessionsService.registerChatSessionItemProvider(handle, provider));
 	}
@@ -47,6 +50,30 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			this._logService.error('Error providing chat sessions:', error);
 		}
 		return [];
+	}
+
+	private async _provideChatSessionContent(handle: number, id: string, token: CancellationToken): Promise<ChatSession> {
+		const proxy = this._extHostContext.getProxy(ExtHostContext.ExtHostChatSessions);
+
+		try {
+			const sessionContent = await proxy.$provideChatSessionContent(handle, id, token);
+			return {
+				id: sessionContent.id,
+				history: sessionContent.history.map(turn => {
+					if (turn.type === 'request') {
+						return { type: 'request', prompt: turn.prompt };
+					}
+
+					return {
+						type: 'response',
+						parts: turn.parts.map(part => revive(part) as IChatProgress)
+					};
+				})
+			};
+		} catch (error) {
+			this._logService.error(`Error providing chat session content for handle ${handle} and id ${id}:`, error);
+			throw error; // Re-throw to propagate the error
+		}
 	}
 
 	$unregisterChatSessionItemProvider(handle: number): void {

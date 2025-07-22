@@ -4765,6 +4765,16 @@ export class ChatResponseTurn implements vscode.ChatResponseTurn {
 	) { }
 }
 
+export class ChatResponseTurn2 implements vscode.ChatResponseTurn2 {
+
+	constructor(
+		readonly response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart | ChatResponseExtensionsPart>,
+		readonly result: vscode.ChatResult,
+		readonly participant: string,
+		readonly command?: string
+	) { }
+}
+
 export enum ChatLocation {
 	Panel = 1,
 	Terminal = 2,
