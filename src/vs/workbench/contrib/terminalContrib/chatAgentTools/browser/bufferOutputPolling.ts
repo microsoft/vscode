@@ -95,8 +95,7 @@ export async function pollForOutputAndIdle(
 				continue;
 			}
 			terminalExecutionIdleBeforeTimeout = true;
-			const modelOutputEvalResponse =
-				await assessOutputForErrors(buffer, token, languageModelsService);
+			const modelOutputEvalResponse = await assessOutputForErrors(buffer, token, languageModelsService);
 			return { modelOutputEvalResponse, terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 		}
 	}
