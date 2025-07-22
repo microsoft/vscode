@@ -3482,9 +3482,8 @@ export class CommandCenter {
 	}
 
 	@command('git.openWorktree', { repository: true })
-	async openWorktreeInCurrentWindow(repository: Repository, ...args: SourceControl[]): Promise<void> {
-		// If multiple repositories are selected, no action is taken
-		if (args.length > 0) {
+	async openWorktreeInCurrentWindow(repository: Repository): Promise<void> {
+		if (!repository) {
 			return;
 		}
 
@@ -3493,9 +3492,8 @@ export class CommandCenter {
 	}
 
 	@command('git.openWorktreeInNewWindow', { repository: true })
-	async openWorktreeInNewWindow(repository: Repository, ...args: SourceControl[]): Promise<void> {
-		// If multiple repositories are selected, no action is taken
-		if (args.length > 0) {
+	async openWorktreeInNewWindow(repository: Repository): Promise<void> {
+		if (!repository) {
 			return;
 		}
 

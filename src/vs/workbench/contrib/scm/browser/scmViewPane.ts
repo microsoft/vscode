@@ -2625,7 +2625,7 @@ export class SCMViewPane extends ViewPane {
 
 		if (isSCMRepository(element)) {
 			const menus = this.scmViewService.menus.getRepositoryMenus(element.provider);
-			const menu = menus.repositoryContextMenu;
+			const menu = menus.getRepositoryContextMenu(element);
 			context = element.provider;
 			actionRunner = new RepositoryActionRunner(() => this.getSelectedRepositories());
 			disposables.add(actionRunner);
