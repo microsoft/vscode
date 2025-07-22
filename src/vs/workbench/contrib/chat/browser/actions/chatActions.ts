@@ -746,7 +746,7 @@ export function registerChatActions() {
 					if (buttonItem.id) {
 						const contextItem = context.item as ICodingAgentPickerItem;
 						commandService.executeCommand(buttonItem.id, {
-							uri: contextItem.uri,
+							id: contextItem.id,
 							$mid: MarshalledId.ChatSessionContext
 						});
 					}
@@ -790,13 +790,13 @@ export function registerChatActions() {
 							true
 						);
 						return;
-					} else if ((item as ICodingAgentPickerItem).uri !== undefined) {
+					} else if ((item as ICodingAgentPickerItem).id !== undefined) {
 						// TODO: This is a temporary change that will be replaced by opening a new chat instance
 						if (item.buttons && item.buttons.length > 0) {
 							const pickedItem = (item.buttons[0] as ICodingAgentPickerItem);
 							if (pickedItem.id) {
 								commandService.executeCommand(pickedItem.id, {
-									uri: (item as ICodingAgentPickerItem).uri,
+									id: (item as ICodingAgentPickerItem).id,
 									$mid: MarshalledId.ChatSessionContext
 								});
 							}
