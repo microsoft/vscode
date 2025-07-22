@@ -10,10 +10,12 @@ import { ConfigurationScope, type IConfigurationPropertySchema } from '../../../
 
 export const enum TerminalChatAgentToolsSettingId {
 	AutoApprove = 'chat.agent.terminal.autoApprove',
+	TaskTools2Enabled = 'chat.agent.terminal.taskTools2Enabled',
 }
 
 export interface ITerminalChatAgentToolsConfiguration {
 	autoApprove: { [key: string]: boolean };
+	taskTools2Enabled: boolean;
 }
 
 const autoApproveBoolean: IJSONSchema = {
@@ -30,6 +32,11 @@ const autoApproveBoolean: IJSONSchema = {
 };
 
 export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
+	[TerminalChatAgentToolsSettingId.TaskTools2Enabled]: {
+		type: 'boolean',
+		default: false,
+		description: localize('taskTools2Enabled.description', "Whether the new task tools are enabled.")
+	},
 	[TerminalChatAgentToolsSettingId.AutoApprove]: {
 		markdownDescription: [
 			localize('autoApprove.description.intro', "A list of commands or regular expressions that control whether the run in terminal tool commands require explicit approval. These will be matched against the start of a command. A regular expression can be provided by wrapping the string in {0} characters followed by optional flags such as {1} for case-insensitivity.", '`/`', '`i`'),
