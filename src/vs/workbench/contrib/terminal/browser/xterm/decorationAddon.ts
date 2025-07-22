@@ -230,6 +230,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		}));
 		// Command invalidated
 		commandDetectionListeners.push(capability.onCommandInvalidated(commands => {
+			// Clear placeholder decoration when commands are invalidated (terminal clearing)
+			this._clearPlaceholder();
+			
 			for (const command of commands) {
 				const id = command.marker?.id;
 				if (id) {

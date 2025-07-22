@@ -123,5 +123,28 @@ suite('DecorationAddon', () => {
 			// Verify last decoration was cleaned up
 			strictEqual(decorations.size, 1);
 		});
+		test('should clear placeholder decoration when commands are invalidated', async () => {
+			// Create a placeholder decoration (before command execution)
+			const marker = xterm.registerMarker(1);
+			const command: ITerminalCommand = { command: 'ls', marker, timestamp: Date.now(), hasOutput: () => false, exitCode: undefined } as ITerminalCommand;
+			
+			// Register as placeholder decoration (beforeCommandExecution = true)
+			decorationAddon.registerCommandDecoration(command, true);
+			
+			// Verify placeholder decoration exists
+			const placeholderDecoration = (decorationAddon as any)._placeholderDecoration;
+			notEqual(placeholderDecoration, undefined);
+			
+			// Get the command detection capability to simulate invalidation
+			const capabilities = (decorationAddon as any)._capabilities;
+			const capability = capabilities.get(TerminalCapability.CommandDetection) as CommandDetectionCapability;
+			
+			// Simulate command invalidation (like when terminal is cleared)
+			(capability as any)._onCommandInvalidated.fire([command]);
+			
+			// Verify placeholder decoration was cleared
+			const placeholderAfter = (decorationAddon as any)._placeholderDecoration;
+			strictEqual(placeholderAfter, undefined);
+		});
 	});
 });
