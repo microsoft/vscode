@@ -76,7 +76,7 @@ export class ChatSessionsContribution extends Disposable implements IWorkbenchCo
 						when: contribution.when,
 					};
 					this.logService.info(`Registering chat session from extension contribution: ${c.displayName} (id='${c.id}' name='${c.name}')`);
-					this.chatSessionsService.registerContribution(c);
+					this._register(this.chatSessionsService.registerContribution(c)); // TODO: Is it for contribution to own this? I think not
 				}
 			}
 		});
