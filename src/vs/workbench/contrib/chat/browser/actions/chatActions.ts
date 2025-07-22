@@ -891,7 +891,7 @@ export function registerChatActions() {
 						return;
 					}
 
-					let lastRequest: IChatRequestModel;
+					let lastRequest: IChatRequestModel | undefined;
 					content.history.forEach(message => {
 						if (message.type === 'request') {
 							const requestText = message.prompt;
@@ -916,11 +916,18 @@ export function registerChatActions() {
 							);
 						} else {
 							// response
-							message.parts.forEach(part => {
-								model.acceptResponseProgress(lastRequest, part);
-							});
+							if (lastRequest) {
+								const activeRequest = lastRequest;
+								message.parts.forEach(part => {
+									model.acceptResponseProgress(activeRequest, part);
+								});
+							}
 						}
 					});
+
+					if (lastRequest) {
+						model.completeResponse(lastRequest);
+					}
 
 					// widget.lockToCodingAgent(selectedAgent);
 				}
