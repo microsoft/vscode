@@ -22,11 +22,9 @@ export function getTaskDefinition(id: string) {
 
 }
 
-export function getTaskRepresentation(task: ITaskRepresentation): string {
+export function getTaskRepresentation(task: IConfiguredTask): string {
 	if (task.label) {
 		return task.label;
-	} else if (task._label) {
-		return task._label;
 	} else if (task.script) {
 		return task.script;
 	} else if (task.command) {
@@ -41,7 +39,7 @@ export async function getTaskForTool(id: string, taskDefinition: { taskLabel?: s
 	const configTasks: IConfiguredTask[] = (configurationService.getValue('tasks') as { tasks: IConfiguredTask[] }).tasks ?? [];
 	for (const configTask of configTasks) {
 		if ((configTask.type && taskDefinition.taskType ? configTask.type === taskDefinition.taskType : true) &&
-			((getTaskRepresentation(configTask) === taskDefinition?.taskLabel) || (id === configTask._label))) {
+			((getTaskRepresentation(configTask) === taskDefinition?.taskLabel) || (id === configTask.label))) {
 			task = configTask;
 			break;
 		} else if (id === `${configTask.type}: ${index}`) {
@@ -55,7 +53,7 @@ export async function getTaskForTool(id: string, taskDefinition: { taskLabel?: s
 	}
 	const configuringTasks: IStringDictionary<ConfiguringTask> | undefined = (await taskService.getWorkspaceTasks())?.get(URI.file(workspaceFolder).toString())?.configurations?.byIdentifier;
 	const configuredTask: ConfiguringTask | undefined = Object.values(configuringTasks ?? {}).find(t => {
-		return t.type === task.type && (t._label === getTaskRepresentation(task) || t._label === `${task.type}: ${getTaskRepresentation(task)}`);
+		return t.type === task.type && (t._label === task.label || t._label === `${task.type}: ${getTaskRepresentation(task)}`);
 	});
 	let resolvedTask: Task | undefined;
 	if (configuredTask) {
@@ -63,7 +61,7 @@ export async function getTaskForTool(id: string, taskDefinition: { taskLabel?: s
 	}
 	if (!resolvedTask) {
 		const customTasks: Task[] | undefined = (await taskService.getWorkspaceTasks())?.get(URI.file(workspaceFolder).toString())?.set?.tasks;
-		resolvedTask = customTasks?.find(t => getTaskRepresentation(t) === getTaskRepresentation(task));
+		resolvedTask = customTasks?.find(t => task.label === t._label || task.label === t._label);
 
 	}
 	return resolvedTask;
@@ -71,20 +69,20 @@ export async function getTaskForTool(id: string, taskDefinition: { taskLabel?: s
 
 /**
  * Represents a configured task in the system.
- * 
+ *
  * This interface is used to define tasks that can be executed within the workspace.
  * It includes optional properties for identifying and describing the task.
- * 
+ *
  * Properties:
  * - `type`: (optional) The type of the task, which categorizes it (e.g., "build", "test").
  * - `label`: (optional) A user-facing label for the task, typically used for display purposes.
- * - `_label`: (optional) An internal label for the task, used for unique identification.
- * 
- * Note: The `label` property is prioritized for user-facing representations, while `_label`
- * is used internally for task resolution and matching.
+ * - `script`: (optional) A script associated with the task, if applicable.
+ * - `command`: (optional) A command associated with the task, if applicable.
+ *
  */
 interface IConfiguredTask {
-	type?: string;
 	label?: string;
-	_label?: string;
+	type?: string;
+	script?: string;
+	command?: string;
 }
