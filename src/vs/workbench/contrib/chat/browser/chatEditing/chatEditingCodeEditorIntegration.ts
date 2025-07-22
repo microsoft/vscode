@@ -161,10 +161,15 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		}));
 
 
-		// accessibility: signals while cursor changes
+		// accessibility: signals while cursor changes in accessible diff view mode
 		this._store.add(autorun(r => {
 			const position = codeEditorObs.positions.read(r)?.at(0);
 			if (!position || !enabledObs.read(r)) {
+				return;
+			}
+
+			// Only play signals when in accessible diff viewer mode
+			if (!this._accessibleDiffViewVisible.read(r)) {
 				return;
 			}
 
