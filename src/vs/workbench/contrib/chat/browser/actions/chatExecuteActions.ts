@@ -528,7 +528,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			id: CreateRemoteAgentJobAction.ID,
 			// TODO(joshspicer): Generalize title, pull from contribution
 			title: localize2('actions.chat.createRemoteJob', "Delegate to coding agent"),
-			icon: Codicon.cloudUpload,
+			icon: Codicon.sendToRemoteAgent,
 			precondition,
 			toggled: {
 				condition: ChatContextKeys.remoteJobCreating,
