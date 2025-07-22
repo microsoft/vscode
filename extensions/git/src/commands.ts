@@ -2917,8 +2917,13 @@ export class CommandCenter {
 			try {
 				await item.run(repository, opts);
 			} catch (err) {
-				if (err.gitErrorCode !== GitErrorCodes.DirtyWorkTree) {
+				if (err.gitErrorCode !== GitErrorCodes.DirtyWorkTree && err.gitErrorCode !== GitErrorCodes.WorktreeAlreadyExists) {
 					throw err;
+				}
+
+				if (err.gitErrorCode === GitErrorCodes.WorktreeAlreadyExists) {
+					this.handleWorktreeError(err);
+					return false;
 				}
 
 				const stash = l10n.t('Stash & Checkout');
@@ -3458,37 +3463,45 @@ export class CommandCenter {
 		try {
 			await repository.worktree({ name: name, path: worktreePath });
 		} catch (err) {
-			if (err.gitErrorCode === GitErrorCodes.WorktreeAlreadyExists) {
-				const errorMessage = err.stderr;
-				const match = errorMessage.match(/worktree at '([^']+)'/) || errorMessage.match(/'([^']+)'/);
-				const path = match ? match[1] : undefined;
-
-				if (!path) {
-					return;
-				}
-
-				const openWorktree = l10n.t('Open in current window');
-				const openWorktreeInNewWindow = l10n.t('Open in new window');
-				const message = l10n.t(errorMessage || 'A worktree for branch \'{0}\' already exists at \'{1}\'.', name, path);
-				const choice = await window.showWarningMessage(message, { modal: true }, openWorktree, openWorktreeInNewWindow);
-
-				const worktreeRepository = this.model.getRepository(path) || this.model.getRepository(Uri.file(path));
-
-				if (!worktreeRepository) {
-					return;
-				}
-
-				if (choice === openWorktree) {
-					await this.openWorktreeInCurrentWindow(worktreeRepository);
-				} else if (choice === openWorktreeInNewWindow) {
-					await this.openWorktreeInNewWindow(worktreeRepository);
-				}
-
-				return;
+			if (err.gitErrorCode !== GitErrorCodes.WorktreeAlreadyExists) {
+				throw err;
 			}
 
-			throw err;
+			this.handleWorktreeError(err);
+			return;
+
 		}
+	}
+
+	private async handleWorktreeError(err: any): Promise<void> {
+		const errorMessage = err.stderr;
+		const match = errorMessage.match(/worktree at '([^']+)'/) || errorMessage.match(/'([^']+)'/);
+		const path = match ? match[1] : undefined;
+
+		if (!path) {
+			return;
+		}
+
+		const worktreeRepository = this.model.getRepository(path) || this.model.getRepository(Uri.file(path));
+
+		if (!worktreeRepository) {
+			return;
+		}
+
+		const openWorktree = l10n.t('Open in current window');
+		const openWorktreeInNewWindow = l10n.t('Open in new window');
+		const message = l10n.t(errorMessage);
+		const choice = await window.showWarningMessage(message, { modal: true }, openWorktree, openWorktreeInNewWindow);
+
+
+
+		if (choice === openWorktree) {
+			await this.openWorktreeInCurrentWindow(worktreeRepository);
+		} else if (choice === openWorktreeInNewWindow) {
+			await this.openWorktreeInNewWindow(worktreeRepository);
+		}
+
+		return;
 	}
 
 	@command('git.deleteWorktree', { repository: true })
