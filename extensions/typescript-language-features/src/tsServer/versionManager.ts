@@ -30,19 +30,18 @@ export class TypeScriptVersionManager extends Disposable {
 
 		this._currentVersion = this.versionProvider.defaultVersion;
 
-		if (this.useWorkspaceTsdkSetting) {
-			if (vscode.workspace.isTrusted) {
-				const localVersion = this.versionProvider.localVersion;
-				if (localVersion) {
-					this._currentVersion = localVersion;
-				}
-			} else {
-				this._disposables.push(vscode.workspace.onDidGrantWorkspaceTrust(() => {
-					if (this.versionProvider.localVersion) {
-						this.updateActiveVersion(this.versionProvider.localVersion);
-					}
-				}));
+		if (vscode.workspace.isTrusted) {
+			const workspaceVersion = this.getWorkspaceTsdkToUse();
+			if (workspaceVersion) {
+				this._currentVersion = workspaceVersion;
 			}
+		} else {
+			this._disposables.push(vscode.workspace.onDidGrantWorkspaceTrust(() => {
+				const workspaceVersion = this.getWorkspaceTsdkToUse();
+				if (workspaceVersion) {
+					this.updateActiveVersion(workspaceVersion);
+				}
+			}));
 		}
 
 		if (this.isInPromptWorkspaceTsdkState(configuration)) {
@@ -170,12 +169,33 @@ export class TypeScriptVersionManager extends Disposable {
 		return this.workspaceState.get<boolean>(suppressPromptWorkspaceTsdkStorageKey, false);
 	}
 
+	private getWorkspaceTsdkToUse(): TypeScriptVersion | undefined {
+		// Must have a local version available
+		const localVersion = this.versionProvider.localVersion;
+		if (!localVersion) {
+			return undefined;
+		}
+
+		// User explicitly opted in
+		if (this.useWorkspaceTsdkSetting) {
+			return localVersion;
+		}
+
+		// Auto-use if TSDK is configured and not suppressed
+		if (this.configuration.localTsdk !== null && !this.suppressPromptWorkspaceTsdkSetting) {
+			return localVersion;
+		}
+
+		return undefined;
+	}
+
 	private isInPromptWorkspaceTsdkState(configuration: TypeScriptServiceConfiguration) {
 		return (
 			configuration.localTsdk !== null
 			&& configuration.enablePromptUseWorkspaceTsdk === true
 			&& this.suppressPromptWorkspaceTsdkSetting === false
 			&& this.useWorkspaceTsdkSetting === false
+			&& !vscode.workspace.isTrusted
 		);
 	}
 }
