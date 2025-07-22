@@ -53,9 +53,10 @@ async function setupWaitTilShownListener(controller: QuickInputController): Prom
 suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let controller: QuickInputController;
+	let fixture: HTMLDivElement;
 
 	setup(() => {
-		const fixture = document.createElement('div');
+		fixture = document.createElement('div');
 		mainWindow.document.body.appendChild(fixture);
 		store.add(toDisposable(() => fixture.remove()));
 
@@ -278,4 +279,111 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		assert.strictEqual(activeItemsFromEvent.length, 0);
 		assert.strictEqual(quickpick.activeItems.length, 0);
 	});
+
+	test('toggleCountBadge - toggle filters list to only show selected items', async () => {
+		const quickpick = store.add(controller.createQuickPick() as QuickPick<IQuickPickItem>);
+		quickpick.canSelectMany = true;
+		quickpick.useToggleCountBadge = true;
+		quickpick.items = [
+			{ label: 'a' },
+			{ label: 'b' },
+			{ label: 'c' }
+		];
+		quickpick.selectedItems = [quickpick.items[0]];
+		quickpick.show();
+
+		// Find the ToggleCountBadge element in the DOM
+		const badgeElement = fixture.querySelector('.monaco-toggle-count-badge') as HTMLElement;
+		assert.ok(badgeElement, 'ToggleCountBadge element should exist');
+
+		// Initial state: not toggled, list shows all items
+		assert.strictEqual(badgeElement.getAttribute('aria-pressed'), 'false');
+		assert.strictEqual(quickpick.items.length, 3);
+		const list = (quickpick as any).ui?.list;
+		assert.strictEqual(list.getAllElements().length, 3);
+
+		badgeElement.click();
+
+		// After toggle: badge is toggled, list should show only checked items
+		assert.strictEqual(badgeElement.getAttribute('aria-pressed'), 'true');
+		assert.strictEqual(list.getAllElements().length, 1);
+
+		// Simulate click to untoggle badge
+		badgeElement.click();
+
+		// After untoggle: badge is not toggled, list shows all items again
+		assert.strictEqual(badgeElement.getAttribute('aria-pressed'), 'false');
+		assert.strictEqual(list.getAllElements().length, 3);
+
+	});
+
+	test('toggleCountBadge - toggling with no selected items shows empty list', async () => {
+		const quickpick = store.add(controller.createQuickPick() as QuickPick<IQuickPickItem>);
+		quickpick.canSelectMany = true;
+		quickpick.useToggleCountBadge = true;
+		quickpick.items = [
+			{ label: 'a' },
+			{ label: 'b' },
+			{ label: 'c' }
+		];
+		quickpick.selectedItems = [];
+		quickpick.show();
+
+		const badgeElement = fixture.querySelector('.monaco-toggle-count-badge') as HTMLElement;
+		assert.ok(badgeElement);
+
+		badgeElement.click();
+
+		const list = (quickpick as any).ui?.list;
+		assert.strictEqual(badgeElement.getAttribute('aria-pressed'), 'true');
+		assert.strictEqual(list.getAllElements().length, 0);
+	});
+
+	test('toggleCountBadge - selected items remain selected after toggling', async () => {
+		const quickpick = store.add(controller.createQuickPick() as QuickPick<IQuickPickItem>);
+		quickpick.canSelectMany = true;
+		quickpick.useToggleCountBadge = true;
+		quickpick.items = [
+			{ label: 'a' },
+			{ label: 'b' },
+			{ label: 'c' }
+		];
+		quickpick.selectedItems = [quickpick.items[1]];
+		quickpick.show();
+
+		const badgeElement = fixture.querySelector('.monaco-toggle-count-badge') as HTMLElement;
+		const list = (quickpick as any).ui?.list;
+
+		badgeElement.click(); // toggle on
+		badgeElement.click(); // toggle off
+
+		const checked = list.getCheckedElements();
+		assert.strictEqual(checked.length, 1);
+		assert.strictEqual(checked[0].label, 'b');
+	});
+
+	test('toggleCountBadge - toggling repeatedly maintains consistent state', async () => {
+		const quickpick = store.add(controller.createQuickPick() as QuickPick<IQuickPickItem>);
+		quickpick.canSelectMany = true;
+		quickpick.useToggleCountBadge = true;
+		quickpick.items = [
+			{ label: 'a' },
+			{ label: 'b' }
+		];
+		quickpick.selectedItems = [quickpick.items[0]];
+		quickpick.show();
+
+		const badgeElement = fixture.querySelector('.monaco-toggle-count-badge') as HTMLElement;
+		const list = (quickpick as any).ui?.list;
+
+		badgeElement.click(); // toggle on
+		assert.strictEqual(list.getAllElements().length, 1);
+
+		badgeElement.click(); // toggle off
+		assert.strictEqual(list.getAllElements().length, 2);
+
+		badgeElement.click(); // toggle on again
+		assert.strictEqual(list.getAllElements().length, 1);
+	});
+
 });

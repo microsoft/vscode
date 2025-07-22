@@ -39,7 +39,11 @@ export class CountBadge extends Disposable {
 
 		super();
 		this.element = append(container, $('.monaco-count-badge'));
-		this._register(toDisposable(() => container.removeChild(this.element)));
+		this._register(toDisposable(() => {
+			if (this.element.parentNode === container) {
+				container.removeChild(this.element);
+			}
+		}));
 		this.countFormat = this.options.countFormat || '{0}';
 		this.titleFormat = this.options.titleFormat || '';
 		this.setCount(this.options.count || 0);
@@ -79,5 +83,9 @@ export class CountBadge extends Disposable {
 		if (this.styles.badgeBorder) {
 			this.element.style.border = `1px solid ${this.styles.badgeBorder}`;
 		}
+	}
+
+	protected getElement(): HTMLElement {
+		return this.element;
 	}
 }
