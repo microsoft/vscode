@@ -281,7 +281,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const termId = generateUuid();
 
 		if (args.isBackground) {
-			let outputAndIdle: { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number } | undefined = undefined;
+			let outputAndIdle: { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string } | undefined = undefined;
 
 			this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
 			const toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(token);
@@ -306,7 +306,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 				outputAndIdle = await pollForOutputAndIdle(execution, false, token, this._languageModelsService);
 				if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-					const extendPolling = await promptForMorePolling(command, invocation.context, this._chatService);
+					const extendPolling = await promptForMorePolling(command, invocation.context, this._chatService, token);
 					if (extendPolling) {
 						outputAndIdle = await pollForOutputAndIdle(execution, true, token, this._languageModelsService);
 					}
@@ -318,7 +318,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
 							: `Command is running in terminal with ID=${termId}`
 				);
-				resultText += outputAndIdle.terminalExecutionIdleBeforeTimeout ? `\n\ The command became idle with output:\n${outputAndIdle.output}` : `\n\ The command is still running, with output:\n${outputAndIdle.output}`;
+				resultText += outputAndIdle.modelOutputEvalResponse ? `\n\ The command became idle with output:\n${outputAndIdle.modelOutputEvalResponse}` : `\n\ The command is still running, with output:\n${outputAndIdle.output}`;
 				return {
 					content: [{
 						kind: 'text',
