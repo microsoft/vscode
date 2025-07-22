@@ -341,7 +341,6 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 	}
 
 	renderElement(data: IChatCollapsibleListItem, index: number, templateData: ICollapsibleListTemplate): void {
-		console.log('renderElement data : ', data);
 		if (data.kind === 'warning') {
 			templateData.label.setResource({ name: data.content.value }, { icon: Codicon.warning });
 			return;
@@ -397,7 +396,6 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 					extraClasses
 				});
 				if ('additionalData' in data && data.additionalData) {
-					console.log('data.additionalData : ', data.additionalData);
 					data.additionalData.forEach(additionalData => {
 						const element = templateData.label.element.appendChild($(`.${additionalData.className}`));
 						element.textContent = additionalData.description;

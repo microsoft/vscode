@@ -61,7 +61,7 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 		}));
 		collapseButton.element.appendChild(viewAllFileChanges);
 
-		this._register(dom.addDisposableListener(viewAllFileChanges, 'click', () => {
+		this._register(dom.addDisposableListener(viewAllFileChanges, 'click', (e) => {
 			const resources: { originalUri: URI; modifiedUri: URI }[] = [];
 			this.changes.forEach(e => {
 				const sessionId = e.sessionId;
@@ -101,6 +101,7 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 				}
 			});
 			commandService.executeCommand('chatEditing.viewFileChangesSummary', resources);
+			dom.EventHelper.stop(e, true);
 		}));
 		const fileChangesSummary = $('.container-file-changes-summary', undefined, buttonElement);
 		fileChangesSummary.style.display = 'flex';

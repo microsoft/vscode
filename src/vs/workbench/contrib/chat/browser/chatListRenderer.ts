@@ -691,8 +691,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					changes.push({
 						kind: 'changesSummary',
 						reference: part.uri,
-						edits: part.edits,
-						done: part.done,
 						sessionId: element.sessionId,
 						requestId: element.requestId,
 					});
@@ -748,7 +746,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const parts: IChatContentPart[] = [];
 
 		let inlineSlashCommandRendered = false;
-		console.log('content : ', content);
 		content.forEach((data, contentIndex) => {
 			const context: IChatContentPartRenderContext = {
 				element,
@@ -886,7 +883,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderChatContentDiff(partsToRender: ReadonlyArray<IChatRendererContent | null>, contentForThisTurn: ReadonlyArray<IChatRendererContent>, element: IChatResponseViewModel, elementIndex: number, templateData: IChatListItemTemplate): void {
 		const renderedParts = templateData.renderedParts ?? [];
 		templateData.renderedParts = renderedParts;
-		console.log('partsToRender : ', partsToRender);
 		partsToRender.forEach((partToRender, contentIndex) => {
 			if (!partToRender) {
 				// null=no change
@@ -1011,7 +1007,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const isPaused = element.model.isPaused.get();
 			partsToRender.push({ kind: 'working', isPaused, setPaused: p => element.model.setPaused(p) });
 		}
-		console.log('this._options.configuration.showFileChanges : ', this._options.configuration.showFileChanges);
 		if (element.isComplete && this._options.configuration.showFileChanges) {
 			const changes: IChatChangesSummary[] = [];
 			element.model.entireResponse.value.forEach(part => {
@@ -1019,8 +1014,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					changes.push({
 						kind: 'changesSummary',
 						reference: part.uri,
-						edits: part.edits,
-						done: part.done,
 						sessionId: element.sessionId,
 						requestId: element.requestId,
 					});

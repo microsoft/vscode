@@ -443,12 +443,10 @@ export class CollapsedCodeBlock extends Disposable {
 	}
 
 	render(uri: URI, isStreaming?: boolean): void {
-		console.log('render');
 		this._progressStore.clear();
 
 		this._uri = uri;
 
-		console.log('this.sessionId : ', this.sessionId);
 		const session = this.chatService.getSession(this.sessionId);
 		const iconText = this.labelService.getUriBasenameLabel(uri);
 
@@ -480,7 +478,6 @@ export class CollapsedCodeBlock extends Disposable {
 		this.updateTooltip(this.labelService.getUriLabel(uri, { relative: false }));
 
 		const renderDiff = (changes: IEditSessionEntryDiff | undefined) => {
-			console.log('changes : ', changes);
 			const labelAdded = this.element.querySelector('.label-added') ?? this.element.appendChild(dom.$('span.label-added'));
 			const labelRemoved = this.element.querySelector('.label-removed') ?? this.element.appendChild(dom.$('span.label-removed'));
 			if (changes && !changes?.identical && !changes?.quitEarly) {
@@ -520,12 +517,10 @@ export class CollapsedCodeBlock extends Disposable {
 				labelDetail.textContent = '';
 			}
 
-			console.log('diffBetweenStops 1');
 			if (!diffBetweenStops) {
 				diffBetweenStops = modifiedEntry && editSession
 					? editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, this.requestId, this.inUndoStop)
 					: undefined;
-				console.log('diffBetweenStops 2 : ', diffBetweenStops);
 				diffValue = diffBetweenStops?.read(r);
 			}
 
