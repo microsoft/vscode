@@ -870,13 +870,13 @@ export function registerChatActions() {
 		}
 
 		private async showChatSessionInEditor(provider: IChatSessionItemProvider, session: IChatSessionItem, editorService: IEditorService, chatWidgetService: IChatWidgetService) {
-			const content = await provider.provideChatSessionContent(session.id, CancellationToken.None);
-
 			// Open the chat editor
 			await editorService.openEditor({
 				resource: ChatEditorInput.getNewEditorUri(),
-				options: { pinned: true, sticky: true } satisfies IChatEditorOptions
+				options: {} satisfies IChatEditorOptions
 			});
+
+			const content = await provider.provideChatSessionContent(session.id, CancellationToken.None);
 
 			// Wait a bit for the editor to be ready, then get the widget
 			setTimeout(() => {
