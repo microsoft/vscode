@@ -726,7 +726,7 @@ export class ViewPreviousEditsAction extends EditingSessionAction {
 			id: ViewPreviousEditsAction.Id,
 			title: ViewPreviousEditsAction.Label,
 			tooltip: ViewPreviousEditsAction.Label,
-			f1: false,
+			f1: true,
 			icon: Codicon.diffMultiple,
 			precondition: hasUndecidedChatEditingResourceContextKey.negate(),
 			menu: [
