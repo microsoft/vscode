@@ -3351,17 +3351,9 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.createWorktree')
-	async createWorktree(): Promise<void> {
-		const mainRepository = this.model.repositories.find(repo =>
-			!repo.dotGit.commonPath
-		);
-
-		if (!mainRepository) {
-			return;
-		}
-
-		await this._createWorktree(mainRepository, undefined, undefined);
+	@command('git.createWorktree', { repository: true })
+	async createWorktree(repository: Repository): Promise<void> {
+		await this._createWorktree(repository, undefined, undefined);
 	}
 
 	private async _createWorktree(repository: Repository, worktreePath?: string, name?: string): Promise<void> {
