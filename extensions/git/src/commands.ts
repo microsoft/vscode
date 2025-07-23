@@ -3411,7 +3411,7 @@ export class CommandCenter {
 				const processors = [new RefProcessor(RefType.Head, BranchItem)];
 				const itemsProcessor = new RefItemsProcessor(repository, processors);
 				const branchItems = itemsProcessor.processRefs(refs);
-				return [createBranch, ...branchItems];
+				return [createBranch, { label: '', kind: QuickPickItemKind.Separator }, ...branchItems];
 			};
 
 			const placeHolder = l10n.t('Select a branch to create the new worktree from');
