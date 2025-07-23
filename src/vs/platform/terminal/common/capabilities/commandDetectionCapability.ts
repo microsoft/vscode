@@ -190,14 +190,13 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		// Remove them
 		if (count > 0) {
 			this._onCommandInvalidated.fire(this._commands.splice(this._commands.length - count, count));
-			this._onCurrentCommandInvalidated.fire({ reason: CommandInvalidationReason.NoProblemsReported });
+			// this._onCurrentCommandInvalidated.fire({ reason: CommandInvalidationReason.NoProblemsReported });
 		}
 	}
 
 	setContinuationPrompt(value: string): void {
 		this._promptInputModel.setContinuationPrompt(value);
 	}
-
 
 	// TODO: Simplify this, can everything work off the last line?
 	setPromptTerminator(promptTerminator: string, lastPromptLine: string) {
