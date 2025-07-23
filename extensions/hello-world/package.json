@@ -1,0 +1,43 @@
+{
+  "name": "hello-world",
+  "displayName": "Hello World",
+  "description": "A simple Hello World extension for VS Code",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.4.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:helloWorld.hello"
+  ],
+  "main": "./out/extension",
+  "contributes": {
+    "commands": [
+      {
+        "command": "helloWorld.hello",
+        "title": "Hello World"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "gulp compile-extension:hello-world",
+    "watch": "gulp watch-extension:hello-world"
+  },
+  "devDependencies": {
+    "@types/node": "22.x"
+  },
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}
