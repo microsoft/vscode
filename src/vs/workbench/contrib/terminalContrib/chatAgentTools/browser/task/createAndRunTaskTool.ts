@@ -14,9 +14,8 @@ import { ITaskService, ITaskSummary, Task } from '../../../../tasks/common/taskS
 import { ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from '../bufferOutputPolling.js';
 import { getOutput } from '../outputHelpers.js';
-import { getTaskForTool, getTaskRepresentation, IConfiguredTask } from './taskHelpers.js';
+import { IConfiguredTask } from './taskHelpers.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
