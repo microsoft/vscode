@@ -60,6 +60,13 @@ export class TypeScriptVersionManager extends Disposable {
 		const lastConfiguration = this.configuration;
 		this.configuration = nextConfiguration;
 
+		if (this.useWorkspaceTsdkSetting) {
+			const localVersion = this.versionProvider.localVersion;
+			if (localVersion && !this.currentVersion.eq(localVersion)) {
+				this.updateActiveVersion(localVersion);
+			}
+		}
+
 		if (
 			!this.isInPromptWorkspaceTsdkState(lastConfiguration)
 			&& this.isInPromptWorkspaceTsdkState(nextConfiguration)
@@ -163,7 +170,7 @@ export class TypeScriptVersionManager extends Disposable {
 	}
 
 	private get useWorkspaceTsdkSetting(): boolean {
-		return this.workspaceState.get<boolean>(useWorkspaceTsdkStorageKey, false);
+		return this.workspaceState.get<boolean>(useWorkspaceTsdkStorageKey, false) || vscode.workspace.isTrusted;
 	}
 
 	private get suppressPromptWorkspaceTsdkSetting(): boolean {
