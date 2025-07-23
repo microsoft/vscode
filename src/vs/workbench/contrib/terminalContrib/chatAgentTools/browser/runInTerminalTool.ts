@@ -319,7 +319,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					]);
 					if (raceResult.type === 'poll') {
 						outputAndIdle = raceResult.result as typeof outputAndIdle;
-						await part?.removePart();
 					} else if (raceResult.type === 'prompt') {
 						const promptResult = raceResult.result as boolean;
 						if (promptResult) {

@@ -13,8 +13,8 @@ export class ChatElicitationRequestPart extends Disposable implements IChatElici
 	public state: 'pending' | 'accepted' | 'rejected' = 'pending';
 	public acceptedResult?: Record<string, unknown>;
 
-	private _onDidRequestRemovePart = this._register(new Emitter<void>());
-	public readonly onDidRequestRemovePart = this._onDidRequestRemovePart.event;
+	private _onDidRequestHide = this._register(new Emitter<void>());
+	public readonly onDidRequestHide = this._onDidRequestHide.event;
 
 	constructor(
 		public readonly title: string | IMarkdownString,
@@ -29,7 +29,7 @@ export class ChatElicitationRequestPart extends Disposable implements IChatElici
 	}
 
 	removePart(): void {
-		this._onDidRequestRemovePart.fire();
+		this._onDidRequestHide.fire();
 	}
 
 	public toJSON() {
