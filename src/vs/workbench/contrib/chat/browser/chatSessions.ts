@@ -1,0 +1,541 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import * as nls from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
+import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
+import { Extensions, IViewContainersRegistry, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewDescriptor } from '../../../common/views.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
+import { IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../common/chatSessionsService.js';
+import { IAsyncDataSource, ITreeRenderer, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
+import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { FuzzyScore } from '../../../../base/common/filters.js';
+import { ResourceLabels, IResourceLabel } from '../../../browser/labels.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { append, $ } from '../../../../base/browser/dom.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IEditorGroupsService, IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { GroupModelChangeKind, EditorResourceAccessor } from '../../../common/editor.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { ChatEditorInput } from './chatEditorInput.js';
+import { IMenuService, MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
+import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+
+export const VIEWLET_ID = 'workbench.view.chat.sessions';
+
+// Extended interface for local chat session items that includes editor information
+interface ILocalChatSessionItem extends IChatSessionItem {
+	editor: EditorInput;
+	group: IEditorGroup;
+}
+
+// Local Chat Sessions Provider - tracks open editors as chat sessions
+class LocalChatSessionsProvider extends Disposable implements IChatSessionItemProvider {
+	readonly chatSessionType = 'local';
+	readonly label = 'Local Chat Sessions';
+
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	// Track the current editor set to detect actual new additions
+	private currentEditorSet = new Set<string>();
+
+	// Maintain ordered list of editor keys to preserve consistent ordering
+	private editorOrder: string[] = [];
+
+	constructor(
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+	) {
+		super();
+		this.initializeCurrentEditorSet();
+		this.registerEditorListeners();
+	}
+
+	private initializeCurrentEditorSet(): void {
+		this.currentEditorSet.clear();
+		this.editorOrder = []; // Reset the order
+
+		this.editorGroupService.groups.forEach(group => {
+			group.editors.forEach(editor => {
+				const key = this.getEditorKey(editor, group);
+				this.currentEditorSet.add(key);
+				this.editorOrder.push(key);
+			});
+		});
+	}
+
+	private getEditorKey(editor: EditorInput, group: IEditorGroup): string {
+		return `${group.id}-${editor.typeId}-${editor.resource?.toString() || editor.getName()}`;
+	}
+
+	private registerEditorListeners(): void {
+		// Listen to all groups for editor changes
+		this.editorGroupService.groups.forEach(group => this.registerGroupListeners(group));
+
+		// Listen for new groups
+		this._register(this.editorGroupService.onDidAddGroup(group => {
+			this.registerGroupListeners(group);
+			this.initializeCurrentEditorSet(); // Refresh our tracking
+			this._onDidChange.fire();
+		}));
+
+		this._register(this.editorGroupService.onDidRemoveGroup(() => {
+			this.initializeCurrentEditorSet(); // Refresh our tracking
+			this._onDidChange.fire();
+		}));
+	}
+
+	private registerGroupListeners(group: IEditorGroup): void {
+		this._register(group.onDidModelChange(e => {
+			if (!(e.editor instanceof ChatEditorInput)) {
+				return;
+			}
+			switch (e.kind) {
+				case GroupModelChangeKind.EDITOR_OPEN:
+					// Only fire change if this is a truly new editor
+					if (e.editor) {
+						const editorKey = this.getEditorKey(e.editor, group);
+						if (!this.currentEditorSet.has(editorKey)) {
+							this.currentEditorSet.add(editorKey);
+							this.editorOrder.push(editorKey); // Append to end
+							this._onDidChange.fire();
+						}
+					}
+					break;
+				case GroupModelChangeKind.EDITOR_CLOSE:
+					// Remove from our tracking set and fire change
+					if (e.editor) {
+						const editorKey = this.getEditorKey(e.editor, group);
+						this.currentEditorSet.delete(editorKey);
+						const index = this.editorOrder.indexOf(editorKey);
+						if (index > -1) {
+							this.editorOrder.splice(index, 1);
+						}
+					}
+					this._onDidChange.fire();
+					break;
+				case GroupModelChangeKind.EDITOR_MOVE:
+					// Just refresh the set without resetting the order
+					this.currentEditorSet.clear();
+					this.editorGroupService.groups.forEach(group => {
+						group.editors.forEach(editor => {
+							const key = this.getEditorKey(editor, group);
+							this.currentEditorSet.add(key);
+						});
+					});
+					this._onDidChange.fire();
+					break;
+				case GroupModelChangeKind.EDITOR_ACTIVE:
+					// Editor became active - no need to change our list
+					// This happens when clicking on tabs or opening editors
+					break;
+				case GroupModelChangeKind.EDITOR_LABEL:
+					this._onDidChange.fire();
+					break;
+			}
+		}));
+	}
+
+	async provideChatSessionItems(token: CancellationToken): Promise<ILocalChatSessionItem[]> {
+		const sessions: ILocalChatSessionItem[] = [];
+
+		// Create a map to quickly find editors by their key
+		const editorMap = new Map<string, { editor: EditorInput; group: IEditorGroup }>();
+
+		this.editorGroupService.groups.forEach(group => {
+			group.editors.forEach(editor => {
+				const key = this.getEditorKey(editor, group);
+				editorMap.set(key, { editor, group });
+			});
+		});
+
+		// Build sessions in the order specified by editorOrder
+		this.editorOrder.forEach((editorKey, index) => {
+			const editorInfo = editorMap.get(editorKey);
+			if (editorInfo) {
+				const resource = EditorResourceAccessor.getOriginalUri(editorInfo.editor);
+				const sessionId = `local-${editorInfo.group.id}-${index}`;
+
+				sessions.push({
+					id: sessionId,
+					label: editorInfo.editor.getName(),
+					iconPath: resource ?
+						ThemeIcon.fromId('file') :
+						Codicon.file,
+					editor: editorInfo.editor,
+					group: editorInfo.group
+				});
+			}
+		});
+
+		return sessions;
+	}
+}
+
+// Chat sessions container
+class ChatSessionsViewPaneContainer extends ViewPaneContainer {
+	private localProvider: LocalChatSessionsProvider | undefined;
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IExtensionService extensionService: IExtensionService,
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@ILogService logService: ILogService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+
+	) {
+		super(
+			VIEWLET_ID,
+			{
+				mergeViewWithContainerWhenSingleView: false,
+			},
+			instantiationService,
+			configurationService,
+			layoutService,
+			contextMenuService,
+			telemetryService,
+			extensionService,
+			themeService,
+			storageService,
+			contextService,
+			viewDescriptorService,
+			logService
+		);
+		// Listen for provider changes and register/unregister views accordingly
+		this._register(this.chatSessionsService.onDidChangeProviders(() => {
+			this.updateViewRegistration();
+		}));
+
+		// Create and register the local chat sessions provider
+		this.localProvider = this._register(this.instantiationService.createInstance(LocalChatSessionsProvider));
+		this._register(this.chatSessionsService.registerChatSessionItemProvider(0, this.localProvider));
+
+	}
+
+	override getTitle(): string {
+		const title = nls.localize('chat.sessions.title', "Chat Sessions");
+		return title;
+	}
+
+	private updateViewRegistration(): void {
+		this.registerViews();
+
+		// TODO handle unregistering views
+	}
+
+	private async registerViews() {
+		const container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).get(VIEWLET_ID);
+		const providers = this.chatSessionsService.providers;
+		const viewDescriptors: IViewDescriptor[] = [];
+		if (container && providers.length > 0) {
+			providers.forEach((provider, index) => {
+				viewDescriptors.push({
+					id: `${VIEWLET_ID}.${provider.chatSessionType}`,
+					// TODO: localization?
+					name: {
+						value: provider.label,
+						original: provider.label,
+					},
+					ctorDescriptor: new SyncDescriptor(SessionsViewPane, [provider]),
+					canToggleVisibility: true,
+					canMoveView: true,
+					order: index,
+				});
+			});
+			Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViews(viewDescriptors, container);
+		}
+	}
+}
+
+// Chat sessions item data source for the tree
+class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, IChatSessionItem> {
+	constructor(
+		private readonly provider: IChatSessionItemProvider
+	) { }
+
+	hasChildren(element: IChatSessionItemProvider | IChatSessionItem): boolean {
+		// Only the provider (root) has children
+		return element === this.provider;
+	}
+
+	async getChildren(element: IChatSessionItemProvider | IChatSessionItem): Promise<IChatSessionItem[]> {
+		if (element === this.provider) {
+			try {
+				const items = await this.provider.provideChatSessionItems(CancellationToken.None);
+				return items.map(item => ({ ...item, provider: this.provider }));
+			} catch (error) {
+				return [];
+			}
+		}
+		return [];
+	}
+}
+
+// Tree delegate for session items
+class SessionsDelegate implements IListVirtualDelegate<IChatSessionItem> {
+	static readonly ITEM_HEIGHT = 22;
+
+	getHeight(element: IChatSessionItem): number {
+		return SessionsDelegate.ITEM_HEIGHT;
+	}
+
+	getTemplateId(element: IChatSessionItem): string {
+		return SessionsRenderer.TEMPLATE_ID;
+	}
+}
+
+// Template data for session items
+interface ISessionTemplateData {
+	container: HTMLElement;
+	resourceLabel: IResourceLabel;
+	actionBar: ActionBar;
+}
+
+// Renderer for session items in the tree
+class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionItem, FuzzyScore, ISessionTemplateData> {
+	static readonly TEMPLATE_ID = 'session';
+
+	constructor(
+		private readonly labels: ResourceLabels
+	) {
+		super();
+	}
+
+	get templateId(): string {
+		return SessionsRenderer.TEMPLATE_ID;
+	}
+
+	renderTemplate(container: HTMLElement): ISessionTemplateData {
+		const element = append(container, $('.chat-session-item'));
+		const resourceLabel = this.labels.create(element, { supportHighlights: true });
+		const actionBar = new ActionBar(container);
+
+		return {
+			container: element,
+			resourceLabel,
+			actionBar
+		};
+	}
+
+	renderElement(element: ITreeNode<IChatSessionItem, FuzzyScore>, index: number, templateData: ISessionTemplateData): void {
+		const session = element.element;
+
+		// Handle different icon types
+		let iconResource: URI | undefined;
+		let iconTheme: ThemeIcon | undefined;
+
+		if (session.iconPath) {
+			if (session.iconPath instanceof URI) {
+				iconResource = session.iconPath;
+			} else if (ThemeIcon.isThemeIcon(session.iconPath)) {
+				iconTheme = session.iconPath;
+			} else {
+				// Handle {light, dark} structure
+				iconResource = session.iconPath.light;
+			}
+		}
+
+		// Set the resource label
+		templateData.resourceLabel.setResource({
+			name: session.label,
+			resource: iconResource
+		}, {
+			fileKind: undefined,
+			icon: iconTheme
+		});
+	}
+
+	disposeTemplate(templateData: ISessionTemplateData): void {
+		templateData.resourceLabel.dispose();
+		templateData.actionBar.dispose();
+	}
+}
+
+// Sessions view pane for a specific provider
+class SessionsViewPane extends ViewPane {
+	private tree?: WorkbenchAsyncDataTree<IChatSessionItemProvider, IChatSessionItem, FuzzyScore>;
+	private treeContainer?: HTMLElement;
+	private dataSource?: SessionsDataSource;
+	private labels?: ResourceLabels;
+
+	constructor(
+		private readonly provider: IChatSessionItemProvider,
+		options: IViewPaneOptions,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IInstantiationService protected override readonly instantiationService: IInstantiationService,
+		@IOpenerService openerService: IOpenerService,
+		@IThemeService themeService: IThemeService,
+		@IHoverService hoverService: IHoverService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IMenuService private readonly menuService: IMenuService,
+	) {
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+
+		// Listen for changes in the provider if it's a LocalChatSessionsProvider
+		if (provider instanceof LocalChatSessionsProvider) {
+			this._register(provider.onDidChange(() => {
+				if (this.tree && this.isBodyVisible()) {
+					this.tree.updateChildren(this.provider);
+				}
+			}));
+		}
+	}
+
+	private isLocalChatSessionItem(item: IChatSessionItem): item is ILocalChatSessionItem {
+		return 'editor' in item && 'group' in item;
+	}
+
+	protected override renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
+		this.treeContainer = append(container, $('.chat-sessions-tree.show-file-icons'));
+		this.treeContainer.classList.add('file-icon-themable-tree');
+
+		this.labels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
+		this._register(this.labels);
+
+		this.dataSource = new SessionsDataSource(this.provider);
+
+		const delegate = new SessionsDelegate();
+		const renderer = new SessionsRenderer(this.labels);
+		this._register(renderer);
+
+		this.tree = this.instantiationService.createInstance(
+			WorkbenchAsyncDataTree,
+			'SessionsTree',
+			this.treeContainer,
+			delegate,
+			[renderer],
+			this.dataSource,
+			{
+				horizontalScrolling: false,
+				setRowLineHeight: false,
+				transformOptimization: false,
+				identityProvider: {
+					getId: (element: IChatSessionItem) => element.id
+				},
+				accessibilityProvider: {
+					getAriaLabel: (element: IChatSessionItem) => element.label,
+					getWidgetAriaLabel: () => nls.localize('chatSessions.treeAriaLabel', "Chat Sessions")
+				}
+			}
+		) as WorkbenchAsyncDataTree<IChatSessionItemProvider, IChatSessionItem, FuzzyScore>;
+
+		this._register(this.tree);
+
+		// Handle double-click and keyboard selection to open editors
+		this._register(this.tree.onDidOpen(async e => {
+			const element = e.element as IChatSessionItem & { provider: IChatSessionItemProvider };
+			if (element && this.isLocalChatSessionItem(element)) {
+				// Open the editor
+				await this.editorService.openEditor(element.editor, element.group);
+			} else {
+				const ckey = this.contextKeyService.createKey('chatSessionType', element.provider.chatSessionType);
+				const actions = this.menuService.getMenuActions(MenuId.ChatSessionsMenu, this.contextKeyService);
+				const menuActions = getContextMenuActions(actions, 'navigation');
+				ckey.reset();
+
+				const allActions = [...menuActions.primary, ...menuActions.secondary];
+				if (allActions.length === 0) {
+					// TODO: This doesn't work
+				}
+			}
+		}));
+
+		// Handle visibility changes to load data
+		this._register(this.onDidChangeBodyVisibility(async visible => {
+			if (visible && this.tree) {
+				await this.tree.setInput(this.provider);
+			}
+		}));
+
+		// Initially load data if visible
+		if (this.isBodyVisible() && this.tree) {
+			this.tree.setInput(this.provider);
+		}
+	}
+
+	protected override layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
+		if (this.tree) {
+			this.tree.layout(height, width);
+		}
+	}
+
+	override focus(): void {
+		super.focus();
+		if (this.tree) {
+			this.tree.domFocus();
+		}
+	}
+}
+
+Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
+	{
+		id: VIEWLET_ID,
+		title: nls.localize2('chat.sessions', "Chat Sessions"),
+		ctorDescriptor: new SyncDescriptor(ChatSessionsViewPaneContainer),
+		hideIfEmpty: false,
+		icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussion, 'Icon for Chat Sessions View'),
+		order: 10
+	}, ViewContainerLocation.Sidebar);
+
+// Register action for "Open in Editor" command in Local Chat Sessions view
+registerAction2(class OpenChatInEditorAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chatSessions.openInEditor',
+			title: nls.localize2('chatSessions.openInEditor', "Open in Editor"),
+			icon: Codicon.plus,
+			menu: {
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
+				group: 'navigation',
+				order: 1
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+		await commandService.executeCommand('workbench.action.chat.openInEditor');
+	}
+});
+

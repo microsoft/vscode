@@ -10,6 +10,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
 
 export interface IChatSessionItem {
 	id: string;
@@ -22,14 +23,17 @@ export interface IChatSessionItem {
 
 export interface IChatSessionItemProvider {
 	readonly chatSessionType: string;
+	readonly label: string;
 	provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]>;
 }
 
 export interface IChatSessionsService {
 	readonly _serviceBrand: undefined;
+	readonly onDidChangeProviders: Event<IChatSessionItemProvider>;
 	registerChatSessionItemProvider(handle: number, provider: IChatSessionItemProvider): IDisposable;
 	hasChatSessionItemProviders: boolean;
 	provideChatSessionItems(token: CancellationToken): Promise<{ provider: IChatSessionItemProvider; session: IChatSessionItem }[]>;
+	providers: IChatSessionItemProvider[];
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
@@ -37,6 +41,9 @@ export const IChatSessionsService = createDecorator<IChatSessionsService>('chatS
 export class ChatSessionsService extends Disposable implements IChatSessionsService {
 	readonly _serviceBrand: undefined;
 	private _providers: Map<number, IChatSessionItemProvider> = new Map();
+
+	private readonly _onDidChangeProviders = this._register(new Emitter<IChatSessionItemProvider>());
+	readonly onDidChangeProviders: Event<IChatSessionItemProvider> = this._onDidChangeProviders.event;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -67,15 +74,25 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	public registerChatSessionItemProvider(handle: number, provider: IChatSessionItemProvider): IDisposable {
 		this._providers.set(handle, provider);
+		this._onDidChangeProviders.fire(provider);
+
 		return {
 			dispose: () => {
-				this._providers.delete(handle);
+				const provider = this._providers.get(handle);
+				if (provider) {
+					this._providers.delete(handle);
+					this._onDidChangeProviders.fire(provider);
+				}
 			}
 		};
 	}
 
 	public get hasChatSessionItemProviders(): boolean {
 		return this._providers.size > 0;
+	}
+
+	public get providers(): IChatSessionItemProvider[] {
+		return Array.from(this._providers.values());
 	}
 }
 
