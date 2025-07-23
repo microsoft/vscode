@@ -32,6 +32,7 @@ const enum PollingConsts {
 export async function racePollingOrPrompt(
 	pollFn: () => Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }>,
 	promptFn: () => { promise: Promise<boolean>; part?: ChatElicitationRequestPart },
+	originalResult: { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string },
 	token: CancellationToken,
 	languageModelsService: ILanguageModelsService,
 	execution: { getOutput: () => string; isActive?: () => Promise<boolean> }
@@ -64,6 +65,8 @@ export async function racePollingOrPrompt(
 		if (promptResult) {
 			// User accepted, poll again (extended)
 			return await pollForOutputAndIdle(execution, true, token, languageModelsService);
+		} else {
+			return originalResult; // User rejected, return the original result
 		}
 	}
 	// If prompt was rejected or something else, return the result of the first poll
