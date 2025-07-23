@@ -101,6 +101,12 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	private readonly _didAcceptOrRejectLines = this._register(new Emitter<acceptedOrRejectedLines>());
 	public readonly onDidAcceptOrRejectLines = this._didAcceptOrRejectLines.event;
 
+	private notifyHunkAction(state: 'accepted' | 'rejected', lineCount: number, hasRemainingEdits: boolean) {
+		if (lineCount > 0) {
+			this._didAcceptOrRejectLines.fire({ state, lineCount, hasRemainingEdits });
+		}
+	}
+
 	private readonly _didUserEditModel = this._register(new Emitter<void>());
 	public readonly onDidUserEditModel = this._didUserEditModel.event;
 
@@ -250,7 +256,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	 * Keeps the current modified document as the final contents.
 	 */
 	public keep() {
-		this._didAcceptOrRejectLines.fire({ state: 'accepted', lineCount: this.lineChangeCount, hasRemainingEdits: false });
+		this.notifyHunkAction('accepted', this.lineChangeCount, false);
 		this.originalModel.setValue(this.modifiedModel.createSnapshot());
 		this._diffInfo.set(nullDocumentDiff, undefined);
 		this._originalToModifiedEdit = StringEdit.empty;
@@ -260,7 +266,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	 * Undoes the current modified document as the final contents.
 	 */
 	public undo() {
-		this._didAcceptOrRejectLines.fire({ state: 'rejected', lineCount: this.lineChangeCount, hasRemainingEdits: false });
+		this.notifyHunkAction('rejected', this.lineChangeCount, false);
 		this.modifiedModel.pushStackElement();
 		this._applyEdits([(EditOperation.replace(this.modifiedModel.getFullModelRange(), this.originalModel.getValue()))], EditSources.chatUndoEdits());
 		this.modifiedModel.pushStackElement();
@@ -371,13 +377,13 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	private async _updateDiffInfoSeq(notifyAction: 'accepted' | 'rejected' | undefined = undefined) {
 		const myDiffOperationId = ++this._diffOperationIds;
 		await Promise.resolve(this._diffOperation);
-		const originalLinesChanged = this.lineChangeCount;
+		const previousCount = this.lineChangeCount;
 		if (this._diffOperationIds === myDiffOperationId) {
 			const thisDiffOperation = this._updateDiffInfo();
 			this._diffOperation = thisDiffOperation;
 			await thisDiffOperation;
 			if (notifyAction) {
-				this._didAcceptOrRejectLines.fire({ state: notifyAction, lineCount: originalLinesChanged - this.lineChangeCount, hasRemainingEdits: this.lineChangeCount > 0 });
+				this.notifyHunkAction(notifyAction, previousCount - this.lineChangeCount, this.lineChangeCount > 0);
 			}
 		}
 	}
