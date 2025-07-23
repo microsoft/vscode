@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { decodeBase64 } from '../../../../base/common/buffer.js';
+import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { markdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -15,6 +15,7 @@ import { autorun, IObservable, observableValue, transaction } from '../../../../
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -257,6 +258,7 @@ class McpToolImplementation implements IToolImpl {
 		private readonly _tool: IMcpTool,
 		private readonly _server: IMcpServer,
 		@IProductService private readonly _productService: IProductService,
+		@IFileService private readonly _fileService: IFileService,
 	) { }
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext): Promise<IPreparedToolInvocation> {
@@ -318,7 +320,7 @@ class McpToolImplementation implements IToolImpl {
 
 			// Rewrite image rsources to images so they are inlined nicely
 			const addAsInlineData = (mimeType: string, value: string, uri?: URI) => {
-				details.output.push({ mimeType, value, uri });
+				details.output.push({ type: 'embed', mimeType, value, uri });
 				if (isForModel) {
 					result.content.push({
 						kind: 'data',
@@ -329,8 +331,10 @@ class McpToolImplementation implements IToolImpl {
 
 			const isForModel = audience.includes('assistant');
 			if (item.type === 'text') {
-				details.output.push({ isText: true, value: item.text });
-				if (isForModel) {
+				details.output.push({ type: 'embed', isText: true, value: item.text });
+				// structured content 'represents the result of the tool call', so take
+				// that in place of any textual description when present.
+				if (isForModel && !callResult.structuredContent) {
 					result.content.push({
 						kind: 'text',
 						value: item.text
@@ -340,13 +344,36 @@ class McpToolImplementation implements IToolImpl {
 				// default to some image type if not given to hint
 				addAsInlineData(item.mimeType || 'image/png', item.data);
 			} else if (item.type === 'resource_link') {
-				// todo@connor4312 look at what we did before #250329 and use that here
+				const uri = McpResourceURI.fromServer(this._server.definition, item.uri);
+				details.output.push({
+					type: 'ref',
+					uri,
+					mimeType: item.mimeType,
+				});
+
+				if (isForModel) {
+					if (item.mimeType && getAttachableImageExtension(item.mimeType)) {
+						result.content.push({
+							kind: 'data',
+							value: {
+								mimeType: item.mimeType,
+								data: await this._fileService.readFile(uri).then(f => f.value).catch(() => VSBuffer.alloc(0)),
+							}
+						});
+					} else {
+						result.content.push({
+							kind: 'text',
+							value: `The tool returns a resource which can be read from the URI ${uri}\n`,
+						});
+					}
+				}
 			} else if (item.type === 'resource') {
 				const uri = McpResourceURI.fromServer(this._server.definition, item.resource.uri);
 				if (item.resource.mimeType && getAttachableImageExtension(item.resource.mimeType) && 'blob' in item.resource) {
 					addAsInlineData(item.resource.mimeType, item.resource.blob, uri);
 				} else {
 					details.output.push({
+						type: 'embed',
 						uri,
 						isText: 'text' in item.resource,
 						mimeType: item.resource.mimeType,
@@ -359,11 +386,16 @@ class McpToolImplementation implements IToolImpl {
 
 						result.content.push({
 							kind: 'text',
-							value: 'text' in item.resource ? item.resource.text : `The tool returns a resource which can be read from the URI ${permalink || uri}`,
+							value: 'text' in item.resource ? item.resource.text : `The tool returns a resource which can be read from the URI ${permalink || uri}\n`,
 						});
 					}
 				}
 			}
+		}
+
+		if (callResult.structuredContent) {
+			details.output.push({ type: 'embed', isText: true, value: JSON.stringify(callResult.structuredContent, null, 2) });
+			result.content.push({ kind: 'text', value: JSON.stringify(callResult.structuredContent) });
 		}
 
 		result.toolResultDetails = details;

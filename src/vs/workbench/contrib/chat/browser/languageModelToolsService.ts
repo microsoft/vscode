@@ -276,6 +276,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 				model.acceptResponseProgress(request, toolInvocation);
 
+				dto.toolSpecificData = toolInvocation?.toolSpecificData;
+
 				if (prepared?.confirmationMessages) {
 					if (!toolInvocation.isConfirmed && !autoConfirmed) {
 						this.playAccessibilitySignal([toolInvocation]);
@@ -284,8 +286,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					if (!userConfirmed) {
 						throw new CancellationError();
 					}
-
-					dto.toolSpecificData = toolInvocation?.toolSpecificData;
 
 					if (dto.toolSpecificData?.kind === 'input') {
 						dto.parameters = dto.toolSpecificData.rawInput;
@@ -339,7 +339,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			toolResult ??= { content: [] };
 			toolResult.toolResultError = err instanceof Error ? err.message : String(err);
 			if (tool.data.alwaysDisplayInputOutput) {
-				toolResult.toolResultDetails = { input: this.formatToolInput(dto), output: [{ isText: true, value: String(err) }], isError: true };
+				toolResult.toolResultDetails = { input: this.formatToolInput(dto), output: [{ type: 'embed', isText: true, value: String(err) }], isError: true };
 			}
 
 			throw err;
@@ -410,11 +410,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private toolResultToIO(toolResult: IToolResult): IToolResultInputOutputDetails['output'] {
 		return toolResult.content.map(part => {
 			if (part.kind === 'text') {
-				return { isText: true, value: part.value };
+				return { type: 'embed', isText: true, value: part.value };
 			} else if (part.kind === 'promptTsx') {
-				return { isText: true, value: stringifyPromptTsxPart(part) };
+				return { type: 'embed', isText: true, value: stringifyPromptTsxPart(part) };
 			} else if (part.kind === 'data') {
-				return { value: encodeBase64(part.value.data), mimeType: part.value.mimeType };
+				return { type: 'embed', value: encodeBase64(part.value.data), mimeType: part.value.mimeType };
 			} else {
 				assertNever(part);
 			}

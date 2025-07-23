@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService.js';
 import { IChatRendererContent } from '../../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
-import { isToolResultInputOutputDetails } from '../../../common/languageModelToolsService.js';
+import { isToolResultInputOutputDetails, isToolResultOutputDetails } from '../../../common/languageModelToolsService.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from '../chatContentParts.js';
 import { EditorPool } from '../chatMarkdownContentPart.js';
@@ -23,7 +23,9 @@ import { ChatTerminalMarkdownProgressPart } from './chatTerminalMarkdownProgress
 import { TerminalConfirmationWidgetSubPart } from './chatTerminalToolSubPart.js';
 import { ToolConfirmationSubPart } from './chatToolConfirmationSubPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import { ChatToolOutputSubPart } from './chatToolOutputPart.js';
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
+import { ChatTaskListSubPart } from './chatTaskListSubPart.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -83,6 +85,9 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			if (this.toolInvocation.toolSpecificData?.kind === 'extensions') {
 				return this.instantiationService.createInstance(ExtensionsInstallConfirmationWidgetSubPart, this.toolInvocation, this.context);
 			}
+			if (this.toolInvocation.toolSpecificData?.kind === 'tasks') {
+				return this.instantiationService.createInstance(ChatTaskListSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData);
+			}
 			if (this.toolInvocation.confirmationMessages) {
 				if (this.toolInvocation.toolSpecificData?.kind === 'terminal' || this.toolInvocation.toolSpecificData?.kind === 'terminal2') {
 					return this.instantiationService.createInstance(TerminalConfirmationWidgetSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockStartIndex);
@@ -98,6 +103,10 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 		if (Array.isArray(this.toolInvocation.resultDetails) && this.toolInvocation.resultDetails?.length) {
 			return this.instantiationService.createInstance(ChatResultListSubPart, this.toolInvocation, this.context, this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage, this.toolInvocation.resultDetails, this.listPool);
+		}
+
+		if (isToolResultOutputDetails(this.toolInvocation.resultDetails)) {
+			return this.instantiationService.createInstance(ChatToolOutputSubPart, this.toolInvocation, this.context);
 		}
 
 		if (isToolResultInputOutputDetails(this.toolInvocation.resultDetails)) {
