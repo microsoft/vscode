@@ -16,7 +16,7 @@ import { IToolInvocationContext } from '../../../chat/common/languageModelToolsS
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
-const enum PollingConsts {
+export const enum PollingConsts {
 	MinNoDataEvents = 2, // Minimum number of no data checks before considering the terminal idle
 	MinPollingDuration = 500,
 	FirstPollingMaxDuration = 20000, // 20 seconds
@@ -31,7 +31,7 @@ const enum PollingConsts {
  */
 export async function racePollingOrPrompt(
 	pollFn: () => Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }>,
-	promptFn: () => { promise: Promise<boolean>; part?: ChatElicitationRequestPart },
+	promptFn: () => { promise: Promise<boolean>; part?: Pick<ChatElicitationRequestPart, 'hide' | 'onDidRequestHide'> },
 	originalResult: { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string },
 	token: CancellationToken,
 	languageModelsService: ILanguageModelsService,
