@@ -3398,6 +3398,7 @@ export class CommandCenter {
 
 	private async _createWorktree(repository: Repository, worktreePath?: string, name?: string, newBranch?: boolean): Promise<void> {
 		const config = workspace.getConfiguration('git');
+		const branchPrefix = config.get<string>('branchPrefix')!;
 		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
 
 		if (!name) {
@@ -3425,7 +3426,7 @@ export class CommandCenter {
 
 				newBranch = true;
 				name = branchName;
-			} else if (choice instanceof BranchItem && choice.refName) {
+			} else if (choice instanceof RefItem && choice.refName) {
 				name = choice.refName;
 			} else {
 				return;
@@ -3434,9 +3435,10 @@ export class CommandCenter {
 
 		const disposables: Disposable[] = [];
 		const inputBox = window.createInputBox();
+
 		inputBox.placeholder = l10n.t('Worktree name');
 		inputBox.prompt = l10n.t('Please provide a worktree name');
-		inputBox.value = name || '';
+		inputBox.value = name.startsWith(branchPrefix) ? name.substring(branchPrefix.length) : name;
 		inputBox.show();
 
 		const worktreeName = await new Promise<string | undefined>((resolve) => {
