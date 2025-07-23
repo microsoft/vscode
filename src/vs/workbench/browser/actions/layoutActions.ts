@@ -325,7 +325,7 @@ export class ToggleSidebarVisibilityAction extends Action2 {
 		layoutService.setPartHidden(isCurrentlyVisible, Parts.SIDEBAR_PART);
 
 		// Announce visibility change to screen readers
-		const alertMessage = isCurrentlyVisible 
+		const alertMessage = isCurrentlyVisible
 			? localize('sidebarHidden', "Primary Side Bar hidden")
 			: localize('sidebarVisible', "Primary Side Bar shown");
 		alert(alertMessage);

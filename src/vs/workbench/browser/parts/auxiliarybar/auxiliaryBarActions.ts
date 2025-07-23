@@ -75,7 +75,7 @@ export class ToggleAuxiliaryBarAction extends Action2 {
 		layoutService.setPartHidden(isCurrentlyVisible, Parts.AUXILIARYBAR_PART);
 
 		// Announce visibility change to screen readers
-		const alertMessage = isCurrentlyVisible 
+		const alertMessage = isCurrentlyVisible
 			? localize('auxiliaryBarHidden', "Secondary Side Bar hidden")
 			: localize('auxiliaryBarVisible', "Secondary Side Bar shown");
 		alert(alertMessage);
