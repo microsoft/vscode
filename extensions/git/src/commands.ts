@@ -3393,14 +3393,15 @@ export class CommandCenter {
 
 	@command('git.createWorktree', { repository: true, repositoryFilter: ['repository', 'submodule'] })
 	async createWorktree(repository: Repository): Promise<void> {
-		await this._createWorktree(repository, undefined, undefined);
+		await this._createWorktree(repository);
 	}
 
-	private async _createWorktree(repository: Repository, worktreePath?: string, name?: string): Promise<void> {
+	private async _createWorktree(repository: Repository, worktreePath?: string, name?: string, newBranch?: boolean): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
 
 		if (!name) {
+			const createBranch = new CreateBranchItem();
 			const getBranchPicks = async () => {
 				const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
 				const itemsProcessor = new RefItemsProcessor(repository, [
@@ -3408,17 +3409,27 @@ export class CommandCenter {
 					new RefProcessor(RefType.RemoteHead),
 					new RefProcessor(RefType.Tag)
 				]);
-
-				return itemsProcessor.processRefs(refs);
+				const branchItems = itemsProcessor.processRefs(refs);
+				return [createBranch, { label: '', kind: QuickPickItemKind.Separator }, ...branchItems];
 			};
 
 			const placeHolder = l10n.t('Select a branch to create the new worktree from');
 			const choice = await this.pickRef(getBranchPicks(), placeHolder);
 
-			if (!(choice instanceof BranchItem) || !choice.refName) {
+			if (choice === createBranch) {
+				const branchName = await this.promptForBranchName(repository);
+
+				if (!branchName) {
+					return;
+				}
+
+				newBranch = true;
+				name = branchName;
+			} else if (choice instanceof BranchItem && choice.refName) {
+				name = choice.refName;
+			} else {
 				return;
 			}
-			name = choice.refName;
 		}
 
 		const disposables: Disposable[] = [];
@@ -3462,7 +3473,7 @@ export class CommandCenter {
 		worktreePath = path.join(uris[0].fsPath, worktreeName);
 
 		try {
-			await repository.worktree({ name: name, path: worktreePath });
+			await repository.worktree({ name: name, path: worktreePath, newBranch: newBranch });
 		} catch (err) {
 			if (err.gitErrorCode !== GitErrorCodes.WorktreeAlreadyExists) {
 				throw err;
