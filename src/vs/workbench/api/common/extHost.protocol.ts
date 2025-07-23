@@ -3132,9 +3132,9 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 	$unregisterChatSessionItemProvider(handle: number): void;
 	$registerChatSessionContentProvider(handle: number, chatSessionType: string): void;
 	$unregisterChatSessionContentProvider(handle: number): void;
-	$handleProgressChunk(handle: number, requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
-	$handleAnchorResolve(handle: number, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void;
-	$handleProgressComplete(handle: number, requestId: string): void;
+	$handleProgressChunk(handle: number, sessionId: string, requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
+	$handleAnchorResolve(handle: number, sessionId: string, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void;
+	$handleProgressComplete(handle: number, sessionId: string, requestId: string): void;
 	$showChatSession(chatSessionType: string, sessionId: string, position: EditorGroupColumn | undefined): Promise<void>;
 }
 

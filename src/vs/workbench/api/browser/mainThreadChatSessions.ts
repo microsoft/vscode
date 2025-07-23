@@ -75,10 +75,11 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			const _completionEmitter = new Emitter<void>();
 			let progressEvent: Event<IChatProgress[]> | undefined = undefined;
 			if (sessionContent.activeResponseCallback) {
+				const requestId = 'ongoing';
 				// set progress
 				progressEvent = _progressEmitter.event;
 				// store the event emitter using a key that combines handle and session id
-				const progressKey = `${handle}_${id}`;
+				const progressKey = `${handle}_${id}_${requestId}`;
 				this._activeProgressEmitters.set(progressKey, _progressEmitter);
 				this._completionEmitters.set(progressKey, _completionEmitter);
 			}
@@ -120,12 +121,12 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		this._contentProvidersRegisterations.deleteAndDispose(handle);
 	}
 
-	async $handleProgressChunk(handle: number, requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void> {
-		const progressKey = `${handle}_${requestId}`;
+	async $handleProgressChunk(handle: number, sessionId: string, requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void> {
+		const progressKey = `${handle}_${sessionId}_${requestId}`;
 		const progressEmitter = this._activeProgressEmitters.get(progressKey);
 
 		if (!progressEmitter) {
-			this._logService.warn(`No progress emitter found for handle ${handle} and requestId ${requestId}`);
+			this._logService.warn(`No progress emitter found for handle ${handle} and sessionId ${sessionId} and requestId ${requestId}`);
 			return;
 		}
 
@@ -138,8 +139,8 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		progressEmitter.fire(chatProgressParts);
 	}
 
-	$handleProgressComplete(handle: number, requestId: string) {
-		const progressKey = `${handle}_${requestId}`;
+	$handleProgressComplete(handle: number, sessionId: string, requestId: string) {
+		const progressKey = `${handle}_${sessionId}_${requestId}`;
 		const progressEmitter = this._activeProgressEmitters.get(progressKey);
 		const completionEmitter = this._completionEmitters.get(progressKey);
 
@@ -167,7 +168,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		this._completionEmitters.delete(progressKey);
 	}
 
-	$handleAnchorResolve(handle: number, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void {
+	$handleAnchorResolve(handle: number, sessionId: string, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void {
 		// throw new Error('Method not implemented.');
 	}
 

@@ -150,24 +150,24 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		const sessionId = ExtHostChatSessions._sessionHandlePool++;
 		const chatSession = new ExtHostChatSession(provider.extension, {
 			sessionId: `${id}.${sessionId}`,
-			requestId: id,
+			requestId: 'ongoing',
 			agentId: id,
 			message: '',
 			variables: { variables: [] },
 			location: ChatAgentLocation.Panel,
 		}, {
 			$handleProgressChunk: (requestId, chunks) => {
-				return this._proxy.$handleProgressChunk(handle, requestId, chunks);
+				return this._proxy.$handleProgressChunk(handle, id, requestId, chunks);
 			},
 			$handleAnchorResolve: (requestId, requestHandle, anchor) => {
-				this._proxy.$handleAnchorResolve(handle, requestId, requestHandle, anchor);
+				this._proxy.$handleAnchorResolve(handle, id, requestId, requestHandle, anchor);
 			},
 		}, this.commands.converter, sessionDisposables);
 
 		if (session.activeResponseCallback) {
 			session.activeResponseCallback(chatSession.stream.apiObject, token).then(() => {
 				// complete
-				this._proxy.$handleProgressComplete(handle, id);
+				this._proxy.$handleProgressComplete(handle, id, 'ongoing');
 			});
 		}
 
