@@ -295,7 +295,7 @@ if (PasteAction) {
 			if (platform.isWeb) {
 				// Use the clipboard service if document.execCommand('paste') was not successful
 				return (async () => {
-					const clipboardText = await clipboardService.readText('PasteAction');
+					const clipboardText = await clipboardService.readText();
 					logService.trace('clipboardText: ', clipboardText);
 					if (clipboardText !== '') {
 						const metadata = InMemoryClipboardMetadataManager.INSTANCE.get(clipboardText);
