@@ -26,7 +26,7 @@ import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommo
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatClear, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext, ChatResponseClearReason } from './chatService.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
 
@@ -129,7 +129,8 @@ export type IChatProgressResponseContent =
 	| IChatToolInvocationSerialized
 	| IChatUndoStop
 	| IChatPrepareToolInvocationPart
-	| IChatElicitationRequest;
+	| IChatElicitationRequest
+	| IChatClear;
 
 const nonHistoryKinds = new Set(['toolInvocation', 'toolInvocationSerialized', 'undoStop', 'prepareToolInvocation']);
 function isChatProgressHistoryResponseContent(content: IChatProgressResponseContent): content is IChatProgressHistoryResponseContent {
@@ -350,6 +351,10 @@ class AbstractResponse implements IResponse {
 		for (const part of parts) {
 			let segment: { text: string; isBlock?: boolean } | undefined;
 			switch (part.kind) {
+				case 'clear':
+					currentBlockSegments = [];
+					blocks.length = 0;
+					continue;
 				case 'treeData':
 				case 'progressMessage':
 				case 'codeblockUri':
@@ -460,13 +465,25 @@ export class Response extends AbstractResponse implements IDisposable {
 	}
 
 
-	clear(): void {
+	clear(message?: string): void {
 		this._responseParts = [];
+		if (message) {
+			this._responseParts.push({ kind: 'warning', content: new MarkdownString(message) });
+		}
 		this._updateRepr(true);
 	}
 
 	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask, quiet?: boolean): void {
-		if (progress.kind === 'markdownContent') {
+		if (progress.kind === 'clear') {
+			if (progress.reason === ChatResponseClearReason.CopyrightContentRetry) {
+				this.clear(localize('copyrightContentRetry', "Response cleared due to possible match to public code, retrying with modified prompt."));
+			} else if (progress.reason === ChatResponseClearReason.FilteredContentRetry) {
+				this.clear(localize('filteredContentRetry', "Response cleared due to content safety filters, retrying with modified prompt."));
+			} else {
+				this.clear();
+			}
+			return;
+		} else if (progress.kind === 'markdownContent') {
 
 			// last response which is NOT a text edit group because we do want to support heterogenous streaming but not have
 			// the MD be chopped up by text edit groups (and likely other non-renderable parts)

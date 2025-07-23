@@ -135,6 +135,11 @@ export class ChatAgentResponseStream {
 			};
 
 			this._apiObject = Object.freeze<vscode.ChatResponseStream>({
+				clear(reason) {
+					throwIfDone(this.markdown);
+					send({ kind: 'clear', reason: reason });
+					return this;
+				},
 				markdown(value) {
 					throwIfDone(this.markdown);
 					const part = new extHostTypes.ChatResponseMarkdownPart(value);

@@ -245,6 +245,11 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		chunks.forEach(item => {
 			const [progress, responsePartHandle] = Array.isArray(item) ? item : [item];
 
+			if (progress.kind === 'clear') {
+				chatProgressParts.push({ kind: 'clear', reason: progress.reason });
+				return;
+			}
+
 			const revivedProgress = progress.kind === 'notebookEdit'
 				? ChatNotebookEdit.fromChatEdit(progress)
 				: revive(progress) as IChatProgress;

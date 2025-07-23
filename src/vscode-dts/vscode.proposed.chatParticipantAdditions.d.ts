@@ -298,6 +298,8 @@ declare module 'vscode' {
 		prepareToolInvocation(toolName: string): void;
 
 		push(part: ExtendedChatResponsePart): void;
+
+		clear(reason: ChatResponseClearReason): void;
 	}
 
 	export enum ChatResponseReferencePartStatusKind {
@@ -306,6 +308,11 @@ declare module 'vscode' {
 		Omitted = 3
 	}
 
+	export enum ChatResponseClearReason {
+		NoReason = 0,
+		FilteredContentRetry = 1,
+		CopyrightContentRetry = 2,
+	}
 
 	/**
 	 * Does this piggy-back on the existing ChatRequest, or is it a different type of request entirely?
