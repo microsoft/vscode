@@ -10,6 +10,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ILanguageModelToolsService, ToolDataSource } from '../../../chat/common/languageModelToolsService.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
+import { CreateAndRunTaskTool, CreateAndRunTaskToolData } from './task/createAndRunTaskTool.js';
 import { GetTaskOutputTool, GetTaskOutputToolData } from './task/getTaskOutputTool.js';
 import { RunTaskTool, RunTaskToolData } from './task/runTaskTool.js';
 
@@ -34,11 +35,16 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 			this._register(toolsService.registerToolData(GetTaskOutputToolData));
 			this._register(toolsService.registerToolImplementation(GetTaskOutputToolData.id, getTaskOutputTool));
 
+			const createAndRunTaskTool = instantiationService.createInstance(CreateAndRunTaskTool);
+			this._register(toolsService.registerToolData(CreateAndRunTaskToolData));
+			this._register(toolsService.registerToolImplementation(CreateAndRunTaskToolData.id, createAndRunTaskTool));
+
 			const toolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'runTaskGetOutput', 'runTaskGetOutput', {
 				description: localize('toolset.runTaskGetOutput', 'Runs tasks and gets their output for your workspace')
 			}));
 			toolSet.addTool(RunTaskToolData);
 			toolSet.addTool(GetTaskOutputToolData);
+			toolSet.addTool(CreateAndRunTaskToolData);
 		}
 	}
 }
