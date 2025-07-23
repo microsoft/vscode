@@ -222,7 +222,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		}
 		commandDetectionListeners.push(capability.onCommandFinished(command => {
 			if (command.exitCode !== 130) {
-				// Don't show decoration when exiting out via ctrl+c
+				// Don't re-register decoration when watch activity (e.g. `npm run compile`) are exited with ctrl+c.
 				this.registerCommandDecoration(command);
 			}
 			if (command.exitCode) {

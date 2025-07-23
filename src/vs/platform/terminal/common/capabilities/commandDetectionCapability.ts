@@ -190,7 +190,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		// Remove them
 		if (count > 0) {
 			this._onCommandInvalidated.fire(this._commands.splice(this._commands.length - count, count));
-			// this._onCurrentCommandInvalidated.fire({ reason: CommandInvalidationReason.NoProblemsReported });
 		}
 	}
 
