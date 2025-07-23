@@ -57,7 +57,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntit
 import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatSessionItem, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
@@ -565,13 +565,18 @@ export function registerChatActions() {
 						const cancellationToken = new CancellationTokenSource();
 
 						try {
-							const sessions = await chatSessionsService.provideChatSessionItems(cancellationToken.token);
+							const providers = chatSessionsService.getChatSessionProviders();
+							const providerNSessions: { providerType: string; session: IChatSessionItem }[] = [];
 
-							for (const session of sessions) {
+							for (const provider of providers) {
+								const sessions = await chatSessionsService.provideChatSessionItems(provider.id, cancellationToken.token);
+								providerNSessions.push(...sessions.map(session => ({ providerType: provider.id, session })));
+							}
+
+							for (const session of providerNSessions) {
 								const sessionContent = session.session;
-								const provider = session.provider;
 
-								const ckey = contextKeyService.createKey('chatSessionType', provider.chatSessionType);
+								const ckey = contextKeyService.createKey('chatSessionType', session.providerType);
 								const actions = menuService.getMenuActions(MenuId.ChatSessionsMenu, contextKeyService);
 								const menuActions = getContextMenuActions(actions, 'navigation');
 								ckey.reset();
@@ -622,7 +627,7 @@ export function registerChatActions() {
 								currentPicks.push(...agentPicks);
 
 								// Add "Show more..." if needed and not showing all agents
-								if (!showAllAgents && sessions.length > 5) {
+								if (!showAllAgents && providerNSessions.length > 5) {
 									currentPicks.push({
 										label: localize('chat.history.showMoreAgents', 'Show more...'),
 										description: '',
