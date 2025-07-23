@@ -1240,6 +1240,7 @@ export class InlineChatController2 implements IEditorContribution {
 		@IChatAttachmentResolveService private readonly _chatAttachmentResolveService: IChatAttachmentResolveService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInlineChatSessionService inlineChatService: IInlineChatSessionService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 
 		const ctxInlineChatVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
@@ -1270,6 +1271,18 @@ export class InlineChatController2 implements IEditorContribution {
 					if (codeEditor === this._editor) {
 						location.location = ChatAgentLocation.Notebook;
 						notebookEditor = editor;
+						// set location2 so that the notebook agent intent is used
+						if (configurationService.getValue(InlineChatConfigKeys.notebookAgent)) {
+							location.resolveData = () => {
+								assertType(this._editor.hasModel());
+
+								return {
+									type: ChatAgentLocation.Notebook,
+									sessionInputUri: this._editor.getModel().uri,
+								};
+							};
+						}
+
 						break;
 					}
 				}
