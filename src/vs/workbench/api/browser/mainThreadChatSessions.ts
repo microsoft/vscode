@@ -4,19 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Event, Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { IChatProgress } from '../../contrib/chat/common/chatService.js';
+import { IChatContentInlineReference, IChatProgress } from '../../contrib/chat/common/chatService.js';
 import { ChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { ExtHostContext, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
+import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
+import { ExtHostContext, IChatProgressDto, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadChatSessions)
 export class MainThreadChatSessions extends Disposable implements MainThreadChatSessionsShape {
 	private readonly _itemProvidersRegistrations = this._register(new DisposableMap<number>());
 	private readonly _contentProvidersRegisterations = this._register(new DisposableMap<number>());
+
+	// Store progress emitters for active sessions: key is `${handle}_${requestId}`
+	private readonly _activeProgressEmitters = new Map<string, Emitter<IChatProgress[]>>();
+
+	// Store completion emitters for sessions: key is `${handle}_${requestId}`
+	private readonly _completionEmitters = new Map<string, Emitter<void>>();
 
 	constructor(
 		private readonly _extHostContext: IExtHostContext,
@@ -58,6 +66,18 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 		try {
 			const sessionContent = await proxy.$provideChatSessionContent(handle, id, token);
+			const _progressEmitter = new Emitter<IChatProgress[]>;
+			const _completionEmitter = new Emitter<void>();
+			let progressEvent: Event<IChatProgress[]> | undefined = undefined;
+			if (sessionContent.activeResponseCallback) {
+				// set progress
+				progressEvent = _progressEmitter.event;
+				// store the event emitter using a key that combines handle and session id
+				const progressKey = `${handle}_${id}`;
+				this._activeProgressEmitters.set(progressKey, _progressEmitter);
+				this._completionEmitters.set(progressKey, _completionEmitter);
+			}
+
 			return {
 				id: sessionContent.id,
 				history: sessionContent.history.map(turn => {
@@ -69,7 +89,8 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 						type: 'response',
 						parts: turn.parts.map(part => revive(part) as IChatProgress)
 					};
-				})
+				}),
+				progressEvent: progressEvent
 			};
 		} catch (error) {
 			this._logService.error(`Error providing chat session content for handle ${handle} and id ${id}:`, error);
@@ -92,6 +113,73 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 	$unregisterChatSessionContentProvider(handle: number): void {
 		this._contentProvidersRegisterations.deleteAndDispose(handle);
+	}
+
+	async $handleProgressChunk(handle: number, requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void> {
+		const progressKey = `${handle}_${requestId}`;
+		const progressEmitter = this._activeProgressEmitters.get(progressKey);
+
+		if (!progressEmitter) {
+			this._logService.warn(`No progress emitter found for handle ${handle} and requestId ${requestId}`);
+			return;
+		}
+
+		// Convert the chunks to IChatProgress[] and emit them
+		const chatProgressParts: IChatProgress[] = chunks.map(chunk => {
+			const [progress] = Array.isArray(chunk) ? chunk : [chunk];
+			return revive(progress) as IChatProgress;
+		});
+
+		progressEmitter.fire(chatProgressParts);
+	}
+
+	$handleProgressComplete(handle: number, requestId: string) {
+		const progressKey = `${handle}_${requestId}`;
+		const progressEmitter = this._activeProgressEmitters.get(progressKey);
+		const completionEmitter = this._completionEmitters.get(progressKey);
+
+		if (!progressEmitter) {
+			this._logService.warn(`No progress emitter found for handle ${handle} and requestId ${requestId}`);
+			return;
+		}
+
+		// TODO: Fire a completion event through the progress emitter
+		const completionProgress: IChatProgress = {
+			kind: 'progressMessage',
+			content: { value: 'Session completed', isTrusted: false }
+		};
+		progressEmitter.fire([completionProgress]);
+
+		// Fire completion event if someone is listening
+		if (completionEmitter) {
+			completionEmitter.fire();
+		}
+
+		// Clean up the emitters
+		progressEmitter.dispose();
+		completionEmitter?.dispose();
+		this._activeProgressEmitters.delete(progressKey);
+		this._completionEmitters.delete(progressKey);
+	}
+
+	$handleAnchorResolve(handle: number, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void {
+		// throw new Error('Method not implemented.');
+	}
+
+	override dispose(): void {
+		// Clean up all active progress emitters
+		for (const emitter of this._activeProgressEmitters.values()) {
+			emitter.dispose();
+		}
+		this._activeProgressEmitters.clear();
+
+		// Clean up all completion emitters
+		for (const emitter of this._completionEmitters.values()) {
+			emitter.dispose();
+		}
+		this._completionEmitters.clear();
+
+		super.dispose();
 	}
 
 	private _reviveIconPath(

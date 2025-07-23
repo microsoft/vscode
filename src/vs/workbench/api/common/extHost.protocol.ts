@@ -1303,7 +1303,12 @@ export interface IDynamicChatAgentProps {
 	fullName?: string;
 }
 
-export interface MainThreadChatAgentsShape2 extends IDisposable {
+export interface IChatAgentProgressShape {
+	$handleProgressChunk(requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
+	$handleAnchorResolve(requestId: string, handle: string, anchor: Dto<IChatContentInlineReference>): void;
+}
+
+export interface MainThreadChatAgentsShape2 extends IChatAgentProgressShape, IDisposable {
 	$registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): void;
 	$registerChatParticipantDetectionProvider(handle: number): void;
 	$unregisterChatParticipantDetectionProvider(handle: number): void;
@@ -1313,9 +1318,6 @@ export interface MainThreadChatAgentsShape2 extends IDisposable {
 	$unregisterAgentCompletionsProvider(handle: number, id: string): void;
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;
 	$unregisterAgent(handle: number): void;
-	$handleProgressChunk(requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
-	$handleAnchorResolve(requestId: string, handle: string, anchor: Dto<IChatContentInlineReference>): void;
-
 
 	$transferActiveChatSession(toWorkspace: UriComponents): void;
 }
@@ -3111,6 +3113,8 @@ export interface ChatSessionDto {
 	history: Array<
 		| { type: 'request'; prompt: string }
 		| { type: 'response'; parts: IChatProgressDto[] }>;
+
+	activeResponseCallback: boolean;
 }
 
 
@@ -3119,6 +3123,10 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 	$unregisterChatSessionItemProvider(handle: number): void;
 	$registerChatSessionContentProvider(handle: number, chatSessionType: string): void;
 	$unregisterChatSessionContentProvider(handle: number): void;
+	$handleProgressChunk(handle: number, requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
+	$handleAnchorResolve(handle: number, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void;
+	$handleProgressComplete(handle: number, requestId: string): void;
+
 }
 
 export interface ExtHostChatSessionsShape {

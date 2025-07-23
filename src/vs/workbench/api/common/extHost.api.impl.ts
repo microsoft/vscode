@@ -1507,11 +1507,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerChatSessionItemProvider(chatSessionType: string, provider: vscode.ChatSessionItemProvider) {
 				checkProposedApiEnabled(extension, 'chatSessionsProvider');
-				return extHostChatSessions.registerChatSessionItemProvider(chatSessionType, provider);
+				return extHostChatSessions.registerChatSessionItemProvider(extension, chatSessionType, provider);
 			},
 			registerChatSessionContentProvider(chatSessionType: string, provider: vscode.ChatSessionContentProvider) {
 				checkProposedApiEnabled(extension, 'chatSessionsProvider');
-				return extHostChatSessions.registerChatSessionContentProvider(chatSessionType, provider);
+				return extHostChatSessions.registerChatSessionContentProvider(extension, chatSessionType, provider);
 			}
 		};
 

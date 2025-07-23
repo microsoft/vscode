@@ -8,20 +8,42 @@ import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
-import { ChatSessionDto, ExtHostChatSessionsShape, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
-import { ExtHostCommands } from './extHostCommands.js';
+import { ChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
+import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
 import { coalesce } from '../../../base/common/arrays.js';
+import { ChatAgentResponseStream } from './extHostChatAgents2.js';
+import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
+
+class ExtHostChatSession {
+	private _stream: ChatAgentResponseStream;
+
+	constructor(
+		extension: IExtensionDescription,
+		request: IChatAgentRequest,
+		proxy: IChatAgentProgressShape,
+		commandsConverter: CommandsConverter,
+		sessionDisposables: DisposableStore
+	) {
+		this._stream = new ChatAgentResponseStream(extension, request, proxy, commandsConverter, sessionDisposables);
+	}
+
+	get stream() {
+		return this._stream;
+	}
+}
 
 export class ExtHostChatSessions extends Disposable implements ExtHostChatSessionsShape {
 
 	private readonly _proxy: Proxied<MainThreadChatSessionsShape>;
-	private readonly _chatSessionItemProviders = new Map<number, { provider: vscode.ChatSessionItemProvider; disposable: DisposableStore }>();
-	private readonly _chatSessionContentProviders = new Map<number, { provider: vscode.ChatSessionContentProvider; disposable: DisposableStore }>();
+	private readonly _chatSessionItemProviders = new Map<number, { provider: vscode.ChatSessionItemProvider; extension: IExtensionDescription; disposable: DisposableStore }>();
+	private readonly _chatSessionContentProviders = new Map<number, { provider: vscode.ChatSessionContentProvider; extension: IExtensionDescription; disposable: DisposableStore }>();
 	private _nextChatSessionItemProviderHandle = 0;
 	private _nextChatSessionContentProviderHandle = 0;
 	private _sessionMap: Map<string, vscode.ChatSessionItem> = new Map();
@@ -53,11 +75,11 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		});
 	}
 
-	registerChatSessionItemProvider(chatSessionType: string, provider: vscode.ChatSessionItemProvider): vscode.Disposable {
+	registerChatSessionItemProvider(extension: IExtensionDescription, chatSessionType: string, provider: vscode.ChatSessionItemProvider): vscode.Disposable {
 		const handle = this._nextChatSessionItemProviderHandle++;
 		const disposables = new DisposableStore();
 
-		this._chatSessionItemProviders.set(handle, { provider, disposable: disposables });
+		this._chatSessionItemProviders.set(handle, { provider, extension, disposable: disposables });
 		this._proxy.$registerChatSessionItemProvider(handle, chatSessionType);
 
 		return {
@@ -69,11 +91,11 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		};
 	}
 
-	registerChatSessionContentProvider(chatSessionType: string, provider: vscode.ChatSessionContentProvider) {
+	registerChatSessionContentProvider(extension: IExtensionDescription, chatSessionType: string, provider: vscode.ChatSessionContentProvider) {
 		const handle = this._nextChatSessionContentProviderHandle++;
 		const disposables = new DisposableStore();
 
-		this._chatSessionContentProviders.set(handle, { provider, disposable: disposables });
+		this._chatSessionContentProviders.set(handle, { provider, extension, disposable: disposables });
 		this._proxy.$registerChatSessionContentProvider(handle, chatSessionType);
 
 		return {
@@ -115,20 +137,43 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 	}
 
 	async $provideChatSessionContent(handle: number, id: string, token: CancellationToken): Promise<ChatSessionDto> {
-		const provider = this._chatSessionContentProviders.get(handle)?.provider;
+		const provider = this._chatSessionContentProviders.get(handle);
 		if (!provider) {
 			throw new Error(`No provider for handle ${handle}`);
 		}
 
-		const session = await provider.provideChatSessionContent(id, token);
+		const session = await provider.provider.provideChatSessionContent(id, token);
 
 		// TODO: leaked
 		const sessionDisposables = new DisposableStore();
 
 		const sessionId = ExtHostChatSessions._sessionHandlePool++;
+		const chatSession = new ExtHostChatSession(provider.extension, {
+			sessionId: `${id}.${sessionId}`,
+			requestId: id,
+			agentId: id,
+			message: '',
+			variables: { variables: [] },
+			location: ChatAgentLocation.Panel,
+		}, {
+			$handleProgressChunk: (requestId, chunks) => {
+				return this._proxy.$handleProgressChunk(handle, requestId, chunks);
+			},
+			$handleAnchorResolve: (requestId, requestHandle, anchor) => {
+				this._proxy.$handleAnchorResolve(handle, requestId, requestHandle, anchor);
+			},
+		}, this.commands.converter, sessionDisposables);
+
+		if (session.activeResponseCallback) {
+			session.activeResponseCallback(chatSession.stream.apiObject, token).then(() => {
+				// complete
+				this._proxy.$handleProgressComplete(handle, id);
+			});
+		}
 
 		return {
 			id: sessionId + '',
+			activeResponseCallback: !!session.activeResponseCallback,
 			history: session.history.map(turn => {
 				if (turn instanceof extHostTypes.ChatRequestTurn) {
 					return { type: 'request', prompt: turn.prompt };

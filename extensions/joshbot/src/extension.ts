@@ -91,7 +91,23 @@ class JoshBotSessionManager {
 				return { metadata: { command: '', sessionId: 'default-session' } };
 			}
 		};
+
 		this._sessions.set(defaultSession.id, defaultSession);
+
+		const ongoingSession: JoshBotSession = {
+			id: 'ongoing-session',
+			name: 'JoshBot Chat ongoing',
+			history: [
+				new vscode.ChatRequestTurn2('hello', undefined, [], 'joshbot', [], []),
+				response2 as vscode.ChatResponseTurn
+			],
+			requestHandler: async (request, _context, stream, _token) => {
+				// Simple echo bot for demo purposes
+				stream.markdown(`You said: "${request.prompt}"`);
+				return { metadata: { command: '', sessionId: 'ongoing-session' } };
+			}
+		};
+		this._sessions.set(ongoingSession.id, ongoingSession);
 	}
 
 	async getSessionContent(id: string, _token: vscode.CancellationToken): Promise<vscode.ChatSession> {
@@ -100,11 +116,27 @@ class JoshBotSessionManager {
 			throw new Error(`Session with id ${id} not found`);
 		}
 
-		return {
-			history: session.history,
-			requestHandler: session.requestHandler,
-			activeResponseCallback: session.activeResponseCallback
-		};
+		if (session.id === 'ongoing-session') {
+			return {
+				history: session.history,
+				requestHandler: session.requestHandler,
+				activeResponseCallback: async (stream) => {
+					// loop 1 to 5
+					for (let i = 0; i < 5; i++) {
+						stream.markdown(`\nthinking step ${i + 1}... \n`);
+						await new Promise(resolve => setTimeout(resolve, 1000));
+					}
+
+					stream.markdown(`Done`);
+				}
+			};
+		} else {
+			return {
+				history: session.history,
+				requestHandler: session.requestHandler,
+				activeResponseCallback: undefined
+			};
+		}
 	}
 
 	async createNewSession(name?: string): Promise<string> {

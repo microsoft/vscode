@@ -921,16 +921,30 @@ export function registerChatActions() {
 						} else {
 							// response
 							if (lastRequest) {
-								const activeRequest = lastRequest;
-								message.parts.forEach(part => {
-									model.acceptResponseProgress(activeRequest, part);
-								});
+								for (const part of message.parts) {
+									model.acceptResponseProgress(lastRequest, part);
+								}
 							}
 						}
 					});
 
-					if (lastRequest) {
-						model.completeResponse(lastRequest);
+					if (content.progressEvent) {
+						content.progressEvent(e => {
+							if (lastRequest) {
+								for (const progress of e) {
+
+									if (progress.kind === 'progressMessage' && progress.content.value === 'Session completed') {
+										model.completeResponse(lastRequest);
+									} else {
+										model.acceptResponseProgress(lastRequest, progress);
+									}
+								}
+							}
+						});
+					} else {
+						if (lastRequest) {
+							model.completeResponse(lastRequest);
+						}
 					}
 
 					// widget.lockToCodingAgent(selectedAgent);

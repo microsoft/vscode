@@ -5,6 +5,7 @@
 
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -40,6 +41,8 @@ export interface ChatSession {
 	history: Array<
 		| { type: 'request'; prompt: string }
 		| { type: 'response'; parts: IChatProgress[] }>;
+
+	progressEvent?: Event<IChatProgress[]>;
 }
 
 export interface IChatSessionItemProvider {
