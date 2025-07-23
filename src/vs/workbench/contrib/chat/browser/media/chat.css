@@ -2206,7 +2206,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		padding: 0px;
 
 		.interactive-input-part .chat-input-container .interactive-input-editor .monaco-editor .native-edit-context {
-			height: 0px !important;
+			opacity: 0;
 		}
 	}
 }
