@@ -42,6 +42,7 @@ export async function racePollingOrPrompt(
 
 	const pollPromiseWrapped = pollPromise.then(async result => {
 		if (!promptResolved && part) {
+			// The terminal polling is finished, no need to show the prompt
 			part.removePart();
 		}
 		return { type: 'poll', result };
