@@ -6,3 +6,7 @@
 .chat-sessions-tree .monaco-tl-twistie {
 	display: none !important;
 }
+
+.chat-sessions-tree {
+	line-height: 22px;
+}

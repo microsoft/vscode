@@ -37,7 +37,7 @@ import { append, $ } from '../../../../base/browser/dom.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IEditorGroupsService, IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
-import { GroupModelChangeKind, EditorResourceAccessor } from '../../../common/editor.js';
+import { GroupModelChangeKind } from '../../../common/editor.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -235,15 +235,12 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		this.editorOrder.forEach((editorKey, index) => {
 			const editorInfo = editorMap.get(editorKey);
 			if (editorInfo) {
-				const resource = EditorResourceAccessor.getOriginalUri(editorInfo.editor);
 				const sessionId = `local-${editorInfo.group.id}-${index}`;
 
 				sessions.push({
 					id: sessionId,
 					label: editorInfo.editor.getName(),
-					iconPath: resource ?
-						ThemeIcon.fromId('file') :
-						Codicon.file,
+					iconPath: Codicon.commentDiscussion,
 					editor: editorInfo.editor,
 					group: editorInfo.group
 				});
