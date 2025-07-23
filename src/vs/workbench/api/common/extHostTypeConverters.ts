@@ -41,7 +41,7 @@ import { IViewBadge } from '../../common/views.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatRequestVariableEntry, isImageVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
-import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatPrepareToolInvocationPart, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatPrepareToolInvocationPart, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatThinkingPart, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
 import { IToolResult, IToolResultInputOutputDetails, IToolResultOutputDetails, ToolDataSource } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { IChatMessageDataPart, IChatResponseDataPart, IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
@@ -2671,6 +2671,20 @@ export namespace ChatResponseProgressPart {
 	}
 }
 
+export namespace ChatResponseThinkingProgressPart {
+	export function from(part: vscode.ChatResponseThinkingProgressPart): Dto<IChatThinkingPart> {
+		return {
+			kind: 'thinking',
+			value: part.value,
+			id: undefined, // ID will be set by the thinking task if provided
+			metadata: undefined // Metadata will be set by the thinking task if provided
+		};
+	}
+	export function to(part: Dto<IChatThinkingPart>): vscode.ChatResponseThinkingProgressPart {
+		return new types.ChatResponseThinkingProgressPart(part.value);
+	}
+}
+
 export namespace ChatResponseWarningPart {
 	export function from(part: vscode.ChatResponseWarningPart): Dto<IChatWarningMessage> {
 		return {
@@ -2719,7 +2733,7 @@ export namespace ChatPrepareToolInvocationPart {
 }
 
 export namespace ChatTask {
-	export function from(part: vscode.ChatResponseProgressPart2): IChatTaskDto {
+	export function from(part: vscode.ChatResponseProgressPart2 | vscode.ChatResponseThinkingProgressPart): IChatTaskDto {
 		return {
 			kind: 'progressTask',
 			content: MarkdownString.from(part.value),
@@ -2873,6 +2887,8 @@ export namespace ChatResponsePart {
 			return ChatResponseReferencePart.from(part);
 		} else if (part instanceof types.ChatResponseProgressPart) {
 			return ChatResponseProgressPart.from(part);
+		} else if (part instanceof types.ChatResponseThinkingProgressPart) {
+			return ChatResponseThinkingProgressPart.from(part);
 		} else if (part instanceof types.ChatResponseFileTreePart) {
 			return ChatResponseFilesPart.from(part);
 		} else if (part instanceof types.ChatResponseCommandButtonPart) {

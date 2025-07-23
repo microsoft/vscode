@@ -4639,6 +4639,15 @@ export class ChatResponseProgressPart2 {
 	}
 }
 
+export class ChatResponseThinkingProgressPart {
+	value: string;
+	task?: (progress: vscode.Progress<vscode.LanguageModelThinkingPart>) => Thenable<string | void>;
+	constructor(value: string, task?: (progress: vscode.Progress<vscode.LanguageModelThinkingPart>) => Thenable<string | void>) {
+		this.value = value;
+		this.task = task;
+	}
+}
+
 export class ChatResponseWarningPart {
 	value: vscode.MarkdownString;
 	constructor(value: string | vscode.MarkdownString) {

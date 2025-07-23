@@ -186,6 +186,36 @@ class ChatAgentResponseStream {
 					_report(dto, task);
 					return this;
 				},
+				thinkingProgress(value, task?) {
+					throwIfDone(this.thinkingProgress);
+					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
+					const part = new extHostTypes.ChatResponseThinkingProgressPart(value, task);
+					const dto = typeConvert.ChatResponseThinkingProgressPart.from(part);
+
+					// Create a wrapper for the task to convert LanguageModelThinkingPart to IChatThinkingPart
+					let thinkingTask: ((progress: vscode.Progress<vscode.ChatResponseWarningPart | vscode.ChatResponseReferencePart>) => Thenable<string | void>) | undefined;
+					if (task) {
+						const taskFn = task; // Store in a local variable to satisfy TypeScript
+						thinkingTask = (progress) => {
+							// Create a progress adapter that converts LanguageModelThinkingPart to the internal format
+							const thinkingProgress = {
+								report: (thinking: vscode.LanguageModelThinkingPart) => {
+									const thinkingDto = {
+										kind: 'thinking' as const,
+										value: thinking.value,
+										id: thinking.id,
+										metadata: thinking.metadata
+									};
+									_report(thinkingDto);
+								}
+							};
+							return taskFn(thinkingProgress as any);
+						};
+					}
+
+					_report(dto, thinkingTask);
+					return this;
+				},
 				warning(value) {
 					throwIfDone(this.progress);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
@@ -291,7 +321,8 @@ class ChatAgentResponseStream {
 						part instanceof extHostTypes.ChatResponseCodeCitationPart ||
 						part instanceof extHostTypes.ChatResponseMovePart ||
 						part instanceof extHostTypes.ChatResponseExtensionsPart ||
-						part instanceof extHostTypes.ChatResponseProgressPart2
+						part instanceof extHostTypes.ChatResponseProgressPart2 ||
+						part instanceof extHostTypes.ChatResponseThinkingProgressPart
 					) {
 						checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 					}
@@ -302,6 +333,31 @@ class ChatAgentResponseStream {
 					} else if (part instanceof extHostTypes.ChatResponseProgressPart2) {
 						const dto = part.task ? typeConvert.ChatTask.from(part) : typeConvert.ChatResponseProgressPart.from(part);
 						_report(dto, part.task);
+					} else if (part instanceof extHostTypes.ChatResponseThinkingProgressPart) {
+						const dto = part.task ? typeConvert.ChatTask.from(part) : typeConvert.ChatResponseThinkingProgressPart.from(part);
+
+						// Create a wrapper for the task to convert LanguageModelThinkingPart to IChatThinkingPart
+						let thinkingTask: ((progress: vscode.Progress<vscode.ChatResponseWarningPart | vscode.ChatResponseReferencePart>) => Thenable<string | void>) | undefined;
+						if (part.task) {
+							const taskFn = part.task; // Store in a local variable to satisfy TypeScript
+							thinkingTask = (progress) => {
+								// Create a progress adapter that converts LanguageModelThinkingPart to the internal format
+								const thinkingProgress = {
+									report: (thinking: vscode.LanguageModelThinkingPart) => {
+										const thinkingDto = {
+											kind: 'thinking' as const,
+											value: thinking.value,
+											id: thinking.id,
+											metadata: thinking.metadata
+										};
+										_report(thinkingDto);
+									}
+								};
+								return taskFn(thinkingProgress as any);
+							};
+						}
+
+						_report(dto, thinkingTask);
 					} else if (part instanceof extHostTypes.ChatResponseAnchorPart) {
 						const dto = typeConvert.ChatResponseAnchorPart.from(part);
 

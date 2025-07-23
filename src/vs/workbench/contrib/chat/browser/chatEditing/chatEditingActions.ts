@@ -478,10 +478,10 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.chat.restoreLastCheckpoint',
-			title: localize2('chat.restoreLastCheckpoint.label', "Restore to last checkpoint"),
+			title: localize2('chat.restoreLastCheckpoint.label', "Restore last request"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			icon: Codicon.arrowUp,
+			icon: Codicon.discard,
 			menu: [
 				{
 					id: MenuId.ChatMessageFooter,
