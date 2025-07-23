@@ -3400,9 +3400,8 @@ export class CommandCenter {
 		const config = workspace.getConfiguration('git');
 		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
 
-		const createBranch = new CreateBranchItem();
-
 		if (!name) {
+			const createBranch = new CreateBranchItem();
 			const getBranchPicks = async () => {
 				const refs = await repository.getRefs({
 					pattern: 'refs/heads',
