@@ -148,8 +148,41 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 				'viewId' in widget.viewContext &&
 				widget.viewContext.viewId === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID) {
 				this._onDidChange.fire();
+
+				// Listen for view model changes on this widget
+				this._register(widget.onDidChangeViewModel(() => {
+					this._onDidChange.fire();
+				}));
+
+				// Listen for title changes on the current model
+				this.registerModelTitleListener(widget);
 			}
 		}));
+
+		// Check for existing chat widgets and register listeners
+		const existingWidgets = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel)
+			.filter(widget => typeof widget.viewContext === 'object' && 'viewId' in widget.viewContext && widget.viewContext.viewId === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID);
+
+		existingWidgets.forEach(widget => {
+			this._register(widget.onDidChangeViewModel(() => {
+				this._onDidChange.fire();
+				this.registerModelTitleListener(widget);
+			}));
+
+			// Register title listener for existing widget
+			this.registerModelTitleListener(widget);
+		});
+	}
+
+	private registerModelTitleListener(widget: IChatWidget): void {
+		const model = widget.viewModel?.model;
+		if (model) {
+			// Listen for model changes to detect title changes
+			// Since setCustomTitle doesn't fire an event, we listen to general model changes
+			this._register(model.onDidChange(() => {
+				this._onDidChange.fire();
+			}));
+		}
 	}
 
 	private initializeCurrentEditorSet(): void {
