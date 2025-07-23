@@ -3393,10 +3393,10 @@ export class CommandCenter {
 
 	@command('git.createWorktree', { repository: true, repositoryFilter: ['repository', 'submodule'] })
 	async createWorktree(repository: Repository): Promise<void> {
-		await this._createWorktree(repository, undefined, undefined);
+		await this._createWorktree(repository, undefined, undefined, undefined);
 	}
 
-	private async _createWorktree(repository: Repository, worktreePath?: string, name?: string): Promise<void> {
+	private async _createWorktree(repository: Repository, worktreePath?: string, name?: string, newBranch?: boolean): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
 
@@ -3424,7 +3424,7 @@ export class CommandCenter {
 					return;
 				}
 
-				await repository.branch(branchName, false, 'HEAD');
+				newBranch = true;
 				name = branchName;
 			} else if (choice instanceof BranchItem && choice.refName) {
 				name = choice.refName;
@@ -3474,7 +3474,7 @@ export class CommandCenter {
 		worktreePath = path.join(uris[0].fsPath, worktreeName);
 
 		try {
-			await repository.worktree({ name: name, path: worktreePath });
+			await repository.worktree({ name: name, path: worktreePath, newBranch: newBranch });
 		} catch (err) {
 			if (err.gitErrorCode !== GitErrorCodes.WorktreeAlreadyExists) {
 				throw err;
