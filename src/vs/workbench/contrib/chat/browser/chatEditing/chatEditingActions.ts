@@ -724,7 +724,7 @@ export class ViewPreviousEditsAction extends EditingSessionAction {
 	constructor() {
 		super({
 			id: ViewPreviousEditsAction.Id,
-			title: ViewPreviousEditsAction.Label,
+			title: localize2('chatEditing.viewPreviousEdits', 'View Previous Edits'),
 			tooltip: ViewPreviousEditsAction.Label,
 			f1: true,
 			icon: Codicon.diffMultiple,
