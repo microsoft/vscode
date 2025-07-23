@@ -18,10 +18,10 @@ import { workbenchInstantiationService, type TestTerminalConfigurationService } 
 import { ITerminalConfigurationService } from '../../../../terminal/browser/terminal.js';
 
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { events as windows11_pwsh7_ls_one_time } from './recordings/windows11_pwsh7_ls_one_time.js';
-import { events as windows11_pwsh7_echo_3_times } from './recordings/windows11_pwsh7_echo_3_times.js';
-import { events as windows11_pwsh7_type_foo } from './recordings/windows11_pwsh7_type_foo.js';
-import { events as windows11_pwsh7_type_foo_left_twice } from './recordings/windows11_pwsh7_type_foo_left_twice.js';
+import { events as rich_windows11_pwsh7_ls_one_time } from './recordings/rich/windows11_pwsh7_ls_one_time.js';
+import { events as rich_windows11_pwsh7_echo_3_times } from './recordings/rich/windows11_pwsh7_echo_3_times.js';
+import { events as rich_windows11_pwsh7_type_foo } from './recordings/rich/windows11_pwsh7_type_foo.js';
+import { events as rich_windows11_pwsh7_type_foo_left_twice } from './recordings/rich/windows11_pwsh7_type_foo_left_twice.js';
 
 // These are test cases recorded with the `Developer: Record Terminal Session` command. Once that is
 // run, a terminal is created and the test case is manually executed. After nothing happens for a
@@ -52,29 +52,29 @@ type RecordedTestCase = {
 };
 const recordedTestCases: RecordedTestCase[] = [
 	{
-		name: 'windows11_pwsh7_ls_one_time',
-		events: windows11_pwsh7_ls_one_time as any as RecordedSessionEvent[],
+		name: 'rich_windows11_pwsh7_ls_one_time',
+		events: rich_windows11_pwsh7_ls_one_time as any as RecordedSessionEvent[],
 		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
 			assertCommandDetectionState(commandDetection, ['ls'], '|');
 		}
 	},
 	{
-		name: 'windows11_pwsh7_echo_3_times',
-		events: windows11_pwsh7_echo_3_times as any as RecordedSessionEvent[],
+		name: 'rich_windows11_pwsh7_echo_3_times',
+		events: rich_windows11_pwsh7_echo_3_times as any as RecordedSessionEvent[],
 		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
 			assertCommandDetectionState(commandDetection, ['echo a', 'echo b', 'echo c'], '|');
 		}
 	},
 	{
-		name: 'windows11_pwsh7_type_foo',
-		events: windows11_pwsh7_type_foo as any as RecordedSessionEvent[],
+		name: 'rich_windows11_pwsh7_type_foo',
+		events: rich_windows11_pwsh7_type_foo as any as RecordedSessionEvent[],
 		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
 			assertCommandDetectionState(commandDetection, [], 'foo|');
 		}
 	},
 	{
-		name: 'windows11_pwsh7_type_foo_left_twice',
-		events: windows11_pwsh7_type_foo_left_twice as any as RecordedSessionEvent[],
+		name: 'rich_windows11_pwsh7_type_foo_left_twice',
+		events: rich_windows11_pwsh7_type_foo_left_twice as any as RecordedSessionEvent[],
 		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
 			assertCommandDetectionState(commandDetection, [], 'f|oo');
 		}
