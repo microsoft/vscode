@@ -254,6 +254,7 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 // Chat sessions container
 class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 	private localProvider: LocalChatSessionsProvider | undefined;
+	private registeredViewDescriptors: Map<string, IViewDescriptor> = new Map();
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -307,33 +308,77 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 	}
 
 	private updateViewRegistration(): void {
-		this.registerViews();
+		const currentProviders = this.chatSessionsService.providers;
+		const currentProviderIds = new Set(currentProviders.map(p => p.chatSessionType));
 
-		// TODO handle unregistering views
+		// Find views that need to be unregistered (providers that are no longer available)
+		const viewsToUnregister: IViewDescriptor[] = [];
+		for (const [providerId, viewDescriptor] of this.registeredViewDescriptors.entries()) {
+			if (!currentProviderIds.has(providerId)) {
+				viewsToUnregister.push(viewDescriptor);
+				this.registeredViewDescriptors.delete(providerId);
+			}
+		}
+
+		// Unregister removed views
+		if (viewsToUnregister.length > 0) {
+			const container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).get(VIEWLET_ID);
+			if (container) {
+				Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).deregisterViews(viewsToUnregister, container);
+			}
+		}
+
+		// Register new views
+		this.registerViews();
 	}
 
 	private async registerViews() {
 		const container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).get(VIEWLET_ID);
 		const providers = this.chatSessionsService.providers;
-		const viewDescriptors: IViewDescriptor[] = [];
+
 		if (container && providers.length > 0) {
+			const viewDescriptorsToRegister: IViewDescriptor[] = [];
 			let index = 1;
+
 			providers.forEach(provider => {
-				viewDescriptors.push({
-					id: `${VIEWLET_ID}.${provider.chatSessionType}`,
-					// TODO: localization?
-					name: {
-						value: provider.label,
-						original: provider.label,
-					},
-					ctorDescriptor: new SyncDescriptor(SessionsViewPane, [provider]),
-					canToggleVisibility: true,
-					canMoveView: true,
-					order: provider.chatSessionType === 'local' ? 0 : index++,
-				});
+				// Only register if not already registered
+				if (!this.registeredViewDescriptors.has(provider.chatSessionType)) {
+					const viewDescriptor: IViewDescriptor = {
+						id: `${VIEWLET_ID}.${provider.chatSessionType}`,
+						// TODO: localization?
+						name: {
+							value: provider.label,
+							original: provider.label,
+						},
+						ctorDescriptor: new SyncDescriptor(SessionsViewPane, [provider]),
+						canToggleVisibility: true,
+						canMoveView: true,
+						order: provider.chatSessionType === 'local' ? 0 : index++,
+					};
+
+					viewDescriptorsToRegister.push(viewDescriptor);
+					this.registeredViewDescriptors.set(provider.chatSessionType, viewDescriptor);
+				}
 			});
-			Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViews(viewDescriptors, container);
+
+			if (viewDescriptorsToRegister.length > 0) {
+				Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViews(viewDescriptorsToRegister, container);
+			}
 		}
+	}
+
+	override dispose(): void {
+		// Unregister all views before disposal
+		if (this.registeredViewDescriptors.size > 0) {
+			const container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).get(VIEWLET_ID);
+			if (container) {
+				const allRegisteredViews = Array.from(this.registeredViewDescriptors.values());
+				Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).deregisterViews(allRegisteredViews, container);
+			}
+			this.registeredViewDescriptors.clear();
+		}
+
+		super.dispose();
 	}
 }
 
