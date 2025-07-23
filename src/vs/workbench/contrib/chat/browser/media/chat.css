@@ -1557,6 +1557,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 3px 3px;
 	width: 100%;
 	box-sizing: border-box;
+	display : flex;
+	justify-content: space-between;
+}
+
+.interactive-session .chat-file-changes-summary .chat-view-changes-icon {
+	float: right;
+	cursor: pointer;
 }
 
 .interactive-session .chat-file-changes-summary .container-file-changes-summary .monaco-button-mdlabel {
@@ -1568,6 +1575,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-file-changes-summary .container-file-changes-summary .chat-used-context-label {
 	width: 100%;
+	float: left;
 }
 
 .interactive-session .chat-file-changes-summary .container-file-changes-summary .chat-used-context-label .monaco-button {

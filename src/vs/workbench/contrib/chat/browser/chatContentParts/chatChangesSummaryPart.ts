@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { $ } from '../../../../../base/browser/dom.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatChangesSummaryPart, IChatRendererContent } from '../../common/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
@@ -37,7 +37,7 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 	private listPool: CollapsibleChangesSummaryListPool | undefined;
 	private isExpanded: boolean = false;
 
-	private diff: Map<string, IEditSessionEntryDiff> = new Map();
+	private fileDiffs: Map<string, IEditSessionEntryDiff> = new Map();
 	private changes: readonly IChatChangesSummary[] = [];
 
 	constructor(
@@ -46,39 +46,24 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 		@ICommandService private readonly commandService: ICommandService,
 		@IChatService private readonly chatService: IChatService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this.changes = content.changes;
-		this.initializeDiffMap(content.changes);
+		this.computeFileDiffs(content.changes);
 
-		const fileChangesSummary = $('.container-file-changes-summary');
-		fileChangesSummary.style.display = 'flex';
-		fileChangesSummary.style.justifyContent = 'space-between';
-
-		this.domNode = $('.chat-file-changes-summary', undefined, fileChangesSummary);
+		const innerDomNode = $('.container-file-changes-summary');
+		this.domNode = $('.chat-file-changes-summary', undefined, innerDomNode);
 		this.domNode.tabIndex = 0;
 
-		const viewAllFileChangesButton = this.renderViewAllFileChangesButton();
-		fileChangesSummary.appendChild(this.renderChangedFilesButton(viewAllFileChangesButton));
-
-		this.listPool = this._register(instantiationService.createInstance(CollapsibleChangesSummaryListPool));
-		const list = this.listPool.get();
-
-		const itemsShown = Math.min(this.changes.length, this.MAX_ITEMS_SHOWN);
-		const height = itemsShown * this.ELEMENT_HEIGHT;
-		const listElement = list.getHTMLElement();
-		listElement.style.height = `${height}px`;
-		list.layout(height);
-		list.splice(0, list.length, this.processChanges(this.changes));
-		this.domNode.appendChild(listElement.parentElement!);
-		this.registerListListeners(list);
+		this._register(this.renderButtons(innerDomNode));
+		this._register(this.renderList(this.domNode));
 	}
 
-	private initializeDiffMap(changes: readonly IChatChangesSummary[]): void {
+	private computeFileDiffs(changes: readonly IChatChangesSummary[]): void {
 		autorun((r) => {
-			changes.forEach(change => {
+			for (const change of changes) {
 				const sessionId = change.sessionId;
 				const session = this.chatService.getSession(sessionId);
 				if (!session || !session.editingSessionObs) {
@@ -93,18 +78,24 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 				if (!modifiedEntry) {
 					return;
 				}
+				const id = this.changeID(change);
 				const requestId = change.requestId;
 				const undoStops = this.context.content.filter(e => e.kind === 'undoStop');
+
+				let madeChange = false;
 				for (let i = undoStops.length - 1; i >= 0; i--) {
 					const undoStopID = undoStops[i].id;
 					const diff: IEditSessionEntryDiff | undefined = editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, requestId, undoStopID)?.read(r);
 					if (!diff) {
 						continue;
 					}
-					this.diff.set(this.changeID(change), diff);
-					break;
+					this.fileDiffs.set(id, diff);
+					madeChange = true;
 				}
-			});
+				if (!madeChange) {
+					this.fileDiffs.delete(id);
+				}
+			}
 		});
 	}
 
@@ -112,10 +103,9 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 		return `${change.sessionId}-${change.requestId}-${change.reference.path}`;
 	}
 
-	private renderChangedFilesButton(viewAllFileChangesButton: HTMLElement): HTMLElement {
-		const buttonElement = $('.chat-used-context-label', undefined);
-		buttonElement.style.float = 'left';
-		const collapseButton = this._register(new ButtonWithIcon(buttonElement, {
+	private renderButtons(container: HTMLElement): IDisposable {
+		const viewListButtonContainer = container.appendChild($('.chat-used-context-label'));
+		const viewListButton = this._register(new ButtonWithIcon(viewListButtonContainer, {
 			buttonBackground: undefined,
 			buttonBorder: undefined,
 			buttonForeground: undefined,
@@ -125,40 +115,71 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 			buttonSecondaryHoverBackground: undefined,
 			buttonSeparator: undefined
 		}));
-		collapseButton.element.appendChild(viewAllFileChangesButton);
-
 		if (this.changes.length === 1) {
-			collapseButton.label = `Changed 1 file`;
+			viewListButton.label = `Changed 1 file`;
 		} else {
-			collapseButton.label = `Changed ${this.changes.length} files`;
+			viewListButton.label = `Changed ${this.changes.length} files`;
 		}
+
 		const setExpansionState = () => {
-			collapseButton.icon = this.isExpanded ? Codicon.chevronDown : Codicon.chevronRight;
+			viewListButton.icon = this.isExpanded ? Codicon.chevronDown : Codicon.chevronRight;
 			this.domNode.classList.toggle('chat-used-context-collapsed', !this.isExpanded);
 		};
-		const toggleExpansionState = () => {
-			this.isExpanded = !this.isExpanded;
-			setExpansionState();
-		};
-		this._register(collapseButton.onDidClick(() => {
-			toggleExpansionState();
-		}));
 		setExpansionState();
 
-		return buttonElement;
+		const disposables = new DisposableStore();
+		disposables.add(viewListButton.onDidClick(() => {
+			this.isExpanded = !this.isExpanded;
+			setExpansionState();
+		}));
+		disposables.add(this.renderViewAllFileChangesButton(viewListButton.element));
+
+		return toDisposable(() => disposables.dispose());
 	}
 
-	private renderViewAllFileChangesButton(): HTMLElement {
-		const viewAllChangesButton = $('.chat-view-changes-icon');
-		viewAllChangesButton.style.float = 'right';
-		viewAllChangesButton.style.cursor = 'pointer';
-		viewAllChangesButton.classList.add(...ThemeIcon.asClassNameArray(Codicon.diffMultiple));
+	private renderList(container: HTMLElement): IDisposable {
+		const store = new DisposableStore();
+		this.listPool = store.add(this.instantiationService.createInstance(CollapsibleChangesSummaryListPool));
+		const list = this.listPool.get();
+		const listElement = list.getHTMLElement();
+		const itemsShown = Math.min(this.changes.length, this.MAX_ITEMS_SHOWN);
+		const height = itemsShown * this.ELEMENT_HEIGHT;
+		listElement.style.height = `${height}px`;
+		list.layout(height);
+		list.splice(0, list.length, this.computeChangeSummaryItems(this.changes));
+		container.appendChild(listElement.parentElement!);
 
-		this._register(dom.addDisposableListener(viewAllChangesButton, 'click', (e) => {
+		store.add(list.onDidOpen((item) => {
+			if (!item.element) {
+				return;
+			}
+			const changeID = this.changeID(item.element);
+			const diff = this.fileDiffs.get(changeID);
+			if (diff) {
+				const input = {
+					original: { resource: diff.originalURI },
+					modified: { resource: diff.modifiedURI },
+					options: { transient: true },
+				};
+				return this.editorService.openEditor(input);
+			} else {
+				return this.editorService.openEditor({ resource: item.element.reference });
+			}
+		}));
+		store.add(list.onContextMenu(e => {
+			dom.EventHelper.stop(e.browserEvent, true);
+		}));
+		return store;
+	}
+
+	private renderViewAllFileChangesButton(container: HTMLElement): IDisposable {
+		const button = container.appendChild($('.chat-view-changes-icon'));
+		button.classList.add(...ThemeIcon.asClassNameArray(Codicon.diffMultiple));
+		return dom.addDisposableListener(button, 'click', (e) => {
 			const resources: { originalUri: URI; modifiedUri?: URI }[] = [];
 			this.changes.forEach(e => {
 				const changeID = this.changeID(e);
-				const diffEntry = this.diff.get(changeID);
+				const diffEntry = this.fileDiffs.get(changeID);
 				if (diffEntry) {
 					resources.push({
 						originalUri: diffEntry.originalURI,
@@ -172,15 +193,14 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 			});
 			this.commandService.executeCommand('chatEditing.viewFileChangesSummary', resources);
 			dom.EventHelper.stop(e, true);
-		}));
-		return viewAllChangesButton;
+		});
 	}
 
-	private processChanges(changes: readonly IChatChangesSummary[]): IChatChangesSummaryItem[] {
+	private computeChangeSummaryItems(changes: readonly IChatChangesSummary[]): IChatChangesSummaryItem[] {
 		const items: IChatChangesSummaryItem[] = [];
 		for (const change of changes) {
 			const changeID = this.changeID(change);
-			const diffEntry = this.diff.get(changeID);
+			const diffEntry = this.fileDiffs.get(changeID);
 			if (diffEntry) {
 				const additionalLabels: { description: string; className: string }[] = [];
 				if (diffEntry) {
@@ -203,30 +223,6 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 			}
 		}
 		return items;
-	}
-
-	private registerListListeners(list: WorkbenchList<IChatChangesSummaryItem>): void {
-		this._register(list.onDidOpen((item) => {
-			if (!item.element) {
-				return;
-			}
-			const changeID = this.changeID(item.element);
-			const diff = this.diff.get(changeID);
-			console.log('this.diff', this.diff);
-			if (diff) {
-				const input = {
-					original: { resource: diff.originalURI },
-					modified: { resource: diff.modifiedURI },
-					options: { transient: true },
-				};
-				return this.editorService.openEditor(input);
-			} else {
-				return this.editorService.openEditor({ resource: item.element.reference });
-			}
-		}));
-		this._register(list.onContextMenu(e => {
-			dom.EventHelper.stop(e.browserEvent, true);
-		}));
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
