@@ -146,7 +146,7 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		if (e.element) {
 			const disposables = new DisposableStore();
 			const manageExtensionAction = disposables.add(this.instantiationService.createInstance(ManageMcpServerAction, false));
-			const extension = e.element ? this.mcpWorkbenchService.local.find(local => local.name === e.element!.name) || e.element
+			const extension = e.element ? this.mcpWorkbenchService.local.find(local => local.id === e.element!.id) || e.element
 				: e.element;
 			manageExtensionAction.mcpServer = extension;
 			let groups: IAction[][] = [];
@@ -278,7 +278,7 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 			let index = -1;
 			const previousMcpServerInNew = newMcpServers[from];
 			if (previousMcpServerInNew) {
-				index = oldMcpServers.findIndex(e => e.name === previousMcpServerInNew.name);
+				index = oldMcpServers.findIndex(e => e.id === previousMcpServerInNew.id);
 				if (index === -1) {
 					return findPreviousMcpServerIndex(from - 1);
 				}
@@ -289,7 +289,7 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		let hasChanged: boolean = false;
 		for (let index = 0; index < newMcpServers.length; index++) {
 			const mcpServer = newMcpServers[index];
-			if (mcpServers.every(r => r.name !== mcpServer.name)) {
+			if (mcpServers.every(r => r.id !== mcpServer.id)) {
 				hasChanged = true;
 				mcpServers.splice(findPreviousMcpServerIndex(index - 1) + 1, 0, mcpServer);
 			}
@@ -393,7 +393,10 @@ class McpServerRenderer implements IListRenderer<IWorkbenchMcpServer, IMcpServer
 		data.mcpServer = mcpServer;
 
 		const updateEnablement = () => {
-			const disabled = mcpServer.installState === McpServerInstallState.Installed && !!mcpServer.local && this.allowedMcpServersService.isAllowed(mcpServer.local) !== true;
+			const disabled = !!mcpServer.local &&
+				(mcpServer.installState === McpServerInstallState.Installed
+					? this.allowedMcpServersService.isAllowed(mcpServer.local) !== true
+					: mcpServer.installState === McpServerInstallState.Uninstalled);
 			data.root.classList.toggle('disabled', disabled);
 		};
 		updateEnablement();

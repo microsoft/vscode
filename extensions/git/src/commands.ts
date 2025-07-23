@@ -3403,13 +3403,13 @@ export class CommandCenter {
 		if (!name) {
 			const createBranch = new CreateBranchItem();
 			const getBranchPicks = async () => {
-				const refs = await repository.getRefs({
-					pattern: 'refs/heads',
-					includeCommitDetails: showRefDetails
-				});
-				const processors = [new RefProcessor(RefType.Head, BranchItem)];
-				const itemsProcessor = new RefItemsProcessor(repository, processors);
-				const branchItems = itemsProcessor.processRefs(refs);
+				const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
+				const itemsProcessor = new RefItemsProcessor(repository, [
+					new RefProcessor(RefType.Head),
+					new RefProcessor(RefType.RemoteHead),
+					new RefProcessor(RefType.Tag)
+				]);
+        const branchItems = itemsProcessor.processRefs(refs);
 				return [createBranch, { label: '', kind: QuickPickItemKind.Separator }, ...branchItems];
 			};
 
